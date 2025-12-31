@@ -1,0 +1,4 @@
+apiVersion: v2
+name: holiday-peak-service
+version: 0.1.0
+description: Generic Helm chart for Holiday Peak Hub services

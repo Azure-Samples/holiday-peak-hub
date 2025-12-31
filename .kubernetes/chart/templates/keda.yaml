@@ -1,0 +1,20 @@
+{{- if .Values.keda.enabled }}
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "holiday-peak-service.fullname" . }}-keda
+spec:
+  scaleTargetRef:
+    name: {{ include "holiday-peak-service.fullname" . }}
+  pollingInterval: {{ .Values.keda.pollingInterval }}
+  minReplicaCount: {{ .Values.keda.minReplicaCount }}
+  maxReplicaCount: {{ .Values.keda.maxReplicaCount }}
+  triggers:
+  {{- range .Values.keda.triggers }}
+    - type: {{ .type }}
+      metadata:
+      {{- range $key, $value := .metadata }}
+        {{ $key }}: {{ $value }}
+      {{- end }}
+  {{- end }}
+{{- end }}

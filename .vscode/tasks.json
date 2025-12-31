@@ -1,0 +1,24 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "lint",
+      "type": "shell",
+      "command": "python -m pylint lib/src apps/**/src",
+      "group": "build",
+      "problemMatcher": ["$pylint"]
+    },
+    {
+      "label": "format",
+      "type": "shell",
+      "command": "python -m black lib apps && python -m isort lib apps",
+      "group": "build"
+    },
+    {
+      "label": "test",
+      "type": "shell",
+      "command": "python -m pytest",
+      "group": "test"
+    }
+  ]
+}
