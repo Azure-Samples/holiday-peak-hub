@@ -1,0 +1,21 @@
+[project]
+name = "ecommerce-order-status"
+version = "0.1.0"
+description = "Order status and resolution service"
+authors = [{name = "Ricardo Cataldi", email = "rcataldi@microsoft.com"}]
+readme = "../README.md"
+requires-python = ">=3.13"
+dependencies = ["fastapi", "fastapi-mcp", "uvicorn", "pydantic>=2", "agent-framework", "azure-ai-projects", "azure-identity", "azure-search-documents", "azure-cosmos", "azure-storage-blob", "azure-eventhub", "redis", "asyncpg", "holiday-peak-lib @ file://../../../lib"]
+
+[project.optional-dependencies]
+dev = ["faker", "pre-commit", "python-dotenv", "debugpy"]
+test = ["pytest", "pytest-cov", "pytest-asyncio", "httpx", "requests"]
+lint = ["pylint", "isort", "black[jupyter]>=25.1.0"]
+
+[tool.pytest.ini_options]
+addopts = "-ra -q -s --cov=ecommerce_order_status --cov-report=term-missing"
+testpaths = ["tests"]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"

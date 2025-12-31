@@ -1,0 +1,103 @@
+[project]
+name = "holiday-peak-lib"
+version = "0.1.0"
+description = "Core micro-framework for retail agent adapters, agents, and memory tiers"
+authors = [
+    {name = "Ricardo Cataldi", email = "rcataldi@microsoft.com"}
+]
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi",
+    "fastapi-mcp",
+    "uvicorn",
+    "pydantic>=2",
+    "agent-framework",
+    "azure-ai-projects",
+    "azure-identity",
+    "azure-search-documents",
+    "azure-cosmos",
+    "azure-storage-blob",
+    "azure-eventhub",
+    "redis",
+    "asyncpg",
+    "aiohttp",
+    "typing-extensions",
+    "python-dotenv",
+    "azure-monitor-opentelemetry-exporter"
+]
+
+[project.optional-dependencies]
+dev = [
+    "faker",
+    "pre-commit",
+    "python-dotenv",
+    "debugpy"
+]
+test = [
+    "pytest",
+    "pytest-cov",
+    "pytest-asyncio",
+    "httpx",
+    "requests"
+]
+lint = [
+    "pylint",
+    "isort",
+    "black[jupyter]>=25.1.0",
+]
+docs = [
+    "mkdocs",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["holiday_peak_lib*"]
+namespaces = true
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q -s --cov=holiday_peak_lib --cov-report=term-missing"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "async: marks tests as async (select with '-m async')",
+    "slow: marks tests as slow (select with '-m slow')"
+]
+
+[tool.pylint]
+fail-under = 8.5
+max-line-length = 100
+max-complexity = 10
+good-names = ["i", "j", "k", "ex", "Run", "_"]
+disable = [
+    "C0114", "C0115", "C0116", "C0301",
+    "W3101",
+    "E0401"
+]
+load-plugins = [
+    "pylint.extensions.mccabe",
+]
+
+[tool.black]
+line-length = 100
+target-version = ['py311', 'py312', 'py313']
+include = '\\.pyi?$'
+exclude = '\\.git|\\.hg|\\.mypy_cache|\\.tox|\\.venv|_build|buck-out|build|dist'
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+line_length = 100
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
