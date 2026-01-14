@@ -1,90 +1,43 @@
 # Adapters Component
 
 **Path**: `lib/src/holiday_peak_lib/adapters/`  
-**Pattern**: Adapter Pattern  
+**Pattern**: Adapter Pattern + Connector utilities  
 **Related ADRs**: [ADR-003](../../adrs/adr-003-adapter-pattern.md)
 
 ## Purpose
 
-Provides pluggable interfaces for integrating with diverse retailer systems (inventory, pricing, CRM, logistics, catalog). Decouples agent/app logic from external API specifics, enabling retailers to swap implementations without code changes.
+Provides pluggable interfaces for integrating with diverse retailer systems (inventory, pricing, CRM, logistics, catalog) and connector helpers that normalize upstream payloads into agent-ready context. Decouples agent/app logic from external API specifics, enabling retailers to swap implementations without code changes.
 
 ## Design Pattern: Adapter
 
-Adapters translate retailer-specific APIs into standardized interfaces consumed by agents. Each adapter type defines an abstract base class with methods agents expect; retailers implement concrete adapters for their systems.
-
-```python
-# Base adapter interface
-class InventoryAdapter(ABC):
-    @abstractmethod
-    async def fetch_stock(self, sku: str) -> InventoryStatus:
-        """Get current stock level for SKU."""
-        pass
-    
-    @abstractmethod
-    async def reserve_stock(self, sku: str, quantity: int, order_id: str) -> ReservationResult:
-        """Reserve inventory for order."""
-        pass
-
-# Mock implementation (stubbed in current codebase)
-class MockInventoryAdapter(InventoryAdapter):
-    async def fetch_stock(self, sku: str) -> InventoryStatus:
-        return InventoryStatus(sku=sku, available=100, reserved=0, status="in_stock")
-    
-    async def reserve_stock(self, sku: str, quantity: int, order_id: str) -> ReservationResult:
-        return ReservationResult(success=True, reservation_id=f"RES-{order_id}")
-
-# Retailer implementation (to be provided by retailer)
-class LevisInventoryAdapter(InventoryAdapter):
-    def __init__(self, api_url: str, api_key: str):
-        self.api_url = api_url
-        self.api_key = api_key
-        self.session = aiohttp.ClientSession()
-    
-    async def fetch_stock(self, sku: str) -> InventoryStatus:
-        async with self.session.get(
-            f"{self.api_url}/inventory/{sku}",
-            headers={"Authorization": f"Bearer {self.api_key}"}
-        ) as resp:
-            data = await resp.json()
-            return InventoryStatus(
-                sku=sku,
-                available=data["available"],
-                reserved=data["reserved"],
-                status=data["status"]
-            )
-```
+Adapters translate retailer-specific APIs into a standardized interface (`BaseAdapter.connect/fetch/upsert/delete`). Connectors consume any `BaseAdapter` and map results to canonical schemas (CRM, product, inventory, pricing, logistics, funnel) for agent prompts. A set of mock adapters provides deterministic data for local testing and doctests. Resilience (rate limiting, caching, retries, timeouts, circuit breaking) is built into `BaseAdapter` and applies to all child adapters.
 
 ## What's Implemented
 
-✅ **Base Adapter Interfaces**:
-- `InventoryAdapter`: Stock queries, reservations
-- `PricingAdapter`: Price lookups, promotions
-- `CRMAdapter`: Customer profiles, segments
-- `LogisticsAdapter`: Shipping rates, ETAs
-- `CatalogAdapter`: Product metadata, search
+✅ **Base interfaces**: `BaseAdapter` and `AdapterError` in `base.py`
 
-✅ **Mock Adapters**: Stub implementations returning hardcoded data for all interfaces
+✅ **Connector utilities**: `BaseConnector` adds bounded async mapping, adapter accessors, and validation
 
-✅ **Retry Logic**: Exponential backoff with jitter for transient failures
+✅ **Domain connectors**: CRM, product, inventory, pricing, logistics, funnel connectors normalize adapter payloads into canonical schemas
 
-✅ **Timeout Handling**: Default 5-second timeout per call, configurable
+✅ **Mock adapters**: `mock_adapters.py` provides deterministic stubs for all domains
 
-✅ **Error Mapping**: `AdapterException` hierarchy for consistent error handling
+✅ **Resilience defaults**: `BaseAdapter` includes rate limiting, caching, retries, timeouts, and circuit breaking around all adapter operations
 
 ## What's NOT Implemented (Retailer Responsibility)
 
 ❌ **Real API Clients**: No actual HTTP/gRPC/database calls to retailer systems  
 ❌ **Authentication**: No OAuth, API key rotation, or token refresh logic  
-❌ **Schema Mapping**: No transformation from retailer schemas to lib schemas  
-❌ **Rate Limiting**: No backpressure or quota management  
-❌ **Caching**: No adapter-level caching (apps use memory tiers)  
-❌ **Circuit Breakers**: No fault isolation when downstream systems fail  
+❌ **Rate Limiting**: Provided via `BaseAdapter` but not tuned per retailer  
+❌ **Caching**: Provided via `BaseAdapter` but currently in-memory only  
+❌ **Circuit Breakers / Retries / Timeouts**: Provided via `BaseAdapter` but defaults may need tuning  
 
-**Current Status**: All adapters are **stubs**. Apps use `MockInventoryAdapter`, `MockPricingAdapter`, etc. Retailers must implement concrete adapters by:
-1. Subclassing base adapter interface
+**Current Status**: Connectors and mock adapters are available. Retailers must implement concrete adapters by:
+1. Subclassing `BaseAdapter`
 2. Implementing async methods with real API calls
-3. Mapping retailer schemas to lib Pydantic models
-4. Registering adapter in app config via dependency injection
+3. Mapping retailer schemas to lib Pydantic models (consumed by connectors)
+4. Tuning `BaseAdapter` resilience parameters per retailer workload
+5. Registering the adapter in app config via dependency injection
 
 ## Extension Guide
 
@@ -92,33 +45,40 @@ class LevisInventoryAdapter(InventoryAdapter):
 
 ```python
 # apps/inventory-health-check/src/adapters/custom_inventory.py
-from holiday_peak_lib.adapters.inventory import InventoryAdapter
-from holiday_peak_lib.schemas.inventory import InventoryStatus
+from holiday_peak_lib.adapters.base import AdapterError, BaseAdapter
 import aiohttp
 
-class CustomInventoryAdapter(InventoryAdapter):
+
+class CustomInventoryAdapter(BaseAdapter):
     def __init__(self, api_url: str, api_key: str):
+        super().__init__(max_calls=20, per_seconds=1.0, retries=4, timeout=6.0)
         self.api_url = api_url
         self.api_key = api_key
-    
-    async def fetch_stock(self, sku: str) -> InventoryStatus:
-        # Call your API
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                f"{self.api_url}/api/v1/stock/{sku}",
-                headers={"X-API-Key": self.api_key}
-            ) as resp:
-                if resp.status != 200:
-                    raise AdapterException(f"API error: {resp.status}")
-                data = await resp.json()
-                
-                # Map your schema to lib schema
-                return InventoryStatus(
-                    sku=sku,
-                    available=data["qty_available"],
-                    reserved=data["qty_reserved"],
-                    status="in_stock" if data["qty_available"] > 0 else "out_of_stock"
-                )
+
+    async def _connect_impl(self, **kwargs):
+        return None
+
+    async def _fetch_impl(self, query: dict[str, object]):
+        sku = query.get("sku")
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"{self.api_url}/api/v1/stock/{sku}",
+                    headers={"X-API-Key": self.api_key},
+                    timeout=5,
+                ) as resp:
+                    if resp.status != 200:
+                        raise AdapterError(f"API error: {resp.status}")
+                    data = await resp.json()
+                    return [{"sku": sku, "available": data["qty_available"], "reserved": data.get("qty_reserved", 0)}]
+        except Exception as exc:
+            raise AdapterError("Failed to fetch inventory") from exc
+
+    async def _upsert_impl(self, payload: dict[str, object]):
+        return payload
+
+    async def _delete_impl(self, identifier: str) -> bool:
+        return True
 ```
 
 ### Step 2: Register in App
@@ -151,27 +111,8 @@ async def get_inventory(sku: str):
 
 ## Security Considerations
 
-### Secrets Management (NOT IMPLEMENTED)
-
-**Current State**: Adapters read secrets from environment variables (`.env` file with placeholders).
-
-**Production Requirements**:
-- Use **Azure Key Vault** for API keys, connection strings
-- Implement **Managed Identity** for passwordless access
-- Rotate secrets automatically via Key Vault rotation policies
-- Never commit secrets to git; use CI/CD secret injection
-
-Example with Key Vault:
-```python
-from azure.identity import DefaultAzureCredential
-from azure.keyvault.secrets import SecretClient
-
-credential = DefaultAzureCredential()
-client = SecretClient(vault_url="https://<vault>.vault.azure.net", credential=credential)
-api_key = client.get_secret("inventory-api-key").value
-
-adapter = CustomInventoryAdapter(api_url="...", api_key=api_key)
-```
+- Use **Managed Identity + Key Vault** for API keys and secrets in production (not implemented in mocks)
+- Add OAuth/mTLS/HMAC per retailer requirements
 
 ### Authentication Patterns
 
@@ -180,57 +121,9 @@ adapter = CustomInventoryAdapter(api_url="...", api_key=api_key)
 2. **mTLS**: For high-security B2B integrations
 3. **HMAC Signing**: For request integrity verification
 
-## Observability (PARTIALLY IMPLEMENTED)
+## Observability (NOT IMPLEMENTED)
 
-### Logging
-
-✅ **Implemented**: Basic logging via `holiday_peak_lib.utils.logging`
-- Adapter calls logged at INFO level
-- Errors logged at ERROR level with stack traces
-
-❌ **NOT Implemented**:
-- No structured logging with adapter-specific tags
-- No correlation IDs for distributed tracing
-- No sampling for high-volume calls
-
-**Add Distributed Tracing**:
-```python
-from opentelemetry import trace
-
-tracer = trace.get_tracer(__name__)
-
-class CustomInventoryAdapter(InventoryAdapter):
-    async def fetch_stock(self, sku: str) -> InventoryStatus:
-        with tracer.start_as_current_span("inventory.fetch_stock") as span:
-            span.set_attribute("sku", sku)
-            try:
-                result = await self._api_call(sku)
-                span.set_attribute("status", result.status)
-                return result
-            except Exception as e:
-                span.record_exception(e)
-                raise
-```
-
-### Metrics
-
-❌ **NOT Implemented**:
-- No adapter call latency histograms
-- No error rate counters
-- No retry/timeout metrics
-
-**Add Azure Monitor Metrics**:
-```python
-from azure.monitor.opentelemetry import configure_azure_monitor
-
-configure_azure_monitor(connection_string="...")
-
-# Track adapter latency
-start = time.time()
-result = await adapter.fetch_stock(sku)
-duration_ms = (time.time() - start) * 1000
-logger.info("adapter.call", extra={"duration_ms": duration_ms, "adapter": "inventory"})
-```
+- Add structured logging, tracing, and metrics when implementing real adapters
 
 ## Testing
 
@@ -241,14 +134,15 @@ logger.info("adapter.call", extra={"duration_ms": duration_ms, "adapter": "inven
 ```python
 # lib/tests/adapters/test_inventory_adapter.py
 import pytest
-from holiday_peak_lib.adapters.inventory import MockInventoryAdapter
+from holiday_peak_lib.adapters.mock_adapters import MockInventoryAdapter
+
 
 @pytest.mark.asyncio
-async def test_fetch_stock():
+async def test_fetch_inventory():
     adapter = MockInventoryAdapter()
-    status = await adapter.fetch_stock("SKU-123")
-    assert status.sku == "SKU-123"
-    assert status.available > 0
+    records = await adapter.fetch({"entity": "inventory", "sku": "SKU-123"})
+    rows = list(records)
+    assert rows[0]["sku"] == "SKU-123"
 ```
 
 ### Integration Tests (NOT IMPLEMENTED)
