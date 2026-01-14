@@ -11,7 +11,7 @@ Retailers face mounting pressure to deliver personalized, intelligent shopping e
 - **Integration Challenge**: Legacy ML/data platforms must coexist with modern AI agents
 - **Latency Requirements**: 3–5 second end-to-end response times for user-facing recommendations
 - **Catalog Accuracy**: Zero-tolerance for product search failures; airtight coverage expected
-- **Future-Proofing**: ACP (Agent Catalog Protocol) compliance for interoperability with external AI assistants
+- **Future-Proofing**: ACP (Agentic Commerce Protocol) compliance for interoperability with external AI assistants
 - **Rapid Adaptation**: Minimal friction when connecting to diverse retailer data sources and APIs
 
 The accelerator provides both greenfield (new) and brownfield (existing system integration) pathways, maximizing reusability across retailers of varying technical maturity.
