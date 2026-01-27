@@ -6,6 +6,10 @@ from contextlib import contextmanager
 from time import perf_counter
 from typing import Any, Awaitable, Callable, Optional
 
+from azure.monitor.opentelemetry.exporter import AzureMonitorLogExporter
+from opentelemetry.sdk._logs import LoggerProvider
+from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+from opentelemetry.sdk._logs import LoggingHandler
 
 
 DEFAULT_APP_NAME = os.getenv("APP_NAME", "unknown-app")
@@ -33,23 +37,13 @@ def configure_logging(connection_string: Optional[str] = None, app_name: Optiona
         "APPINSIGHTS_CONNECTION_STRING"
     )
     if conn:
-        try:
-            from azure.monitor.opentelemetry.exporter import AzureMonitorLogExporter
-            from opentelemetry.sdk._logs import LoggerProvider
-            from opentelemetry.sdk._logs import LoggingHandler
-            from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
-
-            provider = LoggerProvider()
-            exporter = AzureMonitorLogExporter.from_connection_string(conn)
-            processor = BatchLogRecordProcessor(exporter)
-            provider.add_log_record_processor(processor)
-            handler = LoggingHandler(logger_provider=provider)
-            handler.setLevel(logging.INFO)
-            base_logger.addHandler(handler)
-        except ImportError:
-            base_logger.warning(
-                "Azure Monitor logging disabled: missing or incompatible OpenTelemetry packages."
-            )
+        provider = LoggerProvider()
+        exporter = AzureMonitorLogExporter.from_connection_string(conn)
+        processor = BatchLogRecordProcessor(exporter)
+        provider.add_log_record_processor(processor)
+        handler = LoggingHandler(logger_provider=provider)
+        handler.setLevel(logging.INFO)
+        base_logger.addHandler(handler)
 
     stream_handler = logging.StreamHandler()
     stream_handler.setLevel(logging.INFO)

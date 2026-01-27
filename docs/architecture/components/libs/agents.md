@@ -6,7 +6,7 @@
 
 ## Purpose
 
-Provides agent orchestration scaffolding using Microsoft Agent Framework with Foundry SDK. Handles tool calling, memory management, model selection, and MCP server exposition. Enables agents to coordinate retail workflows with multi-step reasoning.
+Provides agent orchestration scaffolding using Microsoft Agent Framework with Foundry SDK. Handles tool calling, memory management, **model routing (SLM vs LLM)**, and MCP server exposition. Enables agents to coordinate retail workflows with multi-step reasoning.
 
 ## Design Pattern: Builder + Dependency Injection
 
@@ -14,29 +14,48 @@ Provides agent orchestration scaffolding using Microsoft Agent Framework with Fo
 **Dependency Injection**: Tools and adapters injected at runtime
 
 ```python
-from holiday_peak_lib.agents import AgentBuilder
-from holiday_peak_lib.memory import MemoryBuilder
+import os
+from typing import Any
 
-# Build agent with memory tiers
-agent = (AgentBuilder()
+from holiday_peak_lib.agents import AgentBuilder
+from holiday_peak_lib.agents.base_agent import BaseRetailAgent, ModelTarget
+from holiday_peak_lib.agents.memory import HotMemory, WarmMemory, ColdMemory
+from holiday_peak_lib.agents.orchestration.router import RoutingStrategy
+
+
+class RetailAgent(BaseRetailAgent):
+    async def handle(self, request: dict[str, Any]) -> dict[str, Any]:
+        # Implement domain-specific workflow here
+        return {"echo": request}
+
+
+agent = (
+    AgentBuilder()
+    .with_agent(RetailAgent)
+    .with_router(RoutingStrategy())
     .with_memory(
-        MemoryBuilder()
-            .with_hot_tier(RedisConfig(...))
-            .with_warm_tier(CosmosConfig(...))
-            .build()
+        HotMemory("redis://localhost:6379"),
+        WarmMemory("https://cosmos-uri", "db", "container"),
+        ColdMemory("https://blob-account.blob.core.windows.net", "container"),
     )
-    .with_tools([inventory_tool, pricing_tool])
-    .with_model("gpt-4")
-    .build())
+    .with_tool("check_inventory", inventory_tool)
+    .with_models(
+        slm=ModelTarget(name="slm", model="gpt-4o-mini", invoker=fast_invoker),
+        llm=ModelTarget(name="llm", model="gpt-4o", invoker=rich_invoker),
+        complexity_threshold=0.6,
+    )
+    .build()
+)
 
 # Run agent
-response = await agent.run(query="Check inventory for SKU-123")
+response = await agent.handle({"query": "Check inventory for SKU-123"})
 ```
 
 ## What's Implemented
 
 ✅ **Agent Base Classes**:
-- `BaseAgent`: Core orchestration logic
+
+- `BaseRetailAgent`: Adds SLM/LLM routing and SDK-agnostic model invocation
 - `MCPAgent`: Wraps agent as MCP tool server
 - `RESTAgent`: Exposes agent via FastAPI endpoints
 
@@ -49,61 +68,81 @@ response = await agent.run(query="Check inventory for SKU-123")
 ## What's NOT Implemented (Stubbed/Placeholder)
 
 ❌ **Microsoft Agent Framework Integration**: No actual Foundry SDK calls; stub responses only  
-❌ **Model Selection Logic**: No SLM vs LLM routing; hardcoded to single model  
+✅ **Model Selection Logic**: SLM vs LLM routing via `BaseRetailAgent._select_model()`
 ❌ **Tool Result Evaluation**: No quality scoring or retry on poor results  
 ❌ **Streaming Support**: No incremental response streaming (MCP supports it)  
 ❌ **Session Management**: No multi-turn conversation context tracking  
-❌ **Tool Orchestration**: No parallel tool calling or dependency resolution  
+❌ **Tool Orchestration**: No parallel tool calling or dependency resolution 
 
 **Current Status**: Agent orchestration is **stubbed**. `BaseAgent.run()` returns mock responses. To wire real agents:
+
 1. Install `agent-framework` package: `pip install agent-framework`
 2. Configure Foundry endpoint and credentials
 3. Replace stub `run()` with `AgentClient.run()`
 
-## Microsoft Agent Framework Integration
+## Microsoft Agent Framework (Azure AI Foundry) Integration
 
-### Current Implementation (Stub)
+### Current Implementation
 
-```python
-# lib/src/holiday_peak_lib/agents/base_agent.py
-class BaseAgent:
-    async def run(self, query: str, tools: list[Tool]) -> AgentResponse:
-        # STUB: Returns hardcoded response
-        return AgentResponse(
-            message="This is a stub response.",
-            tool_calls=[],
-            metadata={}
-        )
-```
+`BaseRetailAgent` now accepts two `ModelTarget`s (SLM and LLM) and routes based on a simple complexity heuristic (`_assess_complexity`). Each `ModelTarget` carries a model name and an async invoker, keeping the base class SDK-agnostic while allowing Microsoft Agent Framework integration.
 
-### Production Implementation
+### Production Integration Example (Microsoft Agent Framework)
 
 ```python
-from azure.ai.agents import AgentClient
-from azure.identity import DefaultAzureCredential
+from typing import Any
+```python
+from typing import Any
 
-class FoundryAgent(BaseAgent):
-    def __init__(self, endpoint: str):
-        self.client = AgentClient(
-            endpoint=endpoint,
-            credential=DefaultAzureCredential()
-        )
-    
-    async def run(self, query: str, tools: list[Tool]) -> AgentResponse:
-        # Real Foundry call
-        result = await self.client.run(
-            agent_id="retail-assistant",
-            query=query,
-            tools=[t.to_foundry_tool() for t in tools],
-            session_id=self.session_id
-        )
-        
-        return AgentResponse(
-            message=result.message,
-            tool_calls=result.tool_calls,
-            metadata={"model": result.model, "tokens": result.usage}
-        )
+from azure.ai.agents.aio import AgentsClient
+from azure.identity.aio import DefaultAzureCredential
+from holiday_peak_lib.agents import (
+    AgentBuilder,
+    BaseRetailAgent,
+    FoundryAgentConfig,
+    build_foundry_model_target,
+)
+
+
+class RetailAgent(BaseRetailAgent):
+    async def handle(self, request: dict[str, Any]) -> dict[str, Any]:
+        # route to the configured Foundry Agent
+        messages = [{"role": "user", "content": request["query"]}]
+        return await self.invoke_model(request=request, messages=messages)
+
+
+slm_cfg = FoundryAgentConfig(
+    endpoint=os.environ["PROJECT_ENDPOINT"],
+    agent_id=os.environ["FOUNDRY_AGENT_ID_FAST"],
+    deployment_name=os.environ.get("MODEL_DEPLOYMENT_NAME_FAST"),
+    stream=False,  # set True to aggregate streaming deltas
+)
+llm_cfg = FoundryAgentConfig(
+    endpoint=os.environ["PROJECT_ENDPOINT"],
+    agent_id=os.environ["FOUNDRY_AGENT_ID_RICH"],
+    deployment_name=os.environ.get("MODEL_DEPLOYMENT_NAME_RICH"),
+)
+
+agent = (
+    AgentBuilder()
+    .with_agent(RetailAgent)
+    .with_models(
+        slm=build_foundry_model_target(slm_cfg),
+        llm=build_foundry_model_target(llm_cfg),
+        complexity_threshold=0.6,
+    )
+    .build()
+)
+
+response = await agent.handle({"query": "Find Nike shoes", "requires_multi_tool": False})
 ```
+
+**Env vars expected**
+- `PROJECT_ENDPOINT` (or `FOUNDRY_ENDPOINT`): Azure AI Foundry project endpoint
+- `FOUNDRY_AGENT_ID_*`: Agent IDs created in Foundry (use different ones for SLM/LLM if desired)
+- `MODEL_DEPLOYMENT_NAME_*` (optional): Deployment backing the Agent
+- `FOUNDRY_STREAM` (optional): `true` to aggregate streaming deltas per target
+
+**Streaming**: The Foundry SDK already streams deltas; `FoundryAgentConfig.stream=True` uses `runs.stream` and aggregates text so callers still receive a single payload. If you do not need deltas, leave it `False` and the SDK uses `runs.create_and_process`.
 
 ### Configuration
 
@@ -156,38 +195,11 @@ GET /mcp/tools
 }
 ```
 
-## Model Selection (NOT IMPLEMENTED)
+### Model Selection
 
-### Current State
-
-All queries use same model (hardcoded `gpt-4`). No routing logic.
-
-### Recommended Implementation
-
-**SLM vs LLM Routing**:
-- **SLM (e.g., GPT-4-nano)**: Simple queries (product search, price lookup) — <500ms latency, low cost
-- **LLM (e.g., GPT-4)**: Complex reasoning (multi-step SAGA coordination, personalization) — 2-5s latency, higher cost
-
-```python
-class SmartAgent(BaseAgent):
-    def __init__(self, slm_endpoint: str, llm_endpoint: str):
-        self.slm = AgentClient(endpoint=slm_endpoint)
-        self.llm = AgentClient(endpoint=llm_endpoint)
-    
-    async def run(self, query: str, tools: list[Tool]) -> AgentResponse:
-        # Route based on query complexity
-        complexity = self._assess_complexity(query)
-        
-        if complexity < 0.5:
-            return await self.slm.run(query=query, tools=tools)
-        else:
-            return await self.llm.run(query=query, tools=tools)
-    
-    def _assess_complexity(self, query: str) -> float:
-        # Heuristic: word count, tool dependencies
-        words = len(query.split())
-        return min(words / 50, 1.0)
-```
+- **Heuristic**: `_assess_complexity` considers query length and a `requires_multi_tool` flag, returning 0–1.
+- **Routing**: `_select_model` picks SLM when complexity < threshold and LLM otherwise (with sensible fallbacks).
+- **Integration**: `invoke_model` forwards the selected model + parameters to the provided invoker (e.g., Microsoft Agent Framework client).
 
 ## Observability (PARTIALLY IMPLEMENTED)
 

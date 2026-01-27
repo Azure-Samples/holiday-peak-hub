@@ -1,0 +1,42 @@
+Metadata-Version: 2.4
+Name: crm-campaign-intelligence
+Version: 0.1.0
+Summary: CRM campaign intelligence
+Author-email: Ricardo Cataldi <rcataldi@microsoft.com>
+Requires-Python: >=3.13
+Description-Content-Type: text/markdown
+Requires-Dist: fastapi
+Requires-Dist: fastapi-mcp
+Requires-Dist: uvicorn
+Requires-Dist: pydantic>=2
+Requires-Dist: agent-framework
+Requires-Dist: azure-ai-projects
+Requires-Dist: azure-identity
+Requires-Dist: azure-search-documents
+Requires-Dist: azure-cosmos
+Requires-Dist: azure-storage-blob
+Requires-Dist: azure-eventhub
+Requires-Dist: redis
+Requires-Dist: asyncpg
+Requires-Dist: holiday-peak-lib @ file:///C:/Users/ricar/Github/holiday-peak-hub/lib/src
+Provides-Extra: dev
+Requires-Dist: faker; extra == "dev"
+Requires-Dist: pre-commit; extra == "dev"
+Requires-Dist: python-dotenv; extra == "dev"
+Requires-Dist: debugpy; extra == "dev"
+Provides-Extra: test
+Requires-Dist: pytest; extra == "test"
+Requires-Dist: pytest-cov; extra == "test"
+Requires-Dist: pytest-asyncio; extra == "test"
+Requires-Dist: httpx; extra == "test"
+Requires-Dist: requests; extra == "test"
+Provides-Extra: lint
+Requires-Dist: pylint; extra == "lint"
+Requires-Dist: isort; extra == "lint"
+Requires-Dist: black[jupyter]>=25.1.0; extra == "lint"
+
+# CRM Campaign Intelligence
+
+Local package wrapper for the CRM campaign intelligence service.
+
+See the repository-level README for full details.

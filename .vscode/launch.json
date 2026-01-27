@@ -3,7 +3,7 @@
   "configurations": [
     {
       "name": "FastAPI app (set APP_MODULE env)",
-      "type": "python",
+      "type": "debugpy",
       "request": "launch",
       "module": "uvicorn",
       "args": [
@@ -14,6 +14,405 @@
         "8000",
         "--reload"
       ],
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/lib/src"
+      },
+      "jinja": true
+    },
+    {
+      "name": "App: crm-campaign-intelligence",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "crm_campaign_intelligence.main:app",
+        "--app-dir",
+        "apps/crm-campaign-intelligence/src",
+        "--port",
+        "8000",
+        "--reload"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/lib/src"
+      },
+      "jinja": true
+    },
+    {
+      "name": "App: crm-profile-aggregation",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "crm_profile_aggregation.main:app",
+        "--app-dir",
+        "apps/crm-profile-aggregation/src",
+        "--port",
+        "8000",
+        "--reload"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/lib/src"
+      },
+      "jinja": true
+    },
+    {
+      "name": "App: crm-segmentation-personalization",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "crm_segmentation_personalization.main:app",
+        "--app-dir",
+        "apps/crm-segmentation-personalization/src",
+        "--port",
+        "8000",
+        "--reload"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/lib/src"
+      },
+      "jinja": true
+    },
+    {
+      "name": "App: crm-support-assistance",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "crm_support_assistance.main:app",
+        "--app-dir",
+        "apps/crm-support-assistance/src",
+        "--port",
+        "8000",
+        "--reload"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/lib/src"
+      },
+      "jinja": true
+    },
+    {
+      "name": "App: ecommerce-cart-intelligence",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "ecommerce_cart_intelligence.main:app",
+        "--app-dir",
+        "apps/ecommerce-cart-intelligence/src",
+        "--port",
+        "8000",
+        "--reload"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/lib/src"
+      },
+      "jinja": true
+    },
+    {
+      "name": "App: ecommerce-catalog-search",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "ecommerce_catalog_search.main:app",
+        "--app-dir",
+        "apps/ecommerce-catalog-search/src",
+        "--port",
+        "8000",
+        "--reload"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/lib/src"
+      },
+      "jinja": true
+    },
+    {
+      "name": "App: ecommerce-checkout-support",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "ecommerce_checkout_support.main:app",
+        "--app-dir",
+        "apps/ecommerce-checkout-support/src",
+        "--port",
+        "8000",
+        "--reload"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/lib/src"
+      },
+      "jinja": true
+    },
+    {
+      "name": "App: ecommerce-order-status",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "ecommerce_order_status.main:app",
+        "--app-dir",
+        "apps/ecommerce-order-status/src",
+        "--port",
+        "8000",
+        "--reload"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/lib/src"
+      },
+      "jinja": true
+    },
+    {
+      "name": "App: ecommerce-product-detail-enrichment",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "ecommerce_product_detail_enrichment.main:app",
+        "--app-dir",
+        "apps/ecommerce-product-detail-enrichment/src",
+        "--port",
+        "8000",
+        "--reload"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/lib/src"
+      },
+      "jinja": true
+    },
+    {
+      "name": "App: inventory-alerts-triggers",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "inventory_alerts_triggers.main:app",
+        "--app-dir",
+        "apps/inventory-alerts-triggers/src",
+        "--port",
+        "8000",
+        "--reload"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/lib/src"
+      },
+      "jinja": true
+    },
+    {
+      "name": "App: inventory-health-check",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "inventory_health_check.main:app",
+        "--app-dir",
+        "apps/inventory-health-check/src",
+        "--port",
+        "8000",
+        "--reload"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/lib/src"
+      },
+      "jinja": true
+    },
+    {
+      "name": "App: inventory-jit-replenishment",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "inventory_jit_replenishment.main:app",
+        "--app-dir",
+        "apps/inventory-jit-replenishment/src",
+        "--port",
+        "8000",
+        "--reload"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/lib/src"
+      },
+      "jinja": true
+    },
+    {
+      "name": "App: inventory-reservation-validation",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "inventory_reservation_validation.main:app",
+        "--app-dir",
+        "apps/inventory-reservation-validation/src",
+        "--port",
+        "8000",
+        "--reload"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/lib/src"
+      },
+      "jinja": true
+    },
+    {
+      "name": "App: logistics-carrier-selection",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "logistics_carrier_selection.main:app",
+        "--app-dir",
+        "apps/logistics-carrier-selection/src",
+        "--port",
+        "8000",
+        "--reload"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/lib/src"
+      },
+      "jinja": true
+    },
+    {
+      "name": "App: logistics-eta-computation",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "logistics_eta_computation.main:app",
+        "--app-dir",
+        "apps/logistics-eta-computation/src",
+        "--port",
+        "8000",
+        "--reload"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/lib/src"
+      },
+      "jinja": true
+    },
+    {
+      "name": "App: logistics-returns-support",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "logistics_returns_support.main:app",
+        "--app-dir",
+        "apps/logistics-returns-support/src",
+        "--port",
+        "8000",
+        "--reload"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/lib/src"
+      },
+      "jinja": true
+    },
+    {
+      "name": "App: logistics-route-issue-detection",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "logistics_route_issue_detection.main:app",
+        "--app-dir",
+        "apps/logistics-route-issue-detection/src",
+        "--port",
+        "8000",
+        "--reload"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/lib/src"
+      },
+      "jinja": true
+    },
+    {
+      "name": "App: product-management-acp-transformation",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "product_management_acp_transformation.main:app",
+        "--app-dir",
+        "apps/product-management-acp-transformation/src",
+        "--port",
+        "8000",
+        "--reload"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/lib/src"
+      },
+      "jinja": true
+    },
+    {
+      "name": "App: product-management-assortment-optimization",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "product_management_assortment_optimization.main:app",
+        "--app-dir",
+        "apps/product-management-assortment-optimization/src",
+        "--port",
+        "8000",
+        "--reload"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/lib/src"
+      },
+      "jinja": true
+    },
+    {
+      "name": "App: product-management-consistency-validation",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "product_management_consistency_validation.main:app",
+        "--app-dir",
+        "apps/product-management-consistency-validation/src",
+        "--port",
+        "8000",
+        "--reload"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/lib/src"
+      },
+      "jinja": true
+    },
+    {
+      "name": "App: product-management-normalization-classification",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "product_management_normalization_classification.main:app",
+        "--app-dir",
+        "apps/product-management-normalization-classification/src",
+        "--port",
+        "8000",
+        "--reload"
+      ],
+      "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}/lib/src"
       },

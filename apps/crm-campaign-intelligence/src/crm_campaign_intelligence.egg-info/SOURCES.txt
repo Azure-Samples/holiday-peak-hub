@@ -1,0 +1,9 @@
+README.md
+pyproject.toml
+crm_campaign_intelligence/__init__.py
+crm_campaign_intelligence/main.py
+crm_campaign_intelligence.egg-info/PKG-INFO
+crm_campaign_intelligence.egg-info/SOURCES.txt
+crm_campaign_intelligence.egg-info/dependency_links.txt
+crm_campaign_intelligence.egg-info/requires.txt
+crm_campaign_intelligence.egg-info/top_level.txt

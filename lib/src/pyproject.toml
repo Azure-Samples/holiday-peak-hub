@@ -24,7 +24,9 @@ dependencies = [
     "aiohttp",
     "typing-extensions",
     "python-dotenv",
-    "azure-monitor-opentelemetry-exporter"
+    "azure-monitor-opentelemetry-exporter",
+    "opentelemetry-api>=1.27.0",
+    "opentelemetry-sdk>=1.27.0"
 ]
 
 [project.optional-dependencies]
@@ -51,10 +53,10 @@ docs = [
 ]
 
 [tool.setuptools]
-package-dir = {"" = "src"}
+package-dir = {"" = "."}
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["."]
 include = ["holiday_peak_lib*"]
 namespaces = true
 

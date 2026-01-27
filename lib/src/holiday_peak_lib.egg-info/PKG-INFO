@@ -1,0 +1,47 @@
+Metadata-Version: 2.4
+Name: holiday-peak-lib
+Version: 0.1.0
+Summary: Core micro-framework for retail agent adapters, agents, and memory tiers
+Author-email: Ricardo Cataldi <rcataldi@microsoft.com>
+Requires-Python: >=3.13
+Description-Content-Type: text/markdown
+Requires-Dist: fastapi
+Requires-Dist: fastapi-mcp
+Requires-Dist: uvicorn
+Requires-Dist: pydantic>=2
+Requires-Dist: agent-framework
+Requires-Dist: azure-ai-projects
+Requires-Dist: azure-identity
+Requires-Dist: azure-search-documents
+Requires-Dist: azure-cosmos
+Requires-Dist: azure-storage-blob
+Requires-Dist: azure-eventhub
+Requires-Dist: redis
+Requires-Dist: asyncpg
+Requires-Dist: aiohttp
+Requires-Dist: typing-extensions
+Requires-Dist: python-dotenv
+Requires-Dist: azure-monitor-opentelemetry-exporter
+Requires-Dist: opentelemetry-api>=1.27.0
+Requires-Dist: opentelemetry-sdk>=1.27.0
+Provides-Extra: dev
+Requires-Dist: faker; extra == "dev"
+Requires-Dist: pre-commit; extra == "dev"
+Requires-Dist: python-dotenv; extra == "dev"
+Requires-Dist: debugpy; extra == "dev"
+Provides-Extra: test
+Requires-Dist: pytest; extra == "test"
+Requires-Dist: pytest-cov; extra == "test"
+Requires-Dist: pytest-asyncio; extra == "test"
+Requires-Dist: httpx; extra == "test"
+Requires-Dist: requests; extra == "test"
+Provides-Extra: lint
+Requires-Dist: pylint; extra == "lint"
+Requires-Dist: isort; extra == "lint"
+Requires-Dist: black[jupyter]>=25.1.0; extra == "lint"
+Provides-Extra: docs
+Requires-Dist: mkdocs; extra == "docs"
+
+# holiday-peak-lib
+
+Shared adapters/connectors library for holiday-peak hub. See parent README for full details.
