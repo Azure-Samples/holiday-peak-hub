@@ -12,7 +12,7 @@ Enriches product detail pages by aggregating data from multiple sources: catalog
 
 ```mermaid
 graph LR
-    Client[PDP Request] -->|GET /product/:sku| API[FastAPI App]
+    Client[PDP Request] -->|POST /invoke| API[FastAPI App]
     API --> Agent[Enrichment Agent]
     Agent -->|parallel| Catalog[Catalog Adapter]
     Agent -->|parallel| ACP[ACP Adapter]
@@ -27,15 +27,14 @@ graph LR
 ### 1. FastAPI Application (`main.py`)
 
 **REST Endpoints**:
-- `GET /product/{sku}` — Get enriched product details
-- `GET /product/{sku}/similar` — Get similar products (recommendations)
+- `POST /invoke` — Invoke the enrichment agent
 - `GET /health` — Health check
 
 **MCP Tools**:
-- `get_product_details` — Fetch enriched product (agent-callable)
-- `get_similar_products` — Get recommendations
+- `/product/detail` — Fetch enriched product (agent-callable)
+- `/product/similar` — Get recommendations
 
-### 2. Enrichment Agent (`agents/enrichment_agent.py`)
+### 2. Enrichment Agent (`agents.py`)
 
 Orchestrates parallel data fetching:
 - Base product metadata (catalog)
@@ -44,7 +43,7 @@ Orchestrates parallel data fetching:
 - Real-time inventory (stock level, ETA)
 - Related products (similar items, frequently bought together)
 
-**Current Status**: ⚠️ **STUBBED** — Returns mock enriched product; no real agent orchestration.
+**Current Status**: ✅ **IMPLEMENTED (mock adapters)** — Agent fetches catalog, ACP content, reviews, and inventory in parallel and returns enriched payloads.
 
 ### 3. Adapters
 
@@ -53,24 +52,21 @@ Orchestrates parallel data fetching:
 **Review Adapter**: Aggregate ratings and recent reviews  
 **Inventory Adapter**: Check stock across warehouses  
 
-**Current Status**: ⚠️ **ALL STUBBED** — Return hardcoded data.
+**Current Status**: ✅ **IMPLEMENTED (mock adapters)** — Catalog + inventory use mock adapters; ACP and review adapters return stubbed content.
 
 ### 4. Caching Strategy
 
 **Hot Cache (Redis)**:
-- Product metadata: 5-min TTL
-- ACP content: 1-hour TTL (changes infrequently)
-- Inventory: 30-sec TTL (real-time critical)
-- Reviews: 15-min TTL
+- Enriched product payloads: 5-min TTL (set on read)
 
-**Current Status**: ✅ **IMPLEMENTED** — Redis wiring in place; no population logic.
+**Current Status**: ✅ **IMPLEMENTED** — Hot cache populated via agent; warm/cold cache not yet used.
 
 ## What's Implemented
 
-✅ FastAPI app structure with `/product/{sku}` endpoint  
-✅ MCP tool registration for `get_product_details`  
-✅ Redis cache configuration (5-min TTL for products)  
-✅ Pydantic models for enriched product response  
+✅ FastAPI app structure with `/invoke` and `/health` endpoints  
+✅ MCP tool registration for `/product/detail` and `/product/similar`  
+✅ Parallel enrichment via mock adapters (catalog, ACP content, reviews, inventory)  
+✅ Redis cache configuration (5-min TTL for enriched payloads)  
 ✅ Basic unit tests (`tests/test_api.py`)  
 ✅ Dockerfile with multi-stage build  
 ✅ Bicep module for Azure resource provisioning  
@@ -79,9 +75,9 @@ Orchestrates parallel data fetching:
 
 ### Parallel Data Fetching
 
-❌ **No Concurrent Calls**: Adapters called sequentially (slow)  
-❌ **No Timeout Handling**: One slow adapter blocks entire response  
-❌ **No Graceful Degradation**: Missing ACP content fails entire request  
+✅ **Concurrent Calls**: Catalog, ACP, reviews, and inventory are fetched in parallel.  
+⚠️ **Timeout Handling**: No timeouts yet; slow adapters can delay response.  
+⚠️ **Graceful Degradation**: Missing adapter data is tolerated but lacks explicit fallback strategy.  
 
 **To Implement**:
 ```python

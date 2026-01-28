@@ -1,5 +1,27 @@
 """Ecommerce Product Detail Enrichment service entrypoint."""
+from holiday_peak_lib.agents.memory import ColdMemory, HotMemory, WarmMemory
 from holiday_peak_lib.app_factory import build_service_app
+from holiday_peak_lib.config import MemorySettings
+
+from ecommerce_product_detail_enrichment.agents import (
+	ProductDetailEnrichmentAgent,
+	register_mcp_tools,
+)
 
 SERVICE_NAME = "ecommerce-product-detail-enrichment"
-app = build_service_app(SERVICE_NAME)
+memory_settings = MemorySettings()
+app = build_service_app(
+	SERVICE_NAME,
+	agent_class=ProductDetailEnrichmentAgent,
+	hot_memory=HotMemory(memory_settings.redis_url),
+	warm_memory=WarmMemory(
+		memory_settings.cosmos_account_uri,
+		memory_settings.cosmos_database,
+		memory_settings.cosmos_container,
+	),
+	cold_memory=ColdMemory(
+		memory_settings.blob_account_url,
+		memory_settings.blob_container,
+	),
+	mcp_setup=register_mcp_tools,
+)

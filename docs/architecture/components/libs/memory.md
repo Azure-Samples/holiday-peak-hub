@@ -1,8 +1,8 @@
 # Memory Component
 
-**Path**: `lib/src/holiday_peak_lib/memory/`  
-**Design Pattern**: Builder Pattern (ADR-004)  
-**Purpose**: Three-tier memory architecture (hot/warm/cold) with fluent API for agent context management
+**Path**: `lib/src/holiday_peak_lib/agents/memory/`  
+**Design Pattern**: Tiered memory with explicit injection  
+**Purpose**: Three-tier memory architecture (hot/warm/cold) injected into agents via `AgentBuilder`
 
 ## Overview
 
@@ -12,7 +12,7 @@ Provides a unified memory abstraction for agents to store and retrieve conversat
 - **Warm (Cosmos DB)**: 100-500ms latency for user profiles, search history, and structured metadata
 - **Cold (Blob Storage)**: Seconds latency for product images, catalog snapshots, and archival data
 
-The Builder pattern allows applications to configure only the tiers they need, avoiding unnecessary connections and costs.
+Applications inject only the tiers they need, avoiding unnecessary connections and costs.
 
 ## Architecture
 
@@ -20,14 +20,13 @@ The Builder pattern allows applications to configure only the tiers they need, a
 graph TB
     subgraph "Application"
         Agent[Agent/Service]
-        Builder[MemoryBuilder]
+        Builder[AgentBuilder]
     end
     
-    subgraph "Memory Abstraction"
-        MemoryClient[MemoryClient]
-        HotTier[HotMemory Interface]
-        WarmTier[WarmMemory Interface]
-        ColdTier[ColdMemory Interface]
+    subgraph "Memory Tiers"
+        HotTier[HotMemory]
+        WarmTier[WarmMemory]
+        ColdTier[ColdMemory]
     end
     
     subgraph "Azure Services"
@@ -36,188 +35,67 @@ graph TB
         Blob[(Blob Storage)]
     end
     
-    Builder -->|builds| MemoryClient
-    Agent -->|get/set| MemoryClient
-    MemoryClient --> HotTier
-    MemoryClient --> WarmTier
-    MemoryClient --> ColdTier
+    Builder -->|injects| HotTier
+    Builder -->|injects| WarmTier
+    Builder -->|injects| ColdTier
+    Agent -->|uses| HotTier
+    Agent -->|uses| WarmTier
+    Agent -->|uses| ColdTier
     HotTier --> Redis
     WarmTier --> Cosmos
     ColdTier --> Blob
 ```
 
-## Design Pattern: Builder
+## Configuration and Usage
 
-The Builder pattern provides a fluent API to configure memory tiers without requiring all services upfront:
-
-```python
-from holiday_peak_lib.memory import MemoryBuilder
-
-# Full three-tier configuration
-memory = (
-    MemoryBuilder()
-    .with_hot(redis_host="redis.cache.windows.net", password="***")
-    .with_warm(cosmos_endpoint="https://account.documents.azure.com", key="***")
-    .with_cold(blob_account="storage", container="memory")
-    .build()
-)
-
-# Hot + Warm only (no Blob)
-memory = (
-    MemoryBuilder()
-    .with_hot(redis_host="localhost")
-    .with_warm(cosmos_endpoint="https://account.documents.azure.com", key="***")
-    .build()
-)
-
-# Hot only (Redis-only for caching)
-memory = (
-    MemoryBuilder()
-    .with_hot(redis_host="localhost")
-    .build()
-)
-```
-
-**Why Builder?**
-- Agents don't need all tiers (e.g., catalog search only needs hot+warm, not cold)
-- Configuration varies per environment (dev uses local Redis, prod uses Azure Cache)
-- Avoids "telescoping constructor" anti-pattern with 10+ parameters
-- Validates configuration before returning client (fails fast if Redis is unreachable)
-
-## Core Interfaces
-
-### MemoryClient
-
-Unified API for all tiers:
+Memory tiers are constructed explicitly and injected into agents via `AgentBuilder` or `build_service_app`.
 
 ```python
-class MemoryClient:
-    """Unified memory client with hot/warm/cold tiers."""
-    
-    def __init__(
-        self,
-        hot: Optional[HotMemory] = None,
-        warm: Optional[WarmMemory] = None,
-        cold: Optional[ColdMemory] = None
-    ):
-        self.hot = hot
-        self.warm = warm
-        self.cold = cold
-    
-    async def get(self, key: str, tier: MemoryTier = MemoryTier.HOT) -> Optional[str]:
-        """Get value from specified tier."""
-        if tier == MemoryTier.HOT and self.hot:
-            return await self.hot.get(key)
-        elif tier == MemoryTier.WARM and self.warm:
-            return await self.warm.get(key)
-        elif tier == MemoryTier.COLD and self.cold:
-            return await self.cold.get(key)
-        raise ValueError(f"Tier {tier} not configured")
-    
-    async def set(
-        self,
-        key: str,
-        value: str,
-        tier: MemoryTier = MemoryTier.HOT,
-        ttl: Optional[int] = None
-    ) -> None:
-        """Set value in specified tier."""
-        if tier == MemoryTier.HOT and self.hot:
-            await self.hot.set(key, value, ttl=ttl)
-        elif tier == MemoryTier.WARM and self.warm:
-            await self.warm.set(key, value, ttl=ttl)
-        elif tier == MemoryTier.COLD and self.cold:
-            await self.cold.set(key, value)
-        else:
-            raise ValueError(f"Tier {tier} not configured")
+from holiday_peak_lib.agents.memory import HotMemory, WarmMemory, ColdMemory
+from holiday_peak_lib.config import MemorySettings
+
+settings = MemorySettings()
+
+hot = HotMemory(settings.redis_url)
+warm = WarmMemory(settings.cosmos_account_uri, settings.cosmos_database, settings.cosmos_container)
+cold = ColdMemory(settings.blob_account_url, settings.blob_container)
 ```
+
+**Env vars** (via `MemorySettings`):
+- `REDIS_URL`
+- `COSMOS_ACCOUNT_URI`
+- `COSMOS_DATABASE`
+- `COSMOS_CONTAINER`
+- `BLOB_ACCOUNT_URL`
+- `BLOB_CONTAINER`
+
+## Tier Implementations
 
 ### HotMemory (Redis)
 
-```python
-class HotMemory(Protocol):
-    """Hot tier for <50ms access (Redis)."""
-    
-    async def get(self, key: str) -> Optional[str]:
-        """Get value by key."""
-        ...
-    
-    async def set(self, key: str, value: str, ttl: Optional[int] = None) -> None:
-        """Set value with optional TTL (seconds)."""
-        ...
-    
-    async def delete(self, key: str) -> None:
-        """Delete key."""
-        ...
-    
-    async def exists(self, key: str) -> bool:
-        """Check if key exists."""
-        ...
-```
+Implements `connect`, `get`, and `set` with TTL support using `redis.asyncio`.
 
 ### WarmMemory (Cosmos DB)
 
-```python
-class WarmMemory(Protocol):
-    """Warm tier for 100-500ms access (Cosmos DB)."""
-    
-    async def get(self, key: str) -> Optional[dict]:
-        """Get document by key (partition key + id)."""
-        ...
-    
-    async def set(self, key: str, value: dict, ttl: Optional[int] = None) -> None:
-        """Upsert document with optional TTL."""
-        ...
-    
-    async def query(self, filter: dict, limit: int = 100) -> list[dict]:
-        """Query documents by filter (e.g., user_id)."""
-        ...
-    
-    async def delete(self, key: str) -> None:
-        """Delete document."""
-        ...
-```
+Implements `connect`, `upsert`, and `read` using `azure.cosmos.aio.CosmosClient` and `DefaultAzureCredential`.
 
 ### ColdMemory (Blob Storage)
 
-```python
-class ColdMemory(Protocol):
-    """Cold tier for seconds latency (Blob Storage)."""
-    
-    async def get(self, key: str) -> Optional[bytes]:
-        """Get blob content."""
-        ...
-    
-    async def set(self, key: str, value: bytes, content_type: str = "application/octet-stream") -> None:
-        """Upload blob."""
-        ...
-    
-    async def delete(self, key: str) -> None:
-        """Delete blob."""
-        ...
-    
-    async def list(self, prefix: str) -> list[str]:
-        """List blob names by prefix."""
+Implements `connect`, `upload_text`, and `download_text` using `azure.storage.blob.aio.BlobServiceClient`.
         ...
 ```
 
 ## What's Implemented
 
-✅ **MemoryBuilder**: Fluent API with `.with_hot()`, `.with_warm()`, `.with_cold()`, `.build()`  
-✅ **MemoryClient**: Unified `get()`, `set()`, `delete()` with tier routing  
-✅ **Tier Enum**: `MemoryTier.HOT`, `MemoryTier.WARM`, `MemoryTier.COLD`  
-✅ **Protocol Interfaces**: `HotMemory`, `WarmMemory`, `ColdMemory` contracts  
-✅ **Mock Implementations**: In-memory dict for local testing without Azure services  
-✅ **Connection Validation**: Builder checks connectivity before returning client  
-✅ **TTL Support**: Redis and Cosmos support expiration (hot: seconds, warm: days)  
+✅ **HotMemory**: Redis-backed hot tier with `connect`, `get`, and `set` (TTL supported)  
+✅ **WarmMemory**: Cosmos DB-backed warm tier with `connect`, `upsert`, and `read`  
+✅ **ColdMemory**: Blob-backed cold tier with `connect`, `upload_text`, and `download_text`  
+✅ **MemorySettings**: Environment-driven configuration for tier endpoints  
 
 ## What's NOT Implemented
 
-### Real Azure Service Clients
-
-❌ **No Redis Client**: Mock returns empty dict; no real `aioredis` or `redis.asyncio` calls  
-❌ **No Cosmos DB Client**: Mock stores in-memory; no `azure-cosmos` SDK integration  
-❌ **No Blob Client**: Mock returns empty bytes; no `azure-storage-blob` SDK calls  
+❌ **Unified MemoryClient**: No single client that multiplexes tiers  
+❌ **MemoryBuilder**: No fluent builder API in the current codebase  
 
 **To Implement Redis**:
 ```python
@@ -249,81 +127,7 @@ class RedisHotMemory:
         return await self.client.exists(key) > 0
 ```
 
-**To Implement Cosmos DB**:
-```python
-from azure.cosmos.aio import CosmosClient
-from azure.cosmos import PartitionKey
-
-class CosmosWarmMemory:
-    def __init__(self, endpoint: str, key: str, database: str, container: str):
-        self.client = CosmosClient(endpoint, credential=key)
-        self.database = self.client.get_database_client(database)
-        self.container = self.database.get_container_client(container)
-    
-    async def get(self, key: str) -> Optional[dict]:
-        try:
-            # Assuming key format: "partition_key:id"
-            partition_key, item_id = key.split(":", 1)
-            item = await self.container.read_item(
-                item=item_id,
-                partition_key=partition_key
-            )
-            return item
-        except Exception:
-            return None
-    
-    async def set(self, key: str, value: dict, ttl: Optional[int] = None) -> None:
-        partition_key, item_id = key.split(":", 1)
-        value["id"] = item_id
-        value["partitionKey"] = partition_key
-        if ttl:
-            value["ttl"] = ttl  # Cosmos auto-deletes after ttl seconds
-        await self.container.upsert_item(value)
-    
-    async def query(self, filter: dict, limit: int = 100) -> list[dict]:
-        query = f"SELECT * FROM c WHERE c.partitionKey = @pk"
-        parameters = [{"name": "@pk", "value": filter.get("partition_key")}]
-        items = []
-        async for item in self.container.query_items(
-            query=query,
-            parameters=parameters,
-            max_item_count=limit
-        ):
-            items.append(item)
-        return items
-```
-
-**To Implement Blob Storage**:
-```python
-from azure.storage.blob.aio import BlobServiceClient
-
-class BlobColdMemory:
-    def __init__(self, account_url: str, container: str, credential):
-        self.client = BlobServiceClient(account_url=account_url, credential=credential)
-        self.container_client = self.client.get_container_client(container)
-    
-    async def get(self, key: str) -> Optional[bytes]:
-        try:
-            blob_client = self.container_client.get_blob_client(key)
-            stream = await blob_client.download_blob()
-            return await stream.readall()
-        except Exception:
-            return None
-    
-    async def set(self, key: str, value: bytes, content_type: str = "application/octet-stream") -> None:
-        blob_client = self.container_client.get_blob_client(key)
-        await blob_client.upload_blob(
-            value,
-            content_type=content_type,
-            overwrite=True
-        )
-    
-    async def list(self, prefix: str) -> list[str]:
-        blobs = []
-        async for blob in self.container_client.list_blobs(name_starts_with=prefix):
-            blobs.append(blob.name)
-        return blobs
-```
+**Cosmos DB / Blob Storage**: Implemented via `WarmMemory` and `ColdMemory` classes with Azure SDK clients and Entra ID credentials.
 
 ### Cascading Reads/Writes
 
@@ -331,15 +135,7 @@ class BlobColdMemory:
 ❌ **No Write-Through**: Setting in warm doesn't also update hot cache  
 ❌ **No Tiered Eviction**: No logic to demote cold data from hot→warm→cold  
 
-**To Implement Cascading Get**:
-```python
-async def get_with_fallback(self, key: str) -> Optional[str]:
-    """Try hot → warm → cold until value found."""
-    # Try hot
-    if self.hot:
-        value = await self.hot.get(key)
-        if value:
-            return value
+No cascading reads/writes or automatic tier promotion/demotion are implemented by default.
     
     # Try warm
     if self.warm:

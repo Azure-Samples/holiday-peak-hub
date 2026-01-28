@@ -21,6 +21,7 @@ Adapters translate retailer-specific APIs into a standardized interface (`BaseAd
 ✅ **Domain connectors**: CRM, product, inventory, pricing, logistics, funnel connectors normalize adapter payloads into canonical schemas
 
 ✅ **Mock adapters**: `mock_adapters.py` provides deterministic stubs for all domains
+✅ **App-level composition**: Domain services define their own `adapters.py` modules to assemble connectors and domain-specific helpers
 
 ✅ **Resilience defaults**: `BaseAdapter` includes rate limiting, caching, retries, timeouts, and circuit breaking around all adapter operations
 
@@ -129,20 +130,15 @@ async def get_inventory(sku: str):
 
 ### Unit Tests
 
-✅ **Implemented**: Basic tests for mock adapters in `lib/tests/adapters/`
+✅ **Implemented**: Doctest coverage in connector modules and import validation in `lib/tests/test_lib_imports.py`
 
 ```python
-# lib/tests/adapters/test_inventory_adapter.py
+# lib/tests/test_lib_imports.py
 import pytest
-from holiday_peak_lib.adapters.mock_adapters import MockInventoryAdapter
 
 
-@pytest.mark.asyncio
-async def test_fetch_inventory():
-    adapter = MockInventoryAdapter()
-    records = await adapter.fetch({"entity": "inventory", "sku": "SKU-123"})
-    rows = list(records)
-    assert rows[0]["sku"] == "SKU-123"
+def test_imports():
+    import holiday_peak_lib.adapters  # noqa: F401
 ```
 
 ### Integration Tests (NOT IMPLEMENTED)

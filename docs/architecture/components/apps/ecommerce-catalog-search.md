@@ -12,7 +12,7 @@ Enables customers to search product catalog with natural language queries. Uses 
 
 ```mermaid
 graph LR
-    Client[Customer/UI] -->|POST /search| API[FastAPI App]
+    Client[Customer/UI] -->|POST /invoke| API[FastAPI App]
     API --> Agent[Catalog Agent]
     Agent --> Search[Azure AI Search]
     Agent --> Memory[Redis/Cosmos/Blob]
@@ -25,15 +25,14 @@ graph LR
 ### 1. FastAPI Application (`main.py`)
 
 **REST Endpoints**:
-- `POST /search` — Search catalog with query
-- `GET /product/{sku}` — Get product details
+- `POST /invoke` — Invoke the catalog agent
 - `GET /health` — Health check
 
 **MCP Tools**:
-- `search_catalog` — Search products (agent-callable)
-- `get_product_details` — Fetch SKU metadata
+- `/catalog/search` — Search products (ACP-aligned)
+- `/catalog/product` — Fetch product details (ACP-aligned)
 
-### 2. Catalog Agent (`agents/catalog_agent.py`)
+### 2. Catalog Agent (`agents.py`)
 
 Orchestrates search with:
 - Query understanding (extract intent, filters)
@@ -42,17 +41,13 @@ Orchestrates search with:
 - Result ranking (personalization if user context available)
 - Inventory validation (check stock via adapter)
 
-**Current Status**: ⚠️ **STUBBED** — Agent returns mock results; no real Foundry integration.
+**Current Status**: ✅ **IMPLEMENTED (mock adapters)** — Agent orchestrates catalog lookups and emits ACP-aligned fields. Foundry integration remains optional.
 
-### 3. Search Adapter (`adapters/search_adapter.py`)
+### 3. Catalog Adapters (`adapters.py`)
 
-Wraps Azure AI Search SDK:
-- Index management (create, update schema)
-- Document ingestion (upload product catalog)
-- Query execution (vector+hybrid search)
-- Result mapping (AI Search schema → lib schema)
+Wraps product + inventory connectors and maps results to ACP fields.
 
-**Current Status**: ⚠️ **STUBBED** — Returns hardcoded product list; no real Azure AI Search calls.
+**Current Status**: ⚠️ **PARTIAL** — Uses mock product + inventory adapters; no real Azure AI Search calls yet.
 
 ### 4. Memory Integration
 
@@ -64,10 +59,10 @@ Wraps Azure AI Search SDK:
 
 ## What's Implemented
 
-✅ FastAPI app structure with `/search` and `/health` endpoints  
-✅ MCP tool registration for `search_catalog`  
+✅ FastAPI app structure with `/invoke` and `/health` endpoints  
+✅ MCP tool registration for `/catalog/search` and `/catalog/product`  
+✅ ACP-aligned product mapping (required feed fields + eligibility flags)  
 ✅ Memory tier wiring (Redis/Cosmos/Blob configs)  
-✅ Pydantic models for search requests/responses  
 ✅ Basic unit tests (`tests/test_api.py`)  
 ✅ Dockerfile with multi-stage build  
 ✅ Bicep module for Azure resource provisioning  
@@ -76,9 +71,9 @@ Wraps Azure AI Search SDK:
 
 ### Azure AI Search Integration
 
-❌ **No Real Index**: Stub adapter returns mock products  
+❌ **No Real Index**: Mock adapters return placeholder products  
 ❌ **No Embedding Model**: No vector generation for semantic search  
-❌ **No Hybrid Queries**: Stub doesn't combine vector + keyword  
+❌ **No Hybrid Queries**: No vector + keyword blend yet  
 ❌ **No Index Population**: No script to upload catalog to AI Search  
 
 **To Implement**:
@@ -110,7 +105,7 @@ class AzureSearchAdapter:
 
 ### Agent Orchestration
 
-❌ **No Foundry Call**: Agent stub returns mock response  
+❌ **No Foundry Call**: Foundry integration is optional and not configured by default  
 ❌ **No Multi-Step Reasoning**: No chaining (search → inventory check → ranking)  
 ❌ **No Personalization**: No user profile integration for ranking  
 

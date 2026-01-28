@@ -36,6 +36,7 @@ class AgentDependencies(BaseModel):
 
     router: Any | None = None
     tools: dict[str, Callable[..., Any]] = Field(default_factory=dict)
+    service_name: str | None = None
     hot_memory: Any = None
     warm_memory: Any = None
     cold_memory: Any = None
@@ -84,6 +85,14 @@ class BaseRetailAgent(BaseAgent, ABC):
     @tools.setter
     def tools(self, value: dict[str, Callable[..., Any]]) -> None:
         self.config.tools = value
+
+    @property
+    def service_name(self) -> str | None:
+        return self.config.service_name
+
+    @service_name.setter
+    def service_name(self, value: str | None) -> None:
+        self.config.service_name = value
 
     @property
     def hot_memory(self) -> Any:

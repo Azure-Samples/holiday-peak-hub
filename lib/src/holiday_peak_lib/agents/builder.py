@@ -1,8 +1,6 @@
 """Agent builder using a simple Builder pattern."""
 from typing import Any, Callable
 
-from agent_framework import BaseAgent
-
 from .base_agent import AgentDependencies, BaseRetailAgent, ModelTarget
 from .foundry import FoundryAgentConfig, build_foundry_model_target
 from .fastapi_mcp import FastAPIMCPServer
@@ -88,7 +86,7 @@ class AgentBuilder:
         self._complexity_threshold = complexity_threshold
         return self
 
-    def build(self) -> BaseAgent:
+    def build(self) -> BaseRetailAgent:
         if not self._agent_class:
             raise ValueError("Agent class is required")
         if not self._slm and not self._llm:

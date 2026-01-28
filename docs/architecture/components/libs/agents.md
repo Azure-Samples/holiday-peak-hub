@@ -10,8 +10,8 @@ Provides agent orchestration scaffolding using Microsoft Agent Framework with Fo
 
 ## Design Pattern: Builder + Dependency Injection
 
-**Builder Pattern**: Memory tier assembly (see [Memory component](memory.md))  
-**Dependency Injection**: Tools and adapters injected at runtime
+**Builder Pattern**: Agent assembly with memory tiers + models  
+**Dependency Injection**: Tools, adapters, and MCP hooks injected at runtime
 
 ```python
 import os
@@ -56,29 +56,29 @@ response = await agent.handle({"query": "Check inventory for SKU-123"})
 ✅ **Agent Base Classes**:
 
 - `BaseRetailAgent`: Adds SLM/LLM routing and SDK-agnostic model invocation
-- `MCPAgent`: Wraps agent as MCP tool server
-- `RESTAgent`: Exposes agent via FastAPI endpoints
 
-✅ **Tool Registration**: Decorator pattern for registering Python functions as agent tools
+✅ **Agent Builder**:
+
+- `AgentBuilder`: Wires agent class, router, memory tiers, tools, MCP server, and models
+
+✅ **Foundry Integration Helpers**:
+
+- `FoundryAgentConfig` + `build_foundry_model_target` (Azure AI Foundry Agents via `AIProjectClient`)
+
+✅ **MCP Server Exposure**:
+
+- `FastAPIMCPServer` with `add_tool()` and `mount()`
 
 ✅ **Memory Integration**: Wired to three-tier memory (Redis/Cosmos/Blob)
 
-✅ **Error Handling**: Graceful degradation when tools fail
-
 ## What's NOT Implemented (Stubbed/Placeholder)
 
-❌ **Microsoft Agent Framework Integration**: No actual Foundry SDK calls; stub responses only  
-✅ **Model Selection Logic**: SLM vs LLM routing via `BaseRetailAgent._select_model()`
+❌ **Automatic Tool Orchestration**: No built-in parallel tool calling or dependency resolution  
 ❌ **Tool Result Evaluation**: No quality scoring or retry on poor results  
-❌ **Streaming Support**: No incremental response streaming (MCP supports it)  
 ❌ **Session Management**: No multi-turn conversation context tracking  
-❌ **Tool Orchestration**: No parallel tool calling or dependency resolution 
+❌ **MCP Schema Discovery**: No `/mcp/tools` registry endpoint  
 
-**Current Status**: Agent orchestration is **stubbed**. `BaseAgent.run()` returns mock responses. To wire real agents:
-
-1. Install `agent-framework` package: `pip install agent-framework`
-2. Configure Foundry endpoint and credentials
-3. Replace stub `run()` with `AgentClient.run()`
+**Current Status**: Core orchestration and Foundry invokers are implemented, but apps must provide agent classes, tools, and model config.
 
 ## Microsoft Agent Framework (Azure AI Foundry) Integration
 
@@ -161,39 +161,22 @@ agent = FoundryAgent(endpoint=FOUNDRY_ENDPOINT)
 Agents expose tools as MCP servers for agent-to-agent communication.
 
 ```python
-from fastapi_mcp import MCPServer
+from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 
 app = FastAPI()
-mcp = MCPServer(app)
+mcp = FastAPIMCPServer(app)
 
 # Register tool as MCP endpoint
-@mcp.tool(
-    name="check_inventory",
-    description="Check product inventory levels",
-    parameters={
-        "sku": {"type": "string", "description": "Product SKU"}
-    }
-)
-async def check_inventory(sku: str) -> dict:
-    result = await inventory_adapter.fetch_stock(sku)
+async def check_inventory(payload: dict) -> dict:
+    result = await inventory_adapter.fetch_stock(payload["sku"])
     return result.model_dump()
+
+mcp.add_tool("/inventory/check", check_inventory)
 ```
 
 ### MCP Schema Discovery
 
-MCP clients can query available tools:
-```bash
-GET /mcp/tools
-{
-  "tools": [
-    {
-      "name": "check_inventory",
-      "description": "Check product inventory levels",
-      "parameters": { ... }
-    }
-  ]
-}
-```
+MCP schema discovery is not implemented by default. Apps should publish their tool list explicitly if needed.
 
 ### Model Selection
 
@@ -205,7 +188,7 @@ GET /mcp/tools
 
 ### Logging
 
-✅ **Implemented**: Basic query/response logging
+✅ **Implemented**: Basic operation logging via `configure_logging` + `log_async_operation`
 
 ❌ **NOT Implemented**:
 - No token usage tracking
@@ -214,29 +197,18 @@ GET /mcp/tools
 
 **Add Structured Logging**:
 ```python
-import logging
-from holiday_peak_lib.utils.logging import get_logger
+from holiday_peak_lib.utils.logging import configure_logging, log_async_operation
 
-logger = get_logger(__name__)
+logger = configure_logging(app_name="catalog-search")
 
-async def run(self, query: str, tools: list[Tool]) -> AgentResponse:
-    logger.info("agent.query", extra={
-        "query": query,
-        "tools": [t.name for t in tools],
-        "session_id": self.session_id
-    })
-    
-    start = time.time()
-    result = await self.client.run(...)
-    duration_ms = (time.time() - start) * 1000
-    
-    logger.info("agent.response", extra={
-        "duration_ms": duration_ms,
-        "tokens_used": result.usage.total_tokens,
-        "model": result.model
-    })
-    
-    return result
+async def run(self, payload: dict) -> dict:
+    return await log_async_operation(
+        logger,
+        name="agent.run",
+        intent=payload.get("query"),
+        func=lambda: self.invoke_model(request=payload, messages=[payload.get("query", "")]),
+        metadata={"tools": list(self.tools.keys())},
+    )
 ```
 
 ### Distributed Tracing (NOT IMPLEMENTED)

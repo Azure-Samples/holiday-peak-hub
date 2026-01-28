@@ -1,4 +1,6 @@
 """Factory to create FastAPI + MCP service instances."""
+from typing import Callable, Optional
+
 from fastapi import FastAPI
 
 from holiday_peak_lib.agents import AgentBuilder, BaseRetailAgent
@@ -8,30 +10,35 @@ from holiday_peak_lib.agents.memory import HotMemory, WarmMemory, ColdMemory
 from holiday_peak_lib.utils.logging import configure_logging, log_async_operation
 
 
-def build_service_app(service_name: str) -> FastAPI:
-    """Return a FastAPI app pre-wired with MCP and memory stubs."""
+def build_service_app(
+    service_name: str,
+    agent_class: type[BaseRetailAgent],
+    *,
+    hot_memory: HotMemory,
+    warm_memory: WarmMemory,
+    cold_memory: ColdMemory,
+    mcp_setup: Optional[Callable[[FastAPIMCPServer, BaseRetailAgent], None]] = None,
+) -> FastAPI:
+    """Return a FastAPI app pre-wired with MCP and required memory tiers."""
     logger = configure_logging(app_name=service_name)
     app = FastAPI(title=service_name)
-
-    class ServiceAgent(BaseRetailAgent):
-        async def handle(self, request):
-            return {"service": service_name, "received": request}
 
     mcp = FastAPIMCPServer(app)
     router = RoutingStrategy()
     router.register("default", lambda payload: payload)
     agent = (
         AgentBuilder()
-        .with_agent(ServiceAgent)
+        .with_agent(agent_class)
         .with_router(router)
-        .with_memory(
-            HotMemory("redis://localhost:6379"),
-            WarmMemory("https://cosmos-account", "db", "container"),
-            ColdMemory("https://storage-account", "container"),
-        )
+        .with_memory(hot_memory, warm_memory, cold_memory)
         .with_mcp(mcp)
         .build()
     )
+
+    if hasattr(agent, "service_name"):
+        agent.service_name = service_name
+    if mcp_setup:
+        mcp_setup(mcp, agent)
 
     @app.get("/health")
     async def health():
