@@ -16,6 +16,7 @@ This document indexes all architectural decisions for the Holiday Peak Hub accel
 | [ADR-008](adrs/adr-008-memory-tiers.md) | Three-Tier Memory Architecture | Accepted | 2024-12 |
 | [ADR-009](adrs/adr-009-aks-deployment.md) | AKS with Helm, KEDA, and Canary Deployments | Accepted | 2024-12 |
 | [ADR-010](adrs/adr-010-rest-and-mcp-exposition.md) | Dual Exposition: REST + MCP Servers | Accepted | 2024-12 |
+| [ADR-011](adrs/adr-011-acp-catalog-search.md) | ACP Alignment for Ecommerce Catalog Search | Accepted | 2026-01 |
 
 ## How to Use ADRs
 

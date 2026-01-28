@@ -17,8 +17,8 @@ Different apps need different tier configurations:
 - Order Status: Heavy cold memory (historical orders)
 
 Memory setup involves:
-- Connection pooling
-- Retry policies
+- Connection pooling (Redis/Cosmos/Blob)
+- Cascading read/write rules
 - Serialization strategies
 - TTL/eviction rules
 
@@ -28,29 +28,36 @@ Memory setup involves:
 
 ### Structure
 ```python
-# lib/src/holiday_peak_lib/memory/builder.py
+# lib/src/holiday_peak_lib/agents/memory/builder.py
 class MemoryBuilder:
-    def with_hot_tier(self, redis_config: RedisConfig) -> Self:
-        self._hot = HotMemory(redis_config)
+    def with_hot(self, hot: HotMemory) -> "MemoryBuilder":
+        self._hot = hot
         return self
-    
-    def with_warm_tier(self, cosmos_config: CosmosConfig) -> Self:
-        self._warm = WarmMemory(cosmos_config)
+
+    def with_warm(self, warm: WarmMemory) -> "MemoryBuilder":
+        self._warm = warm
         return self
-    
-    def with_cold_tier(self, blob_config: BlobConfig) -> Self:
-        self._cold = ColdMemory(blob_config)
+
+    def with_cold(self, cold: ColdMemory) -> "MemoryBuilder":
+        self._cold = cold
         return self
-    
-    def build(self) -> AgentMemory:
-        return AgentMemory(self._hot, self._warm, self._cold)
+
+    def with_rules(self, **kwargs) -> "MemoryBuilder":
+        self._rules = MemoryRules(**kwargs)
+        return self
+
+    def build(self) -> MemoryClient:
+        return MemoryClient(hot=self._hot, warm=self._warm, cold=self._cold, rules=self._rules)
 
 # Usage in app
-memory = (MemoryBuilder()
-    .with_hot_tier(RedisConfig(host=..., ttl=300))
-    .with_warm_tier(CosmosConfig(account=..., database=...))
-    .with_cold_tier(BlobConfig(account=..., container=...))
-    .build())
+memory = (
+    MemoryBuilder()
+    .with_hot(HotMemory(redis_url))
+    .with_warm(WarmMemory(cosmos_uri, database, container))
+    .with_cold(ColdMemory(blob_account_url, container))
+    .with_rules(read_fallback=True, promote_on_read=True, write_through=True)
+    .build()
+)
 ```
 
 ## Consequences
@@ -96,47 +103,56 @@ memory = MemoryFactory.create_for_app("cart-intelligence")
 - **Library**: `lib/src/holiday_peak_lib/memory/builder.py`
 
 ### Tier Interfaces
-Each tier implements:
+Each tier implements its own storage contract:
 ```python
-class MemoryTier(ABC):
-    @abstractmethod
-    async def get(self, key: str) -> Optional[dict]: ...
-    
-    @abstractmethod
-    async def set(self, key: str, value: dict, ttl: Optional[int]) -> None: ...
-    
-    @abstractmethod
+class HotMemory(Protocol):
+    async def get(self, key: str) -> Optional[str]: ...
+    async def set(self, key: str, value: str, ttl: Optional[int] = None) -> None: ...
+    async def delete(self, key: str) -> None: ...
+
+class WarmMemory(Protocol):
+    async def read(self, key: str) -> Optional[str]: ...
+    async def upsert(self, key: str, value: str) -> None: ...
+    async def delete(self, key: str) -> None: ...
+
+class ColdMemory(Protocol):
+    async def download_text(self, key: str) -> Optional[str]: ...
+    async def upload_text(self, key: str, value: str) -> None: ...
     async def delete(self, key: str) -> None: ...
 ```
 
-### Auto-Promotion Logic
-`AgentMemory` checks tiers in order (hot → warm → cold) and promotes frequently accessed keys:
+### Cascading Rules (Promotion)
+`MemoryClient` checks tiers in order (hot → warm → cold) and optionally promotes on read:
 ```python
-async def get(self, key: str) -> Optional[dict]:
-    # Check hot
+async def get(self, key: str) -> Optional[str]:
     value = await self._hot.get(key)
-    if value:
+    if value is not None:
         return value
-    
-    # Check warm, promote to hot
-    value = await self._warm.get(key)
-    if value:
-        await self._hot.set(key, value, ttl=300)
+
+    value = await self._warm.read(key)
+    if value is not None and self._rules.promote_on_read:
+        await self._hot.set(key, value, ttl=self._rules.hot_ttl)
         return value
-    
-    # Check cold, promote to warm
-    value = await self._cold.get(key)
-    if value:
-        await self._warm.set(key, value)
-        await self._hot.set(key, value, ttl=300)
+
+    value = await self._cold.download_text(key)
+    if value is not None and self._rules.promote_on_read:
+        await self._warm.upsert(key, value)
+        await self._hot.set(key, value, ttl=self._rules.hot_ttl)
         return value
-    
-    return None
+
+    return value
 ```
+
+### Tiered Eviction (Demotion Extension Point)
+Eviction is not built-in, but the builder supports injecting policy logic on top of `MemoryClient`.
+Implement a policy that evaluates per-key metadata (last access, size, compliance) and demotes:
+
+- Hot → Warm for cold keys or large payloads
+- Warm → Cold for archival keys or stale data
 
 ### Testing
 - Unit tests: Mock each tier, verify builder assembly
-- Integration tests: Real Redis/Cosmos/Blob, verify promotion logic
+- Integration tests: Real Redis/Cosmos/Blob, verify promotion and pooling settings
 
 ## Related ADRs
 

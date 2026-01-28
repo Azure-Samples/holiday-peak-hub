@@ -78,6 +78,12 @@ response = await agent.handle({"query": "Check inventory for SKU-123"})
 ❌ **Session Management**: No multi-turn conversation context tracking  
 ❌ **MCP Schema Discovery**: No `/mcp/tools` registry endpoint  
 
+**Foundry note**: When running agents on **Foundry Agent Service**, several items above are handled by the platform:
+- **Tool orchestration + retries** (server-side tool execution with logging)
+- **Conversation/session state** (managed conversations with optional BYO storage)
+- **Observability** (conversation traces, tool invocations, and Application Insights integration)
+- **Safety controls** (integrated content filters and policy governance)
+
 **Current Status**: Core orchestration and Foundry invokers are implemented, but apps must provide agent classes, tools, and model config.
 
 ## Microsoft Agent Framework (Azure AI Foundry) Integration
@@ -190,6 +196,11 @@ MCP schema discovery is not implemented by default. Apps should publish their to
 
 ✅ **Implemented**: Basic operation logging via `configure_logging` + `log_async_operation`
 
+✅ **Foundry-managed** (when using Foundry Agent Service):
+- Conversation and tool-call traces
+- Structured run logs in the Foundry portal
+- Application Insights metrics integration
+
 ❌ **NOT Implemented**:
 - No token usage tracking
 - No tool call latency per step
@@ -239,6 +250,8 @@ async def run(self, query: str, tools: list[Tool]) -> AgentResponse:
 ❌ **Tool Call Accuracy**: No validation that tools return expected results  
 ❌ **Regression Tests**: No baseline comparisons when changing models  
 
+✅ **Foundry-managed (interactive)**: Foundry Agents playground supports built-in evaluation metrics on threads/runs. This repo does not yet automate those evaluations.
+
 ### Recommended Implementation
 
 ```python
@@ -276,6 +289,8 @@ async def test_agent_latency():
 - Input sanitization: Strip special characters, limit query length
 - Tool access control: Restrict tools per user role
 - Output filtering: Redact sensitive data (PII, credentials)
+
+✅ **Foundry-managed** (when using Foundry Agent Service): integrated content filters and policy enforcement reduce prompt-injection risk and unsafe outputs.
 
 ```python
 def sanitize_query(query: str) -> str:
