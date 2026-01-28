@@ -82,8 +82,6 @@ Implements `connect`, `upsert`, and `read` using `azure.cosmos.aio.CosmosClient`
 ### ColdMemory (Blob Storage)
 
 Implements `connect`, `upload_text`, and `download_text` using `azure.storage.blob.aio.BlobServiceClient`.
-        ...
-```
 
 ## What's Implemented
 

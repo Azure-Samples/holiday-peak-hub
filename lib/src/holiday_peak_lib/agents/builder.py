@@ -7,6 +7,7 @@ from .fastapi_mcp import FastAPIMCPServer
 from .memory.hot import HotMemory
 from .memory.warm import WarmMemory
 from .memory.cold import ColdMemory
+from .memory.builder import MemoryBuilder
 from .orchestration.router import RoutingStrategy
 
 
@@ -19,6 +20,7 @@ class AgentBuilder:
         self._hot_memory: HotMemory | None = None
         self._warm_memory: WarmMemory | None = None
         self._cold_memory: ColdMemory | None = None
+        self._memory_builder: MemoryBuilder | None = None
         self._mcp_server: FastAPIMCPServer | None = None
         self._tools: dict[str, Callable[..., Any]] = {}
         self._slm: ModelTarget | None = None
@@ -42,6 +44,10 @@ class AgentBuilder:
         self._hot_memory = hot
         self._warm_memory = warm
         self._cold_memory = cold
+        return self
+
+    def with_memory_builder(self, memory_builder: MemoryBuilder) -> "AgentBuilder":
+        self._memory_builder = memory_builder
         return self
 
     def with_mcp(self, mcp_server: FastAPIMCPServer) -> "AgentBuilder":
@@ -99,7 +105,15 @@ class AgentBuilder:
             complexity_threshold=self._complexity_threshold,
         )
         agent = self._agent_class(config=deps)
-        if any([self._hot_memory, self._warm_memory, self._cold_memory]):
+        if self._memory_builder:
+            if any([self._hot_memory, self._warm_memory, self._cold_memory]):
+                self._memory_builder.with_hot(self._hot_memory).with_warm(self._warm_memory).with_cold(
+                    self._cold_memory
+                )
+            memory_client = self._memory_builder.build()
+            agent.memory_client = memory_client
+            agent.attach_memory(memory_client.hot, memory_client.warm, memory_client.cold)
+        elif any([self._hot_memory, self._warm_memory, self._cold_memory]):
             agent.attach_memory(self._hot_memory, self._warm_memory, self._cold_memory)
         if self._mcp_server:
             agent.attach_mcp(self._mcp_server)
