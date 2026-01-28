@@ -58,3 +58,36 @@ Orchestrates:
 ❌ Real OMS or carrier integrations  
 ❌ Foundry model integration for narrative summaries  
 ❌ Observability dashboards for SLA drift
+
+## Operational Playbooks
+
+- [Tool call failures](../../playbooks/playbook-tool-call-failures.md)
+- [Adapter failure](../../playbooks/playbook-adapter-failure.md)
+- [Adapter latency spikes](../../playbooks/playbook-adapter-latency-spikes.md)
+- [Adapter schema changes](../../playbooks/playbook-adapter-schema-changes.md)
+- [Agent latency spikes](../../playbooks/playbook-agent-latency-spikes.md)
+
+## Sample Implementation
+
+Replace mock logistics + resolver adapters with real OMS and carrier APIs:
+
+```python
+from holiday_peak_lib.adapters.base import BaseAdapter
+from holiday_peak_lib.adapters.logistics_adapter import LogisticsConnector
+
+class CarrierApiAdapter(BaseAdapter):
+    async def _connect_impl(self, **kwargs):
+        return None
+
+    async def _fetch_impl(self, query):
+        # Query carrier tracking API
+        ...
+
+    async def _upsert_impl(self, payload):
+        return payload
+
+    async def _delete_impl(self, identifier):
+        return True
+
+logistics = LogisticsConnector(adapter=CarrierApiAdapter())
+```

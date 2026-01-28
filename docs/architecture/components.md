@@ -19,6 +19,8 @@ Core micro-framework providing reusable patterns for retail AI agents.
 
 Runnable services built on the framework, one per retail process.
 
+**App Index**: [components/apps/README.md](components/apps/README.md)
+
 ### E-commerce Domain
 
 | Service | Path | Purpose |
@@ -64,6 +66,12 @@ Runnable services built on the framework, one per retail process.
 | [Carrier Selection](components/apps/logistics-carrier-selection.md) | `apps/logistics-carrier-selection/` | Cost/speed trade-off optimization |
 | [Returns Support](components/apps/logistics-returns-support.md) | `apps/logistics-returns-support/` | Reverse logistics automation |
 | [Route Issue Detection](components/apps/logistics-route-issue-detection.md) | `apps/logistics-route-issue-detection/` | Proactive delay mitigation |
+
+## Operational Playbooks
+
+Operational response guides for common incidents and runtime issues.
+
+- [Playbooks Index](playbooks/README.md)
 
 ## Component Interaction Matrix
 

@@ -164,6 +164,37 @@ async def get_acp_content_with_fallback(sku: str) -> dict:
         await memory.warm.set(f"acp:{sku}", content, ttl=86400)
         
         return content
+        ## Operational Playbooks
+
+        - [Agent latency spikes](../../playbooks/playbook-agent-latency-spikes.md)
+        - [Tool call failures](../../playbooks/playbook-tool-call-failures.md)
+        - [Adapter latency spikes](../../playbooks/playbook-adapter-latency-spikes.md)
+        - [Adapter failure](../../playbooks/playbook-adapter-failure.md)
+        - [Connection pool exhaustion](../../playbooks/playbook-connection-pool-exhaustion.md)
+        - [Redis OOM](../../playbooks/playbook-redis-oom.md)
+        - [Blob throttling](../../playbooks/playbook-blob-throttling.md)
+
+        ## Sample Implementation
+
+        Implement ACP content and review adapters with real endpoints and keep the agent orchestration unchanged:
+
+        ```python
+        from holiday_peak_lib.adapters.base import BaseAdapter
+
+        class ReviewApiAdapter(BaseAdapter):
+            async def _connect_impl(self, **kwargs):
+                return None
+
+            async def _fetch_impl(self, query):
+                # Call reviews API for sku
+                ...
+
+            async def _upsert_impl(self, payload):
+                return payload
+
+            async def _delete_impl(self, identifier):
+                return True
+        ```
     except Exception as e:
         logger.warning(f"ACP fetch failed for {sku}", exc_info=True)
         
