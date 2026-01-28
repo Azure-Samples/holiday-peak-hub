@@ -259,6 +259,32 @@ docker run -p 8000:8000 --env-file .env catalog-search:latest
 
 ### Azure Deployment
 
+## Operational Playbooks
+
+- [Agent latency spikes](../../playbooks/playbook-agent-latency-spikes.md)
+- [Tool call failures](../../playbooks/playbook-tool-call-failures.md)
+- [Adapter latency spikes](../../playbooks/playbook-adapter-latency-spikes.md)
+- [Adapter failure](../../playbooks/playbook-adapter-failure.md)
+- [Connection pool exhaustion](../../playbooks/playbook-connection-pool-exhaustion.md)
+- [Cosmos high RU consumption](../../playbooks/playbook-cosmos-high-ru.md)
+- [Blob throttling](../../playbooks/playbook-blob-throttling.md)
+
+## Sample Implementation
+
+Bind a real Azure AI Search adapter and keep the agent orchestration intact:
+
+```python
+from azure.search.documents import SearchClient
+from azure.core.credentials import AzureKeyCredential
+
+class AzureSearchAdapter:
+    def __init__(self, endpoint: str, index_name: str, key: str):
+        self.client = SearchClient(endpoint, index_name, AzureKeyCredential(key))
+
+    def search(self, query: str, top: int = 10):
+        return [doc for doc in self.client.search(search_text=query, top=top)]
+```
+
 ```bash
 # Provision resources
 python .infra/cli.py deploy --service ecommerce-catalog-search --location eastus

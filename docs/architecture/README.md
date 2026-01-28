@@ -8,6 +8,7 @@ This folder contains comprehensive architectural documentation for the Holiday P
 - [Architecture Overview](architecture.md) — System context, use case diagrams, component interaction, deployment views
 - [Architecture Decision Records](ADRs.md) — Index of all ADRs
 - [Components](components.md) — Detailed component documentation for libs and apps
+- [Operational Playbooks](playbooks/README.md) — Incident response guides and runbooks
 
 ## Quick Links
 
