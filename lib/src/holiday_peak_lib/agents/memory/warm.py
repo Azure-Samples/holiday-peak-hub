@@ -13,16 +13,29 @@ logger = configure_logging()
 class WarmMemory:
     """Cosmos-backed warm memory for conversation threads."""
 
-    def __init__(self, account_uri: str, database: str, container: str) -> None:
+    def __init__(
+        self,
+        account_uri: str,
+        database: str,
+        container: str,
+        *,
+        connection_limit: int | None = None,
+        client_kwargs: Optional[dict[str, Any]] = None,
+    ) -> None:
         self.account_uri = account_uri
         self.database = database
         self.container = container
+        self.connection_limit = connection_limit
+        self.client_kwargs = client_kwargs or {}
         self.client: Optional[CosmosClient] = None
 
     async def connect(self) -> None:
         async def _connect():
             credential = DefaultAzureCredential()
-            self.client = CosmosClient(self.account_uri, credential)
+            kwargs = dict(self.client_kwargs)
+            if self.connection_limit is not None:
+                kwargs["connection_limit"] = self.connection_limit
+            self.client = CosmosClient(self.account_uri, credential, **kwargs)
 
         await log_async_operation(
             logger,

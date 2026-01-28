@@ -12,13 +12,37 @@ logger = configure_logging()
 class HotMemory:
     """Redis-backed hot memory for short-lived context."""
 
-    def __init__(self, url: str) -> None:
+    def __init__(
+        self,
+        url: str,
+        *,
+        max_connections: int | None = None,
+        socket_timeout: float | None = None,
+        socket_connect_timeout: float | None = None,
+        health_check_interval: int | None = None,
+        retry_on_timeout: bool | None = None,
+    ) -> None:
         self.url = url
+        self.max_connections = max_connections
+        self.socket_timeout = socket_timeout
+        self.socket_connect_timeout = socket_connect_timeout
+        self.health_check_interval = health_check_interval
+        self.retry_on_timeout = retry_on_timeout
         self.client: Optional[redis.Redis] = None
 
     async def connect(self) -> None:
         async def _connect():
-            self.client = redis.from_url(self.url, encoding="utf-8", decode_responses=True)
+            pool = redis.ConnectionPool.from_url(
+                self.url,
+                encoding="utf-8",
+                decode_responses=True,
+                max_connections=self.max_connections,
+                socket_timeout=self.socket_timeout,
+                socket_connect_timeout=self.socket_connect_timeout,
+                health_check_interval=self.health_check_interval,
+                retry_on_timeout=self.retry_on_timeout,
+            )
+            self.client = redis.Redis(connection_pool=pool)
 
         await log_async_operation(
             logger,

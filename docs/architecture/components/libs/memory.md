@@ -52,6 +52,7 @@ Memory tiers are constructed explicitly and injected into agents via `AgentBuild
 
 ```python
 from holiday_peak_lib.agents.memory import HotMemory, WarmMemory, ColdMemory
+from holiday_peak_lib.agents.memory import MemoryBuilder
 from holiday_peak_lib.config import MemorySettings
 
 settings = MemorySettings()
@@ -59,6 +60,15 @@ settings = MemorySettings()
 hot = HotMemory(settings.redis_url)
 warm = WarmMemory(settings.cosmos_account_uri, settings.cosmos_database, settings.cosmos_container)
 cold = ColdMemory(settings.blob_account_url, settings.blob_container)
+
+memory_client = (
+    MemoryBuilder()
+    .with_hot(hot)
+    .with_warm(warm)
+    .with_cold(cold)
+    .with_rules(read_fallback=True, promote_on_read=True, write_through=True)
+    .build()
+)
 ```
 
 **Env vars** (via `MemorySettings`):
@@ -83,87 +93,92 @@ Implements `connect`, `upsert`, and `read` using `azure.cosmos.aio.CosmosClient`
 
 Implements `connect`, `upload_text`, and `download_text` using `azure.storage.blob.aio.BlobServiceClient`.
 
+## MemoryBuilder Responsibilities
+
+`MemoryBuilder` composes the three tiers and defines the cascading rules for reads and writes. It should focus on:
+
+- **Latency management**: track $p50$/$p95$ for reads and writes and tune promotion rules.
+- **Retrieval quality**: ensure promoted values are correct and consistent across tiers.
+- **Content evaluation**: validate payload shape before promoting or writing through.
+
+Builder-level features:
+
+- **Cascading reads** (hot → warm → cold) with optional promotion.
+- **Write-through** to warm and optional cold persistence.
+- **Compression hooks** for cold writes (large payloads).
+- **Batch operations** to reduce latency and improve throughput.
+
 ## What's Implemented
 
 ✅ **HotMemory**: Redis-backed hot tier with `connect`, `get`, and `set` (TTL supported)  
 ✅ **WarmMemory**: Cosmos DB-backed warm tier with `connect`, `upsert`, and `read`  
 ✅ **ColdMemory**: Blob-backed cold tier with `connect`, `upload_text`, and `download_text`  
+✅ **MemoryBuilder**: Fluent builder that assembles tiers and rules into a `MemoryClient`  
+✅ **MemoryClient**: Cascading read/write orchestration across tiers  
 ✅ **MemorySettings**: Environment-driven configuration for tier endpoints  
 
 ## What's NOT Implemented
 
-❌ **Unified MemoryClient**: No single client that multiplexes tiers  
-❌ **MemoryBuilder**: No fluent builder API in the current codebase  
-
-**To Implement Redis**:
-```python
-from redis.asyncio import Redis
-
-class RedisHotMemory:
-    def __init__(self, host: str, port: int = 6380, password: Optional[str] = None, ssl: bool = True):
-        self.client = Redis(
-            host=host,
-            port=port,
-            password=password,
-            ssl=ssl,
-            decode_responses=True
-        )
-    
-    async def get(self, key: str) -> Optional[str]:
-        return await self.client.get(key)
-    
-    async def set(self, key: str, value: str, ttl: Optional[int] = None) -> None:
-        if ttl:
-            await self.client.setex(key, ttl, value)
-        else:
-            await self.client.set(key, value)
-    
-    async def delete(self, key: str) -> None:
-        await self.client.delete(key)
-    
-    async def exists(self, key: str) -> bool:
-        return await self.client.exists(key) > 0
-```
-
-**Cosmos DB / Blob Storage**: Implemented via `WarmMemory` and `ColdMemory` classes with Azure SDK clients and Entra ID credentials.
+❌ **Built-in metrics**: $p50$/$p95$ latency tracking, retrieval quality scoring, and content evaluation hooks are not implemented yet  
 
 ### Cascading Reads/Writes
 
-❌ **No Automatic Promotion**: Hot miss doesn't fallback to warm/cold  
-❌ **No Write-Through**: Setting in warm doesn't also update hot cache  
-❌ **No Tiered Eviction**: No logic to demote cold data from hot→warm→cold  
+✅ **Cascading Reads**: Hot → warm → cold with optional promotion to hot/warm  
+✅ **Write-Through**: Optional warm write-through and optional cold persistence  
+❌ **Tiered Eviction**: No demotion logic from hot→warm→cold  
 
-No cascading reads/writes or automatic tier promotion/demotion are implemented by default.
-    
-    # Try warm
-    if self.warm:
-        doc = await self.warm.get(key)
-        if doc:
-            value = doc.get("value")
-            # Promote to hot for future access
-            if self.hot and value:
-                await self.hot.set(key, value, ttl=300)  # 5-min cache
-            return value
-    
-    # Try cold
-    if self.cold:
-        blob = await self.cold.get(key)
-        if blob:
-            value = blob.decode("utf-8")
-            # Promote to hot+warm
-            if self.hot:
-                await self.hot.set(key, value, ttl=300)
-            if self.warm:
-                await self.warm.set(key, {"value": value})
-            return value
-    
-    return None
+**How to extend tiered eviction**: Implement business rules that decide *when* a key should be demoted and *where* it should go. Typical rules include TTL expiration, access frequency, payload size, SLA, and compliance requirements. Add a policy on the `MemoryClient` that evaluates per-key metadata and triggers a demotion pipeline.
+
+**Example rules**:
+- **Access-based**: if a key hasn’t been read in $N$ minutes, demote hot → warm.
+- **Size-based**: if payload > $X$ KB, demote hot → warm or warm → cold.
+- **SLA-based**: if p95 read latency for a key exceeds a threshold, demote hot → warm to reduce contention.
+- **Compliance-based**: if data is archival-only, always persist to cold and evict from hot/warm.
+
+**Demotion sketch**:
+```python
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+
+@dataclass
+class MemoryPolicy:
+    max_hot_age: timedelta = timedelta(minutes=15)
+    max_hot_bytes: int = 128 * 1024
+    max_warm_age: timedelta = timedelta(days=7)
+
+    def should_demote_from_hot(self, meta) -> bool:
+        age = datetime.utcnow() - meta.last_accessed
+        return age > self.max_hot_age or meta.size_bytes > self.max_hot_bytes
+
+    def should_demote_from_warm(self, meta) -> bool:
+        age = datetime.utcnow() - meta.last_accessed
+        return age > self.max_warm_age
+
+class EvictingMemoryClient(MemoryClient):
+    def __init__(self, *args, policy: MemoryPolicy, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._policy = policy
+
+    async def evict(self, key: str, meta) -> None:
+        if self.hot and self._policy.should_demote_from_hot(meta) and self.warm:
+            value = await self.hot.get(key)
+            if value is not None:
+                await self.warm.upsert(key, value)
+                await self.hot.delete(key)
+
+        if self.warm and self._policy.should_demote_from_warm(meta) and self.cold:
+            value = await self.warm.read(key)
+            if value is not None:
+                await self.cold.upload_text(key, value)
+                await self.warm.delete(key)
 ```
 
 ### Compression
 
-❌ **No Compression**: Blob storage stores raw bytes; no gzip for large objects  
-❌ **No Automatic Detection**: Client doesn't compress if value > 1MB  
+❌ **No Compression**: Builder does not yet compress large payloads automatically  
+❌ **No Automatic Detection**: No size-based compression policy by default  
+
+**Builder-level addition**: Add a compression policy in `MemoryBuilder.with_rules(...)` and apply it before `ColdMemory.upload_text`.
 
 **Add Compression**:
 ```python
@@ -189,19 +204,21 @@ class CompressedBlobMemory(BlobColdMemory):
 
 ### Batch Operations
 
-❌ **No Multi-Get**: No `mget([key1, key2, key3])` for parallel reads  
-❌ **No Multi-Set**: No `mset({key1: val1, key2: val2})` for atomic writes  
+❌ **No Multi-Get**: Builder does not expose `mget` across tiers  
+❌ **No Multi-Set**: Builder does not expose `mset` across tiers  
+
+**Builder-level addition**: Provide `MemoryClient.mget()` and `MemoryClient.mset()` helpers for parallel tier operations.
 
 **Add Batch Support**:
 ```python
-async def mget(self, keys: list[str], tier: MemoryTier) -> dict[str, Optional[str]]:
-    """Get multiple keys in parallel."""
-    results = await asyncio.gather(*[self.get(k, tier) for k in keys])
+async def mget(self, keys: list[str]) -> dict[str, Optional[str]]:
+    """Get multiple keys in parallel using cascading reads."""
+    results = await asyncio.gather(*[self.get(k) for k in keys])
     return dict(zip(keys, results))
 
-async def mset(self, items: dict[str, str], tier: MemoryTier, ttl: Optional[int] = None) -> None:
-    """Set multiple keys in parallel."""
-    await asyncio.gather(*[self.set(k, v, tier, ttl) for k, v in items.items()])
+async def mset(self, items: dict[str, str]) -> None:
+    """Set multiple keys in parallel using cascading writes."""
+    await asyncio.gather(*[self.set(k, v) for k, v in items.items()])
 ```
 
 ### Monitoring
@@ -216,41 +233,68 @@ import time
 from opencensus.ext.azure.log_exporter import AzureLogHandler
 
 class ObservableMemoryClient(MemoryClient):
-    async def get(self, key: str, tier: MemoryTier) -> Optional[str]:
+    async def get(self, key: str) -> Optional[str]:
         start = time.time()
         try:
-            value = await super().get(key, tier)
+            value = await super().get(key)
             duration_ms = (time.time() - start) * 1000
             
             logger.info("memory.get", extra={
-                "tier": tier.name,
                 "hit": value is not None,
                 "duration_ms": duration_ms
             })
             return value
-        except Exception as e:
-            logger.error("memory.get.error", exc_info=True, extra={"tier": tier.name})
+        except Exception:
+            logger.error("memory.get.error", exc_info=True)
             raise
 ```
 
 ### Connection Pooling
 
-❌ **No Pool Limits**: Redis client doesn't configure `max_connections`  
-❌ **No Retry Logic**: Cosmos calls don't retry on transient 429/503  
+✅ **Redis Pool Limits**: `HotMemory` supports `max_connections` and socket timeouts  
+✅ **Cosmos Connection Limit**: `WarmMemory` supports `connection_limit` and custom client kwargs  
+✅ **Blob Transport Pooling**: `ColdMemory` supports `connection_pool_size` and transport timeouts  
+❌ **Cosmos Retry Policy**: No explicit retry policy configured for transient 429/503  
 
-**Add Connection Pool**:
+**Connection Pool Usage**:
 ```python
-from redis.asyncio import Redis, ConnectionPool
+from holiday_peak_lib.agents.memory import HotMemory
 
-pool = ConnectionPool(
-    host="redis.cache.windows.net",
-    port=6380,
-    password="***",
-    max_connections=50,  # Limit concurrent connections
-    socket_timeout=5.0
+hot = HotMemory(
+    "redis://localhost:6379",
+    max_connections=50,
+    socket_timeout=5.0,
+    socket_connect_timeout=5.0,
+    health_check_interval=30,
+    retry_on_timeout=True,
 )
+```
 
-redis_client = Redis(connection_pool=pool, decode_responses=True)
+```python
+from holiday_peak_lib.agents.memory import WarmMemory
+
+warm = WarmMemory(
+    "https://account.documents.azure.com",
+    "db",
+    "container",
+    connection_limit=50,
+    client_kwargs={
+        "consistency_level": "Session",
+        "enable_content_response_on_write": False,
+    },
+)
+```
+
+```python
+from holiday_peak_lib.agents.memory import ColdMemory
+
+cold = ColdMemory(
+    "https://storage.blob.core.windows.net",
+    "container",
+    connection_pool_size=50,
+    connection_timeout=5.0,
+    read_timeout=30.0,
+)
 ```
 
 ## Extension Guide
@@ -318,7 +362,6 @@ class MemoryConfig:
 await memory.set(
     f"session:{session_id}",
     session_data,
-    tier=MemoryTier.HOT,
     ttl=MemoryConfig.SESSION_TTL
 )
 ```
@@ -332,16 +375,13 @@ from azure.identity.aio import DefaultAzureCredential
 
 credential = DefaultAzureCredential()
 
+warm = WarmMemory("https://account.documents.azure.com", "db", "container")
+cold = ColdMemory("https://storage.blob.core.windows.net", "container")
+
 memory = (
     MemoryBuilder()
-    .with_warm(
-        cosmos_endpoint="https://account.documents.azure.com",
-        credential=credential  # No key
-    )
-    .with_cold(
-        blob_account_url="https://storage.blob.core.windows.net",
-        credential=credential
-    )
+    .with_warm(warm)
+    .with_cold(cold)
     .build()
 )
 ```
@@ -434,12 +474,11 @@ from azure.monitor.opentelemetry.exporter import AzureMonitorTraceExporter
 tracer = trace.get_tracer(__name__)
 
 class TracedMemoryClient(MemoryClient):
-    async def get(self, key: str, tier: MemoryTier) -> Optional[str]:
+    async def get(self, key: str) -> Optional[str]:
         with tracer.start_as_current_span("memory.get") as span:
-            span.set_attribute("tier", tier.name)
             span.set_attribute("key", key)
             
-            value = await super().get(key, tier)
+            value = await super().get(key)
             span.set_attribute("hit", value is not None)
             return value
 ```
@@ -454,9 +493,8 @@ class TracedMemoryClient(MemoryClient):
 
 ### Current State
 
-⚠️ **Unit Tests Only**:
-- ✅ Builder tests (`test_memory_builder.py`): ~15 tests for fluent API
-- ✅ Mock client tests (`test_memory_client.py`): ~20 tests for get/set/delete
+⚠️ **Limited Coverage**:
+- ❌ **No dedicated memory unit tests yet**
 - ❌ **No Integration Tests**: No tests with real Redis/Cosmos/Blob
 - ❌ **No Load Tests**: No validation of 10k+ ops/sec throughput
 - ❌ **No Failover Tests**: No chaos testing for Redis failover
@@ -468,6 +506,8 @@ class TracedMemoryClient(MemoryClient):
 import pytest
 from testcontainers.redis import RedisContainer
 
+from holiday_peak_lib.agents.memory import HotMemory, MemoryBuilder
+
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_redis_hot_memory_integration():
@@ -475,11 +515,12 @@ async def test_redis_hot_memory_integration():
     with RedisContainer("redis:7") as redis:
         host, port = redis.get_connection_url().split(":")[-2:]
         
-        memory = MemoryBuilder().with_hot(host=host, port=int(port)).build()
+        redis_url = f"redis://{host}:{int(port)}"
+        memory = MemoryBuilder().with_hot(HotMemory(redis_url)).build()
         
         # Test set/get
-        await memory.set("test-key", "test-value", tier=MemoryTier.HOT)
-        value = await memory.get("test-key", tier=MemoryTier.HOT)
+        await memory.set("test-key", "test-value")
+        value = await memory.get("test-key")
         
         assert value == "test-value"
 ```
@@ -489,14 +530,16 @@ async def test_redis_hot_memory_integration():
 import asyncio
 import time
 
+from holiday_peak_lib.agents.memory import HotMemory, MemoryBuilder
+
 async def load_test_hot_tier():
     """Test 10k reads/writes per second."""
-    memory = MemoryBuilder().with_hot(host="localhost").build()
+    memory = MemoryBuilder().with_hot(HotMemory("redis://localhost:6379")).build()
     
     start = time.time()
     tasks = []
     for i in range(10_000):
-        tasks.append(memory.set(f"key-{i}", f"value-{i}", tier=MemoryTier.HOT))
+        tasks.append(memory.set(f"key-{i}", f"value-{i}"))
     await asyncio.gather(*tasks)
     
     duration = time.time() - start
@@ -605,16 +648,12 @@ az cosmosdb sql container show \
 
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
-| `REDIS_HOST` | Redis endpoint | `localhost` | ✅ |
-| `REDIS_PORT` | Redis port | `6379` (6380 for Azure) | ❌ |
-| `REDIS_PASSWORD` | Redis auth | - | ✅ (prod) |
-| `REDIS_SSL` | Use TLS | `true` | ❌ |
-| `COSMOS_ENDPOINT` | Cosmos DB URI | - | ✅ |
-| `COSMOS_KEY` | Cosmos DB key | - | ✅ (dev) |
-| `COSMOS_DATABASE` | Database name | `memory` | ✅ |
-| `COSMOS_CONTAINER` | Container name | `state` | ✅ |
+| `REDIS_URL` | Redis connection URL | - | ✅ |
+| `COSMOS_ACCOUNT_URI` | Cosmos DB URI | - | ✅ |
+| `COSMOS_DATABASE` | Database name | - | ✅ |
+| `COSMOS_CONTAINER` | Container name | - | ✅ |
 | `BLOB_ACCOUNT_URL` | Storage account | - | ✅ |
-| `BLOB_CONTAINER` | Container name | `memory` | ✅ |
+| `BLOB_CONTAINER` | Container name | - | ✅ |
 
 **Prod Note**: Use Managed Identity instead of keys for Cosmos/Blob.
 

@@ -2,6 +2,7 @@
 from typing import Optional
 
 from azure.identity import DefaultAzureCredential
+from azure.core.pipeline.transport import AioHttpTransport
 from azure.storage.blob.aio import BlobServiceClient
 
 from holiday_peak_lib.utils.logging import configure_logging, log_async_operation
@@ -13,15 +14,40 @@ logger = configure_logging()
 class ColdMemory:
     """Blob-backed cold memory for long-term state."""
 
-    def __init__(self, account_url: str, container_name: str) -> None:
+    def __init__(
+        self,
+        account_url: str,
+        container_name: str,
+        *,
+        connection_pool_size: int | None = None,
+        connection_timeout: float | None = None,
+        read_timeout: float | None = None,
+    ) -> None:
         self.account_url = account_url
         self.container_name = container_name
+        self.connection_pool_size = connection_pool_size
+        self.connection_timeout = connection_timeout
+        self.read_timeout = read_timeout
         self.client: Optional[BlobServiceClient] = None
 
     async def connect(self) -> None:
         async def _connect():
             credential = DefaultAzureCredential()
-            self.client = BlobServiceClient(self.account_url, credential=credential)
+            transport = None
+            if any(
+                value is not None
+                for value in (self.connection_pool_size, self.connection_timeout, self.read_timeout)
+            ):
+                transport = AioHttpTransport(
+                    connection_timeout=self.connection_timeout,
+                    read_timeout=self.read_timeout,
+                    connection_pool_size=self.connection_pool_size,
+                )
+            self.client = BlobServiceClient(
+                self.account_url,
+                credential=credential,
+                transport=transport,
+            )
 
         await log_async_operation(
             logger,
