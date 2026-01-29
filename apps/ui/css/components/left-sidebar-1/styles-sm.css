@@ -1,0 +1,109 @@
+@media (max-width: 767px) {
+  .arrow {
+    transform: rotate(90deg);
+    transition: transform 0.15s ease-in-out;
+  }
+
+  .hidden-sibling {
+    + ul {
+      @apply hidden;
+    }
+    &.left-sidebar-item {
+      .arrow {
+        transform: rotate(-90deg) !important;
+      }
+    }
+  }
+
+  .left-sidebar-1 {
+    .logo {
+      @apply flex flex-row items-center justify-start w-full h-16 pl-4 text-base font-bold tracking-wider uppercase whitespace-nowrap;
+      max-width: calc(theme("spacing.1") * 64);
+      @apply text-blue-500;
+      span {
+        @apply block;
+      }
+    }
+  }
+
+  .left-sidebar-item {
+    @apply relative flex flex-row items-center justify-start h-10 whitespace-nowrap;
+    min-width: calc(theme("spacing.1") * 16);
+    max-width: calc(theme("spacing.1") * 64);
+    width: calc(theme("spacing.1") * 64);
+    > svg {
+      width: calc(theme("spacing.1") * 16);
+    }
+    &.open-sibling {
+      @apply text-blue-500;
+      &:after {
+        content: "";
+        display: block;
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        width: 4px;
+        @apply bg-blue-500;
+      }
+    }
+    &:after {
+      content: "";
+      display: none;
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: 4px;
+      @apply bg-blue-500;
+    }
+    &:hover,
+    &.active {
+      @apply text-blue-500;
+      &:after {
+        display: block;
+      }
+    }
+  }
+
+  .l0 {
+    > .left-sidebar-item {
+      > .title {
+        @apply visible opacity-100;
+      }
+    }
+  }
+
+  .left-sidebar-title {
+    @apply uppercase font-normal text-xs tracking-wider flex flex-row items-center justify-start h-16 w-full px-4;
+    @apply visible opacity-100;
+  }
+
+  ul ul .left-sidebar-item {
+    padding-left: calc(theme("spacing.1") * 16);
+  }
+  ul ul ul .left-sidebar-item {
+    padding-left: calc(theme("spacing.1") * 20);
+  }
+  ul ul ul ul .left-sidebar-item {
+    padding-left: calc(theme("spacing.1") * 24);
+  }
+  ul ul ul ul ul .left-sidebar-item {
+    padding-left: calc(theme("spacing.1") * 28);
+  }
+
+  .left-sidebar-1 {
+    @apply text-sm shadow-lg;
+    [data-left-sidebar="light"] & {
+      @apply bg-white border-r border-gray-200 text-gray-900;
+    }
+    [data-left-sidebar="dark"] & {
+      @apply border-r text-white;
+      background: color(theme("colors.gray.900") tint(5%));
+      border-color: color(theme("colors.gray.900") tint(10%));
+    }
+    .badge {
+      @apply hidden !important;
+    }
+  }
+}

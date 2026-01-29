@@ -1,0 +1,32 @@
+@media (max-width: 767px) {
+  [data-layout="e-commerce"] {
+    .left-sidebar-2 {
+      @apply fixed inset-0 z-10 overflow-hidden transform transition-transform duration-300 ease-in-out translate-x-0;
+    }
+    &[data-collapsed="false"] {
+      .left-sidebar-2 {
+        @apply -translate-x-80;
+      }
+    }
+    &[data-collapsed="true"] {
+      .left-sidebar-2 {
+      > div {
+        @apply absolute top-0 bottom-0 left-0 w-full h-full overflow-auto;
+        > div {
+          @apply h-full w-80;
+        }
+      }
+      }
+    }
+  }
+}
+
+@media (min-width: 768px) {
+  [data-layout="e-commerce"] {
+    &[data-collapsed="true"] {
+      .left-sidebar-2 {
+        @apply hidden;
+      }
+    }
+  }
+}

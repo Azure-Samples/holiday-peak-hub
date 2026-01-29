@@ -1,0 +1,198 @@
+@import url("https://fonts.googleapis.com/css?family=Poppins&display=swap");
+@import url("https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/3.4.6/css/flag-icon.min.css");
+
+#__next {
+  width: 100%;
+  min-width: 100%;
+  height: 100%;
+  min-height: 100%;
+  padding: 0;
+  margin: 0;
+  overflow-x: hidden;
+  position: relative;
+}
+code {
+  @apply inline p-1 font-mono font-bold text-blue-700 bg-gray-100 rounded dark:bg-gray-700 dark:text-yellow-700;
+}
+pre {
+  @apply inline-flex p-1 font-mono font-bold text-gray-900 whitespace-pre-wrap bg-gray-100 rounded dark:bg-gray-700 dark:text-white;
+}
+
+*,
+input,
+select,
+textarea,
+option,
+button {
+  outline: none !important;
+  &:focus {
+    outline: none !important;
+  }
+}
+
+a,
+input[type="submit"],
+button {
+  @apply outline-none cursor-pointer;
+}
+a:hover,
+a:active,
+a:focus,
+input[type="submit"]:hover,
+input[type="submit"]:active,
+input[type="submit"]:focus,
+button:hover,
+button:active,
+button:focus {
+  @apply outline-none;
+}
+
+/**
+ * hide scrollbars
+ */
+::-webkit-scrollbar {
+  display: none;
+  width: 0 !important;
+}
+.disable-scrollbars {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE 10+ */
+}
+
+/* clears the 'X' from Internet Explorer */
+input[type="search"]::-ms-clear {
+  display: none;
+  width: 0;
+  height: 0;
+}
+input[type="search"]::-ms-reveal {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* clears the 'X' from Chrome */
+input[type="search"]::-webkit-search-decoration,
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-results-button,
+input[type="search"]::-webkit-search-results-decoration {
+  display: none;
+}
+
+input:-webkit-autofill {
+  -webkit-text-fill-color: black !important;
+}
+
+/* clears the number indicators */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+.disable-scrollbar {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE 10+ */
+}
+
+.disable-scrollbar::-webkit-scrollbar {
+  display: none;
+  width: 0 !important;
+}
+
+.bg-1 {
+  background: url(/images/bg-login-1.jpg) no-repeat 0 0 fixed;
+  background-size: cover;
+}
+.bg-login-2 {
+  background: url(/images/bg-login-2.png) no-repeat 0 0 fixed;
+  background-size: cover;
+}
+.bg-login-3 {
+  background: url(/images/bg-login-2.png) no-repeat 0 0 fixed;
+  background-size: cover;
+}
+
+/* social media colors */
+.text-facebook {
+  color: #365397;
+}
+.text-twitter {
+  color: #00a9f1;
+}
+.text-github {
+  color: #2f2f2f;
+}
+
+.text-linkedin {
+  color: #006db3;
+}
+.text-apple {
+  color: #737373;
+}
+.text-google {
+  color: #4285f4;
+}
+.text-google-plus {
+  color: #e0452c;
+}
+.text-youtube {
+  color: #ff3333;
+}
+.text-vimeo {
+  color: #48b6ed;
+}
+.text-pinterest {
+  color: #ce1a19;
+}
+.text-yelp {
+  color: #c30f00;
+}
+.text-dribbble {
+  color: #ed4584;
+}
+.text-amazon {
+  color: #ff9700;
+}
+.text-skype {
+  color: #00acf4;
+}
+.text-instagram {
+  color: #396d9a;
+}
+.text-dropbox {
+  color: #0d84de;
+}
+.text-flickr {
+  color: #ea0066;
+}
+.text-tumblr {
+  color: #304c68;
+}
+.text-foursquare {
+  color: #207dc5;
+}
+
+.highlight-border {
+  position: relative;
+  &::after {
+    content: "";
+    display: none;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 4px;
+    @apply bg-blue-500;
+  }
+  &::hover,
+  &.active {
+    @apply text-blue-500;
+    &::after {
+      display: block;
+    }
+  }
+}
