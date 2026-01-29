@@ -1,6 +1,6 @@
 """Tests for app_factory module."""
 import pytest
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from unittest.mock import Mock, AsyncMock, patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from holiday_peak_lib.app_factory import build_service_app
