@@ -330,7 +330,7 @@ class BaseRetailAgent(BaseAgent, ABC):
                 or evaluation_result
             )
 
-        if evaluation_text.strip().lower() == UPGRADE_TOKEN.lower():
+        if evaluation_text.strip().lower() == UPGRADE_TOKEN:
             if isinstance(messages, list):
                 upgraded_messages = [
                     {
