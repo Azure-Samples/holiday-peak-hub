@@ -1,5 +1,4 @@
 """Tests for Azure AI Foundry integration."""
-import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
