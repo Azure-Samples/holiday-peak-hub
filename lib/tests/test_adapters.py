@@ -103,7 +103,7 @@ class TestBaseAdapter:
         """Test that fetch uses cache."""
         adapter = SampleAdapter(cache_ttl=10.0)
         # First fetch
-        result1 = await adapter.fetch({"query": "test"})
+        await adapter.fetch({"query": "test"})
         # Second fetch should use cache
         result2 = await adapter.fetch({"query": "test"})
         assert adapter.fetch_count == 1  # Only called once
