@@ -1,0 +1,31 @@
+name: lint
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install tooling
+        run: |
+          python -m pip install --upgrade pip
+          pip install pylint isort black
+      - name: Install lib
+        run: pip install -e lib
+      - name: Install apps
+        run: |
+          for d in apps/*; do
+            pip install -e "$d/src"
+          done
+      - name: Lint
+        run: |
+          python -m isort --check-only lib apps
+          python -m black --check lib apps
+          python -m pylint lib/src apps/*/src
