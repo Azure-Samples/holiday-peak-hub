@@ -1,4 +1,6 @@
 name: build-push
+permissions:
+  contents: read
 
 on:
   push:
