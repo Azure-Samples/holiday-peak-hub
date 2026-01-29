@@ -15,5 +15,9 @@ def async_retry(times: int = 3, delay_seconds: float = 0.1) -> Callable:
                     await asyncio.sleep(delay_seconds)
             if last_error:
                 raise last_error
+            raise RuntimeError(
+                "async_retry wrapper could not obtain a result; "
+                "ensure 'times' is greater than 0 and the wrapped function is callable."
+            )
         return wrapper
     return decorator
