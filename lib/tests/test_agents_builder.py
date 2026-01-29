@@ -1,6 +1,6 @@
 """Tests for agent builder."""
 import pytest
-from unittest.mock import Mock, AsyncMock
+from unittest.mock import Mock
 from holiday_peak_lib.agents.builder import AgentBuilder
 from holiday_peak_lib.agents.base_agent import BaseRetailAgent, ModelTarget
 from holiday_peak_lib.agents.orchestration.router import RoutingStrategy
