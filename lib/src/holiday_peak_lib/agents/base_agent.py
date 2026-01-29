@@ -270,7 +270,6 @@ class BaseRetailAgent(BaseAgent, ABC):
                 )
 
             if evaluation_text.strip().lower() == "upgrade":
-                upgraded_messages = messages
                 if isinstance(messages, list):
                     upgraded_messages = [
                         {
