@@ -26,6 +26,7 @@ class FoundryAgentConfig:
 
     Env vars (defaults):
     - PROJECT_ENDPOINT or FOUNDRY_ENDPOINT: Azure AI Foundry project endpoint.
+    - PROJECT_NAME or FOUNDRY_PROJECT_NAME: Azure AI Foundry project name (optional).
     - FOUNDRY_AGENT_ID: Agent ID created in the project.
     - MODEL_DEPLOYMENT_NAME: Optional model deployment associated with the agent.
     - FOUNDRY_STREAM: ``true`` to enable streaming aggregation by default.
@@ -34,6 +35,7 @@ class FoundryAgentConfig:
     endpoint: str
     agent_id: str
     deployment_name: str | None = None
+    project_name: str | None = None
     stream: bool = False
     credential: Any | None = None
 
@@ -45,12 +47,19 @@ class FoundryAgentConfig:
         :returns: A validated :class:`FoundryAgentConfig`.
         """
         endpoint = os.getenv("PROJECT_ENDPOINT") or os.getenv("FOUNDRY_ENDPOINT")
+        project_name = os.getenv("PROJECT_NAME") or os.getenv("FOUNDRY_PROJECT_NAME")
         agent_id = os.getenv("FOUNDRY_AGENT_ID") or os.getenv("AGENT_ID")
         deployment = os.getenv("MODEL_DEPLOYMENT_NAME")
         stream = (os.getenv("FOUNDRY_STREAM") or "").lower() in {"1", "true", "yes"}
         if not endpoint or not agent_id:
             raise ValueError("PROJECT_ENDPOINT/FOUNDRY_ENDPOINT and FOUNDRY_AGENT_ID are required")
-        return cls(endpoint=endpoint, agent_id=agent_id, deployment_name=deployment, stream=stream)
+        return cls(
+            endpoint=endpoint,
+            agent_id=agent_id,
+            deployment_name=deployment,
+            project_name=project_name,
+            stream=stream,
+        )
 
 
 def _ensure_client(config: FoundryAgentConfig):
