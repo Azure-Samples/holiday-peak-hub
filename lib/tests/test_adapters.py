@@ -1,7 +1,6 @@
 """Tests for adapter base classes."""
 import pytest
 import asyncio
-from unittest.mock import AsyncMock
 from holiday_peak_lib.adapters.base import (
     BaseAdapter,
     AdapterError,
