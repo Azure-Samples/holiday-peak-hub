@@ -19,12 +19,14 @@ jobs:
       - name: Install tooling
         run: |
           python -m pip install --upgrade pip
-      - name: Install lib with lint dependencies
-        run: pip install -e "lib/src[lint]"
+      - name: Install lib
+        run: pip install -e ./lib/src
+      - name: Install lint dependencies
+        run: pip install pylint isort "black[jupyter]>=25.1.0"
       - name: Install apps
         run: |
-          for d in apps/*; do
-            pip install -e "$d/src"
+          for d in apps/*/src; do
+            [ -f "$d/pyproject.toml" ] && pip install -e "$d" || echo "Skipping $d"
           done
       - name: Lint
         run: |
