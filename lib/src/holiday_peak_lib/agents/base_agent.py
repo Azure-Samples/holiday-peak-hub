@@ -191,18 +191,16 @@ class BaseRetailAgent(BaseAgent, ABC):
             return self.slm
         return self.llm  # type: ignore[return-value]
 
-    async def invoke_model(self, request: dict[str, Any], messages: Any, **kwargs: Any) -> dict[str, Any]:
-        """Invoke the selected model via its SDK-specific invoker.
-
-        ``messages`` is SDK-dependent (chat messages list, prompt string, etc.).
-        Additional kwargs are forwarded to the invoker (e.g., tools, metadata).
-        """
-
-        target = self._select_model(request)
-        payload_tools = kwargs.get("tools") or (self.tools if self.tools else None)
+    async def __invoke_target(
+        self,
+        target: ModelTarget,
+        payload_messages: Any,
+        payload_tools: Any,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
         payload = {
             **kwargs,
-            "messages": messages,
+            "messages": payload_messages,
             "model": target.model,
             "temperature": target.temperature,
             "top_p": target.top_p,
@@ -228,7 +226,9 @@ class BaseRetailAgent(BaseAgent, ABC):
                 "stream": existing_meta.get("stream", payload.get("stream", target.stream)),
                 "temperature": existing_meta.get("temperature", target.temperature),
                 "top_p": existing_meta.get("top_p", target.top_p),
-                "tools": existing_meta.get("tools", list(payload_tools.keys()) if isinstance(payload_tools, dict) else payload_tools),
+                "tools": existing_meta.get(
+                    "tools", list(payload_tools.keys()) if isinstance(payload_tools, dict) else payload_tools
+                ),
             }
 
             result.setdefault("_target", target.name)
@@ -236,6 +236,67 @@ class BaseRetailAgent(BaseAgent, ABC):
             result["_telemetry"] = telemetry
 
         return result
+
+    async def invoke_model(self, request: dict[str, Any], messages: Any, **kwargs: Any) -> dict[str, Any]:
+        """Invoke a model with SLM-first routing and optional LLM upgrade.
+
+        Routing rules:
+        1) Always evaluate with the SLM using the provided routing prompt.
+        2) If the SLM returns ``upgrade``, re-run the original request on the LLM,
+           adding a reasoning directive to the system prompt.
+        3) Otherwise, execute the original request on the SLM.
+
+        ``messages`` is SDK-dependent (chat messages list, prompt string, etc.).
+        Additional kwargs are forwarded to the invoker (e.g., tools, metadata).
+        """
+
+        payload_tools = kwargs.get("tools") or (self.tools if self.tools else None)
+
+        if self.slm and self.llm:
+            evaluation_prompt = (
+                "Evaluate this request and identify the complexity. If the complexity is higher than "
+                "medium, that is, if the request contains more than 2 steps to be fullfilled and needs "
+                "different sources to be understood and processed, return a single word 'upgrade'.\n\n"
+                f"Request: {request}"
+            )
+            evaluation_result = await self.__invoke_target(self.slm, evaluation_prompt, payload_tools, **kwargs)
+            evaluation_text = ""
+            if isinstance(evaluation_result, dict):
+                evaluation_text = str(
+                    evaluation_result.get("response")
+                    or evaluation_result.get("content")
+                    or evaluation_result.get("message")
+                    or evaluation_result
+                )
+
+            if evaluation_text.strip().lower() == "upgrade":
+                upgraded_messages = messages
+                if isinstance(messages, list):
+                    upgraded_messages = [
+                        {
+                            "role": "system",
+                            "content": "You must reason on the request before proceeding with the response.",
+                        },
+                        *messages,
+                    ]
+                elif isinstance(messages, dict):
+                    upgraded_messages = [
+                        {
+                            "role": "system",
+                            "content": "You must reason on the request before proceeding with the response.",
+                        },
+                        messages,
+                    ]
+                else:
+                    upgraded_messages = (
+                        "You must reason on the request before proceeding with the response.\n\n" + str(messages)
+                    )
+                return await self.__invoke_target(self.llm, upgraded_messages, payload_tools, **kwargs)
+
+            return await self.__invoke_target(self.slm, messages, payload_tools, **kwargs)
+
+        target = self._select_model(request)
+        return await self.__invoke_target(target, messages, payload_tools, **kwargs)
 
     @abstractmethod
     async def handle(self, request: dict[str, Any]) -> dict[str, Any]:
