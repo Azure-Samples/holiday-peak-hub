@@ -1,6 +1,5 @@
 """Tests for routing strategy."""
 import pytest
-from unittest.mock import AsyncMock
 from holiday_peak_lib.agents.orchestration.router import RoutingStrategy
 
 

@@ -1,7 +1,7 @@
 """Tests for adapter base classes."""
 import pytest
 import asyncio
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock
 from holiday_peak_lib.adapters.base import (
     BaseAdapter,
     AdapterError,
@@ -103,9 +103,9 @@ class TestBaseAdapter:
         """Test that fetch uses cache."""
         adapter = SampleAdapter(cache_ttl=10.0)
         # First fetch
-        result1 = await adapter.fetch({"query": "test"})
+        await adapter.fetch({"query": "test"})
         # Second fetch should use cache
-        result2 = await adapter.fetch({"query": "test"})
+        await adapter.fetch({"query": "test"})
         assert adapter.fetch_count == 1  # Only called once
 
     @pytest.mark.asyncio
