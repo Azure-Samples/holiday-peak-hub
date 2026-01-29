@@ -20,15 +20,17 @@ This document outlines the comprehensive backend implementation plan for Holiday
 ## Table of Contents
 
 1. [Architecture Overview](#architecture-overview)
-2. [Existing Agent Services Inventory](#existing-agent-services-inventory)
-3. [Page-to-Backend Mapping](#page-to-backend-mapping)
-4. [Database Design](#database-design)
-5. [API Design](#api-design)
-6. [Authentication & Authorization](#authentication--authorization)
-7. [Integration Patterns](#integration-patterns)
-8. [Event Choreography](#event-choreography)
-9. [Implementation Roadmap](#implementation-roadmap)
-10. [Testing Strategy](#testing-strategy)
+2. [Cloud-Native Architecture](#cloud-native-architecture)
+3. [Existing Agent Services Inventory](#existing-agent-services-inventory)
+4. [Page-to-Backend Mapping](#page-to-backend-mapping)
+5. [Database Design](#database-design)
+6. [API Design](#api-design)
+7. [Authentication & Authorization](#authentication--authorization)
+8. [Integration Patterns](#integration-patterns)
+9. [Event Choreography](#event-choreography)
+10. [CI/CD Pipeline](#cicd-pipeline)
+11. [Implementation Roadmap](#implementation-roadmap)
+12. [Testing Strategy](#testing-strategy)
 
 ---
 
@@ -42,8 +44,8 @@ graph TB
         UI[Next.js UI<br/>13 Pages]
     end
     
-    subgraph "API Gateway Layer"
-        Gateway[API Gateway<br/>REST + Auth]
+    subgraph "API Management Layer"
+        APIM[Azure API Management<br/>Gateway + Policies]
     end
     
     subgraph "Application Layer"
@@ -62,9 +64,9 @@ graph TB
         EventHubs[Azure Event Hubs<br/>Choreography]
     end
     
-    UI -->|REST/JWT| Gateway
-    Gateway -->|Auth Check| CRUD
-    Gateway -->|Agent Invoke| Agents
+    UI -->|HTTPS/Entra Token| APIM
+    APIM -->|Policy Validation| CRUD
+    APIM -->|Policy Validation| Agents
     CRUD -->|Read/Write| CosmosOps
     CRUD -->|Publish| EventHubs
     Agents -->|Subscribe| EventHubs
@@ -87,6 +89,564 @@ graph TB
 - **Event-Driven**: All state changes publish events for agent consumption
 - **Stateless APIs**: All CRUD services stateless, horizontally scalable
 - **Cosmos DB First**: Operational data in Cosmos DB with proper partitioning
+- **Cloud-Native**: Managed Identity, Key Vault, Private Endpoints, zero trust networking
+- **Infrastructure as Code**: All resources provisioned via Bicep
+- **Automated Deployment**: CI/CD pipelines for continuous delivery
+
+---
+
+## Cloud-Native Architecture
+
+### Overview
+
+This section defines the cloud-native infrastructure and security patterns that ensure the Holiday Peak Hub solution follows Azure best practices for enterprise applications.
+
+### Security & Identity
+
+#### Azure Key Vault
+
+**Purpose**: Centralized secrets and certificate management
+
+**Secrets Stored**:
+- Stripe API keys
+- SendGrid API keys
+- Third-party service credentials
+- SSL/TLS certificates
+- OAuth client secrets
+
+**Access Method**: Managed Identity (no passwords/keys in code)
+
+**Implementation**:
+```python
+# CRUD service - using Managed Identity
+from azure.identity import DefaultAzureCredential
+from azure.keyvault.secrets import SecretClient
+
+# Authenticate using Managed Identity
+credential = DefaultAzureCredential()
+vault_url = "https://holidaypeakhub-kv.vault.azure.net/"
+client = SecretClient(vault_url=vault_url, credential=credential)
+
+# Retrieve secrets
+stripe_key = client.get_secret("stripe-secret-key").value
+sendgrid_key = client.get_secret("sendgrid-api-key").value
+```
+
+**Bicep Configuration**:
+```bicep
+resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
+  name: 'holidaypeakhub-kv'
+  location: location
+  properties: {
+    sku: {
+      family: 'A'
+      name: 'standard'
+    }
+    tenantId: subscription().tenantId
+    enableRbacAuthorization: true
+    enabledForDeployment: true
+    enabledForTemplateDeployment: true
+    publicNetworkAccess: 'Disabled'
+    networkAcls: {
+      defaultAction: 'Deny'
+      bypass: 'AzureServices'
+    }
+  }
+}
+
+// Grant CRUD service access to Key Vault
+resource keyVaultRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: keyVault
+  name: guid(keyVault.id, crudServiceIdentity.id, 'Key Vault Secrets User')
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')
+    principalId: crudServiceIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+```
+
+---
+
+#### Managed Identity
+
+**Purpose**: Passwordless authentication to Azure services
+
+**Services Using Managed Identity**:
+- AKS pods → Cosmos DB (RBAC)
+- AKS pods → Event Hubs (RBAC)
+- AKS pods → Key Vault (RBAC)
+- AKS pods → Redis (AAD authentication)
+- AKS pods → Blob Storage (RBAC)
+- AKS pods → Azure Container Registry (pull images)
+
+**Implementation**:
+```python
+# No connection strings needed!
+from azure.identity import DefaultAzureCredential
+from azure.cosmos import CosmosClient
+
+credential = DefaultAzureCredential()
+cosmos_client = CosmosClient(
+    url="https://holidaypeakhub.documents.azure.com:443/",
+    credential=credential
+)
+```
+
+**AKS Configuration** (Azure AD Workload Identity):
+```yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: crud-service
+  namespace: holiday-peak
+  annotations:
+    azure.workload.identity/client-id: "<managed-identity-client-id>"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crud-service
+spec:
+  template:
+    metadata:
+      labels:
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: crud-service
+      containers:
+      - name: crud-service
+        image: holidaypeakhub.azurecr.io/crud-service:latest
+```
+
+---
+
+### Networking Architecture
+
+#### Virtual Network Topology
+
+```mermaid
+graph TB
+    subgraph "Azure Front Door"
+        AFD[Global Load Balancer<br/>WAF + CDN]
+    end
+    
+    subgraph "Azure Virtual Network (10.0.0.0/16)"
+        subgraph "APIM Subnet (10.0.1.0/24)"
+            APIM[Azure APIM<br/>Internal Mode]
+        end
+        
+        subgraph "AKS Subnet (10.0.2.0/23)"
+            AKS[AKS Cluster<br/>CRUD + Agent Services]
+        end
+        
+        subgraph "Private Endpoint Subnet (10.0.4.0/24)"
+            PECosmos[PE: Cosmos DB]
+            PERedis[PE: Redis]
+            PEEventHub[PE: Event Hubs]
+            PEBlob[PE: Blob Storage]
+            PEKeyVault[PE: Key Vault]
+            PEACR[PE: ACR]
+        end
+    end
+    
+    subgraph "Azure Services (Private)"
+        Cosmos[(Cosmos DB)]
+        Redis[(Redis Cache)]
+        EventHubs[Event Hubs]
+        Blob[Blob Storage]
+        KeyVault[Key Vault]
+        ACR[Container Registry]
+    end
+    
+    Internet -->|HTTPS| AFD
+    AFD -->|Private IP| APIM
+    APIM -->|Internal| AKS
+    AKS -->|Private| PECosmos
+    AKS -->|Private| PERedis
+    AKS -->|Private| PEEventHub
+    AKS -->|Private| PEBlob
+    AKS -->|Private| PEKeyVault
+    AKS -->|Private| PEACR
+    PECosmos -.->|Private Link| Cosmos
+    PERedis -.->|Private Link| Redis
+    PEEventHub -.->|Private Link| EventHubs
+    PEBlob -.->|Private Link| Blob
+    PEKeyVault -.->|Private Link| KeyVault
+    PEACR -.->|Private Link| ACR
+```
+
+**Network Security**:
+- **No public endpoints** for backend services
+- **Private Endpoints** for all Azure PaaS services
+- **Network Security Groups (NSG)** on all subnets
+- **Azure Firewall** for outbound internet access (optional)
+- **DDoS Protection** enabled on VNet
+
+**NSG Rules** (example for AKS subnet):
+```bicep
+resource aksNsg 'Microsoft.Network/networkSecurityGroups@2023-09-01' = {
+  name: 'aks-subnet-nsg'
+  location: location
+  properties: {
+    securityRules: [
+      {
+        name: 'AllowAPIMInbound'
+        properties: {
+          priority: 100
+          direction: 'Inbound'
+          access: 'Allow'
+          protocol: 'Tcp'
+          sourceAddressPrefix: '10.0.1.0/24'  // APIM subnet
+          sourcePortRange: '*'
+          destinationAddressPrefix: '10.0.2.0/23'  // AKS subnet
+          destinationPortRange: '443'
+        }
+      }
+      {
+        name: 'DenyInternetInbound'
+        properties: {
+          priority: 4096
+          direction: 'Inbound'
+          access: 'Deny'
+          protocol: '*'
+          sourceAddressPrefix: 'Internet'
+          sourcePortRange: '*'
+          destinationAddressPrefix: '*'
+          destinationPortRange: '*'
+        }
+      }
+    ]
+  }
+}
+```
+
+---
+
+### Container Management
+
+#### Azure Container Registry
+
+**Purpose**: Store and manage Docker images
+
+**Configuration**:
+- **SKU**: Premium (for geo-replication and private endpoints)
+- **Geo-replication**: Enabled (US East, West Europe)
+- **Public network access**: Disabled
+- **Managed Identity**: AKS pulls images using Managed Identity
+
+**Image Naming Convention**:
+```
+holidaypeakhub.azurecr.io/<service-name>:<version>
+holidaypeakhub.azurecr.io/crud-service:1.2.3
+holidaypeakhub.azurecr.io/ecommerce-catalog-search:1.0.5
+```
+
+**ACR Tasks** (automated builds):
+```bash
+# Build on commit to main branch
+az acr task create \
+  --registry holidaypeakhub \
+  --name build-crud-service \
+  --image crud-service:{{.Run.ID}} \
+  --context https://github.com/Azure-Samples/holiday-peak-hub.git \
+  --file apps/crud-service/Dockerfile \
+  --branch main \
+  --commit-trigger-enabled true
+```
+
+**Bicep Configuration**:
+```bicep
+resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
+  name: 'holidaypeakhub'
+  location: location
+  sku: {
+    name: 'Premium'
+  }
+  properties: {
+    adminUserEnabled: false
+    publicNetworkAccess: 'Disabled'
+    networkRuleBypassOptions: 'AzureServices'
+  }
+}
+
+// Enable geo-replication
+resource acrReplication 'Microsoft.ContainerRegistry/registries/replications@2023-07-01' = {
+  parent: acr
+  name: 'westeurope'
+  location: 'westeurope'
+}
+```
+
+---
+
+### Content Delivery
+
+#### Azure CDN / Front Door
+
+**Purpose**: Global content delivery and Web Application Firewall
+
+**Configuration**:
+- **Azure Front Door Premium** (includes WAF)
+- **Origin**: Azure Blob Storage (product images, avatars)
+- **Caching**: 24 hours for images, 1 hour for API responses
+- **Compression**: Enabled (Brotli)
+- **Custom Domain**: cdn.holidaypeakhub.com
+
+**WAF Rules**:
+- OWASP Core Rule Set 3.2
+- Bot protection
+- Rate limiting (per client IP)
+- Geo-filtering (block high-risk countries)
+
+**Bicep Configuration**:
+```bicep
+resource frontDoor 'Microsoft.Cdn/profiles@2023-05-01' = {
+  name: 'holidaypeakhub-fd'
+  location: 'global'
+  sku: {
+    name: 'Premium_AzureFrontDoor'
+  }
+  properties: {}
+}
+
+resource endpoint 'Microsoft.Cdn/profiles/afdEndpoints@2023-05-01' = {
+  parent: frontDoor
+  name: 'holidaypeakhub'
+  location: 'global'
+  properties: {
+    enabledState: 'Enabled'
+  }
+}
+
+// WAF Policy
+resource wafPolicy 'Microsoft.Network/FrontDoorWebApplicationFirewallPolicies@2022-05-01' = {
+  name: 'holidaypeakhubWaf'
+  location: 'global'
+  sku: {
+    name: 'Premium_AzureFrontDoor'
+  }
+  properties: {
+    policySettings: {
+      enabledState: 'Enabled'
+      mode: 'Prevention'
+    }
+    managedRules: {
+      managedRuleSets: [
+        {
+          ruleSetType: 'Microsoft_DefaultRuleSet'
+          ruleSetVersion: '2.1'
+        }
+        {
+          ruleSetType: 'Microsoft_BotManagerRuleSet'
+          ruleSetVersion: '1.0'
+        }
+      ]
+    }
+  }
+}
+```
+
+---
+
+### Configuration Management
+
+#### Azure App Configuration
+
+**Purpose**: Centralized configuration and feature flags
+
+**Configuration Stored**:
+- Feature flags (gradual rollout)
+- Environment-specific settings
+- Service endpoints
+- Non-sensitive configuration
+
+**Implementation**:
+```python
+from azure.identity import DefaultAzureCredential
+from azure.appconfiguration import AzureAppConfigurationClient
+
+credential = DefaultAzureCredential()
+app_config_url = "https://holidaypeakhub-config.azconfig.io"
+client = AzureAppConfigurationClient(app_config_url, credential)
+
+# Get configuration
+max_cart_items = int(client.get_configuration_setting("cart.max_items").value)
+
+# Feature flag
+if client.get_configuration_setting("feature.new_checkout").value == "true":
+    # Use new checkout flow
+    pass
+```
+
+**Bicep Configuration**:
+```bicep
+resource appConfig 'Microsoft.AppConfiguration/configurationStores@2023-03-01' = {
+  name: 'holidaypeakhub-config'
+  location: location
+  sku: {
+    name: 'Standard'
+  }
+  properties: {
+    publicNetworkAccess: 'Disabled'
+    disableLocalAuth: true
+  }
+}
+```
+
+---
+
+### Observability
+
+#### Application Insights
+
+**Purpose**: Distributed tracing, metrics, and logs
+
+**Features**:
+- **Distributed Tracing**: Correlation across services
+- **Live Metrics**: Real-time monitoring
+- **Application Map**: Service dependencies visualization
+- **Failures Analysis**: Exception tracking
+- **Performance**: Slow query detection
+
+**Implementation**:
+```python
+from azure.monitor.opentelemetry import configure_azure_monitor
+from opentelemetry import trace
+
+# Configure OpenTelemetry with Application Insights
+configure_azure_monitor(
+    connection_string="InstrumentationKey=..."
+)
+
+tracer = trace.get_tracer(__name__)
+
+@app.get("/api/users/{user_id}")
+async def get_user(user_id: str):
+    with tracer.start_as_current_span("get_user") as span:
+        span.set_attribute("user.id", user_id)
+        user = await user_repository.get(user_id)
+        return user
+```
+
+**Key Metrics to Track**:
+- Request rate (requests/sec)
+- Response time (p50, p95, p99)
+- Error rate (%)
+- Dependency calls duration
+- Cosmos DB RU consumption
+- Event Hub throughput
+
+---
+
+#### Log Analytics Workspace
+
+**Purpose**: Centralized logging and querying
+
+**Logs Collected**:
+- AKS container logs
+- APIM request/response logs
+- Cosmos DB diagnostics
+- Event Hubs diagnostics
+- NSG flow logs
+
+**Sample KQL Queries**:
+```kusto
+// Failed requests in last hour
+requests
+| where timestamp > ago(1h)
+| where success == false
+| summarize count() by operation_Name, resultCode
+| order by count_ desc
+
+// Slow Cosmos DB queries
+AzureDiagnostics
+| where ResourceProvider == "MICROSOFT.DOCUMENTDB"
+| where Category == "DataPlaneRequests"
+| where todouble(durationMs_s) > 1000
+| project TimeGenerated, durationMs_s, OperationName, collectionName_s
+```
+
+---
+
+### Disaster Recovery
+
+#### Backup Strategy
+
+**Cosmos DB**:
+- Automatic continuous backups (default)
+- Point-in-time restore (up to 30 days)
+- Geo-redundant backup storage
+
+**AKS**:
+- Velero for cluster backup (etcd, persistent volumes)
+- Daily automated backups to Blob Storage
+- Restore tested monthly
+
+**Recovery Objectives**:
+- **RTO (Recovery Time Objective)**: 1 hour
+- **RPO (Recovery Point Objective)**: 5 minutes
+
+**Multi-Region Failover**:
+```mermaid
+graph LR
+    Primary[Primary Region<br/>East US] -->|Replication| Secondary[Secondary Region<br/>West Europe]
+    Secondary -->|Manual Failover| Active[Active Region]
+```
+
+**Failover Procedure**:
+1. Detect region outage via Azure Monitor
+2. Trigger manual failover in Cosmos DB (30 seconds)
+3. Update APIM backend URLs to secondary region
+4. Update DNS to point to secondary Front Door endpoint
+5. Verify all services operational
+
+---
+
+### Cost Management
+
+#### Cost Optimization Strategies
+
+**Cosmos DB**:
+- Use autoscale RU/s (scale down during low traffic)
+- Reserved capacity (1-year commitment for 25% discount)
+- Monitor RU consumption via Application Insights
+
+**AKS**:
+- Use spot instances for non-critical workloads
+- KEDA autoscaling (scale to zero when idle)
+- Right-size node pools based on actual usage
+
+**APIM**:
+- Consumption tier for dev/test (pay per call)
+- Standard tier for production (fixed cost)
+
+**Storage**:
+- Lifecycle management (move old blobs to Cool/Archive tier)
+- Use Azure CDN to reduce egress costs
+
+**Budget Alerts**:
+```bicep
+resource budget 'Microsoft.Consumption/budgets@2023-11-01' = {
+  name: 'monthly-budget'
+  properties: {
+    category: 'Cost'
+    amount: 10000
+    timeGrain: 'Monthly'
+    timePeriod: {
+      startDate: '2026-01-01'
+    }
+    notifications: {
+      actual_GreaterThan_80_Percent: {
+        enabled: true
+        operator: 'GreaterThan'
+        threshold: 80
+        contactEmails: ['admin@holidaypeakhub.com']
+      }
+    }
+  }
+}
+```
 
 ---
 
@@ -246,14 +806,14 @@ GET /api/orders/{id}/tracking
 **Agent Services Used**: None (pure CRUD)
 
 **Non-Agent Services Needed**:
-- ❌ **Authentication API** - Login with email/password
-- ❌ **OAuth Integration** - Social login (Google, Facebook)
-- ❌ **Session Management** - JWT token issuance
+- ❌ **Authentication API** - Redirect to Microsoft Entra ID login
+- ❌ **OAuth Callback Handler** - Handle Entra ID callback and token exchange
+- ❌ **Session Management** - Token storage and refresh
 
 **API Endpoints Required**:
 ```
-POST /api/auth/login (email, password)
-POST /api/auth/social/{provider} (provider, token)
+GET /api/auth/login (redirect to Entra ID)
+GET /api/auth/callback (OAuth callback handler)
 POST /api/auth/guest (create guest session)
 ```
 
@@ -266,15 +826,15 @@ POST /api/auth/guest (create guest session)
 **Agent Services Used**: None (pure CRUD)
 
 **Non-Agent Services Needed**:
-- ❌ **User Registration API** - Create new user account
-- ❌ **Email Verification API** - Send/verify email confirmation
-- ❌ **Password Strength Validation** - Server-side validation
+- ❌ **User Registration** - Handled by Entra ID B2C user flows or self-service signup
+- ❌ **User Profile Sync** - Sync Entra ID user to local database on first login
+- ❌ **Newsletter Opt-in** - Store user preferences locally
 
 **API Endpoints Required**:
 ```
-POST /api/auth/signup (name, email, password, newsletter_opt_in)
-POST /api/auth/verify-email (token)
-POST /api/auth/resend-verification (email)
+GET /api/auth/signup (redirect to Entra ID B2C signup flow)
+GET /api/auth/callback (handle callback and sync user)
+PUT /api/users/me/preferences (store newsletter opt-in)
 ```
 
 ---
@@ -377,12 +937,11 @@ PUT /api/users/me/addresses/{id}/default
 GET /api/users/me/payment-methods
 POST /api/users/me/payment-methods (stripe_token, billing_address)
 DELETE /api/users/me/payment-methods/{id}
-PUT /api/users/me/password (old_password, new_password)
-POST /api/users/me/2fa/enable
-POST /api/users/me/2fa/verify (code)
 GET /api/users/me/preferences
 PUT /api/users/me/preferences (preferences_json)
 ```
+
+**Note**: Password management and 2FA are handled by Microsoft Entra ID, not via API endpoints.
 
 ---
 
@@ -1106,14 +1665,14 @@ graph TB
         ServiceClients[Service Clients]
     end
     
-    subgraph "Backend API Layer"
-        APIGateway[API Gateway<br/>Port 8000]
-        AuthMiddleware[Auth Middleware<br/>JWT Validation]
+    subgraph "Azure API Management"
+        APIM[Azure APIM<br/>Gateway]
+        Policies[Policies<br/>Auth + Rate Limit]
     end
     
     subgraph "Backend Services"
-        CRUDService[CRUD Service<br/>Port 8001]
-        AgentServices[Agent Services<br/>Ports 8002-8022]
+        CRUDService[CRUD Service<br/>AKS Pod]
+        AgentServices[Agent Services<br/>AKS Pods]
     end
     
     subgraph "Data Layer"
@@ -1125,10 +1684,10 @@ graph TB
     CustomHooks -->|fetchData| ReactQuery
     ReactQuery -->|HTTP Request| AxiosInstance
     AxiosInstance -->|Type-Safe Calls| ServiceClients
-    ServiceClients -->|REST API| APIGateway
-    APIGateway -->|Validate JWT| AuthMiddleware
-    AuthMiddleware -->|Route| CRUDService
-    AuthMiddleware -->|Route| AgentServices
+    ServiceClients -->|HTTPS| APIM
+    APIM -->|Apply Policies| Policies
+    Policies -->|Route| CRUDService
+    Policies -->|Route| AgentServices
     CRUDService -->|Read/Write| CosmosDB
     CRUDService -->|Publish Events| EventHubs
     AgentServices -->|Subscribe| EventHubs
@@ -1136,37 +1695,111 @@ graph TB
 
 ---
 
-### API Gateway Design
+### Azure API Management Design
 
-**Purpose**: Single entry point for all frontend requests
+**Purpose**: Managed API gateway providing single entry point for all frontend requests
 
-**Technology**: FastAPI (Python 3.13)
+**Technology**: Azure API Management (Consumption tier for dev, Standard/Premium for prod)
 
-**Port**: 8000
+**Endpoint**: `https://holidaypeakhub.azure-api.net`
 
 **Features**:
-- JWT token validation
-- RBAC enforcement
-- Request/response logging
-- Rate limiting
-- CORS configuration
-- Request routing to CRUD service or agent services
+- **Authentication**: Validate Entra ID tokens via `validate-jwt` policy
+- **Authorization**: RBAC enforcement using token claims
+- **Rate Limiting**: Request throttling per subscription key
+- **CORS**: Managed CORS policies
+- **Logging**: Azure Monitor integration for all requests
+- **Caching**: Response caching for GET requests
+- **Transformation**: Request/response transformation policies
+- **Load Balancing**: Automatic routing to backend services
+- **Circuit Breaker**: Fault tolerance for backend failures
 
-**Routes**:
+**API Routes** (configured as APIM Operations):
 ```
-/api/auth/*          → Auth endpoints (login, signup, logout)
-/api/users/*         → User management
-/api/products/*      → Product CRUD
-/api/orders/*        → Order CRUD
-/api/cart/*          → Cart management
-/api/checkout/*      → Checkout flow
-/api/addresses/*     → Address management
-/api/payments/*      → Payment processing
-/api/reviews/*       → Review CRUD
-/api/wishlist/*      → Wishlist management
-/api/staff/*         → Staff-only endpoints (analytics, tickets, shipments)
-/api/admin/*         → Admin-only endpoints (system management)
-/api/agents/*        → Agent invocation proxy
+/api/auth/*          → Auth Service (OAuth flows)
+/api/users/*         → CRUD Service (User management)
+/api/products/*      → CRUD Service (Product CRUD)
+/api/orders/*        → CRUD Service (Order CRUD)
+/api/cart/*          → CRUD Service (Cart management)
+/api/checkout/*      → CRUD Service (Checkout flow)
+/api/addresses/*     → CRUD Service (Address management)
+/api/payments/*      → CRUD Service (Payment processing)
+/api/reviews/*       → CRUD Service (Review CRUD)
+/api/wishlist/*      → CRUD Service (Wishlist management)
+/api/staff/*         → CRUD Service (Staff endpoints)
+/api/admin/*         → CRUD Service (Admin endpoints)
+/api/agents/*        → Agent Services (Direct invocation)
+```
+
+**APIM Policies** (applied at API/Operation level):
+
+```xml
+<policies>
+    <inbound>
+        <!-- Validate Entra ID JWT token -->
+        <validate-jwt header-name="Authorization" failed-validation-httpcode="401">
+            <openid-config url="https://login.microsoftonline.com/{tenant-id}/v2.0/.well-known/openid-configuration" />
+            <audiences>
+                <audience>api://holiday-peak-hub</audience>
+            </audiences>
+            <issuers>
+                <issuer>https://login.microsoftonline.com/{tenant-id}/v2.0</issuer>
+            </issuers>
+            <required-claims>
+                <claim name="roles" match="any">
+                    <value>customer</value>
+                    <value>staff</value>
+                    <value>admin</value>
+                </claim>
+            </required-claims>
+        </validate-jwt>
+        
+        <!-- Rate limiting -->
+        <rate-limit-by-key calls="100" renewal-period="60" counter-key="@(context.Request.IpAddress)" />
+        
+        <!-- CORS -->
+        <cors allow-credentials="true">
+            <allowed-origins>
+                <origin>https://holidaypeakhub.com</origin>
+                <origin>https://admin.holidaypeakhub.com</origin>
+            </allowed-origins>
+            <allowed-methods>
+                <method>GET</method>
+                <method>POST</method>
+                <method>PUT</method>
+                <method>DELETE</method>
+            </allowed-methods>
+            <allowed-headers>
+                <header>*</header>
+            </allowed-headers>
+        </cors>
+        
+        <!-- Add user context to backend request -->
+        <set-header name="X-User-Id" exists-action="override">
+            <value>@(context.Request.Headers.GetValueOrDefault("Authorization","").Split(' ')[1].AsJwt()?.Claims.GetValueOrDefault("oid", ""))</value>
+        </set-header>
+        <set-header name="X-User-Role" exists-action="override">
+            <value>@(context.Request.Headers.GetValueOrDefault("Authorization","").Split(' ')[1].AsJwt()?.Claims.GetValueOrDefault("roles", ""))</value>
+        </set-header>
+        
+        <!-- Route to backend service -->
+        <set-backend-service base-url="http://crud-service.holiday-peak.svc.cluster.local" />
+    </inbound>
+    
+    <backend>
+        <base />
+    </backend>
+    
+    <outbound>
+        <!-- Response caching for GET requests -->
+        <cache-store duration="300" />
+        <base />
+    </outbound>
+    
+    <on-error>
+        <base />
+    </on-error>
+</policies>
 ```
 
 ---
@@ -1226,16 +1859,12 @@ graph TB
 #### Authentication Endpoints
 
 ```
-POST   /api/auth/login
-POST   /api/auth/signup
+GET    /api/auth/login (redirect to Entra ID login)
+GET    /api/auth/callback (OAuth callback handler)
 POST   /api/auth/logout
 POST   /api/auth/refresh
-POST   /api/auth/verify-email
-POST   /api/auth/resend-verification
-POST   /api/auth/forgot-password
-POST   /api/auth/reset-password
-POST   /api/auth/social/{provider}
-POST   /api/auth/guest
+GET    /api/auth/me (get current user from token)
+POST   /api/auth/guest (create guest session - non-Entra users)
 ```
 
 #### User Endpoints
@@ -1382,28 +2011,35 @@ GET    /api/admin/audit-logs?start_date={date}&end_date={date}&actor={id}
 
 ## Authentication & Authorization
 
-### JWT Token Strategy (ADR-019)
+### Microsoft Entra ID Strategy (ADR-019)
 
 **Access Token**:
-- **Lifetime**: 15 minutes
-- **Storage**: httpOnly cookie (XSS protection)
+- **Provider**: Microsoft Entra ID (Azure AD)
+- **Lifetime**: 1 hour (configurable via Entra ID token lifetime policies)
+- **Storage**: httpOnly cookie or Authorization header (Bearer token)
+- **Token Type**: OAuth 2.0 / OpenID Connect
 - **Claims**:
   ```json
   {
+    "oid": "00000000-0000-0000-0000-000000000000",
     "sub": "user-uuid-12345",
     "email": "customer@example.com",
-    "role": "customer",
-    "permissions": ["read:products", "write:cart", "write:orders"],
+    "name": "John Doe",
+    "roles": ["customer"],
+    "tid": "tenant-id",
+    "iss": "https://login.microsoftonline.com/{tenant-id}/v2.0",
+    "aud": "api://holiday-peak-hub",
     "iat": 1706185200,
-    "exp": 1706186100
+    "exp": 1706188800
   }
   ```
 
 **Refresh Token**:
-- **Lifetime**: 7 days
-- **Storage**: httpOnly cookie (separate cookie)
-- **Rotation**: New refresh token issued on each refresh
-- **Revocation**: Stored in Redis with TTL for blacklisting
+- **Provider**: Microsoft Entra ID
+- **Lifetime**: 90 days (default, configurable)
+- **Storage**: httpOnly cookie (secure, SameSite=Strict)
+- **Rotation**: Handled automatically by Entra ID
+- **Revocation**: Managed via Entra ID admin portal or Graph API
 
 **Token Refresh Flow**:
 ```mermaid
@@ -1411,19 +2047,18 @@ sequenceDiagram
     participant Browser
     participant Gateway
     participant AuthService
-    participant Redis
+    participant EntraID as Microsoft Entra ID
     
     Browser->>Gateway: Request with expired access token
     Gateway->>Browser: 401 Unauthorized
-    Browser->>Gateway: POST /api/auth/refresh (with refresh token)
-    Gateway->>AuthService: Validate refresh token
-    AuthService->>Redis: Check if token blacklisted
-    Redis->>AuthService: Token valid
-    AuthService->>AuthService: Generate new access + refresh tokens
-    AuthService->>Redis: Blacklist old refresh token
-    AuthService->>Gateway: New tokens
-    Gateway->>Browser: Set new cookies
+    Browser->>AuthService: POST /api/auth/refresh (with refresh token)
+    AuthService->>EntraID: Validate refresh token
+    EntraID->>EntraID: Verify token signature & expiry
+    EntraID->>AuthService: New access token + refresh token
+    AuthService->>Gateway: Set new cookies
+    AuthService->>Browser: 200 OK
     Browser->>Gateway: Retry original request with new access token
+    Gateway->>Gateway: Validate token with Entra ID
     Gateway->>Browser: 200 OK
 ```
 
@@ -1460,19 +2095,45 @@ sequenceDiagram
 ```python
 from fastapi import Security, HTTPException, status
 from fastapi.security import HTTPBearer
+from azure.identity import DefaultAzureCredential
+from msal import ConfidentialClientApplication
+import jwt
+from jwt import PyJWKClient
 
 security = HTTPBearer()
 
+# Configure MSAL for token validation
+TENANT_ID = os.getenv("ENTRA_TENANT_ID")
+CLIENT_ID = os.getenv("ENTRA_CLIENT_ID")
+JWKS_URI = f"https://login.microsoftonline.com/{TENANT_ID}/discovery/v2.0/keys"
+
+jwks_client = PyJWKClient(JWKS_URI)
+
 async def get_current_user(token: str = Security(security)) -> User:
-    """Validate JWT and return current user."""
+    """Validate Entra ID token and return current user."""
     try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-        user_id = payload.get("sub")
+        # Get signing key from Entra ID
+        signing_key = jwks_client.get_signing_key_from_jwt(token.credentials)
+        
+        # Decode and validate token
+        payload = jwt.decode(
+            token.credentials,
+            signing_key.key,
+            algorithms=["RS256"],
+            audience=f"api://holiday-peak-hub",
+            issuer=f"https://login.microsoftonline.com/{TENANT_ID}/v2.0"
+        )
+        
+        user_id = payload.get("oid") or payload.get("sub")
         if not user_id:
             raise HTTPException(status_code=401, detail="Invalid token")
-        return await user_service.get_by_id(user_id)
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
+        
+        # Get or create user in database
+        user = await user_service.get_or_create_from_entra(payload)
+        return user
+        
+    except jwt.InvalidTokenError as e:
+        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
 
 def require_role(required_role: str):
     """Decorator to require specific role."""
@@ -1500,17 +2161,20 @@ async def get_analytics(user: User = Depends(require_role("staff"))):
 ```mermaid
 sequenceDiagram
     participant Frontend
-    participant APIGateway
+    participant APIM as Azure APIM
     participant CRUDService
     participant CosmosDB
     
-    Frontend->>APIGateway: GET /api/users/me (with JWT)
-    APIGateway->>APIGateway: Validate JWT
-    APIGateway->>CRUDService: Forward request
+    Frontend->>APIM: GET /api/users/me (with Entra token)
+    APIM->>APIM: Validate JWT via policy
+    APIM->>APIM: Apply rate limiting
+    APIM->>APIM: Add X-User-Id header
+    APIM->>CRUDService: Forward request
     CRUDService->>CosmosDB: Query user by ID
     CosmosDB->>CRUDService: User data
-    CRUDService->>APIGateway: User response
-    APIGateway->>Frontend: 200 OK + User data
+    CRUDService->>APIM: User response
+    APIM->>APIM: Cache response (5 min)
+    APIM->>Frontend: 200 OK + User data
 ```
 
 **Implementation**:
@@ -1544,19 +2208,20 @@ async def get_current_user_profile(
 ```mermaid
 sequenceDiagram
     participant Frontend
-    participant APIGateway
+    participant APIM as Azure APIM
     participant CRUDService
     participant CosmosDB
     participant EventHubs
     participant AgentService
     
-    Frontend->>APIGateway: POST /api/orders (with cart data)
-    APIGateway->>CRUDService: Create order
+    Frontend->>APIM: POST /api/orders (with cart data)
+    APIM->>APIM: Validate token + rate limit
+    APIM->>CRUDService: Create order
     CRUDService->>CosmosDB: Write order
     CosmosDB->>CRUDService: Order created
     CRUDService->>EventHubs: Publish OrderCreated event
-    CRUDService->>APIGateway: Order response
-    APIGateway->>Frontend: 201 Created + Order
+    CRUDService->>APIM: Order response
+    APIM->>Frontend: 201 Created + Order
     
     EventHubs->>AgentService: OrderCreated event
     AgentService->>AgentService: Process order (inventory, payment, shipping)
@@ -1640,20 +2305,21 @@ async def handle_order_created(event: dict):
 ```mermaid
 sequenceDiagram
     participant Frontend
-    participant APIGateway
+    participant APIM as Azure APIM
     participant AgentService
     participant CosmosMemory
     participant Redis
     
-    Frontend->>APIGateway: POST /api/agents/catalog-search/invoke
-    APIGateway->>AgentService: Forward agent request
+    Frontend->>APIM: POST /api/agents/catalog-search/invoke
+    APIM->>APIM: Validate token (optional for search)
+    APIM->>AgentService: Forward agent request
     AgentService->>Redis: Check cache
     Redis->>AgentService: Cache miss
     AgentService->>AgentService: AI Search processing
     AgentService->>CosmosMemory: Store conversation
     AgentService->>Redis: Cache results (TTL 15min)
-    AgentService->>APIGateway: Agent response
-    APIGateway->>Frontend: 200 OK + Results
+    AgentService->>APIM: Agent response
+    APIM->>Frontend: 200 OK + Results
 ```
 
 **Implementation**:
@@ -1673,19 +2339,24 @@ export function useCatalogSearch(query: string) {
 ```
 
 ```python
-# Backend (API Gateway - Agent proxy)
+# Backend (CRUD Service - Agent proxy endpoint)
+# Note: APIM routes /api/agents/* directly to agent services
+# This is only needed for internal service-to-service calls
+
 @router.post("/agents/{service_name}/invoke")
 async def invoke_agent(
     service_name: str,
     request: AgentInvokeRequest,
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    user_id: str = Header(None, alias="X-User-Id"),  # From APIM policy
+    user_role: str = Header(None, alias="X-User-Role")  # From APIM policy
 ) -> AgentResponse:
-    # Route to appropriate agent service
-    agent_url = f"http://{service_name}:8000/invoke"
+    # Route to appropriate agent service (internal K8s DNS)
+    agent_url = f"http://{service_name}.holiday-peak.svc.cluster.local/invoke"
     
-    # Add user context
+    # Add user context from APIM headers
     request.context = {
-        "user_id": current_user.user_id if current_user else None,
+        "user_id": user_id,
+        "user_role": user_role,
         "session_id": request.session_id,
     }
     
@@ -1825,32 +2496,618 @@ sequenceDiagram
 
 ---
 
+## CI/CD Pipeline
+
+### Overview
+
+Automated continuous integration and deployment using GitHub Actions for all services and infrastructure.
+
+### Pipeline Architecture
+
+```mermaid
+graph LR
+    subgraph "Source Control"
+        GitHub[GitHub Repository]
+    end
+    
+    subgraph "CI Pipeline"
+        Build[Build & Test]
+        Lint[Lint & Security Scan]
+        UnitTest[Unit Tests]
+        IntegrationTest[Integration Tests]
+    end
+    
+    subgraph "Container Registry"
+        ACR[Azure Container Registry]
+    end
+    
+    subgraph "CD Pipeline - Dev"
+        DeployDev[Deploy to Dev AKS]
+        E2ETestDev[E2E Tests]
+    end
+    
+    subgraph "CD Pipeline - Staging"
+        DeployStaging[Deploy to Staging]
+        SmokeTest[Smoke Tests]
+        Approval[Manual Approval]
+    end
+    
+    subgraph "CD Pipeline - Production"
+        DeployProd[Deploy to Prod AKS]
+        CanaryDeploy[Canary Deployment]
+        MonitorHealth[Monitor Health]
+    end
+    
+    GitHub -->|Push/PR| Build
+    Build --> Lint
+    Lint --> UnitTest
+    UnitTest --> IntegrationTest
+    IntegrationTest -->|Build Image| ACR
+    ACR --> DeployDev
+    DeployDev --> E2ETestDev
+    E2ETestDev -->|Auto| DeployStaging
+    DeployStaging --> SmokeTest
+    SmokeTest --> Approval
+    Approval -->|Approved| DeployProd
+    DeployProd --> CanaryDeploy
+    CanaryDeploy --> MonitorHealth
+```
+
+---
+
+### GitHub Actions Workflows
+
+#### 1. **CI Workflow** (.github/workflows/ci.yml)
+
+**Trigger**: Push to any branch, Pull Request
+
+```yaml
+name: Continuous Integration
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main, develop]
+
+env:
+  PYTHON_VERSION: '3.13'
+  NODE_VERSION: '20'
+
+jobs:
+  lint-python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install dependencies
+        run: |
+          pip install -e "lib[dev]"
+          pip install pylint black isort mypy
+      
+      - name: Run linters
+        run: |
+          black --check lib apps
+          isort --check lib apps
+          pylint lib/src apps/**/src
+          mypy lib/src apps/**/src
+
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+      
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  test-python:
+    runs-on: ubuntu-latest
+    services:
+      cosmos-emulator:
+        image: mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:latest
+        ports:
+          - 8081:8081
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install dependencies
+        run: |
+          pip install -e "lib[test]"
+          pip install -e "apps/crud-service[test]"
+      
+      - name: Run unit tests
+        run: |
+          pytest lib/tests apps/crud-service/tests/unit --cov --cov-report=xml
+      
+      - name: Run integration tests
+        run: |
+          pytest apps/crud-service/tests/integration
+        env:
+          COSMOS_EMULATOR_ENDPOINT: https://localhost:8081
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.xml
+
+  test-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'yarn'
+          cache-dependency-path: apps/ui/yarn.lock
+      
+      - name: Install dependencies
+        run: |
+          cd apps/ui
+          yarn install --frozen-lockfile
+      
+      - name: Run linter
+        run: |
+          cd apps/ui
+          yarn lint
+      
+      - name: Run type check
+        run: |
+          cd apps/ui
+          yarn type-check
+      
+      - name: Run unit tests
+        run: |
+          cd apps/ui
+          yarn test:unit
+
+  build-docker-images:
+    runs-on: ubuntu-latest
+    needs: [lint-python, test-python]
+    if: github.event_name == 'push'
+    
+    strategy:
+      matrix:
+        service:
+          - crud-service
+          - ecommerce-catalog-search
+          - ecommerce-cart-intelligence
+          # ... other services
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./apps/${{ matrix.service }}
+          file: ./apps/${{ matrix.service }}/Dockerfile
+          push: false
+          tags: ${{ matrix.service }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+```
+
+---
+
+#### 2. **CD Workflow - Development** (.github/workflows/cd-dev.yml)
+
+**Trigger**: Push to `develop` branch
+
+```yaml
+name: Deploy to Development
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+env:
+  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  RESOURCE_GROUP: holiday-peak-hub-dev-rg
+  AKS_CLUSTER: holiday-peak-hub-dev-aks
+  ACR_NAME: holidaypeakhubdev
+
+jobs:
+  deploy-infrastructure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      
+      - name: Deploy Bicep infrastructure
+        uses: azure/arm-deploy@v2
+        with:
+          subscriptionId: ${{ env.AZURE_SUBSCRIPTION_ID }}
+          resourceGroupName: ${{ env.RESOURCE_GROUP }}
+          template: ./.infra/main.bicep
+          parameters: ./.infra/parameters.dev.json
+          failOnStdErr: false
+
+  build-and-push:
+    runs-on: ubuntu-latest
+    needs: deploy-infrastructure
+    
+    strategy:
+      matrix:
+        service:
+          - crud-service
+          - ecommerce-catalog-search
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      
+      - name: Build and push to ACR
+        run: |
+          az acr build \\\n            --registry ${{ env.ACR_NAME }} \\\n            --image ${{ matrix.service }}:${{ github.sha }} \\\n            --image ${{ matrix.service }}:latest \\\n            --file ./apps/${{ matrix.service }}/Dockerfile \\\n            ./apps/${{ matrix.service }}
+
+  deploy-to-aks:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \\\n            --resource-group ${{ env.RESOURCE_GROUP }} \\\n            --name ${{ env.AKS_CLUSTER }} \\\n            --overwrite-existing
+      
+      - name: Deploy with Helm
+        run: |
+          helm upgrade --install crud-service ./charts/crud-service \\\n            --namespace holiday-peak \\\n            --create-namespace \\\n            --set image.repository=${{ env.ACR_NAME }}.azurecr.io/crud-service \\\n            --set image.tag=${{ github.sha }} \\\n            --set environment=dev \\\n            --wait
+      
+      - name: Run E2E tests
+        run: |
+          kubectl wait --for=condition=ready pod -l app=crud-service -n holiday-peak --timeout=300s
+          cd apps/ui
+          yarn test:e2e --env=dev
+```
+
+---
+
+#### 3. **CD Workflow - Production** (.github/workflows/cd-prod.yml)
+
+**Trigger**: Tag with `v*` (e.g., v1.2.3)
+
+```yaml
+name: Deploy to Production
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to deploy'
+        required: true
+
+env:
+  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  RESOURCE_GROUP: holiday-peak-hub-prod-rg
+  AKS_CLUSTER: holiday-peak-hub-prod-aks
+  ACR_NAME: holidaypeakhub
+
+jobs:
+  deploy-production:
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://holidaypeakhub.com
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS_PROD }}
+      
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \\\n            --resource-group ${{ env.RESOURCE_GROUP }} \\\n            --name ${{ env.AKS_CLUSTER }} \\\n            --overwrite-existing
+      
+      - name: Canary deployment (10%)
+        run: |
+          helm upgrade --install crud-service-canary ./charts/crud-service \\\n            --namespace holiday-peak \\\n            --set image.tag=${{ github.ref_name }} \\\n            --set replicaCount=1 \\\n            --set canary.enabled=true \\\n            --set canary.weight=10 \\\n            --wait
+      
+      - name: Monitor canary health
+        run: |
+          sleep 300  # 5 minutes
+          ERROR_RATE=$(kubectl logs -l app=crud-service,version=canary -n holiday-peak | grep ERROR | wc -l)
+          if [ $ERROR_RATE -gt 10 ]; then
+            echo \"Canary error rate too high, rolling back\"
+            exit 1
+          fi
+      
+      - name: Promote canary to production
+        run: |
+          helm upgrade --install crud-service ./charts/crud-service \\\n            --namespace holiday-peak \\\n            --set image.tag=${{ github.ref_name }} \\\n            --set replicaCount=3 \\\n            --set canary.enabled=false \\\n            --wait
+      
+      - name: Run smoke tests
+        run: |
+          cd apps/ui
+          yarn test:smoke --env=prod
+      
+      - name: Notify Slack
+        if: always()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: 'Production deployment ${{ job.status }} - Version ${{ github.ref_name }}'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+```
+
+---
+
+#### 4. **Infrastructure as Code Workflow** (.github/workflows/infrastructure.yml)
+
+**Trigger**: Changes to `.infra/` directory
+
+```yaml
+name: Infrastructure Validation
+
+on:
+  pull_request:
+    paths:
+      - '.infra/**'
+
+jobs:
+  validate-bicep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      
+      - name: Bicep lint
+        run: |
+          az bicep build --file ./.infra/main.bicep
+      
+      - name: What-if deployment
+        uses: azure/arm-deploy@v2
+        with:
+          subscriptionId: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          resourceGroupName: holiday-peak-hub-dev-rg
+          template: ./.infra/main.bicep
+          parameters: ./.infra/parameters.dev.json
+          additionalArguments: --what-if
+      
+      - name: Run security checks
+        run: |
+          # Check for public endpoints
+          grep -r \"publicNetworkAccess.*Enabled\" .infra/ && exit 1 || echo \"No public endpoints found\"
+          
+          # Check for Key Vault references
+          grep -r \"COSMOS_KEY\\|REDIS_PASSWORD\" .infra/ && exit 1 || echo \"No hardcoded secrets found\"
+```
+
+---
+
+### Deployment Strategies
+
+#### Blue-Green Deployment
+
+```mermaid
+graph TB
+    subgraph "APIM"
+        APIM[Azure APIM]
+    end
+    
+    subgraph "Blue Environment (Current)"
+        BlueV1[Service v1.0<br/>100% traffic]
+    end
+    
+    subgraph "Green Environment (New)"
+        GreenV2[Service v2.0<br/>0% traffic]
+    end
+    
+    APIM -->|100%| BlueV1
+    APIM -.->|0%| GreenV2
+    
+    style GreenV2 fill:#90EE90
+    style BlueV1 fill:#ADD8E6
+```
+
+**Steps**:
+1. Deploy new version to Green environment
+2. Run health checks and smoke tests
+3. Switch APIM traffic to Green (100%)
+4. Monitor for 15 minutes
+5. If stable, decommission Blue
+6. If issues, instant rollback to Blue
+
+---
+
+#### Canary Deployment
+
+```mermaid
+graph TB
+    APIM[Azure APIM]
+    
+    subgraph "Stable"
+        Stable[v1.0<br/>90% traffic]
+    end
+    
+    subgraph "Canary"
+        Canary[v2.0<br/>10% traffic]
+    end
+    
+    APIM -->|90%| Stable
+    APIM -->|10%| Canary
+    
+    style Canary fill:#FFD700
+    style Stable fill:#87CEEB
+```
+
+**Steps**:
+1. Deploy canary with 10% traffic
+2. Monitor for 30 minutes:
+   - Error rate
+   - Response time
+   - Resource usage
+3. Gradually increase traffic (10% → 25% → 50% → 100%)
+4. If errors spike, automatic rollback
+
+---
+
+### Secrets Management in CI/CD
+
+**GitHub Secrets** (configured in repository settings):
+```
+AZURE_CREDENTIALS                  # Service Principal for Azure login
+AZURE_SUBSCRIPTION_ID              # Subscription ID
+AZURE_CREDENTIALS_PROD             # Separate SP for production
+ACR_REGISTRY_URL                   # holidaypeakhub.azurecr.io
+ENTRA_TENANT_ID                    # Entra ID tenant
+SLACK_WEBHOOK                      # Deployment notifications
+CODECOV_TOKEN                      # Code coverage uploads
+```
+
+**Service Principal Creation**:
+```bash
+az ad sp create-for-rbac \\\n  --name \"holiday-peak-hub-ci\" \\\n  --role contributor \\\n  --scopes /subscriptions/{subscription-id}/resourceGroups/holiday-peak-hub-dev-rg \\\n  --sdk-auth
+```
+
+---
+
+### Monitoring Deployments
+
+**Application Insights Annotations**:
+```yaml
+- name: Create deployment annotation
+  run: |
+    curl -X POST 'https://api.applicationinsights.io/v1/apps/{app-id}/Annotations' \\\n      -H 'x-api-key: ${{ secrets.APPINSIGHTS_API_KEY }}' \\\n      -H 'Content-Type: application/json' \\\n      -d '{
+        \"Name\": \"Deployment\",
+        \"EventTime\": \"'$(date -u +%Y-%m-%dT%H:%M:%S)'Z\",
+        \"Category\": \"Deployment\",
+        \"Properties\": {
+          \"Version\": \"${{ github.ref_name }}\",
+          \"Commit\": \"${{ github.sha }}\",
+          \"Actor\": \"${{ github.actor }}\"
+        }
+      }'
+```
+
+---
+
 ## Implementation Roadmap
 
 ### Phase 1: Foundation (Weeks 1-2)
 
-**Goal**: Set up core infrastructure and authentication
+**Goal**: Set up cloud-native infrastructure, security, and authentication
 
 **Tasks**:
+
+**Infrastructure**:
+- ✅ Create Azure Resource Group and Virtual Network
+- ✅ Provision Azure Key Vault with RBAC
+- ✅ Provision Azure Container Registry (Premium SKU)
+- ✅ Create Azure API Management instance (internal VNet mode)
+- ✅ Set up Private Endpoints (Cosmos DB, Redis, Event Hubs, Key Vault, ACR)
+- ✅ Configure Network Security Groups
+- ✅ Provision AKS cluster with Azure AD Workload Identity
+- ✅ Set up Azure App Configuration
+- ✅ Configure Application Insights and Log Analytics Workspace
 - ✅ Create Cosmos DB database and containers (users, products, orders)
-- ✅ Implement API Gateway with JWT middleware
-- ✅ Build authentication service (login, signup, JWT issuance)
 - ✅ Set up Event Hub namespace and topics
-- ✅ Deploy CRUD service skeleton (FastAPI)
-- ✅ Implement user CRUD endpoints
+- ✅ Configure Azure Front Door with WAF
+
+**Authentication & Authorization**:
+- ✅ Configure Entra ID app registrations (API and frontend)
+- ✅ Configure APIM policies for Entra ID token validation
+- ✅ Set up APIM APIs and operations (routing rules)
+- ✅ Build authentication service (OAuth redirect, callback handling)
+
+**Services**:
+- ✅ Create CRUD service structure (FastAPI)
+- ✅ Configure Managed Identity for CRUD service
+- ✅ Implement user repository with Managed Identity auth to Cosmos DB
+- ✅ Implement Key Vault integration for secrets
+- ✅ Implement user service layer
+- ✅ Implement user API endpoints
+- ✅ Deploy CRUD service to AKS
+- ✅ Configure APIM backend services (point to AKS internal DNS)
+
+**CI/CD**:
+- ✅ Set up GitHub Actions workflows (CI, CD-dev, CD-prod)
+- ✅ Configure GitHub secrets and service principals
+- ✅ Create Helm charts for services
+- ✅ Set up ACR Tasks for automated builds
+
+**Frontend**:
 - ✅ Create frontend API client with Axios + TanStack Query
-- ✅ Integrate authentication flow (login, signup)
+- ✅ Integrate authentication flow (Entra ID OAuth 2.0)
+- ✅ Configure API client to use APIM endpoint
 
 **Deliverables**:
-- API Gateway running on AKS
-- CRUD service with user endpoints
-- Authentication working end-to-end
-- Event Hub configured
+- Complete cloud-native infrastructure deployed (VNet, Private Endpoints, NSGs)
+- Azure API Management instance configured with Entra ID policies
+- Azure Key Vault storing all secrets
+- CRUD service deployed to AKS with Managed Identity
+- User CRUD endpoints functional (create, read, update, delete)
+- Authentication working end-to-end (Entra ID → APIM → CRUD service)
+- Event Hub configured for event choreography
+- CI/CD pipelines operational (automated build, test, deploy)
+- Frontend can call APIM endpoints securely
+- Zero hardcoded secrets in code or configuration
 
 **Testing**:
-- Unit tests for user repository and service
-- Integration tests for login/signup flow
-- E2E test: User signup → Login → Get profile
+- Unit tests for user repository and service (75% coverage)
+- Integration tests for auth flow with Cosmos DB emulator
+- E2E test: User signup → Login → Get profile → Update profile
+- Security scan: No secrets in code, all traffic via Private Endpoints
+- Load test: 100 concurrent users on user endpoints
+
+**Success Criteria**:
+- ✅ All Azure resources provisioned via Bicep (IaC)
+- ✅ No public endpoints exposed (except Front Door and APIM public IP)
+- ✅ All secrets in Key Vault, accessed via Managed Identity
+- ✅ CI/CD pipeline successfully deploys to dev environment
+- ✅ User can authenticate and perform CRUD operations
+- ✅ Application Insights shows distributed traces
 
 ---
 
@@ -2225,40 +3482,57 @@ class EcommerceUser(HttpUser):
 | | Redis | 7.x | Hot memory tier (ADR-008) |
 | | Blob Storage | - | Cold memory tier (ADR-008) |
 | **Messaging** | Event Hubs | - | Event choreography (ADR-007) |
+| **API Management** | Azure APIM | Consumption/Standard | Managed API gateway |
+| **CDN & WAF** | Azure Front Door | Premium | Global load balancer, WAF, CDN |
 | **Infrastructure** | AKS | 1.28+ | Kubernetes orchestration (ADR-009) |
 | | KEDA | 2.x | Event-driven autoscaling (ADR-009) |
 | | Helm | 3.x | Package management (ADR-009) |
 | | Bicep | Latest | Infrastructure as Code (ADR-002) |
-| **Authentication** | JWT | - | Token-based auth (ADR-019) |
-| | bcrypt | - | Password hashing |
-| **Monitoring** | Azure Monitor | - | Observability |
-| | Application Insights | - | APM |
-| | Azure Log Analytics | - | Centralized logging |
-| **Testing** | pytest | 8.x | Python testing |
-| | Playwright | Latest | E2E testing |
-| | Locust | Latest | Load testing |
+| **Container Registry** | Azure ACR | Premium | Container image storage |
+| **Networking** | Azure VNet | - | Virtual network isolation |
+| | Private Endpoints | - | Private connectivity to PaaS |
+| | NSG | - | Network security groups |
+| **Security** | Azure Key Vault | Standard | Secrets and certificate management |
+| | Managed Identity | - | Passwordless authentication |
+| | Azure AD Workload Identity | - | Pod identity for AKS |
+| **Authentication** | Microsoft Entra ID | - | OAuth 2.0 / OpenID Connect (ADR-019) |
+| | MSAL Python | Latest | Microsoft Authentication Library |
+| | PyJWT | Latest | Token validation |
+| **Configuration** | Azure App Configuration | Standard | Centralized configuration |
+| **Monitoring** | Azure Monitor | - | Observability platform |
+| | Application Insights | - | APM and distributed tracing |
+| | Azure Log Analytics | - | Centralized logging and querying |
+| **CI/CD** | GitHub Actions | - | Build, test, and deployment automation |
+| | Azure DevOps | - | Alternative CI/CD platform |
+| **Testing** | pytest | 8.x | Python unit and integration testing |
+| | pytest-asyncio | Latest | Async test support |
+| | Playwright | Latest | E2E browser testing |
+| | Locust | Latest | Load and performance testing |
+| | Trivy | Latest | Container vulnerability scanning |
 
 ---
 
 ## Appendix B: Environment Variables
 
-### API Gateway
+### Azure API Management Configuration
 
+**Configured via Azure Portal / Bicep**:
 ```bash
-# Server
-HOST=0.0.0.0
-PORT=8000
-ENV=production
+# APIM Instance
+APIM_NAME=holidaypeakhub-apim
+APIM_RESOURCE_GROUP=holiday-peak-hub-rg
+APIM_SKU=Consumption  # or Standard/Premium for production
+APIM_PUBLISHER_EMAIL=admin@holidaypeakhub.com
+APIM_PUBLISHER_NAME=Holiday Peak Hub
 
-# JWT
-JWT_SECRET=your-secret-key-min-32-chars
-JWT_ALGORITHM=HS256
-JWT_ACCESS_EXPIRY_MINUTES=15
-JWT_REFRESH_EXPIRY_DAYS=7
+# Named Values (APIM configuration)
+ENTRA_TENANT_ID=00000000-0000-0000-0000-000000000000
+ENTRA_CLIENT_ID=api://holiday-peak-hub
+CRUD_SERVICE_URL=http://crud-service.holiday-peak.svc.cluster.local
+AGENT_SERVICES_URL=http://{service-name}.holiday-peak.svc.cluster.local
+```
 
-# CORS
-CORS_ORIGINS=https://holidaypeakhub.com,https://admin.holidaypeakhub.com
-CORS_ALLOW_CREDENTIALS=true
+### Authentication Service (for OAuth flows)
 
 # Rate Limiting
 RATE_LIMIT_PER_MINUTE=60
@@ -2277,30 +3551,50 @@ HOST=0.0.0.0
 PORT=8001
 ENV=production
 
-# Cosmos DB
+# Azure Resources (using Managed Identity - no secrets needed)
 COSMOS_ACCOUNT_URI=https://holiday-peak-hub.documents.azure.com:443/
 COSMOS_DATABASE=holiday-peak-hub
-COSMOS_KEY=<primary-key>
+# COSMOS_KEY not needed - uses Managed Identity
 
-# Redis
-REDIS_URL=redis://holiday-peak-redis:6379
-REDIS_PASSWORD=<password>
+# Redis (using AAD authentication - no password needed)
+REDIS_HOST=holiday-peak-redis.redis.cache.windows.net
+REDIS_PORT=6380
 REDIS_SSL=true
+# REDIS_PASSWORD not needed - uses Managed Identity
 
-# Event Hubs
-EVENT_HUB_NAMESPACE=holiday-peak-events
-EVENT_HUB_CONNECTION_STRING=Endpoint=sb://...
+# Event Hubs (using Managed Identity)
+EVENT_HUB_NAMESPACE=holiday-peak-events.servicebus.windows.net
+# EVENT_HUB_CONNECTION_STRING not needed - uses Managed Identity
 
-# Azure Monitor
-APPLICATIONINSIGHTS_CONNECTION_STRING=InstrumentationKey=...
+# Azure Monitor (using Managed Identity)
+APPLICATIONINSIGHTS_CONNECTION_STRING=InstrumentationKey=...;IngestionEndpoint=...
 
-# Stripe (Payment)
-STRIPE_SECRET_KEY=sk_test_...
-STRIPE_WEBHOOK_SECRET=whsec_...
+# Azure Key Vault
+KEY_VAULT_URL=https://holidaypeakhub-kv.vault.azure.net/
 
-# Email (SendGrid)
-SENDGRID_API_KEY=SG...
+# Secrets from Key Vault (fetched at runtime using Managed Identity)
+# - stripe-secret-key
+# - stripe-webhook-secret
+# - sendgrid-api-key
+
+# Email
 FROM_EMAIL=noreply@holidaypeakhub.com
+```
+
+**Code Example - Using Key Vault**:
+```python
+from azure.identity import DefaultAzureCredential
+from azure.keyvault.secrets import SecretClient
+import os
+
+# Initialize Key Vault client
+credential = DefaultAzureCredential()
+vault_url = os.getenv("KEY_VAULT_URL")
+kv_client = SecretClient(vault_url=vault_url, credential=credential)
+
+# Fetch secrets on startup
+STRIPE_SECRET_KEY = kv_client.get_secret("stripe-secret-key").value
+SENDGRID_API_KEY = kv_client.get_secret("sendgrid-api-key").value
 ```
 
 ---
@@ -2443,5 +3737,69 @@ FROM_EMAIL=noreply@holidaypeakhub.com
 
 **Document Prepared By**: GitHub Copilot  
 **Date**: 2026-01-30  
-**Version**: 1.0  
+**Version**: 2.0  
 **Status**: Draft - Awaiting Approval
+
+## Document Change Log
+
+### Version 2.0 (2026-01-30)
+- ✅ Updated authentication from JWT to **Microsoft Entra ID**
+- ✅ Replaced custom API Gateway with **Azure API Management**
+- ✅ Added comprehensive **Cloud-Native Architecture** section:
+  - Azure Key Vault for secrets management
+  - Managed Identity for passwordless authentication
+  - Virtual Network with Private Endpoints
+  - Azure Container Registry
+  - Azure Front Door with WAF
+  - Azure App Configuration
+  - Network Security Groups and zero trust networking
+- ✅ Added complete **CI/CD Pipeline** section with GitHub Actions workflows
+- ✅ Updated Phase 1 to include full cloud-native infrastructure setup
+- ✅ Updated environment variables to use Key Vault references (no hardcoded secrets)
+- ✅ Added disaster recovery and cost management strategies
+- ✅ Expanded technology stack with all Azure cloud-native services
+
+### Version 1.0 (2026-01-30)
+- Initial comprehensive backend plan
+- Database schemas for all 10 containers
+- 60+ REST API endpoints defined
+- Integration patterns documented
+- SAGA choreography for order creation
+- 8-phase implementation roadmap
+
+---
+
+## Summary
+
+This backend implementation plan provides a **production-ready, cloud-native architecture** for Holiday Peak Hub that follows Azure best practices:
+
+### ✅ **Security First**
+- No hardcoded secrets (all in Key Vault)
+- Managed Identity for all Azure services
+- Private Endpoints for network isolation
+- Zero trust networking with NSGs
+- Web Application Firewall (WAF)
+- Entra ID authentication
+
+### ✅ **Fully Automated**
+- Infrastructure as Code (Bicep)
+- CI/CD pipelines (GitHub Actions)
+- Automated testing (unit, integration, E2E)
+- Canary deployments for zero-downtime
+- Security scanning in pipeline
+
+### ✅ **Enterprise Grade**
+- Global distribution with Azure Front Door
+- Distributed tracing with Application Insights
+- Centralized logging and monitoring
+- Disaster recovery with multi-region
+- Cost management and optimization
+
+### ✅ **Developer Friendly**
+- Comprehensive API documentation
+- Type-safe APIs (Pydantic, Zod)
+- Local development with emulators
+- Clear separation of concerns
+- Extensive test coverage (75%+)
+
+The plan is ready for review and implementation. All services follow Azure-native patterns and ADR compliance.
