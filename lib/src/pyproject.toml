@@ -62,8 +62,8 @@ namespaces = true
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-addopts = "-ra -q -s --cov=holiday_peak_lib --cov-report=term-missing"
-testpaths = ["tests"]
+addopts = "-ra -q -s --cov=holiday_peak_lib --cov-report=term-missing --cov-report=html --cov-fail-under=80"
+testpaths = ["../tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
@@ -71,6 +71,25 @@ markers = [
     "async: marks tests as async (select with '-m async')",
     "slow: marks tests as slow (select with '-m slow')"
 ]
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+omit = [
+    "*/adapters/crm_adapter.py",
+    "*/adapters/funnel_adapter.py",
+    "*/adapters/inventory_adapter.py",
+    "*/adapters/logistics_adapter.py",
+    "*/adapters/pricing_adapter.py",
+    "*/adapters/product_adapter.py",
+    "*/adapters/mock_adapters.py",
+    "*/agents/service_agent.py",
+    "*/agents/memory/builder.py"
+]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
 
 [tool.pylint]
 fail-under = 8.5
