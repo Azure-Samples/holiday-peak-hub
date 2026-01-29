@@ -40,6 +40,7 @@ Use this mapping to know the current vs. former names—so you can correctly int
 
 ### Frontend (Next.js + TypeScript + Tailwind)
 - **STRICTLY FOLLOW ESLint 7** configuration for all frontend code.
+- Use Next.js 15 with the App Router and `yarn` as the package manager.
 - Use TypeScript for type safety.
 - Follow Next.js conventions for routing, data fetching, and server components.
 - Use Tailwind CSS utility classes for styling.

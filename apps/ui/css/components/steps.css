@@ -1,0 +1,16 @@
+.steps-1 {
+  .number {
+    @apply relative;
+    &::before {
+      display: block;
+      content: "";
+      position: absolute;
+      z-index: 1;
+      top: calc(1rem - 4px);
+      left: 0;
+      right: 0;
+      height: 4px;
+      @apply bg-blue-500;
+    }
+  }
+}

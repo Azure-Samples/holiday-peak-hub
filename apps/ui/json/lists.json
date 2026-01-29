@@ -1,0 +1,34 @@
+[
+  {
+    "title": "Voluptas repellendus est alias ut.",
+    "sentence": "Doloribus non est reiciendis consequatur.",
+    "description": "Voluptatem velit et consectetur incidunt vero officiis commodi soluta iure.",
+    "number": 10,
+    "img": "/images/faces/w8.png",
+    "timeago": "a few seconds ago"
+  },
+  {
+    "title": "Voluptatem commodi temporibus incidunt quo.",
+    "sentence": "Commodi nihil labore voluptatem eos.",
+    "description": "Officia deleniti officiis sequi beatae eum aut cum illum architecto.",
+    "number": 4,
+    "img": "/images/faces/w10.png",
+    "timeago": "a day ago"
+  },
+  {
+    "title": "In aut similique repellat in.",
+    "sentence": "Vero facilis cupiditate atque illum.",
+    "description": "Consequatur libero magnam impedit repudiandae quo minima reprehenderit eos et.",
+    "number": 5,
+    "img": "/images/faces/w4.png",
+    "timeago": "2 days ago"
+  },
+  {
+    "title": "Commodi eum odit velit natus.",
+    "sentence": "Perferendis dolor eveniet est in.",
+    "description": "Ut nihil quia omnis aperiam velit dolorem numquam error perferendis.",
+    "number": 7,
+    "img": "/images/faces/w7.png",
+    "timeago": "3 days ago"
+  }
+]

@@ -1,0 +1,75 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Light mode colors */
+    --color-primary: #0077BE;
+    --color-primary-hover: #005F98;
+    --color-success: #32CD32;
+    --color-accent: #00CED1;
+    --color-background: #FFFFFF;
+    --color-surface: #F7FAFC;
+    --color-text-primary: #2D3748;
+    --color-text-secondary: #718096;
+    --color-border: #E2E8F0;
+  }
+
+  .dark {
+    /* Dark mode colors */
+    --color-primary: #66BDE7;
+    --color-primary-hover: #99D3EF;
+    --color-success: #87E387;
+    --color-accent: #66E1E1;
+    --color-background: #171923;
+    --color-surface: #1A202C;
+    --color-text-primary: #F7FAFC;
+    --color-text-secondary: #E2E8F0;
+    --color-border: #2D3748;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-50;
+  }
+}
+
+@layer components {
+  /* Button variants with new color palette */
+  .btn-primary {
+    @apply bg-ocean-500 text-white hover:bg-ocean-600 dark:bg-ocean-300 dark:text-gray-900 dark:hover:bg-ocean-400;
+  }
+
+  .btn-success {
+    @apply bg-lime-500 text-white hover:bg-lime-600 dark:bg-lime-400 dark:text-gray-900 dark:hover:bg-lime-500;
+  }
+
+  .btn-secondary {
+    @apply bg-gray-200 text-gray-900 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600;
+  }
+
+  /* Card styles */
+  .card {
+    @apply bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700;
+  }
+
+  /* Input styles */
+  .input {
+    @apply bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 focus:ring-ocean-500 dark:focus:ring-ocean-300;
+  }
+
+  /* Link styles */
+  .link {
+    @apply text-ocean-500 hover:text-ocean-600 dark:text-ocean-300 dark:hover:text-ocean-400 underline-offset-4 hover:underline;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
