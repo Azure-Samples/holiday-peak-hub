@@ -25,7 +25,7 @@ declined, etc.
 
 Please do **not** open public issues for security reports.
 
-1. Email the maintainers at **security@your-domain.example** with:
+1. Email the maintainers at **rcataldi@microsoft.com** with:
    - A detailed description of the issue
    - Steps to reproduce (if applicable)
    - Affected files, services, or endpoints
@@ -48,6 +48,6 @@ If the issue is urgent, include **"URGENT"** in the email subject.
 
 ## Security Contact
 
-- Primary: security@your-domain.example
+- Primary: rcataldi@microsoft.com
 
 If you need a different contact method, update this file accordingly.
