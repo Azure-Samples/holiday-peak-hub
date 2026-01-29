@@ -2,14 +2,15 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable
 from time import perf_counter
+from typing import Any, Awaitable, Callable
 
 from agent_framework import BaseAgent
 from pydantic import BaseModel, ConfigDict, Field
 
-
 ModelInvoker = Callable[..., Awaitable[dict[str, Any]]]
+
+UPGRADE_TOKEN = "upgrade"
 
 
 @dataclass
@@ -61,6 +62,7 @@ class BaseRetailAgent(BaseAgent, ABC):
 
     def __init__(self, config: AgentDependencies, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
+        # store the configuration object directly
         self._config = config
 
     @property
@@ -70,6 +72,40 @@ class BaseRetailAgent(BaseAgent, ABC):
     @config.setter
     def config(self, deps: AgentDependencies) -> None:
         self._config = deps
+
+    def __getattr__(self, name: str) -> Any:
+        """Delegate unknown attribute access to the underlying config object.
+
+        This reduces the need for repetitive property definitions that simply
+        forward to ``self.config`` while preserving a flat attribute surface.
+        """
+        # Avoid recursion during initialization or when _config is missing
+        config = self.__dict__.get("_config", None)
+        if config is not None and hasattr(config, name):
+            return getattr(config, name)
+        raise AttributeError(f"{type(self).__name__!r} object has no attribute {name!r}")
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        """Delegate setting unknown attributes to the config when appropriate.
+
+        Core attributes and private names are always set on the instance itself.
+        """
+        if name in {"_config", "config"} or name.startswith("_"):
+            super().__setattr__(name, value)
+            return
+
+        # If the attribute already exists on the instance, set it here
+        if name in self.__dict__ or any(name in cls.__dict__ for cls in type(self).__mro__):
+            super().__setattr__(name, value)
+            return
+
+        # Otherwise, try to set it on the config object if possible
+        config = self.__dict__.get("_config", None)
+        if config is not None and hasattr(config, name):
+            setattr(config, name, value)
+        else:
+            # Fallback: create a normal attribute on the instance
+            super().__setattr__(name, value)
 
     @property
     def router(self) -> Any | None:
@@ -189,7 +225,10 @@ class BaseRetailAgent(BaseAgent, ABC):
             return self.llm
         if self.slm:
             return self.slm
-        return self.llm  # type: ignore[return-value]
+        if self.llm is not None:
+            return self.llm
+        # Defensive check: should not be reachable because of the initial guard.
+        raise RuntimeError("Model selection failed: no suitable model available")
 
     async def __invoke_target(
         self,
@@ -227,7 +266,12 @@ class BaseRetailAgent(BaseAgent, ABC):
                 "temperature": existing_meta.get("temperature", target.temperature),
                 "top_p": existing_meta.get("top_p", target.top_p),
                 "tools": existing_meta.get(
-                    "tools", list(payload_tools.keys()) if isinstance(payload_tools, dict) else payload_tools
+                    "tools",
+                    (
+                        list(payload_tools.keys())
+                        if isinstance(payload_tools, dict)
+                        else payload_tools
+                    ),
                 ),
             }
 
@@ -237,7 +281,9 @@ class BaseRetailAgent(BaseAgent, ABC):
 
         return result
 
-    async def invoke_model(self, request: dict[str, Any], messages: Any, **kwargs: Any) -> dict[str, Any]:
+    async def invoke_model(
+        self, request: dict[str, Any], messages: Any, **kwargs: Any
+    ) -> dict[str, Any]:
         """Invoke a model with SLM-first routing and optional LLM upgrade.
 
         Routing rules:
@@ -253,46 +299,71 @@ class BaseRetailAgent(BaseAgent, ABC):
         payload_tools = kwargs.get("tools") or (self.tools if self.tools else None)
 
         if self.slm and self.llm:
-            evaluation_prompt = (
-                "Evaluate this request and identify the complexity. If the complexity is higher than "
-                "medium, that is, if the request contains more than 2 steps to be fullfilled and needs "
-                "different sources to be understood and processed, return a single word 'upgrade'.\n\n"
-                f"Request: {request}"
+            return await self._evaluate_with_slm_routing(request, messages, payload_tools, **kwargs)
+
+        return await self._direct_model_selection(request, messages, payload_tools, **kwargs)
+
+    async def _evaluate_with_slm_routing(
+        self,
+        request: dict[str, Any],
+        messages: Any,
+        payload_tools: Any,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Evaluate request complexity with SLM and optionally upgrade to LLM."""
+
+        evaluation_prompt = (
+            "Evaluate this request and identify the complexity. If the complexity is higher than "
+            "medium, that is, if the request contains more than 2 steps to be fulfilled and needs "
+            "different sources to be understood and processed, return a single word 'upgrade'.\n\n"
+            f"Request: {request}"
+        )
+        evaluation_result = await self.__invoke_target(
+            self.slm, evaluation_prompt, payload_tools, **kwargs
+        )
+        evaluation_text = ""
+        if isinstance(evaluation_result, dict):
+            evaluation_text = str(
+                evaluation_result.get("response")
+                or evaluation_result.get("content")
+                or evaluation_result.get("message")
+                or evaluation_result
             )
-            evaluation_result = await self.__invoke_target(self.slm, evaluation_prompt, payload_tools, **kwargs)
-            evaluation_text = ""
-            if isinstance(evaluation_result, dict):
-                evaluation_text = str(
-                    evaluation_result.get("response")
-                    or evaluation_result.get("content")
-                    or evaluation_result.get("message")
-                    or evaluation_result
+
+        if evaluation_text.strip().lower() == UPGRADE_TOKEN:
+            if isinstance(messages, list):
+                upgraded_messages = [
+                    {
+                        "role": "system",
+                        "content": "You must reason on the request before proceeding with the response.",
+                    },
+                    *messages,
+                ]
+            elif isinstance(messages, dict):
+                upgraded_messages = [
+                    {
+                        "role": "system",
+                        "content": "You must reason on the request before proceeding with the response.",
+                    },
+                    messages,
+                ]
+            else:
+                upgraded_messages = (
+                    "You must reason on the request before proceeding with the response.\n\n"
+                    + str(messages)
                 )
+            return await self.__invoke_target(self.llm, upgraded_messages, payload_tools, **kwargs)
 
-            if evaluation_text.strip().lower() == "upgrade":
-                if isinstance(messages, list):
-                    upgraded_messages = [
-                        {
-                            "role": "system",
-                            "content": "You must reason on the request before proceeding with the response.",
-                        },
-                        *messages,
-                    ]
-                elif isinstance(messages, dict):
-                    upgraded_messages = [
-                        {
-                            "role": "system",
-                            "content": "You must reason on the request before proceeding with the response.",
-                        },
-                        messages,
-                    ]
-                else:
-                    upgraded_messages = (
-                        "You must reason on the request before proceeding with the response.\n\n" + str(messages)
-                    )
-                return await self.__invoke_target(self.llm, upgraded_messages, payload_tools, **kwargs)
+        return await self.__invoke_target(self.slm, messages, payload_tools, **kwargs)
 
-            return await self.__invoke_target(self.slm, messages, payload_tools, **kwargs)
+    async def _direct_model_selection(
+        self,
+        request: dict[str, Any],
+        messages: Any,
+        payload_tools: Any,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Fallback path when SLM/LLM combo is not available: select a single model and invoke it."""
 
         target = self._select_model(request)
         return await self.__invoke_target(target, messages, payload_tools, **kwargs)
