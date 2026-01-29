@@ -106,6 +106,7 @@ class TestBaseAdapter:
         # Second fetch should use cache
         await adapter.fetch({"query": "test"})
         assert adapter.fetch_count == 1  # Only called once
+        assert result2 == result1  # Cache should return same data
 
     @pytest.mark.asyncio
     async def test_upsert_clears_cache(self):
