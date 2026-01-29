@@ -138,7 +138,7 @@ class TestBaseAdapter:
             base_delay=0.01,
             timeout=1.0
         )
-        result = await adapter.fetch({"query": "test"})
+        await adapter.fetch({"query": "test"})
         assert adapter.attempts == 3  # Failed twice, succeeded third time
 
     @pytest.mark.asyncio
