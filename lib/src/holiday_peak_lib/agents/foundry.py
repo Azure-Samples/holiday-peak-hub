@@ -177,6 +177,8 @@ class FoundryInvoker:
                 or 0,
             )
         except TypeError:
+            # Some history entries may not be comparable / lack a usable created_at;
+            # if sorting fails, fall back to the original order.
             pass
         telemetry = {
             "endpoint": self.config.endpoint,
