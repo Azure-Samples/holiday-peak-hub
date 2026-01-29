@@ -1,0 +1,69 @@
+.left-sidebar-3 {
+  @apply w-full min-w-full;
+  ul .left-sidebar-item {
+    @apply pl-0;
+  }
+  ul ul .left-sidebar-item {
+    @apply pl-4;
+  }
+  ul ul ul .left-sidebar-item {
+    @apply pl-8;
+  }
+  ul ul ul ul .left-sidebar-item {
+    @apply pl-12;
+  }
+  ul ul ul ul ul .left-sidebar-item {
+    @apply pl-16;
+  }
+  .arrow {
+    transform: rotate(90deg);
+    transition: transform 0.15s ease-in-out;
+  }
+
+  .hidden-sibling {
+    + ul {
+      @apply hidden;
+    }
+    &.left-sidebar-item {
+      .arrow {
+        transform: rotate(-90deg) !important;
+      }
+    }
+  }
+
+  .left-sidebar-item {
+    @apply w-full min-w-full;
+    .left-sidebar-icon {
+      @apply inline-flex items-center justify-center w-12;
+    }
+    &.open-sibling {
+      &:after {
+        content: "";
+        display: block;
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        width: 4px;
+        @apply bg-blue-500;
+      }
+    }
+    &:after {
+      content: "";
+      display: none;
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: 4px;
+      @apply bg-blue-500;
+    }
+    &:hover,
+    &.active {
+      @apply text-blue-500;
+      &:after {
+        display: block;
+      }
+    }
+  }
+}

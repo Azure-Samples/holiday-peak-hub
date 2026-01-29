@@ -7,5 +7,8 @@
     "python.testing.pytestEnabled": true,
     "python.testing.cwd": "${workspaceFolder}/lib",
     "python.testing.autoTestDiscoverOnSaveEnabled": true,
-    "python.defaultInterpreterPath": "${workspaceFolder}/lib/src/.venv/Scripts/python.exe"
+    "python.defaultInterpreterPath": "${workspaceFolder}/lib/src/.venv/Scripts/python.exe",
+    "chat.tools.terminal.autoApprove": {
+        ".\\find-migrations.ps1": true
+    }
 }

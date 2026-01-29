@@ -1,0 +1,162 @@
+[
+  {
+    "title": "Ergonomic Rubber Car",
+    "stars": 4,
+    "description": "Sequi voluptatem voluptatem ullam voluptatem vel tempora modi aliquam tempora.",
+    "category": "Home",
+    "price": 620,
+    "img": "/images/products/p4.jpg"
+  },
+  {
+    "title": "Ergonomic Wooden Shirt",
+    "stars": 2,
+    "description": "Architecto minima veniam et enim dolor eaque occaecati doloribus et.",
+    "category": "Sports",
+    "price": 559,
+    "img": "/images/products/p4.jpg"
+  },
+  {
+    "title": "Handmade Fresh Chair",
+    "stars": 3,
+    "description": "Illo rem neque nesciunt eum ipsum suscipit aliquam dolore sapiente.",
+    "category": "Toys",
+    "price": 987,
+    "img": "/images/products/p4.jpg"
+  },
+  {
+    "title": "Sleek Concrete Mouse",
+    "stars": 1,
+    "description": "Esse iste eos at culpa aspernatur tenetur ut minus ullam.",
+    "category": "Games",
+    "price": 490,
+    "img": "/images/products/p1.jpg"
+  },
+  {
+    "title": "Ergonomic Steel Shoes",
+    "stars": 3,
+    "description": "Aut dolor laboriosam eveniet id totam doloribus vero minima nisi.",
+    "category": "Industrial",
+    "price": 265,
+    "img": "/images/products/p1.jpg"
+  },
+  {
+    "title": "Handcrafted Plastic Gloves",
+    "stars": 3,
+    "description": "Quis et saepe quibusdam corrupti soluta voluptas delectus hic id.",
+    "category": "Computers",
+    "price": 589,
+    "img": "/images/products/p1.jpg"
+  },
+  {
+    "title": "Generic Steel Soap",
+    "stars": 2,
+    "description": "Pariatur voluptates qui ducimus dolor temporibus aut doloribus pariatur ut.",
+    "category": "Baby",
+    "price": 696,
+    "img": "/images/products/p2.jpg"
+  },
+  {
+    "title": "Fantastic Fresh Salad",
+    "stars": 4,
+    "description": "Aut labore consectetur voluptatibus ut maxime fugit doloremque vero laborum.",
+    "category": "Electronics",
+    "price": 447,
+    "img": "/images/products/p4.jpg"
+  },
+  {
+    "title": "Awesome Concrete Car",
+    "stars": 4,
+    "description": "Sed a et voluptatibus sint ea aliquam dolorem molestias et.",
+    "category": "Books",
+    "price": 330,
+    "img": "/images/products/p4.jpg"
+  },
+  {
+    "title": "Unbranded Wooden Keyboard",
+    "stars": 1,
+    "description": "Eaque error ex eos consectetur voluptate beatae cumque totam corrupti.",
+    "category": "Computers",
+    "price": 856,
+    "img": "/images/products/p3.jpg"
+  },
+  {
+    "title": "Practical Metal Shoes",
+    "stars": 2,
+    "description": "Omnis et a nam ut earum fugiat quae id omnis.",
+    "category": "Grocery",
+    "price": 839,
+    "img": "/images/products/p3.jpg"
+  },
+  {
+    "title": "Handmade Wooden Chips",
+    "stars": 4,
+    "description": "Quibusdam aperiam quia dolore beatae modi amet vel consequatur excepturi.",
+    "category": "Clothing",
+    "price": 72,
+    "img": "/images/products/p1.jpg"
+  },
+  {
+    "title": "Generic Cotton Chair",
+    "stars": 5,
+    "description": "Vero eligendi modi impedit nemo officia sint iusto veniam et.",
+    "category": "Outdoors",
+    "price": 217,
+    "img": "/images/products/p5.jpg"
+  },
+  {
+    "title": "Handmade Frozen Bike",
+    "stars": 5,
+    "description": "Quos officiis blanditiis fugiat dolor aut voluptatem facere impedit quidem.",
+    "category": "Shoes",
+    "price": 36,
+    "img": "/images/products/p1.jpg"
+  },
+  {
+    "title": "Ergonomic Fresh Ball",
+    "stars": 2,
+    "description": "Sint aut sit ipsa facere culpa culpa et enim quae.",
+    "category": "Books",
+    "price": 659,
+    "img": "/images/products/p2.jpg"
+  },
+  {
+    "title": "Sleek Cotton Bike",
+    "stars": 3,
+    "description": "Doloribus unde neque temporibus nisi exercitationem quae explicabo dolore voluptate.",
+    "category": "Garden",
+    "price": 932,
+    "img": "/images/products/p3.jpg"
+  },
+  {
+    "title": "Generic Steel Table",
+    "stars": 2,
+    "description": "Enim culpa iste enim quaerat unde ipsam error ratione nostrum.",
+    "category": "Sports",
+    "price": 968,
+    "img": "/images/products/p3.jpg"
+  },
+  {
+    "title": "Tasty Cotton Hat",
+    "stars": 5,
+    "description": "Illum numquam id consequatur nam commodi earum sapiente reprehenderit eius.",
+    "category": "Toys",
+    "price": 546,
+    "img": "/images/products/p5.jpg"
+  },
+  {
+    "title": "Small Plastic Bacon",
+    "stars": 4,
+    "description": "Cumque fuga quaerat error minus sint quas modi expedita quam.",
+    "category": "Books",
+    "price": 541,
+    "img": "/images/products/p3.jpg"
+  },
+  {
+    "title": "Gorgeous Plastic Shirt",
+    "stars": 1,
+    "description": "Rem id quo numquam placeat tempora nulla eum incidunt molestiae.",
+    "category": "Kids",
+    "price": 883,
+    "img": "/images/products/p3.jpg"
+  }
+]

@@ -1,0 +1,1002 @@
+[
+  {
+    "name": "China",
+    "alpha2Code": "CN",
+    "alpha3Code": "CHN",
+    "capital": "Beijing",
+    "region": "Asia",
+    "subregion": "Eastern Asia",
+    "population": 1377422166,
+    "nativeName": "中国"
+  },
+  {
+    "name": "India",
+    "alpha2Code": "IN",
+    "alpha3Code": "IND",
+    "capital": "New Delhi",
+    "region": "Asia",
+    "subregion": "Southern Asia",
+    "population": 1295210000,
+    "nativeName": "भारत"
+  },
+  {
+    "name": "United States of America",
+    "alpha2Code": "US",
+    "alpha3Code": "USA",
+    "capital": "Washington, D.C.",
+    "region": "Americas",
+    "subregion": "Northern America",
+    "population": 323947000,
+    "nativeName": "United States"
+  },
+  {
+    "name": "Indonesia",
+    "alpha2Code": "ID",
+    "alpha3Code": "IDN",
+    "capital": "Jakarta",
+    "region": "Asia",
+    "subregion": "South-Eastern Asia",
+    "population": 258705000,
+    "nativeName": "Indonesia"
+  },
+  {
+    "name": "Brazil",
+    "alpha2Code": "BR",
+    "alpha3Code": "BRA",
+    "capital": "Brasília",
+    "region": "Americas",
+    "subregion": "South America",
+    "population": 206135893,
+    "nativeName": "Brasil"
+  },
+  {
+    "name": "Pakistan",
+    "alpha2Code": "PK",
+    "alpha3Code": "PAK",
+    "capital": "Islamabad",
+    "region": "Asia",
+    "subregion": "Southern Asia",
+    "population": 194125062,
+    "nativeName": "Pakistan"
+  },
+  {
+    "name": "Nigeria",
+    "alpha2Code": "NG",
+    "alpha3Code": "NGA",
+    "capital": "Abuja",
+    "region": "Africa",
+    "subregion": "Western Africa",
+    "population": 186988000,
+    "nativeName": "Nigeria"
+  },
+  {
+    "name": "Bangladesh",
+    "alpha2Code": "BD",
+    "alpha3Code": "BGD",
+    "capital": "Dhaka",
+    "region": "Asia",
+    "subregion": "Southern Asia",
+    "population": 161006790,
+    "nativeName": "Bangladesh"
+  },
+  {
+    "name": "Russian Federation",
+    "alpha2Code": "RU",
+    "alpha3Code": "RUS",
+    "capital": "Moscow",
+    "region": "Europe",
+    "subregion": "Eastern Europe",
+    "population": 146599183,
+    "nativeName": "Россия"
+  },
+  {
+    "name": "Japan",
+    "alpha2Code": "JP",
+    "alpha3Code": "JPN",
+    "capital": "Tokyo",
+    "region": "Asia",
+    "subregion": "Eastern Asia",
+    "population": 126960000,
+    "nativeName": "日本"
+  },
+  {
+    "name": "Mexico",
+    "alpha2Code": "MX",
+    "alpha3Code": "MEX",
+    "capital": "Mexico City",
+    "region": "Americas",
+    "subregion": "Central America",
+    "population": 122273473,
+    "nativeName": "México"
+  },
+  {
+    "name": "Philippines",
+    "alpha2Code": "PH",
+    "alpha3Code": "PHL",
+    "capital": "Manila",
+    "region": "Asia",
+    "subregion": "South-Eastern Asia",
+    "population": 103279800,
+    "nativeName": "Pilipinas"
+  },
+  {
+    "name": "Viet Nam",
+    "alpha2Code": "VN",
+    "alpha3Code": "VNM",
+    "capital": "Hanoi",
+    "region": "Asia",
+    "subregion": "South-Eastern Asia",
+    "population": 92700000,
+    "nativeName": "Việt Nam"
+  },
+  {
+    "name": "Ethiopia",
+    "alpha2Code": "ET",
+    "alpha3Code": "ETH",
+    "capital": "Addis Ababa",
+    "region": "Africa",
+    "subregion": "Eastern Africa",
+    "population": 92206005,
+    "nativeName": "ኢትዮጵያ"
+  },
+  {
+    "name": "Egypt",
+    "alpha2Code": "EG",
+    "alpha3Code": "EGY",
+    "capital": "Cairo",
+    "region": "Africa",
+    "subregion": "Northern Africa",
+    "population": 91290000,
+    "nativeName": "مصر‎"
+  },
+  {
+    "name": "Congo (Democratic Republic of the)",
+    "alpha2Code": "CD",
+    "alpha3Code": "COD",
+    "capital": "Kinshasa",
+    "region": "Africa",
+    "subregion": "Middle Africa",
+    "population": 85026000,
+    "nativeName": "République démocratique du Congo"
+  },
+  {
+    "name": "Germany",
+    "alpha2Code": "DE",
+    "alpha3Code": "DEU",
+    "capital": "Berlin",
+    "region": "Europe",
+    "subregion": "Western Europe",
+    "population": 81770900,
+    "nativeName": "Deutschland"
+  },
+  {
+    "name": "Iran (Islamic Republic of)",
+    "alpha2Code": "IR",
+    "alpha3Code": "IRN",
+    "capital": "Tehran",
+    "region": "Asia",
+    "subregion": "Southern Asia",
+    "population": 79369900,
+    "nativeName": "ایران"
+  },
+  {
+    "name": "Turkey",
+    "alpha2Code": "TR",
+    "alpha3Code": "TUR",
+    "capital": "Ankara",
+    "region": "Asia",
+    "subregion": "Western Asia",
+    "population": 78741053,
+    "nativeName": "Türkiye"
+  },
+  {
+    "name": "France",
+    "alpha2Code": "FR",
+    "alpha3Code": "FRA",
+    "capital": "Paris",
+    "region": "Europe",
+    "subregion": "Western Europe",
+    "population": 66710000,
+    "nativeName": "France"
+  },
+  {
+    "name": "Thailand",
+    "alpha2Code": "TH",
+    "alpha3Code": "THA",
+    "capital": "Bangkok",
+    "region": "Asia",
+    "subregion": "South-Eastern Asia",
+    "population": 65327652,
+    "nativeName": "ประเทศไทย"
+  },
+  {
+    "name": "United Kingdom",
+    "alpha2Code": "GB",
+    "alpha3Code": "GBR",
+    "capital": "London",
+    "region": "Europe",
+    "subregion": "Northern Europe",
+    "population": 65110000,
+    "nativeName": "United Kingdom"
+  },
+  {
+    "name": "Italy",
+    "alpha2Code": "IT",
+    "alpha3Code": "ITA",
+    "capital": "Rome",
+    "region": "Europe",
+    "subregion": "Southern Europe",
+    "population": 60665551,
+    "nativeName": "Italia"
+  },
+  {
+    "name": "South Africa",
+    "alpha2Code": "ZA",
+    "alpha3Code": "ZAF",
+    "capital": "Pretoria",
+    "region": "Africa",
+    "subregion": "Southern Africa",
+    "population": 55653654,
+    "nativeName": "South Africa"
+  },
+  {
+    "name": "Tanzania, United Republic of",
+    "alpha2Code": "TZ",
+    "alpha3Code": "TZA",
+    "capital": "Dodoma",
+    "region": "Africa",
+    "subregion": "Eastern Africa",
+    "population": 55155000,
+    "nativeName": "Tanzania"
+  },
+  {
+    "name": "Myanmar",
+    "alpha2Code": "MM",
+    "alpha3Code": "MMR",
+    "capital": "Naypyidaw",
+    "region": "Asia",
+    "subregion": "South-Eastern Asia",
+    "population": 51419420,
+    "nativeName": "Myanma"
+  },
+  {
+    "name": "Korea (Republic of)",
+    "alpha2Code": "KR",
+    "alpha3Code": "KOR",
+    "capital": "Seoul",
+    "region": "Asia",
+    "subregion": "Eastern Asia",
+    "population": 50801405,
+    "nativeName": "대한민국"
+  },
+  {
+    "name": "Colombia",
+    "alpha2Code": "CO",
+    "alpha3Code": "COL",
+    "capital": "Bogotá",
+    "region": "Americas",
+    "subregion": "South America",
+    "population": 48759958,
+    "nativeName": "Colombia"
+  },
+  {
+    "name": "Kenya",
+    "alpha2Code": "KE",
+    "alpha3Code": "KEN",
+    "capital": "Nairobi",
+    "region": "Africa",
+    "subregion": "Eastern Africa",
+    "population": 47251000,
+    "nativeName": "Kenya"
+  },
+  {
+    "name": "Spain",
+    "alpha2Code": "ES",
+    "alpha3Code": "ESP",
+    "capital": "Madrid",
+    "region": "Europe",
+    "subregion": "Southern Europe",
+    "population": 46438422,
+    "nativeName": "España"
+  },
+  {
+    "name": "Argentina",
+    "alpha2Code": "AR",
+    "alpha3Code": "ARG",
+    "capital": "Buenos Aires",
+    "region": "Americas",
+    "subregion": "South America",
+    "population": 43590400,
+    "nativeName": "Argentina"
+  },
+  {
+    "name": "Ukraine",
+    "alpha2Code": "UA",
+    "alpha3Code": "UKR",
+    "capital": "Kiev",
+    "region": "Europe",
+    "subregion": "Eastern Europe",
+    "population": 42692393,
+    "nativeName": "Україна"
+  },
+  {
+    "name": "Algeria",
+    "alpha2Code": "DZ",
+    "alpha3Code": "DZA",
+    "capital": "Algiers",
+    "region": "Africa",
+    "subregion": "Northern Africa",
+    "population": 40400000,
+    "nativeName": "الجزائر"
+  },
+  {
+    "name": "Sudan",
+    "alpha2Code": "SD",
+    "alpha3Code": "SDN",
+    "capital": "Khartoum",
+    "region": "Africa",
+    "subregion": "Northern Africa",
+    "population": 39598700,
+    "nativeName": "السودان"
+  },
+  {
+    "name": "Poland",
+    "alpha2Code": "PL",
+    "alpha3Code": "POL",
+    "capital": "Warsaw",
+    "region": "Europe",
+    "subregion": "Eastern Europe",
+    "population": 38437239,
+    "nativeName": "Polska"
+  },
+  {
+    "name": "Iraq",
+    "alpha2Code": "IQ",
+    "alpha3Code": "IRQ",
+    "capital": "Baghdad",
+    "region": "Asia",
+    "subregion": "Western Asia",
+    "population": 37883543,
+    "nativeName": "العراق"
+  },
+  {
+    "name": "Canada",
+    "alpha2Code": "CA",
+    "alpha3Code": "CAN",
+    "capital": "Ottawa",
+    "region": "Americas",
+    "subregion": "Northern America",
+    "population": 36155487,
+    "nativeName": "Canada"
+  },
+  {
+    "name": "Uganda",
+    "alpha2Code": "UG",
+    "alpha3Code": "UGA",
+    "capital": "Kampala",
+    "region": "Africa",
+    "subregion": "Eastern Africa",
+    "population": 33860700,
+    "nativeName": "Uganda"
+  },
+  {
+    "name": "Morocco",
+    "alpha2Code": "MA",
+    "alpha3Code": "MAR",
+    "capital": "Rabat",
+    "region": "Africa",
+    "subregion": "Northern Africa",
+    "population": 33337529,
+    "nativeName": "المغرب"
+  },
+  {
+    "name": "Saudi Arabia",
+    "alpha2Code": "SA",
+    "alpha3Code": "SAU",
+    "capital": "Riyadh",
+    "region": "Asia",
+    "subregion": "Western Asia",
+    "population": 32248200,
+    "nativeName": "العربية السعودية"
+  },
+  {
+    "name": "Uzbekistan",
+    "alpha2Code": "UZ",
+    "alpha3Code": "UZB",
+    "capital": "Tashkent",
+    "region": "Asia",
+    "subregion": "Central Asia",
+    "population": 31576400,
+    "nativeName": "O‘zbekiston"
+  },
+  {
+    "name": "Peru",
+    "alpha2Code": "PE",
+    "alpha3Code": "PER",
+    "capital": "Lima",
+    "region": "Americas",
+    "subregion": "South America",
+    "population": 31488700,
+    "nativeName": "Perú"
+  },
+  {
+    "name": "Malaysia",
+    "alpha2Code": "MY",
+    "alpha3Code": "MYS",
+    "capital": "Kuala Lumpur",
+    "region": "Asia",
+    "subregion": "South-Eastern Asia",
+    "population": 31405416,
+    "nativeName": "Malaysia"
+  },
+  {
+    "name": "Venezuela (Bolivarian Republic of)",
+    "alpha2Code": "VE",
+    "alpha3Code": "VEN",
+    "capital": "Caracas",
+    "region": "Americas",
+    "subregion": "South America",
+    "population": 31028700,
+    "nativeName": "Venezuela"
+  },
+  {
+    "name": "Nepal",
+    "alpha2Code": "NP",
+    "alpha3Code": "NPL",
+    "capital": "Kathmandu",
+    "region": "Asia",
+    "subregion": "Southern Asia",
+    "population": 28431500,
+    "nativeName": "नेपाल"
+  },
+  {
+    "name": "Ghana",
+    "alpha2Code": "GH",
+    "alpha3Code": "GHA",
+    "capital": "Accra",
+    "region": "Africa",
+    "subregion": "Western Africa",
+    "population": 27670174,
+    "nativeName": "Ghana"
+  },
+  {
+    "name": "Afghanistan",
+    "alpha2Code": "AF",
+    "alpha3Code": "AFG",
+    "capital": "Kabul",
+    "region": "Asia",
+    "subregion": "Southern Asia",
+    "population": 27657145,
+    "nativeName": "افغانستان"
+  },
+  {
+    "name": "Yemen",
+    "alpha2Code": "YE",
+    "alpha3Code": "YEM",
+    "capital": "Sana'a",
+    "region": "Asia",
+    "subregion": "Western Asia",
+    "population": 27478000,
+    "nativeName": "اليَمَن"
+  },
+  {
+    "name": "Mozambique",
+    "alpha2Code": "MZ",
+    "alpha3Code": "MOZ",
+    "capital": "Maputo",
+    "region": "Africa",
+    "subregion": "Eastern Africa",
+    "population": 26423700,
+    "nativeName": "Moçambique"
+  },
+  {
+    "name": "Angola",
+    "alpha2Code": "AO",
+    "alpha3Code": "AGO",
+    "capital": "Luanda",
+    "region": "Africa",
+    "subregion": "Middle Africa",
+    "population": 25868000,
+    "nativeName": "Angola"
+  },
+  {
+    "name": "Korea (Democratic People's Republic of)",
+    "alpha2Code": "KP",
+    "alpha3Code": "PRK",
+    "capital": "Pyongyang",
+    "region": "Asia",
+    "subregion": "Eastern Asia",
+    "population": 25281000,
+    "nativeName": "북한"
+  },
+  {
+    "name": "Australia",
+    "alpha2Code": "AU",
+    "alpha3Code": "AUS",
+    "capital": "Canberra",
+    "region": "Oceania",
+    "subregion": "Australia and New Zealand",
+    "population": 24117360,
+    "nativeName": "Australia"
+  },
+  {
+    "name": "Taiwan",
+    "alpha2Code": "TW",
+    "alpha3Code": "TWN",
+    "capital": "Taipei",
+    "region": "Asia",
+    "subregion": "Eastern Asia",
+    "population": 23503349,
+    "nativeName": "臺灣"
+  },
+  {
+    "name": "Cameroon",
+    "alpha2Code": "CM",
+    "alpha3Code": "CMR",
+    "capital": "Yaoundé",
+    "region": "Africa",
+    "subregion": "Middle Africa",
+    "population": 22709892,
+    "nativeName": "Cameroon"
+  },
+  {
+    "name": "Côte d'Ivoire",
+    "alpha2Code": "CI",
+    "alpha3Code": "CIV",
+    "capital": "Yamoussoukro",
+    "region": "Africa",
+    "subregion": "Western Africa",
+    "population": 22671331,
+    "nativeName": "Côte d'Ivoire"
+  },
+  {
+    "name": "Madagascar",
+    "alpha2Code": "MG",
+    "alpha3Code": "MDG",
+    "capital": "Antananarivo",
+    "region": "Africa",
+    "subregion": "Eastern Africa",
+    "population": 22434363,
+    "nativeName": "Madagasikara"
+  },
+  {
+    "name": "Sri Lanka",
+    "alpha2Code": "LK",
+    "alpha3Code": "LKA",
+    "capital": "Colombo",
+    "region": "Asia",
+    "subregion": "Southern Asia",
+    "population": 20966000,
+    "nativeName": "śrī laṃkāva"
+  },
+  {
+    "name": "Niger",
+    "alpha2Code": "NE",
+    "alpha3Code": "NER",
+    "capital": "Niamey",
+    "region": "Africa",
+    "subregion": "Western Africa",
+    "population": 20715000,
+    "nativeName": "Niger"
+  },
+  {
+    "name": "Romania",
+    "alpha2Code": "RO",
+    "alpha3Code": "ROU",
+    "capital": "Bucharest",
+    "region": "Europe",
+    "subregion": "Eastern Europe",
+    "population": 19861408,
+    "nativeName": "România"
+  },
+  {
+    "name": "Burkina Faso",
+    "alpha2Code": "BF",
+    "alpha3Code": "BFA",
+    "capital": "Ouagadougou",
+    "region": "Africa",
+    "subregion": "Western Africa",
+    "population": 19034397,
+    "nativeName": "Burkina Faso"
+  },
+  {
+    "name": "Syrian Arab Republic",
+    "alpha2Code": "SY",
+    "alpha3Code": "SYR",
+    "capital": "Damascus",
+    "region": "Asia",
+    "subregion": "Western Asia",
+    "population": 18564000,
+    "nativeName": "سوريا"
+  },
+  {
+    "name": "Chile",
+    "alpha2Code": "CL",
+    "alpha3Code": "CHL",
+    "capital": "Santiago",
+    "region": "Americas",
+    "subregion": "South America",
+    "population": 18191900,
+    "nativeName": "Chile"
+  },
+  {
+    "name": "Mali",
+    "alpha2Code": "ML",
+    "alpha3Code": "MLI",
+    "capital": "Bamako",
+    "region": "Africa",
+    "subregion": "Western Africa",
+    "population": 18135000,
+    "nativeName": "Mali"
+  },
+  {
+    "name": "Kazakhstan",
+    "alpha2Code": "KZ",
+    "alpha3Code": "KAZ",
+    "capital": "Astana",
+    "region": "Asia",
+    "subregion": "Central Asia",
+    "population": 17753200,
+    "nativeName": "Қазақстан"
+  },
+  {
+    "name": "Netherlands",
+    "alpha2Code": "NL",
+    "alpha3Code": "NLD",
+    "capital": "Amsterdam",
+    "region": "Europe",
+    "subregion": "Western Europe",
+    "population": 17019800,
+    "nativeName": "Nederland"
+  },
+  {
+    "name": "Malawi",
+    "alpha2Code": "MW",
+    "alpha3Code": "MWI",
+    "capital": "Lilongwe",
+    "region": "Africa",
+    "subregion": "Eastern Africa",
+    "population": 16832910,
+    "nativeName": "Malawi"
+  },
+  {
+    "name": "Ecuador",
+    "alpha2Code": "EC",
+    "alpha3Code": "ECU",
+    "capital": "Quito",
+    "region": "Americas",
+    "subregion": "South America",
+    "population": 16545799,
+    "nativeName": "Ecuador"
+  },
+  {
+    "name": "Guatemala",
+    "alpha2Code": "GT",
+    "alpha3Code": "GTM",
+    "capital": "Guatemala City",
+    "region": "Americas",
+    "subregion": "Central America",
+    "population": 16176133,
+    "nativeName": "Guatemala"
+  },
+  {
+    "name": "Zambia",
+    "alpha2Code": "ZM",
+    "alpha3Code": "ZMB",
+    "capital": "Lusaka",
+    "region": "Africa",
+    "subregion": "Eastern Africa",
+    "population": 15933883,
+    "nativeName": "Zambia"
+  },
+  {
+    "name": "Cambodia",
+    "alpha2Code": "KH",
+    "alpha3Code": "KHM",
+    "capital": "Phnom Penh",
+    "region": "Asia",
+    "subregion": "South-Eastern Asia",
+    "population": 15626444,
+    "nativeName": "Kâmpŭchéa"
+  },
+  {
+    "name": "Senegal",
+    "alpha2Code": "SN",
+    "alpha3Code": "SEN",
+    "capital": "Dakar",
+    "region": "Africa",
+    "subregion": "Western Africa",
+    "population": 14799859,
+    "nativeName": "Sénégal"
+  },
+  {
+    "name": "Chad",
+    "alpha2Code": "TD",
+    "alpha3Code": "TCD",
+    "capital": "N'Djamena",
+    "region": "Africa",
+    "subregion": "Middle Africa",
+    "population": 14497000,
+    "nativeName": "Tchad"
+  },
+  {
+    "name": "Zimbabwe",
+    "alpha2Code": "ZW",
+    "alpha3Code": "ZWE",
+    "capital": "Harare",
+    "region": "Africa",
+    "subregion": "Eastern Africa",
+    "population": 14240168,
+    "nativeName": "Zimbabwe"
+  },
+  {
+    "name": "Guinea",
+    "alpha2Code": "GN",
+    "alpha3Code": "GIN",
+    "capital": "Conakry",
+    "region": "Africa",
+    "subregion": "Western Africa",
+    "population": 12947000,
+    "nativeName": "Guinée"
+  },
+  {
+    "name": "South Sudan",
+    "alpha2Code": "SS",
+    "alpha3Code": "SSD",
+    "capital": "Juba",
+    "region": "Africa",
+    "subregion": "Middle Africa",
+    "population": 12131000,
+    "nativeName": "South Sudan"
+  },
+  {
+    "name": "Rwanda",
+    "alpha2Code": "RW",
+    "alpha3Code": "RWA",
+    "capital": "Kigali",
+    "region": "Africa",
+    "subregion": "Eastern Africa",
+    "population": 11553188,
+    "nativeName": "Rwanda"
+  },
+  {
+    "name": "Belgium",
+    "alpha2Code": "BE",
+    "alpha3Code": "BEL",
+    "capital": "Brussels",
+    "region": "Europe",
+    "subregion": "Western Europe",
+    "population": 11319511,
+    "nativeName": "België"
+  },
+  {
+    "name": "Cuba",
+    "alpha2Code": "CU",
+    "alpha3Code": "CUB",
+    "capital": "Havana",
+    "region": "Americas",
+    "subregion": "Caribbean",
+    "population": 11239004,
+    "nativeName": "Cuba"
+  },
+  {
+    "name": "Tunisia",
+    "alpha2Code": "TN",
+    "alpha3Code": "TUN",
+    "capital": "Tunis",
+    "region": "Africa",
+    "subregion": "Northern Africa",
+    "population": 11154400,
+    "nativeName": "تونس"
+  },
+  {
+    "name": "Somalia",
+    "alpha2Code": "SO",
+    "alpha3Code": "SOM",
+    "capital": "Mogadishu",
+    "region": "Africa",
+    "subregion": "Eastern Africa",
+    "population": 11079000,
+    "nativeName": "Soomaaliya"
+  },
+  {
+    "name": "Haiti",
+    "alpha2Code": "HT",
+    "alpha3Code": "HTI",
+    "capital": "Port-au-Prince",
+    "region": "Americas",
+    "subregion": "Caribbean",
+    "population": 11078033,
+    "nativeName": "Haïti"
+  },
+  {
+    "name": "Bolivia (Plurinational State of)",
+    "alpha2Code": "BO",
+    "alpha3Code": "BOL",
+    "capital": "Sucre",
+    "region": "Americas",
+    "subregion": "South America",
+    "population": 10985059,
+    "nativeName": "Bolivia"
+  },
+  {
+    "name": "Greece",
+    "alpha2Code": "GR",
+    "alpha3Code": "GRC",
+    "capital": "Athens",
+    "region": "Europe",
+    "subregion": "Southern Europe",
+    "population": 10858018,
+    "nativeName": "Ελλάδα"
+  },
+  {
+    "name": "Benin",
+    "alpha2Code": "BJ",
+    "alpha3Code": "BEN",
+    "capital": "Porto-Novo",
+    "region": "Africa",
+    "subregion": "Western Africa",
+    "population": 10653654,
+    "nativeName": "Bénin"
+  },
+  {
+    "name": "Czech Republic",
+    "alpha2Code": "CZ",
+    "alpha3Code": "CZE",
+    "capital": "Prague",
+    "region": "Europe",
+    "subregion": "Eastern Europe",
+    "population": 10558524,
+    "nativeName": "Česká republika"
+  },
+  {
+    "name": "Portugal",
+    "alpha2Code": "PT",
+    "alpha3Code": "PRT",
+    "capital": "Lisbon",
+    "region": "Europe",
+    "subregion": "Southern Europe",
+    "population": 10374822,
+    "nativeName": "Portugal"
+  },
+  {
+    "name": "Burundi",
+    "alpha2Code": "BI",
+    "alpha3Code": "BDI",
+    "capital": "Bujumbura",
+    "region": "Africa",
+    "subregion": "Eastern Africa",
+    "population": 10114505,
+    "nativeName": "Burundi"
+  },
+  {
+    "name": "Dominican Republic",
+    "alpha2Code": "DO",
+    "alpha3Code": "DOM",
+    "capital": "Santo Domingo",
+    "region": "Americas",
+    "subregion": "Caribbean",
+    "population": 10075045,
+    "nativeName": "República Dominicana"
+  },
+  {
+    "name": "Sweden",
+    "alpha2Code": "SE",
+    "alpha3Code": "SWE",
+    "capital": "Stockholm",
+    "region": "Europe",
+    "subregion": "Northern Europe",
+    "population": 9894888,
+    "nativeName": "Sverige"
+  },
+  {
+    "name": "United Arab Emirates",
+    "alpha2Code": "AE",
+    "alpha3Code": "ARE",
+    "capital": "Abu Dhabi",
+    "region": "Asia",
+    "subregion": "Western Asia",
+    "population": 9856000,
+    "nativeName": "دولة الإمارات العربية المتحدة"
+  },
+  {
+    "name": "Hungary",
+    "alpha2Code": "HU",
+    "alpha3Code": "HUN",
+    "capital": "Budapest",
+    "region": "Europe",
+    "subregion": "Eastern Europe",
+    "population": 9823000,
+    "nativeName": "Magyarország"
+  },
+  {
+    "name": "Azerbaijan",
+    "alpha2Code": "AZ",
+    "alpha3Code": "AZE",
+    "capital": "Baku",
+    "region": "Asia",
+    "subregion": "Western Asia",
+    "population": 9730500,
+    "nativeName": "Azərbaycan"
+  },
+  {
+    "name": "Jordan",
+    "alpha2Code": "JO",
+    "alpha3Code": "JOR",
+    "capital": "Amman",
+    "region": "Asia",
+    "subregion": "Western Asia",
+    "population": 9531712,
+    "nativeName": "الأردن"
+  },
+  {
+    "name": "Belarus",
+    "alpha2Code": "BY",
+    "alpha3Code": "BLR",
+    "capital": "Minsk",
+    "region": "Europe",
+    "subregion": "Eastern Europe",
+    "population": 9498700,
+    "nativeName": "Белару́сь"
+  },
+  {
+    "name": "Austria",
+    "alpha2Code": "AT",
+    "alpha3Code": "AUT",
+    "capital": "Vienna",
+    "region": "Europe",
+    "subregion": "Western Europe",
+    "population": 8725931,
+    "nativeName": "Österreich"
+  },
+  {
+    "name": "Tajikistan",
+    "alpha2Code": "TJ",
+    "alpha3Code": "TJK",
+    "capital": "Dushanbe",
+    "region": "Asia",
+    "subregion": "Central Asia",
+    "population": 8593600,
+    "nativeName": "Тоҷикистон"
+  },
+  {
+    "name": "Honduras",
+    "alpha2Code": "HN",
+    "alpha3Code": "HND",
+    "capital": "Tegucigalpa",
+    "region": "Americas",
+    "subregion": "Central America",
+    "population": 8576532,
+    "nativeName": "Honduras"
+  },
+  {
+    "name": "Israel",
+    "alpha2Code": "IL",
+    "alpha3Code": "ISR",
+    "capital": "Jerusalem",
+    "region": "Asia",
+    "subregion": "Western Asia",
+    "population": 8527400,
+    "nativeName": "יִשְׂרָאֵל"
+  },
+  {
+    "name": "Switzerland",
+    "alpha2Code": "CH",
+    "alpha3Code": "CHE",
+    "capital": "Bern",
+    "region": "Europe",
+    "subregion": "Western Europe",
+    "population": 8341600,
+    "nativeName": "Schweiz"
+  },
+  {
+    "name": "Papua New Guinea",
+    "alpha2Code": "PG",
+    "alpha3Code": "PNG",
+    "capital": "Port Moresby",
+    "region": "Oceania",
+    "subregion": "Melanesia",
+    "population": 8083700,
+    "nativeName": "Papua Niugini"
+  }
+]

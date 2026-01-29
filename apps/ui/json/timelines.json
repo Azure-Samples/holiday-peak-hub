@@ -1,0 +1,38 @@
+[
+  {
+    "index": 1,
+    "title": "Perferendis dignissimos provident saepe in.",
+    "sentence": "Corporis in est quae exercitationem.",
+    "description": "Veniam reiciendis qui nemo aut laborum voluptate id beatae et.",
+    "number": 6,
+    "img": "/images/faces/w1.png",
+    "timeago": "a few seconds ago"
+  },
+  {
+    "index": 2,
+    "title": "Eos et aut perspiciatis et.",
+    "sentence": "Hic praesentium veritatis sapiente voluptatem.",
+    "description": "Illo voluptate distinctio hic vitae molestiae culpa ipsam eveniet doloremque.",
+    "number": 8,
+    "img": "/images/faces/m8.png",
+    "timeago": "a day ago"
+  },
+  {
+    "index": 3,
+    "title": "Vero voluptatibus est voluptas quas.",
+    "sentence": "Ut iusto praesentium harum molestias.",
+    "description": "Explicabo est qui illum et quo occaecati beatae hic eos.",
+    "number": 5,
+    "img": "/images/faces/m8.png",
+    "timeago": "2 days ago"
+  },
+  {
+    "index": 4,
+    "title": "Non maxime fuga nemo officiis.",
+    "sentence": "Dolore nam laudantium vel voluptatem.",
+    "description": "Ab eius exercitationem molestiae architecto voluptatem possimus quos mollitia omnis.",
+    "number": 2,
+    "img": "/images/faces/w9.png",
+    "timeago": "3 days ago"
+  }
+]

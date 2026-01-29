@@ -1,0 +1,1808 @@
+[
+  {
+    "country": {
+      "code": "cn",
+      "name": "China",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/w5.png",
+      "/images/faces/w1.png",
+      "/images/faces/m1.png",
+      "/images/faces/m8.png"
+    ],
+    "progress": {
+      "color": "bg-indigo-500",
+      "value": 83
+    },
+    "population": 1377422166
+  },
+  {
+    "country": {
+      "code": "in",
+      "name": "India",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/w9.png",
+      "/images/faces/w4.png",
+      "/images/faces/w2.png",
+      "/images/faces/m6.png"
+    ],
+    "progress": {
+      "color": "bg-purple-500",
+      "value": 71
+    },
+    "population": 1295210000
+  },
+  {
+    "country": {
+      "code": "id",
+      "name": "Indonesia",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/m6.png",
+      "/images/faces/w8.png",
+      "/images/faces/m8.png"
+    ],
+    "progress": {
+      "color": "bg-blue-500",
+      "value": 45
+    },
+    "population": 258705000
+  },
+  {
+    "country": {
+      "code": "pk",
+      "name": "Pakistan",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/m2.png",
+      "/images/faces/m5.png",
+      "/images/faces/m1.png",
+      "/images/faces/w5.png"
+    ],
+    "progress": {
+      "color": "bg-purple-500",
+      "value": 60
+    },
+    "population": 194125062
+  },
+  {
+    "country": {
+      "code": "bd",
+      "name": "Bangladesh",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/m1.png",
+      "/images/faces/w1.png",
+      "/images/faces/m7.png"
+    ],
+    "progress": {
+      "color": "bg-red-500",
+      "value": 55
+    },
+    "population": 161006790
+  },
+  {
+    "country": {
+      "code": "ru",
+      "name": "Russian Federation",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/m8.png",
+      "/images/faces/w8.png",
+      "/images/faces/m2.png"
+    ],
+    "progress": {
+      "color": "bg-red-500",
+      "value": 82
+    },
+    "population": 146599183
+  },
+  {
+    "country": {
+      "code": "jp",
+      "name": "Japan",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/w6.png",
+      "/images/faces/w4.png",
+      "/images/faces/m5.png",
+      "/images/faces/m2.png"
+    ],
+    "progress": {
+      "color": "bg-red-500",
+      "value": 47
+    },
+    "population": 126960000
+  },
+  {
+    "country": {
+      "code": "ph",
+      "name": "Philippines",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/w4.png",
+      "/images/faces/w1.png",
+      "/images/faces/m4.png",
+      "/images/faces/m5.png"
+    ],
+    "progress": {
+      "color": "bg-indigo-500",
+      "value": 70
+    },
+    "population": 103279800
+  },
+  {
+    "country": {
+      "code": "vn",
+      "name": "Viet Nam",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/m8.png",
+      "/images/faces/m6.png",
+      "/images/faces/m5.png",
+      "/images/faces/w8.png"
+    ],
+    "progress": {
+      "color": "bg-purple-500",
+      "value": 45
+    },
+    "population": 92700000
+  },
+  {
+    "country": {
+      "code": "de",
+      "name": "Germany",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/m9.png",
+      "/images/faces/m8.png",
+      "/images/faces/w3.png",
+      "/images/faces/m1.png"
+    ],
+    "progress": {
+      "color": "bg-purple-500",
+      "value": 68
+    },
+    "population": 81770900
+  },
+  {
+    "country": {
+      "code": "ir",
+      "name": "Iran (Islamic Republic of)",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/w2.png",
+      "/images/faces/w8.png",
+      "/images/faces/w7.png",
+      "/images/faces/m6.png"
+    ],
+    "progress": {
+      "color": "bg-purple-500",
+      "value": 45
+    },
+    "population": 79369900
+  },
+  {
+    "country": {
+      "code": "tr",
+      "name": "Turkey",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/m7.png",
+      "/images/faces/m6.png",
+      "/images/faces/m4.png"
+    ],
+    "progress": {
+      "color": "bg-indigo-500",
+      "value": 73
+    },
+    "population": 78741053
+  },
+  {
+    "country": {
+      "code": "fr",
+      "name": "France",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/m8.png",
+      "/images/faces/w6.png",
+      "/images/faces/m5.png",
+      "/images/faces/w8.png"
+    ],
+    "progress": {
+      "color": "bg-purple-500",
+      "value": 73
+    },
+    "population": 66710000
+  },
+  {
+    "country": {
+      "code": "th",
+      "name": "Thailand",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/m5.png",
+      "/images/faces/w8.png",
+      "/images/faces/m6.png",
+      "/images/faces/w2.png"
+    ],
+    "progress": {
+      "color": "bg-purple-500",
+      "value": 71
+    },
+    "population": 65327652
+  },
+  {
+    "country": {
+      "code": "gb",
+      "name": "United Kingdom of Great Britain and Northern Ireland",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/m1.png",
+      "/images/faces/w7.png",
+      "/images/faces/w9.png"
+    ],
+    "progress": {
+      "color": "bg-purple-500",
+      "value": 36
+    },
+    "population": 65110000
+  },
+  {
+    "country": {
+      "code": "it",
+      "name": "Italy",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/m2.png",
+      "/images/faces/m4.png",
+      "/images/faces/m6.png",
+      "/images/faces/m1.png"
+    ],
+    "progress": {
+      "color": "bg-blue-500",
+      "value": 51
+    },
+    "population": 60665551
+  },
+  {
+    "country": {
+      "code": "mm",
+      "name": "Myanmar",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/m2.png",
+      "/images/faces/m3.png",
+      "/images/faces/w8.png"
+    ],
+    "progress": {
+      "color": "bg-purple-500",
+      "value": 64
+    },
+    "population": 51419420
+  },
+  {
+    "country": {
+      "code": "kr",
+      "name": "Korea (Republic of)",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/m4.png",
+      "/images/faces/w8.png",
+      "/images/faces/w4.png",
+      "/images/faces/m9.png"
+    ],
+    "progress": {
+      "color": "bg-red-500",
+      "value": 89
+    },
+    "population": 50801405
+  },
+  {
+    "country": {
+      "code": "es",
+      "name": "Spain",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/w5.png",
+      "/images/faces/w9.png",
+      "/images/faces/m6.png",
+      "/images/faces/m4.png"
+    ],
+    "progress": {
+      "color": "bg-purple-500",
+      "value": 63
+    },
+    "population": 46438422
+  },
+  {
+    "country": {
+      "code": "ua",
+      "name": "Ukraine",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/w9.png",
+      "/images/faces/m4.png",
+      "/images/faces/m1.png"
+    ],
+    "progress": {
+      "color": "bg-blue-500",
+      "value": 54
+    },
+    "population": 42692393
+  },
+  {
+    "country": {
+      "code": "pl",
+      "name": "Poland",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/m9.png",
+      "/images/faces/m2.png",
+      "/images/faces/m4.png",
+      "/images/faces/w8.png"
+    ],
+    "progress": {
+      "color": "bg-indigo-500",
+      "value": 81
+    },
+    "population": 38437239
+  },
+  {
+    "country": {
+      "code": "iq",
+      "name": "Iraq",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/w5.png",
+      "/images/faces/m2.png",
+      "/images/faces/m7.png",
+      "/images/faces/m8.png"
+    ],
+    "progress": {
+      "color": "bg-red-500",
+      "value": 31
+    },
+    "population": 37883543
+  },
+  {
+    "country": {
+      "code": "sa",
+      "name": "Saudi Arabia",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/w8.png",
+      "/images/faces/w4.png",
+      "/images/faces/m9.png"
+    ],
+    "progress": {
+      "color": "bg-indigo-500",
+      "value": 65
+    },
+    "population": 32248200
+  },
+  {
+    "country": {
+      "code": "uz",
+      "name": "Uzbekistan",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/m7.png",
+      "/images/faces/w6.png",
+      "/images/faces/w8.png"
+    ],
+    "progress": {
+      "color": "bg-yellow-500",
+      "value": 67
+    },
+    "population": 31576400
+  },
+  {
+    "country": {
+      "code": "my",
+      "name": "Malaysia",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/m6.png",
+      "/images/faces/w3.png",
+      "/images/faces/w7.png",
+      "/images/faces/w1.png"
+    ],
+    "progress": {
+      "color": "bg-blue-500",
+      "value": 55
+    },
+    "population": 31405416
+  },
+  {
+    "country": {
+      "code": "np",
+      "name": "Nepal",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/w8.png",
+      "/images/faces/w6.png",
+      "/images/faces/m9.png"
+    ],
+    "progress": {
+      "color": "bg-red-500",
+      "value": 34
+    },
+    "population": 28431500
+  },
+  {
+    "country": {
+      "code": "af",
+      "name": "Afghanistan",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/w3.png",
+      "/images/faces/w9.png",
+      "/images/faces/m6.png",
+      "/images/faces/m7.png"
+    ],
+    "progress": {
+      "color": "bg-yellow-500",
+      "value": 60
+    },
+    "population": 27657145
+  },
+  {
+    "country": {
+      "code": "ye",
+      "name": "Yemen",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/m2.png",
+      "/images/faces/m6.png",
+      "/images/faces/w9.png",
+      "/images/faces/m1.png"
+    ],
+    "progress": {
+      "color": "bg-indigo-500",
+      "value": 65
+    },
+    "population": 27478000
+  },
+  {
+    "country": {
+      "code": "kp",
+      "name": "Korea (Democratic People's Republic of)",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/w7.png",
+      "/images/faces/m2.png",
+      "/images/faces/w4.png",
+      "/images/faces/m6.png"
+    ],
+    "progress": {
+      "color": "bg-red-500",
+      "value": 46
+    },
+    "population": 25281000
+  },
+  {
+    "country": {
+      "code": "tw",
+      "name": "Taiwan",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/w4.png",
+      "/images/faces/w1.png",
+      "/images/faces/w5.png",
+      "/images/faces/w6.png"
+    ],
+    "progress": {
+      "color": "bg-purple-500",
+      "value": 44
+    },
+    "population": 23503349
+  },
+  {
+    "country": {
+      "code": "lk",
+      "name": "Sri Lanka",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/w7.png",
+      "/images/faces/w4.png",
+      "/images/faces/w9.png"
+    ],
+    "progress": {
+      "color": "bg-red-500",
+      "value": 43
+    },
+    "population": 20966000
+  },
+  {
+    "country": {
+      "code": "ro",
+      "name": "Romania",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/w2.png",
+      "/images/faces/w9.png",
+      "/images/faces/w3.png",
+      "/images/faces/m4.png"
+    ],
+    "progress": {
+      "color": "bg-purple-500",
+      "value": 84
+    },
+    "population": 19861408
+  },
+  {
+    "country": {
+      "code": "sy",
+      "name": "Syrian Arab Republic",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/m3.png",
+      "/images/faces/w3.png",
+      "/images/faces/m6.png",
+      "/images/faces/m2.png"
+    ],
+    "progress": {
+      "color": "bg-blue-500",
+      "value": 40
+    },
+    "population": 18564000
+  },
+  {
+    "country": {
+      "code": "kz",
+      "name": "Kazakhstan",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/m4.png",
+      "/images/faces/w6.png",
+      "/images/faces/m7.png"
+    ],
+    "progress": {
+      "color": "bg-purple-500",
+      "value": 60
+    },
+    "population": 17753200
+  },
+  {
+    "country": {
+      "code": "nl",
+      "name": "Netherlands",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/w5.png",
+      "/images/faces/m2.png",
+      "/images/faces/m7.png"
+    ],
+    "progress": {
+      "color": "bg-blue-500",
+      "value": 86
+    },
+    "population": 17019800
+  },
+  {
+    "country": {
+      "code": "kh",
+      "name": "Cambodia",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/m6.png",
+      "/images/faces/w7.png",
+      "/images/faces/w1.png",
+      "/images/faces/w3.png"
+    ],
+    "progress": {
+      "color": "bg-indigo-500",
+      "value": 81
+    },
+    "population": 15626444
+  },
+  {
+    "country": {
+      "code": "be",
+      "name": "Belgium",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/m9.png",
+      "/images/faces/m8.png",
+      "/images/faces/w1.png"
+    ],
+    "progress": {
+      "color": "bg-purple-500",
+      "value": 76
+    },
+    "population": 11319511
+  },
+  {
+    "country": {
+      "code": "gr",
+      "name": "Greece",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/m2.png",
+      "/images/faces/m9.png",
+      "/images/faces/w9.png",
+      "/images/faces/m4.png"
+    ],
+    "progress": {
+      "color": "bg-blue-500",
+      "value": 39
+    },
+    "population": 10858018
+  },
+  {
+    "country": {
+      "code": "cz",
+      "name": "Czech Republic",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/m8.png",
+      "/images/faces/m3.png",
+      "/images/faces/w7.png"
+    ],
+    "progress": {
+      "color": "bg-indigo-500",
+      "value": 55
+    },
+    "population": 10558524
+  },
+  {
+    "country": {
+      "code": "pt",
+      "name": "Portugal",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/m4.png",
+      "/images/faces/w8.png",
+      "/images/faces/m1.png"
+    ],
+    "progress": {
+      "color": "bg-red-500",
+      "value": 34
+    },
+    "population": 10374822
+  },
+  {
+    "country": {
+      "code": "se",
+      "name": "Sweden",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/w7.png",
+      "/images/faces/m9.png",
+      "/images/faces/w6.png"
+    ],
+    "progress": {
+      "color": "bg-blue-500",
+      "value": 47
+    },
+    "population": 9894888
+  },
+  {
+    "country": {
+      "code": "ae",
+      "name": "United Arab Emirates",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/w2.png",
+      "/images/faces/m8.png",
+      "/images/faces/w6.png",
+      "/images/faces/w7.png"
+    ],
+    "progress": {
+      "color": "bg-yellow-500",
+      "value": 60
+    },
+    "population": 9856000
+  },
+  {
+    "country": {
+      "code": "hu",
+      "name": "Hungary",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/m4.png",
+      "/images/faces/m6.png",
+      "/images/faces/w1.png",
+      "/images/faces/w7.png"
+    ],
+    "progress": {
+      "color": "bg-yellow-500",
+      "value": 49
+    },
+    "population": 9823000
+  },
+  {
+    "country": {
+      "code": "az",
+      "name": "Azerbaijan",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/w9.png",
+      "/images/faces/w2.png",
+      "/images/faces/m8.png"
+    ],
+    "progress": {
+      "color": "bg-blue-500",
+      "value": 79
+    },
+    "population": 9730500
+  },
+  {
+    "country": {
+      "code": "jo",
+      "name": "Jordan",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/m1.png",
+      "/images/faces/w5.png",
+      "/images/faces/w7.png"
+    ],
+    "progress": {
+      "color": "bg-purple-500",
+      "value": 66
+    },
+    "population": 9531712
+  },
+  {
+    "country": {
+      "code": "by",
+      "name": "Belarus",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/m6.png",
+      "/images/faces/w7.png",
+      "/images/faces/w3.png",
+      "/images/faces/m4.png"
+    ],
+    "progress": {
+      "color": "bg-yellow-500",
+      "value": 74
+    },
+    "population": 9498700
+  },
+  {
+    "country": {
+      "code": "at",
+      "name": "Austria",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/m6.png",
+      "/images/faces/w8.png",
+      "/images/faces/w1.png",
+      "/images/faces/m5.png"
+    ],
+    "progress": {
+      "color": "bg-yellow-500",
+      "value": 50
+    },
+    "population": 8725931
+  },
+  {
+    "country": {
+      "code": "tj",
+      "name": "Tajikistan",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/m6.png",
+      "/images/faces/w6.png",
+      "/images/faces/m8.png",
+      "/images/faces/w7.png"
+    ],
+    "progress": {
+      "color": "bg-red-500",
+      "value": 88
+    },
+    "population": 8593600
+  },
+  {
+    "country": {
+      "code": "il",
+      "name": "Israel",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/w2.png",
+      "/images/faces/w1.png",
+      "/images/faces/m3.png"
+    ],
+    "progress": {
+      "color": "bg-indigo-500",
+      "value": 31
+    },
+    "population": 8527400
+  },
+  {
+    "country": {
+      "code": "ch",
+      "name": "Switzerland",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/w1.png",
+      "/images/faces/m5.png",
+      "/images/faces/m2.png"
+    ],
+    "progress": {
+      "color": "bg-blue-500",
+      "value": 65
+    },
+    "population": 8341600
+  },
+  {
+    "country": {
+      "code": "hk",
+      "name": "Hong Kong",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/m8.png",
+      "/images/faces/w6.png",
+      "/images/faces/m5.png",
+      "/images/faces/m4.png"
+    ],
+    "progress": {
+      "color": "bg-red-500",
+      "value": 76
+    },
+    "population": 7324300
+  },
+  {
+    "country": {
+      "code": "bg",
+      "name": "Bulgaria",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/w1.png",
+      "/images/faces/m3.png",
+      "/images/faces/m5.png",
+      "/images/faces/m8.png"
+    ],
+    "progress": {
+      "color": "bg-blue-500",
+      "value": 60
+    },
+    "population": 7153784
+  },
+  {
+    "country": {
+      "code": "rs",
+      "name": "Serbia",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/m6.png",
+      "/images/faces/w3.png",
+      "/images/faces/m7.png",
+      "/images/faces/w9.png"
+    ],
+    "progress": {
+      "color": "bg-yellow-500",
+      "value": 86
+    },
+    "population": 7076372
+  },
+  {
+    "country": {
+      "code": "la",
+      "name": "Lao People's Democratic Republic",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/w6.png",
+      "/images/faces/m4.png",
+      "/images/faces/m1.png",
+      "/images/faces/w9.png"
+    ],
+    "progress": {
+      "color": "bg-purple-500",
+      "value": 47
+    },
+    "population": 6492400
+  },
+  {
+    "country": {
+      "code": "ie",
+      "name": "Ireland",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/m5.png",
+      "/images/faces/w9.png",
+      "/images/faces/w6.png",
+      "/images/faces/m4.png"
+    ],
+    "progress": {
+      "color": "bg-yellow-500",
+      "value": 32
+    },
+    "population": 6378000
+  },
+  {
+    "country": {
+      "code": "kg",
+      "name": "Kyrgyzstan",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/m1.png",
+      "/images/faces/m3.png",
+      "/images/faces/w7.png",
+      "/images/faces/m9.png"
+    ],
+    "progress": {
+      "color": "bg-red-500",
+      "value": 32
+    },
+    "population": 6047800
+  },
+  {
+    "country": {
+      "code": "lb",
+      "name": "Lebanon",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/m2.png",
+      "/images/faces/m6.png",
+      "/images/faces/w2.png",
+      "/images/faces/w5.png"
+    ],
+    "progress": {
+      "color": "bg-red-500",
+      "value": 51
+    },
+    "population": 5988000
+  },
+  {
+    "country": {
+      "code": "dk",
+      "name": "Denmark",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/w4.png",
+      "/images/faces/m4.png",
+      "/images/faces/m2.png",
+      "/images/faces/w1.png"
+    ],
+    "progress": {
+      "color": "bg-yellow-500",
+      "value": 78
+    },
+    "population": 5717014
+  },
+  {
+    "country": {
+      "code": "sg",
+      "name": "Singapore",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/w1.png",
+      "/images/faces/w2.png",
+      "/images/faces/m9.png"
+    ],
+    "progress": {
+      "color": "bg-blue-500",
+      "value": 35
+    },
+    "population": 5535000
+  },
+  {
+    "country": {
+      "code": "fi",
+      "name": "Finland",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/w1.png",
+      "/images/faces/m7.png",
+      "/images/faces/m6.png"
+    ],
+    "progress": {
+      "color": "bg-blue-500",
+      "value": 35
+    },
+    "population": 5491817
+  },
+  {
+    "country": {
+      "code": "sk",
+      "name": "Slovakia",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/w9.png",
+      "/images/faces/m1.png",
+      "/images/faces/w2.png",
+      "/images/faces/w5.png"
+    ],
+    "progress": {
+      "color": "bg-yellow-500",
+      "value": 54
+    },
+    "population": 5426252
+  },
+  {
+    "country": {
+      "code": "no",
+      "name": "Norway",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/m8.png",
+      "/images/faces/m5.png",
+      "/images/faces/w5.png"
+    ],
+    "progress": {
+      "color": "bg-blue-500",
+      "value": 59
+    },
+    "population": 5223256
+  },
+  {
+    "country": {
+      "code": "tm",
+      "name": "Turkmenistan",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/m6.png",
+      "/images/faces/m7.png",
+      "/images/faces/m2.png"
+    ],
+    "progress": {
+      "color": "bg-purple-500",
+      "value": 69
+    },
+    "population": 4751120
+  },
+  {
+    "country": {
+      "code": "ps",
+      "name": "Palestine, State of",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/m1.png",
+      "/images/faces/m5.png",
+      "/images/faces/m7.png"
+    ],
+    "progress": {
+      "color": "bg-yellow-500",
+      "value": 47
+    },
+    "population": 4682467
+  },
+  {
+    "country": {
+      "code": "om",
+      "name": "Oman",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/w3.png",
+      "/images/faces/m9.png",
+      "/images/faces/m8.png",
+      "/images/faces/m7.png"
+    ],
+    "progress": {
+      "color": "bg-indigo-500",
+      "value": 48
+    },
+    "population": 4420133
+  },
+  {
+    "country": {
+      "code": "hr",
+      "name": "Croatia",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/w6.png",
+      "/images/faces/w1.png",
+      "/images/faces/m1.png",
+      "/images/faces/w5.png"
+    ],
+    "progress": {
+      "color": "bg-blue-500",
+      "value": 39
+    },
+    "population": 4190669
+  },
+  {
+    "country": {
+      "code": "kw",
+      "name": "Kuwait",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/w5.png",
+      "/images/faces/w8.png",
+      "/images/faces/w3.png",
+      "/images/faces/m8.png"
+    ],
+    "progress": {
+      "color": "bg-purple-500",
+      "value": 58
+    },
+    "population": 4183658
+  },
+  {
+    "country": {
+      "code": "ge",
+      "name": "Georgia",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/m8.png",
+      "/images/faces/m1.png",
+      "/images/faces/w1.png"
+    ],
+    "progress": {
+      "color": "bg-indigo-500",
+      "value": 74
+    },
+    "population": 3720400
+  },
+  {
+    "country": {
+      "code": "md",
+      "name": "Moldova (Republic of)",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/m2.png",
+      "/images/faces/w2.png",
+      "/images/faces/w1.png",
+      "/images/faces/m8.png"
+    ],
+    "progress": {
+      "color": "bg-purple-500",
+      "value": 68
+    },
+    "population": 3553100
+  },
+  {
+    "country": {
+      "code": "ba",
+      "name": "Bosnia and Herzegovina",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/m9.png",
+      "/images/faces/m7.png",
+      "/images/faces/m2.png",
+      "/images/faces/w5.png"
+    ],
+    "progress": {
+      "color": "bg-purple-500",
+      "value": 86
+    },
+    "population": 3531159
+  },
+  {
+    "country": {
+      "code": "mn",
+      "name": "Mongolia",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/w3.png",
+      "/images/faces/m1.png",
+      "/images/faces/w5.png"
+    ],
+    "progress": {
+      "color": "bg-indigo-500",
+      "value": 57
+    },
+    "population": 3093100
+  },
+  {
+    "country": {
+      "code": "am",
+      "name": "Armenia",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/w9.png",
+      "/images/faces/m9.png",
+      "/images/faces/m7.png"
+    ],
+    "progress": {
+      "color": "bg-blue-500",
+      "value": 73
+    },
+    "population": 2994400
+  },
+  {
+    "country": {
+      "code": "al",
+      "name": "Albania",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/m4.png",
+      "/images/faces/w9.png",
+      "/images/faces/m9.png"
+    ],
+    "progress": {
+      "color": "bg-blue-500",
+      "value": 59
+    },
+    "population": 2886026
+  },
+  {
+    "country": {
+      "code": "lt",
+      "name": "Lithuania",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/m3.png",
+      "/images/faces/m9.png",
+      "/images/faces/m5.png"
+    ],
+    "progress": {
+      "color": "bg-blue-500",
+      "value": 33
+    },
+    "population": 2872294
+  },
+  {
+    "country": {
+      "code": "qa",
+      "name": "Qatar",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/m9.png",
+      "/images/faces/m1.png",
+      "/images/faces/m7.png"
+    ],
+    "progress": {
+      "color": "bg-blue-500",
+      "value": 67
+    },
+    "population": 2587564
+  },
+  {
+    "country": {
+      "code": "si",
+      "name": "Slovenia",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/w7.png",
+      "/images/faces/w4.png",
+      "/images/faces/w1.png"
+    ],
+    "progress": {
+      "color": "bg-yellow-500",
+      "value": 69
+    },
+    "population": 2064188
+  },
+  {
+    "country": {
+      "code": "mk",
+      "name": "Macedonia (the former Yugoslav Republic of)",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/m9.png",
+      "/images/faces/w9.png",
+      "/images/faces/w2.png",
+      "/images/faces/w5.png"
+    ],
+    "progress": {
+      "color": "bg-yellow-500",
+      "value": 49
+    },
+    "population": 2058539
+  },
+  {
+    "country": {
+      "code": "lv",
+      "name": "Latvia",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/m6.png",
+      "/images/faces/w4.png",
+      "/images/faces/w9.png",
+      "/images/faces/m7.png"
+    ],
+    "progress": {
+      "color": "bg-purple-500",
+      "value": 77
+    },
+    "population": 1961600
+  },
+  {
+    "country": {
+      "code": "xk",
+      "name": "Republic of Kosovo",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/w5.png",
+      "/images/faces/w8.png",
+      "/images/faces/m7.png"
+    ],
+    "progress": {
+      "color": "bg-indigo-500",
+      "value": 75
+    },
+    "population": 1733842
+  },
+  {
+    "country": {
+      "code": "bh",
+      "name": "Bahrain",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/m5.png",
+      "/images/faces/m4.png",
+      "/images/faces/w8.png",
+      "/images/faces/m6.png"
+    ],
+    "progress": {
+      "color": "bg-indigo-500",
+      "value": 51
+    },
+    "population": 1404900
+  },
+  {
+    "country": {
+      "code": "ee",
+      "name": "Estonia",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/w8.png",
+      "/images/faces/m8.png",
+      "/images/faces/w6.png"
+    ],
+    "progress": {
+      "color": "bg-yellow-500",
+      "value": 31
+    },
+    "population": 1315944
+  },
+  {
+    "country": {
+      "code": "tl",
+      "name": "Timor-Leste",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/w2.png",
+      "/images/faces/m1.png",
+      "/images/faces/w5.png",
+      "/images/faces/w3.png"
+    ],
+    "progress": {
+      "color": "bg-indigo-500",
+      "value": 69
+    },
+    "population": 1167242
+  },
+  {
+    "country": {
+      "code": "cy",
+      "name": "Cyprus",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/m9.png",
+      "/images/faces/w9.png",
+      "/images/faces/w3.png"
+    ],
+    "progress": {
+      "color": "bg-red-500",
+      "value": 77
+    },
+    "population": 847000
+  },
+  {
+    "country": {
+      "code": "bt",
+      "name": "Bhutan",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/w4.png",
+      "/images/faces/m9.png",
+      "/images/faces/m7.png",
+      "/images/faces/m3.png"
+    ],
+    "progress": {
+      "color": "bg-red-500",
+      "value": 80
+    },
+    "population": 775620
+  },
+  {
+    "country": {
+      "code": "mo",
+      "name": "Macao",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/m7.png",
+      "/images/faces/w8.png",
+      "/images/faces/w3.png"
+    ],
+    "progress": {
+      "color": "bg-yellow-500",
+      "value": 39
+    },
+    "population": 649100
+  },
+  {
+    "country": {
+      "code": "me",
+      "name": "Montenegro",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/w2.png",
+      "/images/faces/m6.png",
+      "/images/faces/m8.png"
+    ],
+    "progress": {
+      "color": "bg-red-500",
+      "value": 48
+    },
+    "population": 621810
+  },
+  {
+    "country": {
+      "code": "lu",
+      "name": "Luxembourg",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/w2.png",
+      "/images/faces/m8.png",
+      "/images/faces/m4.png",
+      "/images/faces/w6.png"
+    ],
+    "progress": {
+      "color": "bg-purple-500",
+      "value": 79
+    },
+    "population": 576200
+  },
+  {
+    "country": {
+      "code": "mt",
+      "name": "Malta",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/w2.png",
+      "/images/faces/m7.png",
+      "/images/faces/m5.png",
+      "/images/faces/m2.png"
+    ],
+    "progress": {
+      "color": "bg-purple-500",
+      "value": 85
+    },
+    "population": 425384
+  },
+  {
+    "country": {
+      "code": "bn",
+      "name": "Brunei Darussalam",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/m5.png",
+      "/images/faces/w1.png",
+      "/images/faces/w4.png"
+    ],
+    "progress": {
+      "color": "bg-indigo-500",
+      "value": 55
+    },
+    "population": 411900
+  },
+  {
+    "country": {
+      "code": "mv",
+      "name": "Maldives",
+      "region": "Asia"
+    },
+    "members": [
+      "/images/faces/w1.png",
+      "/images/faces/w7.png",
+      "/images/faces/m3.png"
+    ],
+    "progress": {
+      "color": "bg-yellow-500",
+      "value": 42
+    },
+    "population": 344023
+  },
+  {
+    "country": {
+      "code": "is",
+      "name": "Iceland",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/w8.png",
+      "/images/faces/w7.png",
+      "/images/faces/m5.png"
+    ],
+    "progress": {
+      "color": "bg-red-500",
+      "value": 60
+    },
+    "population": 334300
+  },
+  {
+    "country": {
+      "code": "je",
+      "name": "Jersey",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/w3.png",
+      "/images/faces/w8.png",
+      "/images/faces/w5.png"
+    ],
+    "progress": {
+      "color": "bg-purple-500",
+      "value": 63
+    },
+    "population": 100800
+  },
+  {
+    "country": {
+      "code": "im",
+      "name": "Isle of Man",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/w8.png",
+      "/images/faces/m4.png",
+      "/images/faces/w6.png",
+      "/images/faces/m2.png"
+    ],
+    "progress": {
+      "color": "bg-red-500",
+      "value": 82
+    },
+    "population": 84497
+  },
+  {
+    "country": {
+      "code": "ad",
+      "name": "Andorra",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/w2.png",
+      "/images/faces/m8.png",
+      "/images/faces/m4.png",
+      "/images/faces/m5.png"
+    ],
+    "progress": {
+      "color": "bg-indigo-500",
+      "value": 47
+    },
+    "population": 78014
+  },
+  {
+    "country": {
+      "code": "gg",
+      "name": "Guernsey",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/w3.png",
+      "/images/faces/m5.png",
+      "/images/faces/w6.png"
+    ],
+    "progress": {
+      "color": "bg-blue-500",
+      "value": 55
+    },
+    "population": 62999
+  },
+  {
+    "country": {
+      "code": "fo",
+      "name": "Faroe Islands",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/m2.png",
+      "/images/faces/m3.png",
+      "/images/faces/m7.png",
+      "/images/faces/w9.png"
+    ],
+    "progress": {
+      "color": "bg-indigo-500",
+      "value": 70
+    },
+    "population": 49376
+  },
+  {
+    "country": {
+      "code": "mc",
+      "name": "Monaco",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/m2.png",
+      "/images/faces/m7.png",
+      "/images/faces/m4.png"
+    ],
+    "progress": {
+      "color": "bg-purple-500",
+      "value": 65
+    },
+    "population": 38400
+  },
+  {
+    "country": {
+      "code": "li",
+      "name": "Liechtenstein",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/w3.png",
+      "/images/faces/m3.png",
+      "/images/faces/w7.png"
+    ],
+    "progress": {
+      "color": "bg-yellow-500",
+      "value": 63
+    },
+    "population": 37623
+  },
+  {
+    "country": {
+      "code": "gi",
+      "name": "Gibraltar",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/m1.png",
+      "/images/faces/m4.png",
+      "/images/faces/w2.png"
+    ],
+    "progress": {
+      "color": "bg-yellow-500",
+      "value": 34
+    },
+    "population": 33140
+  },
+  {
+    "country": {
+      "code": "sm",
+      "name": "San Marino",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/m6.png",
+      "/images/faces/m2.png",
+      "/images/faces/m8.png"
+    ],
+    "progress": {
+      "color": "bg-indigo-500",
+      "value": 48
+    },
+    "population": 33005
+  },
+  {
+    "country": {
+      "code": "ax",
+      "name": "Åland Islands",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/m7.png",
+      "/images/faces/m6.png",
+      "/images/faces/w8.png",
+      "/images/faces/w4.png"
+    ],
+    "progress": {
+      "color": "bg-yellow-500",
+      "value": 47
+    },
+    "population": 28875
+  },
+  {
+    "country": {
+      "code": "sj",
+      "name": "Svalbard and Jan Mayen",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/w3.png",
+      "/images/faces/m1.png",
+      "/images/faces/w4.png",
+      "/images/faces/w6.png"
+    ],
+    "progress": {
+      "color": "bg-blue-500",
+      "value": 63
+    },
+    "population": 2562
+  },
+  {
+    "country": {
+      "code": "va",
+      "name": "Holy See",
+      "region": "Europe"
+    },
+    "members": [
+      "/images/faces/w1.png",
+      "/images/faces/m8.png",
+      "/images/faces/w8.png"
+    ],
+    "progress": {
+      "color": "bg-indigo-500",
+      "value": 44
+    },
+    "population": 451
+  }
+]

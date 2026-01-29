@@ -1,0 +1,82 @@
+[
+  {
+    "code": "br",
+    "name": "Brasil",
+    "amount": 605,
+    "percent": 41,
+    "label": "new",
+    "color": "yellow"
+  },
+  {
+    "code": "us",
+    "name": "USA",
+    "amount": 428,
+    "percent": 51,
+    "label": "important",
+    "color": "orange"
+  },
+  {
+    "code": "es",
+    "name": "España",
+    "amount": 585,
+    "percent": 80,
+    "label": "active",
+    "color": "green"
+  },
+  {
+    "code": "ru",
+    "name": "Россия",
+    "amount": 416,
+    "percent": 78,
+    "label": "new",
+    "color": "purple"
+  },
+  {
+    "code": "cn",
+    "name": "China",
+    "amount": 709,
+    "percent": 89,
+    "label": "great",
+    "color": "pink"
+  },
+  {
+    "code": "in",
+    "name": "India",
+    "amount": 583,
+    "percent": 68,
+    "label": "great",
+    "color": "green"
+  },
+  {
+    "code": "ca",
+    "name": "Canada",
+    "amount": 235,
+    "percent": 74,
+    "label": "great",
+    "color": "blue"
+  },
+  {
+    "code": "au",
+    "name": "Australia",
+    "amount": 196,
+    "percent": 55,
+    "label": "great",
+    "color": "red"
+  },
+  {
+    "code": "jp",
+    "name": "Japan",
+    "amount": 287,
+    "percent": 40,
+    "label": "great",
+    "color": "purple"
+  },
+  {
+    "code": "kr",
+    "name": "Korea",
+    "amount": 471,
+    "percent": 80,
+    "label": "great",
+    "color": "red"
+  }
+]
