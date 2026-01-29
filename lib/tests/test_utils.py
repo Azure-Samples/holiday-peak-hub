@@ -1,7 +1,7 @@
 """Tests for logging utilities."""
 import pytest
 import logging
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import patch
 from holiday_peak_lib.utils.logging import (
     configure_logging,
     log_async_operation,
