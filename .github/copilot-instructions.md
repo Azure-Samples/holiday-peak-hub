@@ -31,7 +31,9 @@ Use this mapping to know the current vs. former names—so you can correctly int
 
 ### Backend (Python)
 - **STRICTLY FOLLOW PEP 8** and PEP guidelines for all Python code.
-- Use `pyproject.toml` for dependencies in each app and lib.
+- Use `pyproject.toml` for dependencies in each app and lib. We are using `uv` as the package manager.
+- Use FastAPI for building APIs.
+- Use asyncio and async/await for concurrency.
 - Follow async patterns: all agent handlers and adapters are async.
 - Use Pydantic models for structured data and validation.
 - Environment variables are the primary configuration mechanism.

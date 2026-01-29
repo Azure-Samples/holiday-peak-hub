@@ -16,7 +16,9 @@ pyproject.toml
 ./holiday_peak_lib/agents/builder.py
 ./holiday_peak_lib/agents/fastapi_mcp.py
 ./holiday_peak_lib/agents/foundry.py
+./holiday_peak_lib/agents/service_agent.py
 ./holiday_peak_lib/agents/memory/__init__.py
+./holiday_peak_lib/agents/memory/builder.py
 ./holiday_peak_lib/agents/memory/cold.py
 ./holiday_peak_lib/agents/memory/hot.py
 ./holiday_peak_lib/agents/memory/warm.py
@@ -57,7 +59,9 @@ holiday_peak_lib/agents/base_agent.py
 holiday_peak_lib/agents/builder.py
 holiday_peak_lib/agents/fastapi_mcp.py
 holiday_peak_lib/agents/foundry.py
+holiday_peak_lib/agents/service_agent.py
 holiday_peak_lib/agents/memory/__init__.py
+holiday_peak_lib/agents/memory/builder.py
 holiday_peak_lib/agents/memory/cold.py
 holiday_peak_lib/agents/memory/hot.py
 holiday_peak_lib/agents/memory/warm.py
