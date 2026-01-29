@@ -1,6 +1,5 @@
 """Tests for configuration models."""
 import pytest
-import os
 from holiday_peak_lib.config.settings import (
     MemorySettings,
     ServiceSettings,
