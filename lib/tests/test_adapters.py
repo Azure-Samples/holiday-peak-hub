@@ -105,7 +105,7 @@ class TestBaseAdapter:
         # First fetch
         await adapter.fetch({"query": "test"})
         # Second fetch should use cache
-        result2 = await adapter.fetch({"query": "test"})
+        await adapter.fetch({"query": "test"})
         assert adapter.fetch_count == 1  # Only called once
 
     @pytest.mark.asyncio
