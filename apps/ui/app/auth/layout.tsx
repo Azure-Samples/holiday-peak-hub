@@ -18,8 +18,8 @@ export const metadata: Metadata = {
   title: 'MagraSS Madre Cabrini',
   description: 'Dashboard',
   icons: {
-    icon: '@/public/icons/favicon-32x32.png',
-    apple: '@/public/icons/apple-icon-180x180.png',
+    icon: '/icons/favicon-32x32.png',
+    apple: '/icons/apple-icon-180x180.png',
   }
 }
 

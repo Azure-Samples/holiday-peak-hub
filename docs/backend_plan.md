@@ -4,6 +4,1033 @@
 **Date**: 2026-01-30  
 **Status**: Draft
 
+---
+
+## 📋 DETAILED TASK LIST & TRACKING
+
+### Infrastructure Evaluation Summary
+
+**Existing Infrastructure** (`.infra/` folder):
+- ✅ CLI tool (`cli.py`) for generating Bicep modules and Dockerfiles from templates
+- ✅ Bicep templates for per-agent services (21 agent modules generated)
+- ✅ Dockerfile template using Python 3.13 with multi-stage builds (dev/prod)
+- ✅ Kubernetes Helm chart structure (`.kubernetes/chart/`)
+- ⚠️ **Current State**: Each agent creates its own Cosmos DB account, Redis cache, Storage account, Azure Search, OpenAI, and AKS cluster
+
+**Architecture Decision: Hybrid "Pairwise" Approach**
+
+We're taking a **hybrid approach** that balances cost optimization with agent independence:
+
+**What's Shared** (Created by `.infra/modules/shared-infrastructure/`):
+- ✅ **Single AKS cluster** with 3 node pools (system, agents, crud) - All services deploy here
+- ✅ **Single Cosmos DB account** with:
+  - 10 operational containers (Users, Products, Orders, etc. for CRUD service)
+  - Agent-specific memory containers (created by agent modules)
+- ✅ **Single Redis Cache** (Premium 6GB) - Agents use different databases (0-21)
+- ✅ **Single Storage Account** - Agents use different blob containers
+- ✅ **Single Event Hubs namespace** - All events flow through shared topics
+- ✅ **Shared infrastructure**: ACR, Key Vault, APIM, Application Insights, Log Analytics, VNet, NSG, Private Endpoints
+
+**What's Agent-Specific** (Kept in agent modules):
+- 🔄 **Cosmos DB containers** - Each agent creates `warm-{agent-name}-chat-memory` in shared account
+- 🔄 **Redis databases** - Each agent uses a dedicated database (0=CRUD, 1-21=agents)
+- 🔄 **Blob containers** - Each agent creates `cold-{agent-name}-chat-memory` in shared storage
+- 🔄 **Azure Search** - Only agents that need it (e.g., ecommerce-catalog-search)
+- 🔄 **OpenAI deployments** - Only agents that need specific models
+
+**Benefits**:
+- 💰 **Cost savings**: ~85% reduction (from 21 AKS clusters + 21 Cosmos accounts → 1 AKS + 1 Cosmos)
+- 🔒 **Agent isolation**: Each agent has its own memory containers (can't interfere with others)
+- 🚀 **Easy deployment**: Agents can be deployed independently to the shared AKS cluster
+- 📊 **Simplified ops**: Single cluster to manage, single monitoring dashboard
+
+**Implementation Status**:
+- ✅ **Shared infrastructure module created**: `.infra/modules/shared-infrastructure/`
+- ✅ **Static Web App module created**: `.infra/modules/static-web-app/`
+- 🔄 **Agent modules**: No refactoring needed! Keep existing modules, just update to reference shared accounts
+- 🔄 **CRUD service module**: To be created
+
+---
+
+### Phase 1: Foundation & Infrastructure (Weeks 1-2)
+
+#### ✅ COMPLETED TASKS
+- [x] **1.1** Shared Infrastructure Bicep Module created
+  - Created `.infra/modules/shared-infrastructure/shared-infrastructure.bicep` (773 lines)
+  - Created `.infra/modules/shared-infrastructure/shared-infrastructure-main.bicep` (subscription-level)
+  - Created comprehensive README.md with architecture, deployment, and troubleshooting guide
+  - Includes: AKS (3 node pools), ACR, Cosmos DB (10 operational containers), Event Hubs (5 topics), Redis Premium, Storage, Key Vault, APIM, VNet, NSG, Private Endpoints, RBAC
+- [x] **1.1b** Static Web App Module created
+  - Created `.infra/modules/static-web-app/static-web-app.bicep`
+  - Created `.infra/modules/static-web-app/static-web-app-main.bicep`
+  - Created comprehensive README.md with Next.js configuration, GitHub Actions, custom domains, performance optimization
+
+#### 🔄 IN-PROGRESS TASKS
+- [ ] **1.1.6** Test deployment of shared infrastructure to Azure
+- [ ] **1.1b.5** Update `apps/ui/next.config.js` for static export
+- [ ] **1.1b.6** Test deployment of Static Web App
+
+#### 📝 TODO TASKS
+
+**1.1 Shared Infrastructure Bicep Module** (Priority: CRITICAL) ✅ COMPLETED
+- [x] **1.1.1** Create `.infra/modules/shared-infrastructure/` folder
+- [x] **1.1.2** Create `shared-infrastructure.bicep` with:
+  - [x] **1.1.2.1** Single AKS cluster (3 node pools: system, agents, crud)
+  - [x] **1.1.2.2** Azure Container Registry (Premium tier, geo-replication)
+  - [x] **1.1.2.3** Cosmos DB account with 10 containers (Users, Products, Orders, Reviews, Cart, Addresses, PaymentMethods, Tickets, Shipments, AuditLogs)
+  - [x] **1.1.2.4** Event Hubs namespace (Standard tier) with topics: OrderEvents, InventoryEvents, ShipmentEvents, PaymentEvents, UserEvents
+  - [x] **1.1.2.5** Redis Cache Premium (6GB)
+  - [x] **1.1.2.6** Azure Storage Account for cold storage (Blob containers created by services)
+  - [x] **1.1.2.7** Azure Key Vault (Premium tier, soft delete enabled)
+  - [x] **1.1.2.8** Azure API Management (Consumption tier for dev, StandardV2 for prod)
+  - [x] **1.1.2.9** Application Insights (log analytics workspace)
+  - [x] **1.1.2.10** Virtual Network with subnets (aks-system, aks-agents, aks-crud, apim, private-endpoints)
+  - [x] **1.1.2.11** Network Security Groups for each subnet
+  - [x] **1.1.2.12** Private Endpoints for Cosmos DB, Event Hubs, Redis, Storage, Key Vault
+  - [ ] **1.1.2.13** Azure Front Door Premium (with WAF) - TODO: Add in next iteration
+- [x] **1.1.3** Create `shared-infrastructure-main.bicep` (subscription-level deployment)
+- [x] **1.1.4** Add RBAC role assignments:
+  - [x] **1.1.4.1** AKS Managed Identity → Cosmos DB Data Contributor
+  - [x] **1.1.4.2** AKS Managed Identity → Event Hubs Data Sender/Receiver
+  - [x] **1.1.4.3** AKS Managed Identity → Key Vault Secrets User
+  - [x] **1.1.4.4** AKS Managed Identity → Storage Blob Data Contributor
+  - [x] **1.1.4.5** AKS Managed Identity → ACR Pull
+- [x] **1.1.5** Create README.md with deployment instructions
+- [ ] **1.1.6** Test deployment: `az deployment sub create --location eastus --template-file .infra/modules/shared-infrastructure/shared-infrastructure-main.bicep --parameters environment=dev`
+
+**1.1b Static Web App Module** (Priority: CRITICAL) ✅ COMPLETED
+- [x] **1.1b.1** Create `.infra/modules/static-web-app/` folder
+- [x] **1.1b.2** Create `static-web-app.bicep`:
+  - [x] **1.1b.2.1** Azure Static Web Apps (Free tier for dev, Standard for prod)
+  - [x] **1.1b.2.2** GitHub Actions integration (automatic deployment)
+  - [x] **1.1b.2.3** Custom domain support (prod only)
+  - [x] **1.1b.2.4** Environment variables (API URLs)
+- [x] **1.1b.3** Create `static-web-app-main.bicep` (subscription-level deployment)
+- [x] **1.1b.4** Create README.md with:
+  - [x] **1.1b.4.1** Next.js static export configuration
+  - [x] **1.1b.4.2** GitHub Actions workflow setup
+  - [x] **1.1b.4.3** Custom domain configuration
+  - [x] **1.1b.4.4** Performance optimization tips
+- [ ] **1.1b.5** Update `apps/ui/next.config.js` for static export
+- [ ] **1.1b.6** Test deployment: `az deployment sub create --location eastus2 --template-file .infra/modules/static-web-app/static-web-app-main.bicep --parameters environment=dev`
+
+**1.2 CRUD Service Project Structure** (Priority: CRITICAL) ✅ COMPLETED
+- [x] **1.2.1** Create `apps/crud-service/` folder
+- [x] **1.2.2** Create `apps/crud-service/src/` folder with complete structure:
+  - [x] **1.2.2.1** `main.py` - FastAPI app with lifespan management, Application Insights, CORS
+  - [x] **1.2.2.2** `config/settings.py` - Pydantic Settings for environment variables
+  - [x] **1.2.2.3** `auth/dependencies.py` - Entra ID JWT validation, RBAC
+  - [x] **1.2.2.4** `repositories/` - Base repository + User, Product, Order, Cart repositories
+  - [x] **1.2.2.5** `routes/` - All API endpoints:
+    - [x] `health.py` - Health/readiness checks
+    - [x] `auth.py` - Authentication endpoints
+    - [x] `users.py` - User management
+    - [x] `products.py` - Product CRUD
+    - [x] `categories.py` - Category endpoints
+    - [x] `cart.py` - Cart management
+    - [x] `orders.py` - Order creation & management
+    - [x] `checkout.py` - Checkout validation
+    - [x] `payments.py` - Payment processing
+    - [x] `reviews.py` - Review endpoints
+    - [x] `staff/analytics.py` - Staff analytics
+    - [x] `staff/tickets.py` - Support tickets
+    - [x] `staff/returns.py` - Return management
+    - [x] `staff/shipments.py` - Shipment tracking
+  - [x] **1.2.2.6** `integrations/` - Event publisher (Event Hubs), agent client (MCP)
+- [x] **1.2.3** Create `apps/crud-service/tests/` folder structure:
+  - [x] `conftest.py` - Pytest fixtures
+  - [x] `unit/test_health.py` - Health endpoint tests
+  - [x] `unit/test_repositories.py` - Repository tests
+  - [x] `integration/test_products_api.py` - Product API tests
+  - [x] `integration/test_cart_api.py` - Cart API tests
+  - [x] `e2e/test_checkout_flow.py` - End-to-end checkout test
+- [x] **1.2.4** Create `apps/crud-service/README.md` with service documentation
+- [x] **1.2.5** Create `apps/crud-service/Dockerfile` with Python 3.13
+- [x] **1.2.6** Create `apps/crud-service/.env.example` with all environment variables
+- [x] **1.2.7** Create `apps/crud-service/.gitignore`
+
+**1.3 Pydantic Schemas (Shared Library)** (Priority: CRITICAL)
+- [ ] **1.3.1** Create `lib/src/holiday_peak_lib/schemas/user.py`:
+  - [ ] **1.3.1.1** `User` model (matches Cosmos DB Users container schema)
+  - [ ] **1.3.1.2** `CreateUserRequest`, `UpdateUserRequest` DTOs
+  - [ ] **1.3.1.3** `UserResponse`, `UserDashboardResponse` DTOs
+  - [ ] **1.3.1.4** `Address` model
+  - [ ] **1.3.1.5** `PaymentMethod` model
+  - [ ] **1.3.1.6** `UserPreferences` model
+- [ ] **1.3.2** Create `lib/src/holiday_peak_lib/schemas/product.py`:
+  - [ ] **1.3.2.1** `Product` model (ACP compliant)
+  - [ ] **1.3.2.2** `ProductVariant`, `ProductAttribute` models
+  - [ ] **1.3.2.3** `ProductListRequest`, `ProductResponse` DTOs
+  - [ ] **1.3.2.4** `Category` model
+- [ ] **1.3.3** Create `lib/src/holiday_peak_lib/schemas/order.py`:
+  - [ ] **1.3.3.1** `Order` model
+  - [ ] **1.3.3.2** `OrderItem` model
+  - [ ] **1.3.3.3** `CreateOrderRequest`, `OrderResponse` DTOs
+  - [ ] **1.3.3.4** `ShippingAddress`, `BillingAddress` models
+- [ ] **1.3.4** Create `lib/src/holiday_peak_lib/schemas/cart.py`:
+  - [ ] **1.3.4.1** `Cart` model
+  - [ ] **1.3.4.2** `CartItem` model
+  - [ ] **1.3.4.3** `AddCartItemRequest`, `UpdateCartItemRequest` DTOs
+- [ ] **1.3.5** Create `lib/src/holiday_peak_lib/schemas/review.py`
+- [ ] **1.3.6** Create `lib/src/holiday_peak_lib/schemas/ticket.py`
+- [ ] **1.3.7** Create `lib/src/holiday_peak_lib/schemas/shipment.py`
+- [ ] **1.3.8** Create `lib/src/holiday_peak_lib/schemas/payment.py`
+- [ ] **1.3.9** Create `lib/src/holiday_peak_lib/schemas/analytics.py`
+- [ ] **1.3.10** Create `lib/src/holiday_peak_lib/schemas/audit.py`
+
+**1.4 Base Repository Pattern** (Priority: HIGH)
+- [ ] **1.4.1** Create `apps/crud-service/src/repositories/base_repository.py`:
+  - [ ] **1.4.1.1** Implement `BaseRepository` class with generic CRUD operations
+  - [ ] **1.4.1.2** Add Cosmos DB client initialization with Managed Identity
+  - [ ] **1.4.1.3** Implement retry logic with exponential backoff
+  - [ ] **1.4.1.4** Add error handling for Cosmos DB exceptions (429, 404, etc.)
+  - [ ] **1.4.1.5** Implement pagination support
+  - [ ] **1.4.1.6** Add query builder for complex filters
+- [ ] **1.4.2** Create concrete repositories (user, product, order, etc.) extending `BaseRepository`
+- [ ] **1.4.3** Write unit tests for all repositories
+
+**1.5 FastAPI Application Bootstrap** (Priority: HIGH)
+- [ ] **1.5.1** Create `apps/crud-service/src/main.py`:
+  - [ ] **1.5.1.1** Initialize FastAPI app with metadata
+  - [ ] **1.5.1.2** Add CORS middleware (configurable origins)
+  - [ ] **1.5.1.3** Add exception handlers (global error handling)
+  - [ ] **1.5.1.4** Add logging configuration (structured logging)
+  - [ ] **1.5.1.5** Add OpenTelemetry instrumentation (Application Insights)
+  - [ ] **1.5.1.6** Add startup/shutdown event handlers (DB connection pooling)
+- [ ] **1.5.2** Create `apps/crud-service/src/config/settings.py`:
+  - [ ] **1.5.2.1** Use Pydantic `BaseSettings` for environment variables
+  - [ ] **1.5.2.2** Add Cosmos DB connection settings
+  - [ ] **1.5.2.3** Add Event Hubs connection settings
+  - [ ] **1.5.2.4** Add Redis connection settings
+  - [ ] **1.5.2.5** Add Key Vault URL
+  - [ ] **1.5.2.6** Add Entra ID settings (tenant ID, client ID, issuer)
+  - [ ] **1.5.2.7** Add feature flags
+- [ ] **1.5.3** Create health check endpoint (`/health`, `/health/live`, `/health/ready`)
+- [ ] **1.5.4** Test local startup: `uvicorn main:app --reload`
+
+**1.6 Dependencies (pyproject.toml)** (Priority: HIGH)
+- [ ] **1.6.1** Add to `apps/crud-service/src/pyproject.toml`:
+  ```toml
+  [project]
+  name = "crud-service"
+  version = "1.0.0"
+  requires-python = ">=3.13"
+  dependencies = [
+      "fastapi>=0.115.0",
+      "uvicorn[standard]>=0.32.0",
+      "azure-cosmos>=4.7.0",
+      "azure-eventhub>=5.12.0",
+      "azure-identity>=1.19.0",
+      "azure-keyvault-secrets>=4.9.0",
+      "azure-storage-blob>=12.23.0",
+      "redis>=5.2.0",
+      "pydantic>=2.10.0",
+      "pydantic-settings>=2.6.0",
+      "stripe>=11.1.0",
+      "httpx>=0.28.0",
+      "python-jose[cryptography]>=3.3.0",
+      "python-multipart>=0.0.20",
+      "azure-monitor-opentelemetry>=1.7.0",
+      "opentelemetry-api>=1.28.0",
+      "opentelemetry-sdk>=1.28.0",
+      "structlog>=24.4.0",
+  ]
+  [project.optional-dependencies]
+  dev = [
+      "pytest>=8.3.0",
+      "pytest-asyncio>=0.25.0",
+      "pytest-cov>=6.0.0",
+      "pytest-mock>=3.14.0",
+      "black>=24.10.0",
+      "isort>=5.13.0",
+      "pylint>=3.3.0",
+      "mypy>=1.13.0",
+  ]
+  ```
+- [ ] **1.6.2** Install dependencies: `uv pip install -e .[dev]`
+
+---
+
+### Phase 2: Authentication & Authorization (Week 3)
+
+#### 📝 TODO TASKS
+
+**2.1 Microsoft Entra ID Configuration** (Priority: CRITICAL)
+- [ ] **2.1.1** Create App Registration in Azure Portal:
+  - [ ] **2.1.1.1** Navigate to Entra ID → App registrations → New registration
+  - [ ] **2.1.1.2** Name: `holiday-peak-hub-crud-api`
+  - [ ] **2.1.1.3** Supported account types: "Single tenant"
+  - [ ] **2.1.1.4** Redirect URIs: Add frontend callback URLs
+- [ ] **2.1.2** Configure API permissions:
+  - [ ] **2.1.2.1** Add `User.Read` (delegated)
+  - [ ] **2.1.2.2** Add custom scopes: `api://crud-service/read`, `api://crud-service/write`
+- [ ] **2.1.3** Expose API:
+  - [ ] **2.1.3.1** Set Application ID URI: `api://holiday-peak-hub-crud`
+  - [ ] **2.1.3.2** Add scope: `access_as_user`
+- [ ] **2.1.4** Store credentials in Key Vault:
+  - [ ] **2.1.4.1** `entra-tenant-id`
+  - [ ] **2.1.4.2** `entra-client-id`
+  - [ ] **2.1.4.3** `entra-client-secret` (for backend auth flows)
+
+**2.2 JWT Validation Middleware** (Priority: CRITICAL)
+- [ ] **2.2.1** Create `apps/crud-service/src/auth/middleware.py`:
+  - [ ] **2.2.1.1** Implement `JWTMiddleware` class
+  - [ ] **2.2.1.2** Validate JWT signature using Entra ID public keys (JWKS)
+  - [ ] **2.2.1.3** Validate issuer, audience, expiration
+  - [ ] **2.2.1.4** Extract user claims (sub, roles, email)
+  - [ ] **2.2.1.5** Add user context to request state
+  - [ ] **2.2.1.6** Handle expired/invalid tokens (401 responses)
+- [ ] **2.2.2** Create `apps/crud-service/src/auth/dependencies.py`:
+  - [ ] **2.2.2.1** `get_current_user()` dependency
+  - [ ] **2.2.2.2** `get_current_user_id()` dependency
+  - [ ] **2.2.2.3** `get_optional_user()` dependency (for anonymous routes)
+- [ ] **2.2.3** Write unit tests for JWT validation
+
+**2.3 OAuth2 Flow Implementation** (Priority: CRITICAL)
+- [ ] **2.3.1** Create `apps/crud-service/src/auth/entra_provider.py`:
+  - [ ] **2.3.1.1** Implement authorization code flow redirect
+  - [ ] **2.3.1.2** Implement token exchange (callback handler)
+  - [ ] **2.3.1.3** Implement token refresh
+  - [ ] **2.3.1.4** Implement logout (revoke tokens)
+- [ ] **2.3.2** Create `apps/crud-service/src/routes/auth.py`:
+  - [ ] **2.3.2.1** `GET /api/auth/login` - Redirect to Entra ID
+  - [ ] **2.3.2.2** `GET /api/auth/callback` - Handle OAuth callback
+  - [ ] **2.3.2.3** `POST /api/auth/refresh` - Refresh access token
+  - [ ] **2.3.2.4** `POST /api/auth/logout` - Logout user
+  - [ ] **2.3.2.5** `GET /api/auth/me` - Get current user info
+  - [ ] **2.3.2.6** `POST /api/auth/guest` - Create guest session (anonymous users)
+- [ ] **2.3.3** Write integration tests for auth endpoints
+
+**2.4 RBAC Implementation** (Priority: HIGH)
+- [ ] **2.4.1** Create `apps/crud-service/src/auth/rbac.py`:
+  - [ ] **2.4.1.1** Define roles enum: `anonymous`, `customer`, `staff`, `admin`
+  - [ ] **2.4.1.2** Implement `require_role()` dependency factory
+  - [ ] **2.4.1.3** Implement `has_permission()` checker
+  - [ ] **2.4.1.4** Add role hierarchy logic (admin > staff > customer > anonymous)
+- [ ] **2.4.2** Update Entra ID App Registration:
+  - [ ] **2.4.2.1** Add App Roles: `customer`, `staff`, `admin`
+  - [ ] **2.4.2.2** Assign roles to test users
+- [ ] **2.4.3** Apply role protection to routes:
+  - [ ] **2.4.3.1** Customer routes: `require_role("customer")`
+  - [ ] **2.4.3.2** Staff routes: `require_role("staff")`
+  - [ ] **2.4.3.3** Admin routes: `require_role("admin")`
+- [ ] **2.4.4** Write tests for role-based access control
+
+**2.5 Session Management** (Priority: MEDIUM)
+- [ ] **2.5.1** Implement Redis-backed session storage
+- [ ] **2.5.2** Store refresh tokens securely (HttpOnly cookies)
+- [ ] **2.5.3** Implement session expiration (24 hours for customer, 8 hours for staff)
+- [ ] **2.5.4** Add CSRF protection
+
+---
+
+### Phase 3: Core CRUD Endpoints (Weeks 4-5)
+
+#### 📝 TODO TASKS
+
+**3.1 User Management Endpoints** (Priority: HIGH)
+- [ ] **3.1.1** Implement `apps/crud-service/src/services/user_service.py`:
+  - [ ] **3.1.1.1** `get_user(user_id)` - Get user by ID
+  - [ ] **3.1.1.2** `update_user(user_id, data)` - Update user profile
+  - [ ] **3.1.1.3** `delete_user(user_id)` - Soft delete user
+  - [ ] **3.1.1.4** `get_user_dashboard(user_id)` - Aggregate dashboard data
+  - [ ] **3.1.1.5** `sync_entra_user(entra_user)` - Sync Entra ID user to local DB
+- [ ] **3.1.2** Implement `apps/crud-service/src/routes/users.py`:
+  - [ ] **3.1.2.1** `GET /api/users/me`
+  - [ ] **3.1.2.2** `PUT /api/users/me`
+  - [ ] **3.1.2.3** `DELETE /api/users/me`
+  - [ ] **3.1.2.4** `GET /api/users/me/dashboard`
+  - [ ] **3.1.2.5** `GET /api/users/me/orders`
+  - [ ] **3.1.2.6** `GET /api/users/me/wishlist`
+  - [ ] **3.1.2.7** `POST /api/users/me/wishlist`
+  - [ ] **3.1.2.8** `DELETE /api/users/me/wishlist/{product_id}`
+  - [ ] **3.1.2.9** `GET /api/users/me/rewards`
+- [ ] **3.1.3** Write integration tests for user endpoints
+
+**3.2 Address Management** (Priority: HIGH)
+- [ ] **3.2.1** Implement address CRUD in `user_service.py`
+- [ ] **3.2.2** Add routes:
+  - [ ] **3.2.2.1** `GET /api/users/me/addresses`
+  - [ ] **3.2.2.2** `POST /api/users/me/addresses`
+  - [ ] **3.2.2.3** `PUT /api/users/me/addresses/{id}`
+  - [ ] **3.2.2.4** `DELETE /api/users/me/addresses/{id}`
+  - [ ] **3.2.2.5** `PUT /api/users/me/addresses/{id}/default`
+- [ ] **3.2.3** Integrate address validation service (Google Maps API or similar)
+- [ ] **3.2.4** Write tests
+
+**3.3 Payment Method Management** (Priority: HIGH)
+- [ ] **3.3.1** Integrate Stripe for tokenization
+- [ ] **3.3.2** Implement payment method CRUD in `user_service.py`
+- [ ] **3.3.3** Add routes:
+  - [ ] **3.3.3.1** `GET /api/users/me/payment-methods`
+  - [ ] **3.3.3.2** `POST /api/users/me/payment-methods` (store Stripe token only)
+  - [ ] **3.3.3.3** `DELETE /api/users/me/payment-methods/{id}`
+- [ ] **3.3.4** Ensure PCI compliance (never store raw card data)
+- [ ] **3.3.5** Write tests
+
+**3.4 User Preferences** (Priority: MEDIUM)
+- [ ] **3.4.1** Implement preferences CRUD
+- [ ] **3.4.2** Add routes:
+  - [ ] **3.4.2.1** `GET /api/users/me/preferences`
+  - [ ] **3.4.2.2** `PUT /api/users/me/preferences`
+- [ ] **3.4.3** Write tests
+
+**3.5 Product Endpoints** (Priority: HIGH)
+- [ ] **3.5.1** Implement `apps/crud-service/src/services/product_service.py`:
+  - [ ] **3.5.1.1** `list_products(filters, sort, page, limit)` - Paginated product listing
+  - [ ] **3.5.1.2** `get_product(product_id)` - Get single product
+  - [ ] **3.5.1.3** `get_featured_products(limit)` - Get featured products
+  - [ ] **3.5.1.4** `search_products(query, filters)` - Search products (fallback if agent fails)
+  - [ ] **3.5.1.5** `get_product_inventory(product_id)` - Get stock levels
+- [ ] **3.5.2** Implement `apps/crud-service/src/routes/products.py`:
+  - [ ] **3.5.2.1** `GET /api/products` (with filters, sort, pagination)
+  - [ ] **3.5.2.2** `GET /api/products/featured`
+  - [ ] **3.5.2.3** `GET /api/products/search`
+  - [ ] **3.5.2.4** `GET /api/products/{id}`
+  - [ ] **3.5.2.5** `GET /api/products/{id}/inventory`
+  - [ ] **3.5.2.6** `GET /api/products/{id}/related`
+- [ ] **3.5.3** Implement caching (Redis) for product listings (TTL: 5 minutes)
+- [ ] **3.5.4** Write integration tests
+
+**3.6 Category Endpoints** (Priority: HIGH)
+- [ ] **3.6.1** Implement category service
+- [ ] **3.6.2** Add routes:
+  - [ ] **3.6.2.1** `GET /api/categories`
+  - [ ] **3.6.2.2** `GET /api/categories/{slug}`
+  - [ ] **3.6.2.3** `GET /api/products/filters?category={slug}`
+- [ ] **3.6.3** Write tests
+
+**3.7 Review Endpoints** (Priority: MEDIUM)
+- [ ] **3.7.1** Implement review service
+- [ ] **3.7.2** Add routes:
+  - [ ] **3.7.2.1** `GET /api/products/{id}/reviews`
+  - [ ] **3.7.2.2** `POST /api/products/{id}/reviews`
+  - [ ] **3.7.2.3** `PUT /api/reviews/{id}`
+  - [ ] **3.7.2.4** `DELETE /api/reviews/{id}`
+- [ ] **3.7.3** Implement moderation workflow (status: pending → approved/rejected)
+- [ ] **3.7.4** Write tests
+
+---
+
+### Phase 4: E-Commerce Core (Weeks 6-7)
+
+#### 📝 TODO TASKS
+
+**4.1 Cart Management** (Priority: CRITICAL)
+- [ ] **4.1.1** Implement `apps/crud-service/src/services/cart_service.py`:
+  - [ ] **4.1.1.1** `get_cart(user_id)` - Get or create cart
+  - [ ] **4.1.1.2** `add_item(cart_id, product_id, quantity, variant_id)`
+  - [ ] **4.1.1.3** `update_item(cart_id, item_id, quantity)`
+  - [ ] **4.1.1.4** `remove_item(cart_id, item_id)`
+  - [ ] **4.1.1.5** `clear_cart(cart_id)`
+  - [ ] **4.1.1.6** `merge_carts(guest_cart_id, user_cart_id)` - Merge on login
+  - [ ] **4.1.1.7** `validate_cart(cart_id)` - Check inventory, pricing
+- [ ] **4.1.2** Implement `apps/crud-service/src/routes/cart.py`:
+  - [ ] **4.1.2.1** `GET /api/cart`
+  - [ ] **4.1.2.2** `POST /api/cart/items`
+  - [ ] **4.1.2.3** `PUT /api/cart/items/{id}`
+  - [ ] **4.1.2.4** `DELETE /api/cart/items/{id}`
+  - [ ] **4.1.2.5** `DELETE /api/cart`
+  - [ ] **4.1.2.6** `POST /api/cart/merge`
+- [ ] **4.1.3** Implement session-based guest carts (use session ID as partition key)
+- [ ] **4.1.4** Set TTL on cart items (14 days for guest, 90 days for authenticated)
+- [ ] **4.1.5** Write tests for cart operations
+
+**4.2 Checkout Flow** (Priority: CRITICAL)
+- [ ] **4.2.1** Implement `apps/crud-service/src/services/checkout_service.py`:
+  - [ ] **4.2.1.1** `validate_checkout(cart_id, shipping_address)` - Validate cart, address, inventory
+  - [ ] **4.2.1.2** `calculate_totals(cart_id, shipping_method, promo_code)` - Calculate subtotal, tax, shipping, discount, total
+  - [ ] **4.2.1.3** `apply_promo_code(cart_id, code)` - Validate and apply promo
+  - [ ] **4.2.1.4** `create_order_from_cart(cart_id, shipping_address, payment_method, shipping_method)`
+- [ ] **4.2.2** Implement `apps/crud-service/src/routes/checkout.py`:
+  - [ ] **4.2.2.1** `POST /api/checkout/validate`
+  - [ ] **4.2.2.2** `POST /api/checkout/promo`
+  - [ ] **4.2.2.3** `POST /api/addresses/validate`
+- [ ] **4.2.3** Integrate with agent services:
+  - [ ] **4.2.3.1** Call `ecommerce-cart-intelligence` for upsell recommendations
+  - [ ] **4.2.3.2** Call `ecommerce-checkout-support` for allocation validation
+  - [ ] **4.2.3.3** Call `inventory-reservation-validation` for stock reservation
+  - [ ] **4.2.3.4** Call `logistics-carrier-selection` for shipping options
+- [ ] **4.2.4** Write integration tests for checkout flow
+
+**4.3 Order Creation** (Priority: CRITICAL)
+- [ ] **4.3.1** Implement `apps/crud-service/src/services/order_service.py`:
+  - [ ] **4.3.1.1** `create_order(cart_id, shipping_address, billing_address, payment_method, shipping_method)`
+  - [ ] **4.3.1.2** `get_order(order_id)` - Get order details
+  - [ ] **4.3.1.3** `get_user_orders(user_id, filters)` - Get user order history
+  - [ ] **4.3.1.4** `get_order_tracking(order_id)` - Get tracking timeline
+  - [ ] **4.3.1.5** `cancel_order(order_id)` - Cancel order (if not shipped)
+- [ ] **4.3.2** Implement `apps/crud-service/src/routes/orders.py`:
+  - [ ] **4.3.2.1** `POST /api/orders`
+  - [ ] **4.3.2.2** `GET /api/orders/{id}?email={email}` (anonymous with email verification)
+  - [ ] **4.3.2.3** `GET /api/orders/{id}/tracking`
+  - [ ] **4.3.2.4** `GET /api/users/me/orders`
+  - [ ] **4.3.2.5** `POST /api/orders/{id}/cancel`
+- [ ] **4.3.3** Implement order state machine (pending → processing → shipped → delivered → completed)
+- [ ] **4.3.4** Publish `OrderCreated` event to Event Hubs
+- [ ] **4.3.5** Write tests
+
+**4.4 Payment Integration** (Priority: CRITICAL)
+- [ ] **4.4.1** Implement `apps/crud-service/src/integrations/stripe_client.py`:
+  - [ ] **4.4.1.1** Initialize Stripe client with API key from Key Vault
+  - [ ] **4.4.1.2** `create_payment_intent(amount, currency, customer_id)` - Create payment intent
+  - [ ] **4.4.1.3** `confirm_payment(payment_intent_id)` - Confirm payment
+  - [ ] **4.4.1.4** `refund_payment(payment_intent_id, amount)` - Process refund
+  - [ ] **4.4.1.5** `create_customer(user_id, email)` - Create Stripe customer
+  - [ ] **4.4.1.6** `save_payment_method(customer_id, payment_method_id)` - Save payment method
+- [ ] **4.4.2** Implement `apps/crud-service/src/routes/payments.py`:
+  - [ ] **4.4.2.1** `POST /api/payments/create-intent`
+  - [ ] **4.4.2.2** `POST /api/payments/confirm`
+  - [ ] **4.4.2.3** `POST /api/payments/refund`
+  - [ ] **4.4.2.4** `POST /api/payments/webhook` (Stripe webhook handler)
+- [ ] **4.4.3** Implement webhook signature verification
+- [ ] **4.4.4** Handle payment events:
+  - [ ] **4.4.4.1** `payment_intent.succeeded` → Update order status, publish `PaymentProcessed` event
+  - [ ] **4.4.4.2** `payment_intent.payment_failed` → Update order status, notify customer
+  - [ ] **4.4.4.3** `charge.refunded` → Update order status, publish `RefundProcessed` event
+- [ ] **4.4.5** Write tests with Stripe test mode
+
+---
+
+### Phase 5: Event-Driven Integration (Week 8)
+
+#### 📝 TODO TASKS
+
+**5.1 Event Hub Publisher** (Priority: HIGH)
+- [ ] **5.1.1** Create `lib/src/holiday_peak_lib/events/publisher.py`:
+  - [ ] **5.1.1.1** Initialize Event Hub client with Managed Identity
+  - [ ] **5.1.1.2** Implement `publish_event(topic, event_type, data)` method
+  - [ ] **5.1.1.3** Add retry logic with exponential backoff
+  - [ ] **5.1.1.4** Add dead-letter queue handling
+- [ ] **5.1.2** Create `lib/src/holiday_peak_lib/events/schemas.py`:
+  - [ ] **5.1.2.1** `OrderCreated` event schema
+  - [ ] **5.1.2.2** `OrderUpdated` event schema
+  - [ ] **5.1.2.3** `PaymentProcessed` event schema
+  - [ ] **5.1.2.4** `InventoryReserved` event schema
+  - [ ] **5.1.2.5** `ShipmentCreated` event schema
+  - [ ] **5.1.2.6** `ShipmentStatusUpdated` event schema
+  - [ ] **5.1.2.7** `UserCreated` event schema
+  - [ ] **5.1.2.8** `UserUpdated` event schema
+- [ ] **5.1.3** Integrate event publishing in services:
+  - [ ] **5.1.3.1** Order service → Publish `OrderCreated` on order creation
+  - [ ] **5.1.3.2** Payment service → Publish `PaymentProcessed` on successful payment
+  - [ ] **5.1.3.3** User service → Publish `UserCreated` on user registration
+- [ ] **5.1.4** Write tests with Event Hub emulator
+
+**5.2 Agent Service Integration Client** (Priority: HIGH)
+- [ ] **5.2.1** Create `apps/crud-service/src/integrations/agent_client.py`:
+  - [ ] **5.2.1.1** Implement HTTP client for agent service invocation
+  - [ ] **5.2.1.2** Add circuit breaker pattern (fail fast after N failures)
+  - [ ] **5.2.1.3** Add timeout configuration (3 seconds default)
+  - [ ] **5.2.1.4** Implement fallback logic (return cached/default data if agent fails)
+  - [ ] **5.2.1.5** Add retry logic (max 2 retries with 500ms delay)
+- [ ] **5.2.2** Integrate agent client in services:
+  - [ ] **5.2.2.1** Product service → Call `ecommerce-catalog-search` for search
+  - [ ] **5.2.2.2** Product service → Call `ecommerce-product-detail-enrichment` for details
+  - [ ] **5.2.2.3** Cart service → Call `ecommerce-cart-intelligence` for recommendations
+  - [ ] **5.2.2.4** Checkout service → Call `ecommerce-checkout-support` for validation
+  - [ ] **5.2.2.5** Order service → Call `ecommerce-order-status` for tracking
+- [ ] **5.2.3** Add instrumentation (log agent calls, track latency)
+- [ ] **5.2.4** Write tests with mock agent responses
+
+**5.3 Response Caching (Redis)** (Priority: MEDIUM)
+- [ ] **5.3.1** Implement Redis cache wrapper:
+  - [ ] **5.3.1.1** `get_cached(key)`
+  - [ ] **5.3.1.2** `set_cached(key, value, ttl)`
+  - [ ] **5.3.1.3** `invalidate_cache(pattern)`
+- [ ] **5.3.2** Add caching for:
+  - [ ] **5.3.2.1** Product listings (TTL: 5 minutes)
+  - [ ] **5.3.2.2** Product details (TTL: 10 minutes)
+  - [ ] **5.3.2.3** Category listings (TTL: 15 minutes)
+  - [ ] **5.3.2.4** Agent responses (TTL: 2 minutes)
+- [ ] **5.3.3** Implement cache invalidation on data updates
+- [ ] **5.3.4** Write tests
+
+---
+
+### Phase 6: Staff & Admin Features (Weeks 9-10)
+
+#### 📝 TODO TASKS
+
+**6.1 Staff Analytics** (Priority: HIGH)
+- [ ] **6.1.1** Implement `apps/crud-service/src/services/analytics_service.py`:
+  - [ ] **6.1.1.1** `get_sales_analytics(start_date, end_date)` - Aggregate sales data
+  - [ ] **6.1.1.2** `get_top_products(limit, sort_by)` - Top products by sales/revenue
+  - [ ] **6.1.1.3** `get_category_performance(start_date, end_date)`
+  - [ ] **6.1.1.4** `get_conversion_metrics(start_date, end_date)`
+  - [ ] **6.1.1.5** `export_sales_report(format, start_date, end_date)` - Generate CSV/XLSX
+- [ ] **6.1.2** Implement `apps/crud-service/src/routes/staff/analytics.py`:
+  - [ ] **6.1.2.1** `GET /api/staff/analytics/sales` (requires `staff` role)
+  - [ ] **6.1.2.2** `GET /api/staff/analytics/products/top`
+  - [ ] **6.1.2.3** `GET /api/staff/analytics/categories`
+  - [ ] **6.1.2.4** `GET /api/staff/analytics/conversion`
+  - [ ] **6.1.2.5** `GET /api/staff/reports/sales/export`
+- [ ] **6.1.3** Optimize queries with Cosmos DB read replicas
+- [ ] **6.1.4** Implement caching for aggregated data (TTL: 10 minutes)
+- [ ] **6.1.5** Add background job to pre-compute daily/weekly/monthly aggregates
+- [ ] **6.1.6** Write tests
+
+**6.2 Customer Support & Tickets** (Priority: HIGH)
+- [ ] **6.2.1** Implement `apps/crud-service/src/services/ticket_service.py`:
+  - [ ] **6.2.1.1** `list_tickets(filters, page, limit)` - List tickets with filters
+  - [ ] **6.2.1.2** `get_ticket(ticket_id)` - Get ticket details
+  - [ ] **6.2.1.3** `create_ticket(user_id, type, subject, description, priority)`
+  - [ ] **6.2.1.4** `update_ticket_status(ticket_id, new_status)`
+  - [ ] **6.2.1.5** `assign_ticket(ticket_id, staff_id)`
+  - [ ] **6.2.1.6** `add_response(ticket_id, message, internal_note)`
+- [ ] **6.2.2** Implement `apps/crud-service/src/routes/staff/tickets.py`:
+  - [ ] **6.2.2.1** `GET /api/staff/tickets`
+  - [ ] **6.2.2.2** `GET /api/staff/tickets/{id}`
+  - [ ] **6.2.2.3** `PUT /api/staff/tickets/{id}/status`
+  - [ ] **6.2.2.4** `PUT /api/staff/tickets/{id}/assign`
+  - [ ] **6.2.2.5** `POST /api/staff/tickets/{id}/response`
+- [ ] **6.2.3** Integrate with `crm-support-assistance` agent for AI suggestions
+- [ ] **6.2.4** Implement ticket state machine (new → assigned → in_progress → resolved → closed)
+- [ ] **6.2.5** Write tests
+
+**6.3 Return Management** (Priority: HIGH)
+- [ ] **6.3.1** Implement return service
+- [ ] **6.3.2** Implement `apps/crud-service/src/routes/staff/returns.py`:
+  - [ ] **6.3.2.1** `POST /api/staff/returns`
+  - [ ] **6.3.2.2** `GET /api/staff/returns/{id}`
+  - [ ] **6.3.2.3** `PUT /api/staff/returns/{id}/approve`
+  - [ ] **6.3.2.4** `PUT /api/staff/returns/{id}/reject`
+- [ ] **6.3.3** Integrate with `logistics-returns-support` agent
+- [ ] **6.3.4** Publish `ReturnRequested`, `ReturnApproved` events
+- [ ] **6.3.5** Write tests
+
+**6.4 Logistics Tracking** (Priority: HIGH)
+- [ ] **6.4.1** Implement `apps/crud-service/src/services/shipment_service.py`:
+  - [ ] **6.4.1.1** `list_shipments(filters, page, limit)`
+  - [ ] **6.4.1.2** `get_shipment(shipment_id)`
+  - [ ] **6.4.1.3** `update_shipment_status(shipment_id, status, location, notes)`
+  - [ ] **6.4.1.4** `get_carrier_tracking(shipment_id)` - Fetch from carrier API
+  - [ ] **6.4.1.5** `contact_carrier(shipment_id, issue_description)` - Create carrier support ticket
+- [ ] **6.4.2** Implement carrier API clients:
+  - [ ] **6.4.2.1** FedEx tracking API
+  - [ ] **6.4.2.2** UPS tracking API
+  - [ ] **6.4.2.3** USPS tracking API
+- [ ] **6.4.3** Implement `apps/crud-service/src/routes/staff/shipments.py`:
+  - [ ] **6.4.3.1** `GET /api/staff/shipments`
+  - [ ] **6.4.3.2** `GET /api/staff/shipments/{id}`
+  - [ ] **6.4.3.3** `PUT /api/staff/shipments/{id}/status`
+  - [ ] **6.4.3.4** `POST /api/staff/shipments/{id}/notify-customer`
+  - [ ] **6.4.3.5** `GET /api/staff/shipments/{id}/carrier-tracking`
+  - [ ] **6.4.3.6** `POST /api/staff/shipments/{id}/contact-carrier`
+- [ ] **6.4.4** Integrate with logistics agents:
+  - [ ] **6.4.4.1** `logistics-eta-computation` for ETA predictions
+  - [ ] **6.4.4.2** `logistics-route-issue-detection` for delay alerts
+- [ ] **6.4.5** Implement notification service (SMS/email)
+- [ ] **6.4.6** Publish `ShipmentStatusUpdated` events
+- [ ] **6.4.7** Write tests
+
+**6.5 Admin Portal** (Priority: MEDIUM)
+- [ ] **6.5.1** Implement system health monitoring:
+  - [ ] **6.5.1.1** Aggregate health checks from all services
+  - [ ] **6.5.1.2** Check Cosmos DB connectivity
+  - [ ] **6.5.1.3** Check Event Hubs connectivity
+  - [ ] **6.5.1.4** Check Redis connectivity
+- [ ] **6.5.2** Implement `apps/crud-service/src/routes/admin/users.py`:
+  - [ ] **6.5.2.1** `GET /api/admin/users` (requires `admin` role)
+  - [ ] **6.5.2.2** `POST /api/admin/users`
+  - [ ] **6.5.2.3** `PUT /api/admin/users/{id}/role`
+  - [ ] **6.5.2.4** `DELETE /api/admin/users/{id}`
+- [ ] **6.5.3** Implement `apps/crud-service/src/routes/admin/services.py`:
+  - [ ] **6.5.3.1** `GET /api/admin/health`
+  - [ ] **6.5.3.2** `GET /api/admin/services`
+  - [ ] **6.5.3.3** `GET /api/admin/services/{name}/logs`
+  - [ ] **6.5.3.4** `POST /api/admin/services/{name}/restart`
+- [ ] **6.5.4** Implement `apps/crud-service/src/routes/admin/config.py`:
+  - [ ] **6.5.4.1** `GET /api/admin/config`
+  - [ ] **6.5.4.2** `PUT /api/admin/config/{key}`
+- [ ] **6.5.5** Implement audit log queries:
+  - [ ] **6.5.5.1** `GET /api/admin/audit-logs`
+- [ ] **6.5.6** Write tests
+
+---
+
+### Phase 7: API Gateway (APIM) (Week 11)
+
+#### 📝 TODO TASKS
+
+**7.1 APIM Infrastructure** (Priority: CRITICAL)
+- [ ] **7.1.1** Create `.infra/modules/apim/apim.bicep`:
+  - [ ] **7.1.1.1** Provision APIM instance (Consumption tier for dev, Standard for prod)
+  - [ ] **7.1.1.2** Configure VNet integration
+  - [ ] **7.1.1.3** Enable Application Insights integration
+  - [ ] **7.1.1.4** Configure custom domain (api.holidaypeakhub.com)
+  - [ ] **7.1.1.5** Enable Managed Identity
+- [ ] **7.1.2** Deploy APIM infrastructure
+
+**7.2 APIM Policies** (Priority: CRITICAL)
+- [ ] **7.2.1** Create `.infra/modules/apim/policies/global.xml`:
+  - [ ] **7.2.1.1** JWT validation policy (validate Entra ID tokens)
+  - [ ] **7.2.1.2** CORS policy (allow frontend origins)
+  - [ ] **7.2.1.3** Rate limiting policy (per subscription key)
+  - [ ] **7.2.1.4** Logging policy (log all requests to Application Insights)
+- [ ] **7.2.2** Create `.infra/modules/apim/policies/crud-api.xml`:
+  - [ ] **7.2.2.1** Backend URL rewrite
+  - [ ] **7.2.2.2** Response caching for GET requests (TTL: 1 minute)
+  - [ ] **7.2.2.3** Request/response transformation
+  - [ ] **7.2.2.4** Circuit breaker for backend failures
+- [ ] **7.2.3** Create `.infra/modules/apim/policies/auth-api.xml`:
+  - [ ] **7.2.3.1** Allow anonymous access (no JWT validation)
+  - [ ] **7.2.3.2** CORS for OAuth callback
+
+**7.3 API Configuration** (Priority: CRITICAL)
+- [ ] **7.3.1** Create OpenAPI spec for CRUD service:
+  - [ ] **7.3.1.1** Generate from FastAPI: `python -c "from main import app; import json; print(json.dumps(app.openapi()))" > openapi.json`
+  - [ ] **7.3.1.2** Import to APIM
+- [ ] **7.3.2** Configure APIM Operations:
+  - [ ] **7.3.2.1** `/api/auth/*` → CRUD service (port 8001)
+  - [ ] **7.3.2.2** `/api/users/*` → CRUD service
+  - [ ] **7.3.2.3** `/api/products/*` → CRUD service
+  - [ ] **7.3.2.4** `/api/orders/*` → CRUD service
+  - [ ] **7.3.2.5** `/api/cart/*` → CRUD service
+  - [ ] **7.3.2.6** `/api/checkout/*` → CRUD service
+  - [ ] **7.3.2.7** `/api/staff/*` → CRUD service (staff role required)
+  - [ ] **7.3.2.8** `/api/admin/*` → CRUD service (admin role required)
+  - [ ] **7.3.2.9** `/api/agents/*` → Agent services (direct routing)
+- [ ] **7.3.3** Configure backend pools:
+  - [ ] **7.3.3.1** CRUD service: `http://crud-service.default.svc.cluster.local:8001`
+  - [ ] **7.3.3.2** Agent services: `http://{service-name}.default.svc.cluster.local:8000`
+- [ ] **7.3.4** Configure health probes for all backends
+
+**7.4 APIM Products & Subscriptions** (Priority: MEDIUM)
+- [ ] **7.4.1** Create products:
+  - [ ] **7.4.1.1** `anonymous-api` - Public endpoints (no subscription required)
+  - [ ] **7.4.1.2** `customer-api` - Customer endpoints (subscription required)
+  - [ ] **7.4.1.3** `staff-api` - Staff endpoints (subscription required)
+  - [ ] **7.4.1.4** `admin-api` - Admin endpoints (subscription required)
+- [ ] **7.4.2** Create subscription keys for frontend app
+- [ ] **7.4.3** Configure rate limits per product:
+  - [ ] **7.4.3.1** Anonymous: 100 requests/minute
+  - [ ] **7.4.3.2** Customer: 500 requests/minute
+  - [ ] **7.4.3.3** Staff: 1000 requests/minute
+  - [ ] **7.4.3.4** Admin: Unlimited
+
+**7.5 Testing & Validation** (Priority: HIGH)
+- [ ] **7.5.1** Test APIM endpoints:
+  - [ ] **7.5.1.1** Test JWT validation (valid token → 200, invalid → 401)
+  - [ ] **7.5.1.2** Test rate limiting (exceed limit → 429)
+  - [ ] **7.5.1.3** Test CORS (preflight requests)
+  - [ ] **7.5.1.4** Test backend routing
+  - [ ] **7.5.1.5** Test response caching
+- [ ] **7.5.2** Load test APIM (100 concurrent requests)
+- [ ] **7.5.3** Validate Application Insights logs
+
+---
+
+### Phase 8: Infrastructure & Security (Weeks 12-13)
+
+#### 📝 TODO TASKS
+
+**8.1 Key Vault Integration** (Priority: HIGH)
+- [ ] **8.1.1** Store secrets in Key Vault:
+  - [ ] **8.1.1.1** `cosmos-connection-string` (fallback if Managed Identity fails)
+  - [ ] **8.1.1.2** `stripe-secret-key`
+  - [ ] **8.1.1.3** `sendgrid-api-key`
+  - [ ] **8.1.1.4** `entra-tenant-id`
+  - [ ] **8.1.1.5** `entra-client-id`
+  - [ ] **8.1.1.6** `entra-client-secret`
+  - [ ] **8.1.1.7** `jwt-signing-key`
+- [ ] **8.1.2** Update CRUD service to fetch secrets from Key Vault:
+  - [ ] **8.1.2.1** Replace hardcoded secrets in `settings.py`
+  - [ ] **8.1.2.2** Use `DefaultAzureCredential` for authentication
+- [ ] **8.1.3** Implement secret rotation:
+  - [ ] **8.1.3.1** Add secret versioning support
+  - [ ] **8.1.3.2** Implement automatic refresh (every 24 hours)
+- [ ] **8.1.4** Test secret retrieval
+
+**8.2 Networking & Private Endpoints** (Priority: HIGH)
+- [ ] **8.2.1** Update `.infra/modules/shared-infrastructure/shared-infrastructure.bicep`:
+  - [ ] **8.2.1.1** Add VNet with subnets (see Phase 1.1.2.10)
+  - [ ] **8.2.1.2** Add NSG rules (allow only necessary traffic)
+  - [ ] **8.2.1.3** Add Private Endpoints for all PaaS services
+- [ ] **8.2.2** Configure Private DNS Zones:
+  - [ ] **8.2.2.1** Cosmos DB: `privatelink.documents.azure.com`
+  - [ ] **8.2.2.2** Event Hubs: `privatelink.servicebus.windows.net`
+  - [ ] **8.2.2.3** Storage: `privatelink.blob.core.windows.net`
+  - [ ] **8.2.2.4** Key Vault: `privatelink.vaultcore.azure.net`
+  - [ ] **8.2.2.5** Redis: `privatelink.redis.cache.windows.net`
+- [ ] **8.2.3** Disable public access on all PaaS services
+- [ ] **8.2.4** Test connectivity from AKS pods
+- [ ] **8.2.5** Validate DNS resolution
+
+**8.3 Azure Front Door** (Priority: MEDIUM)
+- [ ] **8.3.1** Create `.infra/modules/frontdoor/frontdoor.bicep`:
+  - [ ] **8.3.1.1** Provision Front Door Premium
+  - [ ] **8.3.1.2** Configure origin (Azure Blob Storage for images)
+  - [ ] **8.3.1.3** Configure caching rules (24 hours for images)
+  - [ ] **8.3.1.4** Enable compression (Brotli)
+  - [ ] **8.3.1.5** Configure custom domain (cdn.holidaypeakhub.com)
+- [ ] **8.3.2** Create WAF policy:
+  - [ ] **8.3.2.1** Enable OWASP Core Rule Set 3.2
+  - [ ] **8.3.2.2** Enable bot protection
+  - [ ] **8.3.2.3** Add rate limiting (per client IP)
+  - [ ] **8.3.2.4** Add geo-filtering (optional)
+- [ ] **8.3.3** Test CDN performance
+
+**8.4 Observability** (Priority: HIGH)
+- [ ] **8.4.1** Application Insights configuration:
+  - [ ] **8.4.1.1** Instrument CRUD service with OpenTelemetry
+  - [ ] **8.4.1.2** Add custom events (order created, payment processed, etc.)
+  - [ ] **8.4.1.3** Add custom metrics (cart abandonment rate, checkout success rate)
+  - [ ] **8.4.1.4** Configure sampling (100% for errors, 10% for success)
+- [ ] **8.4.2** Create Application Insights dashboards:
+  - [ ] **8.4.2.1** System health dashboard (requests/sec, error rate, response time)
+  - [ ] **8.4.2.2** Business metrics dashboard (orders/day, revenue, conversion rate)
+  - [ ] **8.4.2.3** Agent performance dashboard (agent latency, success rate)
+- [ ] **8.4.3** Create Log Analytics queries:
+  - [ ] **8.4.3.1** Failed requests in last hour
+  - [ ] **8.4.3.2** Slow Cosmos DB queries
+  - [ ] **8.4.3.3** Top 10 errors by count
+  - [ ] **8.4.3.4** Agent invocation latency (p50, p95, p99)
+- [ ] **8.4.4** Create alert rules:
+  - [ ] **8.4.4.1** Error rate > 5% (critical)
+  - [ ] **8.4.4.2** Response time > 2 seconds (warning)
+  - [ ] **8.4.4.3** Cosmos DB RU consumption > 80% (warning)
+  - [ ] **8.4.4.4** Payment failure rate > 1% (critical)
+
+**8.5 Disaster Recovery** (Priority: MEDIUM)
+- [ ] **8.5.1** Configure Cosmos DB backup:
+  - [ ] **8.5.1.1** Enable continuous backup (default)
+  - [ ] **8.5.1.2** Test point-in-time restore
+  - [ ] **8.5.1.3** Document restore procedure
+- [ ] **8.5.2** Configure AKS backup (Velero):
+  - [ ] **8.5.2.1** Install Velero in AKS
+  - [ ] **8.5.2.2** Configure backup to Blob Storage
+  - [ ] **8.5.2.3** Schedule daily backups
+  - [ ] **8.5.2.4** Test cluster restore
+- [ ] **8.5.3** Create runbook for multi-region failover
+- [ ] **8.5.4** Schedule monthly DR drills
+
+---
+
+### Phase 9: AKS Deployment (Week 14)
+
+#### 📝 TODO TASKS
+
+**9.1 Containerization** (Priority: CRITICAL)
+- [ ] **9.1.1** Build Docker image for CRUD service:
+  - [ ] **9.1.1.1** Test locally: `docker build -t crud-service:dev --target dev .`
+  - [ ] **9.1.1.2** Test production build: `docker build -t crud-service:prod --target prod .`
+  - [ ] **9.1.1.3** Run container locally: `docker run -p 8001:8000 crud-service:dev`
+  - [ ] **9.1.1.4** Validate health endpoint: `curl http://localhost:8001/health`
+- [ ] **9.1.2** Push to Azure Container Registry:
+  - [ ] **9.1.2.1** Login: `az acr login --name holidaypeakhub`
+  - [ ] **9.1.2.2** Tag: `docker tag crud-service:prod holidaypeakhub.azurecr.io/crud-service:1.0.0`
+  - [ ] **9.1.2.3** Push: `docker push holidaypeakhub.azurecr.io/crud-service:1.0.0`
+- [ ] **9.1.3** Scan image for vulnerabilities:
+  - [ ] **9.1.3.1** Enable Defender for Containers
+  - [ ] **9.1.3.2** Review scan results
+  - [ ] **9.1.3.3** Fix critical/high vulnerabilities
+
+**9.2 Kubernetes Manifests** (Priority: CRITICAL)
+- [ ] **9.2.1** Create `.kubernetes/crud-service/` folder
+- [ ] **9.2.2** Create `deployment.yaml`:
+  - [ ] **9.2.2.1** Define Deployment with 3 replicas
+  - [ ] **9.2.2.2** Configure resource requests/limits (CPU: 500m, Memory: 1Gi)
+  - [ ] **9.2.2.3** Add liveness probe (`/health/live`)
+  - [ ] **9.2.2.4** Add readiness probe (`/health/ready`)
+  - [ ] **9.2.2.5** Configure environment variables (Cosmos DB, Event Hubs, Redis, Key Vault URLs)
+  - [ ] **9.2.2.6** Add Azure Workload Identity annotations
+- [ ] **9.2.3** Create `service.yaml`:
+  - [ ] **9.2.3.1** Define ClusterIP service (port 8001)
+- [ ] **9.2.4** Create `ingress.yaml`:
+  - [ ] **9.2.4.1** Define Ingress (nginx controller)
+  - [ ] **9.2.4.2** Configure path routing (`/api/*` → crud-service)
+  - [ ] **9.2.4.3** Enable TLS (cert-manager)
+- [ ] **9.2.5** Create `configmap.yaml`:
+  - [ ] **9.2.5.1** Non-sensitive configuration
+- [ ] **9.2.6** Create `secret.yaml`:
+  - [ ] **9.2.6.1** Reference Key Vault secrets (CSI driver)
+
+**9.3 Helm Chart** (Priority: HIGH)
+- [ ] **9.3.1** Update `.kubernetes/chart/Chart.yaml`:
+  - [ ] **9.3.1.1** Add crud-service as dependency
+- [ ] **9.3.2** Update `.kubernetes/chart/values.yaml`:
+  - [ ] **9.3.2.1** Add crud-service configuration
+  - [ ] **9.3.2.2** Configure image repository and tag
+  - [ ] **9.3.2.3** Configure replicas (3 for prod, 1 for dev)
+  - [ ] **9.3.2.4** Configure resource limits
+- [ ] **9.3.3** Create Helm templates:
+  - [ ] **9.3.3.1** `templates/crud-service-deployment.yaml`
+  - [ ] **9.3.3.2** `templates/crud-service-service.yaml`
+  - [ ] **9.3.3.3** `templates/crud-service-ingress.yaml`
+- [ ] **9.3.4** Test Helm chart:
+  - [ ] **9.3.4.1** `helm template .kubernetes/chart --values .kubernetes/chart/values.yaml`
+  - [ ] **9.3.4.2** `helm lint .kubernetes/chart`
+
+**9.4 KEDA Autoscaling** (Priority: HIGH)
+- [ ] **9.4.1** Create `keda-scaledobject.yaml`:
+  - [ ] **9.4.1.1** Configure min/max replicas (1-10)
+  - [ ] **9.4.1.2** Add HTTP trigger (requests/sec threshold: 100)
+  - [ ] **9.4.1.3** Add Event Hub trigger (for event processing if needed)
+  - [ ] **9.4.1.4** Configure cooldown period (300 seconds)
+- [ ] **9.4.2** Test autoscaling:
+  - [ ] **9.4.2.1** Generate load (100 req/sec)
+  - [ ] **9.4.2.2** Verify replicas scale up
+  - [ ] **9.4.2.3** Stop load, verify replicas scale down
+
+**9.5 Deployment** (Priority: CRITICAL)
+- [ ] **9.5.1** Deploy to AKS:
+  - [ ] **9.5.1.1** Connect to AKS: `az aks get-credentials --resource-group shared-rg --name holiday-peak-aks`
+  - [ ] **9.5.1.2** Create namespace: `kubectl create namespace default` (if not exists)
+  - [ ] **9.5.1.3** Deploy: `kubectl apply -f .kubernetes/crud-service/`
+  - [ ] **9.5.1.4** Verify pods: `kubectl get pods -n default`
+  - [ ] **9.5.1.5** Check logs: `kubectl logs -n default -l app=crud-service`
+- [ ] **9.5.2** Verify connectivity:
+  - [ ] **9.5.2.1** Port-forward: `kubectl port-forward svc/crud-service 8001:8001 -n default`
+  - [ ] **9.5.2.2** Test health: `curl http://localhost:8001/health`
+  - [ ] **9.5.2.3** Test API endpoint: `curl http://localhost:8001/api/products`
+- [ ] **9.5.3** Verify Managed Identity:
+  - [ ] **9.5.3.1** Check Cosmos DB access
+  - [ ] **9.5.3.2** Check Event Hubs access
+  - [ ] **9.5.3.3** Check Key Vault access
+
+---
+
+### Phase 10: CI/CD & Testing (Week 15)
+
+#### 📝 TODO TASKS
+
+**10.1 GitHub Actions CI Pipeline** (Priority: CRITICAL)
+- [ ] **10.1.1** Create `.github/workflows/crud-service-ci.yml`:
+  - [ ] **10.1.1.1** Trigger on PR to main (paths: `apps/crud-service/**`, `lib/**`)
+  - [ ] **10.1.1.2** Job: Lint (black, isort, pylint, mypy)
+  - [ ] **10.1.1.3** Job: Unit tests (pytest with coverage)
+  - [ ] **10.1.1.4** Job: Integration tests (pytest with Cosmos DB emulator)
+  - [ ] **10.1.1.5** Job: Build Docker image
+  - [ ] **10.1.1.6** Job: Scan image (Trivy)
+  - [ ] **10.1.1.7** Job: Publish coverage report (Codecov)
+  - [ ] **10.1.1.8** Job: Quality gate (fail if coverage < 75%)
+- [ ] **10.1.2** Test CI pipeline with PR
+
+**10.2 GitHub Actions CD Pipeline** (Priority: CRITICAL)
+- [ ] **10.2.1** Create `.github/workflows/crud-service-cd.yml`:
+  - [ ] **10.2.1.1** Trigger on push to main (paths: `apps/crud-service/**`)
+  - [ ] **10.2.1.2** Job: Build and push Docker image to ACR
+  - [ ] **10.2.1.3** Job: Update Helm values with new image tag
+  - [ ] **10.2.1.4** Job: Deploy to AKS dev environment
+  - [ ] **10.2.1.5** Job: Run smoke tests
+  - [ ] **10.2.1.6** Job: Deploy canary (10% traffic)
+  - [ ] **10.2.1.7** Job: Wait 5 minutes, monitor error rate
+  - [ ] **10.2.1.8** Job: Promote to 100% or rollback
+- [ ] **10.2.2** Create secrets in GitHub:
+  - [ ] **10.2.2.1** `AZURE_CREDENTIALS` (service principal)
+  - [ ] **10.2.2.2** `ACR_LOGIN_SERVER`
+  - [ ] **10.2.2.3** `AKS_CLUSTER_NAME`
+  - [ ] **10.2.2.4** `AKS_RESOURCE_GROUP`
+- [ ] **10.2.3** Test CD pipeline with deployment
+
+**10.3 E2E Testing** (Priority: HIGH)
+- [ ] **10.3.1** Create `tests/e2e/test_checkout_flow.py`:
+  - [ ] **10.3.1.1** Test: User registration → Login → Add to cart → Checkout → Payment → Order created
+  - [ ] **10.3.1.2** Test: Guest checkout (no registration)
+  - [ ] **10.3.1.3** Test: Invalid payment handling
+  - [ ] **10.3.1.4** Test: Out-of-stock handling
+- [ ] **10.3.2** Create `tests/e2e/test_order_management.py`:
+  - [ ] **10.3.2.1** Test: Order tracking (anonymous with email)
+  - [ ] **10.3.2.2** Test: Order cancellation
+  - [ ] **10.3.2.3** Test: Return request
+- [ ] **10.3.3** Run E2E tests against staging environment
+
+**10.4 Load Testing** (Priority: HIGH)
+- [ ] **10.4.1** Create Azure Load Testing resource
+- [ ] **10.4.2** Create load test scenarios:
+  - [ ] **10.4.2.1** Product browsing (100 concurrent users)
+  - [ ] **10.4.2.2** Checkout flow (50 concurrent users)
+  - [ ] **10.4.2.3** Order tracking (200 concurrent users)
+- [ ] **10.4.3** Run load tests:
+  - [ ] **10.4.3.1** Target: 1000 requests/second
+  - [ ] **10.4.3.2** Duration: 10 minutes
+  - [ ] **10.4.3.3** Success criteria: p95 < 2 seconds, error rate < 1%
+- [ ] **10.4.4** Analyze results and optimize bottlenecks
+
+**10.5 Security Testing** (Priority: HIGH)
+- [ ] **10.5.1** Run OWASP ZAP scan:
+  - [ ] **10.5.1.1** Passive scan (no attacks)
+  - [ ] **10.5.1.2** Active scan (safe attacks)
+  - [ ] **10.5.1.3** Review findings
+  - [ ] **10.5.1.4** Fix critical/high vulnerabilities
+- [ ] **10.5.2** Run Snyk scan for dependency vulnerabilities
+- [ ] **10.5.3** Review Azure Security Center recommendations
+
+**10.6 Documentation** (Priority: MEDIUM)
+- [ ] **10.6.1** Create API documentation:
+  - [ ] **10.6.1.1** Generate OpenAPI spec from FastAPI
+  - [ ] **10.6.1.2** Host on Azure Static Web Apps or Swagger UI
+  - [ ] **10.6.1.3** Add authentication examples
+- [ ] **10.6.2** Create deployment runbook:
+  - [ ] **10.6.2.1** Infrastructure provisioning steps
+  - [ ] **10.6.2.2** Service deployment steps
+  - [ ] **10.6.2.3** Rollback procedures
+  - [ ] **10.6.2.4** Disaster recovery steps
+- [ ] **10.6.3** Create developer guide:
+  - [ ] **10.6.3.1** Local development setup
+  - [ ] **10.6.3.2** Testing guide
+  - [ ] **10.6.3.3** Contributing guidelines
+
+---
+
+## ✅ SUCCESS CRITERIA CHECKLIST
+
+### Functional Requirements
+- [ ] All 13 frontend pages have functional backend APIs
+- [ ] Microsoft Entra ID authentication working
+- [ ] RBAC enforced (anonymous, customer, staff, admin)
+- [ ] Event-driven integration with 21 agent services
+- [ ] Payment processing with Stripe
+
+### Non-Functional Requirements
+- [ ] 75%+ test coverage (unit + integration)
+- [ ] p95 response time < 2 seconds under load
+- [ ] Error rate < 1% under load
+- [ ] Horizontal autoscaling working (KEDA)
+- [ ] All APIs documented (OpenAPI)
+
+### Security Requirements
+- [ ] All secrets in Key Vault (no hardcoded credentials)
+- [ ] Managed Identity for all Azure service access
+- [ ] Private Endpoints for all PaaS services
+- [ ] WAF enabled on Front Door
+- [ ] No critical/high vulnerabilities in security scan
+
+### Observability Requirements
+- [ ] Distributed tracing implemented (Application Insights)
+- [ ] Custom metrics tracked (business + technical)
+- [ ] Alert rules configured
+- [ ] Dashboards created
+
+### Operational Requirements
+- [ ] CI/CD pipelines working (GitHub Actions)
+- [ ] Canary deployments configured
+- [ ] Disaster recovery tested
+- [ ] Runbooks documented
+
+---
+
+## 📊 PROGRESS TRACKING
+
+**Overall Progress**: 0% (0/300+ tasks completed)
+
+### Phase Status
+| Phase | Tasks | Completed | Status |
+|-------|-------|-----------|--------|
+| Phase 1: Foundation | 60 | 0 | ⏳ Not Started |
+| Phase 2: Auth | 25 | 0 | ⏳ Not Started |
+| Phase 3: Core CRUD | 35 | 0 | ⏳ Not Started |
+| Phase 4: E-Commerce | 40 | 0 | ⏳ Not Started |
+| Phase 5: Events | 20 | 0 | ⏳ Not Started |
+| Phase 6: Staff/Admin | 50 | 0 | ⏳ Not Started |
+| Phase 7: APIM | 25 | 0 | ⏳ Not Started |
+| Phase 8: Infra | 35 | 0 | ⏳ Not Started |
+| Phase 9: AKS | 30 | 0 | ⏳ Not Started |
+| Phase 10: CI/CD | 25 | 0 | ⏳ Not Started |
+
+---
+
 ## Executive Summary
 
 This document outlines the comprehensive backend implementation plan for Holiday Peak Hub, defining all **non-agent capabilities** (CRUD operations, authentication, database schemas, REST APIs) needed to support the 13 frontend pages while integrating with the existing 21 AI agent services.

@@ -1,6 +1,6 @@
 import {ReactNode} from 'react'
 import {Metadata} from 'next'
-import { ThemeProvider } from '@/contexts/ThemeContext'
+import Providers from './providers'
 
 import '@/css/tailwind.css'
 import './globals.css'
@@ -19,10 +19,15 @@ export const metadata: Metadata = {
   title: 'Holiday Peak Hub',
   description: 'Intelligent Retail Platform',
   icons: {
-    icon: '@/public/icons/favicon-32x32.png',
-    apple: '@/public/icons/apple-icon-180x180.png',
+    icon: '/icons/favicon-32x32.png',
+    apple: '/icons/apple-icon-180x180.png',
   },
-  viewport: 'width=device-width, initial-scale=1, shrink-to-fit=no'
+}
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  shrinkToFit: 'no',
 }
 
 export default function RootLayout({
@@ -33,9 +38,9 @@ export default function RootLayout({
   return (
     <html lang="pt-br" suppressHydrationWarning>
       <body className="font-sans text-sm antialiased disable-scrollbars bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
-        <ThemeProvider>
+        <Providers>
           {children}
-        </ThemeProvider>
+        </Providers>
       </body>
     </html>
   )

@@ -1,0 +1,159 @@
+[project]
+name = "crud-service"
+version = "1.0.0"
+description = "Holiday Peak Hub CRUD API - Transactional data operations"
+authors = [
+    {name = "Holiday Peak Hub Team", email = "team@holidaypeakhub.com"}
+]
+readme = "README.md"
+requires-python = ">=3.13"
+license = {text = "MIT"}
+
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.6.0",
+    # Azure SDKs (use Managed Identity)
+    "azure-cosmos>=4.7.0",
+    "azure-eventhub>=5.12.0",
+    "azure-identity>=1.19.0",
+    "azure-keyvault-secrets>=4.9.0",
+    "azure-storage-blob>=12.23.0",
+    "redis>=5.2.0",
+    # Authentication
+    "python-jose[cryptography]>=3.3.0",
+    "python-multipart>=0.0.20",
+    # Payment
+    "stripe>=11.1.0",
+    # HTTP client
+    "httpx>=0.28.0",
+    # Observability
+    "azure-monitor-opentelemetry>=1.7.0",
+    "opentelemetry-api>=1.28.0",
+    "opentelemetry-sdk>=1.28.0",
+    "structlog>=24.4.0",
+    # Utilities
+    "python-dateutil>=2.9.0",
+    "email-validator>=2.2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.25.0",
+    "pytest-cov>=6.0.0",
+    "pytest-mock>=3.14.0",
+    "httpx>=0.28.0",  # For testing FastAPI
+    "black>=24.10.0",
+    "isort>=5.13.0",
+    "pylint>=3.3.0",
+    "mypy>=1.13.0",
+    "ruff>=0.8.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+asyncio_mode = "auto"
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--cov=crud_service",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+]
+
+[tool.coverage.run]
+source = ["crud_service"]
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/venv/*",
+    "*/.venv/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
+
+[tool.black]
+line-length = 100
+target-version = ["py313"]
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 100
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+disallow_untyped_decorators = false
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+strict_optional = true
+
+[[tool.mypy.overrides]]
+module = [
+    "azure.*",
+    "redis.*",
+    "stripe.*",
+]
+ignore_missing_imports = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "C",  # flake8-comprehensions
+    "B",  # flake8-bugbear
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+    "B008",  # do not perform function calls in argument defaults
+]
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401"]  # unused imports in __init__.py
