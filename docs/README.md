@@ -12,16 +12,14 @@ Holiday Peak Hub is a **cloud-native, agent-driven retail accelerator** with com
 ## 📚 Documentation Index
 
 ### Implementation Plans
-- **[Backend Implementation Plan](backend_plan.md)** (v2.0, 140+ pages)
-  - Complete cloud-native architecture
-  - Database schemas (10 Cosmos DB containers)
-  - REST API specifications (60+ endpoints)
-  - Microsoft Entra ID authentication
-  - Azure API Management configuration
-  - CI/CD pipelines with GitHub Actions
-  - Cloud-native security (Key Vault, Managed Identity, Private Endpoints)
-  - Disaster recovery and cost management
-  - 8-phase implementation roadmap
+- **[Implementation Roadmap](IMPLEMENTATION_ROADMAP.md)** - Current progress and pending tasks
+  - Phase 1 Complete: CRUD service, frontend integration, infrastructure modules
+  - Phases 2-7 Pending: Deployment, testing, monitoring, optimization
+  - Estimated 29-46 hours to complete
+- **[CRUD Service Documentation](architecture/crud-service-implementation.md)** - Complete implementation details
+  - 31 REST endpoints, authentication, event publishing
+  - Database schemas, deployment guides
+  - Frontend integration examples
 
 ### Architecture Documentation
 
@@ -61,7 +59,18 @@ Holiday Peak Hub is a **cloud-native, agent-driven retail accelerator** with com
 
 ### Application Layer
 **Technology**: FastAPI (Python 3.13)  
-**Status**: ✅ 21 Agent Services Complete, ⏳ CRUD Service Planned
+**Status**: ✅ CRUD Service Complete, ✅ 21 Agent Services Complete
+
+**CRUD Service** ✅ **IMPLEMENTED**:
+- **31 REST endpoints** across 15 route modules
+- **Authentication**: Entra ID JWT validation, RBAC (anonymous, customer, staff, admin)
+- **Repositories**: Base + specialized (User, Product, Order, Cart)
+- **Routes**: health, auth, users, products, categories, cart, orders, checkout, payments, reviews
+- **Staff Routes**: analytics, tickets, returns, shipments
+- **Integrations**: Event Hubs publisher (5 topics), MCP agent client
+- **Testing**: Unit, integration, and e2e test structure
+- **Location**: `apps/crud-service/`
+- **Documentation**: [CRUD Service Implementation](architecture/crud-service-implementation.md)
 
 **Agent Services** (21):
 - E-Commerce (5): catalog-search, product-detail-enrichment, cart-intelligence, checkout-support, order-status
@@ -70,12 +79,15 @@ Holiday Peak Hub is a **cloud-native, agent-driven retail accelerator** with com
 - Inventory (4): health-check, jit-replenishment, reservation-validation, alerts-triggers
 - Logistics (4): eta-computation, carrier-selection, returns-support, route-issue-detection
 
-**CRUD Service** (planned):
-- User management
-- Order management
-- Cart management
-- Product CRUD
-- Authentication flows
+**CRUD Service** ✅ **IMPLEMENTED**:
+- **31 REST endpoints** across 15 route modules
+- **Authentication**: Entra ID JWT validation, RBAC (anonymous, customer, staff, admin)
+- **Repositories**: Base + specialized (User, Product, Order, Cart)
+- **Routes**: health, auth, users, products, categories, cart, orders, checkout, payments, reviews
+- **Staff Routes**: analytics, tickets, returns, shipments
+- **Integrations**: Event Hubs publisher (5 topics), MCP agent client
+- **Testing**: Unit, integration, and e2e test structure
+- **Location**: `apps/crud-service/`
 
 ### Data Layer
 **Technology**: Cosmos DB, Redis, Blob Storage  
@@ -185,7 +197,7 @@ Holiday Peak Hub is a **cloud-native, agent-driven retail accelerator** with com
 - Admin portal backend
 - Optimization & monitoring
 
-**Timeline**: 13 weeks (see [Implementation Roadmap](backend_plan.md#implementation-roadmap))
+**Timeline**: 1-2 weeks remaining (see [Implementation Roadmap](IMPLEMENTATION_ROADMAP.md))
 
 ---
 
@@ -301,7 +313,8 @@ python -m .infra.cli deploy_all --location <region> --version <release>
 ## 🔗 Quick Links
 
 ### For Developers
-- [Backend Implementation Plan](backend_plan.md) - Start here for backend development
+- [Implementation Roadmap](IMPLEMENTATION_ROADMAP.md) - Current status and next steps
+- [CRUD Service Documentation](architecture/crud-service-implementation.md) - Backend implementation details
 - [Components Documentation](architecture/components.md) - All framework and service components
 - [Frontend Component Library](../apps/ui/components/COMPONENT_README.md) - Component API reference
 - [Playbooks](architecture/playbooks/) - Operational procedures

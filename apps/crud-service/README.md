@@ -375,7 +375,8 @@ pytest --cov=crud_service --cov-report=html
 
 ## Related Documentation
 
-- [Backend Implementation Plan](../../docs/backend_plan.md)
+- [Implementation Roadmap](../../docs/IMPLEMENTATION_ROADMAP.md)
+- [CRUD Service Implementation Guide](../../docs/architecture/crud-service-implementation.md)
 - [Shared Infrastructure](../../.infra/modules/shared-infrastructure/README.md)
 - [ADR-007: SAGA Choreography](../../docs/architecture/adrs/adr-007-saga-choreography.md)
 - [ADR-009: AKS Deployment](../../docs/architecture/adrs/adr-009-aks-deployment.md)

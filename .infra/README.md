@@ -274,7 +274,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed troubleshooting.
 
 1. ✅ Deploy shared infrastructure to Azure
 2. ✅ Deploy Static Web App
-3. 🔄 Create CRUD service (see `docs/backend_plan.md` Phase 1.2)
+3. ✅ CRUD service created (see `docs/architecture/crud-service-implementation.md`)
 4. 🔄 Deploy agent services to shared AKS
 5. 🔄 Configure APIM routes
 6. 🔄 Set up CI/CD pipelines
@@ -298,6 +298,6 @@ When adding new infrastructure:
 
 - **Deployment Guide**: [DEPLOYMENT.md](DEPLOYMENT.md)
 - **Architecture**: [SUMMARY.md](SUMMARY.md)
-- **Backend Plan**: [../docs/backend_plan.md](../docs/backend_plan.md)
+- **Implementation Roadmap**: [../docs/IMPLEMENTATION_ROADMAP.md](../docs/IMPLEMENTATION_ROADMAP.md)
 - **ADRs**: [../docs/architecture/ADRs.md](../docs/architecture/ADRs.md)
 

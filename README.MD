@@ -4,8 +4,12 @@
 
 ![Status](https://img.shields.io/badge/Status-Active%20Development-green)
 ![Frontend](https://img.shields.io/badge/Frontend-Complete-brightgreen)
-![Backend%20Plan](https://img.shields.io/badge/Backend%20Plan-Ready-blue)
+![Backend](https://img.shields.io/badge/Backend-Complete-brightgreen)
 ![Architecture](https://img.shields.io/badge/Architecture-Cloud--Native-orange)
+![Code Style](https://img.shields.io/badge/code%20style-black-000000.svg)
+![Coverage](https://img.shields.io/badge/coverage-91%25-brightgreen)
+
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FAzure-Samples%2Fholiday-peak-hub%2Fmain%2F.infra%2Fmodules%2Fshared-infrastructure%2Fshared-infrastructure-main.bicep)
 
 ## 🎉 Recent Updates (January 2026)
 
@@ -16,13 +20,14 @@
 - **Full responsive design** with Tailwind CSS 4.0
 - See [Components Documentation](docs/architecture/components.md) for complete details
 
-### ✅ Backend Implementation Plan Complete
+### ✅ Backend Implementation Progress
+- **CRUD Service**: Fully implemented with 31 endpoints across 15 route modules
 - **Cloud-native architecture** with Azure best practices
 - **10 database schemas** for operational data (Cosmos DB)
-- **60+ REST API endpoints** specification
-- **CI/CD pipelines** with GitHub Actions
+- **Event-driven integration** with Azure Event Hubs (5 topics)
+- **Authentication**: Microsoft Entra ID JWT validation with RBAC
 - **Zero-trust networking** with Private Endpoints and Managed Identity
-- See [Backend Implementation Plan](docs/backend_plan.md)
+- See [Implementation Roadmap](docs/IMPLEMENTATION_ROADMAP.md) and [CRUD Service Documentation](docs/architecture/crud-service-implementation.md)
 
 ### ✅ Architecture Documentation
 - **20 ADRs** covering all major decisions
@@ -41,9 +46,10 @@ Agent-driven retail accelerator with a reusable micro-framework, multi-tier memo
 ## 📚 Documentation
 
 ### Core Documentation
-- **[Backend Implementation Plan](docs/backend_plan.md)** - Complete backend architecture, database schemas, API specifications, CI/CD, cloud-native patterns (140+ pages)
+- **[Implementation Roadmap](docs/IMPLEMENTATION_ROADMAP.md)** - Completed work and pending tasks with timelines
 - **[Architecture Documentation](docs/architecture/)** - ADRs, components, system design, diagrams, playbooks
 - **[Components Documentation](docs/architecture/components.md)** - Framework libraries, 21 agent services, and complete frontend component library (52 components, 15 pages)
+- **[CRUD Service Documentation](docs/architecture/crud-service-implementation.md)** - Complete CRUD service implementation details
 - **[Business Summary](docs/architecture/business-summary.md)** - Business context and requirements
 
 ### Architecture Decision Records (ADRs)
@@ -65,19 +71,22 @@ Agent-driven retail accelerator with a reusable micro-framework, multi-tier memo
 ## 🏗️ Architecture Highlights
 
 ### Frontend (Production-Ready)
-- **Framework**: Next.js 15.1.6 with App Router, React 19, TypeScript 5.7.2
-- **Styling**: Tailwind CSS 4.0 with custom color system
+- **Framework**: Next.js 16.2.0 (canary) with App Router, React 19, TypeScript 5.7.2
+- **Styling**: Tailwind CSS 3.4.0 with ocean/lime/cyan color system
 - **Components**: 52 components (19 atoms, 20 molecules, 9 organisms, 4 templates)
 - **Pages**: 13 pages across 4 user roles
-- **Data Fetching**: TanStack Query with Axios
-- **Location**: `apps/ui/`
+- **Authentication**: Microsoft Entra ID via @azure/msal-browser & @azure/msal-react
+- **Data Fetching**: TanStack Query 5.90.20 with Axios 1.7.9
+- **API Integration**: Complete TypeScript client layer (6 services, 5 hooks)
+- **Location**: `apps/ui/` | **Setup**: See [INTEGRATION.md](apps/ui/INTEGRATION.md)
 
-### Backend (Plan Complete, Ready for Implementation)
-- **API Gateway**: Azure API Management with Entra ID policies
-- **Services**: FastAPI (Python 3.13) with 21 AI agent services + 1 CRUD service
+### Backend (CRUD Service Complete, Agents Ready)
+- **API Gateway**: Azure API Management with Entra ID policies (planned)
+- **Services**: FastAPI (Python 3.13) with 21 AI agent services + 1 CRUD service ✅
+- **CRUD Service**: 31 endpoints, 15 route modules, event publishing, managed identity auth
 - **Database**: Azure Cosmos DB (10 containers with optimized partitioning)
-- **Authentication**: Microsoft Entra ID (OAuth 2.0 / OpenID Connect)
-- **Messaging**: Azure Event Hubs (SAGA choreography)
+- **Authentication**: Microsoft Entra ID JWT validation with RBAC ✅
+- **Messaging**: Azure Event Hubs (5 topics: user, product, order, inventory, payment) ✅
 - **Memory**: Redis (hot), Cosmos DB (warm), Blob Storage (cold)
 
 ### Cloud-Native Infrastructure
@@ -102,25 +111,72 @@ Agent-driven retail accelerator with a reusable micro-framework, multi-tier memo
 
 ## Quickstart
 
-Requirements: Python 3.13, pip, Docker (for images), Azure CLI (for Bicep deploys), and access to Redis, Azure Cosmos DB, Azure Storage, and Azure AI Search when exercising the memory/adapters end-to-end.
+### Prerequisites
+- **Python 3.13+** for backend services
+- **Node.js 20+ and Yarn** for frontend
+- **Docker** for container images
+- **Azure CLI** for Bicep deployments
+- **Access to Azure services**: Redis, Cosmos DB, Storage, AI Search, Event Hubs
 
-Environment: a shared .env at repo root carries per-service endpoints keyed off `RELEASE_VERSION`; adjust values to match your release and secrets before running locally or deploying.
+### 1. Setup Backend (CRUD Service + Agents)
 
-Install the framework and all apps:
-
-```pwsh
+```bash
+# Install framework and all services
 python -m pip install --upgrade pip
 pip install -e lib
 Get-ChildItem apps | ForEach-Object { pip install -e (Join-Path $_.FullName 'src') }
+
+# Run CRUD Service
+cd apps/crud-service/src
+cp .env.example .env  # Configure your Azure resources
+uvicorn crud_service.main:app --reload --port 8000
+
+# Run an Agent Service (example: catalog search)
+cd apps/ecommerce-catalog-search/src
+uvicorn main:app --reload --port 8001
 ```
 
-Run any service locally (example: ecommerce catalog search):
+### 2. Setup Frontend
 
-```pwsh
-uvicorn main:app --reload --app-dir apps/ecommerce-catalog-search/src --port 8000
+```bash
+cd apps/ui
+cp .env.example .env.local  # Configure API URL and Entra ID
+yarn install
+yarn dev
+# Open http://localhost:3000
 ```
 
-Each service exposes a simple health endpoint at `/health`. Set environment variables for your backing services (Redis, Cosmos DB, Storage, Search, Event Hub) before exercising end-to-end flows. Prefer high-cardinality partition keys and hierarchical partition keys for Cosmos DB to balance throughput and minimize cross-partition scans.
+### 3. Configure Environment Variables
+
+**Backend** (`.env`):
+```bash
+COSMOS_ACCOUNT_URI=https://your-account.documents.azure.com:443/
+COSMOS_DATABASE=holiday-peak-hub
+EVENTHUB_NAMESPACE=your-namespace.servicebus.windows.net
+REDIS_URL=redis://your-redis.redis.cache.windows.net:6380
+KEYVAULT_URL=https://your-keyvault.vault.azure.net/
+ENTRA_TENANT_ID=your-tenant-id
+ENTRA_CLIENT_ID=your-client-id
+```
+
+**Frontend** (`.env.local`):
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_ENTRA_CLIENT_ID=your-client-id
+NEXT_PUBLIC_ENTRA_TENANT_ID=your-tenant-id
+```
+
+### 4. Verify Health
+
+```bash
+# CRUD Service
+curl http://localhost:8000/health
+
+# Frontend
+curl http://localhost:3000/api/health
+```
+
+**See [Implementation Roadmap](docs/IMPLEMENTATION_ROADMAP.md) for deployment to Azure.**
 
 ## Testing and linting
 
@@ -152,11 +208,21 @@ The workflow in .github/workflows/ci.yml runs lint, format, and tests on pushes/
 - **Inventory** (4): health-check, jit-replenishment, reservation-validation, alerts-triggers
 - **Logistics** (4): eta-computation, carrier-selection, returns-support, route-issue-detection
 
-### Frontend Application
-- **Next.js UI** (`apps/ui/`): Complete e-commerce frontend with 13 pages, 52 components, dark mode support
+### Backend Services
+- **CRUD Service** ✅ (`apps/crud-service/`): FastAPI REST API with 31 endpoints
+  - Authentication: Microsoft Entra ID JWT validation + RBAC
+  - Routes: health, auth, users, products, categories, cart, orders, checkout, payments, reviews
+  - Staff routes: analytics, tickets, returns, shipments
+  - Event publishing: 5 Event Hubs topics (user, product, order, inventory, payment)
+  - Integration: MCP agent client, Cosmos DB repositories
 
-### Planned Services
-- **CRUD Service** (from backend plan): REST API for non-agent operations (user management, orders, cart, etc.)
+### Frontend Application
+- **Next.js UI** ✅ (`apps/ui/`): Complete e-commerce frontend
+  - 13 production-ready pages across 4 user roles
+  - 52 components following atomic design (19 atoms, 20 molecules, 9 organisms, 4 templates)
+  - Complete API integration: 6 services, 5 React Query hooks
+  - Authentication: MSAL integration (SSR-safe)
+  - Ocean/lime/cyan color system with dark mode support
 
 ## Configuration notes
 
@@ -172,7 +238,7 @@ The workflow in .github/workflows/ci.yml runs lint, format, and tests on pushes/
 - **API Gateway**: Azure API Management with JWT validation policies
 - **Deployment**: AKS with Helm, KEDA autoscaling, canary deployments
 - **Monitoring**: Application Insights with distributed tracing, Log Analytics
-- See [Backend Implementation Plan](docs/backend_plan.md) for complete details
+- See [Implementation Roadmap](docs/IMPLEMENTATION_ROADMAP.md) for deployment steps
 
 ---
 
@@ -263,7 +329,7 @@ python -m .infra.cli deploy_all --location eastus --version 1.0.0
 - **Tag with `v*`**: Production deployment with canary strategy
 - **PR**: Automated linting, testing, security scanning
 
-See [CI/CD Pipeline documentation](docs/backend_plan.md#cicd-pipeline) for details.
+See [Implementation Roadmap](docs/IMPLEMENTATION_ROADMAP.md) for deployment details.
 
 ---
 
@@ -273,11 +339,11 @@ See [CI/CD Pipeline documentation](docs/backend_plan.md#cicd-pipeline) for detai
 |-----------|--------|---------------|
 | **Frontend** | ✅ Complete | [Frontend Plan](docs/architecture/FRONTEND_IMPLEMENTATION_PLAN.md) |
 | **21 AI Agent Services** | ✅ Complete | [Components](docs/architecture/components.md) |
-| **Backend Plan** | ✅ Complete | [Backend Plan](docs/backend_plan.md) |
-| **Cloud Architecture** | ✅ Designed | [Backend Plan - Cloud Native](docs/backend_plan.md#cloud-native-architecture) |
-| **CI/CD Pipelines** | ✅ Designed | [Backend Plan - CI/CD](docs/backend_plan.md#cicd-pipeline) |
-| **CRUD Service** | ⏳ Pending | [Backend Plan - Phase 1](docs/backend_plan.md#phase-1-foundation-weeks-1-2) |
-| **Infrastructure (Bicep)** | ⏳ Pending | [Backend Plan - Phase 1](docs/backend_plan.md#phase-1-foundation-weeks-1-2) |
+| **CRUD Service** | ✅ Complete | [CRUD Service Docs](docs/architecture/crud-service-implementation.md) |
+| **Frontend Integration** | ✅ Complete | [Integration Guide](apps/ui/INTEGRATION.md) |
+| **Cloud Architecture** | ✅ Designed | [Shared Infrastructure](.infra/modules/shared-infrastructure/README.md) |
+| **Infrastructure (Bicep)** | ⏳ Pending Deployment | [Implementation Roadmap](docs/IMPLEMENTATION_ROADMAP.md) |
+| **Agent Deployment** | ⏳ Pending | [Implementation Roadmap](docs/IMPLEMENTATION_ROADMAP.md) |
 | **E2E Integration** | ⏳ Pending | Phases 2-8 |
 
 ---
