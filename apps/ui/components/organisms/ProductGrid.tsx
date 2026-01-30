@@ -43,7 +43,7 @@ export interface ProductGridProps extends BaseComponentProps {
 }
 
 export const ProductGrid: React.FC<ProductGridProps> = ({
-  products,
+  products = [],
   sortOptions = [
     { key: 'relevance', label: 'Most Relevant', value: 'relevance' },
     { key: 'price-asc', label: 'Price: Low to High', value: 'price-asc' },

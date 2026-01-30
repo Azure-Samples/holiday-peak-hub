@@ -188,7 +188,7 @@ input[type="number"] {
     width: 4px;
     @apply bg-blue-500;
   }
-  &::hover,
+  &:hover,
   &.active {
     @apply text-blue-500;
     &::after {

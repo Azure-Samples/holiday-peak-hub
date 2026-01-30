@@ -28,10 +28,14 @@
     ]
   },
   "dependencies": {
+    "@azure/msal-browser": "^5.1.0",
+    "@azure/msal-react": "^5.0.3",
     "@headlessui/react": "^2.2.0",
     "@heroicons/react": "^2.2.0",
     "@popperjs/core": "^2.11.8",
     "@reduxjs/toolkit": "^2.5.0",
+    "@tanstack/react-query": "^5.90.20",
+    "@tanstack/react-query-devtools": "^5.91.2",
     "@types/accounting": "^0.4.5",
     "@types/nprogress": "^0.2.3",
     "@types/react": "^19.0.6",
@@ -44,7 +48,7 @@
     "date-fns": "^4.1.0",
     "depcheck": "^1.4.7",
     "dpdm": "^3.14.0",
-    "next": "^15.1.6",
+    "next": "^16.2.0-canary.17",
     "nprogress": "^0.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -63,11 +67,10 @@
   "devDependencies": {
     "@commitlint/cli": "^19.7.1",
     "@commitlint/config-conventional": "^16.2.4",
-    "@next/eslint-plugin-next": "^12.1.6",
-    "@tailwindcss/aspect-ratio": "^0.4.0",
-    "@tailwindcss/forms": "^0.5.1",9.7.0",
     "@faker-js/faker": "^9.3.0",
     "@next/bundle-analyzer": "^15.1.6",
+    "@next/eslint-plugin-next": "^12.1.6",
+    "@tailwindcss/aspect-ratio": "^0.4.0",
     "@tailwindcss/forms": "^0.5.9",
     "@tailwindcss/typography": "^0.5.15",
     "@testing-library/jest-dom": "^6.6.3",
@@ -91,6 +94,10 @@
     "postcss": "^8.4.49",
     "postcss-import": "^16.1.0",
     "postcss-nested": "^7.0.2",
+    "postcss-nesting": "12.1.5",
     "prettier": "^3.4.2",
-    "tailwindcss": "^4.0.0",
-    "typescript": "^5.7.2
+    "tailwindcss": "3.4.0",
+    "typescript": "^5.7.2"
+  },
+  "packageManager": "yarn@1.22.21+sha1.1959a18351b811cdeedbd484a8f86c3cc3bbaf72"
+}

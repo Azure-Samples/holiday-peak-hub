@@ -33,7 +33,7 @@ export interface FilterPanelProps extends BaseComponentProps {
 }
 
 export const FilterPanel: React.FC<FilterPanelProps> = ({
-  filterGroups,
+  filterGroups = [],
   selectedFilters = {},
   onFilterChange,
   onClearAll,

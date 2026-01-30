@@ -29,10 +29,6 @@
     --color-border: #2D3748;
   }
 
-  * {
-    @apply border-border;
-  }
-
   body {
     @apply bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-50;
   }
@@ -59,12 +55,12 @@
 
   /* Input styles */
   .input {
-    @apply bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 focus:ring-ocean-500 dark:focus:ring-ocean-300;
+    @apply bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-300 focus:border-blue-500 dark:focus:border-blue-300;
   }
 
   /* Link styles */
   .link {
-    @apply text-ocean-500 hover:text-ocean-600 dark:text-ocean-300 dark:hover:text-ocean-400 underline-offset-4 hover:underline;
+    @apply text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 underline-offset-4 hover:underline;
   }
 }
 

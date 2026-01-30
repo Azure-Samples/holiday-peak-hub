@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { use, useState } from 'react';
 import { ShopLayout } from '@/components/templates/ShopLayout';
 import { Card } from '@/components/molecules/Card';
 import { Button } from '@/components/atoms/Button';
@@ -10,7 +10,8 @@ import { Checkbox } from '@/components/atoms/Checkbox';
 import Link from 'next/link';
 import { FiGrid, FiList, FiFilter } from 'react-icons/fi';
 
-export default function CategoryPage({ params }: { params: { slug: string } }) {
+export default function CategoryPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = use(params);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortBy, setSortBy] = useState('popular');
 
@@ -82,7 +83,7 @@ export default function CategoryPage({ params }: { params: { slug: string } }) {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-          {params.slug.charAt(0).toUpperCase() + params.slug.slice(1)} Products
+          {slug.charAt(0).toUpperCase() + slug.slice(1)} Products
         </h1>
         <p className="text-gray-600 dark:text-gray-400">
           Showing {products.length} results
