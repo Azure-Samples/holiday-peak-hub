@@ -32,6 +32,12 @@ export interface Product {
   category_id: string;
   image_url?: string;
   in_stock: boolean;
+  rating?: number;
+  review_count?: number;
+  features?: string[];
+  media?: Array<{ url: string; type?: string }>;
+  inventory?: Record<string, unknown>;
+  related?: Array<Record<string, unknown>>;
 }
 
 // Category types

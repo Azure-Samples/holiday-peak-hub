@@ -1,8 +1,10 @@
 """Order status agent implementation and MCP tool registration."""
 from __future__ import annotations
 
+import os
 from typing import Any
 
+from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 
@@ -81,6 +83,14 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
 
     mcp.add_tool("/order/status", get_order_status)
     mcp.add_tool("/order/events", get_order_events)
+    _register_crud_tools(mcp)
+
+
+def _register_crud_tools(mcp: FastAPIMCPServer) -> None:
+    crud_url = os.getenv("CRUD_SERVICE_URL")
+    if not crud_url:
+        return
+    BaseCRUDAdapter(crud_url).register_mcp_tools(mcp)
 
 
 def _order_status_instructions(service_name: str) -> str:

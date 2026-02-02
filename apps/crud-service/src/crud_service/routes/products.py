@@ -22,6 +22,12 @@ class ProductResponse(BaseModel):
     category_id: str
     image_url: str | None = None
     in_stock: bool = True
+    rating: float | None = None
+    review_count: int | None = None
+    features: list[str] | None = None
+    media: list[dict[str, object]] | None = None
+    inventory: dict[str, object] | None = None
+    related: list[dict[str, object]] | None = None
 
 
 @router.get("/products", response_model=list[ProductResponse])
@@ -52,7 +58,7 @@ async def list_products(
     if current_user:
         try:
             recommendations = await agent_client.get_user_recommendations(
-                user_id=current_user.user_id, category=category
+                user_id=current_user.user_id
             )
             # TODO: Reorder products based on recommendations
         except Exception:
@@ -67,6 +73,20 @@ async def get_product(product_id: str):
     product = await product_repo.get_by_id(product_id)
     if not product:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
+
+    # Optionally enrich product details
+    try:
+        enrichment = await agent_client.get_product_enrichment(product_id)
+        if isinstance(enrichment, dict):
+            product["description"] = enrichment.get("description", product.get("description"))
+            product["rating"] = enrichment.get("rating")
+            product["review_count"] = enrichment.get("review_count")
+            product["features"] = enrichment.get("features")
+            product["media"] = enrichment.get("media")
+            product["inventory"] = enrichment.get("inventory")
+            product["related"] = enrichment.get("related")
+    except Exception:
+        pass  # Use base product data
 
     # Optionally get dynamic pricing
     try:

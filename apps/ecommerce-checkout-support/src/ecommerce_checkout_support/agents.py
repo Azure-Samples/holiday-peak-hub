@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from typing import Any
 
+from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 
@@ -96,6 +98,14 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
     mcp.add_tool("/checkout/validate", validate_checkout)
     mcp.add_tool("/checkout/pricing", get_pricing)
     mcp.add_tool("/checkout/inventory", get_inventory)
+        _register_crud_tools(mcp)
+
+
+    def _register_crud_tools(mcp: FastAPIMCPServer) -> None:
+        crud_url = os.getenv("CRUD_SERVICE_URL")
+        if not crud_url:
+            return
+        BaseCRUDAdapter(crud_url).register_mcp_tools(mcp)
 
 
 def _coerce_items(raw_items: Any) -> list[dict[str, object]]:

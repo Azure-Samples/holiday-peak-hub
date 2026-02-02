@@ -1,11 +1,16 @@
 """Tests for adapter base classes."""
-import pytest
 import asyncio
+
+import httpx
+import pytest
+from fastapi import FastAPI
+from holiday_peak_lib.adapters import BaseCRUDAdapter, BaseExternalAPIAdapter, BaseMCPAdapter
 from holiday_peak_lib.adapters.base import (
     BaseAdapter,
     AdapterError,
     BaseConnector,
 )
+from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from pydantic import BaseModel
 
 
@@ -102,9 +107,9 @@ class TestBaseAdapter:
         """Test that fetch uses cache."""
         adapter = SampleAdapter(cache_ttl=10.0)
         # First fetch
-        await adapter.fetch({"query": "test"})
+        result1 = await adapter.fetch({"query": "test"})
         # Second fetch should use cache
-        await adapter.fetch({"query": "test"})
+        result2 = await adapter.fetch({"query": "test"})
         assert adapter.fetch_count == 1  # Only called once
         assert result2 == result1  # Cache should return same data
 
@@ -303,3 +308,72 @@ class TestBaseConnector:
         
         assert len(results) == 2
         assert all(isinstance(r, SampleModel) for r in results)
+
+
+class TestMCPAdapters:
+    """Tests for MCP adapter utilities."""
+
+    @pytest.mark.asyncio
+    async def test_base_mcp_adapter_registers_tools(self):
+        """Ensure MCP adapter registers tool paths on the MCP router."""
+
+        class DummyAdapter(BaseMCPAdapter):
+            def __init__(self):
+                super().__init__(name="dummy", tool_prefix="/dummy")
+
+                async def ping(payload: dict[str, str]) -> dict[str, str]:
+                    return {"ok": "true", "echo": payload.get("value", "")}
+
+                self.add_tool("/ping", ping)
+
+        adapter = DummyAdapter()
+        app = FastAPI()
+        mcp = FastAPIMCPServer(app)
+
+        adapter.register_mcp_tools(mcp)
+        paths = [route.path for route in mcp.router.routes]
+
+        assert "/dummy/ping" in paths
+
+    @pytest.mark.asyncio
+    async def test_crud_adapter_tool_request(self):
+        """Verify CRUD adapter tools call the expected endpoint."""
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/products/sku-1":
+                return httpx.Response(200, json={"sku": "sku-1"})
+            return httpx.Response(404, json={"error": "not_found"})
+
+        transport = httpx.MockTransport(handler)
+        adapter = BaseCRUDAdapter(
+            "http://crud-service",
+            transport=transport,
+        )
+        tools = dict(adapter.tools)
+        result = await tools["/crud/products/get"]({"product_id": "sku-1"})
+
+        assert result["sku"] == "sku-1"
+
+        missing = await tools["/crud/products/get"]({})
+        assert missing["error"] == "missing_field"
+
+    @pytest.mark.asyncio
+    async def test_external_api_adapter_auth_header(self):
+        """Ensure external API adapter applies auth header."""
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            assert request.headers.get("Authorization") == "Bearer token-123"
+            return httpx.Response(200, json={"status": "ok"})
+
+        transport = httpx.MockTransport(handler)
+        adapter = BaseExternalAPIAdapter(
+            "carrier",
+            base_url="http://carrier-api",
+            api_key="token-123",
+            transport=transport,
+        )
+        adapter.add_api_tool("rates", "POST", "/rates")
+        tools = dict(adapter.tools)
+        result = await tools["/external/carrier/rates"]({"json": {"sku": "SKU"}})
+
+        assert result["status"] == "ok"

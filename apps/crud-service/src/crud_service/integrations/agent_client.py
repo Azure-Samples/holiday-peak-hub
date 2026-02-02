@@ -1,10 +1,11 @@
-"""Agent client for optional MCP tool invocation."""
+"""Agent client for invoking agent REST endpoints with resilience."""
 
-import asyncio
 import logging
 from typing import Any
 
 import httpx
+from circuitbreaker import CircuitBreakerError, circuit
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 from crud_service.config import get_settings
 
@@ -14,110 +15,125 @@ settings = get_settings()
 
 class AgentClient:
     """
-    Client for invoking agent MCP tools with timeout and fallback.
-    
-    Used for optional agent calls (e.g., personalization, recommendations).
+    Client for invoking agent REST endpoints with timeout and fallback.
+
+    Used for optional agent calls (e.g., enrichment, recommendations).
     If agent is unavailable or times out, fallback to basic logic.
     """
 
-    def __init__(self):
-        self.timeout = settings.agent_timeout_seconds
+    def __init__(self) -> None:
+        self.timeout = httpx.Timeout(settings.agent_timeout_seconds)
         self.enable_fallback = settings.enable_agent_fallback
 
-    async def invoke_tool(
+    @circuit(
+        failure_threshold=settings.agent_circuit_failure_threshold,
+        recovery_timeout=settings.agent_circuit_recovery_seconds,
+        expected_exception=httpx.HTTPError,
+    )
+    @retry(
+        stop=stop_after_attempt(settings.agent_retry_attempts),
+        wait=wait_exponential(multiplier=0.5, min=0.5, max=2),
+        reraise=True,
+    )
+    async def _call_endpoint(self, agent_url: str, endpoint: str, data: dict[str, Any]) -> Any:
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            response = await client.post(
+                f"{agent_url}{endpoint}",
+                json=data,
+                headers={"Content-Type": "application/json"},
+            )
+            response.raise_for_status()
+            return response.json()
+
+    async def call_endpoint(
         self,
-        agent_url: str,
-        tool_name: str,
-        parameters: dict[str, Any],
+        agent_url: str | None,
+        endpoint: str,
+        data: dict[str, Any],
         fallback_value: Any = None,
     ) -> Any:
-        """
-        Invoke an agent MCP tool with timeout.
-        
-        Args:
-            agent_url: Agent service URL (e.g., "http://crm-profile-aggregation/mcp")
-            tool_name: MCP tool name (e.g., "get_user_context")
-            parameters: Tool parameters
-            fallback_value: Value to return if agent unavailable
-            
-        Returns:
-            Tool response or fallback_value if agent unavailable
-        """
+        """Invoke an agent REST endpoint with timeout and fallback."""
+        if not agent_url:
+            return fallback_value
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.post(
-                    f"{agent_url}/{tool_name}",
-                    json=parameters,
-                )
-                response.raise_for_status()
-                return response.json()
-
-        except (httpx.TimeoutException, httpx.HTTPError) as e:
+            return await self._call_endpoint(agent_url, endpoint, data)
+        except (httpx.TimeoutException, httpx.HTTPError, CircuitBreakerError) as exc:
             logger.warning(
-                f"Agent call failed: {agent_url}/{tool_name} - {e}. "
-                f"Using fallback: {fallback_value}"
+                "Agent call failed; using fallback",
+                extra={
+                    "agent_url": agent_url,
+                    "endpoint": endpoint,
+                    "error": str(exc),
+                },
             )
             if self.enable_fallback:
                 return fallback_value
             raise
 
     async def get_user_recommendations(
-        self, user_id: str, category: str | None = None
-    ) -> list[str]:
-        """
-        Get product recommendations from CRM agent.
-        
-        Fallback: Return empty list if agent unavailable.
-        """
-        try:
-            result = await self.invoke_tool(
-                agent_url="http://crm-profile-aggregation/mcp",
-                tool_name="get_recommendations",
-                parameters={"user_id": user_id, "category": category},
-                fallback_value={"product_ids": []},
-            )
-            return result.get("product_ids", [])
-        except Exception as e:
-            logger.error(f"Failed to get recommendations: {e}")
-            return []
+        self, user_id: str, items: list[dict[str, Any]] | None = None
+    ) -> dict[str, Any] | None:
+        """Get cart recommendations from the cart intelligence agent."""
+        payload = {"user_id": user_id, "items": items or []}
+        return await self.call_endpoint(
+            agent_url=settings.cart_intelligence_agent_url,
+            endpoint="/invoke",
+            data=payload,
+            fallback_value=None,
+        )
 
-    async def calculate_dynamic_pricing(
-        self, product_id: str, user_id: str | None = None
-    ) -> float | None:
-        """
-        Get dynamic pricing from pricing agent.
-        
-        Fallback: Return None (use base price).
-        """
-        try:
-            result = await self.invoke_tool(
-                agent_url="http://pricing-optimization/mcp",
-                tool_name="calculate_price",
-                parameters={"product_id": product_id, "user_id": user_id},
-                fallback_value=None,
-            )
-            return result.get("price") if result else None
-        except Exception as e:
-            logger.error(f"Failed to calculate dynamic pricing: {e}")
+    async def get_product_enrichment(self, sku: str) -> dict[str, Any] | None:
+        """Get enriched product details from the enrichment agent."""
+        result = await self.call_endpoint(
+            agent_url=settings.product_enrichment_agent_url,
+            endpoint="/invoke",
+            data={"sku": sku},
+            fallback_value=None,
+        )
+        if not result:
             return None
+        if isinstance(result, dict) and "enriched_product" in result:
+            return result.get("enriched_product")
+        return result
 
-    async def get_inventory_status(self, product_id: str) -> dict:
-        """
-        Get inventory status from inventory agent.
-        
-        Fallback: Return unknown status.
-        """
-        try:
-            result = await self.invoke_tool(
-                agent_url="http://inventory-health-check/mcp",
-                tool_name="check_availability",
-                parameters={"product_id": product_id},
-                fallback_value={"available": True, "quantity": 999},
-            )
-            return result
-        except Exception as e:
-            logger.error(f"Failed to get inventory status: {e}")
-            return {"available": True, "quantity": 999}
+    async def calculate_dynamic_pricing(self, sku: str) -> float | None:
+        """Get dynamic pricing from checkout support agent (pricing context)."""
+        result = await self.call_endpoint(
+            agent_url=settings.checkout_support_agent_url,
+            endpoint="/invoke",
+            data={"items": [{"sku": sku, "quantity": 1}]},
+            fallback_value=None,
+        )
+        if not result or not isinstance(result, dict):
+            return None
+        pricing = result.get("pricing") or []
+        if pricing and isinstance(pricing, list):
+            active = pricing[0].get("active") if isinstance(pricing[0], dict) else None
+            if isinstance(active, dict):
+                return active.get("amount")
+        return None
+
+    async def get_inventory_status(self, sku: str) -> dict[str, Any]:
+        """Get inventory status from inventory health agent."""
+        fallback = {"available": True, "quantity": 999}
+        result = await self.call_endpoint(
+            agent_url=settings.inventory_health_agent_url,
+            endpoint="/invoke",
+            data={"sku": sku},
+            fallback_value=fallback,
+        )
+        if not isinstance(result, dict):
+            return fallback
+        inventory = result.get("inventory_context") or {}
+        item = inventory.get("item") if isinstance(inventory, dict) else None
+        if isinstance(item, dict):
+            available = item.get("available")
+            return {
+                "available": available is None or available > 0,
+                "quantity": available if available is not None else 0,
+                "raw": result,
+            }
+        return result
 
 
 # Global instance

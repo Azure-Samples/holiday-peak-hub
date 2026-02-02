@@ -7,3 +7,10 @@ def test_health():
     resp = client.get("/health")
     assert resp.status_code == 200
     assert resp.json()["service"] == "crm-support-assistance"
+
+
+def test_invoke_requires_contact_id():
+    client = TestClient(app)
+    resp = client.post("/invoke", json={})
+    assert resp.status_code == 200
+    assert resp.json().get("error") == "contact_id is required"

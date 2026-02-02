@@ -1,6 +1,6 @@
 """Factory to create FastAPI + MCP service instances."""
 import os
-from typing import Callable, Optional
+from typing import AsyncIterator, Callable, Optional
 
 from fastapi import FastAPI
 
@@ -38,10 +38,11 @@ def build_service_app(
     slm_config: FoundryAgentConfig | None = None,
     llm_config: FoundryAgentConfig | None = None,
     mcp_setup: Optional[Callable[[FastAPIMCPServer, BaseRetailAgent], None]] = None,
+    lifespan: Callable[[FastAPI], AsyncIterator[None]] | None = None,
 ) -> FastAPI:
     """Return a FastAPI app pre-wired with MCP and required memory tiers."""
     logger = configure_logging(app_name=service_name)
-    app = FastAPI(title=service_name)
+    app = FastAPI(title=service_name, lifespan=lifespan)
 
     mcp = FastAPIMCPServer(app)
     router = RoutingStrategy()

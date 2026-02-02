@@ -1,8 +1,10 @@
 """CRM segmentation and personalization agent implementation and MCP tool registration."""
 from __future__ import annotations
 
+import os
 from typing import Any
 
+from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 
@@ -89,9 +91,17 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
         segmentation = await adapters.segmenter.build_segment(context)
         return {"personalization": segmentation.get("personalization", {})}
 
-    mcp.add_tool("/crm/segment/context", get_contact_context)
-    mcp.add_tool("/crm/segment", get_segment)
-    mcp.add_tool("/crm/personalization", get_personalization)
+    mcp.add_tool("/crm/segmentation/context", get_contact_context)
+    mcp.add_tool("/crm/segmentation/segment", get_segment)
+    mcp.add_tool("/crm/segmentation/personalization", get_personalization)
+    _register_crud_tools(mcp)
+
+
+def _register_crud_tools(mcp: FastAPIMCPServer) -> None:
+    crud_url = os.getenv("CRUD_SERVICE_URL")
+    if not crud_url:
+        return
+    BaseCRUDAdapter(crud_url).register_mcp_tools(mcp)
 
 
 def _segmentation_instructions() -> str:

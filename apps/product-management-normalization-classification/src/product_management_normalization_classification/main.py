@@ -5,6 +5,7 @@ from holiday_peak_lib.agents import FoundryAgentConfig
 from holiday_peak_lib.agents.memory import ColdMemory, HotMemory, WarmMemory
 from holiday_peak_lib.app_factory import build_service_app
 from holiday_peak_lib.config import MemorySettings
+from holiday_peak_lib.utils import EventHubSubscription, create_eventhub_lifespan
 
 from product_management_normalization_classification.agents import (
 	ProductNormalizationAgent,
@@ -60,4 +61,10 @@ app = build_service_app(
 	slm_config=slm_config,
 	llm_config=llm_config,
 	mcp_setup=register_mcp_tools,
+	lifespan=create_eventhub_lifespan(
+		service_name=SERVICE_NAME,
+		subscriptions=[
+			EventHubSubscription("product-events", "normalization-group"),
+		],
+	),
 )

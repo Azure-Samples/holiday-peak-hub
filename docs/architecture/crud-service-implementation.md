@@ -53,23 +53,44 @@ The **Holiday Peak Hub CRUD Service** is a FastAPI-based microservice that handl
          ▼
 ┌─────────────────┐      ┌──────────────┐
 │  CRUD Service   │─────►│ Cosmos DB    │
-│  (FastAPI)      │      │ (10 containers)│
-└────────┬────────┘      └──────────────┘
+│  REST Endpoints │      │ (10 containers)│
+│  /products      │      └──────────────┘
+│  /orders        │
+│  /cart          │
+└────────┬────────┘
          │
          │ Publishes Events
          ▼
-┌─────────────────┐      ┌──────────────┐
-│  Event Hubs     │─────►│ 21 Agents    │
-│  (5 topics)     │      │ (subscribers)│
-└─────────────────┘      └──────────────┘
+┌─────────────────┐      ┌──────────────────────┐
+│  Event Hubs     │─────►│  21 Agent Services   │
+│  (5 topics)     │      │  ┌────────────────┐  │
+└─────────────────┘      │  │ REST Endpoints │  │
+         ▲               │  │ /enrich        │  │
+         │               │  │ /search        │  │
+         │               │  │ /recommend     │  │
+         │               │  └────────────────┘  │
+         │               │  ┌────────────────┐  │
+         │ Agents can    │  │ MCP Tools      │  │
+         │ call CRUD     │  │ (agent↔agent)  │  │
+         └───────────────┤  └────────────────┘  │
+                         └──────────────────────┘
+                                   ▲
+                                   │
+         CRUD calls                │
+         agent REST endpoints      │
+         (for fast enrichment)     │
+                                   │
+         ┌─────────────────────────┘
          │
-         │ Optional: Invoke Agent MCP Tools
-         ▼
-┌─────────────────┐
-│  Agent MCP      │
-│  (HTTP calls)   │
-└─────────────────┘
+    Circuit breaker
+    + Fallback
 ```
+
+**Architecture Notes**:
+- **CRUD REST endpoints**: Called by Frontend AND Agents (when agents need transactional operations)
+- **Agent REST endpoints**: Called by Frontend AND CRUD (for fast enrichment/search)
+- **Agent MCP tools**: Called by agents only (agent-to-agent communication)
+- **Event Hubs**: CRUD publishes, agents subscribe (async processing)
 
 ---
 
@@ -263,14 +284,17 @@ async def require_role(required_role: str):
 ```python
 # integrations/agent_client.py
 
-async def invoke_agent_tool(
+async def call_agent_endpoint(
     agent_url: str,
-    tool_name: str,
-    arguments: dict
+    endpoint: str,
+    data: dict
 ) -> dict:
-    """Invoke MCP tool via HTTP"""
-    # Example: Call product enrichment agent
-    # POST http://product-detail-enrichment:8080/mcp/enrich
+    """
+    Call agent REST endpoint (NOT MCP - MCP is for agent-to-agent only)
+    
+    Example: Call product enrichment agent
+    POST http://product-detail-enrichment:8080/enrich
+    """
 ```
 
 **Use Cases**:

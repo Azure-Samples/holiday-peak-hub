@@ -71,7 +71,30 @@ class Settings(BaseSettings):
         default=True, description="Enable fallback to basic logic when agents unavailable"
     )
     agent_timeout_seconds: float = Field(
-        default=3.0, description="Timeout for agent MCP calls (seconds)"
+        default=0.5, description="Timeout for agent REST calls (seconds)"
+    )
+    agent_retry_attempts: int = Field(
+        default=2, description="Max retry attempts for agent REST calls"
+    )
+    agent_circuit_failure_threshold: int = Field(
+        default=5, description="Failures before circuit opens for agent REST calls"
+    )
+    agent_circuit_recovery_seconds: int = Field(
+        default=60, description="Circuit breaker recovery timeout (seconds)"
+    )
+
+    # Agent REST endpoints (CRUD -> Agent)
+    product_enrichment_agent_url: str | None = Field(
+        default=None, description="Product enrichment agent base URL"
+    )
+    cart_intelligence_agent_url: str | None = Field(
+        default=None, description="Cart intelligence agent base URL"
+    )
+    inventory_health_agent_url: str | None = Field(
+        default=None, description="Inventory health agent base URL"
+    )
+    checkout_support_agent_url: str | None = Field(
+        default=None, description="Checkout support agent base URL"
     )
 
     # Stripe (loaded from Key Vault)

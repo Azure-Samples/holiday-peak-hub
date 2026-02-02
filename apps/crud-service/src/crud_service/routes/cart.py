@@ -4,11 +4,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from crud_service.auth import User, get_current_user
+from crud_service.integrations import get_agent_client
 from crud_service.repositories import CartRepository, ProductRepository
 
 router = APIRouter()
 cart_repo = CartRepository()
 product_repo = ProductRepository()
+agent_client = get_agent_client()
 
 
 class AddToCartRequest(BaseModel):
@@ -34,6 +36,13 @@ class CartResponse(BaseModel):
     total: float
 
 
+class CartRecommendationsResponse(BaseModel):
+    """Cart recommendations response."""
+
+    user_id: str
+    recommendations: dict | None
+
+
 @router.get("/cart", response_model=CartResponse)
 async def get_cart(current_user: User = Depends(get_current_user)):
     """Get current user's cart."""
@@ -45,6 +54,24 @@ async def get_cart(current_user: User = Depends(get_current_user)):
     total = sum(item.price * item.quantity for item in items)
 
     return CartResponse(user_id=current_user.user_id, items=items, total=total)
+
+
+@router.get("/cart/recommendations", response_model=CartRecommendationsResponse)
+async def get_cart_recommendations(current_user: User = Depends(get_current_user)):
+    """Get cart recommendations from the cart intelligence agent."""
+    cart = await cart_repo.get_by_user(current_user.user_id)
+    items = [
+        {"sku": item["product_id"], "quantity": item.get("quantity", 1)}
+        for item in (cart or {}).get("items", [])
+    ]
+    recommendations = await agent_client.get_user_recommendations(
+        user_id=current_user.user_id,
+        items=items,
+    )
+    return CartRecommendationsResponse(
+        user_id=current_user.user_id,
+        recommendations=recommendations,
+    )
 
 
 @router.post("/cart/items")

@@ -28,6 +28,9 @@ dependencies = [
     "stripe>=11.1.0",
     # HTTP client
     "httpx>=0.28.0",
+    # Resilience
+    "circuitbreaker>=2.0.0",
+    "tenacity>=8.2.3",
     # Observability
     "azure-monitor-opentelemetry>=1.7.0",
     "opentelemetry-api>=1.28.0",
