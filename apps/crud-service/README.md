@@ -227,56 +227,230 @@ docker run -p 8001:8000 \
 
 ### Events Published (to Event Hubs)
 
+The CRUD service publishes domain events to Azure Event Hubs using **Managed Identity** (no connection strings). Agents subscribe to these events for asynchronous processing.
+
+**Event Publisher Implementation:**
+```python
+# apps/crud-service/src/crud_service/integrations/event_publisher.py
+class EventPublisher:
+    """Publishes domain events to Azure Event Hubs."""
+    
+    async def publish(self, topic: str, event_type: str, data: dict[str, Any]):
+        """Publish event with automatic retry and error handling."""
+        event_payload = {
+            "event_type": event_type,
+            "data": data,
+            "timestamp": data.get("timestamp")
+        }
+        await producer.send_batch([EventData(json.dumps(event_payload))])
+```
+
 **Order Events** → `order-events` topic:
 ```json
 {
-  "type": "OrderCreated",
-  "order_id": "order-uuid-123",
-  "user_id": "user-uuid-456",
-  "items": [...],
-  "total": 99.99,
-  "timestamp": "2026-01-29T12:34:56Z"
+  "event_type": "OrderCreated",
+  "data": {
+    "order_id": "order-uuid-123",
+    "user_id": "user-uuid-456",
+    "items": [
+      {"sku": "SKU-001", "quantity": 2, "price": 49.99}
+    ],
+    "total": 99.99,
+    "status": "pending"
+  },
+  "timestamp": "2026-02-03T12:34:56Z"
 }
 ```
 
-**Inventory Events** → `inventory-events` topic:
-```json
-{
-  "type": "StockUpdated",
-  "product_id": "product-uuid-789",
-  "quantity_change": -5,
-  "timestamp": "2026-01-29T12:34:56Z"
-}
-```
+**Subscribers**: `ecommerce-checkout-support`, `ecommerce-order-status`, `inventory-reservation-validation`, `logistics-eta-computation`, `crm-profile-aggregation`, `crm-support-assistance`, `crm-segmentation-personalization`
 
 **Payment Events** → `payment-events` topic:
 ```json
 {
-  "type": "PaymentProcessed",
-  "order_id": "order-uuid-123",
-  "amount": 99.99,
-  "status": "succeeded",
-  "timestamp": "2026-01-29T12:34:56Z"
+  "event_type": "PaymentProcessed",
+  "data": {
+    "order_id": "order-uuid-123",
+    "payment_id": "payment-uuid-456",
+    "amount": 99.99,
+    "currency": "USD",
+    "status": "succeeded",
+    "payment_method": "card_visa_4242"
+  },
+  "timestamp": "2026-02-03T12:35:10Z"
 }
 ```
 
-### Agent Invocation (Optional, Sync)
+**Subscribers**: `ecommerce-checkout-support`, `crm-campaign-intelligence`
 
-When agent intelligence is needed for user-facing features:
-
-```python
-# Example: Smart product search with fallback
-try:
-    result = await agent_client.call_mcp_tool(
-        service="ecommerce-catalog-search",
-        tool="search_products",
-        params={"query": "red dress", "filters": {...}},
-        timeout=3.0
-    )
-except (TimeoutError, AgentUnavailableError):
-    # Fallback to basic search
-    result = await product_repository.search("red dress", {...})
+**Inventory Events** → `inventory-events` topic:
+```json
+{
+  "event_type": "InventoryReserved",
+  "data": {
+    "product_id": "product-uuid-789",
+    "sku": "SKU-001",
+    "quantity_reserved": 5,
+    "order_id": "order-uuid-123",
+    "warehouse_id": "warehouse-001"
+  },
+  "timestamp": "2026-02-03T12:34:57Z"
+}
 ```
+
+**Subscribers**: `inventory-health-check`, `inventory-jit-replenishment`, `inventory-alerts-triggers`
+
+**User Events** → `user-events` topic:
+```json
+{
+  "event_type": "UserRegistered",
+  "data": {
+    "user_id": "user-uuid-456",
+    "email": "user@example.com",
+    "first_name": "Jane",
+    "last_name": "Smith",
+    "marketing_opt_in": true
+  },
+  "timestamp": "2026-02-03T12:30:00Z"
+}
+```
+
+**Subscribers**: `crm-profile-aggregation`, `crm-campaign-intelligence`
+
+**Shipment Events** → `shipment-events` topic:
+```json
+{
+  "event_type": "ShipmentCreated",
+  "data": {
+    "shipment_id": "shipment-uuid-111",
+    "order_id": "order-uuid-123",
+    "carrier": "FedEx",
+    "tracking_number": "1234567890",
+    "estimated_delivery": "2026-02-05T18:00:00Z"
+  },
+  "timestamp": "2026-02-03T14:00:00Z"
+}
+```
+
+**Subscribers**: `logistics-eta-computation`, `logistics-route-issue-detection`
+
+### Agent Invocation (Synchronous with Circuit Breaker)
+
+When agent intelligence is needed for real-time user-facing features, CRUD calls agent REST endpoints with **resilience patterns**:
+
+**Circuit Breaker Configuration:**
+```python
+# apps/crud-service/src/crud_service/config/settings.py
+agent_timeout_seconds: float = 0.5           # 500ms timeout
+agent_retry_attempts: int = 2                # Max 2 retries
+agent_circuit_failure_threshold: int = 5     # Open after 5 failures
+agent_circuit_recovery_seconds: int = 60     # 1-minute recovery window
+enable_agent_fallback: bool = True           # Graceful degradation
+```
+
+**Agent Client Implementation:**
+```python
+# apps/crud-service/src/crud_service/integrations/agent_client.py
+from circuitbreaker import circuit
+from tenacity import retry, stop_after_attempt, wait_exponential
+
+class AgentClient:
+    @circuit(failure_threshold=5, recovery_timeout=60)
+    @retry(stop=stop_after_attempt(2), wait=wait_exponential(0.5, 0.5, 2))
+    async def _call_endpoint(self, agent_url: str, endpoint: str, data: dict):
+        """Call agent with circuit breaker and retry logic."""
+        async with httpx.AsyncClient(timeout=0.5) as client:
+            response = await client.post(f"{agent_url}{endpoint}", json=data)
+            response.raise_for_status()
+            return response.json()
+    
+    async def call_endpoint(self, agent_url, endpoint, data, fallback_value=None):
+        """Invoke agent with automatic fallback on failure."""
+        try:
+            return await self._call_endpoint(agent_url, endpoint, data)
+        except (httpx.TimeoutException, httpx.HTTPError, CircuitBreakerError):
+            logger.warning("Agent call failed; using fallback")
+            if self.enable_fallback:
+                return fallback_value
+            raise
+```
+
+**Example: Product Enrichment (with fallback)**
+```python
+# apps/crud-service/src/crud_service/routes/products.py
+@router.get("/products/{product_id}")
+async def get_product(product_id: str, agent_client: AgentClient):
+    # Get base product from Cosmos DB
+    product = await product_repository.get(product_id)
+    
+    # Try to enrich with agent intelligence
+    enrichment = await agent_client.get_product_enrichment(
+        product.sku,
+        fallback_value=None  # Graceful degradation
+    )
+    
+    if enrichment:
+        product.description = enrichment.get("description", product.description)
+        product.rating = enrichment.get("rating")
+        product.review_count = enrichment.get("review_count")
+        product.related_products = enrichment.get("related", [])
+    
+    return product
+```
+
+**Example: Cart Recommendations (with fallback)**
+```python
+# apps/crud-service/src/crud_service/routes/cart.py
+@router.get("/cart/recommendations")
+async def get_cart_recommendations(user_id: str, agent_client: AgentClient):
+    cart = await cart_repository.get(user_id)
+    
+    # Try to get AI recommendations
+    recommendations = await agent_client.get_user_recommendations(
+        user_id=user_id,
+        items=cart.items,
+        fallback_value={"recommended_products": []}  # Empty list on failure
+    )
+    
+    return recommendations
+```
+
+**Example: Dynamic Pricing (with fallback to base price)**
+```python
+# apps/crud-service/src/crud_service/routes/checkout.py
+@router.post("/checkout/validate")
+async def validate_checkout(user_id: str, agent_client: AgentClient):
+    cart = await cart_repository.get(user_id)
+    
+    for item in cart.items:
+        # Try to get dynamic pricing
+        dynamic_price = await agent_client.calculate_dynamic_pricing(
+            item.sku,
+            fallback_value=None
+        )
+        
+        if dynamic_price:
+            item.price = dynamic_price  # Use AI-optimized price
+        # else: use base price from cart (already set)
+    
+    return {"cart": cart, "total": sum(i.price * i.quantity for i in cart.items)}
+```
+
+**Resilience Behavior:**
+
+| Scenario | Behavior | User Impact |
+|----------|----------|-------------|
+| Agent responds < 500ms | Use agent result | ✅ Enhanced experience |
+| Agent timeout (> 500ms) | Use fallback | ⚠️ Degraded experience (still works) |
+| Agent returns error | Use fallback | ⚠️ Degraded experience (still works) |
+| Circuit open (5+ failures) | Skip agent call, use fallback | ⚠️ Degraded experience (still works) |
+| Fallback disabled | Raise exception | ❌ Feature unavailable (fail fast) |
+
+**Benefits:**
+- ✅ **Prevents cascading failures**: Circuit breaker stops calls to unhealthy agents
+- ✅ **Fast timeouts**: 500ms limit prevents slow agent calls from blocking CRUD operations
+- ✅ **Graceful degradation**: Fallback to basic logic when agents unavailable
+- ✅ **Automatic recovery**: Circuit closes after 60s, allowing agents to recover
+- ✅ **Retry on transients**: Exponential backoff handles temporary network issues
 
 ## Deployment
 
