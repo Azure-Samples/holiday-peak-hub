@@ -8,6 +8,7 @@ from holiday_peak_lib.config import MemorySettings
 from holiday_peak_lib.utils import EventHubSubscription, create_eventhub_lifespan
 
 from crm_profile_aggregation.agents import ProfileAggregationAgent, register_mcp_tools
+from crm_profile_aggregation.event_handlers import build_event_handlers
 
 SERVICE_NAME = "crm-profile-aggregation"
 memory_settings = MemorySettings()
@@ -64,5 +65,6 @@ app = build_service_app(
 			EventHubSubscription("user-events", "profile-agg-group"),
 			EventHubSubscription("order-events", "profile-agg-group"),
 		],
+		handlers=build_event_handlers(),
 	),
 )

@@ -8,6 +8,7 @@ from holiday_peak_lib.config import MemorySettings
 from holiday_peak_lib.utils import EventHubSubscription, create_eventhub_lifespan
 
 from crm_campaign_intelligence.agents import CampaignIntelligenceAgent, register_mcp_tools
+from crm_campaign_intelligence.event_handlers import build_event_handlers
 
 SERVICE_NAME = "crm-campaign-intelligence"
 memory_settings = MemorySettings()
@@ -66,5 +67,6 @@ app = build_service_app(
 			EventHubSubscription("order-events", "campaign-intel-group"),
 			EventHubSubscription("payment-events", "campaign-intel-group"),
 		],
+		handlers=build_event_handlers(),
 	),
 )

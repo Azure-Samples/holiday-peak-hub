@@ -8,6 +8,7 @@ from holiday_peak_lib.config import MemorySettings
 from holiday_peak_lib.utils import EventHubSubscription, create_eventhub_lifespan
 
 from ecommerce_checkout_support.agents import CheckoutSupportAgent, register_mcp_tools
+from ecommerce_checkout_support.event_handlers import build_event_handlers
 
 SERVICE_NAME = "ecommerce-checkout-support"
 memory_settings = MemorySettings()
@@ -64,5 +65,6 @@ app = build_service_app(
 			EventHubSubscription("order-events", "checkout-group"),
 			EventHubSubscription("inventory-events", "checkout-group"),
 		],
+		handlers=build_event_handlers(),
 	),
 )

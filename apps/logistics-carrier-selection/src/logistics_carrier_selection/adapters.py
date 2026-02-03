@@ -2,10 +2,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from typing import Any, Optional
 
+from holiday_peak_lib.adapters import BaseExternalAPIAdapter
 from holiday_peak_lib.adapters.logistics_adapter import LogisticsConnector
 from holiday_peak_lib.adapters.mock_adapters import MockLogisticsAdapter
+from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.schemas.logistics import LogisticsContext
 
 
@@ -42,3 +45,15 @@ def build_carrier_selection_adapters(
     logistics = logistics_connector or LogisticsConnector(adapter=MockLogisticsAdapter())
     selector = CarrierSelector()
     return CarrierSelectionAdapters(logistics=logistics, selector=selector)
+
+
+def register_external_api_tools(mcp: FastAPIMCPServer) -> None:
+    """Register carrier API tools with MCP when configured."""
+    base_url = os.getenv("CARRIER_API_URL")
+    if not base_url:
+        return
+    api_key = os.getenv("CARRIER_API_KEY")
+    adapter = BaseExternalAPIAdapter("carrier", base_url=base_url, api_key=api_key)
+    adapter.add_api_tool("rates", "POST", "/rates")
+    adapter.add_api_tool("services", "GET", "/services")
+    adapter.register_mcp_tools(mcp)

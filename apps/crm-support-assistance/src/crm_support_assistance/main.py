@@ -8,6 +8,7 @@ from holiday_peak_lib.config import MemorySettings
 from holiday_peak_lib.utils import EventHubSubscription, create_eventhub_lifespan
 
 from crm_support_assistance.agents import SupportAssistanceAgent, register_mcp_tools
+from crm_support_assistance.event_handlers import build_event_handlers
 
 SERVICE_NAME = "crm-support-assistance"
 memory_settings = MemorySettings()
@@ -63,5 +64,6 @@ app = build_service_app(
 		subscriptions=[
 			EventHubSubscription("order-events", "support-group"),
 		],
+		handlers=build_event_handlers(),
 	),
 )

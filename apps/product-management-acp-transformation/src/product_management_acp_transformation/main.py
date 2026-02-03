@@ -11,6 +11,7 @@ from product_management_acp_transformation.agents import (
 	ProductAcpTransformationAgent,
 	register_mcp_tools,
 )
+from product_management_acp_transformation.event_handlers import build_event_handlers
 
 SERVICE_NAME = "product-management-acp-transformation"
 memory_settings = MemorySettings()
@@ -66,5 +67,6 @@ app = build_service_app(
 		subscriptions=[
 			EventHubSubscription("product-events", "acp-transform-group"),
 		],
+		handlers=build_event_handlers(),
 	),
 )

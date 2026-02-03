@@ -7,6 +7,13 @@
 
 Holiday Peak Hub is a **cloud-native, agent-driven retail accelerator** with complete frontend implementation and comprehensive backend architecture plan. This documentation covers all architectural decisions, implementation plans, and operational procedures.
 
+## Developer Scripts
+
+Per-app run and test scripts are available under [scripts](scripts). These scripts create per-app virtual environments under each app src folder and run tests with coverage outputs per app directory.
+
+- Run an app: [scripts/run-app.sh](scripts/run-app.sh) with a per-app wrapper like [scripts/run-ecommerce-checkout-support.sh](scripts/run-ecommerce-checkout-support.sh)
+- Run all tests with coverage per app: [scripts/run-all-tests.sh](scripts/run-all-tests.sh)
+
 ---
 
 ## 📚 Documentation Index

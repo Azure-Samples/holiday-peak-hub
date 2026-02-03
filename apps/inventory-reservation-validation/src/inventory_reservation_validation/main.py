@@ -11,6 +11,7 @@ from inventory_reservation_validation.agents import (
 	ReservationValidationAgent,
 	register_mcp_tools,
 )
+from inventory_reservation_validation.event_handlers import build_event_handlers
 
 SERVICE_NAME = "inventory-reservation-validation"
 memory_settings = MemorySettings()
@@ -66,5 +67,6 @@ app = build_service_app(
 		subscriptions=[
 			EventHubSubscription("order-events", "reservation-group"),
 		],
+		handlers=build_event_handlers(),
 	),
 )

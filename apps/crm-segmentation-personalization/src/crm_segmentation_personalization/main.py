@@ -11,6 +11,7 @@ from crm_segmentation_personalization.agents import (
 	SegmentationPersonalizationAgent,
 	register_mcp_tools,
 )
+from crm_segmentation_personalization.event_handlers import build_event_handlers
 
 SERVICE_NAME = "crm-segmentation-personalization"
 memory_settings = MemorySettings()
@@ -66,5 +67,6 @@ app = build_service_app(
 		subscriptions=[
 			EventHubSubscription("order-events", "segmentation-group"),
 		],
+		handlers=build_event_handlers(),
 	),
 )

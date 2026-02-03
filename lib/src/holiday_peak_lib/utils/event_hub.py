@@ -83,6 +83,7 @@ def create_eventhub_lifespan(
     service_name: str,
     subscriptions: Iterable[EventHubSubscription],
     connection_string_env: str = "EVENTHUB_CONNECTION_STRING",
+    handlers: dict[str, EventHandler] | None = None,
 ) -> Callable[[Any], AsyncIterator[None]]:
     """Create a FastAPI lifespan that starts Event Hub subscribers."""
 
@@ -98,7 +99,12 @@ def create_eventhub_lifespan(
         tasks: list[asyncio.Task] = []
 
         def make_handler(eventhub_name: str):
+            handler = handlers.get(eventhub_name) if handlers else None
+
             async def _handler(partition_context, event):  # noqa: ANN001
+                if handler:
+                    await handler(partition_context, event)
+                    return
                 payload = json.loads(event.body_as_str())
                 logger.info(
                     "event_received",
@@ -127,3 +133,63 @@ def create_eventhub_lifespan(
             await asyncio.gather(*tasks, return_exceptions=True)
 
     return lifespan
+
+
+def build_basic_event_handlers(
+    *,
+    service_name: str,
+    eventhub_names: Iterable[str],
+) -> dict[str, EventHandler]:
+    """Build lightweight event handlers that log event type per hub."""
+    logger = configure_logging(app_name=f"{service_name}-events")
+
+    def make_handler(eventhub_name: str) -> EventHandler:
+        async def _handler(partition_context, event):  # noqa: ANN001
+            payload = json.loads(event.body_as_str())
+            logger.info(
+                "event_processed",
+                event_type=payload.get("event_type"),
+                eventhub=eventhub_name,
+            )
+
+        return _handler
+
+    return {name: make_handler(name) for name in eventhub_names}
+
+
+def build_event_handlers_with_keys(
+    *,
+    service_name: str,
+    eventhub_keys: dict[str, Iterable[str]],
+) -> dict[str, EventHandler]:
+    """Build event handlers that log a key identifier per hub.
+
+    Args:
+        service_name: Service name used for logger context.
+        eventhub_keys: Mapping of event hub name to preferred identifier keys.
+    """
+    logger = configure_logging(app_name=f"{service_name}-events")
+
+    def make_handler(eventhub_name: str, keys: Iterable[str]) -> EventHandler:
+        key_list = list(keys)
+
+        async def _handler(partition_context, event):  # noqa: ANN001
+            payload = json.loads(event.body_as_str())
+            data = payload.get("data", {}) if isinstance(payload, dict) else {}
+            identifier = None
+            for key in key_list:
+                identifier = data.get(key) or payload.get(key)
+                if identifier:
+                    break
+            logger.info(
+                "event_processed",
+                event_type=payload.get("event_type") if isinstance(payload, dict) else None,
+                eventhub=eventhub_name,
+                entity_id=identifier,
+            )
+
+        return _handler
+
+    return {
+        name: make_handler(name, keys) for name, keys in eventhub_keys.items()
+    }

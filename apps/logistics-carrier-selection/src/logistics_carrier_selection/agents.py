@@ -8,7 +8,11 @@ from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 
-from .adapters import CarrierSelectionAdapters, build_carrier_selection_adapters
+from .adapters import (
+    CarrierSelectionAdapters,
+    build_carrier_selection_adapters,
+    register_external_api_tools,
+)
 
 
 class CarrierSelectionAgent(BaseRetailAgent):
@@ -79,6 +83,7 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
     mcp.add_tool("/logistics/carrier/context", get_logistics_context)
     mcp.add_tool("/logistics/carrier/recommendation", get_carrier_recommendation)
     _register_crud_tools(mcp)
+    register_external_api_tools(mcp)
 
 
 def _register_crud_tools(mcp: FastAPIMCPServer) -> None:

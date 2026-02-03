@@ -2,11 +2,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from typing import Iterable, Optional
 
+from holiday_peak_lib.adapters import BaseExternalAPIAdapter
 from holiday_peak_lib.adapters.inventory_adapter import InventoryConnector
 from holiday_peak_lib.adapters.mock_adapters import MockInventoryAdapter, MockPricingAdapter
 from holiday_peak_lib.adapters.pricing_adapter import PricingConnector
+from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.schemas.inventory import InventoryContext
 from holiday_peak_lib.schemas.pricing import PriceContext
 
@@ -57,3 +60,16 @@ def build_checkout_adapters(
     inventory = inventory_connector or InventoryConnector(adapter=MockInventoryAdapter())
     validator = CheckoutValidationAdapter()
     return CheckoutAdapters(pricing=pricing, inventory=inventory, validator=validator)
+
+
+def register_external_api_tools(mcp: FastAPIMCPServer) -> None:
+    """Register payment API tools with MCP when configured."""
+    base_url = os.getenv("PAYMENT_API_URL")
+    if not base_url:
+        return
+    api_key = os.getenv("PAYMENT_API_KEY")
+    adapter = BaseExternalAPIAdapter("payment", base_url=base_url, api_key=api_key)
+    adapter.add_api_tool("authorize", "POST", "/authorize")
+    adapter.add_api_tool("capture", "POST", "/capture")
+    adapter.add_api_tool("refund", "POST", "/refund")
+    adapter.register_mcp_tools(mcp)

@@ -8,6 +8,7 @@ from holiday_peak_lib.config import MemorySettings
 from holiday_peak_lib.utils import EventHubSubscription, create_eventhub_lifespan
 
 from logistics_eta_computation.agents import EtaComputationAgent, register_mcp_tools
+from logistics_eta_computation.event_handlers import build_event_handlers
 
 SERVICE_NAME = "logistics-eta-computation"
 memory_settings = MemorySettings()
@@ -63,5 +64,6 @@ app = build_service_app(
 		subscriptions=[
 			EventHubSubscription("order-events", "eta-group"),
 		],
+		handlers=build_event_handlers(),
 	),
 )

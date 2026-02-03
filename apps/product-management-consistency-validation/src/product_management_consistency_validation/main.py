@@ -11,6 +11,7 @@ from product_management_consistency_validation.agents import (
 	ProductConsistencyAgent,
 	register_mcp_tools,
 )
+from product_management_consistency_validation.event_handlers import build_event_handlers
 
 SERVICE_NAME = "product-management-consistency-validation"
 memory_settings = MemorySettings()
@@ -66,5 +67,6 @@ app = build_service_app(
 		subscriptions=[
 			EventHubSubscription("product-events", "validation-group"),
 		],
+		handlers=build_event_handlers(),
 	),
 )

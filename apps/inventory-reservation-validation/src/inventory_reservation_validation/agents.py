@@ -8,7 +8,11 @@ from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 
-from .adapters import ReservationValidationAdapters, build_reservation_validation_adapters
+from .adapters import (
+    ReservationValidationAdapters,
+    build_reservation_validation_adapters,
+    register_external_api_tools,
+)
 
 
 class ReservationValidationAgent(BaseRetailAgent):
@@ -83,6 +87,7 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
     mcp.add_tool("/inventory/reservations/context", get_inventory_context)
     mcp.add_tool("/inventory/reservations/validate", validate_reservation)
     _register_crud_tools(mcp)
+    register_external_api_tools(mcp)
 
 
 def _register_crud_tools(mcp: FastAPIMCPServer) -> None:

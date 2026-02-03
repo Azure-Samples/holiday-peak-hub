@@ -8,6 +8,7 @@ from holiday_peak_lib.config import MemorySettings
 from holiday_peak_lib.utils import EventHubSubscription, create_eventhub_lifespan
 
 from ecommerce_catalog_search.agents import CatalogSearchAgent, register_mcp_tools
+from ecommerce_catalog_search.event_handlers import build_event_handlers
 
 SERVICE_NAME = "ecommerce-catalog-search"
 memory_settings = MemorySettings()
@@ -63,5 +64,6 @@ app = build_service_app(
 		subscriptions=[
 			EventHubSubscription("product-events", "catalog-search-group"),
 		],
+		handlers=build_event_handlers(),
 	),
 )

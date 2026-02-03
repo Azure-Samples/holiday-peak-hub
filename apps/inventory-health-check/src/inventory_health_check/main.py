@@ -8,6 +8,7 @@ from holiday_peak_lib.config import MemorySettings
 from holiday_peak_lib.utils import EventHubSubscription, create_eventhub_lifespan
 
 from inventory_health_check.agents import InventoryHealthAgent, register_mcp_tools
+from inventory_health_check.event_handlers import build_event_handlers
 
 SERVICE_NAME = "inventory-health-check"
 memory_settings = MemorySettings()
@@ -64,5 +65,6 @@ app = build_service_app(
 			EventHubSubscription("order-events", "health-check-group"),
 			EventHubSubscription("inventory-events", "health-check-group"),
 		],
+		handlers=build_event_handlers(),
 	),
 )

@@ -11,6 +11,7 @@ from inventory_jit_replenishment.agents import (
 	InventoryReplenishmentAgent,
 	register_mcp_tools,
 )
+from inventory_jit_replenishment.event_handlers import build_event_handlers
 
 SERVICE_NAME = "inventory-jit-replenishment"
 memory_settings = MemorySettings()
@@ -66,5 +67,6 @@ app = build_service_app(
 		subscriptions=[
 			EventHubSubscription("inventory-events", "replenishment-group"),
 		],
+		handlers=build_event_handlers(),
 	),
 )

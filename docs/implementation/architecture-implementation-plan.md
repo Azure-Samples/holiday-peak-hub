@@ -992,7 +992,7 @@ async def handle_order_event(partition_context, event):
   - Base CRUD adapter framework
   - Base external API adapter template
   - 21 domain-specific CRUD adapters
-  - 5+ 3rd party API adapters (carrier, payment, warehouse, etc.)
+  - 5 3rd party API adapters wired (carrier, ETA, returns, payment, warehouse)
 - ✅ Library modules added in lib/src/holiday_peak_lib/adapters:
   - mcp_adapter.py
   - crud_adapter.py
@@ -1967,22 +1967,28 @@ C4Component
 ## Success Criteria
 
 ### Phase 1: MCP Adapter Layer
-- [ ] Base CRUD adapter framework completed
-- [ ] Base external API adapter template completed
-- [ ] All 21 agents have CRUD adapters with MCP tools
-- [ ] 5+ 3rd party API adapters implemented (carrier, payment, warehouse, etc.)
-- [ ] Agents successfully call CRUD operations via MCP tools
+- [x] Base CRUD adapter framework completed
+- [x] Base external API adapter template completed
+- [x] All 21 agents have CRUD adapters with MCP tools
+- [x] 5+ 3rd party API adapters implemented (carrier, payment, warehouse, etc.)
+  - [x] Carrier API adapter (logistics-carrier-selection)
+  - [x] ETA API adapter (logistics-eta-computation)
+  - [x] Returns API adapter (logistics-returns-support)
+  - [x] Payment API adapter (ecommerce-checkout-support)
+  - [x] Warehouse API adapter (inventory-reservation-validation)
+- [x] Agents successfully call CRUD operations via MCP tools
 - [ ] Agents successfully call 3rd party APIs via MCP tools
 - [ ] Unit test coverage ≥ 75% for all adapters
 - [ ] Integration tests passing
 
 ### Phase 2: Event Handlers
-- [ ] All 21 agents subscribe to relevant Event Hub topics
+- [x] All 21 agents subscribe to relevant Event Hub topics
+- [x] Consumer groups configured per agent
 - [ ] Event processing latency < 2 seconds (P95)
 - [ ] Zero message loss (exactly-once semantics)
-- [ ] Consumer groups configured per agent
 - [ ] Agents use MCP tools from adapters when processing events
 - [ ] Unit test coverage ≥ 75%
+- [x] Basic event handlers wired (logging + entity id extraction)
 
 ### Phase 3: Resilience
 - [ ] Circuit breaker configured (5 failures, 60s recovery)

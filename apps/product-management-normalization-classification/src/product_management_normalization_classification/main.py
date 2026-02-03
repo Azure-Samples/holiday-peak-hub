@@ -11,6 +11,7 @@ from product_management_normalization_classification.agents import (
 	ProductNormalizationAgent,
 	register_mcp_tools,
 )
+from product_management_normalization_classification.event_handlers import build_event_handlers
 
 SERVICE_NAME = "product-management-normalization-classification"
 memory_settings = MemorySettings()
@@ -66,5 +67,6 @@ app = build_service_app(
 		subscriptions=[
 			EventHubSubscription("product-events", "normalization-group"),
 		],
+		handlers=build_event_handlers(),
 	),
 )

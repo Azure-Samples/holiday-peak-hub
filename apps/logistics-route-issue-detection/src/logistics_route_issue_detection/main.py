@@ -11,6 +11,7 @@ from logistics_route_issue_detection.agents import (
 	RouteIssueDetectionAgent,
 	register_mcp_tools,
 )
+from logistics_route_issue_detection.event_handlers import build_event_handlers
 
 SERVICE_NAME = "logistics-route-issue-detection"
 memory_settings = MemorySettings()
@@ -66,5 +67,6 @@ app = build_service_app(
 		subscriptions=[
 			EventHubSubscription("order-events", "route-detect-group"),
 		],
+		handlers=build_event_handlers(),
 	),
 )

@@ -11,6 +11,7 @@ from ecommerce_product_detail_enrichment.agents import (
 	ProductDetailEnrichmentAgent,
 	register_mcp_tools,
 )
+from ecommerce_product_detail_enrichment.event_handlers import build_event_handlers
 
 SERVICE_NAME = "ecommerce-product-detail-enrichment"
 memory_settings = MemorySettings()
@@ -66,5 +67,6 @@ app = build_service_app(
 		subscriptions=[
 			EventHubSubscription("product-events", "enrichment-group"),
 		],
+		handlers=build_event_handlers(),
 	),
 )

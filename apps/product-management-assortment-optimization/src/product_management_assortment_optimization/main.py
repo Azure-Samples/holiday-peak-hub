@@ -11,6 +11,7 @@ from product_management_assortment_optimization.agents import (
 	AssortmentOptimizationAgent,
 	register_mcp_tools,
 )
+from product_management_assortment_optimization.event_handlers import build_event_handlers
 
 SERVICE_NAME = "product-management-assortment-optimization"
 memory_settings = MemorySettings()
@@ -67,5 +68,6 @@ app = build_service_app(
 			EventHubSubscription("order-events", "assortment-group"),
 			EventHubSubscription("product-events", "assortment-group"),
 		],
+		handlers=build_event_handlers(),
 	),
 )

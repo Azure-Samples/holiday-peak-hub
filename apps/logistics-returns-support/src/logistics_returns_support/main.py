@@ -8,6 +8,7 @@ from holiday_peak_lib.config import MemorySettings
 from holiday_peak_lib.utils import EventHubSubscription, create_eventhub_lifespan
 
 from logistics_returns_support.agents import ReturnsSupportAgent, register_mcp_tools
+from logistics_returns_support.event_handlers import build_event_handlers
 
 SERVICE_NAME = "logistics-returns-support"
 memory_settings = MemorySettings()
@@ -63,5 +64,6 @@ app = build_service_app(
 		subscriptions=[
 			EventHubSubscription("order-events", "returns-group"),
 		],
+		handlers=build_event_handlers(),
 	),
 )

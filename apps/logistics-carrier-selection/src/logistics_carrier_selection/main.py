@@ -8,6 +8,7 @@ from holiday_peak_lib.config import MemorySettings
 from holiday_peak_lib.utils import EventHubSubscription, create_eventhub_lifespan
 
 from logistics_carrier_selection.agents import CarrierSelectionAgent, register_mcp_tools
+from logistics_carrier_selection.event_handlers import build_event_handlers
 
 SERVICE_NAME = "logistics-carrier-selection"
 memory_settings = MemorySettings()
@@ -63,5 +64,6 @@ app = build_service_app(
 		subscriptions=[
 			EventHubSubscription("order-events", "carrier-group"),
 		],
+		handlers=build_event_handlers(),
 	),
 )
