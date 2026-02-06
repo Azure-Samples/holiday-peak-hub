@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Holiday Peak Hub — Shopper Demo</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-zinc-950 text-zinc-100">
+  <div class="max-w-7xl mx-auto p-6">
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <div class="text-sm text-zinc-400">Holiday Peak Hub • Customer-ready demo</div>
+        <h1 class="text-2xl font-semibold">Patagonia Scenario — Agentic Shopper</h1>
+        <div class="mt-2 text-zinc-300">
+          This UI is designed for customer meetings: you can run the chat, see which actions fired, and watch the system explain itself.
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <label class="inline-flex items-center gap-2 text-sm text-zinc-300">
+          <input id="debugToggle" type="checkbox" checked class="accent-emerald-400" />
+          Show "What just happened"
+        </label>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-12 gap-4 mt-6">
+      <!-- Left: Scenario / Catalog -->
+      <div class="col-span-12 lg:col-span-4 bg-zinc-900/50 border border-zinc-800 rounded-2xl p-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-lg font-semibold">Stage</h2>
+          <span class="text-xs text-zinc-400">PLP → PDP → Chat</span>
+        </div>
+
+        <div class="mt-4">
+          <label class="text-sm text-zinc-300">Category</label>
+          <select id="category" class="mt-2 w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2">
+            <option value="shell-jackets">Shell Jackets</option>
+            <option value="insulation">Insulation</option>
+            <option value="fleece">Fleece</option>
+          </select>
+        </div>
+
+        <div class="mt-4">
+          <label class="text-sm text-zinc-300">User segment (demo)</label>
+          <input id="segment" value="trail-runner" class="mt-2 w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2" />
+        </div>
+
+        <div class="mt-5 flex items-center justify-between">
+          <div class="text-sm text-zinc-300">Product list</div>
+          <button id="reload" class="text-sm px-3 py-1 rounded-lg bg-zinc-950 border border-zinc-800 hover:border-zinc-600">Reload</button>
+        </div>
+
+        <div id="catalog" class="mt-3 space-y-3"></div>
+      </div>
+
+      <!-- Center: Chat -->
+      <div class="col-span-12 lg:col-span-5 bg-zinc-900/50 border border-zinc-800 rounded-2xl p-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-lg font-semibold">Shopper chat</h2>
+          <div class="text-xs text-zinc-400">Context is sent automatically (category, product, segment)</div>
+        </div>
+
+        <div id="pdp" class="mt-4 hidden">
+          <div class="bg-zinc-950 border border-zinc-800 rounded-2xl p-3">
+            <div class="text-xs text-zinc-400">Selected product</div>
+            <div id="pdpTitle" class="font-semibold"></div>
+            <div id="pdpMeta" class="text-sm text-zinc-300 mt-1"></div>
+            <div id="pdpHighlights" class="text-sm text-zinc-400 mt-2"></div>
+          </div>
+        </div>
+
+        <div id="chat" class="mt-4 h-[420px] overflow-auto space-y-3 pr-1"></div>
+
+        <div class="mt-4">
+          <div class="grid grid-cols-12 gap-2">
+            <input id="message" class="col-span-9 bg-zinc-950 border border-zinc-800 rounded-xl p-3" placeholder="Ask about layers, rain gear, fit, or compare options…" />
+            <button id="send" class="col-span-3 rounded-xl p-3 bg-emerald-500 text-zinc-950 font-semibold hover:opacity-90">Send</button>
+          </div>
+          <div class="mt-2 flex flex-wrap gap-2">
+            <button class="preset" data-text="Compare this to the best alternative for wet 40°F hikes. Give me the tradeoffs." class="">Preset 1</button>
+            <button class="preset" data-text="I run hot and want something breathable for rain. Recommend 2 options." class="">Preset 2</button>
+            <button class="preset" data-text="What should I layer with this for 30°F with wind?" class="">Preset 3</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Trace -->
+      <div class="col-span-12 lg:col-span-3 bg-zinc-900/50 border border-zinc-800 rounded-2xl p-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-lg font-semibold">What just happened</h2>
+          <button id="clearTrace" class="text-sm px-3 py-1 rounded-lg bg-zinc-950 border border-zinc-800 hover:border-zinc-600">Clear</button>
+        </div>
+        <div class="text-xs text-zinc-400 mt-1">We log tool calls, context injection, and guardrail checks so a customer can follow the demo.</div>
+
+        <div id="trace" class="mt-4 space-y-3"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const el = (id) => document.getElementById(id);
+    const chatEl = el("chat");
+    const traceEl = el("trace");
+
+    let selectedSku = null;
+
+    function addChat(role, text) {
+      const box = document.createElement("div");
+      box.className = role === "user" ? "bg-zinc-950 border border-zinc-800 rounded-2xl p-3" : "bg-zinc-900 border border-zinc-800 rounded-2xl p-3";
+      box.innerHTML = `<div class="text-xs ${role === "user" ? "text-emerald-400" : "text-zinc-400"}">${role}</div><div class="mt-1 whitespace-pre-wrap text-sm leading-relaxed">${escapeHtml(text)}</div>`;
+      chatEl.appendChild(box);
+      chatEl.scrollTop = chatEl.scrollHeight;
+    }
+
+    function addTrace(events) {
+      if (!events) return;
+      for (const e of events) {
+        const row = document.createElement("div");
+        row.className = "bg-zinc-950 border border-zinc-800 rounded-xl p-2";
+        const t = new Date(e.ts_ms).toLocaleTimeString();
+        row.innerHTML = `<div class="flex items-center justify-between">
+          <div class="text-xs text-zinc-400">${t}</div>
+          <div class="text-xs px-2 py-0.5 rounded-full border border-zinc-700 text-zinc-300">${e.kind}</div>
+        </div>
+        <div class="mt-1 text-sm">${escapeHtml(e.message)}</div>
+        ${e.data ? `<details class="mt-2"><summary class="text-xs text-zinc-400 cursor-pointer">details</summary><pre class="mt-2 text-xs overflow-auto">${escapeHtml(JSON.stringify(e.data, null, 2))}</pre></details>` : ""}`;
+        traceEl.prepend(row);
+      }
+    }
+
+    function clearTrace() {
+      traceEl.innerHTML = "";
+    }
+
+    function escapeHtml(str) {
+      return (str || "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+    }
+
+    function setPDP(p) {
+      selectedSku = p.sku;
+      el("pdp").classList.remove("hidden");
+      el("pdpTitle").textContent = `${p.name} (${p.sku})`;
+      el("pdpMeta").textContent = `${p.category} • $${p.price} • colors: ${p.colors.join(", ")}`;
+      el("pdpHighlights").textContent = `Highlights: ${p.highlights.join(" · ")}`;
+    }
+
+    async function loadCatalog() {
+      const category = el("category").value;
+      const res = await fetch(`/api/catalog?category=${encodeURIComponent(category)}`);
+      const data = await res.json();
+      const list = el("catalog");
+      list.innerHTML = "";
+
+      for (const p of data.items) {
+        const card = document.createElement("button");
+        card.className = "w-full text-left bg-zinc-950 border border-zinc-800 rounded-2xl p-3 hover:border-zinc-600";
+        card.innerHTML = `
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <div class="font-semibold">${escapeHtml(p.name)}</div>
+              <div class="text-xs text-zinc-400 mt-1">${escapeHtml(p.sku)} • $${p.price}</div>
+            </div>
+            <div class="text-xs text-emerald-400">Select</div>
+          </div>
+          <div class="text-xs text-zinc-400 mt-2">${escapeHtml(p.notes)}</div>
+        `;
+        card.onclick = () => setPDP(p);
+        list.appendChild(card);
+      }
+
+      // auto-select first item for a smoother demo
+      if (data.items && data.items.length) setPDP(data.items[0]);
+    }
+
+    async function send() {
+      const msg = el("message").value.trim();
+      if (!msg) return;
+
+      addChat("user", msg);
+      el("message").value = "";
+
+      const payload = {
+        message: msg,
+        product_id: selectedSku,
+        category: el("category").value,
+        user_segment: el("segment").value,
+        show_debug: el("debugToggle").checked
+      };
+
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      addChat("assistant", data.text || "(no response)");
+      addTrace(data.trace);
+    }
+
+    el("send").onclick = send;
+    el("message").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") send();
+    });
+    el("reload").onclick = loadCatalog;
+    el("clearTrace").onclick = clearTrace;
+
+    document.querySelectorAll(".preset").forEach((b) => {
+      b.className = "preset text-xs px-3 py-1 rounded-full bg-zinc-950 border border-zinc-800 hover:border-zinc-600 text-zinc-200";
+      b.onclick = () => { el("message").value = b.dataset.text; el("message").focus(); };
+    });
+
+    loadCatalog();
+  </script>
+</body>
+</html>

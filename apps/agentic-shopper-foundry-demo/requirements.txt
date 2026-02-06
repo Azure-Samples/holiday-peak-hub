@@ -1,0 +1,9 @@
+# Python >= 3.10
+agent-framework --pre
+agent-framework-azure-ai --pre
+agent-framework-azure-ai-search --pre
+azure-identity
+fastapi
+uvicorn[standard]
+python-dotenv
+pydantic

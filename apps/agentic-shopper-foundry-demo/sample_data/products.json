@@ -1,0 +1,94 @@
+[
+  {
+    "sku": "SHELL-014",
+    "name": "StormShift Shell Jacket",
+    "brand": "Patagonia",
+    "category": "shell-jackets",
+    "price": 299,
+    "colors": [
+      "black",
+      "blue"
+    ],
+    "sizes": [
+      "S",
+      "M",
+      "L",
+      "XL"
+    ],
+    "highlights": [
+      "3-layer waterproof",
+      "breathable",
+      "helmet-compatible hood"
+    ],
+    "notes": "Waterproof shell for wet hikes and shoulder-season storms."
+  },
+  {
+    "sku": "SHELL-001",
+    "name": "Granite Crest Rain Jacket",
+    "brand": "Patagonia",
+    "category": "shell-jackets",
+    "price": 279,
+    "colors": [
+      "black",
+      "sage"
+    ],
+    "sizes": [
+      "S",
+      "M",
+      "L",
+      "XL"
+    ],
+    "highlights": [
+      "lightweight rain protection",
+      "packs small",
+      "everyday trail use"
+    ],
+    "notes": "Light, packable rain jacket. Good for active use and travel."
+  },
+  {
+    "sku": "INSUL-044",
+    "name": "Nano Puff Jacket",
+    "brand": "Patagonia",
+    "category": "insulation",
+    "price": 239,
+    "colors": [
+      "black",
+      "navy"
+    ],
+    "sizes": [
+      "S",
+      "M",
+      "L",
+      "XL"
+    ],
+    "highlights": [
+      "synthetic insulation",
+      "warm for weight",
+      "great midlayer"
+    ],
+    "notes": "Warm synthetic insulated jacket that layers well under a shell."
+  },
+  {
+    "sku": "FLEECE-020",
+    "name": "R1 Air Full-Zip Hoody",
+    "brand": "Patagonia",
+    "category": "fleece",
+    "price": 179,
+    "colors": [
+      "black",
+      "gray"
+    ],
+    "sizes": [
+      "S",
+      "M",
+      "L",
+      "XL"
+    ],
+    "highlights": [
+      "breathable",
+      "quick-drying",
+      "active layering"
+    ],
+    "notes": "High-output fleece for running, climbing, and fast hikes."
+  }
+]
