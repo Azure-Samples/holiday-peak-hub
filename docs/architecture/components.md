@@ -25,6 +25,7 @@ Runnable services built on the framework, one per retail process.
 
 | Service | Path | Purpose |
 |---------|------|---------|
+| [CRUD Service](components/apps/crud-service.md) | `apps/crud-service/` | Transactional APIs + ACP checkout sessions |
 | [Catalog Search](components/apps/ecommerce-catalog-search.md) | `apps/ecommerce-catalog-search/` | Product discovery with AI Search |
 | [Product Detail Enrichment](components/apps/ecommerce-product-detail-enrichment.md) | `apps/ecommerce-product-detail-enrichment/` | ACP metadata augmentation |
 | [Cart Intelligence](components/apps/ecommerce-cart-intelligence.md) | `apps/ecommerce-cart-intelligence/` | Personalized cart recommendations |

@@ -59,6 +59,9 @@ This module creates **ONE instance** of each resource, shared across all service
   - StandardV2 tier (prod)
   - VNet integration in prod
 
+### AI Platform
+- **Azure AI Foundry** - Shared Foundry resource and hub for agents and model deployments
+
 ### Observability
 - **Application Insights** - Distributed tracing, metrics, logs
 - **Log Analytics Workspace** - Centralized logging (90-day retention)
@@ -78,6 +81,54 @@ The module automatically configures **passwordless authentication** using Manage
 ### Prerequisites
 - Azure CLI installed and authenticated
 - Subscription with Owner or Contributor role
+
+### Demo Environment (Step-by-Step)
+
+1) Deploy shared infrastructure
+
+```bash
+az deployment sub create \
+  --location eastus2 \
+  --template-file .infra/modules/shared-infrastructure/shared-infrastructure-main.bicep \
+  --parameters environment=demo location=eastus2
+```
+
+2) Deploy Static Web App
+
+```bash
+az deployment sub create \
+  --location eastus2 \
+  --template-file .infra/modules/static-web-app/static-web-app-main.bicep \
+  --parameters environment=demo \
+               resourceGroupName=holidaypeakhub-demo-rg
+```
+
+3) Deploy services (demo strategy)
+
+```bash
+# Example: deploy one service
+python .infra/cli.py deploy \
+  --service ecommerce-catalog-search \
+  --location eastus2 \
+  --resource-group holidaypeakhub-demo-rg \
+  --app-image ghcr.io/azure-samples/ecommerce-catalog-search:latest
+
+# Or deploy all services
+python .infra/cli.py deploy-all \
+  --location eastus2 \
+  --resource-group holidaypeakhub-demo-rg \
+  --app-image ghcr.io/azure-samples/<service>:latest
+```
+
+4) Connect to AKS
+
+```bash
+az aks get-credentials \
+  --resource-group holidaypeakhub-demo-rg \
+  --name holidaypeakhub-demo-aks
+
+kubectl get nodes
+```
 
 ### Deploy Shared Infrastructure
 

@@ -23,6 +23,62 @@ This folder contains all infrastructure-as-code (Bicep) and deployment tooling f
 
 ## 🚀 Quick Start
 
+## ✅ Provisioning Strategies
+
+We support two infrastructure provisioning strategies:
+
+### 1) Demo (per-service)
+- Each service deploys its own resources for a fast, isolated demo.
+- Use the Python CLI (`python cli.py deploy` / `deploy-all`).
+- Suitable for quick demos and lightweight validation.
+
+### 2) Production (shared infrastructure)
+- Single shared stack (AKS, Cosmos DB, Redis, Storage, Event Hubs, Foundry, APIM, etc.).
+- Services deploy as workloads into the shared AKS and reference shared data/memory.
+- Use the shared-infrastructure module first, then deploy services.
+
+**CLI Shortcut**:
+
+```bash
+python cli.py deploy-shared --environment dev --location eastus2
+```
+
+**Shared AKS Workloads (Helm)**:
+
+```bash
+python cli.py deploy-shared-services \
+  --namespace holiday-peak \
+  --image-prefix ghcr.io/azure-samples \
+  --image-tag latest
+```
+
+### 0. Deploy Shared Infrastructure (Demo)
+
+```bash
+cd modules/shared-infrastructure
+
+az deployment sub create \
+  --name shared-infra-demo \
+  --location eastus2 \
+  --template-file shared-infrastructure-main.bicep \
+  --parameters environment=demo location=eastus2
+```
+
+**What this creates**: Same shared stack as dev, in the demo environment
+
+### 0b. Deploy Frontend (Demo)
+
+```bash
+cd modules/static-web-app
+
+az deployment sub create \
+  --name static-web-app-demo \
+  --location eastus2 \
+  --template-file static-web-app-main.bicep \
+  --parameters environment=demo \
+               resourceGroupName=holidaypeakhub-demo-rg
+```
+
 ### 1. Deploy Shared Infrastructure (Dev)
 
 ```bash
@@ -54,6 +110,12 @@ az deployment sub create \
 
 **What this creates**: Azure Static Web Apps with GitHub Actions CI/CD
 
+**CLI Shortcut**:
+
+```bash
+python cli.py deploy-static-web-app --environment dev --location eastus2
+```
+
 **Duration**: ~5 minutes | **Cost**: Free (dev)
 
 ### 3. Connect to AKS
@@ -64,6 +126,104 @@ az aks get-credentials \
   --name holidaypeakhub-dev-aks
 
 kubectl get nodes  # Verify connection
+```
+
+---
+
+## ✅ Deploy Everything (Demo or Dev)
+
+Use this checklist to deploy the full stack in order.
+
+1) Shared infrastructure
+
+```bash
+cd modules/shared-infrastructure
+
+# Demo
+az deployment sub create \
+  --name shared-infra-demo \
+  --location eastus2 \
+  --template-file shared-infrastructure-main.bicep \
+  --parameters environment=demo location=eastus2
+
+# Dev
+az deployment sub create \
+  --name shared-infra-dev \
+  --location eastus2 \
+  --template-file shared-infrastructure-main.bicep \
+  --parameters environment=dev location=eastus2
+```
+
+2) Static Web App
+
+```bash
+cd modules/static-web-app
+
+# Demo
+az deployment sub create \
+  --name static-web-app-demo \
+  --location eastus2 \
+  --template-file static-web-app-main.bicep \
+  --parameters environment=demo \
+               resourceGroupName=holidaypeakhub-demo-rg
+
+# Dev
+az deployment sub create \
+  --name static-web-app-dev \
+  --location eastus2 \
+  --template-file static-web-app-main.bicep \
+  --parameters environment=dev \
+               resourceGroupName=holidaypeakhub-dev-rg
+```
+
+3) Agent services (AKS workloads)
+
+```bash
+# Generate Bicep modules if missing
+python cli.py generate-bicep --apply-all
+
+# Deploy all agent modules (update image path as needed)
+python cli.py deploy-all \
+  --location eastus2 \
+  --resource-group holidaypeakhub-demo-rg \
+  --app-image ghcr.io/azure-samples/<service>:latest
+```
+
+4) CRUD service (AKS workload)
+
+```bash
+python cli.py deploy \
+  --service crud-service \
+  --location eastus2 \
+  --resource-group holidaypeakhub-demo-rg \
+  --app-image ghcr.io/azure-samples/crud-service:latest
+```
+
+5) Connect to AKS
+
+```bash
+az aks get-credentials \
+  --resource-group holidaypeakhub-demo-rg \
+  --name holidaypeakhub-demo-aks
+
+kubectl get nodes
+```
+
+**CLI Shortcut (shared infra + static web app)**:
+
+```bash
+python cli.py deploy-full --environment dev --location eastus2
+```
+
+**CLI Shortcut (shared infra + static web app + all services)**:
+
+```bash
+python cli.py deploy-shared-all \
+  --environment dev \
+  --location eastus2 \
+  --namespace holiday-peak \
+  --image-prefix ghcr.io/azure-samples \
+  --image-tag latest
 ```
 
 ---
@@ -105,6 +265,13 @@ kubectl get nodes  # Verify connection
 ---
 
 ## 🛠️ CLI Tool Usage
+
+> Note: The CLI-based `deploy` and `deploy-all` flows follow the **demo (per-service)** strategy.
+
+The `deploy-shared-services` and `deploy-shared-all` commands target **shared AKS** and require:
+
+- An active AKS kubeconfig (`az aks get-credentials ...`)
+- Helm installed and available in `PATH`
 
 ### Generate Bicep Modules
 

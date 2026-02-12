@@ -3,6 +3,8 @@ targetScope = 'resourceGroup'
 param location string = resourceGroup().location
 param environment string = 'dev' // dev, staging, prod
 param projectName string = 'holidaypeakhub'
+@description('AKS Kubernetes version; leave empty to use Azure default')
+param aksKubernetesVersion string = ''
 
 // Naming convention with environment suffix
 var envSuffix = environment == 'prod' ? '' : '-${environment}'
@@ -21,6 +23,12 @@ var apimName = '${projectName}${envSuffix}-apim'
 var appInsightsName = '${projectName}${envSuffix}-insights'
 var logAnalyticsName = '${projectName}${envSuffix}-logs'
 var vnetName = '${projectName}${envSuffix}-vnet'
+var aiServicesName = take('${safeProjectName}${replace(envSuffix, '-', '')}ais', 24)
+var aiHubSuffix = substring(uniqueString(resourceGroup().id), 0, 3)
+var aiHubName = 'aih${take(safeProjectName, 6)}${aiHubSuffix}'
+var aiHubFriendlyName = '${projectName}${envSuffix} Foundry Hub'
+var aiHubDescription = 'Holiday Peak Hub Foundry hub for ${environment}.'
+var aiFoundryBaseName = take('${safeProjectName}${replace(envSuffix, '-', '')}', 12)
 
 // Virtual Network with subnets
 resource vnet 'Microsoft.Network/virtualNetworks@2023-09-01' = {
@@ -361,6 +369,34 @@ resource paymentMethodsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatab
   }
 }
 
+resource checkoutSessionsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2023-11-15' = {
+  parent: cosmosDb
+  name: 'checkout_sessions'
+  properties: {
+    resource: {
+      id: 'checkout_sessions'
+      partitionKey: {
+        paths: ['/user_id']
+        kind: 'Hash'
+      }
+    }
+  }
+}
+
+resource paymentTokensContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2023-11-15' = {
+  parent: cosmosDb
+  name: 'payment_tokens'
+  properties: {
+    resource: {
+      id: 'payment_tokens'
+      partitionKey: {
+        paths: ['/user_id']
+        kind: 'Hash'
+      }
+    }
+  }
+}
+
 resource ticketsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2023-11-15' = {
   parent: cosmosDb
   name: 'tickets'
@@ -542,6 +578,39 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
   }
 }
 
+// Azure AI Foundry (AVM)
+module aiFoundry 'br/public:avm/ptn/ai-ml/ai-foundry:0.6.0' = {
+  name: 'ai-foundry'
+  params: {
+    baseName: aiFoundryBaseName
+    location: location
+    includeAssociatedResources: true
+    aiFoundryConfiguration: {
+      accountName: aiServicesName
+      location: location
+      sku: 'S0'
+      project: {
+        name: aiHubName
+        displayName: aiHubFriendlyName
+        desc: aiHubDescription
+      }
+    }
+    keyVaultConfiguration: {
+      existingResourceId: keyVault.id
+    }
+    storageAccountConfiguration: {
+      existingResourceId: storage.id
+    }
+    cosmosDbConfiguration: {
+      existingResourceId: cosmos.id
+    }
+  }
+}
+
+var aksVersionProps = empty(aksKubernetesVersion) ? {} : {
+  kubernetesVersion: aksKubernetesVersion
+}
+
 // Azure Kubernetes Service
 resource aks 'Microsoft.ContainerService/managedClusters@2024-01-01' = {
   name: aksClusterName
@@ -549,9 +618,8 @@ resource aks 'Microsoft.ContainerService/managedClusters@2024-01-01' = {
   identity: {
     type: 'SystemAssigned'
   }
-  properties: {
+  properties: union({
     dnsPrefix: '${projectName}${envSuffix}'
-    kubernetesVersion: '1.29'
     enableRBAC: true
     aadProfile: {
       managed: true
@@ -567,7 +635,7 @@ resource aks 'Microsoft.ContainerService/managedClusters@2024-01-01' = {
       {
         name: 'system'
         count: environment == 'prod' ? 3 : 1
-        vmSize: 'Standard_D4s_v5'
+        vmSize: 'Standard_D8ds_v5'
         osType: 'Linux'
         mode: 'System'
         vnetSubnetID: '${vnet.id}/subnets/aks-system'
@@ -578,7 +646,7 @@ resource aks 'Microsoft.ContainerService/managedClusters@2024-01-01' = {
       {
         name: 'agents'
         count: environment == 'prod' ? 5 : 2
-        vmSize: 'Standard_D8s_v5'
+        vmSize: 'Standard_D8ds_v5'
         osType: 'Linux'
         mode: 'User'
         vnetSubnetID: '${vnet.id}/subnets/aks-agents'
@@ -592,7 +660,7 @@ resource aks 'Microsoft.ContainerService/managedClusters@2024-01-01' = {
       {
         name: 'crud'
         count: environment == 'prod' ? 3 : 1
-        vmSize: 'Standard_D4s_v5'
+        vmSize: 'Standard_D8ds_v5'
         osType: 'Linux'
         mode: 'User'
         vnetSubnetID: '${vnet.id}/subnets/aks-crud'
@@ -623,7 +691,7 @@ resource aks 'Microsoft.ContainerService/managedClusters@2024-01-01' = {
         enabled: true
       }
     }
-  }
+  }, aksVersionProps)
 }
 
 // API Management (Consumption tier for dev, Standard for prod)
@@ -726,6 +794,8 @@ output keyVaultName string = keyVault.name
 output keyVaultUri string = keyVault.properties.vaultUri
 output apimName string = apim.name
 output apimGatewayUrl string = apim.properties.gatewayUrl
+output aiServicesName string = aiFoundry.outputs.aiServicesName
+output aiHubName string = aiFoundry.outputs.aiProjectName
 output appInsightsConnectionString string = appInsights.properties.ConnectionString
 output appInsightsInstrumentationKey string = appInsights.properties.InstrumentationKey
 output vnetId string = vnet.id

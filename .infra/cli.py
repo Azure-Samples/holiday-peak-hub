@@ -10,6 +10,9 @@ app = typer.Typer(help="Provision Holiday Peak Hub services")
 ROOT = Path(__file__).parent
 APPS_DIR = ROOT.parent / "apps"
 TEMPLATE_DIR = ROOT / "templates"
+SHARED_INFRA_MAIN = ROOT / "modules" / "shared-infrastructure" / "shared-infrastructure-main.bicep"
+STATIC_WEB_APP_MAIN = ROOT / "modules" / "static-web-app" / "static-web-app-main.bicep"
+HELM_CHART_DIR = ROOT.parent / ".kubernetes" / "chart"
 
 def load_template(template_name: str) -> str:
     path = TEMPLATE_DIR / template_name
@@ -49,6 +52,63 @@ def deploy_file(
     subprocess.run(cmd, check=False)
 
 
+def deploy_subscription_template(
+    template_path: Path,
+    location: str,
+    parameters: dict[str, str],
+    subscription_id: Optional[str],
+) -> None:
+    if not template_path.exists():
+        raise typer.BadParameter(f"Bicep file not found: {template_path}")
+    cmd = [
+        "az",
+        "deployment",
+        "sub",
+        "create",
+        "--location",
+        location,
+        "--template-file",
+        str(template_path),
+        "--parameters",
+    ]
+    for key, value in parameters.items():
+        cmd.append(f"{key}={value}")
+    if subscription_id:
+        cmd.extend(["--subscription", subscription_id, "--parameters", f"subscriptionId={subscription_id}"])
+    subprocess.run(cmd, check=False)
+
+
+def deploy_helm_release(
+    service: str,
+    namespace: str,
+    image_prefix: str,
+    image_tag: str,
+    enable_keda: bool,
+) -> None:
+    if not HELM_CHART_DIR.exists():
+        raise typer.BadParameter(f"Helm chart not found: {HELM_CHART_DIR}")
+    image_repo = f"{image_prefix}/{service}"
+    cmd = [
+        "helm",
+        "upgrade",
+        "--install",
+        service,
+        str(HELM_CHART_DIR),
+        "--namespace",
+        namespace,
+        "--create-namespace",
+        "--set",
+        f"serviceName={service}",
+        "--set",
+        f"image.repository={image_repo}",
+        "--set",
+        f"image.tag={image_tag}",
+        "--set",
+        f"keda.enabled={str(enable_keda).lower()}",
+    ]
+    subprocess.run(cmd, check=False)
+
+
 def default_resource_group(service: str) -> str:
     return f"{service}-rg"
 
@@ -81,6 +141,135 @@ def deploy(
     rg = resource_group or default_resource_group(service)
     image = app_image or f"ghcr.io/OWNER/{service}:latest"
     deploy_file(main_bicep, service, rg, location, image, subscription_id)
+
+
+@app.command()
+def deploy_shared(
+    environment: str = typer.Option("dev", help="Environment name (dev, staging, prod, demo)"),
+    location: str = typer.Option("eastus2", help="Azure region"),
+    project_name: Optional[str] = typer.Option(None, help="Project name prefix"),
+    resource_group: Optional[str] = typer.Option(None, help="Override resource group name"),
+    subscription_id: Optional[str] = typer.Option(None, help="Azure subscription ID"),
+) -> None:
+    """Deploy shared infrastructure (Cosmos DB, AKS, Event Hubs, etc.)."""
+    params: dict[str, str] = {
+        "environment": environment,
+        "location": location,
+    }
+    if project_name:
+        params["projectName"] = project_name
+    if resource_group:
+        params["resourceGroupName"] = resource_group
+    deploy_subscription_template(SHARED_INFRA_MAIN, location, params, subscription_id)
+
+
+@app.command()
+def deploy_static_web_app(
+    environment: str = typer.Option("dev", help="Environment name (dev, staging, prod, demo)"),
+    location: str = typer.Option("eastus2", help="Azure region (SWA supported)"),
+    app_name: str = typer.Option("holidaypeakhub-ui", help="Static Web App name"),
+    resource_group: Optional[str] = typer.Option(None, help="Resource group name"),
+    repository_url: str = typer.Option(
+        "https://github.com/Azure-Samples/holiday-peak-hub", help="GitHub repo URL"
+    ),
+    branch: str = typer.Option("main", help="Git branch"),
+    subscription_id: Optional[str] = typer.Option(None, help="Azure subscription ID"),
+) -> None:
+    """Deploy Static Web App infrastructure."""
+    params = {
+        "environment": environment,
+        "location": location,
+        "appName": app_name,
+        "repositoryUrl": repository_url,
+        "branch": branch,
+    }
+    if resource_group:
+        params["resourceGroupName"] = resource_group
+    deploy_subscription_template(STATIC_WEB_APP_MAIN, location, params, subscription_id)
+
+
+@app.command()
+def deploy_full(
+    environment: str = typer.Option("dev", help="Environment name (dev, staging, prod, demo)"),
+    location: str = typer.Option("eastus2", help="Azure region"),
+    project_name: Optional[str] = typer.Option(None, help="Project name prefix"),
+    resource_group: Optional[str] = typer.Option(None, help="Override resource group name"),
+    subscription_id: Optional[str] = typer.Option(None, help="Azure subscription ID"),
+) -> None:
+    """Deploy shared infrastructure and static web app."""
+    deploy_shared(
+        environment=environment,
+        location=location,
+        project_name=project_name,
+        resource_group=resource_group,
+        subscription_id=subscription_id,
+    )
+    deploy_static_web_app(
+        environment=environment,
+        location=location,
+        resource_group=resource_group,
+        subscription_id=subscription_id,
+    )
+
+
+@app.command()
+def deploy_shared_services(
+    namespace: str = typer.Option("holiday-peak", help="AKS namespace for services"),
+    image_prefix: str = typer.Option(
+        "ghcr.io/azure-samples",
+        help="Image repository prefix (e.g., ghcr.io/azure-samples)",
+    ),
+    image_tag: str = typer.Option("latest", help="Image tag"),
+    enable_keda: bool = typer.Option(False, help="Enable KEDA scaling in chart"),
+) -> None:
+    """Deploy all services to shared AKS via Helm chart (requires kubectl context)."""
+    for app_path in APPS_DIR.iterdir():
+        if not app_path.is_dir():
+            continue
+        deploy_helm_release(
+            service=app_path.name,
+            namespace=namespace,
+            image_prefix=image_prefix,
+            image_tag=image_tag,
+            enable_keda=enable_keda,
+        )
+
+
+@app.command()
+def deploy_shared_all(
+    environment: str = typer.Option("dev", help="Environment name (dev, staging, prod, demo)"),
+    location: str = typer.Option("eastus2", help="Azure region"),
+    project_name: Optional[str] = typer.Option(None, help="Project name prefix"),
+    resource_group: Optional[str] = typer.Option(None, help="Override resource group name"),
+    subscription_id: Optional[str] = typer.Option(None, help="Azure subscription ID"),
+    namespace: str = typer.Option("holiday-peak", help="AKS namespace for services"),
+    image_prefix: str = typer.Option(
+        "ghcr.io/azure-samples",
+        help="Image repository prefix (e.g., ghcr.io/azure-samples)",
+    ),
+    image_tag: str = typer.Option("latest", help="Image tag"),
+    enable_keda: bool = typer.Option(False, help="Enable KEDA scaling in chart"),
+) -> None:
+    """Deploy shared infra, static web app, then all services to shared AKS."""
+    deploy_shared(
+        environment=environment,
+        location=location,
+        project_name=project_name,
+        resource_group=resource_group,
+        subscription_id=subscription_id,
+    )
+    deploy_static_web_app(
+        environment=environment,
+        location=location,
+        resource_group=resource_group,
+        subscription_id=subscription_id,
+    )
+    deploy_shared_services(
+        namespace=namespace,
+        image_prefix=image_prefix,
+        image_tag=image_tag,
+        enable_keda=enable_keda,
+    )
 
 
 @app.command()

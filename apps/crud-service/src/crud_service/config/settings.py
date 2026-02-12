@@ -101,6 +101,12 @@ class Settings(BaseSettings):
     stripe_secret_key: str | None = Field(default=None, description="Stripe secret key")
     stripe_webhook_secret: str | None = Field(default=None, description="Stripe webhook secret")
 
+    # ACP Merchant Settings
+    merchant_id: str = Field(
+        default="holiday-peak-hub",
+        description="Merchant identifier for ACP checkout and payments",
+    )
+
     # SendGrid (optional, for email notifications)
     sendgrid_api_key: str | None = Field(default=None, description="SendGrid API key")
 

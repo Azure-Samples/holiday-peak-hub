@@ -15,6 +15,8 @@ from opentelemetry import trace
 from crud_service.config.settings import get_settings
 from crud_service.integrations.event_publisher import get_event_publisher
 from crud_service.routes import (
+    acp_checkout,
+    acp_payments,
     auth,
     cart,
     categories,
@@ -117,6 +119,8 @@ app.include_router(orders.router, prefix="/api", tags=["Orders"])
 app.include_router(checkout.router, prefix="/api", tags=["Checkout"])
 app.include_router(payments.router, prefix="/api", tags=["Payments"])
 app.include_router(reviews.router, prefix="/api", tags=["Reviews"])
+app.include_router(acp_checkout.router, prefix="/acp", tags=["ACP Checkout"])
+app.include_router(acp_payments.router, prefix="/acp", tags=["ACP Payments"])
 
 # Staff routes
 app.include_router(analytics.router, prefix="/api/staff/analytics", tags=["Staff Analytics"])

@@ -12,6 +12,7 @@
     "chat.tools.terminal.autoApprove": {
         ".\\find-migrations.ps1": true,
         "yarn test": true,
-        "C:/Users/ricar/Github/holiday-peak-hub/lib/src/.venv/Scripts/python.exe": true
+        "C:/Users/ricar/Github/holiday-peak-hub/lib/src/.venv/Scripts/python.exe": true,
+        "azd": true
     }
 }

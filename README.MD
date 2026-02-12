@@ -196,8 +196,117 @@ The workflow in .github/workflows/ci.yml runs lint, format, and tests on pushes/
 ## Infrastructure and deployment
 
 - Bicep modules live in .infra/modules; per-service entry points are in .infra/*.bicep.
+- **All infrastructure and services must be deployed using the Python CLI in `.infra/`.**
 - A Typer CLI wraps deployment: `python -m .infra.cli deploy <service> --location <region> --version <release> [--subscription-id <sub>] [--resource-group <rg>]` or `deploy_all` to iterate every service (defaults RG to `<service>-rg`). Each deployment is subscription-scoped, creates the RG, and names resources as `appname-azureservicename-version` (storage accounts use a hyphen-stripped variant).
 - Helm chart scaffolding lives in .kubernetes/chart for AKS + KEDA; supply your image names, environment, and HPA/KEDA triggers via values.yaml.
+
+### CLI command reference
+
+**Shared infrastructure**
+
+```bash
+# Shared infra (AKS, Cosmos DB, Event Hubs, etc.)
+python .infra/cli.py deploy-shared --environment dev --location eastus2
+```
+
+**Static web app**
+
+```bash
+# Static Web App (frontend)
+python .infra/cli.py deploy-static-web-app --environment dev --location eastus2
+```
+
+**Shared infra + Static Web App**
+
+```bash
+python .infra/cli.py deploy-full --environment dev --location eastus2
+```
+
+**Shared AKS workloads (Helm)**
+
+```bash
+# Deploy all services to shared AKS (requires kubeconfig + Helm)
+python .infra/cli.py deploy-shared-services \
+  --namespace holiday-peak \
+  --image-prefix ghcr.io/azure-samples \
+  --image-tag latest
+```
+
+**Shared infra + Static Web App + all services**
+
+```bash
+python .infra/cli.py deploy-shared-all \
+  --environment dev \
+  --location eastus2 \
+  --namespace holiday-peak \
+  --image-prefix ghcr.io/azure-samples \
+  --image-tag latest
+```
+
+**Demo (per-service)**
+
+```bash
+# One service
+python .infra/cli.py deploy --service ecommerce-catalog-search --location eastus2
+
+# All services (demo per-service pattern)
+python .infra/cli.py deploy-all --location eastus2 --app-image ghcr.io/azure-samples/<service>:latest
+```
+
+**Module generation**
+
+```bash
+# Bicep modules
+python .infra/cli.py generate-bicep --service ecommerce-catalog-search
+python .infra/cli.py generate-bicep --apply-all
+
+# Dockerfiles
+python .infra/cli.py generate-dockerfile --service ecommerce-catalog-search
+python .infra/cli.py generate-dockerfile --apply-all
+```
+
+### Step-by-step scenarios
+
+**Scenario A: Shared infra + Static Web App + all services (recommended)**
+
+```bash
+# 1) Deploy shared infra
+python .infra/cli.py deploy-shared --environment dev --location eastus2
+
+# 2) Deploy Static Web App
+python .infra/cli.py deploy-static-web-app --environment dev --location eastus2
+
+# 3) Get AKS credentials
+az aks get-credentials --resource-group holidaypeakhub-dev-rg --name holidaypeakhub-dev-aks
+
+# 4) Deploy all services to shared AKS
+python .infra/cli.py deploy-shared-services \
+  --namespace holiday-peak \
+  --image-prefix ghcr.io/azure-samples \
+  --image-tag latest
+```
+
+**Scenario B: Shared infra only (foundation)**
+
+```bash
+python .infra/cli.py deploy-shared --environment dev --location eastus2
+```
+
+**Scenario C: Shared infra + Static Web App only**
+
+```bash
+python .infra/cli.py deploy-full --environment dev --location eastus2
+```
+
+**Scenario D: Demo (per-service resources)**
+
+```bash
+# One service
+python .infra/cli.py deploy --service ecommerce-catalog-search --location eastus2
+
+# All services
+python .infra/cli.py deploy-all --location eastus2 --app-image ghcr.io/azure-samples/<service>:latest
+```
 
 ## Services catalog
 
