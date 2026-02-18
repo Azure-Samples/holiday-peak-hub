@@ -1,5 +1,6 @@
 """Typer CLI to deploy services via Bicep and maintain Dockerfiles."""
 import subprocess
+from shutil import which
 from pathlib import Path
 from typing import Optional
 
@@ -14,11 +15,23 @@ SHARED_INFRA_MAIN = ROOT / "modules" / "shared-infrastructure" / "shared-infrast
 STATIC_WEB_APP_MAIN = ROOT / "modules" / "static-web-app" / "static-web-app-main.bicep"
 HELM_CHART_DIR = ROOT.parent / ".kubernetes" / "chart"
 
+
 def load_template(template_name: str) -> str:
     path = TEMPLATE_DIR / template_name
     if not path.exists():
         raise typer.BadParameter(f"Template not found: {path}")
     return path.read_text(encoding="utf-8")
+
+
+def resolve_az_cli() -> str:
+    az_cli = which("az")
+    if az_cli:
+        return az_cli
+    # Windows installs az as az.cmd in a fixed path; try it when PATH is stale.
+    az_cmd = Path("C:/Program Files/Microsoft SDKs/Azure/CLI2/wbin/az.cmd")
+    if az_cmd.exists():
+        return str(az_cmd)
+    raise FileNotFoundError("Azure CLI not found on PATH and default az.cmd path is missing.")
 
 
 def deploy_file(
@@ -33,7 +46,7 @@ def deploy_file(
         f"Deploying {file_path.name} to {resource_group} in {location}"
     )
     cmd = [
-        "az",
+        resolve_az_cli(),
         "deployment",
         "sub",
         "create",
@@ -61,7 +74,7 @@ def deploy_subscription_template(
     if not template_path.exists():
         raise typer.BadParameter(f"Bicep file not found: {template_path}")
     cmd = [
-        "az",
+        resolve_az_cli(),
         "deployment",
         "sub",
         "create",
@@ -148,6 +161,7 @@ def deploy_shared(
     environment: str = typer.Option("dev", help="Environment name (dev, staging, prod, demo)"),
     location: str = typer.Option("eastus2", help="Azure region"),
     project_name: Optional[str] = typer.Option(None, help="Project name prefix"),
+    key_vault_name: Optional[str] = typer.Option(None, help="Override Key Vault name"),
     resource_group: Optional[str] = typer.Option(None, help="Override resource group name"),
     subscription_id: Optional[str] = typer.Option(None, help="Azure subscription ID"),
 ) -> None:
@@ -158,6 +172,8 @@ def deploy_shared(
     }
     if project_name:
         params["projectName"] = project_name
+    if key_vault_name:
+        params["keyVaultNameOverride"] = key_vault_name
     if resource_group:
         params["resourceGroupName"] = resource_group
     deploy_subscription_template(SHARED_INFRA_MAIN, location, params, subscription_id)
@@ -240,6 +256,7 @@ def deploy_shared_all(
     environment: str = typer.Option("dev", help="Environment name (dev, staging, prod, demo)"),
     location: str = typer.Option("eastus2", help="Azure region"),
     project_name: Optional[str] = typer.Option(None, help="Project name prefix"),
+    key_vault_name: Optional[str] = typer.Option(None, help="Override Key Vault name"),
     resource_group: Optional[str] = typer.Option(None, help="Override resource group name"),
     subscription_id: Optional[str] = typer.Option(None, help="Azure subscription ID"),
     namespace: str = typer.Option("holiday-peak", help="AKS namespace for services"),
@@ -255,6 +272,7 @@ def deploy_shared_all(
         environment=environment,
         location=location,
         project_name=project_name,
+        key_vault_name=key_vault_name,
         resource_group=resource_group,
         subscription_id=subscription_id,
     )

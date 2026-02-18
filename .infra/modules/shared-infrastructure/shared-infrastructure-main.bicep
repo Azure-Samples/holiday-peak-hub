@@ -4,6 +4,8 @@ param subscriptionId string = subscription().subscriptionId
 param location string = 'eastus'
 param environment string = 'dev' // dev, staging, prod
 param projectName string = 'holidaypeakhub'
+@description('Optional override for Key Vault name (3-24 chars, lowercase letters, numbers, and hyphens). Leave empty to use default naming.')
+param keyVaultNameOverride string = ''
 param resourceGroupName string = '${projectName}-${environment}-rg'
 
 // Create Resource Group
@@ -25,6 +27,7 @@ module sharedInfra './shared-infrastructure.bicep' = {
     location: location
     environment: environment
     projectName: projectName
+    keyVaultNameOverride: keyVaultNameOverride
   }
   dependsOn: [
     rg

@@ -1,10 +1,13 @@
 # Shared Infrastructure Module
 
 This module provisions **shared infrastructure** for Holiday Peak Hub that is used by all services (CRUD service + 21 agent services).
+Provisioning is implemented with Azure Verified Modules (AVM) for consistent, supportable resource definitions.
+AVM module versions are pinned per resource in the shared infrastructure Bicep file to ensure compatibility with the registry.
 
 ## Architecture Decision
 
 **Agent Resources: Pairwise Approach**
+
 - Each agent **keeps its own memory resources** (Cosmos containers, Redis DBs, Blob containers)
 - Agents **share the underlying accounts** (Cosmos DB account, Redis Cache, Storage Account)
 - This approach balances **isolation** (agent independence) with **cost optimization** (shared infrastructure)
@@ -14,6 +17,7 @@ This module provisions **shared infrastructure** for Holiday Peak Hub that is us
 This module creates **ONE instance** of each resource, shared across all services:
 
 ### Compute & Container
+
 - **Azure Kubernetes Service (AKS)** - Single cluster with 3 node pools:
   - `system` - System workloads (1-5 nodes)
   - `agents` - Agent services with taint `workload=agents:NoSchedule` (2-20 nodes)
@@ -21,6 +25,7 @@ This module creates **ONE instance** of each resource, shared across all service
 - **Azure Container Registry (ACR)** - Container image registry (Premium tier)
 
 ### Data & Storage
+
 - **Cosmos DB Account** - Shared account with:
   - **Operational containers** (for CRUD service): `users`, `products`, `orders`, `cart`, `reviews`, `addresses`, `payment_methods`, `tickets`, `shipments`, `audit_logs`
   - **Agent memory containers** (created by agent modules): `warm-{agent-name}-chat-memory`
@@ -32,6 +37,7 @@ This module creates **ONE instance** of each resource, shared across all service
   - `cold-{agent-name}-chat-memory` - Agent-specific cold storage (created by agent modules)
 
 ### Messaging & Events
+
 - **Event Hubs Namespace** - Shared namespace with topics:
   - `order-events` - Order lifecycle events
   - `inventory-events` - Inventory updates
@@ -40,10 +46,12 @@ This module creates **ONE instance** of each resource, shared across all service
   - `user-events` - User activity events
 
 ### Security & Secrets
+
 - **Key Vault** - Centralized secrets management (Premium tier with RBAC)
 - **Managed Identity** - AKS uses System-Assigned MI for passwordless auth
 
 ### Networking
+
 - **Virtual Network** - 10.0.0.0/16 with subnets:
   - `aks-system` - 10.0.0.0/22 (System node pool)
   - `aks-agents` - 10.0.4.0/22 (Agent node pool)
@@ -54,15 +62,18 @@ This module creates **ONE instance** of each resource, shared across all service
 - **Private Endpoints** - All PaaS services accessible only via private network (no public access)
 
 ### API Gateway
+
 - **Azure API Management** - API gateway for all services:
   - Consumption tier (dev/staging)
   - StandardV2 tier (prod)
   - VNet integration in prod
 
 ### AI Platform
+
 - **Azure AI Foundry** - Shared Foundry resource and hub for agents and model deployments
 
 ### Observability
+
 - **Application Insights** - Distributed tracing, metrics, logs
 - **Log Analytics Workspace** - Centralized logging (90-day retention)
 
@@ -79,6 +90,7 @@ The module automatically configures **passwordless authentication** using Manage
 ## Deployment
 
 ### Prerequisites
+
 - Azure CLI installed and authenticated
 - Subscription with Owner or Contributor role
 

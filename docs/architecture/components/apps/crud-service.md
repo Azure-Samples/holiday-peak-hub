@@ -31,7 +31,7 @@ The CRUD service is a non-agent FastAPI microservice that owns transactional sta
 ## Data Stores
 
 - Cosmos DB containers: `cart`, `orders`, `checkout_sessions`, `payment_tokens`
-- Provisioned via shared infrastructure Bicep module
+- Provisioned via shared infrastructure AVM Bicep module
 
 ## Events
 
