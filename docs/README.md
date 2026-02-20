@@ -14,6 +14,41 @@ Per-app run and test scripts are available under [scripts](scripts). These scrip
 - Run an app: [scripts/run-app.sh](scripts/run-app.sh) with a per-app wrapper like [scripts/run-ecommerce-checkout-support.sh](scripts/run-ecommerce-checkout-support.sh)
 - Run all tests with coverage per app: [scripts/run-all-tests.sh](scripts/run-all-tests.sh)
 
+## Infrastructure CLI
+
+Provisioning and deployment use the azd project defined in `azure.yaml`.
+The Python CLI in `.infra/cli.py` is scaffolding-only (`generate-bicep`, `generate-dockerfile`).
+
+### Production Deployment Runbook (GitHub Actions + azd)
+
+Use workflow `.github/workflows/deploy-azd.yml` for ordered production rollout.
+
+**Required repository/environment secrets**:
+
+- `AZURE_CLIENT_ID`
+- `AZURE_TENANT_ID`
+- `AZURE_SUBSCRIPTION_ID`
+
+**Workflow inputs**:
+
+- `environment` (azd env name, e.g. `dev`, `staging`, `prod`)
+- `location` (Azure region)
+- `projectName` (naming prefix, default `holidaypeakhub`)
+- `imageTag` (container image tag to deploy)
+- `deployStatic` (boolean to provision Static Web App resources)
+
+**Execution order**:
+
+1. `provision` job: sets azd env values and runs `azd provision`.
+2. `deploy-crud` job: fetches AKS credentials and deploys `crud-service` first.
+3. `deploy-agents` job: deploys 21 agent services in parallel matrix.
+
+**Operational notes**:
+
+- Keep `deployShared=true` for all shared-environment rollouts.
+- Use environment approvals in GitHub Environments for `staging`/`prod`.
+- Keep image tags immutable for reproducible rollback.
+
 ---
 
 ## 📚 Documentation Index

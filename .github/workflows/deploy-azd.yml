@@ -1,0 +1,158 @@
+name: deploy-azd
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Deployment environment name (for azd -e)
+        required: true
+        default: dev
+      location:
+        description: Azure location
+        required: true
+        default: eastus2
+      projectName:
+        description: Project prefix used by naming convention
+        required: true
+        default: holidaypeakhub
+      imageTag:
+        description: Image tag to deploy
+        required: true
+        default: latest
+      deployStatic:
+        description: Provision static web app resources
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup azd
+        uses: Azure/setup-azd@v1
+
+      - name: Configure azd environment
+        run: |
+          azd env set AZURE_SUBSCRIPTION_ID "${AZURE_SUBSCRIPTION_ID}" -e "${{ inputs.environment }}"
+          azd env set AZURE_LOCATION "${{ inputs.location }}" -e "${{ inputs.environment }}"
+          azd env set AZURE_ENV_NAME "${{ inputs.environment }}" -e "${{ inputs.environment }}"
+
+          azd env set deployShared true -e "${{ inputs.environment }}"
+          azd env set deployStatic "${{ inputs.deployStatic }}" -e "${{ inputs.environment }}"
+          azd env set environment "${{ inputs.environment }}" -e "${{ inputs.environment }}"
+          azd env set location "${{ inputs.location }}" -e "${{ inputs.environment }}"
+          azd env set projectName "${{ inputs.projectName }}" -e "${{ inputs.environment }}"
+
+          azd env set IMAGE_PREFIX "ghcr.io/${{ github.repository_owner }}" -e "${{ inputs.environment }}"
+          azd env set IMAGE_TAG "${{ inputs.imageTag }}" -e "${{ inputs.environment }}"
+          azd env set K8S_NAMESPACE holiday-peak -e "${{ inputs.environment }}"
+          azd env set KEDA_ENABLED false -e "${{ inputs.environment }}"
+
+      - name: Provision infrastructure
+        run: azd provision --no-prompt -e "${{ inputs.environment }}"
+
+  deploy-crud:
+    runs-on: ubuntu-latest
+    needs: provision
+    environment: ${{ inputs.environment }}
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup azd
+        uses: Azure/setup-azd@v1
+
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
+            --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
+            --overwrite-existing
+
+      - name: Deploy CRUD service
+        run: azd deploy --service crud-service --no-prompt -e "${{ inputs.environment }}"
+
+  deploy-agents:
+    runs-on: ubuntu-latest
+    needs: deploy-crud
+    environment: ${{ inputs.environment }}
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - crm-campaign-intelligence
+          - crm-profile-aggregation
+          - crm-segmentation-personalization
+          - crm-support-assistance
+          - ecommerce-cart-intelligence
+          - ecommerce-catalog-search
+          - ecommerce-checkout-support
+          - ecommerce-order-status
+          - ecommerce-product-detail-enrichment
+          - inventory-alerts-triggers
+          - inventory-health-check
+          - inventory-jit-replenishment
+          - inventory-reservation-validation
+          - logistics-carrier-selection
+          - logistics-eta-computation
+          - logistics-returns-support
+          - logistics-route-issue-detection
+          - product-management-acp-transformation
+          - product-management-assortment-optimization
+          - product-management-consistency-validation
+          - product-management-normalization-classification
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup azd
+        uses: Azure/setup-azd@v1
+
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
+            --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
+            --overwrite-existing
+
+      - name: Deploy service
+        run: azd deploy --service "${{ matrix.service }}" --no-prompt -e "${{ inputs.environment }}"

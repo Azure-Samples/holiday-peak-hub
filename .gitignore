@@ -195,6 +195,9 @@ DocProject/Help/html
 # Click-Once directory
 publish/
 
+# azd rendered manifests
+.kubernetes/rendered/
+
 # Publish Web Output
 *.[Pp]ublish.xml
 *.azurePubxml

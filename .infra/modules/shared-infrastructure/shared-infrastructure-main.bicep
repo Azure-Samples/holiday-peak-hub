@@ -1,7 +1,7 @@
 targetScope = 'subscription'
 
 param subscriptionId string = subscription().subscriptionId
-param location string = 'eastus'
+param location string = 'eastus2'
 param environment string = 'dev' // dev, staging, prod
 param projectName string = 'holidaypeakhub'
 @description('Optional override for Key Vault name (3-24 chars, lowercase letters, numbers, and hyphens). Leave empty to use default naming.')
@@ -50,3 +50,5 @@ output apimName string = sharedInfra.outputs.apimName
 output apimGatewayUrl string = sharedInfra.outputs.apimGatewayUrl
 output appInsightsConnectionString string = sharedInfra.outputs.appInsightsConnectionString
 output vnetName string = sharedInfra.outputs.vnetName
+output aiProjectName string = sharedInfra.outputs.aiProjectName
+output aiServicesName string = sharedInfra.outputs.aiServicesName

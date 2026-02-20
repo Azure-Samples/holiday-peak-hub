@@ -13,6 +13,10 @@
         ".\\find-migrations.ps1": true,
         "yarn test": true,
         "C:/Users/ricar/Github/holiday-peak-hub/lib/src/.venv/Scripts/python.exe": true,
-        "azd": true
+        "azd": true,
+        "az": true,
+        "kubectl config": true,
+        "kubectl get": true,
+        "ConvertFrom-Json": true
     }
 }

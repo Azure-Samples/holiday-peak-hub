@@ -192,68 +192,68 @@ pytest lib/tests apps/**/tests --maxfail=1 --cov=. --cov-report=term-missing --c
 ## CI
 
 The workflow in .github/workflows/ci.yml runs lint, format, and tests on pushes/PRs and, on main, builds and pushes every app image to GHCR (`ghcr.io/<owner>/<app>:latest`).
+For production-style rollout with ordering, use `.github/workflows/deploy-azd.yml` (provision, deploy CRUD, then deploy agent services).
 
 ## Infrastructure and deployment
 
 - Bicep modules live in .infra/modules; per-service entry points are in .infra/*.bicep.
-- **All infrastructure and services must be deployed using the Python CLI in `.infra/`.**
-- A Typer CLI wraps deployment: `python -m .infra.cli deploy <service> --location <region> --version <release> [--subscription-id <sub>] [--resource-group <rg>]` or `deploy_all` to iterate every service (defaults RG to `<service>-rg`). Each deployment is subscription-scoped, creates the RG, and names resources as `appname-azureservicename-version` (storage accounts use a hyphen-stripped variant).
+- **Use Azure Developer CLI (`azd`) for all provisioning and deployments.**
+- The Python CLI in `.infra/cli.py` is now scaffolding-only (`generate-bicep`, `generate-dockerfile`).
 - Helm chart scaffolding lives in .kubernetes/chart for AKS + KEDA; supply your image names, environment, and HPA/KEDA triggers via values.yaml.
+- Service provisioning guide: [Infrastructure README - Deploy Services with azd](.infra/README.md#-deploy-services-with-azd)
 
 ### CLI command reference
 
-**Shared infrastructure**
+#### Shared infrastructure (azd)
 
 ```bash
-# Shared infra (AKS, Cosmos DB, Event Hubs, etc.)
-python .infra/cli.py deploy-shared --environment dev --location eastus2
+azd env set deployShared true -e dev
+azd env set deployStatic false -e dev
+azd env set environment dev -e dev
+azd env set location eastus2 -e dev
+azd provision -e dev
 ```
 
-**Static web app**
+#### Static web app infra (azd)
 
 ```bash
-# Static Web App (frontend)
-python .infra/cli.py deploy-static-web-app --environment dev --location eastus2
+azd env set deployShared false -e dev
+azd env set deployStatic true -e dev
+azd env set environment dev -e dev
+azd env set location eastus2 -e dev
+azd provision -e dev
 ```
 
-**Shared infra + Static Web App**
+#### Shared infra + static web app + services
 
 ```bash
-python .infra/cli.py deploy-full --environment dev --location eastus2
+azd env set deployShared true -e dev
+azd env set deployStatic true -e dev
+azd env set environment dev -e dev
+azd env set location eastus2 -e dev
+azd up -e dev
 ```
 
-**Shared AKS workloads (Helm)**
+#### Shared AKS workloads (azd service deploy)
 
 ```bash
-# Deploy all services to shared AKS (requires kubeconfig + Helm)
-python .infra/cli.py deploy-shared-services \
-  --namespace holiday-peak \
-  --image-prefix ghcr.io/azure-samples \
-  --image-tag latest
+# Ensure kubeconfig is available for AKS-hosted services
+az aks get-credentials --resource-group holidaypeakhub-dev-rg --name holidaypeakhub-dev-aks
+
+# Deploy CRUD first
+azd deploy --service crud-service -e dev
+
+# Deploy all services
+azd deploy --all -e dev
 ```
 
-**Shared infra + Static Web App + all services**
+#### Single service update
 
 ```bash
-python .infra/cli.py deploy-shared-all \
-  --environment dev \
-  --location eastus2 \
-  --namespace holiday-peak \
-  --image-prefix ghcr.io/azure-samples \
-  --image-tag latest
+azd deploy --service ecommerce-catalog-search -e dev
 ```
 
-**Demo (per-service)**
-
-```bash
-# One service
-python .infra/cli.py deploy --service ecommerce-catalog-search --location eastus2
-
-# All services (demo per-service pattern)
-python .infra/cli.py deploy-all --location eastus2 --app-image ghcr.io/azure-samples/<service>:latest
-```
-
-**Module generation**
+#### Scaffolding commands (Python CLI)
 
 ```bash
 # Bicep modules
@@ -267,45 +267,42 @@ python .infra/cli.py generate-dockerfile --apply-all
 
 ### Step-by-step scenarios
 
-**Scenario A: Shared infra + Static Web App + all services (recommended)**
+**Scenario A: Shared infra + static web app + all services (recommended)**
 
 ```bash
-# 1) Deploy shared infra
-python .infra/cli.py deploy-shared --environment dev --location eastus2
+# 1) Provision shared infra + static infra
+azd env set deployShared true -e dev
+azd env set deployStatic true -e dev
+azd env set environment dev -e dev
+azd env set location eastus2 -e dev
+azd provision -e dev
 
-# 2) Deploy Static Web App
-python .infra/cli.py deploy-static-web-app --environment dev --location eastus2
-
-# 3) Get AKS credentials
+# 2) Get AKS credentials
 az aks get-credentials --resource-group holidaypeakhub-dev-rg --name holidaypeakhub-dev-aks
 
-# 4) Deploy all services to shared AKS
-python .infra/cli.py deploy-shared-services \
-  --namespace holiday-peak \
-  --image-prefix ghcr.io/azure-samples \
-  --image-tag latest
+# 3) Deploy CRUD first, then the remaining services
+azd deploy --service crud-service -e dev
+azd deploy --all -e dev
 ```
 
 **Scenario B: Shared infra only (foundation)**
 
 ```bash
-python .infra/cli.py deploy-shared --environment dev --location eastus2
+azd env set deployShared true -e dev
+azd env set deployStatic false -e dev
+azd env set environment dev -e dev
+azd env set location eastus2 -e dev
+azd provision -e dev
 ```
 
 **Scenario C: Shared infra + Static Web App only**
 
 ```bash
-python .infra/cli.py deploy-full --environment dev --location eastus2
-```
-
-**Scenario D: Demo (per-service resources)**
-
-```bash
-# One service
-python .infra/cli.py deploy --service ecommerce-catalog-search --location eastus2
-
-# All services
-python .infra/cli.py deploy-all --location eastus2 --app-image ghcr.io/azure-samples/<service>:latest
+azd env set deployShared true -e dev
+azd env set deployStatic true -e dev
+azd env set environment dev -e dev
+azd env set location eastus2 -e dev
+azd provision -e dev
 ```
 
 ## Services catalog
