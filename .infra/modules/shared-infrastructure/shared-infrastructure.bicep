@@ -8,6 +8,9 @@ param projectName string = 'holidaypeakhub'
 param keyVaultNameOverride string = ''
 @description('AKS Kubernetes version; leave empty to use Azure default')
 param aksKubernetesVersion string = ''
+@secure()
+@description('PostgreSQL administrator password for CRUD transactional database. Leave empty to auto-generate a deterministic dev password.')
+param postgresAdminPassword string = ''
 
 // Naming convention with environment suffix
 var envSuffix = environment == 'prod' ? '' : '-${environment}'
@@ -18,6 +21,13 @@ var aksClusterName = '${projectName}${envSuffix}-aks'
 var acrName = take('${safeProjectName}${replace(envSuffix, '-', '')}acr', 50)
 var cosmosAccountName = '${projectName}${envSuffix}-cosmos'
 var databaseName = 'holiday-peak-db'
+var postgresServerName = '${projectName}${envSuffix}-postgres'
+var postgresDatabaseName = 'holiday_peak_crud'
+var postgresAdminUser = 'crud_admin'
+var postgresAdminPasswordSecretName = 'postgres-admin-password'
+var resolvedPostgresAdminPassword = empty(postgresAdminPassword)
+  ? '${take(uniqueString(resourceGroup().id, projectName, environment), 16)}Aa!12345'
+  : postgresAdminPassword
 var eventHubsNamespaceName = '${projectName}${envSuffix}-eventhub'
 var redisName = '${projectName}${envSuffix}-redis'
 var storageAccountName = take('${safeProjectName}${replace(envSuffix, '-', '')}store', 24)
@@ -205,6 +215,19 @@ module cosmosPrivateDnsZone 'br/public:avm/res/network/private-dns-zone:0.8.0' =
   }
 }
 
+module postgresPrivateDnsZone 'br/public:avm/res/network/private-dns-zone:0.8.0' = {
+  name: 'postgres-private-dns'
+  params: {
+    name: 'privatelink.postgres.database.azure.com'
+    virtualNetworkLinks: [
+      {
+        virtualNetworkResourceId: vnet.outputs.resourceId
+      }
+    ]
+    tags: tags
+  }
+}
+
 module redisPrivateDnsZone 'br/public:avm/res/network/private-dns-zone:0.8.0' = {
   name: 'redis-private-dns'
   params: {
@@ -325,78 +348,9 @@ module acr 'br/public:avm/res/container-registry/registry:0.9.3' = {
   }
 }
 
-// Cosmos DB Account + SQL DB/Containers (AVM)
-var cosmosContainers = [
-  {
-    name: 'users'
-    paths: ['/user_id']
-    kind: 'Hash'
-    indexingPolicy: {
-      indexingMode: 'consistent'
-      automatic: true
-      includedPaths: [
-        { path: '/*' }
-      ]
-    }
-  }
-  {
-    name: 'products'
-    paths: ['/category_slug']
-    kind: 'Hash'
-  }
-  {
-    name: 'orders'
-    paths: ['/user_id']
-    kind: 'Hash'
-  }
-  {
-    name: 'cart'
-    paths: ['/user_id']
-    kind: 'Hash'
-    defaultTtl: 7776000
-  }
-  {
-    name: 'reviews'
-    paths: ['/product_id']
-    kind: 'Hash'
-  }
-  {
-    name: 'addresses'
-    paths: ['/user_id']
-    kind: 'Hash'
-  }
-  {
-    name: 'payment_methods'
-    paths: ['/user_id']
-    kind: 'Hash'
-  }
-  {
-    name: 'checkout_sessions'
-    paths: ['/user_id']
-    kind: 'Hash'
-  }
-  {
-    name: 'payment_tokens'
-    paths: ['/user_id']
-    kind: 'Hash'
-  }
-  {
-    name: 'tickets'
-    paths: ['/user_id']
-    kind: 'Hash'
-  }
-  {
-    name: 'shipments'
-    paths: ['/order_id']
-    kind: 'Hash'
-  }
-  {
-    name: 'audit_logs'
-    paths: ['/entity_type']
-    kind: 'Hash'
-    defaultTtl: 7776000
-  }
-]
+// Cosmos DB Account + SQL DB (AVM)
+// Cosmos is reserved for agent warm memory containers (warm-{agent}-chat-memory).
+var cosmosContainers = []
 
 module cosmos 'br/public:avm/res/document-db/database-account:0.18.0' = {
   name: 'cosmos'
@@ -444,6 +398,44 @@ module cosmos 'br/public:avm/res/document-db/database-account:0.18.0' = {
       {
         name: databaseName
         containers: cosmosContainers
+      }
+    ]
+    tags: tags
+  }
+}
+
+// Azure Database for PostgreSQL Flexible Server (AVM) - CRUD transactional database
+module postgres 'br/public:avm/res/db-for-postgre-sql/flexible-server:0.15.0' = {
+  name: 'postgres'
+  params: {
+    name: postgresServerName
+    location: location
+    availabilityZone: environment == 'prod' ? 1 : -1
+    skuName: environment == 'prod' ? 'Standard_D4ds_v5' : 'Standard_B2s'
+    tier: environment == 'prod' ? 'GeneralPurpose' : 'Burstable'
+    version: '16'
+    administratorLogin: postgresAdminUser
+    administratorLoginPassword: resolvedPostgresAdminPassword
+    backupRetentionDays: environment == 'prod' ? 14 : 7
+    geoRedundantBackup: environment == 'prod' ? 'Enabled' : 'Disabled'
+    highAvailability: environment == 'prod' ? 'ZoneRedundant' : 'Disabled'
+    storageSizeGB: environment == 'prod' ? 128 : 32
+    publicNetworkAccess: 'Disabled'
+    databases: [
+      {
+        name: postgresDatabaseName
+      }
+    ]
+    privateEndpoints: [
+      {
+        subnetResourceId: peSubnetId
+        privateDnsZoneGroup: {
+          privateDnsZoneGroupConfigs: [
+            {
+              privateDnsZoneResourceId: postgresPrivateDnsZone.outputs.resourceId
+            }
+          ]
+        }
       }
     ]
     tags: tags
@@ -742,6 +734,18 @@ resource keyVaultResource 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
   name: keyVaultName
 }
 
+resource postgresPasswordSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVaultResource
+  name: postgresAdminPasswordSecretName
+  properties: {
+    value: resolvedPostgresAdminPassword
+  }
+  dependsOn: [
+    keyVault
+    postgres
+  ]
+}
+
 resource storageResource 'Microsoft.Storage/storageAccounts@2023-01-01' existing = {
   name: storageAccountName
 }
@@ -836,6 +840,10 @@ output acrLoginServer string = acr.outputs.loginServer
 output cosmosAccountName string = cosmos.outputs.name
 output cosmosEndpoint string = cosmos.outputs.endpoint
 output databaseName string = databaseName
+output postgresServerName string = postgres.outputs.name
+output postgresFqdn string = postgres.outputs.?fqdn ?? ''
+output postgresDatabaseName string = postgresDatabaseName
+output postgresAdminUser string = postgresAdminUser
 output eventHubsNamespaceName string = eventHubs.outputs.name
 output redisName string = redis.outputs.name
 output storageAccountName string = storage.outputs.name

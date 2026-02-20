@@ -6,6 +6,9 @@ param environment string = 'dev' // dev, staging, prod
 param projectName string = 'holidaypeakhub'
 @description('Optional override for Key Vault name (3-24 chars, lowercase letters, numbers, and hyphens). Leave empty to use default naming.')
 param keyVaultNameOverride string = ''
+@secure()
+@description('Optional PostgreSQL administrator password for CRUD database.')
+param postgresAdminPassword string = ''
 param resourceGroupName string = '${projectName}-${environment}-rg'
 
 // Create Resource Group
@@ -28,6 +31,7 @@ module sharedInfra './shared-infrastructure.bicep' = {
     environment: environment
     projectName: projectName
     keyVaultNameOverride: keyVaultNameOverride
+    postgresAdminPassword: postgresAdminPassword
   }
   dependsOn: [
     rg
@@ -41,6 +45,10 @@ output acrLoginServer string = sharedInfra.outputs.acrLoginServer
 output cosmosAccountName string = sharedInfra.outputs.cosmosAccountName
 output cosmosEndpoint string = sharedInfra.outputs.cosmosEndpoint
 output databaseName string = sharedInfra.outputs.databaseName
+output postgresServerName string = sharedInfra.outputs.postgresServerName
+output postgresFqdn string = sharedInfra.outputs.postgresFqdn
+output postgresDatabaseName string = sharedInfra.outputs.postgresDatabaseName
+output postgresAdminUser string = sharedInfra.outputs.postgresAdminUser
 output eventHubsNamespaceName string = sharedInfra.outputs.eventHubsNamespaceName
 output redisName string = sharedInfra.outputs.redisName
 output storageAccountName string = sharedInfra.outputs.storageAccountName

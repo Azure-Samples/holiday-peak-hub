@@ -103,18 +103,19 @@ azd provision -e dev
 |---|----------|--------|---------|
 | 1 | VNet (5 subnets) | `avm/res/network/virtual-network:0.7.2` | Network isolation |
 | 2 | 5 NSGs | `avm/res/network/network-security-group:0.5.2` | Subnet security |
-| 3 | 7 Private DNS Zones | `avm/res/network/private-dns-zone:0.8.0` | PE DNS resolution |
+| 3 | 8 Private DNS Zones | `avm/res/network/private-dns-zone:0.8.0` | PE DNS resolution |
 | 4 | Log Analytics | `avm/res/operational-insights/workspace:0.15.0` | Centralized logs |
 | 5 | App Insights | `avm/res/insights/component:0.7.1` | APM telemetry |
 | 6 | ACR (Premium) | `avm/res/container-registry/registry:0.9.3` | Container images |
-| 7 | Cosmos DB (12 containers) | `avm/res/document-db/database-account:0.18.0` | Operational + agent data |
-| 8 | Redis (Premium P1) | `avm/res/cache/redis:0.16.4` | Hot-tier memory |
-| 9 | Storage Account | `avm/res/storage/storage-account:0.31.0` | Cold-tier memory |
-| 10 | Event Hubs (5 topics) | `avm/res/event-hub/namespace:0.14.0` | Async events |
-| 11 | Key Vault (Premium) | `avm/res/key-vault/vault:0.13.3` | Secrets |
-| 12 | AI Foundry Project | `avm/ptn/ai-ml/ai-foundry:0.6.0` | AI/ML models |
-| 13 | AKS (3 pools) | `avm/res/container-service/managed-cluster:0.12.0` | Compute |
-| 14 | APIM | `avm/res/api-management/service:0.14.0` | API gateway |
+| 7 | PostgreSQL Flexible Server | `avm/res/db-for-postgre-sql/flexible-server:0.15.0` | CRUD transactional data |
+| 8 | Cosmos DB (agent warm memory) | `avm/res/document-db/database-account:0.18.0` | Agent session/history memory |
+| 9 | Redis (Premium P1) | `avm/res/cache/redis:0.16.4` | Hot-tier memory |
+| 10 | Storage Account | `avm/res/storage/storage-account:0.31.0` | Cold-tier memory |
+| 11 | Event Hubs (5 topics) | `avm/res/event-hub/namespace:0.14.0` | Async events |
+| 12 | Key Vault (Premium) | `avm/res/key-vault/vault:0.13.3` | Secrets |
+| 13 | AI Foundry Project | `avm/ptn/ai-ml/ai-foundry:0.6.0` | AI/ML models |
+| 14 | AKS (3 pools) | `avm/res/container-service/managed-cluster:0.12.0` | Compute |
+| 15 | APIM | `avm/res/api-management/service:0.14.0` | API gateway |
 | — | 6 RBAC assignments | Native | Identity permissions |
 
 **Private endpoints** are created for: ACR, Cosmos DB, Redis, Storage, Event Hubs, Key Vault, AI Services.

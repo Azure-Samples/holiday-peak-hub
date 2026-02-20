@@ -95,7 +95,7 @@ async def process_payment(
 @router.get("/payments/{payment_id}", response_model=PaymentResponse)
 async def get_payment(payment_id: str, current_user: User = Depends(get_current_user)):
     """Get payment details."""
-    # TODO: Implement payment retrieval from Cosmos DB
+    # TODO: Implement payment retrieval from PostgreSQL
     raise HTTPException(
         status_code=status.HTTP_501_NOT_IMPLEMENTED,
         detail="Payment retrieval not yet implemented",

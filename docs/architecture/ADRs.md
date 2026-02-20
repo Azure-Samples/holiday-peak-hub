@@ -26,6 +26,7 @@ This document indexes all architectural decisions for the Holiday Peak Hub accel
 | [ADR-018](adrs/adr-018-acp-frontend.md) | Agentic Commerce Protocol (ACP) Frontend Integration | Accepted | 2026-01 |
 | [ADR-019](adrs/adr-019-authentication-rbac.md) | Authentication and Role-Based Access Control | Accepted | 2026-01 |
 | [ADR-020](adrs/adr-020-api-client-architecture.md) | API Client Architecture | Accepted | 2026-01 |
+| [ADR-021](adrs/adr-021-azd-first-deployment.md) | azd-First Deployment with GitHub Actions CI/CD | Accepted | 2026-02 |
 
 ## How to Use ADRs
 
@@ -78,10 +79,11 @@ Each ADR follows a standard template:
 - Microsoft Agent Framework for standardization ([ADR-006](adrs/adr-006-agent-framework.md))
 - MCP servers for tool exposure ([ADR-010](adrs/adr-010-rest-and-mcp-exposition.md))
 
-### Infrastructure
+### Infrastructure & Deployment
 - Azure-native services for enterprise readiness ([ADR-002](adrs/adr-002-azure-services.md))
 - Three-tier memory for latency/cost optimization ([ADR-008](adrs/adr-008-memory-tiers.md))
-- AKS with KEDA for elastic scaling ([ADR-009](adrs/adr-009-aks-deployment.md))
+- AKS with KEDA for elastic scaling, 3 node pools ([ADR-009](adrs/adr-009-aks-deployment.md))
+- azd-first deployment with GitHub Actions CI/CD ([ADR-021](adrs/adr-021-azd-first-deployment.md))
 
 ## References
 

@@ -9,7 +9,7 @@ AVM module versions are pinned per resource in the shared infrastructure Bicep f
 **Agent Resources: Pairwise Approach**
 
 - Each agent **keeps its own memory resources** (Cosmos containers, Redis DBs, Blob containers)
-- Agents **share the underlying accounts** (Cosmos DB account, Redis Cache, Storage Account)
+- Agents **share the underlying accounts** (Cosmos DB account, PostgreSQL server, Redis Cache, Storage Account)
 - This approach balances **isolation** (agent independence) with **cost optimization** (shared infrastructure)
 
 ## What's Shared
@@ -26,9 +26,8 @@ This module creates **ONE instance** of each resource, shared across all service
 
 ### Data & Storage
 
-- **Cosmos DB Account** - Shared account with:
-  - **Operational containers** (for CRUD service): `users`, `products`, `orders`, `cart`, `reviews`, `addresses`, `payment_methods`, `tickets`, `shipments`, `audit_logs`
-  - **Agent memory containers** (created by agent modules): `warm-{agent-name}-chat-memory`
+- **Azure Database for PostgreSQL Flexible Server** - CRUD transactional datastore (`holiday_peak_crud` database)
+- **Cosmos DB Account** - Shared account for **agent warm memory** containers (`warm-{agent-name}-chat-memory`)
 - **Redis Cache** - Shared Premium 6GB cache with multiple databases:
   - Database 0: CRUD service cache
   - Database 1-21: Agent hot memory (one per agent)
@@ -49,6 +48,7 @@ This module creates **ONE instance** of each resource, shared across all service
 
 - **Key Vault** - Centralized secrets management (Premium tier with RBAC)
 - **Managed Identity** - AKS uses System-Assigned MI for passwordless auth
+- **PostgreSQL secret sync** - `postgres-admin-password` is stored in Key Vault for CRUD runtime retrieval
 
 ### Networking
 
@@ -82,7 +82,7 @@ This module creates **ONE instance** of each resource, shared across all service
 The module automatically configures **passwordless authentication** using Managed Identity:
 
 - **AKS → ACR**: `AcrPull` (pull container images)
-- **AKS → Cosmos DB**: `Cosmos DB Data Contributor` (read/write data)
+- **AKS → Cosmos DB**: `Cosmos DB Data Contributor` (agent warm memory)
 - **AKS → Event Hubs**: `Event Hubs Data Sender/Receiver` (publish/subscribe events)
 - **AKS → Key Vault**: `Key Vault Secrets User` (read secrets)
 - **AKS → Storage**: `Storage Blob Data Contributor` (read/write blobs)
@@ -187,14 +187,16 @@ az keyvault secret show \
 ## Cost Optimization
 
 ### Dev Environment (Serverless/Low Tier)
-- **Cosmos DB**: Serverless mode (pay per RU consumed)
+- **PostgreSQL**: Burstable SKU for dev (`Standard_B2s`)
+- **Cosmos DB**: Serverless mode (agent warm memory only)
 - **Redis**: Premium P1 (6GB)
 - **AKS**: 1 system node, 2 agent nodes, 1 CRUD node (autoscaling disabled)
 - **APIM**: Consumption tier (pay per million calls)
 - **Estimated Monthly Cost**: ~$500-700/month
 
 ### Production Environment (High Availability)
-- **Cosmos DB**: Provisioned throughput with autoscale (remove serverless capability)
+- **PostgreSQL**: GeneralPurpose SKU with HA for prod
+- **Cosmos DB**: Provisioned throughput with autoscale (agent warm memory)
 - **Redis**: Premium P1 with geo-replication
 - **AKS**: 3 system nodes, 5 agent nodes, 3 CRUD nodes (autoscaling enabled)
 - **APIM**: StandardV2 tier with VNet integration
@@ -242,10 +244,10 @@ resource agentMemoryContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabase
 ## Troubleshooting
 
 ### Private Endpoint DNS Resolution
-If services can't connect to Cosmos DB/Redis/Event Hubs:
+If services can't connect to PostgreSQL/Cosmos DB/Redis/Event Hubs:
 1. Verify private endpoints are created: `az network private-endpoint list -g <rg>`
 2. Check AKS CoreDNS is using Azure DNS: `kubectl get configmap coredns -n kube-system -o yaml`
-3. Test DNS resolution from pod: `kubectl run -it --rm debug --image=busybox --restart=Never -- nslookup <cosmos-account>.documents.azure.com`
+3. Test DNS resolution from pod: `kubectl run -it --rm debug --image=busybox --restart=Never -- nslookup <postgres-server>.postgres.database.azure.com`
 
 ### RBAC Permissions
 If AKS pods can't access resources:
@@ -256,8 +258,8 @@ If AKS pods can't access resources:
 ## Security Notes
 
 - ✅ **No public endpoints** - All PaaS services use private endpoints
-- ✅ **No passwords** - Managed Identity for all authentication
+- ✅ **Credential isolation** - PostgreSQL admin password is injected via deployment and should be stored in Key Vault
 - ✅ **Secrets in Key Vault** - No hardcoded credentials
 - ✅ **TLS 1.2 minimum** - All services enforce secure connections
 - ✅ **Soft delete enabled** - Key Vault and Storage have soft delete (90 days)
-- ✅ **Continuous backup** - Cosmos DB has 30-day point-in-time restore
+- ✅ **Continuous backup** - PostgreSQL and Cosmos DB support point-in-time restore

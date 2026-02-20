@@ -59,8 +59,7 @@ async def get_current_user(
     token = credentials.credentials
 
     try:
-        # Decode without verification first to get header
-        unverified_header = jwt.get_unverified_header(token)
+        # Decode without verification first to inspect claims
         unverified_claims = jwt.get_unverified_claims(token)
 
         # Validate issuer
@@ -77,7 +76,7 @@ async def get_current_user(
                 detail="Invalid token audience",
             )
 
-        # TODO: Fetch JWKS from Entra ID and verify signature
+        # NOTE: Fetch JWKS from Entra ID and verify signature
         # For now, we trust the token (in production, MUST verify signature)
         payload = unverified_claims
 
@@ -95,7 +94,7 @@ async def get_current_user(
         return User(user_id=user_id, email=email, name=name, roles=roles)
 
     except JWTError as e:
-        logger.warning(f"JWT validation error: {e}")
+        logger.warning("JWT validation error: %s", e)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication token",
@@ -141,3 +140,15 @@ async def get_current_user_optional(
         return await get_current_user(credentials)
     except HTTPException:
         return None
+
+
+async def get_key_vault_secret(secret_name: str) -> str:
+    """Read a secret value from Key Vault using managed identity credentials."""
+    credential = DefaultAzureCredential()
+    client = SecretClient(vault_url=settings.key_vault_uri, credential=credential)
+    try:
+        secret = await client.get_secret(secret_name)
+        return secret.value
+    finally:
+        await client.close()
+        await credential.close()

@@ -17,7 +17,7 @@ This service handles all **non-agent CRUD operations**:
 
 **NOT an Agent Service** - This is a pure FastAPI microservice with:
 - ❌ No agent logic (no `BaseRetailAgent`)
-- ❌ No memory tiers (stateless, uses Cosmos DB directly)
+- ❌ No memory tiers (stateless, uses PostgreSQL directly)
 - ❌ No MCP exposition (REST-only for frontend consumption)
 - ✅ Event publisher (publishes domain events for agents)
 - ✅ Optional agent calls (can invoke agent MCP tools with fallback)
@@ -35,7 +35,7 @@ This service handles all **non-agent CRUD operations**:
 
 - **FastAPI** 0.115+ - REST API framework
 - **Pydantic** 2.10+ - Data validation and settings
-- **Azure Cosmos DB** - NoSQL database (10 containers)
+- **Azure Database for PostgreSQL** - Transactional relational database
 - **Azure Event Hubs** - Event publishing
 - **Azure Key Vault** - Secrets management (Managed Identity)
 - **Stripe** - Payment processing
@@ -60,7 +60,7 @@ crud-service/
 │   │   │   └── dependencies.py       # FastAPI auth dependencies
 │   │   ├── repositories/
 │   │   │   ├── __init__.py
-│   │   │   ├── base.py               # Base Cosmos DB repository
+│   │   │   ├── base.py               # Base PostgreSQL repository (JSONB-backed)
 │   │   │   ├── user.py
 │   │   │   ├── product.py
 │   │   │   ├── order.py
@@ -124,9 +124,14 @@ crud-service/
 ## Environment Variables
 
 ```bash
-# Azure Resources (use Managed Identity, no connection strings needed)
-COSMOS_ACCOUNT_URI=https://holidaypeakhub-dev-cosmos.documents.azure.com:443/
-COSMOS_DATABASE=holiday-peak-db
+# Azure Resources
+POSTGRES_HOST=holidaypeakhub-dev-postgres.postgres.database.azure.com
+POSTGRES_PORT=5432
+POSTGRES_DATABASE=holiday_peak_crud
+POSTGRES_USER=crud_admin
+POSTGRES_PASSWORD=
+POSTGRES_PASSWORD_SECRET_NAME=postgres-admin-password
+POSTGRES_SSL=true
 EVENT_HUB_NAMESPACE=holidaypeakhub-dev-eventhub.servicebus.windows.net
 KEY_VAULT_URI=https://holidaypeakhub-dev-kv.vault.azure.net/
 REDIS_HOST=holidaypeakhub-dev-redis.redis.cache.windows.net
@@ -150,6 +155,8 @@ AGENT_TIMEOUT_SECONDS=3
 ```
 
 ## Development
+
+The service resolves `POSTGRES_PASSWORD` from Key Vault at startup when the env var is empty, using managed identity and `POSTGRES_PASSWORD_SECRET_NAME`.
 
 ### Prerequisites
 
@@ -184,8 +191,10 @@ docker build -t crud-service:dev --target dev .
 
 # Run
 docker run -p 8001:8000 \
-  -e COSMOS_ACCOUNT_URI=$COSMOS_ACCOUNT_URI \
-  -e COSMOS_DATABASE=holiday-peak-db \
+  -e POSTGRES_HOST=$POSTGRES_HOST \
+  -e POSTGRES_DATABASE=holiday_peak_crud \
+  -e POSTGRES_USER=$POSTGRES_USER \
+  -e POSTGRES_PASSWORD=$POSTGRES_PASSWORD \
   crud-service:dev
 ```
 
@@ -379,7 +388,7 @@ class AgentClient:
 # apps/crud-service/src/crud_service/routes/products.py
 @router.get("/products/{product_id}")
 async def get_product(product_id: str, agent_client: AgentClient):
-    # Get base product from Cosmos DB
+    # Get base product from PostgreSQL
     product = await product_repository.get(product_id)
     
     # Try to enrich with agent intelligence
@@ -502,7 +511,7 @@ readinessProbe:
 pytest tests/unit/ -v
 ```
 
-### Integration Tests (requires Cosmos DB)
+### Integration Tests (requires PostgreSQL)
 ```bash
 pytest tests/integration/ -v
 ```
@@ -521,7 +530,7 @@ pytest --cov=crud_service --cov-report=html
 
 ### Application Insights
 - Request telemetry (all endpoints)
-- Dependency telemetry (Cosmos DB, Event Hubs, agents)
+- Dependency telemetry (PostgreSQL, Event Hubs, agents)
 - Custom events (order created, payment processed)
 - Custom metrics (cart abandonment rate, checkout success rate)
 
@@ -544,7 +553,7 @@ pytest --cov=crud_service --cov-report=html
 - ✅ **RBAC** - Role-based access control (4 roles)
 - ✅ **TLS** - All connections use TLS 1.2+
 - ✅ **Input Validation** - Pydantic models validate all inputs
-- ✅ **SQL Injection** - Not applicable (NoSQL with parameterized queries)
+- ✅ **SQL Injection** - Mitigated via parameterized queries in the repository layer
 - ✅ **Rate Limiting** - Configured in APIM
 
 ## Related Documentation

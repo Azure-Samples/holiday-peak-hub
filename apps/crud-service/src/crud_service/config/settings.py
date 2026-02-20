@@ -22,11 +22,19 @@ class Settings(BaseSettings):
     environment: str = Field(default="dev", description="Environment (dev, staging, prod)")
     log_level: str = Field(default="INFO", description="Logging level")
 
-    # Azure Cosmos DB (use Managed Identity, no connection string)
-    cosmos_account_uri: str = Field(
-        ..., description="Cosmos DB account URI (e.g., https://xxx.documents.azure.com:443/)"
+    # Azure Database for PostgreSQL (CRUD transactional data)
+    postgres_host: str = Field(..., description="PostgreSQL host")
+    postgres_port: int = Field(default=5432, description="PostgreSQL port")
+    postgres_database: str = Field(default="holiday_peak_crud", description="PostgreSQL database name")
+    postgres_user: str = Field(..., description="PostgreSQL username")
+    postgres_password: str | None = Field(default=None, description="PostgreSQL password")
+    postgres_password_secret_name: str = Field(
+        default="postgres-admin-password",
+        description="Key Vault secret name for PostgreSQL password",
     )
-    cosmos_database: str = Field(default="holiday-peak-db", description="Cosmos DB database name")
+    postgres_ssl: bool = Field(default=True, description="Use SSL for PostgreSQL connection")
+    postgres_min_pool_size: int = Field(default=2, description="Minimum PostgreSQL pool size")
+    postgres_max_pool_size: int = Field(default=20, description="Maximum PostgreSQL pool size")
 
     # Azure Event Hubs (use Managed Identity, no connection string)
     event_hub_namespace: str = Field(
@@ -115,6 +123,20 @@ class Settings(BaseSettings):
         """Construct Redis URL."""
         protocol = "rediss" if self.redis_ssl else "redis"
         return f"{protocol}://{self.redis_host}:{self.redis_port}/{self.redis_db}"
+
+    @property
+    def postgres_dsn(self) -> str:
+        """Construct PostgreSQL DSN for asyncpg."""
+        if not self.postgres_password:
+            raise ValueError(
+                "PostgreSQL password is not configured. "
+                "Set POSTGRES_PASSWORD or configure Key Vault secret loading."
+            )
+        sslmode = "require" if self.postgres_ssl else "disable"
+        return (
+            f"postgresql://{self.postgres_user}:{self.postgres_password}@"
+            f"{self.postgres_host}:{self.postgres_port}/{self.postgres_database}?sslmode={sslmode}"
+        )
 
     @property
     def is_production(self) -> bool:

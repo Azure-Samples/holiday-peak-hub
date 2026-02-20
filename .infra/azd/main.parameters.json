@@ -8,6 +8,7 @@
     "environment": { "value": "${environment}" },
     "projectName": { "value": "${projectName}" },
     "keyVaultNameOverride": { "value": "${keyVaultNameOverride}" },
+    "postgresAdminPassword": { "value": "${postgresAdminPassword}" },
     "resourceGroupName": { "value": "${resourceGroupName}" },
     "appName": { "value": "${appName}" },
     "repositoryUrl": { "value": "${repositoryUrl}" },

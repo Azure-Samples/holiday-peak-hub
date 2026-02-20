@@ -12,8 +12,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from opentelemetry import trace
 
+from crud_service.auth.dependencies import get_key_vault_secret
 from crud_service.config.settings import get_settings
 from crud_service.integrations.event_publisher import get_event_publisher
+from crud_service.repositories.base import BaseRepository
 from crud_service.routes import (
     acp_checkout,
     acp_payments,
@@ -42,12 +44,12 @@ settings = get_settings()
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_app: FastAPI):
     """Application lifespan manager - startup and shutdown logic."""
     # Startup
     logger.info("Starting CRUD Service...")
-    logger.info(f"Environment: {settings.environment}")
-    logger.info(f"Service Name: {settings.service_name}")
+    logger.info("Environment: %s", settings.environment)
+    logger.info("Service Name: %s", settings.service_name)
 
     # Configure Application Insights if instrumentation key is provided
     if settings.app_insights_connection_string:
@@ -62,6 +64,16 @@ async def lifespan(app: FastAPI):
     await event_publisher.start()
     logger.info("Event publisher started")
 
+    # Resolve DB credentials from Key Vault when not provided as env vars
+    if not settings.postgres_password:
+        settings.postgres_password = await get_key_vault_secret(
+            settings.postgres_password_secret_name
+        )
+
+    # Initialize PostgreSQL connection pool
+    await BaseRepository.initialize_pool()
+    logger.info("PostgreSQL pool initialized")
+
     logger.info("CRUD Service started successfully")
 
     yield
@@ -70,6 +82,8 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down CRUD Service...")
     await event_publisher.stop()
     logger.info("Event publisher stopped")
+    await BaseRepository.close_pool()
+    logger.info("PostgreSQL pool closed")
     logger.info("CRUD Service shutdown complete")
 
 
@@ -94,13 +108,13 @@ app.add_middleware(
 
 # Exception handlers
 @app.exception_handler(Exception)
-async def global_exception_handler(request, exc):
+async def global_exception_handler(_request, exc):
     """Global exception handler for unhandled errors."""
     tracer = trace.get_tracer(__name__)
     with tracer.start_as_current_span("error_handler") as span:
         span.set_attribute("error.type", type(exc).__name__)
         span.set_attribute("error.message", str(exc))
-        logger.error(f"Unhandled exception: {exc}", exc_info=True)
+        logger.error("Unhandled exception: %s", exc, exc_info=True)
 
     return {
         "detail": "Internal server error",
@@ -149,5 +163,5 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8000,
         reload=settings.environment == "dev",
-        log_level=settings.log_level.lower(),
+        log_level=str(settings.log_level).lower(),
     )

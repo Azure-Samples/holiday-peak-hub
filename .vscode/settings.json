@@ -17,6 +17,10 @@
         "az": true,
         "kubectl config": true,
         "kubectl get": true,
-        "ConvertFrom-Json": true
+        "ConvertFrom-Json": true,
+        "/^python -m py_compile apps/crud-service/src/crud_service/config/secrets\\.py apps/crud-service/src/crud_service/main\\.py$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
     }
 }

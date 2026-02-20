@@ -11,6 +11,9 @@ param environment string = 'dev'
 param projectName string = 'holidaypeakhub'
 @description('Optional override for Key Vault name (3-24 chars, lowercase letters, numbers, and hyphens).')
 param keyVaultNameOverride string = ''
+@secure()
+@description('Optional PostgreSQL admin password for CRUD database. Leave empty to auto-generate.')
+param postgresAdminPassword string = ''
 param resourceGroupName string = '${projectName}-${environment}-rg'
 
 param appName string = 'holidaypeakhub-ui'
@@ -24,6 +27,7 @@ module sharedInfra '../modules/shared-infrastructure/shared-infrastructure-main.
     environment: environment
     projectName: projectName
     keyVaultNameOverride: keyVaultNameOverride
+    postgresAdminPassword: postgresAdminPassword
     resourceGroupName: resourceGroupName
   }
 }
@@ -41,4 +45,4 @@ module staticWebApp '../modules/static-web-app/static-web-app-main.bicep' = if (
 }
 
 output resourceGroupName string = resourceGroupName
-output staticWebAppDefaultHostname string = deployStatic ? staticWebApp.outputs.staticWebAppDefaultHostname : ''
+output staticWebAppDefaultHostname string = deployStatic ? staticWebApp!.outputs.staticWebAppDefaultHostname : ''
