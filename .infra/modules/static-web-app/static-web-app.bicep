@@ -18,14 +18,12 @@ resource staticWebApp 'Microsoft.Web/staticSites@2023-01-01' = {
     tier: environment == 'prod' ? 'Standard' : 'Free'
   }
   properties: {
-    repositoryUrl: repositoryUrl
-    branch: branch
     buildProperties: {
-      appLocation: '/apps/ui' // Next.js app location
-      apiLocation: '' // No API functions in SWA
-      outputLocation: 'out' // Next.js static export output directory
-      appBuildCommand: 'npm run build'
-      skipGithubActionWorkflowGeneration: false
+      appLocation: '/apps/ui'
+      apiLocation: ''
+      outputLocation: '.next'
+      appBuildCommand: 'yarn build'
+      skipGithubActionWorkflowGeneration: true
     }
     stagingEnvironmentPolicy: environment == 'prod' ? 'Enabled' : 'Disabled'
     allowConfigFileUpdates: true
@@ -35,6 +33,8 @@ resource staticWebApp 'Microsoft.Web/staticSites@2023-01-01' = {
     Environment: environment
     Project: 'HolidayPeakHub'
     ManagedBy: 'Bicep'
+    'azd-service-name': 'ui'
+    'azd-env-name': environment
   }
 }
 

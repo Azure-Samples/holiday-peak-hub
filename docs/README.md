@@ -41,7 +41,8 @@ Use workflow `.github/workflows/deploy-azd.yml` for ordered production rollout.
 
 1. `provision` job: sets azd env values and runs `azd provision`.
 2. `deploy-crud` job: fetches AKS credentials and deploys `crud-service` first.
-3. `deploy-agents` job: deploys 21 agent services in parallel matrix.
+3. `deploy-ui` job (when `deployStatic=true`): deploys `apps/ui` to Azure Static Web Apps.
+4. `deploy-agents` job: deploys 21 agent services in parallel matrix.
 
 **Operational notes**:
 

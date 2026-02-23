@@ -3,6 +3,21 @@ infra:
   provider: bicep
   path: .infra/azd
 services:
+  ui:
+    project: apps/ui
+    dist: .next
+    language: js
+    host: staticwebapp
+    hooks:
+      prepackage:
+        windows:
+          shell: pwsh
+          run: yarn install --frozen-lockfile; yarn build
+          interactive: false
+        posix:
+          shell: sh
+          run: yarn install --frozen-lockfile && yarn build
+          interactive: false
   crud-service:
     project: apps/crud-service/src
     dist: .

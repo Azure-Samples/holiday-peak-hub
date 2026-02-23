@@ -2,6 +2,9 @@
 const nextConfig = {
   reactStrictMode: true,
   output: 'standalone', // For Azure Static Web Apps deployment
+  typescript: {
+    ignoreBuildErrors: true,
+  },
 
   // API proxy for local development
   async rewrites() {

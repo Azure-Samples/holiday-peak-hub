@@ -101,6 +101,47 @@ jobs:
       - name: Deploy CRUD service
         run: azd deploy --service crud-service --no-prompt -e "${{ inputs.environment }}"
 
+  deploy-ui:
+    runs-on: ubuntu-latest
+    if: ${{ inputs.deployStatic }}
+    needs: provision
+    environment: ${{ inputs.environment }}
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup azd
+        uses: Azure/setup-azd@v1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Resolve API URL
+        run: |
+          RESOURCE_GROUP="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+
+          APIM_URL=$(az apim show \
+            --name "${{ inputs.projectName }}-${{ inputs.environment }}-apim" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query "gatewayUrl" -o tsv)
+
+          azd env set NEXT_PUBLIC_API_URL "$APIM_URL" -e "${{ inputs.environment }}"
+
+      - name: Deploy UI service
+        run: azd deploy --service ui --no-prompt -e "${{ inputs.environment }}"
+
   deploy-agents:
     runs-on: ubuntu-latest
     needs: deploy-crud

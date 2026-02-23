@@ -192,7 +192,7 @@ pytest lib/tests apps/**/tests --maxfail=1 --cov=. --cov-report=term-missing --c
 ## CI
 
 The workflow in .github/workflows/ci.yml runs lint, format, and tests on pushes/PRs and, on main, builds and pushes every app image to GHCR (`ghcr.io/<owner>/<app>:latest`).
-For production-style rollout with ordering, use `.github/workflows/deploy-azd.yml` (provision, deploy CRUD, then deploy agent services).
+For production-style rollout with ordering, use `.github/workflows/deploy-azd.yml` (provision, deploy CRUD, optionally deploy the Static Web App UI, then deploy agent services).
 
 ## Infrastructure and deployment
 
@@ -243,6 +243,9 @@ az aks get-credentials --resource-group holidaypeakhub-dev-rg --name holidaypeak
 # Deploy CRUD first
 azd deploy --service crud-service -e dev
 
+# Deploy UI (Static Web App)
+azd deploy --service ui -e dev
+
 # Deploy all services
 azd deploy --all -e dev
 ```
@@ -282,6 +285,7 @@ az aks get-credentials --resource-group holidaypeakhub-dev-rg --name holidaypeak
 
 # 3) Deploy CRUD first, then the remaining services
 azd deploy --service crud-service -e dev
+azd deploy --service ui -e dev
 azd deploy --all -e dev
 ```
 
