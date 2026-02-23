@@ -647,6 +647,8 @@ module aks 'br/public:avm/res/container-service/managed-cluster:0.12.0' = {
     serviceCidr: '10.1.0.0/16'
     dnsServiceIP: '10.1.0.10'
     kubernetesVersion: empty(aksKubernetesVersion) ? null : aksKubernetesVersion
+    publicNetworkAccess: 'Enabled'
+    disableLocalAccounts: true
     monitoringWorkspaceResourceId: logAnalytics.outputs.resourceId
     omsAgentEnabled: true
     enableKeyvaultSecretsProvider: true
