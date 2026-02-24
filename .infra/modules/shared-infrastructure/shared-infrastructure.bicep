@@ -701,17 +701,22 @@ module aks 'br/public:avm/res/container-service/managed-cluster:0.12.0' = {
 }
 
 // API Management (AVM) — Consumption tier for dev, StandardV2 for prod
+var apimSkuName = environment == 'prod' ? 'StandardV2' : 'Developer'
+var apimSkuCapacity = environment == 'prod' ? 1 : 1
+var apimVirtualNetworkType = environment == 'prod' ? 'None' : 'External'
+var apimSubnetResourceId = environment == 'prod' ? '' : apimSubnetId
+
 module apim 'br/public:avm/res/api-management/service:0.14.0' = {
   name: 'apim'
   params: {
     name: apimName
     location: location
-    sku: environment == 'prod' ? 'StandardV2' : 'Consumption'
-    skuCapacity: environment == 'prod' ? 1 : 0
+    sku: apimSkuName
+    skuCapacity: apimSkuCapacity
     publisherEmail: 'admin@holidaypeakhub.com'
     publisherName: 'Holiday Peak Hub'
-    virtualNetworkType: environment == 'prod' ? 'Internal' : 'None'
-    subnetResourceId: environment == 'prod' ? apimSubnetId : ''
+    virtualNetworkType: apimVirtualNetworkType
+    subnetResourceId: apimSubnetResourceId
     managedIdentities: {
       systemAssigned: true
     }

@@ -41,14 +41,118 @@ Use workflow `.github/workflows/deploy-azd.yml` for ordered production rollout.
 
 1. `provision` job: sets azd env values and runs `azd provision`.
 2. `deploy-crud` job: fetches AKS credentials and deploys `crud-service` first.
-3. `deploy-ui` job (when `deployStatic=true`): deploys `apps/ui` to Azure Static Web Apps.
+3. `deploy-ui` job (when `deployStatic=true`): resolves APIM URL, fetches the SWA deployment token from Azure, and deploys `apps/ui` via `Azure/static-web-apps-deploy@v1` (framework-aware build for dynamic Next.js routes).
 4. `deploy-agents` job: deploys 21 agent services in parallel matrix.
 
 **Operational notes**:
 
 - Keep `deployShared=true` for all shared-environment rollouts.
+- UI deployment intentionally uses the SWA GitHub Action path (not `azd deploy --service ui`) so App Router dynamic segments (`[id]`, `[slug]`) are built in the same mode as standard SWA workflows.
 - Use environment approvals in GitHub Environments for `staging`/`prod`.
 - Keep image tags immutable for reproducible rollback.
+
+### Reproducible Deployment Operations (Non-Bicep)
+
+The following steps were used to deploy and validate services without changing Bicep infrastructure definitions. These commands are intended for operators reproducing the same workflow in another subscription.
+
+1. **Resolve active environment and resource names**
+
+```bash
+azd env get-values -e dev
+```
+
+2. **Verify current public egress IP (for ACR firewall allowlist)**
+
+```powershell
+$ip = Invoke-RestMethod -Uri 'https://api.ipify.org'
+Write-Output "PUBLIC_IP=$ip"
+```
+
+3. **Inspect ACR network posture and firewall rules**
+
+```bash
+az acr show -n <acrName> --query "{publicNetworkAccess:publicNetworkAccess,defaultAction:networkRuleSet.defaultAction,bypass:networkRuleBypassOptions,exportPolicy:policies.exportPolicy.status}" -o json
+az acr network-rule list -n <acrName> -o table
+```
+
+4. **Temporarily unblock ACR publish from operator IP (if `azd deploy` fails with DENIED/IP blocked)**
+
+```bash
+az acr update -n <acrName> --allow-exports true
+az acr update -n <acrName> --public-network-enabled true --default-action Deny
+az acr network-rule add -n <acrName> --ip-address <PUBLIC_IP>/32
+```
+
+5. **Deploy CRUD service through azd (Helm-driven AKS deploy)**
+
+```bash
+azd deploy --service crud-service --no-prompt -e dev
+```
+
+6. **Deploy UI through azd**
+
+```bash
+azd deploy --service ui --no-prompt -e dev
+```
+
+7. **Validate AKS health and CRUD runtime**
+
+```bash
+az aks show -g <resourceGroup> -n <aksName> --query "{powerState:powerState.code,provisioningState:provisioningState}" -o json
+az aks get-credentials -g <resourceGroup> -n <aksName> --overwrite-existing
+kubectl get svc,pods -n holiday-peak
+```
+
+8. **Validate Helm-rendered desired state before applying manual fixes**
+
+```bash
+apps/crud-service/src/../../../.infra/azd/hooks/render-helm.sh crud-service
+kubectl apply --dry-run=server -f .kubernetes/rendered/crud-service/all.yaml -n holiday-peak
+```
+
+9. **Manual recovery only (if probes cause crash loops)**
+
+```powershell
+$patch = '{"spec":{"template":{"spec":{"containers":[{"name":"crud-service","readinessProbe":{"initialDelaySeconds":45,"failureThreshold":10},"livenessProbe":{"initialDelaySeconds":90,"failureThreshold":10}}]}}}}'
+kubectl patch deployment crud-service-crud-service -n holiday-peak -p $patch
+kubectl rollout status deployment/crud-service-crud-service -n holiday-peak --timeout=300s
+```
+
+10. **APIM operational checks and bootstrap (when APIs are missing)**
+
+```bash
+az apim show -g <resourceGroup> -n <apimName> --query "{gatewayUrl:gatewayUrl,publicNetworkAccess:publicNetworkAccess,virtualNetworkType:virtualNetworkType}" -o json
+az apim api list -g <resourceGroup> --service-name <apimName> -o table
+az apim api create -g <resourceGroup> --service-name <apimName> --api-id crud --display-name "CRUD Service" --path api --protocols https http --service-url "http://<backend-host>/api" --subscription-required false
+az apim api operation create -g <resourceGroup> --service-name <apimName> --api-id crud --operation-id get-products --display-name "Get products" --method GET --url-template "/products"
+az apim api operation create -g <resourceGroup> --service-name <apimName> --api-id crud --operation-id get-categories --display-name "Get categories" --method GET --url-template "/categories"
+az apim api operation create -g <resourceGroup> --service-name <apimName> --api-id crud --operation-id get-orders --display-name "Get orders" --method GET --url-template "/orders"
+az apim api operation create -g <resourceGroup> --service-name <apimName> --api-id crud --operation-id get-auth-me --display-name "Get auth me" --method GET --url-template "/auth/me"
+```
+
+11. **End-to-end smoke checks (APIM and SWA)**
+
+```powershell
+$apim = "https://<apimName>.azure-api.net"
+$ui = "https://<swaHost>.azurestaticapps.net"
+Invoke-WebRequest "$apim/api/products" -UseBasicParsing
+Invoke-WebRequest "$apim/api/categories" -UseBasicParsing
+Invoke-WebRequest "$ui/api/products" -UseBasicParsing
+Invoke-WebRequest "$ui/api/categories" -UseBasicParsing
+```
+
+12. **Post-deploy hardening (recommended)**
+
+After deployment succeeds, remove temporary ACR public ingress:
+
+```bash
+az acr network-rule remove -n <acrName> --ip-address <PUBLIC_IP>/32
+az acr update -n <acrName> --public-network-enabled false
+```
+
+> Notes:
+> - Use Microsoft VPN only if it provides a stable egress IP that you can consistently allowlist on ACR.
+> - Keep manual `kubectl patch` usage as recovery-only; normal deployments should remain `azd deploy` + Helm-rendered manifests.
 
 ---
 
@@ -99,6 +203,10 @@ Use workflow `.github/workflows/deploy-azd.yml` for ordered production rollout.
 - CORS policies
 - Request routing
 - WAF integration
+
+**Networking posture**:
+- Non-prod environments run APIM in VNET `External` mode (public gateway, private backend reachability to AKS).
+- This supports the APIM-in-front pattern while keeping AKS services as `ClusterIP` behind private network paths.
 
 ### Application Layer
 **Technology**: FastAPI (Python 3.13)  

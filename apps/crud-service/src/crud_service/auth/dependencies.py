@@ -102,7 +102,7 @@ async def get_current_user(
         ) from e
 
 
-async def require_role(required_role: str):
+def require_role(required_role: str):
     """
     Dependency to check if user has required role.
     

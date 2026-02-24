@@ -21,6 +21,9 @@
         "/^python -m py_compile apps/crud-service/src/crud_service/config/secrets\\.py apps/crud-service/src/crud_service/main\\.py$/": {
             "approve": true,
             "matchCommandLine": true
-        }
+        },
+        "gh": true,
+        "Out-Null": true,
+        "Test-NetConnection": true
     }
 }

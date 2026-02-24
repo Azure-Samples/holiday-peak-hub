@@ -6,13 +6,14 @@ WORKDIR /app
 RUN pip install uv
 
 # Copy dependency files
-COPY pyproject.toml ./
+COPY src/pyproject.toml ./
+COPY README.md ./README.md
+
+# Copy package source for editable install
+COPY src/crud_service ./crud_service
 
 # Install dependencies
 RUN uv pip install --system -e .
-
-# Copy source code
-COPY src/ ./src/
 
 # Expose port
 EXPOSE 8000

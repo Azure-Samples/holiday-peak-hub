@@ -23,6 +23,9 @@ services:
     dist: .
     language: python
     host: aks
+    docker:
+      path: ../Dockerfile
+      context: ..
     k8s:
       namespace: holiday-peak
       deploymentPath: ../../../.kubernetes/rendered/crud-service

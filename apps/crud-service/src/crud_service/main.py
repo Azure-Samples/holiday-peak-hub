@@ -71,8 +71,11 @@ async def lifespan(_app: FastAPI):
         )
 
     # Initialize PostgreSQL connection pool
-    await BaseRepository.initialize_pool()
-    logger.info("PostgreSQL pool initialized")
+    try:
+        await BaseRepository.initialize_pool()
+        logger.info("PostgreSQL pool initialized")
+    except Exception as exc:
+        logger.warning("PostgreSQL pool initialization skipped: %s", exc)
 
     logger.info("CRUD Service started successfully")
 
