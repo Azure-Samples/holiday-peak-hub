@@ -7,7 +7,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     APP_NAME=product-management-assortment-optimization
 WORKDIR /app/src
-RUN apt-get update && apt-get install -y --no-install-recommends build-essential libpq-dev curl \
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential libpq-dev git curl \
     && rm -rf /var/lib/apt/lists/*
 
 FROM base AS dev
