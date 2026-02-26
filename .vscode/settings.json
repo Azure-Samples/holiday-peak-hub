@@ -9,6 +9,7 @@
     "python.testing.cwd": "${workspaceFolder}/lib",
     "python.testing.autoTestDiscoverOnSaveEnabled": true,
     "python.defaultInterpreterPath": "${workspaceFolder}/lib/src/.venv/Scripts/python.exe",
+    "python.terminal.useEnvFile": true,
     "chat.tools.terminal.autoApprove": {
         ".\\find-migrations.ps1": true,
         "yarn test": true,
@@ -38,6 +39,7 @@
         "/^\\$env:PYTHONPATH = \"src\"; python -m crud_service\\.scripts\\.seed_demo_data$/": {
             "approve": true,
             "matchCommandLine": true
-        }
+        },
+        "Tee-Object": true
     }
 }

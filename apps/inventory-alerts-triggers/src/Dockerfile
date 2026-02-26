@@ -18,7 +18,7 @@ COPY . ./
 ENV PYTHONPATH=/app/src
 RUN python -m pip install --upgrade pip && \
     python -m pip install --no-cache-dir -e .[dev,test,lint]
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["uvicorn", "inventory_alerts_triggers.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
 FROM base AS prod
 ENV APP_ENV=prod
@@ -27,4 +27,4 @@ COPY . ./
 ENV PYTHONPATH=/app/src
 RUN python -m pip install --upgrade pip && \
     python -m pip install --no-cache-dir .
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "inventory_alerts_triggers.main:app", "--host", "0.0.0.0", "--port", "8000"]
