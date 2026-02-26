@@ -5,7 +5,6 @@ description = "Catalog search agent service"
 authors = [
     {name = "Ricardo Cataldi", email = "rcataldi@microsoft.com"}
 ]
-readme = "../README.md"
 requires-python = ">=3.13"
 dependencies = [
     "fastapi",

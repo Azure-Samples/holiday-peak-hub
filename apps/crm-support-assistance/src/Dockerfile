@@ -12,7 +12,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends build-essential
 
 FROM base AS dev
 ENV APP_ENV=dev
-COPY README.md /app/README.md
 COPY pyproject.toml ./pyproject.toml
 COPY . ./
 # COPY tests /app/tests  # tests are outside build context
@@ -23,7 +22,6 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
 FROM base AS prod
 ENV APP_ENV=prod
-COPY README.md /app/README.md
 COPY pyproject.toml ./pyproject.toml
 COPY . ./
 ENV PYTHONPATH=/app/src

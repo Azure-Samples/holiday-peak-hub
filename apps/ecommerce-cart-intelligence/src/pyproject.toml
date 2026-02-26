@@ -3,7 +3,6 @@ name = "ecommerce-cart-intelligence"
 version = "0.1.0"
 description = "Cart intelligence service"
 authors = [{name = "Ricardo Cataldi", email = "rcataldi@microsoft.com"}]
-readme = "../README.md"
 requires-python = ">=3.13"
 dependencies = ["fastapi", "fastapi-mcp", "uvicorn", "pydantic>=2", "agent-framework", "azure-ai-projects>=2.0.0b4", "azure-identity", "azure-search-documents", "azure-cosmos", "azure-storage-blob", "azure-eventhub", "redis", "asyncpg", "holiday-peak-lib @ git+https://github.com/Azure-Samples/holiday-peak-hub.git@main#subdirectory=lib/src"]
 
