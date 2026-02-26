@@ -101,6 +101,7 @@ flowchart LR
   subgraph Data["Data Layer"]
     Redis[Azure Cache for Redis - Hot]
     Cosmos[Azure Cosmos DB - Warm - Operational]
+    PostgreSQL[Azure PostgreSQL - CRUD Transactional]
     Blob[Azure Blob Storage - Cold - Media]
     Search[Azure AI Search - Vector Search]
   end
@@ -117,7 +118,7 @@ flowchart LR
   Agents --> Cosmos
   Agents --> Blob
   Agents --> Search
-  CRUD --> Cosmos
+  CRUD --> PostgreSQL
 
   classDef noncritical fill:#ccf7ff,stroke:#1976d2,color:#000000;
   classDef critical fill:#ffffff,stroke:#d32f2f,color:#000000;
@@ -125,13 +126,13 @@ flowchart LR
 
   class Customer,UI,FrontDoor neutral;
   class MCP,Adapters,Redis,Blob,Search noncritical;
-  class APIM,CRUD,Agents,AgentFw,EventHub,Cosmos critical;
+  class APIM,CRUD,Agents,AgentFw,EventHub,Cosmos,PostgreSQL critical;
 ```
 
 ## Alignment Notes
 
 - This architecture reflects the implemented Holiday Peak Hub stack documented in ADR-002 and the architecture overview.
 - The system includes a production-ready CRUD service and 21 agent services across 5 domains.
-- Cosmos DB is used for user context, explanation policy storage, and operational data (10 containers).
+- **CRUD service uses PostgreSQL (asyncpg + JSONB)** for transactional data; Cosmos DB is used by agents for warm-tier memory.
 - Azure Event Hubs enables SAGA choreography across services.
 - The diagram is intentionally high-level for marketing and proposal use.

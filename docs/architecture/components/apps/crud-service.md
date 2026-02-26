@@ -4,7 +4,7 @@ Transactional REST API for carts, orders, payments, and ACP checkout sessions.
 
 ## Purpose
 
-The CRUD service is a non-agent FastAPI microservice that owns transactional state and exposes seller-side APIs for checkout and order fulfillment.
+The CRUD service is a non-agent FastAPI microservice that owns transactional state and exposes seller-side APIs for checkout and order fulfillment. It routes agent calls through Azure API Management (APIM) with circuit breaker and retry for resilient integration.
 
 ## Responsibilities
 
@@ -13,6 +13,8 @@ The CRUD service is a non-agent FastAPI microservice that owns transactional sta
 - Payment processing integration (Stripe placeholder)
 - ACP checkout session lifecycle endpoints
 - Delegated payment token validation (ACP demo PSP)
+- **APIM-routed agent invocation** (12 agent methods with circuit breaker + retry)
+- **JWKS-based JWT authentication** with Entra ID
 
 ## Key Endpoints
 
@@ -30,8 +32,17 @@ The CRUD service is a non-agent FastAPI microservice that owns transactional sta
 
 ## Data Stores
 
-- Cosmos DB containers: `cart`, `orders`, `checkout_sessions`, `payment_tokens`
-- Provisioned via shared infrastructure AVM Bicep module
+- **PostgreSQL (asyncpg)**: JSONB tables — `cart`, `orders`, `checkout_sessions`, `payment_tokens`, `users`, `products`, `reviews`, `tickets`, `shipments`, `audit_logs`
+- Connection pooling via shared `asyncpg.Pool` (class-level singleton)
+- GIN + B-tree indexes on all JSONB tables
+- Provisioned via Azure PostgreSQL Flexible Server
+
+## Agent Integration
+
+- 12 agent methods routed through **APIM gateway** (`APIM_BASE_URL`)
+- `circuitbreaker` (failure_threshold=5, recovery_timeout=60s)
+- `tenacity` retry with exponential backoff (3 attempts)
+- Graceful degradation: returns `None` if agent unavailable
 
 ## Events
 

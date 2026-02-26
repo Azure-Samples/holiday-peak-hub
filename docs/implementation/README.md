@@ -72,11 +72,11 @@ The implementation plan includes a comprehensive C4 Component Diagram (Level 3) 
 - API Gateway (Azure API Management)
 - CRUD Service (FastAPI with event publishing and agent client)
 - 21 Agent Services (5 domains)
-- Data Layer (Cosmos DB, Redis, Blob Storage, Event Hubs)
+- Data Layer (PostgreSQL for CRUD, Cosmos DB for agent memory, Redis, Blob Storage, Event Hubs)
 - Platform Services (Azure Monitor, Key Vault)
 
 **Key Interactions**:
-- Transactional requests: Frontend → API Gateway → CRUD → Cosmos DB
+- Transactional requests: Frontend → API Gateway → CRUD → PostgreSQL (asyncpg + JSONB)
 - Async processing: CRUD → Event Hubs → Agents
 - Semantic search: Frontend → API Gateway → Catalog Search Agent
 - Product enrichment: CRUD → Agent Client → Enrichment Agent (with circuit breaker)

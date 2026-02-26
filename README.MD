@@ -14,6 +14,7 @@
 ## 🎉 Recent Updates (February 2026)
 
 ### ✅ Agents V2 Migration Complete
+
 - **42 V2 prompt agents** provisioned in Azure AI Foundry project `aipholidaris` (21 services × 2 roles)
 - **Model defaults**: `gpt-5-nano` (SLM/fast) and `gpt-5.2` (LLM/rich)
 - **SDK**: `azure-ai-projects>=2.0.0b4` for V2 `create_version` API with `PromptAgentDefinition`
@@ -25,6 +26,7 @@
 ### Previous Updates (January 2026)
 
 ### ✅ Frontend Implementation Complete
+
 - **13 production-ready pages** across 4 user roles (anonymous, customer, staff, admin)
 - **52-component library** following atomic design principles
 - **Ocean Blue/Lime Green/Cyan color system** with dark mode support
@@ -32,6 +34,7 @@
 - See [Components Documentation](docs/architecture/components.md) for complete details
 
 ### ✅ Backend Implementation Progress
+
 - **CRUD Service**: Fully implemented with 31 endpoints across 15 route modules
 - **Cloud-native architecture** with Azure best practices
 - **10 database schemas** for operational data (Cosmos DB)
@@ -41,6 +44,7 @@
 - See [Implementation Roadmap](docs/IMPLEMENTATION_ROADMAP.md) and [CRUD Service Documentation](docs/architecture/crud-service-implementation.md)
 
 ### ✅ Architecture Documentation
+
 - **20 ADRs** covering all major decisions
 - **Cloud-native patterns**: Key Vault, Managed Identity, APIM, Front Door
 - **Event-driven choreography** with Azure Event Hubs
