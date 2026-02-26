@@ -25,6 +25,31 @@ Adapters translate retailer-specific APIs into a standardized interface (`BaseAd
 
 ✅ **Resilience defaults**: `BaseAdapter` includes rate limiting, caching, retries, timeouts, and circuit breaking around all adapter operations
 
+✅ **CRUD MCP adapter alignment**: `BaseCRUDAdapter` now targets the actual CRUD API route surface under `/api`.
+
+### CRUD Adapter Route Mapping
+
+`BaseCRUDAdapter` tools now map to current CRUD endpoints:
+
+- `/crud/products/get` → `GET /api/products/{id}`
+- `/crud/products/list` → `GET /api/products`
+- `/crud/products/batch` → fan-out over `GET /api/products/{id}`
+- `/crud/orders/get` → `GET /api/orders/{id}`
+- `/crud/orders/list` → `GET /api/orders`
+- `/crud/orders/cancel` → `PATCH /api/orders/{id}/cancel`
+- `/crud/cart/get` → `GET /api/cart`
+- `/crud/cart/recommendations` → `GET /api/cart/recommendations`
+- `/crud/users/me` → `GET /api/users/me`
+
+Known constraints of the current CRUD API surface:
+
+- No dedicated inventory route (`/api/inventory/*`) yet.
+- No ticket creation route (`POST /api/staff/tickets`) yet.
+- No generic order status update route besides cancellation.
+
+For these cases, adapter tools return explicit `unsupported_operation` payloads
+instead of calling non-existent endpoints.
+
 ## What's NOT Implemented (Retailer Responsibility)
 
 ❌ **Real API Clients**: No actual HTTP/gRPC/database calls to retailer systems  

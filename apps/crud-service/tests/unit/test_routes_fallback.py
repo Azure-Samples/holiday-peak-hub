@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 
 from crud_service.main import app
-from crud_service.auth import User, get_current_user
+from crud_service.auth import User, get_current_user, get_current_user_optional
 from crud_service.routes import products as products_routes
 from crud_service.routes import cart as cart_routes
 from crud_service.routes import checkout as checkout_routes
@@ -110,15 +110,23 @@ class TestCartRoutesFallback:
 
     @pytest.mark.asyncio
     async def test_cart_not_found(self, client, monkeypatch, override_auth):
-        """Should handle missing cart gracefully."""
+        """Should return empty recommendations when cart is missing."""
 
         async def fake_get_by_user(user_id: str):
             return None
 
+        class EmptyAgentClient:
+            async def get_user_recommendations(self, user_id: str, items=None):
+                return None  # No recommendation possible
+
         monkeypatch.setattr(cart_routes.cart_repo, "get_by_user", fake_get_by_user)
+        monkeypatch.setattr(cart_routes, "agent_client", EmptyAgentClient())
 
         response = client.get("/api/cart/recommendations")
-        assert response.status_code == 404
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["user_id"] == "user-1"
+        assert payload["recommendations"] is None
 
 
 class TestCheckoutRoutesFallback:
@@ -207,14 +215,28 @@ class TestCheckoutRoutesFallback:
         assert response.status_code == 200
         payload = response.json()
         assert payload["valid"] is False
-        assert len(payload["errors"]) == 2
+        # out_of_stock → error, insufficient_stock → warning
+        assert len(payload["errors"]) == 1
+        assert len(payload["warnings"]) >= 1
 
 
 class TestProductSearchRoutes:
     """Test product search routes."""
 
+    @pytest.fixture
+    def override_auth_optional(self):
+        """Override optional auth dependency so product routes are accessible."""
+        async def _anon():
+            return None
+
+        app.dependency_overrides[get_current_user_optional] = _anon
+        yield
+        app.dependency_overrides.pop(get_current_user_optional, None)
+
     @pytest.mark.asyncio
-    async def test_search_products_returns_results(self, client, monkeypatch):
+    async def test_search_products_returns_results(
+        self, client, monkeypatch, override_auth_optional
+    ):
         """Search should return matching products."""
 
         async def fake_search(query: str, limit: int = 10):
@@ -228,23 +250,35 @@ class TestProductSearchRoutes:
                 }
             ]
 
-        monkeypatch.setattr(products_routes.product_repo, "search", fake_search)
+        class NoopAgentClient:
+            async def semantic_search(self, *a, **kw):
+                return None
 
-        response = client.get("/api/products", params={"q": "test"})
+        monkeypatch.setattr(products_routes.product_repo, "search_by_name", fake_search)
+        monkeypatch.setattr(products_routes, "agent_client", NoopAgentClient())
+
+        response = client.get("/api/products", params={"search": "test"})
         assert response.status_code == 200
         payload = response.json()
         assert len(payload) >= 1
 
     @pytest.mark.asyncio
-    async def test_search_products_empty_results(self, client, monkeypatch):
+    async def test_search_products_empty_results(
+        self, client, monkeypatch, override_auth_optional
+    ):
         """Search should return empty list for no matches."""
 
         async def fake_search(query: str, limit: int = 10):
             return []
 
-        monkeypatch.setattr(products_routes.product_repo, "search", fake_search)
+        class NoopAgentClient:
+            async def semantic_search(self, *a, **kw):
+                return None
 
-        response = client.get("/api/products", params={"q": "nonexistent"})
+        monkeypatch.setattr(products_routes.product_repo, "search_by_name", fake_search)
+        monkeypatch.setattr(products_routes, "agent_client", NoopAgentClient())
+
+        response = client.get("/api/products", params={"search": "nonexistent"})
         assert response.status_code == 200
         payload = response.json()
         assert len(payload) == 0

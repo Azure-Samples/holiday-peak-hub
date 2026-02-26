@@ -340,7 +340,7 @@ class TestMCPAdapters:
         """Verify CRUD adapter tools call the expected endpoint."""
 
         async def handler(request: httpx.Request) -> httpx.Response:
-            if request.url.path == "/products/sku-1":
+            if request.url.path == "/api/products/sku-1":
                 return httpx.Response(200, json={"sku": "sku-1"})
             return httpx.Response(404, json={"error": "not_found"})
 

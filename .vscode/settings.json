@@ -24,6 +24,20 @@
         },
         "gh": true,
         "Out-Null": true,
-        "Test-NetConnection": true
+        "Test-NetConnection": true,
+        "ForEach-Object": true,
+        "/^python -m pytest lib/tests/test_router\\.py lib/tests/test_agents_builder\\.py$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "&": true,
+        "/^\\$env:PYTHONPATH = \"src\"; python _check_db\\.py$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^\\$env:PYTHONPATH = \"src\"; python -m crud_service\\.scripts\\.seed_demo_data$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
     }
 }

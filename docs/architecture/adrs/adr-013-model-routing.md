@@ -24,8 +24,8 @@ Running all requests through large language models (LLMs) is expensive and slow.
 ```mermaid
 graph TD
     Request[User Request] --> Assessment[Complexity Assessor]
-    Assessment --> |Simple/Moderate| SLM[SLM: GPT-4o-mini]
-    Assessment --> |Complex| LLM[LLM: GPT-4o]
+    Assessment --> |Simple/Moderate| SLM[SLM: GPT-5-nano]
+    Assessment --> |Complex| LLM[LLM: GPT-5.2]
     SLM --> Confidence[Confidence Check]
     Confidence --> |High| Response[Return Response]
     Confidence --> |Low| Escalate[Escalate to LLM]
@@ -117,14 +117,14 @@ agent = (AgentBuilder()
     .with_agent_class(CatalogAgent)
     .with_model_targets(
         slm=ModelTarget(
-            deployment_name="gpt-4o-mini",
+            deployment_name="gpt-5-nano",
             endpoint=os.getenv("FOUNDRY_ENDPOINT"),
             agent_id=os.getenv("FOUNDRY_AGENT_ID_FAST"),
             max_tokens=500,
             temperature=0.3
         ),
         llm=ModelTarget(
-            deployment_name="gpt-4o",
+            deployment_name="gpt-5.2",
             endpoint=os.getenv("FOUNDRY_ENDPOINT"),
             agent_id=os.getenv("FOUNDRY_AGENT_ID_RICH"),
             max_tokens=2000,
@@ -173,11 +173,11 @@ except ModelUnavailableError:
 ```bash
 # SLM Configuration
 FOUNDRY_AGENT_ID_FAST=agent-slm-prod
-MODEL_DEPLOYMENT_NAME_FAST=gpt-4o-mini
+MODEL_DEPLOYMENT_NAME_FAST=gpt-5-nano
 
 # LLM Configuration
 FOUNDRY_AGENT_ID_RICH=agent-llm-prod
-MODEL_DEPLOYMENT_NAME_RICH=gpt-4o
+MODEL_DEPLOYMENT_NAME_RICH=gpt-5.2
 
 # Routing Tuning
 SLM_CONFIDENCE_THRESHOLD=0.8

@@ -196,7 +196,171 @@ class TestBuildServiceApp:
         # Check routes exist
         routes = [route.path for route in app.routes]
         assert "/health" in routes
+        assert "/ready" in routes
         assert "/invoke" in routes
+        assert "/foundry/agents/ensure" in routes
+
+    def test_foundry_ensure_endpoint(
+        self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
+    ):
+        """Test service exposes endpoint to ensure/create Foundry agents."""
+        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-fast-123")
+        monkeypatch.setenv("MODEL_DEPLOYMENT_NAME_FAST", "gpt-4o-mini")
+
+        app = build_service_app(
+            service_name="test-service",
+            agent_class=SampleServiceAgent,
+            hot_memory=mock_hot_memory,
+            warm_memory=mock_warm_memory,
+            cold_memory=mock_cold_memory,
+        )
+        client = TestClient(app)
+
+        with patch("holiday_peak_lib.app_factory.ensure_foundry_agent") as mock_ensure:
+            mock_ensure.return_value = {
+                "status": "exists",
+                "agent_id": "agent-fast-123",
+                "agent_name": "test-service-fast",
+                "created": False,
+            }
+            response = client.post(
+                "/foundry/agents/ensure",
+                json={"role": "fast", "create_if_missing": True},
+            )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["service"] == "test-service"
+        assert payload["results"]["fast"]["agent_id"] == "agent-fast-123"
+
+    def test_ready_endpoint_returns_ok_when_not_strict(
+        self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
+    ):
+        """Test /ready returns 200 when strict enforcement is not enabled."""
+        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-123")
+        monkeypatch.delenv("FOUNDRY_STRICT_ENFORCEMENT", raising=False)
+
+        app = build_service_app(
+            service_name="test-service",
+            agent_class=SampleServiceAgent,
+            hot_memory=mock_hot_memory,
+            warm_memory=mock_warm_memory,
+            cold_memory=mock_cold_memory,
+        )
+        client = TestClient(app)
+        response = client.get("/ready")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "ready"
+        assert data["service"] == "test-service"
+        assert data["foundry_ready"] is True
+
+    def test_ready_endpoint_returns_503_when_strict_and_not_ready(
+        self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
+    ):
+        """Test /ready returns 503 when strict mode active and agents not ensured."""
+        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-123")
+        monkeypatch.setenv("FOUNDRY_STRICT_ENFORCEMENT", "true")
+        # Disable auto-ensure so foundry_ready stays False
+        monkeypatch.setenv("FOUNDRY_AUTO_ENSURE_ON_STARTUP", "false")
+
+        app = build_service_app(
+            service_name="test-service",
+            agent_class=SampleServiceAgent,
+            hot_memory=mock_hot_memory,
+            warm_memory=mock_warm_memory,
+            cold_memory=mock_cold_memory,
+        )
+        client = TestClient(app)
+        response = client.get("/ready")
+
+        assert response.status_code == 503
+        detail = response.json()["detail"]
+        assert detail["status"] == "not_ready"
+        assert detail["service"] == "test-service"
+
+    def test_ready_endpoint_returns_ok_after_ensure_in_strict_mode(
+        self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
+    ):
+        """Test /ready flips to 200 after agents are ensured in strict mode."""
+        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-123")
+        monkeypatch.setenv("FOUNDRY_STRICT_ENFORCEMENT", "true")
+        monkeypatch.setenv("FOUNDRY_AUTO_ENSURE_ON_STARTUP", "false")
+
+        app = build_service_app(
+            service_name="test-service",
+            agent_class=SampleServiceAgent,
+            hot_memory=mock_hot_memory,
+            warm_memory=mock_warm_memory,
+            cold_memory=mock_cold_memory,
+        )
+        client = TestClient(app)
+
+        # Before ensure: not ready
+        assert client.get("/ready").status_code == 503
+
+        # Ensure agents
+        with patch("holiday_peak_lib.app_factory.ensure_foundry_agent") as mock_ensure:
+            mock_ensure.return_value = {
+                "status": "exists",
+                "agent_id": "agent-123",
+                "agent_name": "test-service-fast",
+                "created": False,
+            }
+            ensure_resp = client.post(
+                "/foundry/agents/ensure",
+                json={"role": "fast", "create_if_missing": True},
+            )
+        assert ensure_resp.status_code == 200
+        assert ensure_resp.json()["foundry_ready"] is True
+
+        # After ensure: ready
+        response = client.get("/ready")
+        assert response.status_code == 200
+        assert response.json()["status"] == "ready"
+
+    def test_strict_foundry_mode_requires_ensure_before_invoke(
+        self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
+    ):
+        """Test strict mode blocks invoke until ensure endpoint is called."""
+        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-123")
+        monkeypatch.setenv("FOUNDRY_STRICT_ENFORCEMENT", "true")
+
+        app = build_service_app(
+            service_name="test-service",
+            agent_class=SampleServiceAgent,
+            hot_memory=mock_hot_memory,
+            warm_memory=mock_warm_memory,
+            cold_memory=mock_cold_memory,
+        )
+
+        client = TestClient(app)
+        pre_response = client.post("/invoke", json={"query": "test"})
+        assert pre_response.status_code == 503
+
+        with patch("holiday_peak_lib.app_factory.ensure_foundry_agent") as mock_ensure:
+            mock_ensure.return_value = {
+                "status": "exists",
+                "agent_id": "agent-123",
+                "agent_name": "test-service-fast",
+                "created": False,
+            }
+            ensure_response = client.post(
+                "/foundry/agents/ensure",
+                json={"role": "fast", "create_if_missing": True},
+            )
+
+        assert ensure_response.status_code == 200
+        assert ensure_response.json()["foundry_ready"] is True
+
+        post_response = client.post("/invoke", json={"query": "test"})
+        assert post_response.status_code == 200
 
     def test_build_foundry_config_from_env(self, monkeypatch):
         """Test building Foundry config from environment."""

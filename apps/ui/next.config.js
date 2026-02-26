@@ -1,4 +1,10 @@
 /** @type {import('next').NextConfig} */
+const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+
+if (!apiUrl) {
+  throw new Error('NEXT_PUBLIC_API_URL must be set to the APIM gateway URL.');
+}
+
 const nextConfig = {
   reactStrictMode: true,
   output: 'standalone', // For Azure Static Web Apps deployment
@@ -11,9 +17,7 @@ const nextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: process.env.NEXT_PUBLIC_API_URL
-          ? `${process.env.NEXT_PUBLIC_API_URL}/api/:path*`
-          : 'http://localhost:8000/api/:path*',
+        destination: `${apiUrl}/api/:path*`,
       },
     ];
   },

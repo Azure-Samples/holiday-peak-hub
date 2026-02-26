@@ -199,6 +199,84 @@ class TestBaseRetailAgent:
         )
         assert result is not None
 
+    @pytest.mark.asyncio
+    async def test_foundry_governance_strips_system_prompt(self):
+        """Test Foundry governance strips local system prompts from messages."""
+        captured_messages = []
+
+        async def invoker(**kwargs):
+            captured_messages.append(kwargs.get("messages"))
+            return {"response": "ok"}
+
+        slm = ModelTarget(name="slm", model="small", invoker=invoker, provider="foundry")
+        deps = AgentDependencies(slm=slm, llm=None, enforce_foundry_prompt_governance=True)
+        agent = SimpleTestAgent(config=deps)
+
+        await agent.invoke_model(
+            {"query": "hello"},
+            [
+                {"role": "system", "content": "local prompt"},
+                {"role": "user", "content": "hello"},
+            ],
+        )
+
+        assert captured_messages
+        assert captured_messages[0] == [{"role": "user", "content": "hello"}]
+
+    @pytest.mark.asyncio
+    async def test_foundry_governance_uses_slm_first_then_llm_by_complexity(self):
+        """Test Foundry governance preserves SLM-first and escalates by complexity threshold."""
+        invocation_order = []
+
+        async def slm_invoker(**kwargs):
+            invocation_order.append("slm")
+            return {"response": "slm response"}
+
+        async def llm_invoker(**kwargs):
+            invocation_order.append("llm")
+            return {"response": "llm response"}
+
+        slm = ModelTarget(name="slm", model="small", invoker=slm_invoker, provider="foundry")
+        llm = ModelTarget(name="llm", model="large", invoker=llm_invoker, provider="foundry")
+        deps = AgentDependencies(
+            slm=slm,
+            llm=llm,
+            complexity_threshold=0.2,
+            enforce_foundry_prompt_governance=True,
+        )
+        agent = SimpleTestAgent(config=deps)
+
+        result = await agent.invoke_model(
+            {
+                "query": "please analyze the full order history and provide multi-step recommendations",
+                "requires_multi_tool": True,
+            },
+            [{"role": "user", "content": "request"}],
+        )
+
+        assert invocation_order == ["slm", "llm"]
+        assert result.get("_target") == "llm"
+
+    @pytest.mark.asyncio
+    async def test_foundry_governance_can_be_disabled(self):
+        """Test governance opt-out keeps local system messages untouched."""
+        captured_messages = []
+
+        async def invoker(**kwargs):
+            captured_messages.append(kwargs.get("messages"))
+            return {"response": "ok"}
+
+        slm = ModelTarget(name="slm", model="small", invoker=invoker, provider="foundry")
+        deps = AgentDependencies(slm=slm, llm=None, enforce_foundry_prompt_governance=False)
+        agent = SimpleTestAgent(config=deps)
+
+        original = [
+            {"role": "system", "content": "local prompt"},
+            {"role": "user", "content": "hello"},
+        ]
+        await agent.invoke_model({"query": "hello"}, original)
+        assert captured_messages[0] == original
+
     def test_attach_memory(self, agent_deps):
         """Test attaching memory to agent."""
         agent = SimpleTestAgent(config=agent_deps)

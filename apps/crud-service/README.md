@@ -154,6 +154,52 @@ ENABLE_AGENT_FALLBACK=true
 AGENT_TIMEOUT_SECONDS=3
 ```
 
+### Team Deployment Template (recommended)
+
+Use the team-scoped template [apps/crud-service/.env.deploy.sample](apps/crud-service/.env.deploy.sample).
+
+Each team/environment must have its own `.env` values (do not reuse from another deployment).
+
+**When to provision/update these values**:
+
+1. Right after `azd provision` for a new team environment.
+2. Any time infrastructure is reprovisioned or environment name changes.
+3. Before deploying `crud-service` if APIM name/URL changed.
+
+**How to populate values from azd env**:
+
+```bash
+# Example: team-a-dev
+azd env get-values -e <env-name>
+```
+
+Or generate CRUD `.env` automatically from that azd environment:
+
+```powershell
+# Windows
+pwsh ./.infra/azd/hooks/generate-crud-env.ps1 -EnvironmentName <env-name> -Force
+```
+
+```bash
+# Linux/macOS
+FORCE=true ./.infra/azd/hooks/generate-crud-env.sh <env-name>
+```
+
+Set `AGENT_APIM_BASE_URL` from that environment:
+
+```text
+https://<apimName>.azure-api.net
+```
+
+You can also verify quickly with:
+
+```bash
+az apim show -g <resourceGroup> -n <apimName> --query gatewayUrl -o tsv
+```
+
+`AGENT_APIM_BASE_URL` is now the default route for CRUD synchronous agent calls.
+Per-agent URL variables remain optional overrides for troubleshooting.
+
 ## Development
 
 The service resolves `POSTGRES_PASSWORD` from Key Vault at startup when the env var is empty, using managed identity and `POSTGRES_PASSWORD_SECRET_NAME`.
@@ -363,6 +409,13 @@ from circuitbreaker import circuit
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 class AgentClient:
+  def _resolve_agent_url(self, explicit_url: str | None, service_name: str) -> str | None:
+    if explicit_url:
+      return explicit_url.rstrip("/")
+    if settings.agent_apim_base_url:
+      return f"{settings.agent_apim_base_url.rstrip('/')}/agents/{service_name}"
+    return None
+
     @circuit(failure_threshold=5, recovery_timeout=60)
     @retry(stop=stop_after_attempt(2), wait=wait_exponential(0.5, 0.5, 2))
     async def _call_endpoint(self, agent_url: str, endpoint: str, data: dict):
@@ -382,6 +435,25 @@ class AgentClient:
                 return fallback_value
             raise
 ```
+
+      **Routing Configuration (recommended):**
+
+      ```dotenv
+      AGENT_APIM_BASE_URL=https://<apimName>.azure-api.net
+
+      # Optional per-agent overrides (only when needed)
+      PRODUCT_ENRICHMENT_AGENT_URL=
+      CART_INTELLIGENCE_AGENT_URL=
+      INVENTORY_HEALTH_AGENT_URL=
+      CHECKOUT_SUPPORT_AGENT_URL=
+      ```
+
+      With this setup, CRUD calls agents through APIM routes such as:
+
+      - `/agents/ecommerce-product-detail-enrichment/invoke`
+      - `/agents/ecommerce-cart-intelligence/invoke`
+      - `/agents/ecommerce-checkout-support/invoke`
+      - `/agents/inventory-health-check/invoke`
 
 **Example: Product Enrichment (with fallback)**
 ```python

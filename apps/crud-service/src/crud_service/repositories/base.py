@@ -1,5 +1,6 @@
 """Base repository for PostgreSQL operations using asyncpg."""
 
+import json
 import logging
 import re
 from typing import Any, Generic, TypeVar
@@ -123,7 +124,7 @@ class BaseRepository(Generic[T]):
                 f"INSERT INTO {self.table_name} (id, partition_key, data) VALUES ($1, $2, $3::jsonb)",
                 item["id"],
                 partition_key,
-                item,
+                json.dumps(item),
             )
 
         return item
@@ -158,7 +159,8 @@ class BaseRepository(Generic[T]):
                 )
 
         if row:
-            return dict(row["data"])
+            data = row["data"]
+            return json.loads(data) if isinstance(data, str) else dict(data)
 
         logger.warning("Item not found: %s", item_id)
         return None
@@ -190,7 +192,7 @@ class BaseRepository(Generic[T]):
                 """,
                 item["id"],
                 partition_key,
-                item,
+                json.dumps(item),
             )
 
         return item
@@ -250,7 +252,10 @@ class BaseRepository(Generic[T]):
             else:
                 rows = await conn.fetch(f"SELECT data FROM {self.table_name}")
 
-        items = [dict(row["data"]) for row in rows]
+        items = [
+            json.loads(row["data"]) if isinstance(row["data"], str) else dict(row["data"])
+            for row in rows
+        ]
 
         where_clause = ""
         where_match = re.search(r"WHERE\s+(.*?)\s*(ORDER BY|OFFSET|LIMIT|$)", query, re.IGNORECASE)

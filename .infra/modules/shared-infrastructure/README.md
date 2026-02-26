@@ -59,7 +59,7 @@ This module creates **ONE instance** of each resource, shared across all service
   - `apim` - 10.0.9.0/24 (API Management)
   - `private-endpoints` - 10.0.10.0/24 (Private endpoints for PaaS services)
 - **Network Security Groups** - One per subnet
-- **Private Endpoints** - All PaaS services accessible only via private network (no public access)
+- **Private Endpoints** - PaaS services are private by default; Azure AI Foundry is the intentional public-access exception
 
 ### API Gateway
 
@@ -71,6 +71,8 @@ This module creates **ONE instance** of each resource, shared across all service
 ### AI Platform
 
 - **Azure AI Foundry** - Shared Foundry resource and hub for agents and model deployments
+  - Deployed in **West US 3** (`westus3`) for Azure AI Agent Service compatibility
+  - **Public network access enabled** for agent service operations
 
 ### Observability
 
@@ -257,7 +259,8 @@ If AKS pods can't access resources:
 
 ## Security Notes
 
-- ✅ **No public endpoints** - All PaaS services use private endpoints
+- ✅ PaaS services use private endpoints by default
+- ⚠️ Azure AI Foundry intentionally uses public network access to support agent provisioning/invocation
 - ✅ **Credential isolation** - PostgreSQL admin password is injected via deployment and should be stored in Key Vault
 - ✅ **Secrets in Key Vault** - No hardcoded credentials
 - ✅ **TLS 1.2 minimum** - All services enforce secure connections

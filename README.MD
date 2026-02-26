@@ -11,7 +11,18 @@
 
 [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FAzure-Samples%2Fholiday-peak-hub%2Fmain%2F.infra%2Fmodules%2Fshared-infrastructure%2Fshared-infrastructure-main.bicep)
 
-## 🎉 Recent Updates (January 2026)
+## 🎉 Recent Updates (February 2026)
+
+### ✅ Agents V2 Migration Complete
+- **42 V2 prompt agents** provisioned in Azure AI Foundry project `aipholidaris` (21 services × 2 roles)
+- **Model defaults**: `gpt-5-nano` (SLM/fast) and `gpt-5.2` (LLM/rich)
+- **SDK**: `azure-ai-projects>=2.0.0b4` for V2 `create_version` API with `PromptAgentDefinition`
+- **Execution**: Conversations/responses pattern via `openai_client.conversations.create()` + `openai_client.responses.create()`
+- **Strict enforcement mode**: `FOUNDRY_STRICT_ENFORCEMENT` env var gates `/invoke` until agents are provisioned
+- **Auto-ensure on startup**: `FOUNDRY_AUTO_ENSURE_ON_STARTUP` creates missing agents automatically
+- **All 29 lib tests passing**
+
+### Previous Updates (January 2026)
 
 ### ✅ Frontend Implementation Complete
 - **13 production-ready pages** across 4 user roles (anonymous, customer, staff, admin)
@@ -59,7 +70,7 @@ Agent-driven retail accelerator with a reusable micro-framework, multi-tier memo
 - [ADR-009](docs/architecture/adrs/adr-009-aks-deployment.md) - AKS with Helm, KEDA, and Canary Deployments
 - [ADR-015](docs/architecture/adrs/adr-015-nextjs-app-router.md) - Next.js 15 with App Router for Frontend
 - [ADR-019](docs/architecture/adrs/adr-019-authentication-rbac.md) - Microsoft Entra ID Authentication and RBAC
-- **[View all 20 ADRs](docs/architecture/ADRs.md)**
+- **[View all 21 ADRs](docs/architecture/ADRs.md)**
 
 ### Key Documents
 - **[Components Documentation](docs/architecture/components.md)** - Library components, service components, and frontend component library
@@ -177,6 +188,33 @@ curl http://localhost:3000/api/health
 ```
 
 **See [Implementation Roadmap](docs/IMPLEMENTATION_ROADMAP.md) for deployment to Azure.**
+
+### Per-team deploy variables (important)
+
+For shared Azure subscriptions, each team should use its own azd environment and its own CRUD env file.
+
+- Start from [apps/crud-service/.env.deploy.sample](apps/crud-service/.env.deploy.sample)
+- Copy to `.env` in the CRUD service deployment context
+- Populate values from your team azd environment after `azd provision`
+
+Provisioning sequence for team environments:
+
+1. `azd env new <team-env>`
+2. `azd provision -e <team-env>`
+3. Generate CRUD `.env` from azd values:
+
+  ```powershell
+  pwsh ./.infra/azd/hooks/generate-crud-env.ps1 -EnvironmentName <team-env> -Force
+  ```
+
+  ```bash
+  FORCE=true ./.infra/azd/hooks/generate-crud-env.sh <team-env>
+  ```
+
+4. Set `AGENT_APIM_BASE_URL` to `https://<apimName>.azure-api.net`
+5. Deploy CRUD and agents with the same `<team-env>`
+
+This prevents cross-team routing mistakes and ensures CRUD calls the correct APIM instance.
 
 ## Testing and linting
 

@@ -25,6 +25,17 @@ class AgentClient:
         self.timeout = httpx.Timeout(settings.agent_timeout_seconds)
         self.enable_fallback = settings.enable_agent_fallback
 
+    def _resolve_agent_url(self, explicit_url: str | None, service_name: str) -> str | None:
+        """Resolve target agent URL using explicit override or APIM path convention."""
+        if explicit_url:
+            return explicit_url.rstrip("/")
+
+        apim_base = settings.agent_apim_base_url
+        if not apim_base:
+            return None
+
+        return f"{apim_base.rstrip('/')}/agents/{service_name}"
+
     @circuit(
         failure_threshold=settings.agent_circuit_failure_threshold,
         recovery_timeout=settings.agent_circuit_recovery_seconds,
@@ -76,7 +87,10 @@ class AgentClient:
         """Get cart recommendations from the cart intelligence agent."""
         payload = {"user_id": user_id, "items": items or []}
         return await self.call_endpoint(
-            agent_url=settings.cart_intelligence_agent_url,
+            agent_url=self._resolve_agent_url(
+                settings.cart_intelligence_agent_url,
+                "ecommerce-cart-intelligence",
+            ),
             endpoint="/invoke",
             data=payload,
             fallback_value=None,
@@ -85,7 +99,10 @@ class AgentClient:
     async def get_product_enrichment(self, sku: str) -> dict[str, Any] | None:
         """Get enriched product details from the enrichment agent."""
         result = await self.call_endpoint(
-            agent_url=settings.product_enrichment_agent_url,
+            agent_url=self._resolve_agent_url(
+                settings.product_enrichment_agent_url,
+                "ecommerce-product-detail-enrichment",
+            ),
             endpoint="/invoke",
             data={"sku": sku},
             fallback_value=None,
@@ -99,7 +116,10 @@ class AgentClient:
     async def calculate_dynamic_pricing(self, sku: str) -> float | None:
         """Get dynamic pricing from checkout support agent (pricing context)."""
         result = await self.call_endpoint(
-            agent_url=settings.checkout_support_agent_url,
+            agent_url=self._resolve_agent_url(
+                settings.checkout_support_agent_url,
+                "ecommerce-checkout-support",
+            ),
             endpoint="/invoke",
             data={"items": [{"sku": sku, "quantity": 1}]},
             fallback_value=None,
@@ -117,7 +137,10 @@ class AgentClient:
         """Get inventory status from inventory health agent."""
         fallback = {"available": True, "quantity": 999}
         result = await self.call_endpoint(
-            agent_url=settings.inventory_health_agent_url,
+            agent_url=self._resolve_agent_url(
+                settings.inventory_health_agent_url,
+                "inventory-health-check",
+            ),
             endpoint="/invoke",
             data={"sku": sku},
             fallback_value=fallback,
@@ -134,6 +157,125 @@ class AgentClient:
                 "raw": result,
             }
         return result
+
+    # ── Catalog Search ──────────────────────────────────────────────
+
+    async def semantic_search(
+        self, query: str, limit: int = 20
+    ) -> list[dict[str, Any]]:
+        """Semantic product search via the catalog-search agent."""
+        result = await self.call_endpoint(
+            agent_url=self._resolve_agent_url(
+                settings.catalog_search_agent_url,
+                "ecommerce-catalog-search",
+            ),
+            endpoint="/invoke",
+            data={"query": query, "limit": limit},
+            fallback_value=None,
+        )
+        if isinstance(result, dict):
+            return result.get("products") or result.get("results") or []
+        return result if isinstance(result, list) else []
+
+    # ── Order Status ────────────────────────────────────────────────
+
+    async def get_order_status(self, order_id: str) -> dict[str, Any] | None:
+        """Get enriched order status with tracking from the order-status agent."""
+        return await self.call_endpoint(
+            agent_url=self._resolve_agent_url(
+                settings.order_status_agent_url,
+                "ecommerce-order-status",
+            ),
+            endpoint="/invoke",
+            data={"order_id": order_id},
+            fallback_value=None,
+        )
+
+    # ── Inventory Reservation ───────────────────────────────────────
+
+    async def validate_reservation(
+        self, sku: str, quantity: int
+    ) -> dict[str, Any] | None:
+        """Validate stock reservation via the reservation agent."""
+        return await self.call_endpoint(
+            agent_url=self._resolve_agent_url(
+                settings.inventory_reservation_agent_url,
+                "inventory-reservation-validation",
+            ),
+            endpoint="/invoke",
+            data={"sku": sku, "request_qty": quantity},
+            fallback_value=None,
+        )
+
+    # ── Logistics ───────────────────────────────────────────────────
+
+    async def get_delivery_eta(self, tracking_id: str) -> dict[str, Any] | None:
+        """Compute delivery ETA from the ETA agent."""
+        return await self.call_endpoint(
+            agent_url=self._resolve_agent_url(
+                settings.logistics_eta_agent_url,
+                "logistics-eta-computation",
+            ),
+            endpoint="/invoke",
+            data={"tracking_id": tracking_id},
+            fallback_value=None,
+        )
+
+    async def get_carrier_recommendation(
+        self, tracking_id: str
+    ) -> dict[str, Any] | None:
+        """Get optimal carrier recommendation."""
+        return await self.call_endpoint(
+            agent_url=self._resolve_agent_url(
+                settings.logistics_carrier_agent_url,
+                "logistics-carrier-selection",
+            ),
+            endpoint="/invoke",
+            data={"tracking_id": tracking_id},
+            fallback_value=None,
+        )
+
+    async def get_return_plan(self, tracking_id: str) -> dict[str, Any] | None:
+        """Generate a returns plan from the returns agent."""
+        return await self.call_endpoint(
+            agent_url=self._resolve_agent_url(
+                settings.logistics_returns_agent_url,
+                "logistics-returns-support",
+            ),
+            endpoint="/invoke",
+            data={"tracking_id": tracking_id},
+            fallback_value=None,
+        )
+
+    # ── CRM ─────────────────────────────────────────────────────────
+
+    async def get_customer_profile(
+        self, contact_id: str
+    ) -> dict[str, Any] | None:
+        """Get aggregated customer profile from CRM agent."""
+        return await self.call_endpoint(
+            agent_url=self._resolve_agent_url(
+                settings.crm_profile_agent_url,
+                "crm-profile-aggregation",
+            ),
+            endpoint="/invoke",
+            data={"contact_id": contact_id},
+            fallback_value=None,
+        )
+
+    async def get_personalization(
+        self, contact_id: str
+    ) -> dict[str, Any] | None:
+        """Get personalization recommendations from the segmentation agent."""
+        return await self.call_endpoint(
+            agent_url=self._resolve_agent_url(
+                settings.crm_segmentation_agent_url,
+                "crm-segmentation-personalization",
+            ),
+            endpoint="/invoke",
+            data={"contact_id": contact_id},
+            fallback_value=None,
+        )
 
 
 # Global instance

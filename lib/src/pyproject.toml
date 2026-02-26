@@ -14,7 +14,7 @@ dependencies = [
     "pydantic>=2",
     "agent-framework",
     "httpx",
-    "azure-ai-projects",
+    "azure-ai-projects>=2.0.0b4",
     "azure-identity",
     "azure-search-documents",
     "azure-cosmos",

@@ -2,8 +2,14 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from azure.core.exceptions import HttpResponseError
 
-from holiday_peak_lib.agents.foundry import FoundryAgentConfig, build_foundry_model_target, FoundryInvoker
+from holiday_peak_lib.agents.foundry import (
+    FoundryAgentConfig,
+    FoundryInvoker,
+    build_foundry_model_target,
+    ensure_foundry_agent,
+)
 
 
 class TestFoundryAgentConfig:
@@ -27,6 +33,9 @@ class TestFoundryAgentConfig:
 
     def test_from_env_with_alternate_vars(self, monkeypatch):
         """Test config creation using alternate env var names."""
+        monkeypatch.delenv("PROJECT_ENDPOINT", raising=False)
+        monkeypatch.delenv("PROJECT_NAME", raising=False)
+        monkeypatch.delenv("FOUNDRY_AGENT_ID", raising=False)
         monkeypatch.setenv("FOUNDRY_ENDPOINT", "https://alternate.openai.azure.com")
         monkeypatch.setenv("FOUNDRY_PROJECT_NAME", "alternate-project")
         monkeypatch.setenv("AGENT_ID", "agent-456")
@@ -50,9 +59,10 @@ class TestFoundryAgentConfig:
         """Test error when agent ID is missing."""
         monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.openai.azure.com")
         monkeypatch.delenv("FOUNDRY_AGENT_ID", raising=False)
+        monkeypatch.delenv("FOUNDRY_AGENT_NAME", raising=False)
         monkeypatch.delenv("AGENT_ID", raising=False)
         
-        with pytest.raises(ValueError, match="FOUNDRY_AGENT_ID are required"):
+        with pytest.raises(ValueError, match="FOUNDRY_AGENT_ID or FOUNDRY_AGENT_NAME"):
             FoundryAgentConfig.from_env()
 
     def test_stream_flag_variants(self, monkeypatch):
@@ -84,6 +94,7 @@ class TestFoundryInvoker:
         config = FoundryAgentConfig(
             endpoint="https://test.openai.azure.com",
             agent_id="agent-123",
+            agent_name="catalog-fast",
             stream=False
         )
         
@@ -92,54 +103,44 @@ class TestFoundryInvoker:
         
         # Create mock client structure
         mock_client_instance = MagicMock()
-        mock_agents_client = MagicMock()
-        mock_threads_client = MagicMock()
-        mock_messages_client = MagicMock()
-        mock_runs_client = MagicMock()
-        
-        # Setup thread
-        mock_thread = MagicMock()
-        mock_thread.id = "thread-123"
-        mock_threads_client.create = AsyncMock(return_value=mock_thread)
-        
-        # Setup message creation
-        mock_messages_client.create = AsyncMock()
-        
-        # Setup run
-        mock_run = MagicMock()
-        mock_run.id = "run-123"
-        mock_run.status = "completed"
-        mock_runs_client.create_and_process = AsyncMock(return_value=mock_run)
-        
-        # Setup messages list
-        mock_message = MagicMock()
-        mock_message.to_dict = MagicMock(return_value={"role": "assistant", "content": "Test response"})
-        mock_messages_client.list = AsyncMock(return_value=[mock_message])
-        
-        # Wire up the mocks
-        mock_agents_client.threads = mock_threads_client
-        mock_agents_client.messages = mock_messages_client
-        mock_agents_client.runs = mock_runs_client
-        mock_client_instance.agents = mock_agents_client
+        mock_openai = MagicMock()
+        mock_openai.close = AsyncMock(return_value=None)
+
+        mock_conversation = MagicMock()
+        mock_conversation.id = "conv-123"
+        mock_openai.conversations.create = AsyncMock(return_value=mock_conversation)
+
+        mock_response = MagicMock()
+        mock_response.model_dump = MagicMock(
+            return_value={
+                "id": "resp-123",
+                "output": [{"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "ok"}]}],
+                "usage": {"total_tokens": 10},
+            }
+        )
+        mock_openai.responses.create = AsyncMock(return_value=mock_response)
+        mock_client_instance.get_openai_client = MagicMock(return_value=mock_openai)
         mock_client.return_value = mock_client_instance
         
         # Test invocation
         invoker = FoundryInvoker(config)
         result = await invoker(messages="Test query")
         
-        assert result["thread_id"] == "thread-123"
-        assert result["run_id"] == "run-123"
+        assert result["conversation_id"] == "conv-123"
+        assert result["response_id"] == "resp-123"
         assert not result["stream"]
         assert "telemetry" in result
-        mock_runs_client.create_and_process.assert_called_once()
+        assert result["telemetry"]["api_version"] == "v2"
+        mock_openai.responses.create.assert_called_once()
 
     @patch("holiday_peak_lib.agents.foundry.AIProjectClient")
     @patch("holiday_peak_lib.agents.foundry.DefaultAzureCredential")
     async def test_invoke_streaming(self, mock_cred, mock_client):
-        """Test streaming invocation."""
+        """Test invocation with an existing conversation id."""
         config = FoundryAgentConfig(
             endpoint="https://test.openai.azure.com",
             agent_id="agent-123",
+            agent_name="catalog-fast",
             stream=True
         )
         
@@ -148,51 +149,24 @@ class TestFoundryInvoker:
         
         # Create mock client structure
         mock_client_instance = MagicMock()
-        mock_agents_client = MagicMock()
-        mock_threads_client = MagicMock()
-        mock_messages_client = MagicMock()
-        mock_runs_client = MagicMock()
-        
-        # Setup thread
-        mock_thread = MagicMock()
-        mock_thread.id = "thread-456"
-        mock_threads_client.create = AsyncMock(return_value=mock_thread)
-        
-        # Setup message creation
-        mock_messages_client.create = AsyncMock()
-        
-        # Setup streaming
-        async def mock_stream():
-            # Simulate streaming events
-            event_data_1 = MagicMock()
-            event_data_1.text = "Hello "
-            yield ("TEXT_DELTA", event_data_1, None)
-            
-            event_data_2 = MagicMock()
-            event_data_2.text = "World"
-            yield ("TEXT_DELTA", event_data_2, None)
-            
-            done_event = MagicMock()
-            done_event.name = "DONE"
-            yield (done_event, MagicMock(text=None), None)
-        
-        mock_runs_client.stream = AsyncMock(return_value=mock_stream())
-        
-        # Wire up the mocks
-        mock_agents_client.threads = mock_threads_client
-        mock_agents_client.messages = mock_messages_client
-        mock_agents_client.runs = mock_runs_client
-        mock_client_instance.agents = mock_agents_client
+        mock_openai = MagicMock()
+        mock_openai.close = AsyncMock(return_value=None)
+        mock_openai.conversations.create = AsyncMock()
+        mock_response = MagicMock()
+        mock_response.model_dump = MagicMock(return_value={"id": "resp-456", "output": []})
+        mock_openai.responses.create = AsyncMock(return_value=mock_response)
+        mock_client_instance.get_openai_client = MagicMock(return_value=mock_openai)
         mock_client.return_value = mock_client_instance
         
         # Test invocation
         invoker = FoundryInvoker(config)
-        result = await invoker(messages=[{"role": "user", "content": "Test"}])
+        result = await invoker(messages=[{"role": "user", "content": "Test"}], conversation_id="conv-existing")
         
-        assert result["thread_id"] == "thread-456"
-        assert result["text"] == "Hello World"
-        assert result["stream"] is True
-        mock_runs_client.stream.assert_called_once()
+        assert result["conversation_id"] == "conv-existing"
+        assert result["response_id"] == "resp-456"
+        assert result["stream"] is False
+        mock_openai.conversations.create.assert_not_called()
+        mock_openai.responses.create.assert_called_once()
 
 
 class TestBuildFoundryModelTarget:
@@ -226,3 +200,167 @@ class TestBuildFoundryModelTarget:
         assert target.name == "agent-456"
         assert target.model == "agent-456"  # Falls back to agent_id when no deployment
         assert target.stream is True
+
+
+@pytest.mark.asyncio
+class TestEnsureFoundryAgent:
+    """Tests for ensure_foundry_agent helper."""
+
+    async def test_ensure_agent_exists_by_id(self):
+        config = FoundryAgentConfig(endpoint="https://test", agent_id="agent-123")
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_agents = MagicMock()
+        mock_agents.create_version = AsyncMock()
+        mock_agents.list = AsyncMock(return_value=[{"id": "agent-123:1", "name": "agent-123"}])
+        mock_client.agents = mock_agents
+
+        with patch("holiday_peak_lib.agents.foundry._ensure_client", return_value=mock_client):
+            result = await ensure_foundry_agent(config)
+
+        assert result["status"] == "found_by_name"
+        assert result["agent_id"] == "agent-123:1"
+        assert result["created"] is False
+
+    async def test_ensure_agent_found_by_name(self):
+        config = FoundryAgentConfig(endpoint="https://test", agent_id="missing-id")
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_agents = MagicMock()
+        mock_agents.create_version = AsyncMock()
+        mock_agents.list = AsyncMock(return_value=[{"id": "agent-999", "name": "svc-fast"}])
+        mock_client.agents = mock_agents
+
+        with patch("holiday_peak_lib.agents.foundry._ensure_client", return_value=mock_client):
+            result = await ensure_foundry_agent(config, agent_name="svc-fast")
+
+        assert result["status"] == "found_by_name"
+        assert result["agent_id"] == "agent-999"
+        assert result["created"] is False
+
+    async def test_ensure_agent_creates_when_missing(self):
+        config = FoundryAgentConfig(endpoint="https://test", agent_id="missing-id")
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_agents = MagicMock()
+        mock_agents.create_version = AsyncMock(
+            return_value={"id": "svc-fast:1", "name": "svc-fast"}
+        )
+        mock_agents.list = AsyncMock(return_value=[])
+        mock_client.agents = mock_agents
+
+        with patch("holiday_peak_lib.agents.foundry._ensure_client", return_value=mock_client):
+            result = await ensure_foundry_agent(
+                config,
+                agent_name="svc-fast",
+                instructions="Use Foundry instructions",
+                create_if_missing=True,
+                model="gpt-4o-mini",
+            )
+
+        assert result["status"] == "created"
+        assert result["agent_id"] == "svc-fast:1"
+        assert result["created"] is True
+
+    async def test_ensure_agent_creates_when_list_fails(self):
+        config = FoundryAgentConfig(
+            endpoint="https://test",
+            agent_id="missing-id",
+            deployment_name="gpt-4o-mini",
+        )
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_agents = MagicMock()
+        mock_agents.create_version = AsyncMock(
+            return_value={"id": "svc-fast:2", "name": "svc-fast"}
+        )
+        mock_agents.list = AsyncMock(side_effect=RuntimeError("service invocation"))
+        mock_client.agents = mock_agents
+
+        with patch("holiday_peak_lib.agents.foundry._ensure_client", return_value=mock_client):
+            result = await ensure_foundry_agent(
+                config,
+                agent_name="svc-fast",
+                create_if_missing=True,
+            )
+
+        assert result["status"] == "created"
+        assert result["agent_id"] == "svc-fast:2"
+
+    async def test_ensure_agent_returns_missing_model_when_create_requested(self):
+        config = FoundryAgentConfig(endpoint="https://test", agent_id="missing-id")
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_agents = MagicMock()
+        mock_agents.create_version = AsyncMock()
+        mock_agents.list = AsyncMock(return_value=[])
+        mock_client.agents = mock_agents
+
+        with patch("holiday_peak_lib.agents.foundry._ensure_client", return_value=mock_client):
+            result = await ensure_foundry_agent(
+                config,
+                agent_name="svc-fast",
+                create_if_missing=True,
+            )
+
+        assert result["status"] == "missing_model"
+        assert result["created"] is False
+
+    async def test_ensure_agent_returns_create_failed_on_service_invocation(self):
+        config = FoundryAgentConfig(
+            endpoint="https://test",
+            agent_id="missing-id",
+            deployment_name="gpt-4o-mini",
+        )
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_agents = MagicMock()
+        mock_agents.create_version = AsyncMock(
+            side_effect=HttpResponseError(
+                message="(UserError.ServiceInvocationException) Encounter exception while calling dependency services"
+            )
+        )
+        mock_agents.list = AsyncMock(return_value=[])
+        mock_client.agents = mock_agents
+
+        with patch("holiday_peak_lib.agents.foundry._ensure_client", return_value=mock_client):
+            result = await ensure_foundry_agent(
+                config,
+                agent_name="svc-fast",
+                create_if_missing=True,
+            )
+
+        assert result["status"] == "agents_service_unavailable"
+        assert result["created"] is False
+        assert result["error_code"] == "UserError.ServiceInvocationException"
+
+    async def test_ensure_agent_returns_agents_unavailable_on_list(self):
+        config = FoundryAgentConfig(endpoint="https://test", agent_id="missing-id")
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_agents = MagicMock()
+        mock_agents.create_version = AsyncMock()
+        mock_agents.list = AsyncMock(
+            side_effect=HttpResponseError(
+                message="(UserError.ServiceInvocationException) Encounter exception while calling dependency services"
+            )
+        )
+        mock_client.agents = mock_agents
+
+        with patch("holiday_peak_lib.agents.foundry._ensure_client", return_value=mock_client):
+            result = await ensure_foundry_agent(
+                config,
+                agent_name="svc-fast",
+                create_if_missing=True,
+                model="gpt-4o-mini",
+            )
+
+        assert result["status"] == "agents_service_unavailable"
+        assert result["created"] is False

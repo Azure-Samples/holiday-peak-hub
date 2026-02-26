@@ -38,15 +38,40 @@ add_env_arg() {
   fi
 }
 
+# Database
 add_env_arg "POSTGRES_HOST" "${POSTGRES_HOST:-}"
 add_env_arg "POSTGRES_USER" "${POSTGRES_USER:-}"
 add_env_arg "POSTGRES_PASSWORD" "${POSTGRES_PASSWORD:-}"
 add_env_arg "POSTGRES_DATABASE" "${POSTGRES_DATABASE:-}"
 add_env_arg "POSTGRES_PORT" "${POSTGRES_PORT:-}"
 add_env_arg "POSTGRES_SSL" "${POSTGRES_SSL:-}"
+
+# Messaging & Infrastructure
 add_env_arg "EVENT_HUB_NAMESPACE" "${EVENT_HUB_NAMESPACE:-}"
 add_env_arg "KEY_VAULT_URI" "${KEY_VAULT_URI:-}"
 add_env_arg "REDIS_HOST" "${REDIS_HOST:-}"
+
+# Azure AI Foundry
+add_env_arg "PROJECT_ENDPOINT" "${PROJECT_ENDPOINT:-}"
+add_env_arg "PROJECT_NAME" "${PROJECT_NAME:-}"
+add_env_arg "FOUNDRY_AGENT_ID_FAST" "${FOUNDRY_AGENT_ID_FAST:-}"
+add_env_arg "FOUNDRY_AGENT_ID_RICH" "${FOUNDRY_AGENT_ID_RICH:-}"
+add_env_arg "MODEL_DEPLOYMENT_NAME_FAST" "${MODEL_DEPLOYMENT_NAME_FAST:-}"
+add_env_arg "MODEL_DEPLOYMENT_NAME_RICH" "${MODEL_DEPLOYMENT_NAME_RICH:-}"
+add_env_arg "FOUNDRY_STREAM" "${FOUNDRY_STREAM:-}"
+add_env_arg "FOUNDRY_STRICT_ENFORCEMENT" "${FOUNDRY_STRICT_ENFORCEMENT:-}"
+add_env_arg "FOUNDRY_AUTO_ENSURE_ON_STARTUP" "${FOUNDRY_AUTO_ENSURE_ON_STARTUP:-}"
+
+# Memory tiers
+add_env_arg "REDIS_URL" "${REDIS_URL:-}"
+add_env_arg "COSMOS_ACCOUNT_URI" "${COSMOS_ACCOUNT_URI:-}"
+add_env_arg "COSMOS_DATABASE" "${COSMOS_DATABASE:-}"
+add_env_arg "COSMOS_CONTAINER" "${COSMOS_CONTAINER:-}"
+add_env_arg "BLOB_ACCOUNT_URL" "${BLOB_ACCOUNT_URL:-}"
+add_env_arg "BLOB_CONTAINER" "${BLOB_CONTAINER:-}"
+
+# Observability
+add_env_arg "APPLICATIONINSIGHTS_CONNECTION_STRING" "${APPLICATIONINSIGHTS_CONNECTION_STRING:-}"
 
 # shellcheck disable=SC2086
 helm template "$SERVICE_NAME" "$CHART_PATH" $HELM_ARGS > "$OUT_DIR/all.yaml"

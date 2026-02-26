@@ -29,7 +29,7 @@ spec:
             - containerPort: 8000
           readinessProbe:
             httpGet:
-              path: {{ .Values.probes.readiness.path }}
+              path: {{ .Values.probes.readiness.path | default "/ready" }}
               port: 8000
             initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.readiness.periodSeconds }}

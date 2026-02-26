@@ -149,10 +149,23 @@ KEDA_ENABLED=false
 
 The workflow (`.github/workflows/deploy-azd.yml`) supports:
 
-- **Manual trigger** (`workflow_dispatch`) with inputs: environment, location, projectName, imageTag, deployStatic
+- **Manual trigger** (`workflow_dispatch`) with inputs: environment, location, projectName, imageTag, deployStatic, seedDemoData
 - **OIDC federation** — federated identity for Azure login (no client secrets)
-- **Three jobs**: provision → deploy-crud → deploy-agents (strict dependency chain)
-- **Parallel agent matrix** — all 21 agents deploy concurrently in the final job
+- **Ordered jobs**: provision → deploy-crud → deploy-ui (optional) → deploy-agents → seed-demo-data (optional, non-prod)
+- **Parallel agent matrix** — all 21 agents deploy concurrently in the agents phase
+- **Seed control** — operators can set `seedDemoData=false` for fast reruns when demo data is already present
+
+Manual trigger examples:
+
+```bash
+gh workflow run deploy-azd.yml -f environment=dev -f location=eastus2 -f projectName=holidaypeakhub -f imageTag=latest -f deployStatic=true -f seedDemoData=true
+gh workflow run deploy-azd.yml -f environment=dev -f location=eastus2 -f projectName=holidaypeakhub -f imageTag=latest -f deployStatic=true -f seedDemoData=false
+```
+
+Seeding behavior:
+
+- The demo seeder uses deterministic IDs with upsert semantics, so re-runs do not duplicate seeded entities.
+- Reducing configured seed counts does not remove previously seeded higher-index entities.
 
 Required repository secrets:
 - `AZURE_CLIENT_ID` — Service principal / managed identity client ID

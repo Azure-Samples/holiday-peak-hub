@@ -1,10 +1,9 @@
-"""Authentication routes."""
+"""Authentication routes (Entra ID only)."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from crud_service.auth import User, get_current_user
-from crud_service.repositories import UserRepository
 
 router = APIRouter()
 
@@ -22,8 +21,9 @@ class UserProfile(BaseModel):
 async def get_my_profile(current_user: User = Depends(get_current_user)):
     """
     Get current user profile.
-    
-    Returns authenticated user information from JWT token.
+
+    Returns authenticated user information extracted from the
+    Entra ID JWT token (signature verified against JWKS).
     """
     return UserProfile(
         user_id=current_user.user_id,
@@ -33,24 +33,12 @@ async def get_my_profile(current_user: User = Depends(get_current_user)):
     )
 
 
-@router.post("/register")
-async def register_user():
-    """
-    Register new user.
-    
-    TODO: Implement user registration flow with Entra ID B2C.
-    """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="User registration not yet implemented",
-    )
-
-
 @router.post("/logout")
 async def logout(current_user: User = Depends(get_current_user)):
     """
     Logout user.
-    
-    TODO: Implement token revocation if needed.
+
+    Server-side: acknowledge logout.  Actual session invalidation
+    happens on the client via MSAL ``logoutPopup()``.
     """
     return {"message": "Logged out successfully"}

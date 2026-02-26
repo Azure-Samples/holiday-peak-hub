@@ -44,6 +44,7 @@ var aiProjectInstanceName = 'aip${take(safeProjectName, 6)}${aiProjectSuffix}'
 var aiProjectFriendlyName = '${projectName}${envSuffix} Foundry Project'
 var aiProjectDescription = 'Holiday Peak Hub Foundry project for ${environment}.'
 var aiFoundryBaseName = take('${safeProjectName}${replace(envSuffix, '-', '')}', 12)
+var aiFoundryLocation = 'westus3'
 var tags = {
   Project: projectName
   Environment: environment
@@ -604,11 +605,11 @@ module aiFoundry 'br/public:avm/ptn/ai-ml/ai-foundry:0.6.0' = {
   params: {
     #disable-next-line BCP334 // projectName @minLength(5) ensures aiFoundryBaseName >= 5 chars
     baseName: aiFoundryBaseName
-    location: location
+    location: aiFoundryLocation
     includeAssociatedResources: true
     aiFoundryConfiguration: {
       accountName: aiServicesName
-      location: location
+      location: aiFoundryLocation
       sku: 'S0'
       project: {
         name: aiProjectInstanceName

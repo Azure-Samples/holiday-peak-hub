@@ -2,7 +2,7 @@
 
 from .builder import AgentBuilder
 from .base_agent import AgentDependencies, BaseRetailAgent, ModelTarget
-from .foundry import FoundryAgentConfig, build_foundry_model_target
+from .foundry import FoundryAgentConfig, build_foundry_model_target, ensure_foundry_agent
 
 __all__ = [
 	"AgentBuilder",
@@ -11,4 +11,5 @@ __all__ = [
 	"ModelTarget",
 	"FoundryAgentConfig",
 	"build_foundry_model_target",
+	"ensure_foundry_agent",
 ]

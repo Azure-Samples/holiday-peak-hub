@@ -79,11 +79,26 @@ async def add_to_cart(
     request: AddToCartRequest,
     current_user: User = Depends(get_current_user),
 ):
-    """Add item to cart."""
+    """Add item to cart (validates stock reservation when agent available)."""
     # Verify product exists
     product = await product_repo.get_by_id(request.product_id)
     if not product:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
+
+    # Validate reservation via inventory agent (non-blocking)
+    try:
+        reservation = await agent_client.validate_reservation(
+            sku=request.product_id, quantity=request.quantity
+        )
+        if isinstance(reservation, dict) and reservation.get("valid") is False:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=reservation.get("reason", "Insufficient stock"),
+            )
+    except HTTPException:
+        raise
+    except Exception:
+        pass  # agent unavailable — continue with optimistic add
 
     # Get or create cart
     cart = await cart_repo.get_by_user(current_user.user_id)

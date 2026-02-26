@@ -91,18 +91,55 @@ class Settings(BaseSettings):
         default=60, description="Circuit breaker recovery timeout (seconds)"
     )
 
+    # APIM gateway for CRUD -> Agent routing
+    agent_apim_base_url: str | None = Field(
+        default=None,
+        description=(
+            "APIM base URL used to route CRUD calls to agents "
+            "(for example: https://<apim>.azure-api.net)"
+        ),
+    )
+
     # Agent REST endpoints (CRUD -> Agent)
+    # Ecommerce agents
     product_enrichment_agent_url: str | None = Field(
         default=None, description="Product enrichment agent base URL"
     )
     cart_intelligence_agent_url: str | None = Field(
         default=None, description="Cart intelligence agent base URL"
     )
+    checkout_support_agent_url: str | None = Field(
+        default=None, description="Checkout support agent base URL"
+    )
+    catalog_search_agent_url: str | None = Field(
+        default=None, description="Catalog search agent base URL"
+    )
+    order_status_agent_url: str | None = Field(
+        default=None, description="Order status agent base URL"
+    )
+    # Inventory agents
     inventory_health_agent_url: str | None = Field(
         default=None, description="Inventory health agent base URL"
     )
-    checkout_support_agent_url: str | None = Field(
-        default=None, description="Checkout support agent base URL"
+    inventory_reservation_agent_url: str | None = Field(
+        default=None, description="Inventory reservation validation agent base URL"
+    )
+    # Logistics agents
+    logistics_eta_agent_url: str | None = Field(
+        default=None, description="Logistics ETA computation agent base URL"
+    )
+    logistics_carrier_agent_url: str | None = Field(
+        default=None, description="Logistics carrier selection agent base URL"
+    )
+    logistics_returns_agent_url: str | None = Field(
+        default=None, description="Logistics returns support agent base URL"
+    )
+    # CRM agents
+    crm_profile_agent_url: str | None = Field(
+        default=None, description="CRM profile aggregation agent base URL"
+    )
+    crm_segmentation_agent_url: str | None = Field(
+        default=None, description="CRM segmentation/personalization agent base URL"
     )
 
     # Stripe (loaded from Key Vault)

@@ -85,7 +85,7 @@ All resources use AVM (Azure Verified Modules) and deploy to **eastus2** by defa
 | Event Hubs (5 topics) | `avm/res/event-hub/namespace:0.14.0` | Async event streaming |
 | Key Vault (Premium) | `avm/res/key-vault/vault:0.13.3` | Secrets + certificates |
 | API Management | `avm/res/api-management/service:0.14.0` | API gateway |
-| AI Foundry Project | `avm/ptn/ai-ml/ai-foundry:0.6.0` | AI/ML model management |
+| AI Foundry Project | `avm/ptn/ai-ml/ai-foundry:0.6.0` | AI/ML model management (pinned to `westus3`, public network enabled) |
 | VNet (5 subnets) | `avm/res/network/virtual-network:0.7.2` | Network isolation |
 | 5 NSGs | `avm/res/network/network-security-group:0.5.2` | Subnet-level security |
 | 8 Private DNS Zones | `avm/res/network/private-dns-zone:0.8.0` | Private endpoint DNS resolution |
@@ -231,8 +231,17 @@ az aks get-credentials \
   --resource-group holidaypeakhub-dev-rg \
   --name holidaypeakhub-dev-aks
 
+# Generate CRUD env from azd values (Linux/macOS)
+FORCE=true ./.infra/azd/hooks/generate-crud-env.sh dev
+
 azd deploy --service crud-service -e dev
 azd deploy --all -e dev
+```
+
+On Windows, use:
+
+```powershell
+pwsh ./.infra/azd/hooks/generate-crud-env.ps1 -EnvironmentName dev -Force
 ```
 
 **azd Shortcut (provision + deploy)**:
@@ -266,6 +275,17 @@ Deploy all services:
 
 ```bash
 azd deploy --all -e dev
+```
+
+After each deploy, `azd` runs `./.infra/azd/hooks/sync-apim-agents.*` via a global `postdeploy` hook.
+This keeps APIM aligned with all AKS agent services declared in `azure.yaml`.
+
+Manual run (if needed):
+
+```bash
+./.infra/azd/hooks/sync-apim-agents.sh
+# or on Windows
+pwsh ./.infra/azd/hooks/sync-apim-agents.ps1
 ```
 
 Optional env overrides (stored in `.azure/<env>/.env`):

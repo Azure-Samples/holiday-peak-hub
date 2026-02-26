@@ -36,6 +36,21 @@ Use workflow `.github/workflows/deploy-azd.yml` for ordered production rollout.
 - `projectName` (naming prefix, default `holidaypeakhub`)
 - `imageTag` (container image tag to deploy)
 - `deployStatic` (boolean to provision Static Web App resources)
+- `seedDemoData` (boolean to run or skip demo faker seeding in non-prod)
+
+**Manual trigger examples**:
+
+- Full non-prod demo rollout with seeding (default):
+
+```bash
+gh workflow run deploy-azd.yml -f environment=dev -f location=eastus2 -f projectName=holidaypeakhub -f imageTag=latest -f deployStatic=true -f seedDemoData=true
+```
+
+- Fast non-prod rerun without reseeding:
+
+```bash
+gh workflow run deploy-azd.yml -f environment=dev -f location=eastus2 -f projectName=holidaypeakhub -f imageTag=latest -f deployStatic=true -f seedDemoData=false
+```
 
 **Execution order**:
 
@@ -43,11 +58,15 @@ Use workflow `.github/workflows/deploy-azd.yml` for ordered production rollout.
 2. `deploy-crud` job: fetches AKS credentials and deploys `crud-service` first.
 3. `deploy-ui` job (when `deployStatic=true`): resolves APIM URL, fetches the SWA deployment token from Azure, and deploys `apps/ui` via `Azure/static-web-apps-deploy@v1` (framework-aware build for dynamic Next.js routes).
 4. `deploy-agents` job: deploys 21 agent services in parallel matrix.
+5. `seed-demo-data` job (non-prod only, when `seedDemoData=true`): runs a Kubernetes Job in `holiday-peak` that executes `python -m crud_service.scripts.seed_demo_data` from the deployed CRUD image to populate demo categories/products.
 
 **Operational notes**:
 
 - Keep `deployShared=true` for all shared-environment rollouts.
 - UI deployment intentionally uses the SWA GitHub Action path (not `azd deploy --service ui`) so App Router dynamic segments (`[id]`, `[slug]`) are built in the same mode as standard SWA workflows.
+- Frontend API calls must always use APIM via `NEXT_PUBLIC_API_URL` (no localhost fallback in UI runtime/build config).
+- Demo seeding is idempotent by item ID (`demo-cat-*`, `demo-prd-*`): re-runs update existing seeded records instead of duplicating them.
+- Lowering `DEMO_SEED_CATEGORIES` or `DEMO_SEED_PRODUCTS` does not delete previously seeded higher-index items; use a table cleanup step when a strict reset is required.
 - Use environment approvals in GitHub Environments for `staging`/`prod`.
 - Keep image tags immutable for reproducible rollback.
 
@@ -123,12 +142,20 @@ kubectl rollout status deployment/crud-service-crud-service -n holiday-peak --ti
 ```bash
 az apim show -g <resourceGroup> -n <apimName> --query "{gatewayUrl:gatewayUrl,publicNetworkAccess:publicNetworkAccess,virtualNetworkType:virtualNetworkType}" -o json
 az apim api list -g <resourceGroup> --service-name <apimName> -o table
-az apim api create -g <resourceGroup> --service-name <apimName> --api-id crud --display-name "CRUD Service" --path api --protocols https http --service-url "http://<backend-host>/api" --subscription-required false
-az apim api operation create -g <resourceGroup> --service-name <apimName> --api-id crud --operation-id get-products --display-name "Get products" --method GET --url-template "/products"
-az apim api operation create -g <resourceGroup> --service-name <apimName> --api-id crud --operation-id get-categories --display-name "Get categories" --method GET --url-template "/categories"
-az apim api operation create -g <resourceGroup> --service-name <apimName> --api-id crud --operation-id get-orders --display-name "Get orders" --method GET --url-template "/orders"
-az apim api operation create -g <resourceGroup> --service-name <apimName> --api-id crud --operation-id get-auth-me --display-name "Get auth me" --method GET --url-template "/auth/me"
+./.infra/azd/hooks/sync-apim-agents.sh
 ```
+
+This sync script is also executed automatically by the global `postdeploy` hook in `azure.yaml`.
+It discovers all AKS services from `azure.yaml` (excluding `crud-service`) and upserts APIM APIs with this path contract:
+
+- API path: `/agents/<service-name>`
+- Operations: `GET /health`, `POST /invoke`, `POST /mcp/{tool}`
+- Backend URL template: `http://<service-name>-<service-name>.<namespace>.svc.cluster.local`
+
+Examples:
+
+- `https://<apimName>.azure-api.net/agents/ecommerce-cart-intelligence/invoke`
+- `https://<apimName>.azure-api.net/agents/inventory-health-check/health`
 
 11. **End-to-end smoke checks (APIM and SWA)**
 
@@ -153,6 +180,7 @@ az acr update -n <acrName> --public-network-enabled false
 > Notes:
 > - Use Microsoft VPN only if it provides a stable egress IP that you can consistently allowlist on ACR.
 > - Keep manual `kubectl patch` usage as recovery-only; normal deployments should remain `azd deploy` + Helm-rendered manifests.
+> - Demo data seeding runs inside AKS (not from the GitHub runner) to support private PostgreSQL networking.
 
 ---
 

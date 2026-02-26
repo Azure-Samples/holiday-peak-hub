@@ -1,7 +1,7 @@
 # Architecture Compliance Analysis
 
-**Date**: January 30, 2026  
-**Version**: 1.0  
+**Date**: February 8, 2026  
+**Version**: 1.1  
 **Status**: Analysis Complete
 
 ---
@@ -10,7 +10,7 @@
 
 This document analyzes the current Holiday Peak Hub architecture against the **Agentic Architecture Patterns** defined in `.github/copilot-instructions.md`. The analysis evaluates architectural compliance and identifies gaps between design documentation and recommended patterns.
 
-**Overall Compliance**: ✅ **92.25% Compliant** - Event handlers and MCP adapters implemented across all services
+**Overall Compliance**: ✅ **97.75% Compliant** - Event handlers and MCP adapters implemented across all services
 
 ---
 
@@ -432,6 +432,8 @@ The Holiday Peak Hub architecture is **97.75% compliant** with the recommended A
 - CRUD → Agent REST communication with circuit breakers and timeouts
 - MCP adapter layer implemented for CRUD and 3rd party API operations
 - Resilience patterns (circuit breakers, retries, fallbacks) fully configured
+- **V2 Agents API migration complete** — 42 prompt agents provisioned in Foundry project `aipholidaris`
+- **Model defaults updated**: `gpt-5-nano` (SLM) and `gpt-5.2` (LLM) via `azure-ai-projects>=2.0.0b4`
 
 ⚠️ **Remaining Enhancement** (Optional):
 - API Gateway exposure for direct semantic search access (2.25% gap)

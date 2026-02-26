@@ -62,6 +62,34 @@ sequenceDiagram
 
 ## Core Components
 
+### 0. SLM-First Request Routing
+
+`RoutingStrategy` supports SLM-first execution for intent handlers:
+
+- Register a single/default handler with `register(intent, handler)`.
+- Register tiered handlers with `register_model_handlers(intent, slm_handler=..., llm_handler=...)`.
+- Runtime behavior:
+    1. Execute SLM handler first.
+    2. Escalate to LLM when request complexity is above threshold.
+    3. Escalate to LLM when SLM result explicitly returns `upgrade`.
+
+Example:
+
+```python
+router = RoutingStrategy(complexity_threshold=0.5)
+
+router.register_model_handlers(
+        "semantic-search",
+        slm_handler=fast_path_handler,
+        llm_handler=deep_reasoning_handler,
+)
+
+result = await router.route(
+        "semantic-search",
+        {"query": "Compare alternatives and explain trade-offs", "requires_multi_tool": True},
+)
+```
+
 ### 1. Event Publisher
 
 ```python
