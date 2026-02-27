@@ -46,16 +46,16 @@ llm_config = (
 app = build_service_app(
 	SERVICE_NAME,
 	agent_class=CheckoutSupportAgent,
-	hot_memory=HotMemory(memory_settings.redis_url),
+	hot_memory=HotMemory(memory_settings.redis_url) if memory_settings.redis_url else None,
 	warm_memory=WarmMemory(
 		memory_settings.cosmos_account_uri,
 		memory_settings.cosmos_database,
 		memory_settings.cosmos_container,
-	),
+	) if memory_settings.cosmos_account_uri else None,
 	cold_memory=ColdMemory(
 		memory_settings.blob_account_url,
 		memory_settings.blob_container,
-	),
+	) if memory_settings.blob_account_url else None,
 	slm_config=slm_config,
 	llm_config=llm_config,
 	mcp_setup=register_mcp_tools,

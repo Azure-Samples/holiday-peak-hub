@@ -96,7 +96,10 @@ class AgentBuilder:
         if not self._agent_class:
             raise ValueError("Agent class is required")
         if not self._slm and not self._llm:
-            raise ValueError("At least one model target (SLM or LLM) is required")
+            import logging
+            logging.getLogger("holiday_peak_lib.agents.builder").warning(
+                "No model target configured — agent starts in degraded mode"
+            )
         deps = AgentDependencies(
             router=self._router or RoutingStrategy(),
             tools=self._tools,
