@@ -24,7 +24,8 @@ dependencies = [
     "asyncpg",
     "aiohttp",
     "typing-extensions",
-    "python-dotenv"
+    "python-dotenv",
+    "opentelemetry-semantic-conventions>=0.50b0,<0.60b0"
 ]
 
 [project.optional-dependencies]
