@@ -1,13 +1,16 @@
 # Implementation Roadmap
 
-**Last Updated**: January 29, 2026  
-**Status**: Phase 1 Complete | Phases 2-3 Pending
+**Last Updated**: February 27, 2026  
+**Version**: [v1.0.0](https://github.com/Azure-Samples/holiday-peak-hub/releases/tag/v1.0.0)  
+**Status**: Phase 1 Complete | Phase 2 Partially Deployed | Phases 3-7 Pending
 
 ---
 
 ## Overview
 
-This document tracks the implementation progress of the Holiday Peak Hub platform. The CRUD service and frontend integration are complete. Remaining work focuses on infrastructure deployment and agent event handlers.
+This document tracks the implementation progress of the Holiday Peak Hub platform. The CRUD service, frontend integration, 21 AI agents, and shared infrastructure (Bicep) are complete. Infrastructure has been partially deployed (AKS, ACR, APIM, PostgreSQL). Remaining work focuses on completing deployment validation, agent event handlers, and end-to-end integration.
+
+> **Known Issues**: See [docs/roadmap/](roadmap/) for tracked corrections and gaps discovered during deployment validation.
 
 ---
 
