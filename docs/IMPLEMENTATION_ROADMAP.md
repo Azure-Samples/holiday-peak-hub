@@ -554,5 +554,5 @@ This document tracks the implementation progress of the Holiday Peak Hub platfor
 - [Shared Infrastructure README](.infra/modules/shared-infrastructure/README.md)
 - [Static Web App README](.infra/modules/static-web-app/README.md)
 - [Enterprise Integration Strategy](roadmap/011-retail-system-integration-strategy.md)
-- [Connector Development Guide](../connectors/README.md)
+- [Connector Contracts and Registry](../lib/src/holiday_peak_lib/connectors/)
 - [CHANGELOG](../CHANGELOG.md)

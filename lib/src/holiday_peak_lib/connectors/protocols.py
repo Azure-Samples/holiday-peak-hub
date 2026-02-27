@@ -9,8 +9,8 @@ Constraint:
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Protocol, runtime_checkable
 
 from pydantic import BaseModel, Field
 
@@ -89,10 +89,12 @@ class SegmentData(BaseModel):
     member_count: int | None = None
 
 
-@runtime_checkable
-class PIMConnectorProtocol(Protocol):
-    async def get_product(self, sku: str) -> ProductData | None: ...
+class PIMConnectorProtocol(ABC):
+    @abstractmethod
+    async def get_product(self, sku: str) -> ProductData | None:
+        """Fetch a single product by SKU."""
 
+    @abstractmethod
     async def list_products(
         self,
         *,
@@ -100,21 +102,32 @@ class PIMConnectorProtocol(Protocol):
         modified_since: datetime | None = None,
         page: int = 1,
         page_size: int = 100,
-    ) -> list[ProductData]: ...
+    ) -> list[ProductData]:
+        """List products with optional filters."""
 
-    async def search_products(self, query: str, limit: int = 50) -> list[ProductData]: ...
+    @abstractmethod
+    async def search_products(self, query: str, limit: int = 50) -> list[ProductData]:
+        """Search products by keyword."""
 
-    async def get_product_assets(self, sku: str) -> list[AssetData]: ...
+    @abstractmethod
+    async def get_product_assets(self, sku: str) -> list[AssetData]:
+        """Get assets linked to a product."""
 
-    async def get_categories(self) -> list[dict]: ...
+    @abstractmethod
+    async def get_categories(self) -> list[dict]:
+        """Get category taxonomy."""
 
 
-@runtime_checkable
-class DAMConnectorProtocol(Protocol):
-    async def get_asset(self, asset_id: str) -> AssetData | None: ...
+class DAMConnectorProtocol(ABC):
+    @abstractmethod
+    async def get_asset(self, asset_id: str) -> AssetData | None:
+        """Fetch asset by id."""
 
-    async def get_assets_by_product(self, sku: str) -> list[AssetData]: ...
+    @abstractmethod
+    async def get_assets_by_product(self, sku: str) -> list[AssetData]:
+        """Get assets by SKU."""
 
+    @abstractmethod
     async def search_assets(
         self,
         query: str,
@@ -122,8 +135,10 @@ class DAMConnectorProtocol(Protocol):
         tags: list[str] | None = None,
         content_type: str | None = None,
         limit: int = 50,
-    ) -> list[AssetData]: ...
+    ) -> list[AssetData]:
+        """Search assets by query and filters."""
 
+    @abstractmethod
     async def get_transformed_url(
         self,
         asset_id: str,
@@ -132,56 +147,79 @@ class DAMConnectorProtocol(Protocol):
         height: int | None = None,
         output_format: str | None = None,
         quality: int | None = None,
-    ) -> str: ...
+    ) -> str:
+        """Get transformed asset URL."""
 
 
-@runtime_checkable
-class InventoryConnectorProtocol(Protocol):
-    async def get_inventory(self, sku: str, location_id: str | None = None) -> list[InventoryData]: ...
+class InventoryConnectorProtocol(ABC):
+    @abstractmethod
+    async def get_inventory(self, sku: str, location_id: str | None = None) -> list[InventoryData]:
+        """Get inventory levels for SKU."""
 
-    async def get_available_to_promise(self, sku: str, quantity: int) -> list[dict]: ...
+    @abstractmethod
+    async def get_available_to_promise(self, sku: str, quantity: int) -> list[dict]:
+        """Get ATP locations for requested quantity."""
 
+    @abstractmethod
     async def reserve_inventory(
         self,
         sku: str,
         location_id: str,
         quantity: int,
         reference_id: str,
-    ) -> dict: ...
+    ) -> dict:
+        """Create soft reservation."""
 
-    async def release_reservation(self, reservation_id: str) -> bool: ...
+    @abstractmethod
+    async def release_reservation(self, reservation_id: str) -> bool:
+        """Release a reservation."""
 
+    @abstractmethod
     async def get_replenishment_recommendations(
         self,
         location_id: str | None = None,
-    ) -> list[dict]: ...
+    ) -> list[dict]:
+        """Get replenishment recommendations."""
 
 
-@runtime_checkable
-class CRMConnectorProtocol(Protocol):
-    async def get_customer(self, customer_id: str) -> CustomerData | None: ...
+class CRMConnectorProtocol(ABC):
+    @abstractmethod
+    async def get_customer(self, customer_id: str) -> CustomerData | None:
+        """Fetch a customer profile."""
 
-    async def get_customer_by_email(self, email: str) -> CustomerData | None: ...
+    @abstractmethod
+    async def get_customer_by_email(self, email: str) -> CustomerData | None:
+        """Find customer by email."""
 
-    async def get_customer_segments(self, customer_id: str) -> list[SegmentData]: ...
+    @abstractmethod
+    async def get_customer_segments(self, customer_id: str) -> list[SegmentData]:
+        """List segments for customer."""
 
+    @abstractmethod
     async def get_purchase_history(
         self,
         customer_id: str,
         *,
         since: datetime | None = None,
         limit: int = 100,
-    ) -> list[OrderData]: ...
+    ) -> list[OrderData]:
+        """Get purchase history."""
 
-    async def update_customer(self, customer_id: str, updates: dict) -> CustomerData: ...
+    @abstractmethod
+    async def update_customer(self, customer_id: str, updates: dict) -> CustomerData:
+        """Update customer profile."""
 
-    async def track_event(self, customer_id: str, event_type: str, properties: dict) -> None: ...
+    @abstractmethod
+    async def track_event(self, customer_id: str, event_type: str, properties: dict) -> None:
+        """Track customer event."""
 
 
-@runtime_checkable
-class CommerceConnectorProtocol(Protocol):
-    async def get_order(self, order_id: str) -> OrderData | None: ...
+class CommerceConnectorProtocol(ABC):
+    @abstractmethod
+    async def get_order(self, order_id: str) -> OrderData | None:
+        """Fetch order by id."""
 
+    @abstractmethod
     async def list_orders(
         self,
         *,
@@ -190,57 +228,84 @@ class CommerceConnectorProtocol(Protocol):
         since: datetime | None = None,
         page: int = 1,
         page_size: int = 50,
-    ) -> list[OrderData]: ...
+    ) -> list[OrderData]:
+        """List orders with optional filters."""
 
-    async def create_order(self, order_data: dict) -> OrderData: ...
+    @abstractmethod
+    async def create_order(self, order_data: dict) -> OrderData:
+        """Create order."""
 
-    async def update_order_status(self, order_id: str, status: str) -> OrderData: ...
+    @abstractmethod
+    async def update_order_status(self, order_id: str, status: str) -> OrderData:
+        """Update order status."""
 
-    async def get_cart(self, cart_id: str) -> dict | None: ...
+    @abstractmethod
+    async def get_cart(self, cart_id: str) -> dict | None:
+        """Get cart contents."""
 
-    async def sync_product(self, product: ProductData) -> dict: ...
+    @abstractmethod
+    async def sync_product(self, product: ProductData) -> dict:
+        """Sync product to commerce platform."""
 
 
-@runtime_checkable
-class AnalyticsConnectorProtocol(Protocol):
-    async def query(self, sql: str, params: dict | None = None) -> list[dict]: ...
+class AnalyticsConnectorProtocol(ABC):
+    @abstractmethod
+    async def query(self, sql: str, params: dict | None = None) -> list[dict]:
+        """Execute query."""
 
+    @abstractmethod
     async def get_product_performance(
         self,
         sku: str,
         *,
         start_date: datetime,
         end_date: datetime,
-    ) -> dict: ...
+    ) -> dict:
+        """Get product performance metrics."""
 
-    async def get_customer_predictions(self, customer_id: str) -> dict: ...
+    @abstractmethod
+    async def get_customer_predictions(self, customer_id: str) -> dict:
+        """Get customer prediction payload."""
 
+    @abstractmethod
     async def get_demand_forecast(
         self,
         sku: str,
         location_id: str | None = None,
         horizon_days: int = 30,
-    ) -> list[dict]: ...
+    ) -> list[dict]:
+        """Get demand forecast."""
 
 
-@runtime_checkable
-class IntegrationConnectorProtocol(Protocol):
-    async def publish_event(self, topic: str, payload: dict) -> dict: ...
+class IntegrationConnectorProtocol(ABC):
+    @abstractmethod
+    async def publish_event(self, topic: str, payload: dict) -> dict:
+        """Publish integration event."""
 
-    async def consume_events(self, topic: str, limit: int = 100) -> list[dict]: ...
-
-
-@runtime_checkable
-class IdentityConnectorProtocol(Protocol):
-    async def get_user(self, user_id: str) -> dict | None: ...
-
-    async def get_consent(self, subject_id: str) -> dict | None: ...
+    @abstractmethod
+    async def consume_events(self, topic: str, limit: int = 100) -> list[dict]:
+        """Consume integration events."""
 
 
-@runtime_checkable
-class WorkforceConnectorProtocol(Protocol):
-    async def get_schedule(self, location_id: str, date: datetime) -> list[dict]: ...
+class IdentityConnectorProtocol(ABC):
+    @abstractmethod
+    async def get_user(self, user_id: str) -> dict | None:
+        """Fetch user identity."""
 
-    async def assign_task(self, employee_id: str, task_type: str, details: dict) -> dict: ...
+    @abstractmethod
+    async def get_consent(self, subject_id: str) -> dict | None:
+        """Fetch consent/preferences."""
 
-    async def get_task_status(self, task_id: str) -> dict: ...
+
+class WorkforceConnectorProtocol(ABC):
+    @abstractmethod
+    async def get_schedule(self, location_id: str, date: datetime) -> list[dict]:
+        """Get schedule for location/date."""
+
+    @abstractmethod
+    async def assign_task(self, employee_id: str, task_type: str, details: dict) -> dict:
+        """Assign task to employee."""
+
+    @abstractmethod
+    async def get_task_status(self, task_id: str) -> dict:
+        """Get task status."""

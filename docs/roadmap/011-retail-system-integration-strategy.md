@@ -10,8 +10,8 @@
 Based on the [Retail Capabilities Blueprint research](../../improvements.md), this document outlines the integration strategy for connecting Holiday Peak Hub with enterprise retail systems. The goal is to provide **adapter implementations** for major retail platforms across all capability domains while ensuring:
 
 1. **Product enrichment uses only company-owned data** — AI agents enrich from internal systems, not external inference
-2. **Adapters live in dedicated service folders**, not in `lib/` — the framework remains agnostic
-3. **lib/ defines interfaces** that adapters implement — ensuring consistency
+2. **Connectors and contracts live in `lib/`** — shared, typed, and reusable across apps
+3. **Applications consume `lib` connectors via registry wiring** — ensuring consistency
 4. **CRUD service acts as the integration hub** — exposing unified REST APIs
 
 ## Design Principles
@@ -33,47 +33,18 @@ Agents SHALL NOT:
 
 ```
 holiday-peak-hub/
-├── lib/                              # Framework (agnostic)
+├── lib/                              # Framework + connector contracts/registry
 │   └── src/holiday_peak_lib/
-│       └── adapters/
-│           ├── base.py              # BaseAdapter, BaseConnector interfaces
-│           ├── external_api_adapter.py  # Generic external API base
-│           └── ...                  # Domain-specific base classes
-│
-├── connectors/                       # NEW: Enterprise connectors
-│   ├── README.md                    # Connector development guide
-│   ├── inventory_scm/
-│   │   ├── sap_s4hana/
-│   │   ├── oracle_scm/
-│   │   ├── manhattan_omni/
-│   │   ├── blue_yonder/
-│   │   └── dynamics365_scm/
-│   ├── crm_loyalty/
-│   │   ├── salesforce/
-│   │   ├── dynamics365_ce/
-│   │   ├── adobe_aep/
-│   │   └── braze/
-│   ├── pim_dam/
-│   │   ├── salsify/
-│   │   ├── inriver/
-│   │   ├── akeneo/
-│   │   ├── adobe_aem/
-│   │   ├── bynder/
-│   │   └── cloudinary/
-│   ├── commerce_order/
-│   │   ├── salesforce_commerce/
-│   │   ├── adobe_commerce/
-│   │   ├── sap_hybris/
-│   │   ├── shopify/
-│   │   └── commercetools/
-│   └── common/                      # Shared utilities
-│       ├── auth/                    # OAuth, API key helpers
-│       ├── transformers/            # Data mapping utilities
-│       └── testing/                 # Mock server helpers
+│       ├── adapters/
+│       │   ├── base.py              # BaseAdapter, BaseConnector interfaces
+│       │   ├── external_api_adapter.py  # Generic external API base
+│       │   └── ...                  # Domain-specific base classes
+│       └── connectors/
+│           ├── protocols.py         # Data models + abstract connector contracts
+│           └── registry.py          # Runtime connector registry
 │
 └── apps/crud-service/               # Integration hub
     └── src/
-        └── connectors/              # Connector registrations
 ```
 
 ### 3. Connector Contract
@@ -243,8 +214,8 @@ class ConnectorRegistry:
 ## Implementation Phases
 
 ### Phase 1: Foundation (Q1 2026)
-- Create `connectors/` folder structure
-- Define protocol interfaces in `lib/`
+- Define connector contracts in `lib/src/holiday_peak_lib/connectors/protocols.py`
+- Implement connector registry in `lib/src/holiday_peak_lib/connectors/registry.py`
 - Implement connector base classes
 - Create mock servers for testing
 
