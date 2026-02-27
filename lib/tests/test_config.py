@@ -28,8 +28,8 @@ class TestMemorySettings:
         assert settings.blob_account_url == "https://test.blob.core.windows.net"
         assert settings.blob_container == "test_blob_container"
 
-    def test_missing_required_env_raises(self, monkeypatch):
-        """Test that missing required env vars raises error."""
+    def test_missing_required_env_uses_defaults(self, monkeypatch):
+        """Test that missing env vars produce None defaults (fields are optional)."""
         # Clear all relevant env vars
         for key in [
             "REDIS_URL",
@@ -41,8 +41,9 @@ class TestMemorySettings:
         ]:
             monkeypatch.delenv(key, raising=False)
 
-        with pytest.raises(Exception):  # Pydantic ValidationError
-            MemorySettings()
+        settings = MemorySettings()
+        assert settings.redis_url is None
+        assert settings.cosmos_account_uri is None
 
     def test_redis_url_format(self, monkeypatch):
         """Test Redis URL format."""

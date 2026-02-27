@@ -29,6 +29,7 @@ from crud_service.routes import (
 from crud_service.routes.staff import analytics, returns, shipments, tickets
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from opentelemetry import trace
 
 # Configure structured logging
@@ -118,10 +119,13 @@ async def global_exception_handler(_request, exc):
         span.set_attribute("error.message", str(exc))
         logger.error("Unhandled exception: %s", exc, exc_info=True)
 
-    return {
-        "detail": "Internal server error",
-        "type": type(exc).__name__,
-    }
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "Internal server error",
+            "type": type(exc).__name__,
+        },
+    )
 
 
 # Include routers
