@@ -1,4 +1,5 @@
 """Checkout support agent implementation and MCP tool registration."""
+
 from __future__ import annotations
 
 import asyncio
@@ -30,7 +31,9 @@ class CheckoutSupportAgent(BaseRetailAgent):
     async def handle(self, request: dict[str, Any]) -> dict[str, Any]:
         items = _coerce_items(request.get("items"))
         price_tasks = [self.adapters.pricing.build_price_context(item["sku"]) for item in items]
-        inventory_tasks = [self.adapters.inventory.build_inventory_context(item["sku"]) for item in items]
+        inventory_tasks = [
+            self.adapters.inventory.build_inventory_context(item["sku"]) for item in items
+        ]
 
         pricing_contexts, inventory_contexts = await asyncio.gather(
             asyncio.gather(*price_tasks),
@@ -52,7 +55,9 @@ class CheckoutSupportAgent(BaseRetailAgent):
                     "content": {
                         "items": items,
                         "pricing": [ctx.model_dump() for ctx in pricing_contexts],
-                        "inventory": [ctx.model_dump() if ctx else None for ctx in inventory_contexts],
+                        "inventory": [
+                            ctx.model_dump() if ctx else None for ctx in inventory_contexts
+                        ],
                         "validation": validation,
                     },
                 },
@@ -119,7 +124,12 @@ def _coerce_items(raw_items: Any) -> list[dict[str, object]]:
     items: list[dict[str, object]] = []
     for entry in raw_items:
         if isinstance(entry, dict) and "sku" in entry:
-            items.append({"sku": str(entry.get("sku")), "quantity": int(entry.get("quantity", 1))})
+            items.append(
+                {
+                    "sku": str(entry.get("sku")),
+                    "quantity": int(entry.get("quantity", 1)),
+                }
+            )
     return items
 
 

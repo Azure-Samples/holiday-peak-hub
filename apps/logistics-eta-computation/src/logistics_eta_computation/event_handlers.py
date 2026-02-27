@@ -1,4 +1,5 @@
 """Event handlers for logistics ETA computation service."""
+
 from __future__ import annotations
 
 import json

@@ -23,7 +23,9 @@ _LEGACY_LLM_ATTRS: dict[str, str] = {
 def patch_span_attributes() -> None:
     """Add missing ``LLM_*`` constants to ``SpanAttributes`` if absent."""
     try:
-        from opentelemetry.semconv_ai import SpanAttributes  # type: ignore[import-untyped]
+        from opentelemetry.semconv_ai import (  # type: ignore[import-untyped]
+            SpanAttributes,
+        )
     except ImportError:
         return  # Package not installed – nothing to patch.
 

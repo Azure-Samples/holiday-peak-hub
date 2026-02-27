@@ -1,4 +1,5 @@
 """Memory builder with cascading read/write rules."""
+
 from __future__ import annotations
 
 import json

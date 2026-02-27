@@ -1,4 +1,5 @@
 """Cart intelligence agent implementation and MCP tool registration."""
+
 from __future__ import annotations
 
 import asyncio
@@ -38,8 +39,7 @@ class CartIntelligenceAgent(BaseRetailAgent):
             for item in items
         ]
         inventory_tasks = [
-            self.adapters.inventory.build_inventory_context(item["sku"])
-            for item in items
+            self.adapters.inventory.build_inventory_context(item["sku"]) for item in items
         ]
 
         product_contexts, pricing_contexts, inventory_contexts = await asyncio.gather(
@@ -69,9 +69,13 @@ class CartIntelligenceAgent(BaseRetailAgent):
                     "role": "user",
                     "content": {
                         "items": items,
-                        "product_contexts": [ctx.model_dump() if ctx else None for ctx in product_contexts],
+                        "product_contexts": [
+                            ctx.model_dump() if ctx else None for ctx in product_contexts
+                        ],
                         "pricing_contexts": [ctx.model_dump() for ctx in pricing_contexts],
-                        "inventory_contexts": [ctx.model_dump() if ctx else None for ctx in inventory_contexts],
+                        "inventory_contexts": [
+                            ctx.model_dump() if ctx else None for ctx in inventory_contexts
+                        ],
                         "abandonment_risk": risk,
                         "user_id": user_id,
                     },
@@ -102,7 +106,9 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
         product_contexts, pricing_contexts, inventory_contexts = await asyncio.gather(
             asyncio.gather(
                 *[
-                    adapters.products.build_product_context(item["sku"], related_limit=related_limit)
+                    adapters.products.build_product_context(
+                        item["sku"], related_limit=related_limit
+                    )
                     for item in items
                 ]
             ),
@@ -147,8 +153,16 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
         risk = await adapters.analytics.estimate_abandonment_risk(
             items, inventory=inventory_contexts, pricing=pricing_contexts
         )
-        actions = ["send reminder", "offer limited-time discount", "highlight low stock"]
-        return {"items": items, "abandonment_risk": risk, "recommended_actions": actions}
+        actions = [
+            "send reminder",
+            "offer limited-time discount",
+            "highlight low stock",
+        ]
+        return {
+            "items": items,
+            "abandonment_risk": risk,
+            "recommended_actions": actions,
+        }
 
     mcp.add_tool("/cart/context", get_cart_context)
     mcp.add_tool("/cart/abandonment-risk", estimate_abandonment_risk)
@@ -169,7 +183,12 @@ def _coerce_cart_items(raw_items: Any) -> list[dict[str, object]]:
     items: list[dict[str, object]] = []
     for entry in raw_items:
         if isinstance(entry, dict) and "sku" in entry:
-            items.append({"sku": str(entry.get("sku")), "quantity": int(entry.get("quantity", 1))})
+            items.append(
+                {
+                    "sku": str(entry.get("sku")),
+                    "quantity": int(entry.get("quantity", 1)),
+                }
+            )
     return items
 
 

@@ -1,4 +1,5 @@
 """Logistics ETA computation agent implementation and MCP tool registration."""
+
 from __future__ import annotations
 
 import os
@@ -8,7 +9,11 @@ from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 
-from .adapters import EtaComputationAdapters, build_eta_adapters, register_external_api_tools
+from .adapters import (
+    EtaComputationAdapters,
+    build_eta_adapters,
+    register_external_api_tools,
+)
 
 
 class EtaComputationAgent(BaseRetailAgent):

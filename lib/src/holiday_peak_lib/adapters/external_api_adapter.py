@@ -1,10 +1,10 @@
 """MCP adapter for external (3rd party) API integrations."""
+
 from __future__ import annotations
 
 from typing import Any
 
 import httpx
-
 from holiday_peak_lib.adapters.mcp_adapter import BaseMCPAdapter
 
 

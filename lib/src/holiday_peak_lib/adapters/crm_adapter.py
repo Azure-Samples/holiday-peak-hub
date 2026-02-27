@@ -9,7 +9,12 @@ mapping.
 from typing import Optional
 
 from holiday_peak_lib.adapters.base import BaseAdapter, BaseConnector
-from holiday_peak_lib.schemas.crm import CRMAccount, CRMContact, CRMContext, CRMInteraction
+from holiday_peak_lib.schemas.crm import (
+    CRMAccount,
+    CRMContact,
+    CRMContext,
+    CRMInteraction,
+)
 
 
 class CRMConnector(BaseConnector):
@@ -100,9 +105,7 @@ class CRMConnector(BaseConnector):
         record = await self._fetch_first(entity="account", id=account_id)
         return await self._map_single(CRMAccount, record)
 
-    async def get_interactions(
-        self, contact_id: str, limit: int = 20
-    ) -> list[CRMInteraction]:
+    async def get_interactions(self, contact_id: str, limit: int = 20) -> list[CRMInteraction]:
         """Fetch and normalize recent interactions for a contact.
 
         Process:
@@ -132,9 +135,7 @@ class CRMConnector(BaseConnector):
             >>> len(interactions)
             1
         """
-        records = await self._fetch_many(
-            entity="interaction", contact_id=contact_id, limit=limit
-        )
+        records = await self._fetch_many(entity="interaction", contact_id=contact_id, limit=limit)
         return await self._map_many(CRMInteraction, records)
 
     async def build_contact_context(
@@ -181,9 +182,7 @@ class CRMConnector(BaseConnector):
             return None
 
         account = (
-            await self.get_account(contact.account_id)
-            if contact.account_id is not None
-            else None
+            await self.get_account(contact.account_id) if contact.account_id is not None else None
         )
         interactions = await self.get_interactions(
             contact_id=contact.contact_id, limit=interaction_limit

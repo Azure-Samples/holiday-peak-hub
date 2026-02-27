@@ -1,13 +1,13 @@
 """Unit tests for product detail enrichment MCP tool registration."""
-import pytest
-from unittest.mock import AsyncMock, Mock, patch, MagicMock
 
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
+
+import pytest
+from ecommerce_product_detail_enrichment.adapters import EnrichmentAdapters
+from ecommerce_product_detail_enrichment.agents import register_mcp_tools
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.schemas.inventory import InventoryContext, InventoryItem
 from holiday_peak_lib.schemas.product import CatalogProduct
-
-from ecommerce_product_detail_enrichment.agents import register_mcp_tools
-from ecommerce_product_detail_enrichment.adapters import EnrichmentAdapters
 
 
 @pytest.fixture
@@ -37,9 +37,7 @@ def mock_agent(
     mock_products.get_related = AsyncMock(return_value=mock_related_products)
 
     mock_inventory = AsyncMock()
-    mock_inventory.build_inventory_context = AsyncMock(
-        return_value=mock_inventory_context
-    )
+    mock_inventory.build_inventory_context = AsyncMock(return_value=mock_inventory_context)
 
     mock_acp = AsyncMock()
     mock_acp.get_content = AsyncMock(return_value=mock_acp_content)
@@ -79,9 +77,7 @@ class TestMCPToolExecution:
     """Tests for MCP tool execution."""
 
     @pytest.mark.asyncio
-    async def test_get_product_details_returns_enriched_product(
-        self, mock_mcp_server, mock_agent
-    ):
+    async def test_get_product_details_returns_enriched_product(self, mock_mcp_server, mock_agent):
         """Test product details tool returns enriched product data."""
         with patch.dict("os.environ", {}, clear=False):
             register_mcp_tools(mock_mcp_server, mock_agent)
@@ -109,9 +105,7 @@ class TestMCPToolExecution:
         assert result["error"] == "sku is required"
 
     @pytest.mark.asyncio
-    async def test_get_similar_products_returns_related(
-        self, mock_mcp_server, mock_agent
-    ):
+    async def test_get_similar_products_returns_related(self, mock_mcp_server, mock_agent):
         """Test similar products tool returns related products."""
         with patch.dict("os.environ", {}, clear=False):
             register_mcp_tools(mock_mcp_server, mock_agent)
@@ -136,9 +130,7 @@ class TestMCPToolExecution:
         assert result["error"] == "sku is required"
 
     @pytest.mark.asyncio
-    async def test_get_similar_products_respects_limit(
-        self, mock_mcp_server, mock_agent
-    ):
+    async def test_get_similar_products_respects_limit(self, mock_mcp_server, mock_agent):
         """Test similar products tool respects limit parameter."""
         # Mock to return only 1 product when limit is 1
         mock_agent.adapters.products.get_related = AsyncMock(

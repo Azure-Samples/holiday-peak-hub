@@ -1,4 +1,5 @@
 """Event handlers for ecommerce product detail enrichment service."""
+
 from __future__ import annotations
 
 import asyncio

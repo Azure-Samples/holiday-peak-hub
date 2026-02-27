@@ -1,4 +1,5 @@
 """Adapters for the CRM support assistance service."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -24,17 +25,15 @@ class SupportAssistantAdapter:
         self, context: CRMContext, *, issue_summary: str | None = None
     ) -> dict[str, Any]:
         interactions = context.interactions
-        last_interaction = max(
-            interactions, key=lambda item: item.occurred_at, default=None
-        )
+        last_interaction = max(interactions, key=lambda item: item.occurred_at, default=None)
         sentiment = last_interaction.sentiment if last_interaction else None
         risk = "high" if sentiment in {"negative", "angry"} else "low"
         return {
             "contact_id": context.contact.contact_id,
             "account_id": context.contact.account_id,
-            "last_interaction_at": last_interaction.occurred_at.isoformat()
-            if last_interaction
-            else None,
+            "last_interaction_at": (
+                last_interaction.occurred_at.isoformat() if last_interaction else None
+            ),
             "last_channel": last_interaction.channel if last_interaction else None,
             "sentiment": sentiment,
             "risk": risk,
@@ -43,9 +42,7 @@ class SupportAssistantAdapter:
         }
 
 
-def build_support_adapters(
-    *, crm_connector: Optional[CRMConnector] = None
-) -> SupportAdapters:
+def build_support_adapters(*, crm_connector: Optional[CRMConnector] = None) -> SupportAdapters:
     """Create adapters for CRM support assistance workflows.
 
     Uses mock adapters by default to keep local development lightweight.

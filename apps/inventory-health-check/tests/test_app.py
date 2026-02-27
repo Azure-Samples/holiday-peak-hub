@@ -7,7 +7,8 @@ def test_health():
     resp = client.get("/health")
     assert resp.status_code == 200
     assert resp.json()["service"] == "inventory-health-check"
-    
+
+
 def test_invoke_requires_sku():
     client = TestClient(app)
     response = client.post("/invoke", json={})

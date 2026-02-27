@@ -1,10 +1,9 @@
 """Hot memory layer using Redis."""
+
 from typing import Any, Optional
 
 import redis.asyncio as redis
-
 from holiday_peak_lib.utils.logging import configure_logging, log_async_operation
-
 
 logger = configure_logging()
 

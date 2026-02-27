@@ -1,11 +1,10 @@
 """Warm memory layer using Azure Cosmos DB."""
+
 from typing import Any, Dict, Optional
 
 from azure.cosmos.aio import CosmosClient
 from azure.identity import DefaultAzureCredential
-
 from holiday_peak_lib.utils.logging import configure_logging, log_async_operation
-
 
 logger = configure_logging()
 

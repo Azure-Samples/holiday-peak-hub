@@ -42,9 +42,7 @@ def mock_warm_memory(mock_cosmos_client, monkeypatch):
 @pytest.fixture
 def mock_cold_memory(mock_blob_client, monkeypatch):
     """Mock cold memory."""
-    memory = ColdMemory(
-        account_url="https://test.blob.core.windows.net", container_name="test"
-    )
+    memory = ColdMemory(account_url="https://test.blob.core.windows.net", container_name="test")
     monkeypatch.setattr(memory, "client", mock_blob_client)
     return memory
 
@@ -87,9 +85,7 @@ class TestBuildServiceApp:
             deployment_name="gpt-4o-mini",
         )
 
-        with patch(
-            "holiday_peak_lib.agents.foundry.build_foundry_model_target"
-        ) as mock_build:
+        with patch("holiday_peak_lib.agents.foundry.build_foundry_model_target") as mock_build:
             from holiday_peak_lib.agents.base_agent import ModelTarget
 
             mock_build.return_value = ModelTarget(
@@ -372,12 +368,8 @@ class TestBuildServiceApp:
 
         from holiday_peak_lib.app_factory import _build_foundry_config
 
-        slm_config = _build_foundry_config(
-            "FOUNDRY_AGENT_ID_FAST", "MODEL_DEPLOYMENT_NAME_FAST"
-        )
-        llm_config = _build_foundry_config(
-            "FOUNDRY_AGENT_ID_RICH", "MODEL_DEPLOYMENT_NAME_RICH"
-        )
+        slm_config = _build_foundry_config("FOUNDRY_AGENT_ID_FAST", "MODEL_DEPLOYMENT_NAME_FAST")
+        llm_config = _build_foundry_config("FOUNDRY_AGENT_ID_RICH", "MODEL_DEPLOYMENT_NAME_RICH")
 
         assert slm_config is not None
         assert slm_config.endpoint == "https://test.endpoint.com"
@@ -391,9 +383,7 @@ class TestBuildServiceApp:
 
         from holiday_peak_lib.app_factory import _build_foundry_config
 
-        config = _build_foundry_config(
-            "FOUNDRY_AGENT_ID_FAST", "MODEL_DEPLOYMENT_NAME_FAST"
-        )
+        config = _build_foundry_config("FOUNDRY_AGENT_ID_FAST", "MODEL_DEPLOYMENT_NAME_FAST")
 
         assert config is None
 
@@ -405,9 +395,7 @@ class TestBuildServiceApp:
 
         from holiday_peak_lib.app_factory import _build_foundry_config
 
-        config = _build_foundry_config(
-            "FOUNDRY_AGENT_ID_FAST", "MODEL_DEPLOYMENT_NAME_FAST"
-        )
+        config = _build_foundry_config("FOUNDRY_AGENT_ID_FAST", "MODEL_DEPLOYMENT_NAME_FAST")
 
         assert config is not None
         assert config.stream is True

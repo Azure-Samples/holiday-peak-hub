@@ -1,11 +1,10 @@
 """Product routes."""
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
-
 from crud_service.auth import User, get_current_user_optional
 from crud_service.integrations import get_agent_client
 from crud_service.repositories import ProductRepository
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 
 router = APIRouter()
 product_repo = ProductRepository()

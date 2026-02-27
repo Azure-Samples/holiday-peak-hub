@@ -1,13 +1,17 @@
 """Adapters for the ecommerce checkout support service."""
+
 from __future__ import annotations
 
-from dataclasses import dataclass
 import os
+from dataclasses import dataclass
 from typing import Iterable, Optional
 
 from holiday_peak_lib.adapters import BaseExternalAPIAdapter
 from holiday_peak_lib.adapters.inventory_adapter import InventoryConnector
-from holiday_peak_lib.adapters.mock_adapters import MockInventoryAdapter, MockPricingAdapter
+from holiday_peak_lib.adapters.mock_adapters import (
+    MockInventoryAdapter,
+    MockPricingAdapter,
+)
 from holiday_peak_lib.adapters.pricing_adapter import PricingConnector
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.schemas.inventory import InventoryContext
@@ -43,7 +47,13 @@ class CheckoutValidationAdapter:
                 if inv_ctx.item.available <= 0:
                     issues.append({"sku": sku, "type": "out_of_stock"})
                 elif inv_ctx.item.available < qty:
-                    issues.append({"sku": sku, "type": "insufficient_stock", "available": inv_ctx.item.available})
+                    issues.append(
+                        {
+                            "sku": sku,
+                            "type": "insufficient_stock",
+                            "available": inv_ctx.item.available,
+                        }
+                    )
             if price_ctx.active is None:
                 issues.append({"sku": sku, "type": "missing_price"})
         status = "ready" if not issues else "blocked"

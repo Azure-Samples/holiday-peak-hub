@@ -1,4 +1,5 @@
 """Event handlers for CRM profile aggregation service."""
+
 from __future__ import annotations
 
 import json

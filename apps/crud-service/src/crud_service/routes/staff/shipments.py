@@ -1,10 +1,9 @@
 """Staff shipment management routes."""
 
-from fastapi import APIRouter, Depends
-from pydantic import BaseModel
-
 from crud_service.auth import User, require_staff
 from crud_service.repositories.base import BaseRepository
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 
 router = APIRouter()
 
@@ -34,7 +33,7 @@ class ShipmentResponse(BaseModel):
 async def list_shipments(current_user: User = Depends(require_staff)):
     """
     List shipments.
-    
+
     Requires staff role.
     """
     shipments = await shipment_repo.query(

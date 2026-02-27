@@ -1,5 +1,5 @@
-from fastapi.testclient import TestClient
 from crm_support_assistance.main import app
+from fastapi.testclient import TestClient
 
 
 def test_health():

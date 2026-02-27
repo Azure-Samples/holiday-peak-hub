@@ -4,10 +4,9 @@ import json
 import logging
 from typing import Any
 
-from azure.eventhub.aio import EventHubProducerClient
 from azure.eventhub import EventData
+from azure.eventhub.aio import EventHubProducerClient
 from azure.identity.aio import DefaultAzureCredential
-
 from crud_service.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -17,7 +16,7 @@ settings = get_settings()
 class EventPublisher:
     """
     Publishes domain events to Azure Event Hubs using Managed Identity.
-    
+
     Events are published to topic-specific Event Hubs:
     - order-events: OrderCreated, OrderUpdated, OrderCancelled
     - payment-events: PaymentProcessed, PaymentFailed, RefundIssued
@@ -67,7 +66,7 @@ class EventPublisher:
     async def publish(self, topic: str, event_type: str, data: dict[str, Any]):
         """
         Publish an event to a specific topic.
-        
+
         Args:
             topic: Event Hub name (e.g., "order-events")
             event_type: Event type (e.g., "OrderCreated")

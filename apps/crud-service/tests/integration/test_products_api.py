@@ -1,11 +1,10 @@
 """Integration tests for product API."""
 
 import pytest
-from fastapi.testclient import TestClient
-
-from crud_service.main import app
 from crud_service.auth import get_current_user_optional
+from crud_service.main import app
 from crud_service.repositories.base import BaseRepository
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture(autouse=True)

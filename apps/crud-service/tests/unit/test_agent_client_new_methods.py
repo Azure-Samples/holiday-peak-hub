@@ -1,8 +1,7 @@
 """Unit tests for newly added AgentClient methods."""
 
-import pytest
-
 import crud_service.integrations.agent_client as agent_client_module
+import pytest
 
 AgentClient = agent_client_module.AgentClient
 
@@ -64,12 +63,8 @@ class TestSemanticSearch:
     @pytest.mark.asyncio
     async def test_returns_empty_when_no_url(self, monkeypatch):
         """Should return empty list when no agent URL is configured."""
-        monkeypatch.setattr(
-            agent_client_module.settings, "catalog_search_agent_url", None
-        )
-        monkeypatch.setattr(
-            agent_client_module.settings, "agent_apim_base_url", None
-        )
+        monkeypatch.setattr(agent_client_module.settings, "catalog_search_agent_url", None)
+        monkeypatch.setattr(agent_client_module.settings, "agent_apim_base_url", None)
 
         client = AgentClient()
         result = await client.semantic_search("query")
@@ -86,11 +81,13 @@ class TestGetOrderStatus:
     async def test_returns_tracking_payload(self, monkeypatch):
 
         async def fake_call(self, agent_url=None, endpoint=None, data=None, fallback_value=None):
-            return {"order_id": "o1", "status": "shipped", "tracking_url": "https://track.me"}
+            return {
+                "order_id": "o1",
+                "status": "shipped",
+                "tracking_url": "https://track.me",
+            }
 
-        monkeypatch.setattr(
-            agent_client_module.settings, "order_status_agent_url", "http://agent"
-        )
+        monkeypatch.setattr(agent_client_module.settings, "order_status_agent_url", "http://agent")
         monkeypatch.setattr(AgentClient, "call_endpoint", fake_call)
 
         client = AgentClient()
@@ -103,9 +100,7 @@ class TestGetOrderStatus:
         async def fake_call(self, agent_url=None, endpoint=None, data=None, fallback_value=None):
             return None
 
-        monkeypatch.setattr(
-            agent_client_module.settings, "order_status_agent_url", "http://agent"
-        )
+        monkeypatch.setattr(agent_client_module.settings, "order_status_agent_url", "http://agent")
         monkeypatch.setattr(AgentClient, "call_endpoint", fake_call)
 
         client = AgentClient()
@@ -126,7 +121,9 @@ class TestValidateReservation:
             return {"valid": True, "reserved_qty": 5}
 
         monkeypatch.setattr(
-            agent_client_module.settings, "inventory_reservation_agent_url", "http://agent"
+            agent_client_module.settings,
+            "inventory_reservation_agent_url",
+            "http://agent",
         )
         monkeypatch.setattr(AgentClient, "call_endpoint", fake_call)
 
@@ -141,7 +138,9 @@ class TestValidateReservation:
             return {"valid": False, "reason": "Insufficient stock"}
 
         monkeypatch.setattr(
-            agent_client_module.settings, "inventory_reservation_agent_url", "http://agent"
+            agent_client_module.settings,
+            "inventory_reservation_agent_url",
+            "http://agent",
         )
         monkeypatch.setattr(AgentClient, "call_endpoint", fake_call)
 
@@ -151,12 +150,8 @@ class TestValidateReservation:
 
     @pytest.mark.asyncio
     async def test_returns_none_when_no_url(self, monkeypatch):
-        monkeypatch.setattr(
-            agent_client_module.settings, "inventory_reservation_agent_url", None
-        )
-        monkeypatch.setattr(
-            agent_client_module.settings, "agent_apim_base_url", None
-        )
+        monkeypatch.setattr(agent_client_module.settings, "inventory_reservation_agent_url", None)
+        monkeypatch.setattr(agent_client_module.settings, "agent_apim_base_url", None)
 
         client = AgentClient()
         result = await client.validate_reservation("SKU-1", 1)
@@ -175,9 +170,7 @@ class TestGetDeliveryEta:
         async def fake_call(self, agent_url=None, endpoint=None, data=None, fallback_value=None):
             return {"tracking_id": "t1", "eta": "2025-01-15T10:00:00Z"}
 
-        monkeypatch.setattr(
-            agent_client_module.settings, "logistics_eta_agent_url", "http://agent"
-        )
+        monkeypatch.setattr(agent_client_module.settings, "logistics_eta_agent_url", "http://agent")
         monkeypatch.setattr(AgentClient, "call_endpoint", fake_call)
 
         client = AgentClient()
@@ -190,9 +183,7 @@ class TestGetDeliveryEta:
         async def fake_call(self, agent_url=None, endpoint=None, data=None, fallback_value=None):
             return None
 
-        monkeypatch.setattr(
-            agent_client_module.settings, "logistics_eta_agent_url", "http://agent"
-        )
+        monkeypatch.setattr(agent_client_module.settings, "logistics_eta_agent_url", "http://agent")
         monkeypatch.setattr(AgentClient, "call_endpoint", fake_call)
 
         client = AgentClient()
@@ -256,9 +247,7 @@ class TestGetCustomerProfile:
         async def fake_call(self, agent_url=None, endpoint=None, data=None, fallback_value=None):
             return {"contact_id": "c1", "tier": "gold"}
 
-        monkeypatch.setattr(
-            agent_client_module.settings, "crm_profile_agent_url", "http://agent"
-        )
+        monkeypatch.setattr(agent_client_module.settings, "crm_profile_agent_url", "http://agent")
         monkeypatch.setattr(AgentClient, "call_endpoint", fake_call)
 
         client = AgentClient()
@@ -267,12 +256,8 @@ class TestGetCustomerProfile:
 
     @pytest.mark.asyncio
     async def test_returns_none_when_no_url(self, monkeypatch):
-        monkeypatch.setattr(
-            agent_client_module.settings, "crm_profile_agent_url", None
-        )
-        monkeypatch.setattr(
-            agent_client_module.settings, "agent_apim_base_url", None
-        )
+        monkeypatch.setattr(agent_client_module.settings, "crm_profile_agent_url", None)
+        monkeypatch.setattr(agent_client_module.settings, "agent_apim_base_url", None)
 
         client = AgentClient()
         result = await client.get_customer_profile("c1")
@@ -309,23 +294,25 @@ class TestResolveAgentUrl:
 
     def test_explicit_url_takes_precedence(self, monkeypatch):
         monkeypatch.setattr(
-            agent_client_module.settings, "agent_apim_base_url", "https://apim.example.com"
+            agent_client_module.settings,
+            "agent_apim_base_url",
+            "https://apim.example.com",
         )
 
         client = AgentClient()
         assert client._resolve_agent_url("http://explicit", "svc") == "http://explicit"
 
     def test_strips_trailing_slash_from_explicit(self, monkeypatch):
-        monkeypatch.setattr(
-            agent_client_module.settings, "agent_apim_base_url", None
-        )
+        monkeypatch.setattr(agent_client_module.settings, "agent_apim_base_url", None)
 
         client = AgentClient()
         assert client._resolve_agent_url("http://explicit/", "svc") == "http://explicit"
 
     def test_apim_fallback_when_explicit_is_none(self, monkeypatch):
         monkeypatch.setattr(
-            agent_client_module.settings, "agent_apim_base_url", "https://apim.example.com"
+            agent_client_module.settings,
+            "agent_apim_base_url",
+            "https://apim.example.com",
         )
 
         client = AgentClient()
@@ -333,9 +320,7 @@ class TestResolveAgentUrl:
         assert url == "https://apim.example.com/agents/my-agent-service"
 
     def test_returns_none_when_nothing_configured(self, monkeypatch):
-        monkeypatch.setattr(
-            agent_client_module.settings, "agent_apim_base_url", None
-        )
+        monkeypatch.setattr(agent_client_module.settings, "agent_apim_base_url", None)
 
         client = AgentClient()
         assert client._resolve_agent_url(None, "svc") is None

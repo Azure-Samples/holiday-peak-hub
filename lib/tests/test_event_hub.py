@@ -1,7 +1,10 @@
 """Tests for Event Hub subscription helpers."""
-import pytest
 
-from holiday_peak_lib.utils.event_hub import EventHubSubscriber, EventHubSubscriberConfig
+import pytest
+from holiday_peak_lib.utils.event_hub import (
+    EventHubSubscriber,
+    EventHubSubscriberConfig,
+)
 
 
 class FakePartitionContext:

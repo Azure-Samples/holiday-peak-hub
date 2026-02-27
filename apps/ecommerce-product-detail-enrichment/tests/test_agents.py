@@ -1,18 +1,18 @@
 """Unit tests for ProductDetailEnrichmentAgent."""
-import pytest
+
 from unittest.mock import AsyncMock, Mock, patch
 
-from holiday_peak_lib.agents.base_agent import AgentDependencies
-from holiday_peak_lib.schemas.inventory import InventoryContext, InventoryItem
-from holiday_peak_lib.schemas.product import CatalogProduct
-
-from ecommerce_product_detail_enrichment.agents import ProductDetailEnrichmentAgent
+import pytest
 from ecommerce_product_detail_enrichment.adapters import (
-    EnrichmentAdapters,
     AcpContentAdapter,
+    EnrichmentAdapters,
     ReviewAdapter,
     merge_product_enrichment,
 )
+from ecommerce_product_detail_enrichment.agents import ProductDetailEnrichmentAgent
+from holiday_peak_lib.agents.base_agent import AgentDependencies
+from holiday_peak_lib.schemas.inventory import InventoryContext, InventoryItem
+from holiday_peak_lib.schemas.product import CatalogProduct
 
 
 @pytest.fixture
@@ -112,9 +112,7 @@ class TestProductDetailEnrichmentAgent:
             mock_products.get_related = AsyncMock(return_value=mock_related_products)
 
             mock_inventory = AsyncMock()
-            mock_inventory.build_inventory_context = AsyncMock(
-                return_value=mock_inventory_context
-            )
+            mock_inventory.build_inventory_context = AsyncMock(return_value=mock_inventory_context)
 
             mock_acp = AsyncMock()
             mock_acp.get_content = AsyncMock(return_value=mock_acp_content)
@@ -159,9 +157,7 @@ class TestProductDetailEnrichmentAgent:
             assert result["error"] == "sku is required"
 
     @pytest.mark.asyncio
-    async def test_handle_product_not_found(
-        self, agent_config
-    ):
+    async def test_handle_product_not_found(self, agent_config):
         """Test handling when product is not found."""
         # Create ACP content with the requested SKU
         nonexistent_acp = {
@@ -228,9 +224,7 @@ class TestProductDetailEnrichmentAgent:
             mock_products.get_related = AsyncMock(return_value=[])
 
             mock_inventory = AsyncMock()
-            mock_inventory.build_inventory_context = AsyncMock(
-                return_value=mock_inventory_context
-            )
+            mock_inventory.build_inventory_context = AsyncMock(return_value=mock_inventory_context)
 
             mock_acp = AsyncMock()
             mock_acp.get_content = AsyncMock(return_value=mock_acp_content)

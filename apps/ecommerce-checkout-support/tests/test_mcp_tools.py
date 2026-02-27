@@ -1,13 +1,13 @@
 """Unit tests for checkout support MCP tool registration."""
-import pytest
-from unittest.mock import AsyncMock, Mock, patch, MagicMock
 
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
+
+import pytest
+from ecommerce_checkout_support.adapters import CheckoutAdapters
+from ecommerce_checkout_support.agents import register_mcp_tools
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.schemas.inventory import InventoryContext, InventoryItem
 from holiday_peak_lib.schemas.pricing import PriceContext, PriceEntry
-
-from ecommerce_checkout_support.agents import register_mcp_tools
-from ecommerce_checkout_support.adapters import CheckoutAdapters
 
 
 @pytest.fixture
@@ -28,9 +28,7 @@ def mock_agent():
     """Create a mock agent with adapters."""
     mock_pricing_ctx = PriceContext(
         sku="SKU-001",
-        active=PriceEntry(
-            sku="SKU-001", amount=50.0, currency="USD", promotional=True
-        ),
+        active=PriceEntry(sku="SKU-001", amount=50.0, currency="USD", promotional=True),
         offers=[],
     )
     mock_inventory_ctx = InventoryContext(
@@ -46,9 +44,7 @@ def mock_agent():
     mock_inventory.build_inventory_context = AsyncMock(return_value=mock_inventory_ctx)
 
     mock_validator = AsyncMock()
-    mock_validator.validate = AsyncMock(
-        return_value={"status": "ready", "issues": []}
-    )
+    mock_validator.validate = AsyncMock(return_value={"status": "ready", "issues": []})
 
     agent = Mock()
     agent.adapters = CheckoutAdapters(
@@ -88,9 +84,7 @@ class TestMCPToolExecution:
     """Tests for MCP tool execution."""
 
     @pytest.mark.asyncio
-    async def test_validate_checkout_returns_validation(
-        self, mock_mcp_server, mock_agent
-    ):
+    async def test_validate_checkout_returns_validation(self, mock_mcp_server, mock_agent):
         """Test validate checkout tool returns validation data."""
         with patch.dict("os.environ", {}, clear=False):
             register_mcp_tools(mock_mcp_server, mock_agent)

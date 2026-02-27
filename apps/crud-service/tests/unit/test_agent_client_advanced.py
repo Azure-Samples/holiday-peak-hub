@@ -1,10 +1,10 @@
 """Unit tests for agent client circuit breaker behavior."""
 
-import httpx
-import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import crud_service.integrations.agent_client as agent_client_module
+import httpx
+import pytest
 
 AgentClient = agent_client_module.AgentClient
 
@@ -54,9 +54,7 @@ class TestAgentClientCircuitBreaker:
 
         # Make multiple failing calls
         for _ in range(6):
-            result = await client.call_endpoint(
-                "http://agent", "/invoke", {}, {"fallback": True}
-            )
+            result = await client.call_endpoint("http://agent", "/invoke", {}, {"fallback": True})
             assert result == {"fallback": True}
 
         # Circuit should be open, preventing more calls
@@ -82,9 +80,7 @@ class TestAgentClientCircuitBreaker:
         monkeypatch.setattr(agent_client_module.httpx, "AsyncClient", ErrorClient)
 
         client = AgentClient()
-        result = await client.call_endpoint(
-            "http://agent", "/invoke", {}, {"fallback": True}
-        )
+        result = await client.call_endpoint("http://agent", "/invoke", {}, {"fallback": True})
         assert result == {"fallback": True}
 
 
@@ -122,9 +118,7 @@ class TestAgentClientRetry:
         monkeypatch.setattr(agent_client_module.httpx, "AsyncClient", RetryClient)
 
         client = AgentClient()
-        result = await client.call_endpoint(
-            agent_url="http://agent", endpoint="/invoke", data={}
-        )
+        result = await client.call_endpoint(agent_url="http://agent", endpoint="/invoke", data={})
 
         # Should have retried and succeeded
         assert call_count >= 2
@@ -138,7 +132,9 @@ class TestAgentClientProductEnrichment:
     async def test_get_product_enrichment_full_response(self, monkeypatch):
         """Should parse full enrichment response."""
 
-        async def fake_call_endpoint(self, agent_url=None, endpoint=None, data=None, fallback_value=None):
+        async def fake_call_endpoint(
+            self, agent_url=None, endpoint=None, data=None, fallback_value=None
+        ):
             return {
                 "description": "Enriched description",
                 "rating": 4.5,
@@ -166,7 +162,9 @@ class TestAgentClientProductEnrichment:
     async def test_get_product_enrichment_returns_none_on_failure(self, monkeypatch):
         """Should return None when enrichment fails."""
 
-        async def fake_call_endpoint(self, agent_url=None, endpoint=None, data=None, fallback_value=None):
+        async def fake_call_endpoint(
+            self, agent_url=None, endpoint=None, data=None, fallback_value=None
+        ):
             return None
 
         monkeypatch.setattr(
@@ -182,9 +180,7 @@ class TestAgentClientProductEnrichment:
     @pytest.mark.asyncio
     async def test_get_product_enrichment_no_agent_url(self, monkeypatch):
         """Should return None when no agent URL is configured."""
-        monkeypatch.setattr(
-            agent_client_module.settings, "product_enrichment_agent_url", None
-        )
+        monkeypatch.setattr(agent_client_module.settings, "product_enrichment_agent_url", None)
 
         client = AgentClient()
         result = await client.get_product_enrichment("SKU-001")
@@ -199,7 +195,9 @@ class TestAgentClientDynamicPricing:
     async def test_calculate_dynamic_pricing_extracts_price(self, monkeypatch):
         """Should extract price from pricing response."""
 
-        async def fake_call_endpoint(self, agent_url=None, endpoint=None, data=None, fallback_value=None):
+        async def fake_call_endpoint(
+            self, agent_url=None, endpoint=None, data=None, fallback_value=None
+        ):
             return {"pricing": [{"active": {"amount": 24.99}}]}
 
         monkeypatch.setattr(
@@ -216,7 +214,9 @@ class TestAgentClientDynamicPricing:
     async def test_calculate_dynamic_pricing_no_active_price(self, monkeypatch):
         """Should return None when no active price exists."""
 
-        async def fake_call_endpoint(self, agent_url=None, endpoint=None, data=None, fallback_value=None):
+        async def fake_call_endpoint(
+            self, agent_url=None, endpoint=None, data=None, fallback_value=None
+        ):
             return {"pricing": [{"active": None}]}
 
         monkeypatch.setattr(
@@ -237,12 +237,10 @@ class TestAgentClientInventoryStatus:
     async def test_get_inventory_status_available(self, monkeypatch):
         """Should correctly report available inventory."""
 
-        async def fake_call_endpoint(self, agent_url=None, endpoint=None, data=None, fallback_value=None):
-            return {
-                "inventory_context": {
-                    "item": {"sku": "SKU-001", "available": 50}
-                }
-            }
+        async def fake_call_endpoint(
+            self, agent_url=None, endpoint=None, data=None, fallback_value=None
+        ):
+            return {"inventory_context": {"item": {"sku": "SKU-001", "available": 50}}}
 
         monkeypatch.setattr(
             agent_client_module.settings, "inventory_health_agent_url", "http://agent"
@@ -259,12 +257,10 @@ class TestAgentClientInventoryStatus:
     async def test_get_inventory_status_out_of_stock(self, monkeypatch):
         """Should correctly report out of stock."""
 
-        async def fake_call_endpoint(self, agent_url=None, endpoint=None, data=None, fallback_value=None):
-            return {
-                "inventory_context": {
-                    "item": {"sku": "SKU-001", "available": 0}
-                }
-            }
+        async def fake_call_endpoint(
+            self, agent_url=None, endpoint=None, data=None, fallback_value=None
+        ):
+            return {"inventory_context": {"item": {"sku": "SKU-001", "available": 0}}}
 
         monkeypatch.setattr(
             agent_client_module.settings, "inventory_health_agent_url", "http://agent"
@@ -281,7 +277,9 @@ class TestAgentClientInventoryStatus:
     async def test_get_inventory_status_fallback(self, monkeypatch):
         """Should return fallback status on failure."""
 
-        async def fake_call_endpoint(self, agent_url=None, endpoint=None, data=None, fallback_value=None):
+        async def fake_call_endpoint(
+            self, agent_url=None, endpoint=None, data=None, fallback_value=None
+        ):
             return None
 
         monkeypatch.setattr(

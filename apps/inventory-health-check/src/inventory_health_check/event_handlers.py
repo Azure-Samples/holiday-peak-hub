@@ -1,4 +1,5 @@
 """Event handlers for inventory health check service."""
+
 from __future__ import annotations
 
 import asyncio
@@ -52,9 +53,7 @@ def build_event_handlers() -> dict[str, EventHandler]:
         data = payload.get("data", {}) if isinstance(payload, dict) else {}
         sku = data.get("sku") or data.get("product_id") or data.get("id")
         if not sku:
-            logger.info(
-                "inventory_health_event_skipped", event_type=payload.get("event_type")
-            )
+            logger.info("inventory_health_event_skipped", event_type=payload.get("event_type"))
             return
 
         context = await adapters.inventory.build_inventory_context(str(sku))

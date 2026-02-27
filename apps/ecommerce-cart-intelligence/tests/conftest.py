@@ -1,10 +1,11 @@
 """Test configuration and fixtures for cart intelligence service."""
-import pytest
+
 from unittest.mock import AsyncMock
 
+import pytest
 from holiday_peak_lib.schemas.inventory import InventoryContext, InventoryItem
 from holiday_peak_lib.schemas.pricing import PriceContext, PriceEntry
-from holiday_peak_lib.schemas.product import ProductContext, CatalogProduct
+from holiday_peak_lib.schemas.product import CatalogProduct, ProductContext
 
 
 @pytest.fixture
@@ -93,9 +94,7 @@ def mock_inventory_adapter(mock_inventory_context):
 def mock_analytics_adapter():
     """Create a mock analytics adapter."""
     adapter = AsyncMock()
-    adapter.estimate_abandonment_risk = AsyncMock(
-        return_value={"risk_score": 0.25, "drivers": []}
-    )
+    adapter.estimate_abandonment_risk = AsyncMock(return_value={"risk_score": 0.25, "drivers": []})
     return adapter
 
 

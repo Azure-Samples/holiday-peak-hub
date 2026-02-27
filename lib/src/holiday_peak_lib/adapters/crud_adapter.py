@@ -1,10 +1,10 @@
 """MCP adapter exposing CRUD operations as tools."""
+
 from __future__ import annotations
 
 from typing import Any
 
 import httpx
-
 from holiday_peak_lib.adapters.mcp_adapter import BaseMCPAdapter
 
 
@@ -174,7 +174,7 @@ class BaseCRUDAdapter(BaseMCPAdapter):
             product = await self._request("GET", self._endpoint(f"/products/{sku}"))
             return {
                 "sku": sku,
-                "inventory": product.get("inventory") if isinstance(product, dict) else None,
+                "inventory": (product.get("inventory") if isinstance(product, dict) else None),
                 "source": "products",
             }
         except httpx.HTTPError:

@@ -1,9 +1,8 @@
 """Integration tests for cart API."""
 
 import pytest
-from fastapi.testclient import TestClient
-
 from crud_service.main import app
+from fastapi.testclient import TestClient
 
 client = TestClient(app)
 

@@ -1,10 +1,9 @@
 """Staff returns management routes."""
 
-from fastapi import APIRouter, Depends
-from pydantic import BaseModel
-
 from crud_service.auth import User, require_staff
 from crud_service.repositories.base import BaseRepository
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 
 router = APIRouter()
 
@@ -34,7 +33,7 @@ class ReturnResponse(BaseModel):
 async def list_returns(current_user: User = Depends(require_staff)):
     """
     List return requests.
-    
+
     Requires staff role.
     """
     returns = await return_repo.query(

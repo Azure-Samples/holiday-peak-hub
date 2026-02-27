@@ -1,8 +1,7 @@
 """Integration tests for ACP checkout endpoints."""
 
-from fastapi.testclient import TestClient
-
 from crud_service.main import app
+from fastapi.testclient import TestClient
 
 client = TestClient(app)
 

@@ -1,16 +1,18 @@
 """Factory to create FastAPI + MCP service instances."""
+
 import os
 from typing import AsyncIterator, Callable, Optional
 
 from fastapi import FastAPI, HTTPException
-
 from holiday_peak_lib.agents import AgentBuilder, BaseRetailAgent, FoundryAgentConfig
-from holiday_peak_lib.agents.foundry import build_foundry_model_target, ensure_foundry_agent
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
+from holiday_peak_lib.agents.foundry import (
+    build_foundry_model_target,
+    ensure_foundry_agent,
+)
+from holiday_peak_lib.agents.memory import ColdMemory, HotMemory, WarmMemory
 from holiday_peak_lib.agents.orchestration.router import RoutingStrategy
-from holiday_peak_lib.agents.memory import HotMemory, WarmMemory, ColdMemory
 from holiday_peak_lib.utils.logging import configure_logging, log_async_operation
-
 
 DEFAULT_FOUNDY_MODELS = {
     "fast": "gpt-5-nano",
@@ -76,7 +78,9 @@ def build_service_app(
     }
     foundry_ready = not strict_foundry_mode
     auto_ensure_default = "true" if strict_foundry_mode else "false"
-    auto_ensure_on_startup = (os.getenv("FOUNDRY_AUTO_ENSURE_ON_STARTUP") or auto_ensure_default).lower() in {
+    auto_ensure_on_startup = (
+        os.getenv("FOUNDRY_AUTO_ENSURE_ON_STARTUP") or auto_ensure_default
+    ).lower() in {
         "1",
         "true",
         "yes",
@@ -160,7 +164,11 @@ def build_service_app(
                     "Call POST /foundry/agents/ensure or set FOUNDRY_AUTO_ENSURE_ON_STARTUP=true.",
                 },
             )
-        return {"status": "ready", "service": service_name, "foundry_ready": foundry_ready}
+        return {
+            "status": "ready",
+            "service": service_name,
+            "foundry_ready": foundry_ready,
+        }
 
     @app.post("/invoke")
     async def invoke(payload: dict):
@@ -184,7 +192,10 @@ def build_service_app(
             intent=intent,
             func=lambda: router.route(intent, request_payload),
             token_count=None,
-            metadata={"payload_size": len(str(request_payload)), "service": service_name},
+            metadata={
+                "payload_size": len(str(request_payload)),
+                "service": service_name,
+            },
         )
 
     @app.post("/foundry/agents/ensure")
@@ -224,8 +235,10 @@ def build_service_app(
                 f"FOUNDRY_AGENT_NAME_{selected_role.upper()}"
             )
             config.agent_name = str(configured_name or default_name)
-            config.deployment_name = (
-                str(models.get(selected_role) or config.deployment_name or DEFAULT_FOUNDY_MODELS[selected_role])
+            config.deployment_name = str(
+                models.get(selected_role)
+                or config.deployment_name
+                or DEFAULT_FOUNDY_MODELS[selected_role]
             )
 
             ensure_result = await ensure_foundry_agent(
@@ -254,7 +267,8 @@ def build_service_app(
 
         if strict_foundry_mode:
             foundry_ready = any(
-                bool(result.get("agent_id")) and result.get("status") in {"exists", "found_by_name", "created"}
+                bool(result.get("agent_id"))
+                and result.get("status") in {"exists", "found_by_name", "created"}
                 for result in results.values()
             )
 

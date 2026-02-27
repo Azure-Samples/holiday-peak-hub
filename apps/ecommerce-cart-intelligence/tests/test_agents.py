@@ -1,15 +1,15 @@
 """Unit tests for CartIntelligenceAgent."""
-import pytest
-from unittest.mock import AsyncMock, Mock, patch
-from dataclasses import dataclass
 
+from dataclasses import dataclass
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
+from ecommerce_cart_intelligence.adapters import CartAdapters, CartAnalyticsAdapter
+from ecommerce_cart_intelligence.agents import CartIntelligenceAgent, _coerce_cart_items
 from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.schemas.inventory import InventoryContext, InventoryItem
 from holiday_peak_lib.schemas.pricing import PriceContext, PriceEntry
-from holiday_peak_lib.schemas.product import ProductContext, CatalogProduct
-
-from ecommerce_cart_intelligence.agents import CartIntelligenceAgent, _coerce_cart_items
-from ecommerce_cart_intelligence.adapters import CartAdapters, CartAnalyticsAdapter
+from holiday_peak_lib.schemas.product import CatalogProduct, ProductContext
 
 
 @pytest.fixture
@@ -82,9 +82,7 @@ class TestCartIntelligenceAgent:
     @pytest.mark.asyncio
     async def test_handle_empty_cart(self, agent_config):
         """Test handling an empty cart."""
-        with patch(
-            "ecommerce_cart_intelligence.agents.build_cart_adapters"
-        ) as mock_build:
+        with patch("ecommerce_cart_intelligence.agents.build_cart_adapters") as mock_build:
             mock_analytics = AsyncMock()
             mock_analytics.estimate_abandonment_risk = AsyncMock(
                 return_value={"risk_score": 0.1, "drivers": []}
@@ -119,22 +117,16 @@ class TestCartIntelligenceAgent:
         )
         mock_pricing_ctx = PriceContext(
             sku="SKU-001",
-            active=PriceEntry(
-                sku="SKU-001", amount=99.99, currency="USD", promotional=True
-            ),
+            active=PriceEntry(sku="SKU-001", amount=99.99, currency="USD", promotional=True),
             offers=[],
         )
         mock_inventory_ctx = InventoryContext(
             sku="SKU-001",
-            item=InventoryItem(
-                sku="SKU-001", available=10, reserved=0, warehouse_id="WH1"
-            ),
+            item=InventoryItem(sku="SKU-001", available=10, reserved=0, warehouse_id="WH1"),
             warehouses=[],
         )
 
-        with patch(
-            "ecommerce_cart_intelligence.agents.build_cart_adapters"
-        ) as mock_build:
+        with patch("ecommerce_cart_intelligence.agents.build_cart_adapters") as mock_build:
             mock_products = AsyncMock()
             mock_products.build_product_context = AsyncMock(return_value=mock_product_ctx)
 
@@ -142,9 +134,7 @@ class TestCartIntelligenceAgent:
             mock_pricing.build_price_context = AsyncMock(return_value=mock_pricing_ctx)
 
             mock_inventory = AsyncMock()
-            mock_inventory.build_inventory_context = AsyncMock(
-                return_value=mock_inventory_ctx
-            )
+            mock_inventory.build_inventory_context = AsyncMock(return_value=mock_inventory_ctx)
 
             mock_analytics = AsyncMock()
             mock_analytics.estimate_abandonment_risk = AsyncMock(
@@ -180,18 +170,14 @@ class TestCartAnalyticsAdapter:
         inventory = [
             InventoryContext(
                 sku="SKU-001",
-                item=InventoryItem(
-                    sku="SKU-001", available=100, reserved=0, warehouse_id="WH1"
-                ),
+                item=InventoryItem(sku="SKU-001", available=100, reserved=0, warehouse_id="WH1"),
                 warehouses=[],
             )
         ]
         pricing = [
             PriceContext(
                 sku="SKU-001",
-                active=PriceEntry(
-                    sku="SKU-001", amount=10.0, currency="USD", promotional=True
-                ),
+                active=PriceEntry(sku="SKU-001", amount=10.0, currency="USD", promotional=True),
                 offers=[],
             )
         ]
@@ -211,18 +197,14 @@ class TestCartAnalyticsAdapter:
         inventory = [
             InventoryContext(
                 sku="SKU-001",
-                item=InventoryItem(
-                    sku="SKU-001", available=0, reserved=0, warehouse_id="WH1"
-                ),
+                item=InventoryItem(sku="SKU-001", available=0, reserved=0, warehouse_id="WH1"),
                 warehouses=[],
             )
         ]
         pricing = [
             PriceContext(
                 sku="SKU-001",
-                active=PriceEntry(
-                    sku="SKU-001", amount=10.0, currency="USD", promotional=True
-                ),
+                active=PriceEntry(sku="SKU-001", amount=10.0, currency="USD", promotional=True),
                 offers=[],
             )
         ]
@@ -242,18 +224,14 @@ class TestCartAnalyticsAdapter:
         inventory = [
             InventoryContext(
                 sku="SKU-001",
-                item=InventoryItem(
-                    sku="SKU-001", available=2, reserved=0, warehouse_id="WH1"
-                ),
+                item=InventoryItem(sku="SKU-001", available=2, reserved=0, warehouse_id="WH1"),
                 warehouses=[],
             )
         ]
         pricing = [
             PriceContext(
                 sku="SKU-001",
-                active=PriceEntry(
-                    sku="SKU-001", amount=10.0, currency="USD", promotional=True
-                ),
+                active=PriceEntry(sku="SKU-001", amount=10.0, currency="USD", promotional=True),
                 offers=[],
             )
         ]
@@ -274,9 +252,7 @@ class TestCartAnalyticsAdapter:
         pricing = [
             PriceContext(
                 sku="SKU-001",
-                active=PriceEntry(
-                    sku="SKU-001", amount=10.0, currency="USD", promotional=True
-                ),
+                active=PriceEntry(sku="SKU-001", amount=10.0, currency="USD", promotional=True),
                 offers=[],
             )
         ]
@@ -296,18 +272,14 @@ class TestCartAnalyticsAdapter:
         inventory = [
             InventoryContext(
                 sku="SKU-001",
-                item=InventoryItem(
-                    sku="SKU-001", available=100, reserved=0, warehouse_id="WH1"
-                ),
+                item=InventoryItem(sku="SKU-001", available=100, reserved=0, warehouse_id="WH1"),
                 warehouses=[],
             )
         ]
         pricing = [
             PriceContext(
                 sku="SKU-001",
-                active=PriceEntry(
-                    sku="SKU-001", amount=10.0, currency="USD", promotional=False
-                ),
+                active=PriceEntry(sku="SKU-001", amount=10.0, currency="USD", promotional=False),
                 offers=[],
             )
         ]

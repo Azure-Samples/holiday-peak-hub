@@ -1,4 +1,5 @@
 """Adapters for product normalization and classification service."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

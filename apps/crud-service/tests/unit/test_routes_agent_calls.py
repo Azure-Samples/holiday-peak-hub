@@ -1,13 +1,12 @@
 """Unit tests for CRUD routes that call agent services."""
 
-from fastapi.testclient import TestClient
 import pytest
-
-from crud_service.main import app
 from crud_service.auth import User, get_current_user
+from crud_service.main import app
 from crud_service.routes import cart as cart_routes
 from crud_service.routes import checkout as checkout_routes
 from crud_service.routes import products as products_routes
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture
@@ -101,11 +100,7 @@ async def test_checkout_validation_with_agent(monkeypatch, client, override_auth
 
     class FakeAgentClient:
         async def call_endpoint(self, *args, **kwargs):
-            return {
-                "validation": {
-                    "issues": [{"sku": "prod-1", "type": "out_of_stock"}]
-                }
-            }
+            return {"validation": {"issues": [{"sku": "prod-1", "type": "out_of_stock"}]}}
 
     monkeypatch.setattr(checkout_routes.cart_repo, "get_by_user", fake_get_by_user)
     monkeypatch.setattr(checkout_routes, "agent_client", FakeAgentClient())

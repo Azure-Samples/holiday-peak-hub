@@ -1,4 +1,5 @@
 """CRM profile aggregation agent implementation and MCP tool registration."""
+
 from __future__ import annotations
 
 import os
@@ -97,6 +98,7 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
 
     mcp.add_tool("/crm/profile/context", get_contact_context)
     mcp.add_tool("/crm/profile/summary", get_profile_summary)
+    mcp.add_tool("/crm/profile/account", get_account_summary)
     _register_crud_tools(mcp)
 
 
@@ -105,7 +107,6 @@ def _register_crud_tools(mcp: FastAPIMCPServer) -> None:
     if not crud_url:
         return
     BaseCRUDAdapter(crud_url).register_mcp_tools(mcp)
-    mcp.add_tool("/crm/profile/account", get_account_summary)
 
 
 def _profile_instructions() -> str:

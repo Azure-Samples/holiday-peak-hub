@@ -1,13 +1,13 @@
 """Unit tests for catalog search MCP tool registration."""
-import pytest
-from unittest.mock import AsyncMock, Mock, patch, MagicMock
 
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
+
+import pytest
+from ecommerce_catalog_search.adapters import AcpCatalogMapper, CatalogAdapters
+from ecommerce_catalog_search.agents import register_mcp_tools
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.schemas.inventory import InventoryContext, InventoryItem
 from holiday_peak_lib.schemas.product import CatalogProduct
-
-from ecommerce_catalog_search.agents import register_mcp_tools
-from ecommerce_catalog_search.adapters import CatalogAdapters, AcpCatalogMapper
 
 
 @pytest.fixture
@@ -97,9 +97,7 @@ class TestMCPToolExecution:
         assert result["results"] == []
 
     @pytest.mark.asyncio
-    async def test_get_product_details_returns_product(
-        self, mock_mcp_server, mock_agent
-    ):
+    async def test_get_product_details_returns_product(self, mock_mcp_server, mock_agent):
         """Test product details tool returns ACP-formatted product."""
         with patch.dict("os.environ", {}, clear=False):
             register_mcp_tools(mock_mcp_server, mock_agent)

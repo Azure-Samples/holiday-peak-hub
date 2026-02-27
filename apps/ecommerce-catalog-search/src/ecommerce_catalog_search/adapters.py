@@ -1,11 +1,15 @@
 """Adapters for the ecommerce catalog search service (ACP-aware)."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Optional
 
 from holiday_peak_lib.adapters.inventory_adapter import InventoryConnector
-from holiday_peak_lib.adapters.mock_adapters import MockInventoryAdapter, MockProductAdapter
+from holiday_peak_lib.adapters.mock_adapters import (
+    MockInventoryAdapter,
+    MockProductAdapter,
+)
 from holiday_peak_lib.adapters.product_adapter import ProductConnector
 from holiday_peak_lib.schemas.product import CatalogProduct
 

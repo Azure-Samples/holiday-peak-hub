@@ -1,7 +1,8 @@
 """Test configuration and fixtures for catalog search service."""
-import pytest
+
 from unittest.mock import AsyncMock
 
+import pytest
 from holiday_peak_lib.schemas.inventory import InventoryContext, InventoryItem
 from holiday_peak_lib.schemas.product import CatalogProduct
 

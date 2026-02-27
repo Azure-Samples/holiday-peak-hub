@@ -3,12 +3,11 @@
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
-
 from crud_service.auth import User, get_current_user
 from crud_service.integrations import get_event_publisher
 from crud_service.repositories import OrderRepository
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 
 router = APIRouter()
 order_repo = OrderRepository()
@@ -48,7 +47,7 @@ async def process_payment(
 ):
     """
     Process payment for an order.
-    
+
     In production, this would integrate with Stripe.
     Publishes PaymentProcessed event on success.
     """

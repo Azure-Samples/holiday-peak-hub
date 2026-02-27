@@ -1,7 +1,8 @@
 """Test configuration and fixtures for checkout support service."""
-import pytest
+
 from unittest.mock import AsyncMock
 
+import pytest
 from holiday_peak_lib.schemas.inventory import InventoryContext, InventoryItem
 from holiday_peak_lib.schemas.pricing import PriceContext, PriceEntry
 
@@ -31,7 +32,6 @@ def mock_pricing_context():
             amount=99.99,
             currency="USD",
             promotional=True,
-            
         ),
         offers=[],
     )

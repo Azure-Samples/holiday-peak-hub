@@ -1,5 +1,5 @@
-from fastapi.testclient import TestClient
 from ecommerce_catalog_search.main import app
+from fastapi.testclient import TestClient
 
 
 def test_health():

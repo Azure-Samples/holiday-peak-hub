@@ -1,13 +1,13 @@
 """Unit tests for CatalogSearchAgent."""
-import pytest
+
 from unittest.mock import AsyncMock, Mock, patch
 
+import pytest
+from ecommerce_catalog_search.adapters import AcpCatalogMapper, CatalogAdapters
+from ecommerce_catalog_search.agents import CatalogSearchAgent
 from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.schemas.inventory import InventoryContext, InventoryItem
 from holiday_peak_lib.schemas.product import CatalogProduct
-
-from ecommerce_catalog_search.agents import CatalogSearchAgent
-from ecommerce_catalog_search.adapters import CatalogAdapters, AcpCatalogMapper
 
 
 @pytest.fixture
@@ -82,9 +82,7 @@ class TestCatalogSearchAgent:
             sku="SKU-001", available=10, reserved=0, warehouse_id="WH1"
         )
 
-        with patch(
-            "ecommerce_catalog_search.agents.build_catalog_adapters"
-        ) as mock_build:
+        with patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build:
             mock_products = AsyncMock()
             mock_products.get_product = AsyncMock(return_value=mock_catalog_product)
             mock_products.get_related = AsyncMock(return_value=[])
@@ -113,9 +111,7 @@ class TestCatalogSearchAgent:
     @pytest.mark.asyncio
     async def test_handle_empty_query(self, agent_config):
         """Test handling an empty search query."""
-        with patch(
-            "ecommerce_catalog_search.agents.build_catalog_adapters"
-        ) as mock_build:
+        with patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build:
             mock_products = AsyncMock()
             mock_products.get_product = AsyncMock(return_value=None)
             mock_products.get_related = AsyncMock(return_value=[])
@@ -144,9 +140,7 @@ class TestCatalogSearchAgent:
             sku="SKU-001", available=10, reserved=0, warehouse_id="WH1"
         )
 
-        with patch(
-            "ecommerce_catalog_search.agents.build_catalog_adapters"
-        ) as mock_build:
+        with patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build:
             mock_products = AsyncMock()
             mock_products.get_product = AsyncMock(return_value=mock_catalog_products[0])
             mock_products.get_related = AsyncMock(return_value=[])

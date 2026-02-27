@@ -1,4 +1,5 @@
 """Event handlers for logistics carrier selection service."""
+
 from __future__ import annotations
 
 import json
@@ -19,9 +20,7 @@ def build_event_handlers() -> dict[str, EventHandler]:
         data = payload.get("data", {}) if isinstance(payload, dict) else {}
         tracking_id = _resolve_tracking_id(data)
         if not tracking_id:
-            logger.info(
-                "carrier_event_skipped", event_type=payload.get("event_type")
-            )
+            logger.info("carrier_event_skipped", event_type=payload.get("event_type"))
             return
 
         context = await adapters.logistics.build_logistics_context(tracking_id)

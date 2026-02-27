@@ -1,4 +1,5 @@
 """Adapters for the CRM profile aggregation service."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -23,9 +24,7 @@ class ProfileAnalyticsAdapter:
     async def summarize_profile(self, context: CRMContext) -> dict[str, Any]:
         interactions = context.interactions
         channels = [interaction.channel for interaction in interactions]
-        last_interaction = max(
-            interactions, key=lambda item: item.occurred_at, default=None
-        )
+        last_interaction = max(interactions, key=lambda item: item.occurred_at, default=None)
         engagement_score = min(len(interactions) / 10, 1.0)
         return {
             "contact_id": context.contact.contact_id,
@@ -33,17 +32,15 @@ class ProfileAnalyticsAdapter:
             "marketing_opt_in": context.contact.marketing_opt_in,
             "interaction_count": len(interactions),
             "recent_channels": list(dict.fromkeys(channels)),
-            "last_interaction_at": last_interaction.occurred_at.isoformat()
-            if last_interaction
-            else None,
+            "last_interaction_at": (
+                last_interaction.occurred_at.isoformat() if last_interaction else None
+            ),
             "engagement_score": engagement_score,
             "tags": context.contact.tags,
         }
 
 
-def build_profile_adapters(
-    *, crm_connector: Optional[CRMConnector] = None
-) -> ProfileAdapters:
+def build_profile_adapters(*, crm_connector: Optional[CRMConnector] = None) -> ProfileAdapters:
     """Create adapters for CRM profile aggregation workflows.
 
     Uses mock adapters by default to keep local development lightweight.

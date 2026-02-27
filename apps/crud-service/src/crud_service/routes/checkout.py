@@ -1,12 +1,11 @@
 """Checkout routes."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
-
 from crud_service.auth import User, get_current_user
 from crud_service.config import get_settings
 from crud_service.integrations import get_agent_client
 from crud_service.repositories import CartRepository
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 
 router = APIRouter()
 cart_repo = CartRepository()
@@ -29,7 +28,7 @@ class CheckoutValidationResponse(BaseModel):
 async def validate_checkout(current_user: User = Depends(get_current_user)):
     """
     Validate checkout before order creation.
-    
+
     Checks:
     - Cart not empty
     - Inventory availability (via agent)
@@ -59,11 +58,7 @@ async def validate_checkout(current_user: User = Depends(get_current_user)):
         data={"items": items},
         fallback_value=None,
     )
-    validation = (
-        agent_validation.get("validation")
-        if isinstance(agent_validation, dict)
-        else None
-    )
+    validation = agent_validation.get("validation") if isinstance(agent_validation, dict) else None
     issues = validation.get("issues") if isinstance(validation, dict) else None
     if issues:
         for issue in issues:
@@ -75,9 +70,7 @@ async def validate_checkout(current_user: User = Depends(get_current_user)):
                 errors.append(f"Product {sku} is out of stock")
             elif issue_type == "insufficient_stock":
                 available = issue.get("available")
-                warnings.append(
-                    f"Limited quantity for product {sku}: only {available} available"
-                )
+                warnings.append(f"Limited quantity for product {sku}: only {available} available")
     else:
         # Fallback: validate inventory for each item
         for item in cart.get("items", []):

@@ -6,6 +6,7 @@ payloads are validated and structured.
 """
 
 from typing import Any, Optional
+
 from pydantic import BaseModel, Field
 
 

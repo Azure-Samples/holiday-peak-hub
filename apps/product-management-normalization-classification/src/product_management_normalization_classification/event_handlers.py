@@ -1,4 +1,5 @@
 """Event handlers for product normalization/classification service."""
+
 from __future__ import annotations
 
 import json
@@ -11,9 +12,7 @@ from .adapters import build_normalization_adapters
 
 def build_event_handlers() -> dict[str, EventHandler]:
     """Build event handlers for product normalization subscriptions."""
-    logger = configure_logging(
-        app_name="product-management-normalization-classification-events"
-    )
+    logger = configure_logging(app_name="product-management-normalization-classification-events")
     adapters = build_normalization_adapters()
 
     async def handle_product_event(partition_context, event) -> None:  # noqa: ANN001

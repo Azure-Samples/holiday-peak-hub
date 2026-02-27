@@ -1,13 +1,12 @@
 """Unit tests for reservation validation event handlers."""
+
 from __future__ import annotations
 
 import json
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-
 from holiday_peak_lib.schemas.inventory import InventoryContext, InventoryItem
-
 from inventory_reservation_validation.adapters import ReservationValidationAdapters
 from inventory_reservation_validation.event_handlers import build_event_handlers
 
@@ -34,12 +33,8 @@ async def test_handle_order_event_validates_reservations():
     mock_inventory = AsyncMock()
     mock_inventory.build_inventory_context = AsyncMock(return_value=inventory_ctx)
     mock_validator = AsyncMock()
-    mock_validator.validate = AsyncMock(
-        return_value={"sku": "SKU-5", "approved": True}
-    )
-    adapters = ReservationValidationAdapters(
-        inventory=mock_inventory, validator=mock_validator
-    )
+    mock_validator.validate = AsyncMock(return_value={"sku": "SKU-5", "approved": True})
+    adapters = ReservationValidationAdapters(inventory=mock_inventory, validator=mock_validator)
     payload = {
         "event_type": "order.placed",
         "data": {"order_id": "ORD-9", "items": [{"sku": "SKU-5", "quantity": 3}]},

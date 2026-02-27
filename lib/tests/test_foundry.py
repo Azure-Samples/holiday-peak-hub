@@ -1,9 +1,9 @@
 """Tests for Azure AI Foundry integration."""
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from azure.core.exceptions import HttpResponseError
-
 from holiday_peak_lib.agents.foundry import (
     FoundryAgentConfig,
     FoundryInvoker,
@@ -22,9 +22,9 @@ class TestFoundryAgentConfig:
         monkeypatch.setenv("FOUNDRY_AGENT_ID", "agent-123")
         monkeypatch.setenv("MODEL_DEPLOYMENT_NAME", "gpt-4")
         monkeypatch.setenv("FOUNDRY_STREAM", "true")
-        
+
         config = FoundryAgentConfig.from_env()
-        
+
         assert config.endpoint == "https://test.openai.azure.com"
         assert config.project_name == "test-project"
         assert config.agent_id == "agent-123"
@@ -39,9 +39,9 @@ class TestFoundryAgentConfig:
         monkeypatch.setenv("FOUNDRY_ENDPOINT", "https://alternate.openai.azure.com")
         monkeypatch.setenv("FOUNDRY_PROJECT_NAME", "alternate-project")
         monkeypatch.setenv("AGENT_ID", "agent-456")
-        
+
         config = FoundryAgentConfig.from_env()
-        
+
         assert config.endpoint == "https://alternate.openai.azure.com"
         assert config.project_name == "alternate-project"
         assert config.agent_id == "agent-456"
@@ -51,7 +51,7 @@ class TestFoundryAgentConfig:
         monkeypatch.setenv("FOUNDRY_AGENT_ID", "agent-123")
         monkeypatch.delenv("PROJECT_ENDPOINT", raising=False)
         monkeypatch.delenv("FOUNDRY_ENDPOINT", raising=False)
-        
+
         with pytest.raises(ValueError, match="PROJECT_ENDPOINT/FOUNDRY_ENDPOINT"):
             FoundryAgentConfig.from_env()
 
@@ -61,7 +61,7 @@ class TestFoundryAgentConfig:
         monkeypatch.delenv("FOUNDRY_AGENT_ID", raising=False)
         monkeypatch.delenv("FOUNDRY_AGENT_NAME", raising=False)
         monkeypatch.delenv("AGENT_ID", raising=False)
-        
+
         with pytest.raises(ValueError, match="FOUNDRY_AGENT_ID or FOUNDRY_AGENT_NAME"):
             FoundryAgentConfig.from_env()
 
@@ -69,15 +69,15 @@ class TestFoundryAgentConfig:
         """Test different stream flag values."""
         monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.openai.azure.com")
         monkeypatch.setenv("FOUNDRY_AGENT_ID", "agent-123")
-        
+
         # Test "1"
         monkeypatch.setenv("FOUNDRY_STREAM", "1")
         assert FoundryAgentConfig.from_env().stream is True
-        
+
         # Test "yes"
         monkeypatch.setenv("FOUNDRY_STREAM", "yes")
         assert FoundryAgentConfig.from_env().stream is True
-        
+
         # Test "false"
         monkeypatch.setenv("FOUNDRY_STREAM", "false")
         assert FoundryAgentConfig.from_env().stream is False
@@ -95,12 +95,12 @@ class TestFoundryInvoker:
             endpoint="https://test.openai.azure.com",
             agent_id="agent-123",
             agent_name="catalog-fast",
-            stream=False
+            stream=False,
         )
-        
+
         mock_cred_instance = MagicMock()
         mock_cred.return_value = mock_cred_instance
-        
+
         # Create mock client structure
         mock_client_instance = MagicMock()
         mock_openai = MagicMock()
@@ -114,18 +114,24 @@ class TestFoundryInvoker:
         mock_response.model_dump = MagicMock(
             return_value={
                 "id": "resp-123",
-                "output": [{"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "ok"}]}],
+                "output": [
+                    {
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [{"type": "output_text", "text": "ok"}],
+                    }
+                ],
                 "usage": {"total_tokens": 10},
             }
         )
         mock_openai.responses.create = AsyncMock(return_value=mock_response)
         mock_client_instance.get_openai_client = MagicMock(return_value=mock_openai)
         mock_client.return_value = mock_client_instance
-        
+
         # Test invocation
         invoker = FoundryInvoker(config)
         result = await invoker(messages="Test query")
-        
+
         assert result["conversation_id"] == "conv-123"
         assert result["response_id"] == "resp-123"
         assert not result["stream"]
@@ -141,12 +147,12 @@ class TestFoundryInvoker:
             endpoint="https://test.openai.azure.com",
             agent_id="agent-123",
             agent_name="catalog-fast",
-            stream=True
+            stream=True,
         )
-        
+
         mock_cred_instance = MagicMock()
         mock_cred.return_value = mock_cred_instance
-        
+
         # Create mock client structure
         mock_client_instance = MagicMock()
         mock_openai = MagicMock()
@@ -157,11 +163,14 @@ class TestFoundryInvoker:
         mock_openai.responses.create = AsyncMock(return_value=mock_response)
         mock_client_instance.get_openai_client = MagicMock(return_value=mock_openai)
         mock_client.return_value = mock_client_instance
-        
+
         # Test invocation
         invoker = FoundryInvoker(config)
-        result = await invoker(messages=[{"role": "user", "content": "Test"}], conversation_id="conv-existing")
-        
+        result = await invoker(
+            messages=[{"role": "user", "content": "Test"}],
+            conversation_id="conv-existing",
+        )
+
         assert result["conversation_id"] == "conv-existing"
         assert result["response_id"] == "resp-456"
         assert result["stream"] is False
@@ -177,11 +186,11 @@ class TestBuildFoundryModelTarget:
         config = FoundryAgentConfig(
             endpoint="https://test.openai.azure.com",
             agent_id="agent-123",
-            deployment_name="gpt-4"
+            deployment_name="gpt-4",
         )
-        
+
         target = build_foundry_model_target(config)
-        
+
         assert target.name == "agent-123"
         assert target.model == "gpt-4"
         assert target.stream is False
@@ -190,13 +199,11 @@ class TestBuildFoundryModelTarget:
     def test_build_model_target_with_streaming(self):
         """Test building a streaming model target."""
         config = FoundryAgentConfig(
-            endpoint="https://test.openai.azure.com",
-            agent_id="agent-456",
-            stream=True
+            endpoint="https://test.openai.azure.com", agent_id="agent-456", stream=True
         )
-        
+
         target = build_foundry_model_target(config)
-        
+
         assert target.name == "agent-456"
         assert target.model == "agent-456"  # Falls back to agent_id when no deployment
         assert target.stream is True

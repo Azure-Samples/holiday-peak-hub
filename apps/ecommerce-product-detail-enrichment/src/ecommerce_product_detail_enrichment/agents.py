@@ -1,4 +1,5 @@
 """Product detail enrichment agent implementation and MCP tool registration."""
+
 from __future__ import annotations
 
 import asyncio
@@ -9,7 +10,11 @@ from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 
-from .adapters import EnrichmentAdapters, build_enrichment_adapters, merge_product_enrichment
+from .adapters import (
+    EnrichmentAdapters,
+    build_enrichment_adapters,
+    merge_product_enrichment,
+)
 
 
 class ProductDetailEnrichmentAgent(BaseRetailAgent):
@@ -82,7 +87,9 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
         if not sku:
             return {"error": "sku is required"}
         product = await adapters.products.get_product(str(sku))
-        related = await adapters.products.get_related(str(sku), limit=int(payload.get("related_limit", 4)))
+        related = await adapters.products.get_related(
+            str(sku), limit=int(payload.get("related_limit", 4))
+        )
         inventory = await adapters.inventory.build_inventory_context(str(sku))
         acp_content = await adapters.acp.get_content(str(sku))
         review_summary = await adapters.reviews.get_summary(str(sku))

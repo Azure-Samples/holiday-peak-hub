@@ -1,14 +1,13 @@
 """Unit tests for newly wired CRUD routes (orders, users, cart, products)."""
 
 import pytest
-from fastapi.testclient import TestClient
-
-from crud_service.main import app
 from crud_service.auth import User, get_current_user, get_current_user_optional
-from crud_service.routes import orders as orders_routes
-from crud_service.routes import users as users_routes
+from crud_service.main import app
 from crud_service.routes import cart as cart_routes
+from crud_service.routes import orders as orders_routes
 from crud_service.routes import products as products_routes
+from crud_service.routes import users as users_routes
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture
@@ -419,7 +418,9 @@ class TestProductSemanticSearch:
         assert data[0]["name"] == "Basic Widget"
 
     @pytest.mark.asyncio
-    async def test_agent_failure_falls_back_to_keyword(self, client, monkeypatch, override_auth_optional):
+    async def test_agent_failure_falls_back_to_keyword(
+        self, client, monkeypatch, override_auth_optional
+    ):
         """When semantic agent raises, falls back to keyword search."""
 
         class FakeAgent:
@@ -458,9 +459,27 @@ class TestProductPersonalization:
 
         async def fake_query(query, parameters=None):
             return [
-                {"id": "p1", "name": "A", "description": "d", "price": 1, "category_id": "c"},
-                {"id": "p2", "name": "B", "description": "d", "price": 2, "category_id": "c"},
-                {"id": "p3", "name": "C", "description": "d", "price": 3, "category_id": "c"},
+                {
+                    "id": "p1",
+                    "name": "A",
+                    "description": "d",
+                    "price": 1,
+                    "category_id": "c",
+                },
+                {
+                    "id": "p2",
+                    "name": "B",
+                    "description": "d",
+                    "price": 2,
+                    "category_id": "c",
+                },
+                {
+                    "id": "p3",
+                    "name": "C",
+                    "description": "d",
+                    "price": 3,
+                    "category_id": "c",
+                },
             ]
 
         class FakeAgent:

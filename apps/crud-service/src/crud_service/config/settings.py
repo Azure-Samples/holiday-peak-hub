@@ -25,7 +25,9 @@ class Settings(BaseSettings):
     # Azure Database for PostgreSQL (CRUD transactional data)
     postgres_host: str = Field(..., description="PostgreSQL host")
     postgres_port: int = Field(default=5432, description="PostgreSQL port")
-    postgres_database: str = Field(default="holiday_peak_crud", description="PostgreSQL database name")
+    postgres_database: str = Field(
+        default="holiday_peak_crud", description="PostgreSQL database name"
+    )
     postgres_user: str = Field(..., description="PostgreSQL username")
     postgres_password: str | None = Field(default=None, description="PostgreSQL password")
     postgres_password_secret_name: str = Field(
@@ -55,7 +57,8 @@ class Settings(BaseSettings):
     entra_client_id: str | None = Field(default=None, description="Entra ID client ID")
     entra_client_secret: str | None = Field(default=None, description="Entra ID client secret")
     entra_issuer: str | None = Field(
-        default=None, description="Entra ID issuer (e.g., https://login.microsoftonline.com/...)"
+        default=None,
+        description="Entra ID issuer (e.g., https://login.microsoftonline.com/...)",
     )
 
     # CORS
@@ -76,7 +79,8 @@ class Settings(BaseSettings):
 
     # Feature Flags
     enable_agent_fallback: bool = Field(
-        default=True, description="Enable fallback to basic logic when agents unavailable"
+        default=True,
+        description="Enable fallback to basic logic when agents unavailable",
     )
     agent_timeout_seconds: float = Field(
         default=0.5, description="Timeout for agent REST calls (seconds)"

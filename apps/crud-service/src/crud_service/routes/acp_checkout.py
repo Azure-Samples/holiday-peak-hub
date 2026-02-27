@@ -4,9 +4,6 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
-
 from crud_service.auth import User, get_current_user
 from crud_service.config import get_settings
 from crud_service.integrations import get_agent_client, get_event_publisher
@@ -15,6 +12,8 @@ from crud_service.repositories import (
     OrderRepository,
     PaymentTokenRepository,
 )
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
 
 router = APIRouter()
 settings = get_settings()
@@ -212,9 +211,9 @@ async def create_checkout_session(
         "status": "created",
         "buyer": _merge_buyer(request.buyer, current_user).model_dump(),
         "items": [item.model_dump() for item in items],
-        "shipping_address": request.shipping_address.model_dump()
-        if request.shipping_address
-        else None,
+        "shipping_address": (
+            request.shipping_address.model_dump() if request.shipping_address else None
+        ),
         "fulfillment_options": fulfillment_options,
         "selected_fulfillment_id": selected_fulfillment_id,
         "totals": totals,

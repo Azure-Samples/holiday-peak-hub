@@ -1,12 +1,11 @@
 """Logging helpers with Azure Monitor + OpenTelemetry integration."""
+
 import logging
 import os
 import tracemalloc
 from contextlib import contextmanager
 from time import perf_counter
 from typing import Any, Awaitable, Callable, Optional
-
-
 
 DEFAULT_APP_NAME = os.getenv("APP_NAME", "unknown-app")
 
@@ -22,15 +21,19 @@ def _token_estimate(payload: Any) -> int:
     return max(1, int(len(text) / 4))
 
 
-def configure_logging(connection_string: Optional[str] = None, app_name: Optional[str] = None) -> logging.Logger:
+def configure_logging(
+    connection_string: Optional[str] = None, app_name: Optional[str] = None
+) -> logging.Logger:
     resolved_app = app_name or DEFAULT_APP_NAME
     base_logger = logging.getLogger(f"holiday-peak-lib.{resolved_app}")
     if base_logger.handlers:
         return logging.LoggerAdapter(base_logger, {"app_name": resolved_app})
 
     base_logger.setLevel(logging.INFO)
-    conn = connection_string or os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING") or os.getenv(
-        "APPINSIGHTS_CONNECTION_STRING"
+    conn = (
+        connection_string
+        or os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING")
+        or os.getenv("APPINSIGHTS_CONNECTION_STRING")
     )
     if conn:
         try:

@@ -1,4 +1,5 @@
 """Event handlers for ecommerce cart intelligence service."""
+
 from __future__ import annotations
 
 import asyncio
@@ -22,12 +23,15 @@ def build_event_handlers() -> dict[str, EventHandler]:
         items = _coerce_cart_items(data.get("items"))
         order_id = data.get("order_id") or data.get("id")
         if not items:
-            logger.info("cart_event_skipped", event_type=payload.get("event_type"), order_id=order_id)
+            logger.info(
+                "cart_event_skipped",
+                event_type=payload.get("event_type"),
+                order_id=order_id,
+            )
             return
 
         product_tasks = [
-            adapters.products.build_product_context(item["sku"], related_limit=3)
-            for item in items
+            adapters.products.build_product_context(item["sku"], related_limit=3) for item in items
         ]
         pricing_tasks = [
             adapters.pricing.build_price_context(item["sku"], limit=5) for item in items

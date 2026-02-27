@@ -1,8 +1,9 @@
 """Adapters for the logistics carrier selection service."""
+
 from __future__ import annotations
 
-from dataclasses import dataclass
 import os
+from dataclasses import dataclass
 from typing import Any, Optional
 
 from holiday_peak_lib.adapters import BaseExternalAPIAdapter
@@ -26,7 +27,9 @@ class CarrierSelector:
     async def select(self, context: LogisticsContext) -> dict[str, Any]:
         shipment = context.shipment
         service = shipment.service_level or "standard"
-        carrier = shipment.carrier or ("priority-carrier" if service == "express" else "economy-carrier")
+        carrier = shipment.carrier or (
+            "priority-carrier" if service == "express" else "economy-carrier"
+        )
         return {
             "tracking_id": shipment.tracking_id,
             "service_level": service,

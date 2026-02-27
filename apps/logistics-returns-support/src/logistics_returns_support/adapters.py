@@ -1,8 +1,9 @@
 """Adapters for the logistics returns support service."""
+
 from __future__ import annotations
 
-from dataclasses import dataclass
 import os
+from dataclasses import dataclass
 from typing import Any, Optional
 
 from holiday_peak_lib.adapters import BaseExternalAPIAdapter

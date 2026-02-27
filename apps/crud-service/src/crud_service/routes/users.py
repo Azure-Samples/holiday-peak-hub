@@ -1,11 +1,10 @@
 """User routes."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
-
 from crud_service.auth import User, get_current_user
 from crud_service.integrations import get_agent_client
 from crud_service.repositories import UserRepository
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 
 router = APIRouter()
 user_repo = UserRepository()

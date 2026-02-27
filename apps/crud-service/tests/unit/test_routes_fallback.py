@@ -1,14 +1,14 @@
 """Unit tests for CRUD routes error handling and fallback behavior."""
 
-import pytest
 from unittest.mock import AsyncMock, patch
-from fastapi.testclient import TestClient
 
-from crud_service.main import app
+import pytest
 from crud_service.auth import User, get_current_user, get_current_user_optional
-from crud_service.routes import products as products_routes
+from crud_service.main import app
 from crud_service.routes import cart as cart_routes
 from crud_service.routes import checkout as checkout_routes
+from crud_service.routes import products as products_routes
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture
@@ -133,9 +133,7 @@ class TestCheckoutRoutesFallback:
     """Test checkout routes gracefully handle agent failures."""
 
     @pytest.mark.asyncio
-    async def test_checkout_validation_with_agent_failure(
-        self, client, monkeypatch, override_auth
-    ):
+    async def test_checkout_validation_with_agent_failure(self, client, monkeypatch, override_auth):
         """Checkout validation should still work when agent fails."""
 
         async def fake_get_by_user(user_id: str):
@@ -158,9 +156,7 @@ class TestCheckoutRoutesFallback:
         assert "valid" in payload
 
     @pytest.mark.asyncio
-    async def test_checkout_validation_ready_cart(
-        self, client, monkeypatch, override_auth
-    ):
+    async def test_checkout_validation_ready_cart(self, client, monkeypatch, override_auth):
         """Checkout validation should pass for ready cart."""
 
         async def fake_get_by_user(user_id: str):
@@ -183,9 +179,7 @@ class TestCheckoutRoutesFallback:
         assert len(payload["errors"]) == 0
 
     @pytest.mark.asyncio
-    async def test_checkout_validation_multiple_issues(
-        self, client, monkeypatch, override_auth
-    ):
+    async def test_checkout_validation_multiple_issues(self, client, monkeypatch, override_auth):
         """Checkout validation should report all issues."""
 
         async def fake_get_by_user(user_id: str):
@@ -203,7 +197,11 @@ class TestCheckoutRoutesFallback:
                     "validation": {
                         "issues": [
                             {"sku": "prod-1", "type": "out_of_stock"},
-                            {"sku": "prod-2", "type": "insufficient_stock", "available": 1},
+                            {
+                                "sku": "prod-2",
+                                "type": "insufficient_stock",
+                                "available": 1,
+                            },
                         ]
                     }
                 }
@@ -226,6 +224,7 @@ class TestProductSearchRoutes:
     @pytest.fixture
     def override_auth_optional(self):
         """Override optional auth dependency so product routes are accessible."""
+
         async def _anon():
             return None
 
@@ -263,9 +262,7 @@ class TestProductSearchRoutes:
         assert len(payload) >= 1
 
     @pytest.mark.asyncio
-    async def test_search_products_empty_results(
-        self, client, monkeypatch, override_auth_optional
-    ):
+    async def test_search_products_empty_results(self, client, monkeypatch, override_auth_optional):
         """Search should return empty list for no matches."""
 
         async def fake_search(query: str, limit: int = 10):

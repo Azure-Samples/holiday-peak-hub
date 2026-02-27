@@ -4,17 +4,18 @@ This module keeps Azure AI Projects imports lazy to avoid hard failures
 when the SDK is not installed. It provides a small adapter that turns a Foundry
 Agent into a ``ModelTarget`` invoker for ``BaseRetailAgent``.
 """
+
 from __future__ import annotations
 
-import os
 import inspect
+import os
 from dataclasses import dataclass
-from typing import Any
 from time import perf_counter
+from typing import Any
 
-from azure.identity.aio import DefaultAzureCredential
 from azure.ai.projects.aio import AIProjectClient
 from azure.core.exceptions import HttpResponseError
+from azure.identity.aio import DefaultAzureCredential
 
 from .base_agent import ModelTarget
 
@@ -107,7 +108,9 @@ async def _maybe_await(value: Any) -> Any:
     return value
 
 
-async def _call_first_available(target: Any, method_names: tuple[str, ...], *args: Any, **kwargs: Any) -> Any:
+async def _call_first_available(
+    target: Any, method_names: tuple[str, ...], *args: Any, **kwargs: Any
+) -> Any:
     for method_name in method_names:
         method = getattr(target, method_name, None)
         if callable(method):
@@ -190,9 +193,7 @@ async def ensure_foundry_agent(
 
     project_client = _ensure_client(config)
     resolved_agent_name = (
-        agent_name
-        or config.agent_name
-        or _agent_name_from_identifier(config.agent_id)
+        agent_name or config.agent_name or _agent_name_from_identifier(config.agent_id)
     )
     try:
         async with project_client:
@@ -384,7 +385,9 @@ class FoundryInvoker:
         started = perf_counter()
         openai_client = client.get_openai_client()
         conversation_id = kwargs.pop("conversation_id", None)
-        input_text = "\n".join(str(m.get("content", "")) for m in messages if m.get("role") == "user")
+        input_text = "\n".join(
+            str(m.get("content", "")) for m in messages if m.get("role") == "user"
+        )
         if not input_text:
             input_text = "\n".join(str(m.get("content", "")) for m in messages)
 
@@ -398,7 +401,12 @@ class FoundryInvoker:
                     openai_client.responses.create(
                         input=input_text,
                         conversation=conversation_id,
-                        extra_body={"agent_reference": {"name": reference_name, "type": "agent_reference"}},
+                        extra_body={
+                            "agent_reference": {
+                                "name": reference_name,
+                                "type": "agent_reference",
+                            }
+                        },
                     )
                 )
             else:
@@ -418,7 +426,12 @@ class FoundryInvoker:
                     openai_client.responses.create(
                         conversation=conversation_id,
                         input=input_text,
-                        extra_body={"agent_reference": {"name": reference_name, "type": "agent_reference"}},
+                        extra_body={
+                            "agent_reference": {
+                                "name": reference_name,
+                                "type": "agent_reference",
+                            }
+                        },
                     )
                 )
         finally:
@@ -426,14 +439,19 @@ class FoundryInvoker:
             if callable(close_method):
                 await _maybe_await(close_method())
 
-        response_dict = response.model_dump() if hasattr(response, "model_dump") else (
-            response.to_dict() if hasattr(response, "to_dict") else dict(getattr(response, "__dict__", {}))
+        response_dict = (
+            response.model_dump()
+            if hasattr(response, "model_dump")
+            else (
+                response.to_dict()
+                if hasattr(response, "to_dict")
+                else dict(getattr(response, "__dict__", {}))
+            )
         )
 
         output = response_dict.get("output") or []
         output_messages = [
-            item for item in output
-            if isinstance(item, dict) and item.get("type") == "message"
+            item for item in output if isinstance(item, dict) and item.get("type") == "message"
         ]
 
         telemetry = {

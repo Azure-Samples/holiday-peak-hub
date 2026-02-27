@@ -1,4 +1,5 @@
 """Event handlers for product consistency validation service."""
+
 from __future__ import annotations
 
 import json
@@ -11,9 +12,7 @@ from .adapters import build_consistency_adapters
 
 def build_event_handlers() -> dict[str, EventHandler]:
     """Build event handlers for consistency validation subscriptions."""
-    logger = configure_logging(
-        app_name="product-management-consistency-validation-events"
-    )
+    logger = configure_logging(app_name="product-management-consistency-validation-events")
     adapters = build_consistency_adapters()
 
     async def handle_product_event(partition_context, event) -> None:  # noqa: ANN001

@@ -3,11 +3,10 @@
 from datetime import datetime
 
 import pytest
-from fastapi.testclient import TestClient
-
 from crud_service.auth import User, get_current_user
 from crud_service.main import app
 from crud_service.routes import acp_checkout, acp_payments
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture

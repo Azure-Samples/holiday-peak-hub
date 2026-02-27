@@ -1,4 +1,5 @@
 """Inventory reservation validation agent implementation and MCP tool registration."""
+
 from __future__ import annotations
 
 import os
@@ -36,9 +37,7 @@ class ReservationValidationAgent(BaseRetailAgent):
         if not context:
             return {"error": "sku not found", "sku": sku}
 
-        validation = await self.adapters.validator.validate(
-            context, request_qty=request_qty
-        )
+        validation = await self.adapters.validator.validate(context, request_qty=request_qty)
 
         if self.slm or self.llm:
             messages = [

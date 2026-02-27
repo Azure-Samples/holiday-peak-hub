@@ -1,4 +1,5 @@
 """Catalog search agent implementation and MCP tool registration (ACP-aware)."""
+
 from __future__ import annotations
 
 import asyncio
@@ -110,7 +111,9 @@ def _coerce_query_to_sku(query: str) -> str:
     return f"SKU-{abs(hash(query)) % 1000}"
 
 
-async def _search_products(adapters: CatalogAdapters, *, query: str, limit: int) -> list[CatalogProduct]:
+async def _search_products(
+    adapters: CatalogAdapters, *, query: str, limit: int
+) -> list[CatalogProduct]:
     primary_sku = _coerce_query_to_sku(query)
     primary = await adapters.products.get_product(primary_sku)
     related = await adapters.products.get_related(primary_sku, limit=max(limit - 1, 0))

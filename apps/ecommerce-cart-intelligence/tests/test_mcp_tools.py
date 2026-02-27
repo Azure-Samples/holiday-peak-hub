@@ -1,18 +1,15 @@
 """Unit tests for cart intelligence MCP tool registration."""
-import pytest
-from unittest.mock import AsyncMock, Mock, patch, MagicMock
 
-from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
+
+import pytest
+from ecommerce_cart_intelligence.adapters import CartAdapters, CartAnalyticsAdapter
+from ecommerce_cart_intelligence.agents import CartIntelligenceAgent, register_mcp_tools
 from holiday_peak_lib.agents.base_agent import AgentDependencies
+from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.schemas.inventory import InventoryContext, InventoryItem
 from holiday_peak_lib.schemas.pricing import PriceContext, PriceEntry
-from holiday_peak_lib.schemas.product import ProductContext, CatalogProduct
-
-from ecommerce_cart_intelligence.agents import (
-    CartIntelligenceAgent,
-    register_mcp_tools,
-)
-from ecommerce_cart_intelligence.adapters import CartAdapters, CartAnalyticsAdapter
+from holiday_peak_lib.schemas.product import CatalogProduct, ProductContext
 
 
 @pytest.fixture
@@ -45,9 +42,7 @@ def mock_agent():
     )
     mock_pricing_ctx = PriceContext(
         sku="SKU-001",
-        active=PriceEntry(
-            sku="SKU-001", amount=50.0, currency="USD", promotional=True
-        ),
+        active=PriceEntry(sku="SKU-001", amount=50.0, currency="USD", promotional=True),
         offers=[],
     )
     mock_inventory_ctx = InventoryContext(

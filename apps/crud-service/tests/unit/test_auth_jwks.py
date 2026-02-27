@@ -3,12 +3,11 @@
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import crud_service.auth.dependencies as deps_module
 import httpx
 import pytest
 from fastapi import HTTPException
 from jose import jwt as jose_jwt
-
-import crud_service.auth.dependencies as deps_module
 
 JWTConfig = deps_module.JWTConfig
 get_current_user = deps_module.get_current_user

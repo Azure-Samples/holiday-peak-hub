@@ -1,16 +1,15 @@
 """Unit tests for checkout support event handlers."""
+
 from __future__ import annotations
 
 import json
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-
-from holiday_peak_lib.schemas.inventory import InventoryContext, InventoryItem
-from holiday_peak_lib.schemas.pricing import PriceContext, PriceEntry
-
 from ecommerce_checkout_support.adapters import CheckoutAdapters
 from ecommerce_checkout_support.event_handlers import build_event_handlers
+from holiday_peak_lib.schemas.inventory import InventoryContext, InventoryItem
+from holiday_peak_lib.schemas.pricing import PriceContext, PriceEntry
 
 
 class FakeEvent:
@@ -29,9 +28,7 @@ async def test_handle_order_event_processes_validation():
     logger = Mock()
     pricing_ctx = PriceContext(
         sku="SKU-1",
-        active=PriceEntry(
-            sku="SKU-1", amount=19.99, currency="USD", promotional=False
-        ),
+        active=PriceEntry(sku="SKU-1", amount=19.99, currency="USD", promotional=False),
         offers=[],
     )
     inventory_ctx = InventoryContext(

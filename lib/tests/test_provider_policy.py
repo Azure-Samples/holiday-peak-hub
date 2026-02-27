@@ -24,7 +24,10 @@ def test_sanitize_messages_foundry_governed():
 
 
 def test_sanitize_messages_non_foundry_passthrough():
-    messages = [{"role": "system", "content": "local"}, {"role": "user", "content": "hello"}]
+    messages = [
+        {"role": "system", "content": "local"},
+        {"role": "user", "content": "hello"},
+    ]
     sanitized = sanitize_messages_for_provider(
         messages,
         provider="openai",
@@ -35,13 +38,11 @@ def test_sanitize_messages_non_foundry_passthrough():
 
 def test_routing_prompt_disabled_for_foundry_when_governed():
     assert (
-        should_use_local_routing_prompt(provider="foundry", enforce_prompt_governance=True)
-        is False
+        should_use_local_routing_prompt(provider="foundry", enforce_prompt_governance=True) is False
     )
 
 
 def test_routing_prompt_enabled_when_governance_disabled():
     assert (
-        should_use_local_routing_prompt(provider="foundry", enforce_prompt_governance=False)
-        is True
+        should_use_local_routing_prompt(provider="foundry", enforce_prompt_governance=False) is True
     )

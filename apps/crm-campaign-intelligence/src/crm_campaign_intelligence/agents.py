@@ -1,4 +1,5 @@
 """Campaign intelligence agent implementation and MCP tool registration."""
+
 from __future__ import annotations
 
 import os
@@ -55,7 +56,7 @@ class CampaignIntelligenceAgent(BaseRetailAgent):
                         "contact_id": contact_id,
                         "account_id": account_id,
                         "campaign_id": campaign_id,
-                        "crm_context": crm_context.model_dump() if crm_context else None,
+                        "crm_context": (crm_context.model_dump() if crm_context else None),
                         "funnel_context": funnel_context.model_dump(),
                     },
                 },

@@ -15,7 +15,7 @@ async def health_check():
 async def readiness_check():
     """
     Readiness check with dependency validation.
-    
+
     TODO: Check PostgreSQL, Event Hubs, Redis connectivity.
     """
     return {"status": "ready", "service": "crud-service"}

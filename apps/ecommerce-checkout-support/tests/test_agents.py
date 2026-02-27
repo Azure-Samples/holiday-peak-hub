@@ -1,16 +1,16 @@
 """Unit tests for CheckoutSupportAgent."""
-import pytest
+
 from unittest.mock import AsyncMock, Mock, patch
 
-from holiday_peak_lib.agents.base_agent import AgentDependencies
-from holiday_peak_lib.schemas.inventory import InventoryContext, InventoryItem
-from holiday_peak_lib.schemas.pricing import PriceContext, PriceEntry
-
-from ecommerce_checkout_support.agents import CheckoutSupportAgent, _coerce_items
+import pytest
 from ecommerce_checkout_support.adapters import (
     CheckoutAdapters,
     CheckoutValidationAdapter,
 )
+from ecommerce_checkout_support.agents import CheckoutSupportAgent, _coerce_items
+from holiday_peak_lib.agents.base_agent import AgentDependencies
+from holiday_peak_lib.schemas.inventory import InventoryContext, InventoryItem
+from holiday_peak_lib.schemas.pricing import PriceContext, PriceEntry
 
 
 @pytest.fixture
@@ -56,18 +56,14 @@ class TestCheckoutValidationAdapter:
         inventory = [
             InventoryContext(
                 sku="SKU-001",
-                item=InventoryItem(
-                    sku="SKU-001", available=100, reserved=0, warehouse_id="WH1"
-                ),
+                item=InventoryItem(sku="SKU-001", available=100, reserved=0, warehouse_id="WH1"),
                 warehouses=[],
             )
         ]
         pricing = [
             PriceContext(
                 sku="SKU-001",
-                active=PriceEntry(
-                    sku="SKU-001", amount=10.0, currency="USD", promotional=False
-                ),
+                active=PriceEntry(sku="SKU-001", amount=10.0, currency="USD", promotional=False),
                 offers=[],
             )
         ]
@@ -85,18 +81,14 @@ class TestCheckoutValidationAdapter:
         inventory = [
             InventoryContext(
                 sku="SKU-001",
-                item=InventoryItem(
-                    sku="SKU-001", available=0, reserved=0, warehouse_id="WH1"
-                ),
+                item=InventoryItem(sku="SKU-001", available=0, reserved=0, warehouse_id="WH1"),
                 warehouses=[],
             )
         ]
         pricing = [
             PriceContext(
                 sku="SKU-001",
-                active=PriceEntry(
-                    sku="SKU-001", amount=10.0, currency="USD", promotional=False
-                ),
+                active=PriceEntry(sku="SKU-001", amount=10.0, currency="USD", promotional=False),
                 offers=[],
             )
         ]
@@ -114,18 +106,14 @@ class TestCheckoutValidationAdapter:
         inventory = [
             InventoryContext(
                 sku="SKU-001",
-                item=InventoryItem(
-                    sku="SKU-001", available=5, reserved=0, warehouse_id="WH1"
-                ),
+                item=InventoryItem(sku="SKU-001", available=5, reserved=0, warehouse_id="WH1"),
                 warehouses=[],
             )
         ]
         pricing = [
             PriceContext(
                 sku="SKU-001",
-                active=PriceEntry(
-                    sku="SKU-001", amount=10.0, currency="USD", promotional=False
-                ),
+                active=PriceEntry(sku="SKU-001", amount=10.0, currency="USD", promotional=False),
                 offers=[],
             )
         ]
@@ -144,9 +132,7 @@ class TestCheckoutValidationAdapter:
         pricing = [
             PriceContext(
                 sku="SKU-001",
-                active=PriceEntry(
-                    sku="SKU-001", amount=10.0, currency="USD", promotional=False
-                ),
+                active=PriceEntry(sku="SKU-001", amount=10.0, currency="USD", promotional=False),
                 offers=[],
             )
         ]
@@ -164,9 +150,7 @@ class TestCheckoutValidationAdapter:
         inventory = [
             InventoryContext(
                 sku="SKU-001",
-                item=InventoryItem(
-                    sku="SKU-001", available=100, reserved=0, warehouse_id="WH1"
-                ),
+                item=InventoryItem(sku="SKU-001", available=100, reserved=0, warehouse_id="WH1"),
                 warehouses=[],
             )
         ]
@@ -192,34 +176,24 @@ class TestCheckoutSupportAgent:
         """Test handling a valid checkout."""
         mock_pricing_ctx = PriceContext(
             sku="SKU-001",
-            active=PriceEntry(
-                sku="SKU-001", amount=50.0, currency="USD", promotional=True
-            ),
+            active=PriceEntry(sku="SKU-001", amount=50.0, currency="USD", promotional=True),
             offers=[],
         )
         mock_inventory_ctx = InventoryContext(
             sku="SKU-001",
-            item=InventoryItem(
-                sku="SKU-001", available=100, reserved=0, warehouse_id="WH1"
-            ),
+            item=InventoryItem(sku="SKU-001", available=100, reserved=0, warehouse_id="WH1"),
             warehouses=[],
         )
 
-        with patch(
-            "ecommerce_checkout_support.agents.build_checkout_adapters"
-        ) as mock_build:
+        with patch("ecommerce_checkout_support.agents.build_checkout_adapters") as mock_build:
             mock_pricing = AsyncMock()
             mock_pricing.build_price_context = AsyncMock(return_value=mock_pricing_ctx)
 
             mock_inventory = AsyncMock()
-            mock_inventory.build_inventory_context = AsyncMock(
-                return_value=mock_inventory_ctx
-            )
+            mock_inventory.build_inventory_context = AsyncMock(return_value=mock_inventory_ctx)
 
             mock_validator = AsyncMock()
-            mock_validator.validate = AsyncMock(
-                return_value={"status": "ready", "issues": []}
-            )
+            mock_validator.validate = AsyncMock(return_value={"status": "ready", "issues": []})
 
             mock_build.return_value = CheckoutAdapters(
                 pricing=mock_pricing,
@@ -228,9 +202,7 @@ class TestCheckoutSupportAgent:
             )
 
             agent = CheckoutSupportAgent(config=agent_config)
-            result = await agent.handle(
-                {"items": [{"sku": "SKU-001", "quantity": 1}]}
-            )
+            result = await agent.handle({"items": [{"sku": "SKU-001", "quantity": 1}]})
 
             assert result["service"] == "test-checkout-support"
             assert "validation" in result
@@ -239,13 +211,9 @@ class TestCheckoutSupportAgent:
     @pytest.mark.asyncio
     async def test_handle_empty_checkout(self, agent_config):
         """Test handling empty checkout."""
-        with patch(
-            "ecommerce_checkout_support.agents.build_checkout_adapters"
-        ) as mock_build:
+        with patch("ecommerce_checkout_support.agents.build_checkout_adapters") as mock_build:
             mock_validator = AsyncMock()
-            mock_validator.validate = AsyncMock(
-                return_value={"status": "ready", "issues": []}
-            )
+            mock_validator.validate = AsyncMock(return_value={"status": "ready", "issues": []})
 
             mock_build.return_value = CheckoutAdapters(
                 pricing=AsyncMock(),

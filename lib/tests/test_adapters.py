@@ -1,21 +1,23 @@
 """Tests for adapter base classes."""
+
 import asyncio
 
 import httpx
 import pytest
 from fastapi import FastAPI
-from holiday_peak_lib.adapters import BaseCRUDAdapter, BaseExternalAPIAdapter, BaseMCPAdapter
-from holiday_peak_lib.adapters.base import (
-    BaseAdapter,
-    AdapterError,
-    BaseConnector,
+from holiday_peak_lib.adapters import (
+    BaseCRUDAdapter,
+    BaseExternalAPIAdapter,
+    BaseMCPAdapter,
 )
+from holiday_peak_lib.adapters.base import AdapterError, BaseAdapter, BaseConnector
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from pydantic import BaseModel
 
 
 class SampleModel(BaseModel):
     """Test Pydantic model."""
+
     id: str
     value: str
 
@@ -138,30 +140,21 @@ class TestBaseAdapter:
     @pytest.mark.asyncio
     async def test_retry_on_failure(self):
         """Test retry mechanism on failure."""
-        adapter = FailingAdapter(
-            fail_count=2,
-            retries=3,
-            base_delay=0.01,
-            timeout=1.0
-        )
+        adapter = FailingAdapter(fail_count=2, retries=3, base_delay=0.01, timeout=1.0)
         await adapter.fetch({"query": "test"})
         assert adapter.attempts == 3  # Failed twice, succeeded third time
 
     @pytest.mark.asyncio
     async def test_failure_raises_after_retries(self):
         """Test that failure raises after exhausting retries."""
-        adapter = FailingAdapter(
-            fail_count=10,
-            retries=2,
-            base_delay=0.01,
-            timeout=1.0
-        )
+        adapter = FailingAdapter(fail_count=10, retries=2, base_delay=0.01, timeout=1.0)
         with pytest.raises(AdapterError, match="Operation failed after retries"):
             await adapter.fetch({"query": "test"})
 
     @pytest.mark.asyncio
     async def test_timeout_mechanism(self):
         """Test timeout mechanism."""
+
         class SlowAdapter(BaseAdapter):
             async def _connect_impl(self, **kwargs):
                 pass
@@ -188,14 +181,14 @@ class TestBaseAdapter:
             circuit_breaker_threshold=3,
             retries=0,
             timeout=1.0,
-            base_delay=0.01
+            base_delay=0.01,
         )
-        
+
         # Trigger failures to open circuit
         for _ in range(3):
             with pytest.raises(AdapterError):
                 await adapter.fetch({"query": "test"})
-        
+
         # Next call should fail immediately due to open circuit
         with pytest.raises(AdapterError, match="Circuit breaker open"):
             await adapter.fetch({"query": "test"})
@@ -204,7 +197,7 @@ class TestBaseAdapter:
     async def test_rate_limiting(self):
         """Test rate limiting functionality."""
         adapter = SampleAdapter(max_calls=2, per_seconds=1.0)
-        
+
         start = asyncio.get_event_loop().time()
         # First two calls should be immediate
         await adapter.fetch({"query": "1"})
@@ -212,7 +205,7 @@ class TestBaseAdapter:
         # Third call should be delayed
         await adapter.fetch({"query": "3"})
         elapsed = asyncio.get_event_loop().time() - start
-        
+
         assert elapsed >= 0.9  # Should have waited ~1 second
 
     @pytest.mark.asyncio
@@ -222,7 +215,7 @@ class TestBaseAdapter:
         key1 = adapter._cache_key({"a": 1, "b": 2})
         key2 = adapter._cache_key({"b": 2, "a": 1})
         key3 = adapter._cache_key({"a": 1, "c": 3})
-        
+
         assert key1 == key2  # Order shouldn't matter
         assert key1 != key3  # Different content
 
@@ -239,7 +232,7 @@ class TestBaseAdapter:
             max_delay=2.0,
             timeout=10.0,
             circuit_breaker_threshold=10,
-            circuit_reset_seconds=60.0
+            circuit_reset_seconds=60.0,
         )
         assert adapter._max_calls == 5
         assert adapter._per_seconds == 2.0
@@ -255,9 +248,9 @@ class TestBaseConnector:
         """Test _fetch_first functionality."""
         mock_adapter = SampleAdapter()
         connector = BaseConnector(mock_adapter, map_concurrency=2)
-        
+
         result = await connector._fetch_first(query="test")
-        
+
         assert result is not None
         assert result["id"] == "1"
 
@@ -266,9 +259,9 @@ class TestBaseConnector:
         """Test _fetch_many functionality."""
         mock_adapter = SampleAdapter()
         connector = BaseConnector(mock_adapter, map_concurrency=2)
-        
+
         results = await connector._fetch_many(query="test")
-        
+
         assert len(results) == 1
         assert results[0]["id"] == "1"
 
@@ -276,12 +269,9 @@ class TestBaseConnector:
     async def test_map_single(self):
         """Test _map_single functionality."""
         connector = BaseConnector(map_concurrency=2)
-        
-        result = await connector._map_single(
-            SampleModel,
-            {"id": "1", "value": "test"}
-        )
-        
+
+        result = await connector._map_single(SampleModel, {"id": "1", "value": "test"})
+
         assert isinstance(result, SampleModel)
         assert result.id == "1"
 
@@ -289,23 +279,20 @@ class TestBaseConnector:
     async def test_map_single_none(self):
         """Test _map_single with None payload."""
         connector = BaseConnector(map_concurrency=2)
-        
+
         result = await connector._map_single(SampleModel, None)
-        
+
         assert result is None
 
     @pytest.mark.asyncio
     async def test_map_many(self):
         """Test _map_many functionality."""
         connector = BaseConnector(map_concurrency=2)
-        
-        payloads = [
-            {"id": "1", "value": "test1"},
-            {"id": "2", "value": "test2"}
-        ]
-        
+
+        payloads = [{"id": "1", "value": "test1"}, {"id": "2", "value": "test2"}]
+
         results = await connector._map_many(SampleModel, payloads)
-        
+
         assert len(results) == 2
         assert all(isinstance(r, SampleModel) for r in results)
 

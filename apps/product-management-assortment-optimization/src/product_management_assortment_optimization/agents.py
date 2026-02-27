@@ -1,4 +1,5 @@
 """Assortment optimization agent implementation and MCP tool registration."""
+
 from __future__ import annotations
 
 import os

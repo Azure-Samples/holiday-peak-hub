@@ -1,7 +1,9 @@
 """Pytest configuration and shared fixtures."""
-import pytest
+
 import asyncio
-from unittest.mock import Mock, AsyncMock
+from unittest.mock import AsyncMock, Mock
+
+import pytest
 
 
 @pytest.fixture(scope="session")
@@ -53,11 +55,7 @@ def mock_blob_client():
 @pytest.fixture
 def sample_request():
     """Sample request payload for testing."""
-    return {
-        "query": "test query",
-        "user_id": "user123",
-        "context": {"key": "value"}
-    }
+    return {"query": "test query", "user_id": "user123", "context": {"key": "value"}}
 
 
 @pytest.fixture
@@ -68,7 +66,7 @@ def sample_crm_account():
         "name": "Test Company",
         "region": "US-West",
         "industry": "Technology",
-        "tier": "Enterprise"
+        "tier": "Enterprise",
     }
 
 
@@ -80,5 +78,5 @@ def sample_crm_contact():
         "account_id": "A123",
         "email": "test@example.com",
         "first_name": "John",
-        "last_name": "Doe"
+        "last_name": "Doe",
     }

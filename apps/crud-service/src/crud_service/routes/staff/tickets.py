@@ -1,10 +1,9 @@
 """Staff ticket management routes."""
 
-from fastapi import APIRouter, Depends
-from pydantic import BaseModel
-
 from crud_service.auth import User, require_staff
 from crud_service.repositories.base import BaseRepository
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 
 router = APIRouter()
 
@@ -34,7 +33,7 @@ class TicketResponse(BaseModel):
 async def list_tickets(current_user: User = Depends(require_staff)):
     """
     List support tickets.
-    
+
     Requires staff role.
     """
     tickets = await ticket_repo.query(

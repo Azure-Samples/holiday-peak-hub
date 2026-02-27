@@ -37,8 +37,7 @@ def _build_dsn() -> str:
 
 
 async def _ensure_table(conn: asyncpg.Connection, table_name: str) -> None:
-    await conn.execute(
-        f"""
+    await conn.execute(f"""
         CREATE TABLE IF NOT EXISTS {table_name} (
             id TEXT PRIMARY KEY,
             partition_key TEXT,
@@ -46,8 +45,7 @@ async def _ensure_table(conn: asyncpg.Connection, table_name: str) -> None:
             created_at TIMESTAMPTZ DEFAULT NOW(),
             updated_at TIMESTAMPTZ DEFAULT NOW()
         )
-        """
-    )
+        """)
     await conn.execute(
         f"CREATE INDEX IF NOT EXISTS idx_{table_name}_partition_key ON {table_name}(partition_key)"
     )

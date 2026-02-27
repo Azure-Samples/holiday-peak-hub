@@ -1,4 +1,5 @@
 """Event Hub subscription helpers for agent services."""
+
 from __future__ import annotations
 
 import asyncio
@@ -9,9 +10,7 @@ from dataclasses import dataclass
 from typing import Any, AsyncIterator, Awaitable, Callable, Iterable
 
 from azure.eventhub.aio import EventHubConsumerClient
-
 from holiday_peak_lib.utils.logging import configure_logging
-
 
 EventHandler = Callable[[Any, Any], Awaitable[None]]
 ErrorHandler = Callable[[Any], Awaitable[None]]
@@ -183,13 +182,11 @@ def build_event_handlers_with_keys(
                     break
             logger.info(
                 "event_processed",
-                event_type=payload.get("event_type") if isinstance(payload, dict) else None,
+                event_type=(payload.get("event_type") if isinstance(payload, dict) else None),
                 eventhub=eventhub_name,
                 entity_id=identifier,
             )
 
         return _handler
 
-    return {
-        name: make_handler(name, keys) for name, keys in eventhub_keys.items()
-    }
+    return {name: make_handler(name, keys) for name, keys in eventhub_keys.items()}

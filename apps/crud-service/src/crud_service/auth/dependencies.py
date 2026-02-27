@@ -5,12 +5,11 @@ import time
 from typing import Annotated
 
 import httpx
+from crud_service.config import get_settings
 from fastapi import Depends, HTTPException, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from pydantic import BaseModel
-
-from crud_service.config import get_settings
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -77,7 +76,7 @@ jwt_config = JWTConfig()
 
 
 async def get_current_user(
-    credentials: Annotated[HTTPAuthorizationCredentials, Security(security)]
+    credentials: Annotated[HTTPAuthorizationCredentials, Security(security)],
 ) -> User:
     """
     Extract and validate JWT token from Authorization header.
@@ -154,7 +153,7 @@ async def get_current_user(
 def require_role(required_role: str):
     """
     Dependency to check if user has required role.
-    
+
     Usage:
         @app.get("/admin")
         async def admin_route(user: User = Depends(require_role("admin"))):
@@ -180,7 +179,7 @@ require_admin = require_role("admin")
 
 # Optional authentication (for endpoints that work for both anonymous and authenticated)
 async def get_current_user_optional(
-    credentials: Annotated[HTTPAuthorizationCredentials | None, Security(security)] = None
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Security(security)] = None,
 ) -> User | None:
     """Get current user if authenticated, otherwise return None."""
     if credentials is None:

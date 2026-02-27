@@ -6,7 +6,6 @@ import re
 from typing import Any, Generic, TypeVar
 
 import asyncpg
-
 from crud_service.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -29,7 +28,7 @@ class BaseRepository(Generic[T]):
     def __init__(self, container_name: str):
         """
         Initialize repository.
-        
+
         Args:
             container_name: Logical repository/table name
         """
@@ -85,8 +84,7 @@ class BaseRepository(Generic[T]):
 
         pool = await self._get_pool()
         async with pool.acquire() as conn:
-            await conn.execute(
-                f"""
+            await conn.execute(f"""
                 CREATE TABLE IF NOT EXISTS {self.table_name} (
                     id TEXT PRIMARY KEY,
                     partition_key TEXT,
@@ -94,8 +92,7 @@ class BaseRepository(Generic[T]):
                     created_at TIMESTAMPTZ DEFAULT NOW(),
                     updated_at TIMESTAMPTZ DEFAULT NOW()
                 )
-                """
-            )
+                """)
             await conn.execute(
                 f"CREATE INDEX IF NOT EXISTS idx_{self.table_name}_partition_key ON {self.table_name}(partition_key)"
             )
@@ -108,10 +105,10 @@ class BaseRepository(Generic[T]):
     async def create(self, item: dict[str, Any]) -> dict[str, Any]:
         """
         Create a new item.
-        
+
         Args:
             item: Item to create (must include 'id' and partition key)
-            
+
         Returns:
             Created item with metadata
         """
@@ -134,11 +131,11 @@ class BaseRepository(Generic[T]):
     ) -> dict[str, Any] | None:
         """
         Get item by ID.
-        
+
         Args:
             item_id: Item ID
             partition_key: Partition key value (optional if same as ID)
-            
+
         Returns:
             Item or None if not found
         """
@@ -168,10 +165,10 @@ class BaseRepository(Generic[T]):
     async def update(self, item: dict[str, Any]) -> dict[str, Any]:
         """
         Update an existing item (upsert).
-        
+
         Args:
             item: Item to update (must include 'id' and partition key)
-            
+
         Returns:
             Updated item with metadata
         """
@@ -200,7 +197,7 @@ class BaseRepository(Generic[T]):
     async def delete(self, item_id: str, partition_key: str | None = None) -> None:
         """
         Delete an item.
-        
+
         Args:
             item_id: Item ID
             partition_key: Partition key value (optional if same as ID)
@@ -229,12 +226,12 @@ class BaseRepository(Generic[T]):
     ) -> list[dict[str, Any]]:
         """
         Execute a SQL query.
-        
+
         Args:
             query: SQL query string
             parameters: Query parameters (e.g., [{"name": "@id", "value": "123"}])
             partition_key: Partition key for query (enables single-partition query)
-            
+
         Returns:
             List of items matching query
         """
@@ -253,7 +250,7 @@ class BaseRepository(Generic[T]):
                 rows = await conn.fetch(f"SELECT data FROM {self.table_name}")
 
         items = [
-            json.loads(row["data"]) if isinstance(row["data"], str) else dict(row["data"])
+            (json.loads(row["data"]) if isinstance(row["data"], str) else dict(row["data"]))
             for row in rows
         ]
 
@@ -263,7 +260,9 @@ class BaseRepository(Generic[T]):
             where_clause = where_match.group(1).strip()
 
         if where_clause:
-            items = [item for item in items if self._matches_where(item, where_clause, parameter_map)]
+            items = [
+                item for item in items if self._matches_where(item, where_clause, parameter_map)
+            ]
 
         order_match = re.search(r"ORDER BY\s+c\.(\w+)\s+(ASC|DESC)", query, re.IGNORECASE)
         if order_match:

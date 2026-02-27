@@ -8,7 +8,10 @@ from typing import Any, Awaitable, Callable
 from agent_framework import BaseAgent
 from pydantic import BaseModel, ConfigDict, Field
 
-from .provider_policy import sanitize_messages_for_provider, should_use_local_routing_prompt
+from .provider_policy import (
+    sanitize_messages_for_provider,
+    should_use_local_routing_prompt,
+)
 
 ModelInvoker = Callable[..., Awaitable[dict[str, Any]]]
 

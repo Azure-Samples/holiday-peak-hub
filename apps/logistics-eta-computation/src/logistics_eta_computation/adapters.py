@@ -1,9 +1,10 @@
 """Adapters for the logistics ETA computation service."""
+
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-import os
 from typing import Any, Optional
 
 from holiday_peak_lib.adapters import BaseExternalAPIAdapter

@@ -1,4 +1,5 @@
 """Event handlers for inventory reservation validation service."""
+
 from __future__ import annotations
 
 import json
@@ -18,9 +19,7 @@ def build_event_handlers() -> dict[str, EventHandler]:
         payload = json.loads(event.body_as_str())
         data = payload.get("data", {}) if isinstance(payload, dict) else {}
         items = data.get("items") or []
-        reservation_id = data.get("reservation_id") or data.get("order_id") or data.get(
-            "id"
-        )
+        reservation_id = data.get("reservation_id") or data.get("order_id") or data.get("id")
         if not items:
             logger.info(
                 "reservation_event_skipped",
@@ -46,9 +45,7 @@ def build_event_handlers() -> dict[str, EventHandler]:
                     }
                 )
                 continue
-            validation = await adapters.validator.validate(
-                context, request_qty=request_qty
-            )
+            validation = await adapters.validator.validate(context, request_qty=request_qty)
             results.append(validation)
 
         approved_count = sum(1 for result in results if result.get("approved"))

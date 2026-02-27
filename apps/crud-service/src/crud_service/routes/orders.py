@@ -3,12 +3,11 @@
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
-
 from crud_service.auth import User, get_current_user
 from crud_service.integrations import get_agent_client, get_event_publisher
 from crud_service.repositories import CartRepository, OrderRepository
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 
 router = APIRouter()
 order_repo = OrderRepository()
@@ -109,9 +108,7 @@ async def get_order(order_id: str, current_user: User = Depends(get_current_user
 
 
 @router.get("/orders/{order_id}/returns", response_model=ReturnPlanResponse)
-async def get_return_plan(
-    order_id: str, current_user: User = Depends(get_current_user)
-):
+async def get_return_plan(order_id: str, current_user: User = Depends(get_current_user)):
     """Get a returns plan for an order via the logistics agent."""
     order = await order_repo.get_by_id(order_id, partition_key=current_user.user_id)
     if not order:
@@ -131,7 +128,7 @@ async def create_order(
 ):
     """
     Create order from cart.
-    
+
     Publishes OrderCreated event to event-hub for agent processing.
     """
     # Get cart

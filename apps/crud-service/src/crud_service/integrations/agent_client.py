@@ -5,9 +5,8 @@ from typing import Any
 
 import httpx
 from circuitbreaker import CircuitBreakerError, circuit
-from tenacity import retry, stop_after_attempt, wait_exponential
-
 from crud_service.config import get_settings
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -160,9 +159,7 @@ class AgentClient:
 
     # ── Catalog Search ──────────────────────────────────────────────
 
-    async def semantic_search(
-        self, query: str, limit: int = 20
-    ) -> list[dict[str, Any]]:
+    async def semantic_search(self, query: str, limit: int = 20) -> list[dict[str, Any]]:
         """Semantic product search via the catalog-search agent."""
         result = await self.call_endpoint(
             agent_url=self._resolve_agent_url(
@@ -193,9 +190,7 @@ class AgentClient:
 
     # ── Inventory Reservation ───────────────────────────────────────
 
-    async def validate_reservation(
-        self, sku: str, quantity: int
-    ) -> dict[str, Any] | None:
+    async def validate_reservation(self, sku: str, quantity: int) -> dict[str, Any] | None:
         """Validate stock reservation via the reservation agent."""
         return await self.call_endpoint(
             agent_url=self._resolve_agent_url(
@@ -221,9 +216,7 @@ class AgentClient:
             fallback_value=None,
         )
 
-    async def get_carrier_recommendation(
-        self, tracking_id: str
-    ) -> dict[str, Any] | None:
+    async def get_carrier_recommendation(self, tracking_id: str) -> dict[str, Any] | None:
         """Get optimal carrier recommendation."""
         return await self.call_endpoint(
             agent_url=self._resolve_agent_url(
@@ -249,9 +242,7 @@ class AgentClient:
 
     # ── CRM ─────────────────────────────────────────────────────────
 
-    async def get_customer_profile(
-        self, contact_id: str
-    ) -> dict[str, Any] | None:
+    async def get_customer_profile(self, contact_id: str) -> dict[str, Any] | None:
         """Get aggregated customer profile from CRM agent."""
         return await self.call_endpoint(
             agent_url=self._resolve_agent_url(
@@ -263,9 +254,7 @@ class AgentClient:
             fallback_value=None,
         )
 
-    async def get_personalization(
-        self, contact_id: str
-    ) -> dict[str, Any] | None:
+    async def get_personalization(self, contact_id: str) -> dict[str, Any] | None:
         """Get personalization recommendations from the segmentation agent."""
         return await self.call_endpoint(
             agent_url=self._resolve_agent_url(

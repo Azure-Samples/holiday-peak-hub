@@ -1,12 +1,11 @@
 """Cold memory layer using Azure Blob Storage."""
+
 from typing import Optional
 
-from azure.identity import DefaultAzureCredential
 from azure.core.pipeline.transport import AioHttpTransport
+from azure.identity import DefaultAzureCredential
 from azure.storage.blob.aio import BlobServiceClient
-
 from holiday_peak_lib.utils.logging import configure_logging, log_async_operation
-
 
 logger = configure_logging()
 
@@ -36,7 +35,11 @@ class ColdMemory:
             transport = None
             if any(
                 value is not None
-                for value in (self.connection_pool_size, self.connection_timeout, self.read_timeout)
+                for value in (
+                    self.connection_pool_size,
+                    self.connection_timeout,
+                    self.read_timeout,
+                )
             ):
                 transport = AioHttpTransport(
                     connection_timeout=self.connection_timeout,

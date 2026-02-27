@@ -4,12 +4,11 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field
-
 from crud_service.auth import User, get_current_user
 from crud_service.config import get_settings
 from crud_service.repositories import PaymentTokenRepository
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel, Field
 
 router = APIRouter()
 settings = get_settings()

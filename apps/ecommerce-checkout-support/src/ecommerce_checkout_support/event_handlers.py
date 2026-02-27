@@ -1,4 +1,5 @@
 """Event handlers for ecommerce checkout support service."""
+
 from __future__ import annotations
 
 import asyncio
@@ -29,9 +30,7 @@ def build_event_handlers() -> dict[str, EventHandler]:
             )
             return
 
-        pricing_tasks = [
-            adapters.pricing.build_price_context(item["sku"]) for item in items
-        ]
+        pricing_tasks = [adapters.pricing.build_price_context(item["sku"]) for item in items]
         inventory_tasks = [
             adapters.inventory.build_inventory_context(item["sku"]) for item in items
         ]
@@ -55,9 +54,7 @@ def build_event_handlers() -> dict[str, EventHandler]:
         data = payload.get("data", {}) if isinstance(payload, dict) else {}
         sku = data.get("sku") or data.get("product_id")
         if not sku:
-            logger.info(
-                "inventory_event_skipped", event_type=payload.get("event_type")
-            )
+            logger.info("inventory_event_skipped", event_type=payload.get("event_type"))
             return
         context = await adapters.inventory.build_inventory_context(str(sku))
         available = context.item.available if context else None

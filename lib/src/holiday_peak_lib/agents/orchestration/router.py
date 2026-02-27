@@ -5,7 +5,6 @@ from typing import Any, Callable, Dict
 
 from holiday_peak_lib.utils.logging import configure_logging, log_async_operation
 
-
 logger = configure_logging()
 
 
@@ -39,10 +38,7 @@ class RoutingStrategy:
 
         if isinstance(result, dict):
             return str(
-                result.get("response")
-                or result.get("content")
-                or result.get("message")
-                or result
+                result.get("response") or result.get("content") or result.get("message") or result
             )
         return str(result)
 
@@ -117,5 +113,8 @@ class RoutingStrategy:
             intent=intent,
             func=_run,
             token_count=None,
-            metadata={"payload_size": len(str(payload)), "selected_handler": selected_name},
+            metadata={
+                "payload_size": len(str(payload)),
+                "selected_handler": selected_name,
+            },
         )

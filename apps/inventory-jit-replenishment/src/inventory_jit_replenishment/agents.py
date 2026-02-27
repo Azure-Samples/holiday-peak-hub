@@ -1,4 +1,5 @@
 """Inventory JIT replenishment agent implementation and MCP tool registration."""
+
 from __future__ import annotations
 
 import os
@@ -77,9 +78,7 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
         context = await adapters.inventory.build_inventory_context(str(sku))
         if not context:
             return {"error": "sku not found", "sku": sku}
-        plan = await adapters.planner.build_replenishment_plan(
-            context, target_stock=target_stock
-        )
+        plan = await adapters.planner.build_replenishment_plan(context, target_stock=target_stock)
         return {"replenishment_plan": plan}
 
     mcp.add_tool("/inventory/replenishment/context", get_inventory_context)
