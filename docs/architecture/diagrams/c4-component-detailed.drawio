@@ -1,0 +1,416 @@
+<mxfile host="app.diagrams.net" modified="2026-02-27T00:00:00.000Z" agent="draw.io" version="24.0.0" type="device">
+  <diagram id="c4-component-detail" name="C4 Component - Holiday Peak Hub (Detailed)">
+    <mxGraphModel dx="2200" dy="1400" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="3200" pageHeight="2800" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Title -->
+        <mxCell id="title" value="&lt;b&gt;C4 Component Diagram (Level 3)&lt;/b&gt;&lt;br&gt;Holiday Peak Hub — Production Architecture" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=18;" vertex="1" parent="1">
+          <mxGeometry x="1200" y="20" width="480" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== FRONTEND LAYER ===================== -->
+        <mxCell id="frontend_boundary" value="&lt;b&gt;Frontend Layer&lt;/b&gt;&lt;br&gt;[Container Boundary]" style="rounded=1;whiteSpace=wrap;html=1;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;dashed=1;dashPattern=8 4;strokeColor=#444444;fillColor=none;fontSize=12;spacingTop=5;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="1140" y="90" width="520" height="150" as="geometry" />
+        </mxCell>
+
+        <mxCell id="nextjs" value="&lt;b&gt;Next.js App&lt;/b&gt;&lt;br&gt;&lt;br&gt;[Component: React 19, TypeScript]&lt;br&gt;&lt;br&gt;User interface with SSR/CSR" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#438DD5;fontColor=#ffffff;strokeColor=#3C7FC0;align=center;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1160" y="120" width="230" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="auth_context" value="&lt;b&gt;Auth Context&lt;/b&gt;&lt;br&gt;&lt;br&gt;[Component: MSAL React]&lt;br&gt;&lt;br&gt;Microsoft Entra ID integration" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#438DD5;fontColor=#ffffff;strokeColor=#3C7FC0;align=center;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1410" y="120" width="230" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== API GATEWAY LAYER ===================== -->
+        <mxCell id="gateway_boundary" value="&lt;b&gt;API Gateway Layer&lt;/b&gt;&lt;br&gt;[Container Boundary]" style="rounded=1;whiteSpace=wrap;html=1;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;dashed=1;dashPattern=8 4;strokeColor=#444444;fillColor=none;fontSize=12;spacingTop=5;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="1140" y="290" width="520" height="150" as="geometry" />
+        </mxCell>
+
+        <mxCell id="apim" value="&lt;b&gt;Azure API Management&lt;/b&gt;&lt;br&gt;&lt;br&gt;[Component: API Gateway]&lt;br&gt;&lt;br&gt;Rate limiting, auth, routing" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#438DD5;fontColor=#ffffff;strokeColor=#3C7FC0;align=center;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1160" y="320" width="230" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="apim_cache" value="&lt;b&gt;Response Cache&lt;/b&gt;&lt;br&gt;&lt;br&gt;[Component: Redis]&lt;br&gt;&lt;br&gt;API response caching" style="shape=mxgraph.c4.webBrowserContainer2;whiteSpace=wrap;html=1;fillColor=#438DD5;fontColor=#ffffff;strokeColor=#3C7FC0;align=center;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1410" y="320" width="230" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== CRUD SERVICE ===================== -->
+        <mxCell id="crud_boundary" value="&lt;b&gt;CRUD Service&lt;/b&gt;&lt;br&gt;[Container Boundary]" style="rounded=1;whiteSpace=wrap;html=1;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;dashed=1;dashPattern=8 4;strokeColor=#444444;fillColor=none;fontSize=12;spacingTop=5;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="500" width="1200" height="180" as="geometry" />
+        </mxCell>
+
+        <mxCell id="crud_api" value="&lt;b&gt;FastAPI App&lt;/b&gt;&lt;br&gt;&lt;br&gt;[Component: Python 3.13]&lt;br&gt;&lt;br&gt;31 REST endpoints" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#438DD5;fontColor=#ffffff;strokeColor=#3C7FC0;align=center;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="60" y="540" width="200" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="auth_deps" value="&lt;b&gt;Auth Dependencies&lt;/b&gt;&lt;br&gt;&lt;br&gt;[Component: JWT validation]&lt;br&gt;&lt;br&gt;RBAC with 4 roles" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#438DD5;fontColor=#ffffff;strokeColor=#3C7FC0;align=center;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="280" y="540" width="200" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="crud_repos" value="&lt;b&gt;Repositories&lt;/b&gt;&lt;br&gt;&lt;br&gt;[Component: Base + 4 repos]&lt;br&gt;&lt;br&gt;User, Product, Order, Cart" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#438DD5;fontColor=#ffffff;strokeColor=#3C7FC0;align=center;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="500" y="540" width="200" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="event_pub" value="&lt;b&gt;Event Publisher&lt;/b&gt;&lt;br&gt;&lt;br&gt;[Component: Azure SDK]&lt;br&gt;&lt;br&gt;Publishes to Event Hubs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#438DD5;fontColor=#ffffff;strokeColor=#3C7FC0;align=center;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="720" y="540" width="200" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="agent_client" value="&lt;b&gt;Agent Client&lt;/b&gt;&lt;br&gt;&lt;br&gt;[Component: httpx + circuitbreaker]&lt;br&gt;&lt;br&gt;Calls agent REST endpoints" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#438DD5;fontColor=#ffffff;strokeColor=#3C7FC0;align=center;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="940" y="540" width="230" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== E-COMMERCE AGENTS ===================== -->
+        <mxCell id="ecom_boundary" value="&lt;b&gt;E-commerce Agents&lt;/b&gt;&lt;br&gt;[Container Boundary]" style="rounded=1;whiteSpace=wrap;html=1;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;dashed=1;dashPattern=8 4;strokeColor=#2D7600;fillColor=#E6FFE6;fontSize=12;spacingTop=5;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="760" width="1200" height="160" as="geometry" />
+        </mxCell>
+
+        <mxCell id="catalog_search" value="&lt;b&gt;Catalog Search&lt;/b&gt;&lt;br&gt;[Agent + AI Search]&lt;br&gt;Semantic product search" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#60A917;fontColor=#ffffff;strokeColor=#4D8A13;align=center;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="60" y="800" width="200" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="enrichment" value="&lt;b&gt;Product Enrichment&lt;/b&gt;&lt;br&gt;[Agent]&lt;br&gt;ACP metadata generation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#60A917;fontColor=#ffffff;strokeColor=#4D8A13;align=center;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="280" y="800" width="200" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cart_intel" value="&lt;b&gt;Cart Intelligence&lt;/b&gt;&lt;br&gt;[Agent + ML]&lt;br&gt;Personalized recommendations" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#60A917;fontColor=#ffffff;strokeColor=#4D8A13;align=center;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="500" y="800" width="200" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="checkout_support" value="&lt;b&gt;Checkout Support&lt;/b&gt;&lt;br&gt;[Agent]&lt;br&gt;Validation &amp; dynamic pricing" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#60A917;fontColor=#ffffff;strokeColor=#4D8A13;align=center;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="720" y="800" width="200" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="order_status" value="&lt;b&gt;Order Status&lt;/b&gt;&lt;br&gt;[Agent]&lt;br&gt;Proactive tracking" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#60A917;fontColor=#ffffff;strokeColor=#4D8A13;align=center;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="940" y="800" width="200" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== CRM AGENTS ===================== -->
+        <mxCell id="crm_boundary" value="&lt;b&gt;CRM Agents&lt;/b&gt;&lt;br&gt;[Container Boundary]" style="rounded=1;whiteSpace=wrap;html=1;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;dashed=1;dashPattern=8 4;strokeColor=#2D7600;fillColor=#E6FFE6;fontSize=12;spacingTop=5;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="990" width="1200" height="160" as="geometry" />
+        </mxCell>
+
+        <mxCell id="profile_agg" value="&lt;b&gt;Profile Aggregation&lt;/b&gt;&lt;br&gt;[Agent]&lt;br&gt;Unified customer view" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#60A917;fontColor=#ffffff;strokeColor=#4D8A13;align=center;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="60" y="1030" width="200" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="segmentation" value="&lt;b&gt;Segmentation&lt;/b&gt;&lt;br&gt;[Agent + ML]&lt;br&gt;Dynamic cohorts" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#60A917;fontColor=#ffffff;strokeColor=#4D8A13;align=center;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="280" y="1030" width="200" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="campaign_intel" value="&lt;b&gt;Campaign Intelligence&lt;/b&gt;&lt;br&gt;[Agent + ML]&lt;br&gt;ROI-optimized campaigns" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#60A917;fontColor=#ffffff;strokeColor=#4D8A13;align=center;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="500" y="1030" width="200" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="support_assist" value="&lt;b&gt;Support Assistance&lt;/b&gt;&lt;br&gt;[Agent + RAG]&lt;br&gt;Augmented support" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#60A917;fontColor=#ffffff;strokeColor=#4D8A13;align=center;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="720" y="1030" width="200" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== INVENTORY AGENTS ===================== -->
+        <mxCell id="inv_boundary" value="&lt;b&gt;Inventory Agents&lt;/b&gt;&lt;br&gt;[Container Boundary]" style="rounded=1;whiteSpace=wrap;html=1;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;dashed=1;dashPattern=8 4;strokeColor=#2D7600;fillColor=#E6FFE6;fontSize=12;spacingTop=5;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="760" width="1000" height="160" as="geometry" />
+        </mxCell>
+
+        <mxCell id="health_check" value="&lt;b&gt;Health Check&lt;/b&gt;&lt;br&gt;[Agent]&lt;br&gt;Predictive stock-out alerts" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#60A917;fontColor=#ffffff;strokeColor=#4D8A13;align=center;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1320" y="800" width="210" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="jit_replenish" value="&lt;b&gt;JIT Replenishment&lt;/b&gt;&lt;br&gt;[Agent]&lt;br&gt;Demand-sensing reorder" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#60A917;fontColor=#ffffff;strokeColor=#4D8A13;align=center;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1550" y="800" width="210" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="reservation" value="&lt;b&gt;Reservation Validation&lt;/b&gt;&lt;br&gt;[Agent]&lt;br&gt;Real-time locking" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#60A917;fontColor=#ffffff;strokeColor=#4D8A13;align=center;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1780" y="800" width="210" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="alerts_triggers" value="&lt;b&gt;Alerts/Triggers&lt;/b&gt;&lt;br&gt;[Agent]&lt;br&gt;Exception notifications" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#60A917;fontColor=#ffffff;strokeColor=#4D8A13;align=center;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="2010" y="800" width="210" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== LOGISTICS AGENTS ===================== -->
+        <mxCell id="log_boundary" value="&lt;b&gt;Logistics Agents&lt;/b&gt;&lt;br&gt;[Container Boundary]" style="rounded=1;whiteSpace=wrap;html=1;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;dashed=1;dashPattern=8 4;strokeColor=#2D7600;fillColor=#E6FFE6;fontSize=12;spacingTop=5;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="990" width="1000" height="160" as="geometry" />
+        </mxCell>
+
+        <mxCell id="eta_compute" value="&lt;b&gt;ETA Computation&lt;/b&gt;&lt;br&gt;[Agent]&lt;br&gt;Real-time delivery predictions" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#60A917;fontColor=#ffffff;strokeColor=#4D8A13;align=center;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1320" y="1030" width="210" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="carrier_select" value="&lt;b&gt;Carrier Selection&lt;/b&gt;&lt;br&gt;[Agent]&lt;br&gt;Cost/speed optimization" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#60A917;fontColor=#ffffff;strokeColor=#4D8A13;align=center;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1550" y="1030" width="210" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="returns_support" value="&lt;b&gt;Returns Support&lt;/b&gt;&lt;br&gt;[Agent]&lt;br&gt;Reverse logistics" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#60A917;fontColor=#ffffff;strokeColor=#4D8A13;align=center;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1780" y="1030" width="210" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="route_detect" value="&lt;b&gt;Route Issue Detection&lt;/b&gt;&lt;br&gt;[Agent]&lt;br&gt;Proactive delay mitigation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#60A917;fontColor=#ffffff;strokeColor=#4D8A13;align=center;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="2010" y="1030" width="210" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== PRODUCT MANAGEMENT AGENTS ===================== -->
+        <mxCell id="prod_boundary" value="&lt;b&gt;Product Management Agents&lt;/b&gt;&lt;br&gt;[Container Boundary]" style="rounded=1;whiteSpace=wrap;html=1;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;dashed=1;dashPattern=8 4;strokeColor=#2D7600;fillColor=#E6FFE6;fontSize=12;spacingTop=5;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="1220" width="1000" height="160" as="geometry" />
+        </mxCell>
+
+        <mxCell id="normalize" value="&lt;b&gt;Normalization&lt;/b&gt;&lt;br&gt;[Agent]&lt;br&gt;Auto-classify &amp; clean" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#60A917;fontColor=#ffffff;strokeColor=#4D8A13;align=center;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1320" y="1260" width="210" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="acp_transform" value="&lt;b&gt;ACP Transform&lt;/b&gt;&lt;br&gt;[Agent]&lt;br&gt;Standards-compliant export" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#60A917;fontColor=#ffffff;strokeColor=#4D8A13;align=center;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1550" y="1260" width="210" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="consistency_val" value="&lt;b&gt;Consistency Validation&lt;/b&gt;&lt;br&gt;[Agent]&lt;br&gt;Data quality checks" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#60A917;fontColor=#ffffff;strokeColor=#4D8A13;align=center;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1780" y="1260" width="210" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="assortment_opt" value="&lt;b&gt;Assortment Optimization&lt;/b&gt;&lt;br&gt;[Agent + ML]&lt;br&gt;SKU mix recommendations" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#60A917;fontColor=#ffffff;strokeColor=#4D8A13;align=center;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="2010" y="1260" width="210" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== DATA LAYER ===================== -->
+        <mxCell id="data_boundary" value="&lt;b&gt;Data Layer&lt;/b&gt;&lt;br&gt;[Container Boundary]" style="rounded=1;whiteSpace=wrap;html=1;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;dashed=1;dashPattern=8 4;strokeColor=#AE4132;fillColor=#FFF2E6;fontSize=12;spacingTop=5;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1220" width="1200" height="330" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cosmos" value="&lt;b&gt;Cosmos DB&lt;/b&gt;&lt;br&gt;&lt;br&gt;[Database: NoSQL]&lt;br&gt;&lt;br&gt;10 operational containers" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#FF8C00;fontColor=#ffffff;strokeColor=#E07000;align=center;fontSize=10;size=12;" vertex="1" parent="1">
+          <mxGeometry x="60" y="1290" width="170" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cosmos_memory" value="&lt;b&gt;Cosmos DB Memory&lt;/b&gt;&lt;br&gt;&lt;br&gt;[Database: NoSQL]&lt;br&gt;&lt;br&gt;Warm tier (conversation history)" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#FF8C00;fontColor=#ffffff;strokeColor=#E07000;align=center;fontSize=10;size=12;" vertex="1" parent="1">
+          <mxGeometry x="250" y="1290" width="170" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="redis" value="&lt;b&gt;Redis Cache Premium&lt;/b&gt;&lt;br&gt;&lt;br&gt;[Database: In-memory]&lt;br&gt;&lt;br&gt;Hot tier (session state)" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#FF8C00;fontColor=#ffffff;strokeColor=#E07000;align=center;fontSize=10;size=12;" vertex="1" parent="1">
+          <mxGeometry x="440" y="1290" width="170" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="blob" value="&lt;b&gt;Blob Storage&lt;/b&gt;&lt;br&gt;&lt;br&gt;[Database: Object Store]&lt;br&gt;&lt;br&gt;Cold tier (archival)" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#FF8C00;fontColor=#ffffff;strokeColor=#E07000;align=center;fontSize=10;size=12;" vertex="1" parent="1">
+          <mxGeometry x="630" y="1290" width="170" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="eventhub" value="&lt;b&gt;Event Hubs&lt;/b&gt;&lt;br&gt;&lt;br&gt;[Queue: Messaging]&lt;br&gt;&lt;br&gt;5 topics with consumer groups" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.sqs;whiteSpace=wrap;html=1;fillColor=#FF8C00;fontColor=#ffffff;strokeColor=#E07000;align=center;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="820" y="1290" width="170" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="search_index" value="&lt;b&gt;AI Search&lt;/b&gt;&lt;br&gt;&lt;br&gt;[Search Service]&lt;br&gt;&lt;br&gt;Vector + hybrid search" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#FF8C00;fontColor=#ffffff;strokeColor=#E07000;align=center;fontSize=10;size=12;" vertex="1" parent="1">
+          <mxGeometry x="1010" y="1290" width="170" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== PLATFORM SERVICES ===================== -->
+        <mxCell id="platform_boundary" value="&lt;b&gt;Azure Platform Services&lt;/b&gt;&lt;br&gt;[Container Boundary]" style="rounded=1;whiteSpace=wrap;html=1;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;dashed=1;dashPattern=8 4;strokeColor=#666666;fillColor=#F0F0F0;fontSize=12;spacingTop=5;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1600" width="1200" height="150" as="geometry" />
+        </mxCell>
+
+        <mxCell id="monitor" value="&lt;b&gt;Azure Monitor&lt;/b&gt;&lt;br&gt;&lt;br&gt;[Component: Observability]&lt;br&gt;&lt;br&gt;Logs, metrics, distributed tracing" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#666666;fontColor=#ffffff;strokeColor=#555555;align=center;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="60" y="1640" width="230" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="keyvault" value="&lt;b&gt;Key Vault&lt;/b&gt;&lt;br&gt;&lt;br&gt;[Component: Secrets Management]&lt;br&gt;&lt;br&gt;Connection strings, API keys" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#666666;fontColor=#ffffff;strokeColor=#555555;align=center;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="320" y="1640" width="230" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="app_insights" value="&lt;b&gt;Application Insights&lt;/b&gt;&lt;br&gt;&lt;br&gt;[Component: APM]&lt;br&gt;&lt;br&gt;Performance monitoring" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#666666;fontColor=#ffffff;strokeColor=#555555;align=center;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="580" y="1640" width="230" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== KEY RELATIONSHIPS ===================== -->
+
+        <!-- Frontend → Gateway -->
+        <mxCell id="rel_nextjs_apim" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;strokeColor=#707070;fontSize=10;" edge="1" parent="1" source="nextjs" target="apim">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel_nextjs_apim_lbl" value="HTTPS/REST" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;fontColor=#707070;" vertex="1" connectable="0" parent="rel_nextjs_apim">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+        <!-- Auth → Next.js -->
+        <mxCell id="rel_auth_nextjs" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;strokeColor=#707070;fontSize=10;" edge="1" parent="1" source="auth_context" target="nextjs">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel_auth_nextjs_lbl" value="Provides JWT" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;fontColor=#707070;" vertex="1" connectable="0" parent="rel_auth_nextjs">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+        <!-- Gateway → CRUD -->
+        <mxCell id="rel_apim_crud" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;strokeColor=#707070;fontSize=10;" edge="1" parent="1" source="apim" target="crud_api">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel_apim_crud_lbl" value="HTTPS/REST — Transactional operations" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;fontColor=#707070;" vertex="1" connectable="0" parent="rel_apim_crud">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+        <!-- Gateway → Catalog Search (direct) -->
+        <mxCell id="rel_apim_search" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;strokeColor=#2D7600;fontSize=10;dashed=1;" edge="1" parent="1" source="apim" target="catalog_search">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel_apim_search_lbl" value="HTTPS/REST — Semantic search (bypasses CRUD)" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;fontColor=#2D7600;" vertex="1" connectable="0" parent="rel_apim_search">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+        <!-- CRUD → Auth Deps -->
+        <mxCell id="rel_crud_auth" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;strokeColor=#707070;fontSize=10;" edge="1" parent="1" source="crud_api" target="auth_deps">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel_crud_auth_lbl" value="JWT validation &amp; RBAC" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;fontColor=#707070;" vertex="1" connectable="0" parent="rel_crud_auth">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+        <!-- CRUD → Repos -->
+        <mxCell id="rel_crud_repos" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;strokeColor=#707070;fontSize=10;" edge="1" parent="1" source="crud_api" target="crud_repos">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel_crud_repos_lbl" value="Data operations" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;fontColor=#707070;" vertex="1" connectable="0" parent="rel_crud_repos">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+        <!-- Repos → Cosmos -->
+        <mxCell id="rel_repos_cosmos" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;strokeColor=#AE4132;fontSize=10;" edge="1" parent="1" source="crud_repos" target="cosmos">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel_repos_cosmos_lbl" value="TCP/HTTPS — CRUD operations on 10 containers" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;fontColor=#AE4132;" vertex="1" connectable="0" parent="rel_repos_cosmos">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+        <!-- CRUD → Event Publisher -->
+        <mxCell id="rel_crud_events" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;strokeColor=#707070;fontSize=10;" edge="1" parent="1" source="crud_api" target="event_pub">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel_crud_events_lbl" value="On mutations" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;fontColor=#707070;" vertex="1" connectable="0" parent="rel_crud_events">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+        <!-- Event Publisher → Event Hubs -->
+        <mxCell id="rel_pub_eh" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;strokeColor=#AE4132;fontSize=10;" edge="1" parent="1" source="event_pub" target="eventhub">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel_pub_eh_lbl" value="AMQP — 5 event types" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;fontColor=#AE4132;" vertex="1" connectable="0" parent="rel_pub_eh">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+        <!-- Agent Client → Enrichment (sync, circuit breaker) -->
+        <mxCell id="rel_client_enrich" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;strokeColor=#D4AC0D;fontSize=10;dashed=1;dashPattern=4 4;" edge="1" parent="1" source="agent_client" target="enrichment">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel_client_enrich_lbl" value="HTTP REST — /enrich (500ms timeout + fallback)" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;fontColor=#D4AC0D;" vertex="1" connectable="0" parent="rel_client_enrich">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+        <!-- Agent Client → Cart Intelligence (sync, circuit breaker) -->
+        <mxCell id="rel_client_cart" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;strokeColor=#D4AC0D;fontSize=10;dashed=1;dashPattern=4 4;" edge="1" parent="1" source="agent_client" target="cart_intel">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel_client_cart_lbl" value="HTTP REST — /recommendations (500ms timeout + fallback)" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;fontColor=#D4AC0D;" vertex="1" connectable="0" parent="rel_client_cart">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+        <!-- Catalog Search → AI Search -->
+        <mxCell id="rel_search_index" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;strokeColor=#AE4132;fontSize=10;" edge="1" parent="1" source="catalog_search" target="search_index">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel_search_index_lbl" value="HTTPS — Vector search" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;fontColor=#AE4132;" vertex="1" connectable="0" parent="rel_search_index">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+        <!-- Agents → Redis (hot memory) -->
+        <mxCell id="rel_agents_redis" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;strokeColor=#AE4132;fontSize=10;" edge="1" parent="1" source="catalog_search" target="redis">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel_agents_redis_lbl" value="TCP — Hot memory (session state)" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;fontColor=#AE4132;" vertex="1" connectable="0" parent="rel_agents_redis">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+        <!-- Agents → Cosmos Memory (warm) -->
+        <mxCell id="rel_agents_cosmos_mem" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;strokeColor=#AE4132;fontSize=10;" edge="1" parent="1" source="catalog_search" target="cosmos_memory">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel_agents_cosmos_mem_lbl" value="TCP/HTTPS — Warm memory" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;fontColor=#AE4132;" vertex="1" connectable="0" parent="rel_agents_cosmos_mem">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+        <!-- Agents → Blob (cold) -->
+        <mxCell id="rel_agents_blob" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;strokeColor=#AE4132;fontSize=10;" edge="1" parent="1" source="catalog_search" target="blob">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel_agents_blob_lbl" value="HTTPS — Cold memory (archival)" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;fontColor=#AE4132;" vertex="1" connectable="0" parent="rel_agents_blob">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+        <!-- CRUD → Monitor -->
+        <mxCell id="rel_crud_monitor" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;strokeColor=#666666;fontSize=10;dashed=1;" edge="1" parent="1" source="crud_api" target="monitor">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel_crud_monitor_lbl" value="HTTPS — Structured logs + traces" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;fontColor=#666666;" vertex="1" connectable="0" parent="rel_crud_monitor">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+        <!-- CRUD → KeyVault -->
+        <mxCell id="rel_crud_kv" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;strokeColor=#666666;fontSize=10;dashed=1;" edge="1" parent="1" source="crud_api" target="keyvault">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel_crud_kv_lbl" value="HTTPS — Fetch secrets" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;fontColor=#666666;" vertex="1" connectable="0" parent="rel_crud_kv">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+        <!-- Monitor → App Insights -->
+        <mxCell id="rel_monitor_ai" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;strokeColor=#666666;fontSize=10;" edge="1" parent="1" source="monitor" target="app_insights">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel_monitor_ai_lbl" value="Internal — APM data" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;fontColor=#666666;" vertex="1" connectable="0" parent="rel_monitor_ai">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+        <!-- ===================== LEGEND ===================== -->
+        <mxCell id="legend_box" value="" style="rounded=1;whiteSpace=wrap;html=1;dashed=1;dashPattern=8 4;strokeColor=#444444;fillColor=none;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="1500" width="900" height="250" as="geometry" />
+        </mxCell>
+        <mxCell id="legend_title" value="&lt;b&gt;Legend&lt;/b&gt;" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="1310" y="1505" width="70" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="leg_comp" value="Component" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#438DD5;fontColor=#ffffff;strokeColor=#3C7FC0;align=center;fontSize=9;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1320" y="1550" width="100" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_agent" value="Agent&lt;br&gt;Component" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#60A917;fontColor=#ffffff;strokeColor=#4D8A13;align=center;fontSize=9;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1440" y="1550" width="100" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_db" value="Database" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#FF8C00;fontColor=#ffffff;strokeColor=#E07000;align=center;fontSize=9;size=10;" vertex="1" parent="1">
+          <mxGeometry x="1560" y="1540" width="100" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_platform" value="Platform&lt;br&gt;Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#666666;fontColor=#ffffff;strokeColor=#555555;align=center;fontSize=9;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1680" y="1550" width="100" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_sync" value="" style="endArrow=classic;html=1;strokeColor=#707070;fontSize=9;" edge="1" parent="1">
+          <mxGeometry width="120" relative="1" as="geometry">
+            <mxPoint x="1320" y="1660" as="sourcePoint" />
+            <mxPoint x="1440" y="1660" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="leg_sync_lbl" value="Synchronous call" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=9;fontColor=#707070;" vertex="1" parent="1">
+          <mxGeometry x="1450" y="1647" width="100" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_async" value="" style="endArrow=classic;html=1;strokeColor=#D4AC0D;fontSize=9;dashed=1;dashPattern=4 4;" edge="1" parent="1">
+          <mxGeometry width="120" relative="1" as="geometry">
+            <mxPoint x="1320" y="1700" as="sourcePoint" />
+            <mxPoint x="1440" y="1700" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="leg_async_lbl" value="Circuit-breaker call (timeout + fallback)" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=9;fontColor=#D4AC0D;" vertex="1" parent="1">
+          <mxGeometry x="1450" y="1687" width="220" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_data" value="" style="endArrow=classic;html=1;strokeColor=#AE4132;fontSize=9;" edge="1" parent="1">
+          <mxGeometry width="120" relative="1" as="geometry">
+            <mxPoint x="1320" y="1730" as="sourcePoint" />
+            <mxPoint x="1440" y="1730" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="leg_data_lbl" value="Data access" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=9;fontColor=#AE4132;" vertex="1" parent="1">
+          <mxGeometry x="1450" y="1717" width="70" height="25" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

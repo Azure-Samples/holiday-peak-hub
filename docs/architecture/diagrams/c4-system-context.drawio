@@ -1,0 +1,180 @@
+<mxfile host="app.diagrams.net" modified="2026-02-27T00:00:00.000Z" agent="draw.io" version="24.0.0" type="device">
+  <diagram id="c4-system-context" name="C4 System Context - Holiday Peak Hub">
+    <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1200" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Title -->
+        <mxCell id="title" value="&lt;b&gt;System Context Diagram&lt;/b&gt;&lt;br&gt;Holiday Peak Hub" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=18;" vertex="1" parent="1">
+          <mxGeometry x="600" y="20" width="400" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Persons (top row) -->
+        <mxCell id="customer" value="&lt;b&gt;Customer&lt;/b&gt;&lt;br&gt;&lt;br&gt;[Person]&lt;br&gt;&lt;br&gt;Shopper using&lt;br&gt;e-commerce site" style="shape=mxgraph.c4.person2;whiteSpace=wrap;html=1;container=0;align=center;metaEdit=0;points=[[0.5,0,0],[1,0.5,0],[1,0.75,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.75,0],[0,0.5,0]];resizable=1;fillColor=#08427B;fontColor=#ffffff;strokeColor=#073B6F;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="230" y="80" width="170" height="180" as="geometry" />
+        </mxCell>
+
+        <mxCell id="agent" value="&lt;b&gt;Service Agent&lt;/b&gt;&lt;br&gt;&lt;br&gt;[Person]&lt;br&gt;&lt;br&gt;Customer support&lt;br&gt;representative" style="shape=mxgraph.c4.person2;whiteSpace=wrap;html=1;container=0;align=center;metaEdit=0;points=[[0.5,0,0],[1,0.5,0],[1,0.75,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.75,0],[0,0.5,0]];resizable=1;fillColor=#08427B;fontColor=#ffffff;strokeColor=#073B6F;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="710" y="80" width="170" height="180" as="geometry" />
+        </mxCell>
+
+        <mxCell id="manager" value="&lt;b&gt;Operations Manager&lt;/b&gt;&lt;br&gt;&lt;br&gt;[Person]&lt;br&gt;&lt;br&gt;Inventory/logistics&lt;br&gt;planner" style="shape=mxgraph.c4.person2;whiteSpace=wrap;html=1;container=0;align=center;metaEdit=0;points=[[0.5,0,0],[1,0.5,0],[1,0.75,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.75,0],[0,0.5,0]];resizable=1;fillColor=#08427B;fontColor=#ffffff;strokeColor=#073B6F;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1190" y="80" width="170" height="180" as="geometry" />
+        </mxCell>
+
+        <!-- System Boundary: Holiday Peak Hub -->
+        <mxCell id="hub_boundary" value="Holiday Peak Hub" style="rounded=1;whiteSpace=wrap;html=1;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;dashed=1;dashPattern=8 4;strokeColor=#444444;fillColor=none;fontSize=14;fontStyle=1;spacingTop=10;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="80" y="340" width="1440" height="340" as="geometry" />
+        </mxCell>
+
+        <!-- Internal Systems (inside boundary) -->
+        <mxCell id="ecommerce" value="&lt;b&gt;E-commerce Services&lt;/b&gt;&lt;br&gt;&lt;br&gt;[Software System]&lt;br&gt;&lt;br&gt;Catalog search, cart,&lt;br&gt;checkout, order tracking" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#438DD5;fontColor=#ffffff;strokeColor=#3C7FC0;align=center;fontSize=11;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="100" y="400" width="240" height="140" as="geometry" />
+        </mxCell>
+
+        <mxCell id="product" value="&lt;b&gt;Product Mgmt Services&lt;/b&gt;&lt;br&gt;&lt;br&gt;[Software System]&lt;br&gt;&lt;br&gt;Normalization, ACP,&lt;br&gt;assortment optimization" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#438DD5;fontColor=#ffffff;strokeColor=#3C7FC0;align=center;fontSize=11;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="380" y="400" width="240" height="140" as="geometry" />
+        </mxCell>
+
+        <mxCell id="crm" value="&lt;b&gt;CRM Services&lt;/b&gt;&lt;br&gt;&lt;br&gt;[Software System]&lt;br&gt;&lt;br&gt;Profile aggregation,&lt;br&gt;segmentation, campaigns" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#438DD5;fontColor=#ffffff;strokeColor=#3C7FC0;align=center;fontSize=11;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="660" y="400" width="240" height="140" as="geometry" />
+        </mxCell>
+
+        <mxCell id="inventory" value="&lt;b&gt;Inventory Services&lt;/b&gt;&lt;br&gt;&lt;br&gt;[Software System]&lt;br&gt;&lt;br&gt;Health check, JIT&lt;br&gt;replenishment, alerts" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#438DD5;fontColor=#ffffff;strokeColor=#3C7FC0;align=center;fontSize=11;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="940" y="400" width="240" height="140" as="geometry" />
+        </mxCell>
+
+        <mxCell id="logistics" value="&lt;b&gt;Logistics Services&lt;/b&gt;&lt;br&gt;&lt;br&gt;[Software System]&lt;br&gt;&lt;br&gt;ETA, carrier selection,&lt;br&gt;returns, route detection" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#438DD5;fontColor=#ffffff;strokeColor=#3C7FC0;align=center;fontSize=11;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1220" y="400" width="240" height="140" as="geometry" />
+        </mxCell>
+
+        <!-- External Systems (bottom row) -->
+        <mxCell id="retailSystems" value="&lt;b&gt;Retailer Legacy Systems&lt;/b&gt;&lt;br&gt;&lt;br&gt;[External System]&lt;br&gt;&lt;br&gt;Inventory, pricing,&lt;br&gt;CRM, ERP APIs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#999999;fontColor=#ffffff;strokeColor=#8C8C8C;align=center;fontSize=11;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="180" y="780" width="240" height="140" as="geometry" />
+        </mxCell>
+
+        <mxCell id="foundry" value="&lt;b&gt;Microsoft Foundry&lt;/b&gt;&lt;br&gt;&lt;br&gt;[External System]&lt;br&gt;&lt;br&gt;GPT-4 models,&lt;br&gt;embedding services" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#999999;fontColor=#ffffff;strokeColor=#8C8C8C;align=center;fontSize=11;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="680" y="780" width="240" height="140" as="geometry" />
+        </mxCell>
+
+        <mxCell id="external" value="&lt;b&gt;External Partners&lt;/b&gt;&lt;br&gt;&lt;br&gt;[External System]&lt;br&gt;&lt;br&gt;Carriers, payment&lt;br&gt;gateways, analytics" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#999999;fontColor=#ffffff;strokeColor=#8C8C8C;align=center;fontSize=11;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1180" y="780" width="240" height="140" as="geometry" />
+        </mxCell>
+
+        <!-- Relationships: Persons → Systems -->
+        <mxCell id="rel_customer_ecommerce" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#707070;fontSize=10;" edge="1" parent="1" source="customer" target="ecommerce">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel_customer_ecommerce_label" value="Browses, orders" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontColor=#707070;" vertex="1" connectable="0" parent="rel_customer_ecommerce">
+          <mxGeometry x="-0.1" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="rel_agent_crm" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#707070;fontSize=10;" edge="1" parent="1" source="agent" target="crm">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel_agent_crm_label" value="Views profiles, campaigns" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontColor=#707070;" vertex="1" connectable="0" parent="rel_agent_crm">
+          <mxGeometry x="-0.1" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="rel_manager_inventory" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#707070;fontSize=10;" edge="1" parent="1" source="manager" target="inventory">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel_manager_inventory_label" value="Monitors stock, triggers" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontColor=#707070;" vertex="1" connectable="0" parent="rel_manager_inventory">
+          <mxGeometry x="-0.1" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Relationships: Systems → External Systems -->
+        <mxCell id="rel_ecommerce_retail" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#707070;fontSize=10;" edge="1" parent="1" source="ecommerce" target="retailSystems">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel_ecommerce_retail_label" value="Fetches inventory, pricing" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontColor=#707070;" vertex="1" connectable="0" parent="rel_ecommerce_retail">
+          <mxGeometry x="-0.1" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="rel_product_retail" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.75;entryY=0;entryDx=0;entryDy=0;strokeColor=#707070;fontSize=10;" edge="1" parent="1" source="product" target="retailSystems">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel_product_retail_label" value="Reads catalog" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontColor=#707070;" vertex="1" connectable="0" parent="rel_product_retail">
+          <mxGeometry x="-0.1" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="rel_crm_retail" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#707070;fontSize=10;dashed=1;" edge="1" parent="1" source="crm" target="retailSystems">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel_crm_retail_label" value="Queries customer data" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontColor=#707070;" vertex="1" connectable="0" parent="rel_crm_retail">
+          <mxGeometry x="-0.1" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="rel_inventory_retail" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#707070;fontSize=10;dashed=1;" edge="1" parent="1" source="inventory" target="retailSystems">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel_inventory_retail_label" value="Checks stock levels" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontColor=#707070;" vertex="1" connectable="0" parent="rel_inventory_retail">
+          <mxGeometry x="-0.1" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="rel_ecommerce_foundry" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;exitX=0.75;exitY=1;exitDx=0;exitDy=0;entryX=0.25;entryY=0;entryDx=0;entryDy=0;strokeColor=#707070;fontSize=10;" edge="1" parent="1" source="ecommerce" target="foundry">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel_ecommerce_foundry_label" value="Model inference" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontColor=#707070;" vertex="1" connectable="0" parent="rel_ecommerce_foundry">
+          <mxGeometry x="-0.1" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="rel_crm_foundry" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;exitX=0.75;exitY=1;exitDx=0;exitDy=0;entryX=0.75;entryY=0;entryDx=0;entryDy=0;strokeColor=#707070;fontSize=10;" edge="1" parent="1" source="crm" target="foundry">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel_crm_foundry_label" value="Segmentation models" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontColor=#707070;" vertex="1" connectable="0" parent="rel_crm_foundry">
+          <mxGeometry x="-0.1" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="rel_logistics_external" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#707070;fontSize=10;" edge="1" parent="1" source="logistics" target="external">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rel_logistics_external_label" value="Gets shipping rates" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontColor=#707070;" vertex="1" connectable="0" parent="rel_logistics_external">
+          <mxGeometry x="-0.1" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Legend -->
+        <mxCell id="legend_boundary" value="" style="rounded=1;whiteSpace=wrap;html=1;dashed=1;dashPattern=8 4;strokeColor=#444444;fillColor=none;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="50" y="980" width="500" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="legend_title" value="&lt;b&gt;Legend&lt;/b&gt;" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="65" y="988" width="70" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="legend_person" value="Person" style="shape=mxgraph.c4.person2;whiteSpace=wrap;html=1;container=0;align=center;fillColor=#08427B;fontColor=#ffffff;strokeColor=#073B6F;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="70" y="1020" width="80" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="legend_system" value="Internal&lt;br&gt;System" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#438DD5;fontColor=#ffffff;strokeColor=#3C7FC0;align=center;fontSize=9;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="180" y="1030" width="100" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="legend_external" value="External&lt;br&gt;System" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#999999;fontColor=#ffffff;strokeColor=#8C8C8C;align=center;fontSize=9;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="310" y="1030" width="100" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="legend_boundary_sample" value="System&lt;br&gt;Boundary" style="rounded=1;whiteSpace=wrap;html=1;dashed=1;dashPattern=8 4;strokeColor=#444444;fillColor=none;arcSize=6;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="430" y="1030" width="100" height="60" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
