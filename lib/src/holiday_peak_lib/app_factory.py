@@ -156,11 +156,11 @@ def build_service_app(
         return {
             "status": "ok",
             "service": service_name,
-            "connectors_registered": await registry.count(),
+            "integrations_registered": await registry.count(),
         }
 
-    @app.get("/connectors")
-    async def connectors():
+    @app.get("/integrations")
+    async def integrations():
         return {
             "service": service_name,
             "domains": await registry.list_domains(),
@@ -186,7 +186,7 @@ def build_service_app(
             "status": "ready",
             "service": service_name,
             "foundry_ready": foundry_ready,
-            "connectors_registered": await registry.count(),
+            "integrations_registered": await registry.count(),
         }
 
     @app.post("/invoke")

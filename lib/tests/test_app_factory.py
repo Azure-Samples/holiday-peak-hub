@@ -195,7 +195,7 @@ class TestBuildServiceApp:
         assert "/health" in routes
         assert "/ready" in routes
         assert "/invoke" in routes
-        assert "/connectors" in routes
+        assert "/integrations" in routes
         assert "/foundry/agents/ensure" in routes
 
     @pytest.mark.asyncio
@@ -223,11 +223,11 @@ class TestBuildServiceApp:
         client = TestClient(app)
         health_response = client.get("/health")
         assert health_response.status_code == 200
-        assert health_response.json()["connectors_registered"] == 1
+        assert health_response.json()["integrations_registered"] == 1
 
-        connectors_response = client.get("/connectors")
-        assert connectors_response.status_code == 200
-        assert connectors_response.json()["domains"]["pim"] == ["mock-pim"]
+        integrations_response = client.get("/integrations")
+        assert integrations_response.status_code == 200
+        assert integrations_response.json()["domains"]["pim"] == ["mock-pim"]
 
     def test_foundry_ensure_endpoint(
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
