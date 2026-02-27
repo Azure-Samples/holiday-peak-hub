@@ -1,6 +1,7 @@
 # Holiday Peak Hub - Architecture Documentation
 
-**Last Updated**: January 30, 2026  
+**Last Updated**: February 27, 2026  
+**Version**: [v1.0.0](https://github.com/Azure-Samples/holiday-peak-hub/releases/tag/v1.0.0)  
 **Status**: Active Development
 
 ## Overview

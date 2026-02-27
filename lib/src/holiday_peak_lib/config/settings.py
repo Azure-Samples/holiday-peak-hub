@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class MemorySettings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env")
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     redis_url: str | None = None
     cosmos_account_uri: str | None = None
@@ -15,7 +15,7 @@ class MemorySettings(BaseSettings):
 
 
 class ServiceSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env")
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     service_name: str
     ai_search_endpoint: str
@@ -31,6 +31,6 @@ class ServiceSettings(BaseSettings):
 
 
 class PostgresSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env")
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     postgres_dsn: str

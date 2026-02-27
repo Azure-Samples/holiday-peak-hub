@@ -53,7 +53,7 @@ We will implement a **JWT-based authentication system with Next.js middleware fo
 graph TB
     User[User] -->|Login| LoginPage[Login Page]
     LoginPage -->|Credentials| AuthAPI[Auth API]
-    AuthAPI -->|Validate| AuthService[Auth Service<br/>Backend]
+    AuthAPI -->|Validate| AuthService[Auth Service - Backend]
     AuthService -->|JWT + Refresh Token| AuthAPI
     AuthAPI -->|Set Cookies| Browser[Browser]
     

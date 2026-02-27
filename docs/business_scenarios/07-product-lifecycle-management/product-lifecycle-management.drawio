@@ -1,0 +1,411 @@
+<mxfile host="draw.io" type="device">
+  <diagram name="Product Lifecycle Management" id="bpmn-product-lifecycle">
+    <mxGraphModel dx="1422" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- Title -->
+        <mxCell id="title" value="BPMN: Product Lifecycle Management" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=18;fontStyle=1;fontColor=#1A237E;" vertex="1" parent="1">
+          <mxGeometry x="500" y="20" width="400" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="subtitle" value="Normalization → ACP Transformation → Consistency Validation → Assortment Optimization" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=11;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="380" y="55" width="640" height="25" as="geometry"/>
+        </mxCell>
+
+        <!-- ==================== POOL 1: Product Events ==================== -->
+        <mxCell id="pool1" value="Product Events" style="shape=mxgraph.bpmn.swimlane;horizontal=0;startSize=30;swimlaneHead=0;swimlaneBody=0;fillColor=#E3F2FD;strokeColor=#1565C0;rounded=1;collapsible=0;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="100" width="1500" height="100" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p1_start" value="product.created" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=general;outline=standard;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="pool1">
+          <mxGeometry x="60" y="25" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p1_ev1" value="product.&#xa;normalized" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=throwing;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="pool1">
+          <mxGeometry x="360" y="25" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p1_ev2" value="product.&#xa;acp_transformed" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=throwing;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="pool1">
+          <mxGeometry x="660" y="25" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p1_ev3" value="product.&#xa;validated" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=throwing;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="pool1">
+          <mxGeometry x="1070" y="25" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p1_ev4" value="product.&#xa;validation_failed" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=throwing;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="pool1">
+          <mxGeometry x="1200" y="25" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p1_ev5" value="order.placed" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=throwing;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#FFF3E0;strokeColor=#E65100;" vertex="1" parent="pool1">
+          <mxGeometry x="1380" y="25" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- ==================== POOL 2: Normalization & Classification Agent ==================== -->
+        <mxCell id="pool2" value="Normalization &amp; Classification Agent" style="shape=mxgraph.bpmn.swimlane;horizontal=0;startSize=30;swimlaneHead=0;swimlaneBody=0;fillColor=#E8F5E9;strokeColor=#2E7D32;rounded=1;collapsible=0;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="220" width="1500" height="140" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_catch" value="Receive&#xa;product.created" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=catching;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="pool2">
+          <mxGeometry x="60" y="45" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_t1" value="Clean &amp;&#xa;Standardize&#xa;Title" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool2">
+          <mxGeometry x="150" y="40" width="100" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_t2" value="Normalize&#xa;Attributes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool2">
+          <mxGeometry x="280" y="40" width="100" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_gw" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.rhombusPerimeter;symbol=exclusiveGw;isMarkerVisible=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="pool2">
+          <mxGeometry x="410" y="45" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_t3" value="SLM: Classify&#xa;Standard Product" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;arcSize=20;fontSize=10;" vertex="1" parent="pool2">
+          <mxGeometry x="500" y="15" width="120" height="45" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_t4" value="LLM: Classify&#xa;Complex Product" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;arcSize=20;fontSize=10;fontStyle=1;" vertex="1" parent="pool2">
+          <mxGeometry x="500" y="80" width="120" height="45" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_msg1" value="Publish&#xa;normalized" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=throwing;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="pool2">
+          <mxGeometry x="660" y="45" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Feedback catch (from validation failure auto-fix) -->
+        <mxCell id="p2_catch2" value="Receive&#xa;auto-fix" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=catching;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="pool2">
+          <mxGeometry x="1200" y="45" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_t5" value="Auto-Fix&#xa;Violations" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;arcSize=20;fontSize=10;" vertex="1" parent="pool2">
+          <mxGeometry x="1300" y="40" width="100" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- Arrows within Pool 2 -->
+        <mxCell id="p2_e1" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p2_catch" target="p2_t1" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e2" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p2_t1" target="p2_t2" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e3" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p2_t2" target="p2_gw" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e4" value="standard" style="edgeStyle=orthogonalEdgeStyle;fontSize=9;fontColor=#82b366;" edge="1" source="p2_gw" target="p2_t3" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e5" value="complex" style="edgeStyle=orthogonalEdgeStyle;fontSize=9;fontColor=#E65100;" edge="1" source="p2_gw" target="p2_t4" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e6" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p2_t3" target="p2_msg1" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e7" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p2_t4" target="p2_msg1" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e8" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p2_catch2" target="p2_t5" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <!-- Auto-fix loops back to normalize -->
+        <mxCell id="p2_e9" value="re-process" style="edgeStyle=orthogonalEdgeStyle;fontSize=9;fontColor=#b85450;curved=1;" edge="1" source="p2_t5" target="p2_t2" parent="pool2">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1350" y="120"/>
+              <mxPoint x="330" y="120"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ==================== POOL 3: ACP Transformation Agent ==================== -->
+        <mxCell id="pool3" value="ACP Transformation Agent" style="shape=mxgraph.bpmn.swimlane;horizontal=0;startSize=30;swimlaneHead=0;swimlaneBody=0;fillColor=#FFF3E0;strokeColor=#E65100;rounded=1;collapsible=0;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="380" width="1500" height="130" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p3_catch" value="Receive&#xa;normalized" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=catching;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="pool3">
+          <mxGeometry x="360" y="40" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p3_t1" value="Map to ACP&#xa;Schema" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool3">
+          <mxGeometry x="450" y="35" width="110" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p3_t2" value="AI: Infer&#xa;Missing Properties" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;arcSize=20;fontSize=10;fontStyle=1;" vertex="1" parent="pool3">
+          <mxGeometry x="600" y="35" width="120" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p3_t3" value="Generate Faceted&#xa;Search Attributes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool3">
+          <mxGeometry x="760" y="35" width="120" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p3_msg1" value="Publish&#xa;acp_transformed" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=throwing;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="pool3">
+          <mxGeometry x="920" y="40" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Arrows within Pool 3 -->
+        <mxCell id="p3_e1" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p3_catch" target="p3_t1" parent="pool3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p3_e2" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p3_t1" target="p3_t2" parent="pool3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p3_e3" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p3_t2" target="p3_t3" parent="pool3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p3_e4" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p3_t3" target="p3_msg1" parent="pool3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ==================== POOL 4: Consistency Validation Agent ==================== -->
+        <mxCell id="pool4" value="Consistency Validation Agent" style="shape=mxgraph.bpmn.swimlane;horizontal=0;startSize=30;swimlaneHead=0;swimlaneBody=0;fillColor=#FCE4EC;strokeColor=#C62828;rounded=1;collapsible=0;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="530" width="1500" height="150" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p4_catch" value="Receive&#xa;acp_transformed" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=catching;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="pool4">
+          <mxGeometry x="660" y="50" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p4_t1" value="Validate Required&#xa;Attributes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool4">
+          <mxGeometry x="750" y="45" width="110" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p4_t2" value="AI: Check&#xa;Semantic&#xa;Consistency" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;arcSize=20;fontSize=10;fontStyle=1;" vertex="1" parent="pool4">
+          <mxGeometry x="895" y="45" width="110" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p4_gw" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.rhombusPerimeter;symbol=exclusiveGw;isMarkerVisible=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="pool4">
+          <mxGeometry x="1040" y="50" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p4_msg_ok" value="Publish&#xa;validated" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=throwing;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="pool4">
+          <mxGeometry x="1140" y="15" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p4_gw2" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.rhombusPerimeter;symbol=exclusiveGw;isMarkerVisible=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="pool4">
+          <mxGeometry x="1140" y="85" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p4_msg_fail_auto" value="Publish&#xa;auto-fix" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=throwing;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="pool4">
+          <mxGeometry x="1260" y="70" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p4_t3" value="Flag for&#xa;Human Review" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;arcSize=20;fontSize=10;fontStyle=1;" vertex="1" parent="pool4">
+          <mxGeometry x="1240" y="130" width="100" height="40" as="geometry" offset="-20"/>
+        </mxCell>
+
+        <!-- Arrows within Pool 4 -->
+        <mxCell id="p4_e1" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p4_catch" target="p4_t1" parent="pool4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4_e2" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p4_t1" target="p4_t2" parent="pool4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4_e3" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p4_t2" target="p4_gw" parent="pool4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4_e4" value="valid" style="edgeStyle=orthogonalEdgeStyle;fontSize=9;fontColor=#82b366;" edge="1" source="p4_gw" target="p4_msg_ok" parent="pool4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4_e5" value="violations" style="edgeStyle=orthogonalEdgeStyle;fontSize=9;fontColor=#b85450;" edge="1" source="p4_gw" target="p4_gw2" parent="pool4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4_e6" value="auto-fixable" style="edgeStyle=orthogonalEdgeStyle;fontSize=9;fontColor=#b85450;" edge="1" source="p4_gw2" target="p4_msg_fail_auto" parent="pool4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4_e7" value="manual" style="edgeStyle=orthogonalEdgeStyle;fontSize=9;fontColor=#b85450;" edge="1" source="p4_gw2" target="p4_t3" parent="pool4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ==================== POOL 5: Assortment Optimization Agent ==================== -->
+        <mxCell id="pool5" value="Assortment Optimization Agent" style="shape=mxgraph.bpmn.swimlane;horizontal=0;startSize=30;swimlaneHead=0;swimlaneBody=0;fillColor=#EDE7F6;strokeColor=#4527A0;rounded=1;collapsible=0;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="700" width="1500" height="130" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p5_catch" value="Receive&#xa;order.placed" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=catching;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#FFF3E0;strokeColor=#E65100;" vertex="1" parent="pool5">
+          <mxGeometry x="60" y="40" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p5_t1" value="Aggregate&#xa;Category Metrics" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool5">
+          <mxGeometry x="160" y="35" width="120" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p5_t2" value="AI: Analyze&#xa;Sell-Through &amp;&#xa;Margin" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;arcSize=20;fontSize=10;fontStyle=1;" vertex="1" parent="pool5">
+          <mxGeometry x="320" y="30" width="120" height="70" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p5_pgw" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.rhombusPerimeter;symbol=parallelGw;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="pool5">
+          <mxGeometry x="480" y="45" width="40" height="40" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p5_t3" value="Promote&#xa;High Performers" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;arcSize=20;fontSize=10;" vertex="1" parent="pool5">
+          <mxGeometry x="560" y="10" width="110" height="45" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p5_t4" value="Demote Low&#xa;Performers" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;arcSize=20;fontSize=10;" vertex="1" parent="pool5">
+          <mxGeometry x="560" y="70" width="110" height="45" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p5_t5" value="Gap Analysis &amp;&#xa;Suggestions" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool5">
+          <mxGeometry x="710" y="35" width="110" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p5_end" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=terminate;outline=end;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="pool5">
+          <mxGeometry x="860" y="45" width="40" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- Arrows within Pool 5 -->
+        <mxCell id="p5_e1" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p5_catch" target="p5_t1" parent="pool5">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p5_e2" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p5_t1" target="p5_t2" parent="pool5">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p5_e3" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p5_t2" target="p5_pgw" parent="pool5">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p5_e4" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p5_pgw" target="p5_t3" parent="pool5">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p5_e5" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p5_pgw" target="p5_t4" parent="pool5">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p5_e6" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p5_t3" target="p5_t5" parent="pool5">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p5_e7" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p5_t4" target="p5_t5" parent="pool5">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p5_e8" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p5_t5" target="p5_end" parent="pool5">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ==================== CROSS-POOL MESSAGE FLOWS ==================== -->
+
+        <!-- Product Events → Normalization (product.created) -->
+        <mxCell id="msg_1_2" value="" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#82b366;strokeWidth=2;" edge="1" source="p1_start" target="p2_catch" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Normalization → Events (product.normalized) -->
+        <mxCell id="msg_2_1" value="" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#9673a6;strokeWidth=2;" edge="1" source="p2_msg1" target="p1_ev1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="725" y="205"/>
+              <mxPoint x="385" y="205"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Events → ACP (product.normalized) -->
+        <mxCell id="msg_1_3" value="" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#9673a6;strokeWidth=2;" edge="1" source="p1_ev1" target="p3_catch" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ACP → Events (product.acp_transformed) -->
+        <mxCell id="msg_3_1" value="" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#9673a6;strokeWidth=2;" edge="1" source="p3_msg1" target="p1_ev2" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="985" y="370"/>
+              <mxPoint x="685" y="370"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Events → Validation (product.acp_transformed) -->
+        <mxCell id="msg_1_4" value="" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#9673a6;strokeWidth=2;" edge="1" source="p1_ev2" target="p4_catch" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Validation → Events (product.validated) -->
+        <mxCell id="msg_4_1a" value="" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#82b366;strokeWidth=2;" edge="1" source="p4_msg_ok" target="p1_ev3" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1205" y="520"/>
+              <mxPoint x="1135" y="520"/>
+              <mxPoint x="1135" y="200"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Validation auto-fix → Normalization -->
+        <mxCell id="msg_4_2" value="" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#b85450;strokeWidth=2;" edge="1" source="p4_msg_fail_auto" target="p2_catch2" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1325" y="515"/>
+              <mxPoint x="1470" y="515"/>
+              <mxPoint x="1470" y="310"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Order Events → Assortment -->
+        <mxCell id="msg_1_5" value="" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#E65100;strokeWidth=2;" edge="1" source="p1_ev5" target="p5_catch" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1405" y="210"/>
+              <mxPoint x="1480" y="210"/>
+              <mxPoint x="1480" y="690"/>
+              <mxPoint x="85" y="690"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ==================== LEGEND ==================== -->
+        <mxCell id="legend_bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FAFAFA;strokeColor=#E0E0E0;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="860" width="700" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend_title" value="Legend" style="text;html=1;fontSize=11;fontStyle=1;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="50" y="865" width="60" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="leg1" value="" style="ellipse;fillColor=#d5e8d4;strokeColor=#82b366;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="55" y="895" width="20" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg1t" value="Start / Valid" style="text;fontSize=9;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="80" y="895" width="80" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="leg2" value="" style="ellipse;fillColor=#f8cecc;strokeColor=#b85450;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="165" y="895" width="20" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg2t" value="Failed / Feedback" style="text;fontSize=9;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="190" y="895" width="90" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="leg3" value="" style="rounded=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="290" y="892" width="30" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg3t" value="Task" style="text;fontSize=9;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="325" y="895" width="40" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="leg4" value="" style="rounded=1;fillColor=#FFF9C4;strokeColor=#F9A825;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="370" y="892" width="30" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg4t" value="AI Task" style="text;fontSize=9;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="405" y="895" width="50" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="leg5" value="" style="rhombus;fillColor=#fff2cc;strokeColor=#d6b656;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="460" y="890" width="25" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg5t" value="Gateway" style="text;fontSize=9;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="490" y="895" width="60" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="leg6" value="" style="endArrow=block;dashed=1;strokeColor=#b85450;strokeWidth=2;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="555" y="905" as="sourcePoint"/>
+            <mxPoint x="595" y="905" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="leg6t" value="Feedback Loop" style="text;fontSize=9;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="600" y="895" width="80" height="20" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

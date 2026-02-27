@@ -15,7 +15,7 @@ def build_event_handlers() -> dict[str, EventHandler]:
     logger = configure_logging(app_name="product-management-consistency-validation-events")
     adapters = build_consistency_adapters()
 
-    async def handle_product_event(partition_context, event) -> None:  # noqa: ANN001
+    async def handle_product_event(_partition_context, event) -> None:  # noqa: ANN001
         payload = json.loads(event.body_as_str())
         data = payload.get("data", {}) if isinstance(payload, dict) else {}
         sku = data.get("sku") or data.get("product_id") or data.get("id")

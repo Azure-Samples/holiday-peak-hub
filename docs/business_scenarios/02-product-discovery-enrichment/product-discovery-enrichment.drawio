@@ -1,0 +1,291 @@
+<mxfile host="draw.io" type="device">
+  <diagram name="Product Discovery and Enrichment BPMN" id="pde-bpmn">
+    <mxGraphModel dx="1422" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- ==================== POOLS ==================== -->
+
+        <!-- Pool: Customer -->
+        <mxCell id="pool1" value="Customer" style="shape=mxgraph.bpmn.swimlane;horizontal=0;startSize=30;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;fontSize=12;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="20" y="20" width="1540" height="100" as="geometry"/>
+        </mxCell>
+
+        <!-- Pool: CRUD Service -->
+        <mxCell id="pool2" value="CRUD Service" style="shape=mxgraph.bpmn.swimlane;horizontal=0;startSize=30;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;fontSize=12;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="20" y="120" width="1540" height="120" as="geometry"/>
+        </mxCell>
+
+        <!-- Pool: Catalog Search Agent -->
+        <mxCell id="pool3" value="Catalog Search Agent" style="shape=mxgraph.bpmn.swimlane;horizontal=0;startSize=30;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;fontSize=12;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="20" y="240" width="1540" height="130" as="geometry"/>
+        </mxCell>
+
+        <!-- Pool: Azure AI Search + Redis -->
+        <mxCell id="pool4" value="Infrastructure" style="shape=mxgraph.bpmn.swimlane;horizontal=0;startSize=30;fillColor=#E3F2FD;strokeColor=#1565C0;fontStyle=1;fontSize=12;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="20" y="370" width="1540" height="100" as="geometry"/>
+        </mxCell>
+
+        <!-- Pool: Event Hub -->
+        <mxCell id="pool5" value="Event Hubs" style="shape=mxgraph.bpmn.swimlane;horizontal=0;startSize=30;fillColor=#FFF3E0;strokeColor=#E65100;fontStyle=1;fontSize=12;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="20" y="470" width="1540" height="80" as="geometry"/>
+        </mxCell>
+
+        <!-- Pool: Enrichment Agent -->
+        <mxCell id="pool6" value="Enrichment Agent" style="shape=mxgraph.bpmn.swimlane;horizontal=0;startSize=30;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;fontSize=12;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="20" y="550" width="1540" height="120" as="geometry"/>
+        </mxCell>
+
+        <!-- ==================== CUSTOMER LANE ==================== -->
+
+        <mxCell id="c1" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=general;outline=standard;isEnd=0;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="pool1">
+          <mxGeometry x="60" y="35" width="30" height="30" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="c2" value="Enter Search&#xa;Query" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool1">
+          <mxGeometry x="130" y="25" width="110" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="c3" value="View Search&#xa;Results" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool1">
+          <mxGeometry x="590" y="25" width="110" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="c4" value="View Product&#xa;Details" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool1">
+          <mxGeometry x="740" y="25" width="110" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="c5" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=terminate;outline=end;isEnd=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="pool1">
+          <mxGeometry x="890" y="35" width="30" height="30" as="geometry"/>
+        </mxCell>
+
+        <!-- Async trigger: Staff creates product -->
+        <mxCell id="c6" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=general;outline=standard;isEnd=0;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="pool1">
+          <mxGeometry x="1060" y="35" width="30" height="30" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="c7" value="Staff: Create/&#xa;Update Product" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;arcSize=20;fontSize=10;" vertex="1" parent="pool1">
+          <mxGeometry x="1130" y="25" width="120" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="ca1" style="edgeStyle=orthogonalEdgeStyle;" edge="1" parent="pool1" source="c1" target="c2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="ca2" style="edgeStyle=orthogonalEdgeStyle;" edge="1" parent="pool1" source="c3" target="c4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="ca3" style="edgeStyle=orthogonalEdgeStyle;" edge="1" parent="pool1" source="c4" target="c5"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="ca4" style="edgeStyle=orthogonalEdgeStyle;" edge="1" parent="pool1" source="c6" target="c7"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <!-- ==================== CRUD SERVICE LANE ==================== -->
+
+        <mxCell id="s1" value="Receive&#xa;Search Request" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool2">
+          <mxGeometry x="130" y="35" width="110" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="s2" value="Call Catalog&#xa;Search Agent" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool2">
+          <mxGeometry x="280" y="10" width="110" height="45" as="geometry"/>
+        </mxCell>
+
+        <!-- Gateway: Circuit Breaker -->
+        <mxCell id="s3" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.rhombusPerimeter;symbol=exclusiveGw;isMarkerVisible=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="pool2">
+          <mxGeometry x="310" y="70" width="35" height="35" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="s4" value="SQL Fallback&#xa;Query" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;arcSize=20;fontSize=10;" vertex="1" parent="pool2">
+          <mxGeometry x="400" y="70" width="100" height="40" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="s5" value="Return&#xa;Results" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;arcSize=20;fontSize=10;" vertex="1" parent="pool2">
+          <mxGeometry x="540" y="35" width="100" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Product detail enrichment call -->
+        <mxCell id="s6" value="Call Enrichment&#xa;Agent (500ms)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool2">
+          <mxGeometry x="740" y="35" width="120" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Async: Publish ProductCreated -->
+        <mxCell id="s7" value="Publish&#xa;ProductCreated" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;arcSize=20;fontSize=10;" vertex="1" parent="pool2">
+          <mxGeometry x="1130" y="35" width="120" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="sa1" style="edgeStyle=orthogonalEdgeStyle;" edge="1" parent="pool2" source="s1" target="s2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="sa2" value="Timeout/&#xa;Error" style="edgeStyle=orthogonalEdgeStyle;fontSize=8;" edge="1" parent="pool2" source="s2" target="s3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="sa3" value="Circuit&#xa;Open" style="edgeStyle=orthogonalEdgeStyle;fontSize=8;" edge="1" parent="pool2" source="s3" target="s4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="sa4" style="edgeStyle=orthogonalEdgeStyle;" edge="1" parent="pool2" source="s4" target="s5"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <!-- ==================== CATALOG SEARCH AGENT LANE ==================== -->
+
+        <mxCell id="a1" value="Receive&#xa;Query" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool3">
+          <mxGeometry x="280" y="15" width="100" height="45" as="geometry"/>
+        </mxCell>
+
+        <!-- Gateway: Cache Hit? -->
+        <mxCell id="a2" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.rhombusPerimeter;symbol=exclusiveGw;isMarkerVisible=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="pool3">
+          <mxGeometry x="410" y="20" width="35" height="35" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="a3" value="Query AI&#xa;Search" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool3">
+          <mxGeometry x="480" y="65" width="100" height="45" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="a4" value="Return Cached&#xa;Results" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;arcSize=20;fontSize=10;" vertex="1" parent="pool3">
+          <mxGeometry x="480" y="10" width="100" height="40" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="a5" value="Cache &amp;&#xa;Return" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;arcSize=20;fontSize=10;" vertex="1" parent="pool3">
+          <mxGeometry x="620" y="65" width="90" height="45" as="geometry"/>
+        </mxCell>
+
+        <!-- Async: Update Index -->
+        <mxCell id="a6" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=catching;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="pool3">
+          <mxGeometry x="1075" y="50" width="30" height="30" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="a7" value="Update Search&#xa;Index" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool3">
+          <mxGeometry x="1140" y="40" width="110" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="a8" value="Invalidate&#xa;Cache" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;arcSize=20;fontSize=10;" vertex="1" parent="pool3">
+          <mxGeometry x="1290" y="40" width="100" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="aa1" style="edgeStyle=orthogonalEdgeStyle;" edge="1" parent="pool3" source="a1" target="a2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="aa2" value="Miss" style="edgeStyle=orthogonalEdgeStyle;fontSize=9;" edge="1" parent="pool3" source="a2" target="a3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="aa3" value="Hit" style="edgeStyle=orthogonalEdgeStyle;fontSize=9;" edge="1" parent="pool3" source="a2" target="a4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="aa4" style="edgeStyle=orthogonalEdgeStyle;" edge="1" parent="pool3" source="a3" target="a5"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="aa5" style="edgeStyle=orthogonalEdgeStyle;" edge="1" parent="pool3" source="a6" target="a7"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="aa6" style="edgeStyle=orthogonalEdgeStyle;" edge="1" parent="pool3" source="a7" target="a8"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <!-- ==================== INFRASTRUCTURE LANE ==================== -->
+
+        <mxCell id="inf1" value="Redis Cache&#xa;(15 min TTL)" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#E65100;size=10;fontSize=10;" vertex="1" parent="pool4">
+          <mxGeometry x="410" y="15" width="90" height="55" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="inf2" value="Azure AI&#xa;Search" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#1565C0;size=10;fontSize=10;" vertex="1" parent="pool4">
+          <mxGeometry x="540" y="15" width="90" height="55" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="inf3" value="Cosmos DB&#xa;(Warm Memory)" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;size=10;fontSize=10;" vertex="1" parent="pool4">
+          <mxGeometry x="740" y="15" width="100" height="55" as="geometry"/>
+        </mxCell>
+
+        <!-- ==================== EVENT HUB LANE ==================== -->
+
+        <mxCell id="ev1" value="Product&#xa;Created" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=throwing;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=8;" vertex="1" parent="pool5">
+          <mxGeometry x="1170" y="15" width="40" height="40" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="ev2" value="Product&#xa;Enriched" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=throwing;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=8;" vertex="1" parent="pool5">
+          <mxGeometry x="1400" y="15" width="40" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- ==================== ENRICHMENT AGENT LANE ==================== -->
+
+        <mxCell id="en1" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=catching;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="pool6">
+          <mxGeometry x="1075" y="20" width="30" height="30" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="en2" value="Fetch Base&#xa;Product Data" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool6">
+          <mxGeometry x="1140" y="10" width="110" height="45" as="geometry"/>
+        </mxCell>
+
+        <!-- Gateway: SLM or LLM? -->
+        <mxCell id="en3" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.rhombusPerimeter;symbol=exclusiveGw;isMarkerVisible=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="pool6">
+          <mxGeometry x="1270" y="17" width="35" height="35" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="en4" value="SLM: Generate&#xa;Description" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool6">
+          <mxGeometry x="1330" y="2" width="110" height="40" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="en5" value="LLM: Complex&#xa;Enrichment" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;arcSize=20;fontSize=10;" vertex="1" parent="pool6">
+          <mxGeometry x="1330" y="52" width="110" height="40" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="en6" value="Store in&#xa;Cosmos DB" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;arcSize=20;fontSize=10;" vertex="1" parent="pool6">
+          <mxGeometry x="1460" y="20" width="90" height="45" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="ena1" style="edgeStyle=orthogonalEdgeStyle;" edge="1" parent="pool6" source="en1" target="en2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="ena2" style="edgeStyle=orthogonalEdgeStyle;" edge="1" parent="pool6" source="en2" target="en3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="ena3" value="Simple" style="edgeStyle=orthogonalEdgeStyle;fontSize=8;" edge="1" parent="pool6" source="en3" target="en4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="ena4" value="Complex" style="edgeStyle=orthogonalEdgeStyle;fontSize=8;" edge="1" parent="pool6" source="en3" target="en5"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="ena5" style="edgeStyle=orthogonalEdgeStyle;" edge="1" parent="pool6" source="en4" target="en6"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="ena6" style="edgeStyle=orthogonalEdgeStyle;" edge="1" parent="pool6" source="en5" target="en6"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <!-- ==================== CROSS-POOL MESSAGE FLOWS ==================== -->
+
+        <!-- Customer → CRUD: Search -->
+        <mxCell id="mf1" value="GET /products?search=" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#0066CC;fontSize=9;fontColor=#0066CC;" edge="1" parent="1" source="c2" target="s1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- CRUD → Catalog Agent: Sync Call -->
+        <mxCell id="mf2" value="REST 500ms" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#0066CC;fontSize=8;fontColor=#0066CC;" edge="1" parent="1" source="s2" target="a1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- CRUD → Customer: Results -->
+        <mxCell id="mf3" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#0066CC;" edge="1" parent="1" source="s5" target="c3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Customer → CRUD: Product Detail -->
+        <mxCell id="mf4" value="GET /products/{id}" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#0066CC;fontSize=9;fontColor=#0066CC;" edge="1" parent="1" source="c4" target="s6">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- CRUD (staff) → Event Hub: ProductCreated -->
+        <mxCell id="mf5" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#9673a6;" edge="1" parent="1" source="s7" target="ev1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Customer Staff → CRUD: Create Product -->
+        <mxCell id="mf6" value="POST /products" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#0066CC;fontSize=9;fontColor=#0066CC;" edge="1" parent="1" source="c7" target="s7">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Event Hub → Catalog Agent: Update -->
+        <mxCell id="mf7" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#9673a6;" edge="1" parent="1" source="ev1" target="a6">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Event Hub → Enrichment Agent -->
+        <mxCell id="mf8" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#9673a6;" edge="1" parent="1" source="ev1" target="en1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Enrichment → Event Hub: ProductEnriched -->
+        <mxCell id="mf9" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#82b366;" edge="1" parent="1" source="en6" target="ev2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ==================== ANNOTATIONS ==================== -->
+
+        <!-- Separator line between sync and async -->
+        <mxCell id="sep1" value="" style="endArrow=none;dashed=1;strokeColor=#999999;strokeWidth=2;dashPattern=8 8;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1020" y="30" as="sourcePoint"/>
+            <mxPoint x="1020" y="660" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="sep_label1" value="SYNCHRONOUS&#xa;(Real-time Search)" style="text;html=1;fontSize=10;fontStyle=3;fillColor=none;align=center;fontColor=#0066CC;" vertex="1" parent="1">
+          <mxGeometry x="400" y="690" width="160" height="30" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="sep_label2" value="ASYNCHRONOUS&#xa;(Catalog Indexing + Enrichment)" style="text;html=1;fontSize=10;fontStyle=3;fillColor=none;align=center;fontColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="690" width="230" height="30" as="geometry"/>
+        </mxCell>
+
+        <!-- Title -->
+        <mxCell id="title" value="BPMN: Product Discovery &amp; Enrichment" style="text;html=1;fontSize=16;fontStyle=1;fillColor=none;align=center;" vertex="1" parent="1">
+          <mxGeometry x="400" y="740" width="400" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="subtitle" value="Holiday Peak Hub — Synchronous Search + Async Catalog Pipeline" style="text;html=1;fontSize=11;fontStyle=2;fillColor=none;align=center;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="350" y="765" width="500" height="20" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
