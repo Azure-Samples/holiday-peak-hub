@@ -34,22 +34,16 @@ def configure_logging(connection_string: Optional[str] = None, app_name: Optiona
     )
     if conn:
         try:
-            from azure.monitor.opentelemetry.exporter import AzureMonitorLogExporter
-            from opentelemetry.sdk._logs import LoggerProvider
-            from opentelemetry.sdk._logs import LoggingHandler
-            from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+            from azure.monitor.opentelemetry import configure_azure_monitor
 
-            provider = LoggerProvider()
-            exporter = AzureMonitorLogExporter.from_connection_string(conn)
-            processor = BatchLogRecordProcessor(exporter)
-            provider.add_log_record_processor(processor)
-            handler = LoggingHandler(logger_provider=provider)
-            handler.setLevel(logging.INFO)
-            base_logger.addHandler(handler)
+            configure_azure_monitor(connection_string=conn)
+            base_logger.info("Azure Monitor logging enabled via configure_azure_monitor.")
         except ImportError:
             base_logger.warning(
                 "Azure Monitor logging disabled: missing or incompatible OpenTelemetry packages."
             )
+        except Exception as exc:
+            base_logger.warning("Azure Monitor logging setup error: %s", exc)
 
     stream_handler = logging.StreamHandler()
     stream_handler.setLevel(logging.INFO)
