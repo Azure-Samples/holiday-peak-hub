@@ -20,6 +20,13 @@ This folder contains comprehensive architectural documentation for the Holiday P
 - [Backend Governance](../governance/backend-governance.md) — Python, FastAPI, agent development standards
 - [Infrastructure Governance](../governance/infrastructure-governance.md) — Bicep, AKS, Azure services standards
 
+### Governance and Compliance
+
+- [Governance Overview](../governance/README.md) — Standards and compliance guidelines
+- [Frontend Governance](../governance/frontend-governance.md) — Next.js, React, TypeScript standards
+- [Backend Governance](../governance/backend-governance.md) — Python, FastAPI, agent development standards
+- [Infrastructure Governance](../governance/infrastructure-governance.md) — Bicep, AKS, Azure services standards
+
 ## Quick Links
 
 ### Core Concepts
