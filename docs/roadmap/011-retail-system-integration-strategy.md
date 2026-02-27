@@ -187,7 +187,7 @@ The CRUD service exposes unified REST APIs that:
 The CRUD service will expose a **unified connector interface**:
 
 ```python
-# apps/crud-service/src/connectors/registry.py
+# lib/src/holiday_peak_lib/integrations/registry.py
 
 class ConnectorRegistry:
     """Registry for enterprise system connectors."""
@@ -214,8 +214,8 @@ class ConnectorRegistry:
 ## Implementation Phases
 
 ### Phase 1: Foundation (Q1 2026)
-- Define connector contracts in `lib/src/holiday_peak_lib/connectors/contracts.py`
-- Implement connector registry in `lib/src/holiday_peak_lib/connectors/registry.py`
+- Define connector contracts in `lib/src/holiday_peak_lib/integrations/contracts.py`
+- Implement connector registry in `lib/src/holiday_peak_lib/integrations/registry.py`
 - Implement connector base classes
 - Create mock servers for testing
 

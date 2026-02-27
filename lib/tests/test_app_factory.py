@@ -10,7 +10,7 @@ from holiday_peak_lib.agents.memory.cold import ColdMemory
 from holiday_peak_lib.agents.memory.hot import HotMemory
 from holiday_peak_lib.agents.memory.warm import WarmMemory
 from holiday_peak_lib.app_factory import build_service_app
-from holiday_peak_lib.connectors import ConnectorRegistry
+from holiday_peak_lib.integrations import ConnectorRegistry
 
 
 class SampleServiceAgent(BaseRetailAgent):

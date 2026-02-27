@@ -410,7 +410,7 @@ This document tracks the implementation progress of the Holiday Peak Hub platfor
 **Issue**: [#79](https://github.com/Azure-Samples/holiday-peak-hub/issues/79)
 
 **Tasks**:
-- [ ] Implement ConnectorRegistry in `lib/src/holiday_peak_lib/connectors/`
+- [ ] Implement ConnectorRegistry in `lib/src/holiday_peak_lib/integrations/`
 - [ ] Add connector health monitoring with circuit breakers
 - [ ] Create configuration loader for connector settings
 - [ ] Integrate with CRUD service as central hub
@@ -554,5 +554,5 @@ This document tracks the implementation progress of the Holiday Peak Hub platfor
 - [Shared Infrastructure README](.infra/modules/shared-infrastructure/README.md)
 - [Static Web App README](.infra/modules/static-web-app/README.md)
 - [Enterprise Integration Strategy](roadmap/011-retail-system-integration-strategy.md)
-- [Connector Contracts and Registry](../lib/src/holiday_peak_lib/connectors/)
+- [Connector Contracts and Registry](../lib/src/holiday_peak_lib/integrations/)
 - [CHANGELOG](../CHANGELOG.md)

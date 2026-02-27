@@ -1,6 +1,6 @@
 """Connector contracts and registry exports."""
 
-from holiday_peak_lib.connectors.contracts import (
+from holiday_peak_lib.integrations.contracts import (
     AnalyticsConnectorBase,
     AssetData,
     CRMConnectorBase,
@@ -17,7 +17,7 @@ from holiday_peak_lib.connectors.contracts import (
     SegmentData,
     WorkforceConnectorBase,
 )
-from holiday_peak_lib.connectors.registry import ConnectorRegistration, ConnectorRegistry
+from holiday_peak_lib.integrations.registry import ConnectorRegistration, ConnectorRegistry
 
 __all__ = [
     "AssetData",
