@@ -461,3 +461,6 @@ yarn-error.log*
 
 # Vercel
 .vercel
+
+# Improvements
+improvements.md
