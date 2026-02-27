@@ -89,7 +89,7 @@ class SegmentData(BaseModel):
     member_count: int | None = None
 
 
-class PIMConnectorProtocol(ABC):
+class PIMConnectorBase(ABC):
     @abstractmethod
     async def get_product(self, sku: str) -> ProductData | None:
         """Fetch a single product by SKU."""
@@ -118,7 +118,7 @@ class PIMConnectorProtocol(ABC):
         """Get category taxonomy."""
 
 
-class DAMConnectorProtocol(ABC):
+class DAMConnectorBase(ABC):
     @abstractmethod
     async def get_asset(self, asset_id: str) -> AssetData | None:
         """Fetch asset by id."""
@@ -151,7 +151,7 @@ class DAMConnectorProtocol(ABC):
         """Get transformed asset URL."""
 
 
-class InventoryConnectorProtocol(ABC):
+class InventoryConnectorBase(ABC):
     @abstractmethod
     async def get_inventory(self, sku: str, location_id: str | None = None) -> list[InventoryData]:
         """Get inventory levels for SKU."""
@@ -182,7 +182,7 @@ class InventoryConnectorProtocol(ABC):
         """Get replenishment recommendations."""
 
 
-class CRMConnectorProtocol(ABC):
+class CRMConnectorBase(ABC):
     @abstractmethod
     async def get_customer(self, customer_id: str) -> CustomerData | None:
         """Fetch a customer profile."""
@@ -214,7 +214,7 @@ class CRMConnectorProtocol(ABC):
         """Track customer event."""
 
 
-class CommerceConnectorProtocol(ABC):
+class CommerceConnectorBase(ABC):
     @abstractmethod
     async def get_order(self, order_id: str) -> OrderData | None:
         """Fetch order by id."""
@@ -248,7 +248,7 @@ class CommerceConnectorProtocol(ABC):
         """Sync product to commerce platform."""
 
 
-class AnalyticsConnectorProtocol(ABC):
+class AnalyticsConnectorBase(ABC):
     @abstractmethod
     async def query(self, sql: str, params: dict | None = None) -> list[dict]:
         """Execute query."""
@@ -277,7 +277,7 @@ class AnalyticsConnectorProtocol(ABC):
         """Get demand forecast."""
 
 
-class IntegrationConnectorProtocol(ABC):
+class IntegrationConnectorBase(ABC):
     @abstractmethod
     async def publish_event(self, topic: str, payload: dict) -> dict:
         """Publish integration event."""
@@ -287,7 +287,7 @@ class IntegrationConnectorProtocol(ABC):
         """Consume integration events."""
 
 
-class IdentityConnectorProtocol(ABC):
+class IdentityConnectorBase(ABC):
     @abstractmethod
     async def get_user(self, user_id: str) -> dict | None:
         """Fetch user identity."""
@@ -297,7 +297,7 @@ class IdentityConnectorProtocol(ABC):
         """Fetch consent/preferences."""
 
 
-class WorkforceConnectorProtocol(ABC):
+class WorkforceConnectorBase(ABC):
     @abstractmethod
     async def get_schedule(self, location_id: str, date: datetime) -> list[dict]:
         """Get schedule for location/date."""
@@ -309,3 +309,15 @@ class WorkforceConnectorProtocol(ABC):
     @abstractmethod
     async def get_task_status(self, task_id: str) -> dict:
         """Get task status."""
+
+
+# Backward-compatible aliases
+PIMConnectorProtocol = PIMConnectorBase
+DAMConnectorProtocol = DAMConnectorBase
+InventoryConnectorProtocol = InventoryConnectorBase
+CRMConnectorProtocol = CRMConnectorBase
+CommerceConnectorProtocol = CommerceConnectorBase
+AnalyticsConnectorProtocol = AnalyticsConnectorBase
+IntegrationConnectorProtocol = IntegrationConnectorBase
+IdentityConnectorProtocol = IdentityConnectorBase
+WorkforceConnectorProtocol = WorkforceConnectorBase

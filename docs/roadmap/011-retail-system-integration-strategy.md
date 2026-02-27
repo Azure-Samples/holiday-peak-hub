@@ -193,13 +193,13 @@ class ConnectorRegistry:
     """Registry for enterprise system connectors."""
     
     def __init__(self):
-        self._pim: PIMConnectorProtocol | None = None
-        self._dam: DAMConnectorProtocol | None = None
-        self._inventory: InventoryConnectorProtocol | None = None
-        self._crm: CRMConnectorProtocol | None = None
-        self._commerce: CommerceConnectorProtocol | None = None
+        self._pim: PIMConnectorBase | None = None
+        self._dam: DAMConnectorBase | None = None
+        self._inventory: InventoryConnectorBase | None = None
+        self._crm: CRMConnectorBase | None = None
+        self._commerce: CommerceConnectorBase | None = None
     
-    def register_pim(self, connector: PIMConnectorProtocol) -> None:
+    def register_pim(self, connector: PIMConnectorBase) -> None:
         """Register PIM connector (Salsify, inRiver, etc.)"""
         self._pim = connector
     
