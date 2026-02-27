@@ -1,4 +1,5 @@
 """Generic service agent implementation."""
+
 from typing import Any
 
 from .base_agent import BaseRetailAgent

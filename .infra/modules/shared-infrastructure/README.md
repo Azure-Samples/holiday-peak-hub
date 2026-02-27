@@ -1,12 +1,15 @@
 # Shared Infrastructure Module
 
 This module provisions **shared infrastructure** for Holiday Peak Hub that is used by all services (CRUD service + 21 agent services).
+Provisioning is implemented with Azure Verified Modules (AVM) for consistent, supportable resource definitions.
+AVM module versions are pinned per resource in the shared infrastructure Bicep file to ensure compatibility with the registry.
 
 ## Architecture Decision
 
 **Agent Resources: Pairwise Approach**
+
 - Each agent **keeps its own memory resources** (Cosmos containers, Redis DBs, Blob containers)
-- Agents **share the underlying accounts** (Cosmos DB account, Redis Cache, Storage Account)
+- Agents **share the underlying accounts** (Cosmos DB account, PostgreSQL server, Redis Cache, Storage Account)
 - This approach balances **isolation** (agent independence) with **cost optimization** (shared infrastructure)
 
 ## What's Shared
@@ -14,6 +17,7 @@ This module provisions **shared infrastructure** for Holiday Peak Hub that is us
 This module creates **ONE instance** of each resource, shared across all services:
 
 ### Compute & Container
+
 - **Azure Kubernetes Service (AKS)** - Single cluster with 3 node pools:
   - `system` - System workloads (1-5 nodes)
   - `agents` - Agent services with taint `workload=agents:NoSchedule` (2-20 nodes)
@@ -21,9 +25,9 @@ This module creates **ONE instance** of each resource, shared across all service
 - **Azure Container Registry (ACR)** - Container image registry (Premium tier)
 
 ### Data & Storage
-- **Cosmos DB Account** - Shared account with:
-  - **Operational containers** (for CRUD service): `users`, `products`, `orders`, `cart`, `reviews`, `addresses`, `payment_methods`, `tickets`, `shipments`, `audit_logs`
-  - **Agent memory containers** (created by agent modules): `warm-{agent-name}-chat-memory`
+
+- **Azure Database for PostgreSQL Flexible Server** - CRUD transactional datastore (`holiday_peak_crud` database)
+- **Cosmos DB Account** - Shared account for **agent warm memory** containers (`warm-{agent-name}-chat-memory`)
 - **Redis Cache** - Shared Premium 6GB cache with multiple databases:
   - Database 0: CRUD service cache
   - Database 1-21: Agent hot memory (one per agent)
@@ -32,6 +36,7 @@ This module creates **ONE instance** of each resource, shared across all service
   - `cold-{agent-name}-chat-memory` - Agent-specific cold storage (created by agent modules)
 
 ### Messaging & Events
+
 - **Event Hubs Namespace** - Shared namespace with topics:
   - `order-events` - Order lifecycle events
   - `inventory-events` - Inventory updates
@@ -40,10 +45,13 @@ This module creates **ONE instance** of each resource, shared across all service
   - `user-events` - User activity events
 
 ### Security & Secrets
+
 - **Key Vault** - Centralized secrets management (Premium tier with RBAC)
 - **Managed Identity** - AKS uses System-Assigned MI for passwordless auth
+- **PostgreSQL secret sync** - `postgres-admin-password` is stored in Key Vault for CRUD runtime retrieval
 
 ### Networking
+
 - **Virtual Network** - 10.0.0.0/16 with subnets:
   - `aks-system` - 10.0.0.0/22 (System node pool)
   - `aks-agents` - 10.0.4.0/22 (Agent node pool)
@@ -51,15 +59,23 @@ This module creates **ONE instance** of each resource, shared across all service
   - `apim` - 10.0.9.0/24 (API Management)
   - `private-endpoints` - 10.0.10.0/24 (Private endpoints for PaaS services)
 - **Network Security Groups** - One per subnet
-- **Private Endpoints** - All PaaS services accessible only via private network (no public access)
+- **Private Endpoints** - PaaS services are private by default; Azure AI Foundry is the intentional public-access exception
 
 ### API Gateway
+
 - **Azure API Management** - API gateway for all services:
   - Consumption tier (dev/staging)
   - StandardV2 tier (prod)
   - VNet integration in prod
 
+### AI Platform
+
+- **Azure AI Foundry** - Shared Foundry resource and hub for agents and model deployments
+  - Deployed in **West US 3** (`westus3`) for Azure AI Agent Service compatibility
+  - **Public network access enabled** for agent service operations
+
 ### Observability
+
 - **Application Insights** - Distributed tracing, metrics, logs
 - **Log Analytics Workspace** - Centralized logging (90-day retention)
 
@@ -68,7 +84,7 @@ This module creates **ONE instance** of each resource, shared across all service
 The module automatically configures **passwordless authentication** using Managed Identity:
 
 - **AKS → ACR**: `AcrPull` (pull container images)
-- **AKS → Cosmos DB**: `Cosmos DB Data Contributor` (read/write data)
+- **AKS → Cosmos DB**: `Cosmos DB Data Contributor` (agent warm memory)
 - **AKS → Event Hubs**: `Event Hubs Data Sender/Receiver` (publish/subscribe events)
 - **AKS → Key Vault**: `Key Vault Secrets User` (read secrets)
 - **AKS → Storage**: `Storage Blob Data Contributor` (read/write blobs)
@@ -76,8 +92,57 @@ The module automatically configures **passwordless authentication** using Manage
 ## Deployment
 
 ### Prerequisites
+
 - Azure CLI installed and authenticated
 - Subscription with Owner or Contributor role
+
+### Demo Environment (Step-by-Step)
+
+1) Deploy shared infrastructure
+
+```bash
+az deployment sub create \
+  --location eastus2 \
+  --template-file .infra/modules/shared-infrastructure/shared-infrastructure-main.bicep \
+  --parameters environment=demo location=eastus2
+```
+
+2) Deploy Static Web App
+
+```bash
+az deployment sub create \
+  --location eastus2 \
+  --template-file .infra/modules/static-web-app/static-web-app-main.bicep \
+  --parameters environment=demo \
+               resourceGroupName=holidaypeakhub-demo-rg
+```
+
+3) Deploy services (demo strategy)
+
+```bash
+# Example: deploy one service
+python .infra/cli.py deploy \
+  --service ecommerce-catalog-search \
+  --location eastus2 \
+  --resource-group holidaypeakhub-demo-rg \
+  --app-image ghcr.io/azure-samples/ecommerce-catalog-search:latest
+
+# Or deploy all services
+python .infra/cli.py deploy-all \
+  --location eastus2 \
+  --resource-group holidaypeakhub-demo-rg \
+  --app-image ghcr.io/azure-samples/<service>:latest
+```
+
+4) Connect to AKS
+
+```bash
+az aks get-credentials \
+  --resource-group holidaypeakhub-demo-rg \
+  --name holidaypeakhub-demo-aks
+
+kubectl get nodes
+```
 
 ### Deploy Shared Infrastructure
 
@@ -124,14 +189,16 @@ az keyvault secret show \
 ## Cost Optimization
 
 ### Dev Environment (Serverless/Low Tier)
-- **Cosmos DB**: Serverless mode (pay per RU consumed)
+- **PostgreSQL**: Burstable SKU for dev (`Standard_B2s`)
+- **Cosmos DB**: Serverless mode (agent warm memory only)
 - **Redis**: Premium P1 (6GB)
 - **AKS**: 1 system node, 2 agent nodes, 1 CRUD node (autoscaling disabled)
 - **APIM**: Consumption tier (pay per million calls)
 - **Estimated Monthly Cost**: ~$500-700/month
 
 ### Production Environment (High Availability)
-- **Cosmos DB**: Provisioned throughput with autoscale (remove serverless capability)
+- **PostgreSQL**: GeneralPurpose SKU with HA for prod
+- **Cosmos DB**: Provisioned throughput with autoscale (agent warm memory)
 - **Redis**: Premium P1 with geo-replication
 - **AKS**: 3 system nodes, 5 agent nodes, 3 CRUD nodes (autoscaling enabled)
 - **APIM**: StandardV2 tier with VNet integration
@@ -179,10 +246,10 @@ resource agentMemoryContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabase
 ## Troubleshooting
 
 ### Private Endpoint DNS Resolution
-If services can't connect to Cosmos DB/Redis/Event Hubs:
+If services can't connect to PostgreSQL/Cosmos DB/Redis/Event Hubs:
 1. Verify private endpoints are created: `az network private-endpoint list -g <rg>`
 2. Check AKS CoreDNS is using Azure DNS: `kubectl get configmap coredns -n kube-system -o yaml`
-3. Test DNS resolution from pod: `kubectl run -it --rm debug --image=busybox --restart=Never -- nslookup <cosmos-account>.documents.azure.com`
+3. Test DNS resolution from pod: `kubectl run -it --rm debug --image=busybox --restart=Never -- nslookup <postgres-server>.postgres.database.azure.com`
 
 ### RBAC Permissions
 If AKS pods can't access resources:
@@ -192,9 +259,10 @@ If AKS pods can't access resources:
 
 ## Security Notes
 
-- ✅ **No public endpoints** - All PaaS services use private endpoints
-- ✅ **No passwords** - Managed Identity for all authentication
+- ✅ PaaS services use private endpoints by default
+- ⚠️ Azure AI Foundry intentionally uses public network access to support agent provisioning/invocation
+- ✅ **Credential isolation** - PostgreSQL admin password is injected via deployment and should be stored in Key Vault
 - ✅ **Secrets in Key Vault** - No hardcoded credentials
 - ✅ **TLS 1.2 minimum** - All services enforce secure connections
 - ✅ **Soft delete enabled** - Key Vault and Storage have soft delete (90 days)
-- ✅ **Continuous backup** - Cosmos DB has 30-day point-in-time restore
+- ✅ **Continuous backup** - PostgreSQL and Cosmos DB support point-in-time restore

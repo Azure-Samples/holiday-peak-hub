@@ -10,6 +10,7 @@ Requires-Dist: fastapi-mcp
 Requires-Dist: uvicorn
 Requires-Dist: pydantic>=2
 Requires-Dist: agent-framework
+Requires-Dist: httpx
 Requires-Dist: azure-ai-projects
 Requires-Dist: azure-identity
 Requires-Dist: azure-search-documents

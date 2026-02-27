@@ -7,7 +7,6 @@ import Layout from "@/layouts/centered";
 
 
 const NotFound = ({ params }: { params: { error: string } }) => {
-  const statusCode = params.error;
   return (
     <Layout>
       <div className="flex flex-col w-full max-w-xl text-center">

@@ -14,12 +14,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - React Query hooks for data fetching (5 custom hooks)
 - Service layer abstraction (6 TypeScript services)
 - Event publishing integration with Azure Event Hubs (5 topics)
-- MCP agent client for optional agent invocation
 - Comprehensive test structure (unit, integration, e2e)
 - Complete API documentation and integration guide
 - CRUD Service implementation documentation
 
-### Changed
+### Changed — Data Layer: Cosmos DB → PostgreSQL
+- **Migrated CRUD Service data layer from Azure Cosmos DB to PostgreSQL (asyncpg)**
+  - `BaseRepository` now uses a shared `asyncpg.Pool` with configurable pool sizes
+  - Data stored in JSONB columns with GIN + B-tree indexes per table
+  - Auto-creates tables on first request if they don't exist
+  - Read path: `json.loads(row["data"])` for JSONB deserialization
+  - Write path: `json.dumps(item)` for JSONB serialization
+- New PostgreSQL settings in `settings.py`: `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DATABASE`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_SSL`, `POSTGRES_MIN_POOL`, `POSTGRES_MAX_POOL`
+- Removed `azure-cosmos` SDK dependency; added `asyncpg` dependency
+
+### Changed — Agent Client: APIM-Routed Resilient Integration
+- **Rewrote `agent_client.py` with APIM gateway routing, circuit breaker, and retry**
+  - All agent calls now route through Azure API Management (`APIM_BASE_URL`)
+  - 12 domain-specific methods (product enrichment, cart intelligence, checkout support, catalog search, order status, CRM profile, CRM campaign, CRM segmentation, CRM support, inventory alerts, logistics ETA, logistics carrier)
+  - `circuitbreaker` library (failure_threshold=5, recovery_timeout=60s)
+  - `tenacity` retry with exponential backoff (3 attempts, 1–10s)
+  - `httpx.AsyncClient` replaces raw HTTP calls
+  - Graceful degradation: returns `None` on circuit-open or exhausted retries
+- 12 new agent URL settings in `settings.py` (e.g., `PRODUCT_ENRICHMENT_AGENT_URL`, `CART_INTELLIGENCE_AGENT_URL`, etc.)
+- Circuit breaker settings: `CIRCUIT_BREAKER_FAILURE_THRESHOLD`, `CIRCUIT_BREAKER_RECOVERY_TIMEOUT`
+
+### Changed — Authentication: JWKS-Based JWT Validation
+- **Rewrote `auth/dependencies.py` with JWKS key caching and kid-based matching**
+  - Fetches signing keys from Entra ID JWKS endpoint (`/discovery/v2.0/keys`)
+  - Caches JWKS for 1 hour (configurable `JWKS_CACHE_TTL`)
+  - Matches JWT `kid` header to correct signing key
+  - Graceful degradation: falls back to stale cache on JWKS fetch failure
+  - Replaced `msal`-based token validation with direct `PyJWT` + JWKS
+
+### Changed — Frontend Auth Pages
+- Replaced stubbed login/signup pages with Entra ID-only authentication
+- Removed local credential forms (all auth delegated to Microsoft Entra ID)
+
+### Changed — CI/CD & Deployment
+- `deploy-azd.yml` workflow with 8 jobs: provision, deploy-foundry-models, deploy-crud, deploy-ui, deploy-agents, sync-apim, ensure-foundry-agents, seed-demo-data
+- PostgreSQL outputs added to provision job (`POSTGRES_HOST`, `POSTGRES_USER`, `POSTGRES_DATABASE`)
+- Updated `.env.example` and `.env.deploy.sample` with all new environment variables
+
+### Changed — General
 - Updated Next.js to 16.2.0-canary.17 for latest features
 - Downgraded Tailwind CSS to 3.4.0 for stability (from v4 beta)
 - Updated frontend documentation to reflect completed integration
@@ -27,6 +64,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improved README with accurate implementation status
 
 ### Fixed
+- `BaseRepository` JSONB serialization: `json.loads()` for reads, `json.dumps()` for writes (was using raw dict operations incompatible with asyncpg)
+- `seed_demo_data.py` JSONB insertion: added `json.dumps(item)` before INSERT (asyncpg requires string for JSONB)
+- Circuit breaker reset method: `cb.close()` → `cb.reset()` via `CircuitBreakerMonitor.get_circuits()`
+- Integration test event loop reuse: per-test `TestClient` fixture with `BaseRepository._pool = None` reset in teardown
 - MSAL SSR compatibility issue (window undefined during server-side rendering)
 - Next.js 15 params promise unwrapping requirement
 - CSS pseudo-class syntax (::hover → :hover) for Turbopack compatibility
@@ -36,6 +77,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - FilterPanel and ProductGrid undefined prop defaults
 - PostCSS nesting plugin compatibility (downgraded to v12.1.5)
 - Next.js SWC version alignment issue
+
+### Testing
+- **87 tests passing** (85 unit + 2 integration + 0 skipped)
+- 43 new tests added across 3 new test files
+- Fixed pre-existing test regressions from data layer migration
+- Integration tests run against live PostgreSQL (Azure Flexible Server)
+- 14 test files total: 10 unit, 3 integration, 1 e2e
 
 ## [1.0.0] - 2026-01-29
 

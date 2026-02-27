@@ -6,10 +6,19 @@ This folder contains comprehensive architectural documentation for the Holiday P
 
 - [Business Summary](business-summary.md) — Business need, value proposition, and scope per lib/app
 - [Architecture Overview](architecture.md) — System context, use case diagrams, component interaction, deployment views
+- [Market Architecture](market-architecture.md) — High-level agentic shopping architecture for proposals
 - [Architecture Decision Records](ADRs.md) — Index of all ADRs
 - [Components](components.md) — Detailed component documentation for libs, apps, and frontend
 - [Frontend Implementation Plan](FRONTEND_IMPLEMENTATION_PLAN.md) — Complete frontend implementation with color system and service mappings
 - [Operational Playbooks](playbooks/README.md) — Incident response guides and runbooks
+- [Infrastructure (Bicep)](../../infrastructure/bicep/main.bicep) — Azure provisioning for core services
+
+### Governance and Compliance
+
+- [Governance Overview](../governance/README.md) — Standards and compliance guidelines
+- [Frontend Governance](../governance/frontend-governance.md) — Next.js, React, TypeScript standards
+- [Backend Governance](../governance/backend-governance.md) — Python, FastAPI, agent development standards
+- [Infrastructure Governance](../governance/infrastructure-governance.md) — Bicep, AKS, Azure services standards
 
 ### Governance and Compliance
 
@@ -24,6 +33,7 @@ This folder contains comprehensive architectural documentation for the Holiday P
 - **Libs**: Reusable micro-framework (adapters, agents, memory, orchestration)
 - **Apps**: Domain-specific services built on the framework
 - **Memory Tiers**: Redis (hot), Cosmos DB (warm), Blob Storage (cold)
+- **AI Foundry**: Shared Foundry resource + hub for agent projects and model deployments
 - **Integration**: Event Hubs for async choreography, MCP + REST for sync APIs
 - **Deployment**: Bicep for provisioning, Helm/KEDA for Kubernetes orchestration
 - **Frontend**: Next.js 15 + React 19 + TypeScript, 52-component atomic design library

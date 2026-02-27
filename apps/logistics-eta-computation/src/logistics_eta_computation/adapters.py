@@ -1,12 +1,16 @@
 """Adapters for the logistics ETA computation service."""
+
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Optional
 
+from holiday_peak_lib.adapters import BaseExternalAPIAdapter
 from holiday_peak_lib.adapters.logistics_adapter import LogisticsConnector
 from holiday_peak_lib.adapters.mock_adapters import MockLogisticsAdapter
+from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.schemas.logistics import LogisticsContext
 
 
@@ -49,3 +53,14 @@ def build_eta_adapters(
     logistics = logistics_connector or LogisticsConnector(adapter=MockLogisticsAdapter())
     estimator = EtaEstimator()
     return EtaComputationAdapters(logistics=logistics, estimator=estimator)
+
+
+def register_external_api_tools(mcp: FastAPIMCPServer) -> None:
+    """Register ETA API tools with MCP when configured."""
+    base_url = os.getenv("ETA_API_URL")
+    if not base_url:
+        return
+    api_key = os.getenv("ETA_API_KEY")
+    adapter = BaseExternalAPIAdapter("eta", base_url=base_url, api_key=api_key)
+    adapter.add_api_tool("estimate", "POST", "/estimate")
+    adapter.register_mcp_tools(mcp)

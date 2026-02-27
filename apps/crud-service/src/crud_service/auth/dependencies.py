@@ -1,16 +1,15 @@
 """Authentication dependencies using Microsoft Entra ID."""
 
 import logging
+import time
 from typing import Annotated
 
-from azure.identity.aio import DefaultAzureCredential
-from azure.keyvault.secrets.aio import SecretClient
+import httpx
+from crud_service.config import get_settings
 from fastapi import Depends, HTTPException, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from pydantic import BaseModel
-
-from crud_service.config import get_settings
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -28,58 +27,106 @@ class User(BaseModel):
 
 
 class JWTConfig:
-    """JWT configuration loaded from Key Vault."""
+    """JWT configuration for Entra ID token validation with JWKS caching."""
+
+    _JWKS_TTL = 3600  # Re-fetch keys every hour
 
     def __init__(self):
         self.tenant_id = settings.entra_tenant_id
         self.client_id = settings.entra_client_id
         self.issuer = settings.entra_issuer
-        self._jwks_cache = None
+        self._jwks_cache: dict | None = None
+        self._jwks_fetched_at: float = 0.0
 
-    async def get_jwks_uri(self) -> str:
-        """Get JWKS URI for token validation."""
+    @property
+    def jwks_uri(self) -> str:
+        """JWKS URI for token validation."""
         return f"https://login.microsoftonline.com/{self.tenant_id}/discovery/v2.0/keys"
+
+    async def get_signing_keys(self) -> dict:
+        """
+        Fetch and cache the JWKS key set from Entra ID.
+
+        Keys are cached for ``_JWKS_TTL`` seconds.  A stale cache is
+        returned if the remote fetch fails so the service degrades
+        gracefully instead of blocking all requests.
+        """
+        now = time.monotonic()
+        if self._jwks_cache and (now - self._jwks_fetched_at) < self._JWKS_TTL:
+            return self._jwks_cache
+
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                response = await client.get(self.jwks_uri)
+                response.raise_for_status()
+                self._jwks_cache = response.json()
+                self._jwks_fetched_at = now
+                logger.info("Refreshed JWKS from %s", self.jwks_uri)
+        except Exception:
+            if self._jwks_cache:
+                logger.warning("JWKS refresh failed; using cached keys")
+            else:
+                logger.error("JWKS fetch failed and no cached keys available")
+                raise
+
+        return self._jwks_cache
 
 
 jwt_config = JWTConfig()
 
 
 async def get_current_user(
-    credentials: Annotated[HTTPAuthorizationCredentials, Security(security)]
+    credentials: Annotated[HTTPAuthorizationCredentials, Security(security)],
 ) -> User:
     """
     Extract and validate JWT token from Authorization header.
-    
-    Validates token signature against Entra ID JWKS endpoint.
-    Returns authenticated user with roles.
-    
+
+    Validates token signature against Entra ID JWKS endpoint,
+    checks issuer, audience, and expiry claims.
+
     Raises:
         HTTPException: If token is invalid or expired.
     """
     token = credentials.credentials
 
     try:
-        # Decode without verification first to get header
+        # Fetch signing keys
+        jwks = await jwt_config.get_signing_keys()
+
+        # Determine the correct key by matching the ``kid`` header
         unverified_header = jwt.get_unverified_header(token)
-        unverified_claims = jwt.get_unverified_claims(token)
+        kid = unverified_header.get("kid")
+        rsa_key: dict = {}
+        for key in jwks.get("keys", []):
+            if key.get("kid") == kid:
+                rsa_key = {
+                    "kty": key["kty"],
+                    "kid": key["kid"],
+                    "use": key.get("use", "sig"),
+                    "n": key["n"],
+                    "e": key["e"],
+                }
+                break
 
-        # Validate issuer
-        if unverified_claims.get("iss") != jwt_config.issuer:
+        if not rsa_key:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token issuer",
+                detail="Unable to find appropriate signing key",
             )
 
-        # Validate audience (client ID)
-        if jwt_config.client_id not in unverified_claims.get("aud", []):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token audience",
-            )
-
-        # TODO: Fetch JWKS from Entra ID and verify signature
-        # For now, we trust the token (in production, MUST verify signature)
-        payload = unverified_claims
+        # Fully verify the token (signature + exp + iss + aud)
+        payload = jwt.decode(
+            token,
+            rsa_key,
+            algorithms=["RS256"],
+            audience=jwt_config.client_id,
+            issuer=jwt_config.issuer,
+            options={
+                "verify_aud": bool(jwt_config.client_id),
+                "verify_iss": bool(jwt_config.issuer),
+                "verify_exp": True,
+            },
+        )
 
         user_id = payload.get("sub") or payload.get("oid")
         if not user_id:
@@ -95,7 +142,7 @@ async def get_current_user(
         return User(user_id=user_id, email=email, name=name, roles=roles)
 
     except JWTError as e:
-        logger.warning(f"JWT validation error: {e}")
+        logger.warning("JWT validation error: %s", e)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication token",
@@ -103,10 +150,10 @@ async def get_current_user(
         ) from e
 
 
-async def require_role(required_role: str):
+def require_role(required_role: str):
     """
     Dependency to check if user has required role.
-    
+
     Usage:
         @app.get("/admin")
         async def admin_route(user: User = Depends(require_role("admin"))):
@@ -132,7 +179,7 @@ require_admin = require_role("admin")
 
 # Optional authentication (for endpoints that work for both anonymous and authenticated)
 async def get_current_user_optional(
-    credentials: Annotated[HTTPAuthorizationCredentials | None, Security(security)] = None
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Security(security)] = None,
 ) -> User | None:
     """Get current user if authenticated, otherwise return None."""
     if credentials is None:
@@ -141,3 +188,18 @@ async def get_current_user_optional(
         return await get_current_user(credentials)
     except HTTPException:
         return None
+
+
+async def get_key_vault_secret(secret_name: str) -> str:
+    """Read a secret value from Key Vault using managed identity credentials."""
+    from azure.identity.aio import DefaultAzureCredential
+    from azure.keyvault.secrets.aio import SecretClient
+
+    credential = DefaultAzureCredential()
+    client = SecretClient(vault_url=settings.key_vault_uri, credential=credential)
+    try:
+        secret = await client.get_secret(secret_name)
+        return secret.value
+    finally:
+        await client.close()
+        await credential.close()

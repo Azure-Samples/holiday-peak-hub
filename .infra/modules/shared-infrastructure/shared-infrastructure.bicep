@@ -2,7 +2,15 @@ targetScope = 'resourceGroup'
 
 param location string = resourceGroup().location
 param environment string = 'dev' // dev, staging, prod
+@minLength(5)
 param projectName string = 'holidaypeakhub'
+@description('Optional override for Key Vault name (3-24 chars, lowercase letters, numbers, and hyphens). Leave empty to use default naming.')
+param keyVaultNameOverride string = ''
+@description('AKS Kubernetes version; leave empty to use Azure default')
+param aksKubernetesVersion string = ''
+@secure()
+@description('PostgreSQL administrator password for CRUD transactional database. Leave empty to auto-generate a deterministic dev password.')
+param postgresAdminPassword string = ''
 
 // Naming convention with environment suffix
 var envSuffix = environment == 'prod' ? '' : '-${environment}'
@@ -13,81 +21,40 @@ var aksClusterName = '${projectName}${envSuffix}-aks'
 var acrName = take('${safeProjectName}${replace(envSuffix, '-', '')}acr', 50)
 var cosmosAccountName = '${projectName}${envSuffix}-cosmos'
 var databaseName = 'holiday-peak-db'
+var postgresServerName = '${projectName}${envSuffix}-postgres'
+var postgresDatabaseName = 'holiday_peak_crud'
+var postgresAdminUser = 'crud_admin'
+var postgresAdminPasswordSecretName = 'postgres-admin-password'
+var resolvedPostgresAdminPassword = empty(postgresAdminPassword)
+  ? '${take(uniqueString(resourceGroup().id, projectName, environment), 16)}Aa!12345'
+  : postgresAdminPassword
 var eventHubsNamespaceName = '${projectName}${envSuffix}-eventhub'
 var redisName = '${projectName}${envSuffix}-redis'
 var storageAccountName = take('${safeProjectName}${replace(envSuffix, '-', '')}store', 24)
-var keyVaultName = take('${projectName}${envSuffix}-kv', 24)
+var keyVaultName = empty(keyVaultNameOverride)
+  ? take('${projectName}${envSuffix}-kv', 24)
+  : toLower(keyVaultNameOverride)
 var apimName = '${projectName}${envSuffix}-apim'
 var appInsightsName = '${projectName}${envSuffix}-insights'
 var logAnalyticsName = '${projectName}${envSuffix}-logs'
 var vnetName = '${projectName}${envSuffix}-vnet'
-
-// Virtual Network with subnets
-resource vnet 'Microsoft.Network/virtualNetworks@2023-09-01' = {
-  name: vnetName
-  location: location
-  properties: {
-    addressSpace: {
-      addressPrefixes: [
-        '10.0.0.0/16'
-      ]
-    }
-    subnets: [
-      {
-        name: 'aks-system'
-        properties: {
-          addressPrefix: '10.0.0.0/22'
-          networkSecurityGroup: {
-            id: aksSystemNsg.id
-          }
-        }
-      }
-      {
-        name: 'aks-agents'
-        properties: {
-          addressPrefix: '10.0.4.0/22'
-          networkSecurityGroup: {
-            id: aksAgentsNsg.id
-          }
-        }
-      }
-      {
-        name: 'aks-crud'
-        properties: {
-          addressPrefix: '10.0.8.0/24'
-          networkSecurityGroup: {
-            id: aksCrudNsg.id
-          }
-        }
-      }
-      {
-        name: 'apim'
-        properties: {
-          addressPrefix: '10.0.9.0/24'
-          networkSecurityGroup: {
-            id: apimNsg.id
-          }
-        }
-      }
-      {
-        name: 'private-endpoints'
-        properties: {
-          addressPrefix: '10.0.10.0/24'
-          networkSecurityGroup: {
-            id: privateEndpointsNsg.id
-          }
-          privateEndpointNetworkPolicies: 'Disabled'
-        }
-      }
-    ]
-  }
+var aiServicesName = take('${safeProjectName}${replace(envSuffix, '-', '')}ais', 24)
+var aiProjectSuffix = substring(uniqueString(resourceGroup().id), 0, 3)
+var aiProjectInstanceName = 'aip${take(safeProjectName, 6)}${aiProjectSuffix}'
+var aiProjectFriendlyName = '${projectName}${envSuffix} Foundry Project'
+var aiProjectDescription = 'Holiday Peak Hub Foundry project for ${environment}.'
+var aiFoundryBaseName = take('${safeProjectName}${replace(envSuffix, '-', '')}', 12)
+var aiFoundryLocation = 'westus3'
+var tags = {
+  Project: projectName
+  Environment: environment
 }
-
-// Network Security Groups
-resource aksSystemNsg 'Microsoft.Network/networkSecurityGroups@2023-09-01' = {
-  name: 'aks-system-nsg'
-  location: location
-  properties: {
+// Network Security Groups (AVM)
+module aksSystemNsg 'br/public:avm/res/network/network-security-group:0.5.2' = {
+  name: 'nsg-aks-system'
+  params: {
+    name: 'aks-system-nsg'
+    location: location
     securityRules: [
       {
         name: 'AllowAKSControlPlane'
@@ -103,29 +70,35 @@ resource aksSystemNsg 'Microsoft.Network/networkSecurityGroups@2023-09-01' = {
         }
       }
     ]
+    tags: tags
   }
 }
 
-resource aksAgentsNsg 'Microsoft.Network/networkSecurityGroups@2023-09-01' = {
-  name: 'aks-agents-nsg'
-  location: location
-  properties: {
+module aksAgentsNsg 'br/public:avm/res/network/network-security-group:0.5.2' = {
+  name: 'nsg-aks-agents'
+  params: {
+    name: 'aks-agents-nsg'
+    location: location
     securityRules: []
+    tags: tags
   }
 }
 
-resource aksCrudNsg 'Microsoft.Network/networkSecurityGroups@2023-09-01' = {
-  name: 'aks-crud-nsg'
-  location: location
-  properties: {
+module aksCrudNsg 'br/public:avm/res/network/network-security-group:0.5.2' = {
+  name: 'nsg-aks-crud'
+  params: {
+    name: 'aks-crud-nsg'
+    location: location
     securityRules: []
+    tags: tags
   }
 }
 
-resource apimNsg 'Microsoft.Network/networkSecurityGroups@2023-09-01' = {
-  name: 'apim-nsg'
-  location: location
-  properties: {
+module apimNsg 'br/public:avm/res/network/network-security-group:0.5.2' = {
+  name: 'nsg-apim'
+  params: {
+    name: 'apim-nsg'
+    location: location
     securityRules: [
       {
         name: 'AllowAPIMManagement'
@@ -154,434 +127,554 @@ resource apimNsg 'Microsoft.Network/networkSecurityGroups@2023-09-01' = {
         }
       }
     ]
+    tags: tags
   }
 }
 
-resource privateEndpointsNsg 'Microsoft.Network/networkSecurityGroups@2023-09-01' = {
-  name: 'private-endpoints-nsg'
-  location: location
-  properties: {
+module privateEndpointsNsg 'br/public:avm/res/network/network-security-group:0.5.2' = {
+  name: 'nsg-private-endpoints'
+  params: {
+    name: 'private-endpoints-nsg'
+    location: location
     securityRules: []
+    tags: tags
   }
 }
 
-// Log Analytics Workspace
-resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
-  name: logAnalyticsName
-  location: location
-  properties: {
-    sku: {
-      name: 'PerGB2018'
-    }
-    retentionInDays: 90
+// Virtual Network with subnets (AVM)
+module vnet 'br/public:avm/res/network/virtual-network:0.7.2' = {
+  name: 'vnet'
+  params: {
+    name: vnetName
+    location: location
+    addressPrefixes: [
+      '10.0.0.0/16'
+    ]
+    subnets: [
+      {
+        name: 'aks-system'
+        addressPrefix: '10.0.0.0/22'
+        networkSecurityGroupResourceId: aksSystemNsg.outputs.resourceId
+      }
+      {
+        name: 'aks-agents'
+        addressPrefix: '10.0.4.0/22'
+        networkSecurityGroupResourceId: aksAgentsNsg.outputs.resourceId
+      }
+      {
+        name: 'aks-crud'
+        addressPrefix: '10.0.8.0/24'
+        networkSecurityGroupResourceId: aksCrudNsg.outputs.resourceId
+      }
+      {
+        name: 'apim'
+        addressPrefix: '10.0.9.0/24'
+        networkSecurityGroupResourceId: apimNsg.outputs.resourceId
+      }
+      {
+        name: 'private-endpoints'
+        addressPrefix: '10.0.10.0/24'
+        networkSecurityGroupResourceId: privateEndpointsNsg.outputs.resourceId
+        privateEndpointNetworkPolicies: 'Disabled'
+      }
+    ]
+    tags: tags
   }
 }
 
-// Application Insights
-resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
-  name: appInsightsName
-  location: location
-  kind: 'web'
-  properties: {
-    Application_Type: 'web'
-    WorkspaceResourceId: logAnalytics.id
-    IngestionMode: 'LogAnalytics'
+var subnetResourceIds = vnet.outputs.subnetResourceIds
+var aksSystemSubnetId = subnetResourceIds[0]
+var aksAgentsSubnetId = subnetResourceIds[1]
+var aksCrudSubnetId = subnetResourceIds[2]
+var apimSubnetId = subnetResourceIds[3]
+var peSubnetId = subnetResourceIds[4]
+
+// Private DNS Zones (AVM) — required for private endpoints
+module acrPrivateDnsZone 'br/public:avm/res/network/private-dns-zone:0.8.0' = {
+  name: 'acr-private-dns'
+  params: {
+    name: 'privatelink.azurecr.io'
+    virtualNetworkLinks: [
+      {
+        virtualNetworkResourceId: vnet.outputs.resourceId
+      }
+    ]
+    tags: tags
   }
 }
 
-// Azure Container Registry
-resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
-  name: acrName
-  location: location
-  sku: {
-    name: 'Premium' // Premium for geo-replication and private endpoints
+module cosmosPrivateDnsZone 'br/public:avm/res/network/private-dns-zone:0.8.0' = {
+  name: 'cosmos-private-dns'
+  params: {
+    name: 'privatelink.documents.azure.com'
+    virtualNetworkLinks: [
+      {
+        virtualNetworkResourceId: vnet.outputs.resourceId
+      }
+    ]
+    tags: tags
   }
-  identity: {
-    type: 'SystemAssigned'
+}
+
+module postgresPrivateDnsZone 'br/public:avm/res/network/private-dns-zone:0.8.0' = {
+  name: 'postgres-private-dns'
+  params: {
+    name: 'privatelink.postgres.database.azure.com'
+    virtualNetworkLinks: [
+      {
+        virtualNetworkResourceId: vnet.outputs.resourceId
+      }
+    ]
+    tags: tags
   }
-  properties: {
-    adminUserEnabled: false
-    publicNetworkAccess: 'Disabled' // Private endpoint only
+}
+
+module redisPrivateDnsZone 'br/public:avm/res/network/private-dns-zone:0.8.0' = {
+  name: 'redis-private-dns'
+  params: {
+    name: 'privatelink.redis.cache.windows.net'
+    virtualNetworkLinks: [
+      {
+        virtualNetworkResourceId: vnet.outputs.resourceId
+      }
+    ]
+    tags: tags
+  }
+}
+
+module storagePrivateDnsZone 'br/public:avm/res/network/private-dns-zone:0.8.0' = {
+  name: 'storage-private-dns'
+  params: {
+    name: 'privatelink.blob.${az.environment().suffixes.storage}'
+    virtualNetworkLinks: [
+      {
+        virtualNetworkResourceId: vnet.outputs.resourceId
+      }
+    ]
+    tags: tags
+  }
+}
+
+module eventHubsPrivateDnsZone 'br/public:avm/res/network/private-dns-zone:0.8.0' = {
+  name: 'eventhubs-private-dns'
+  params: {
+    name: 'privatelink.servicebus.windows.net'
+    virtualNetworkLinks: [
+      {
+        virtualNetworkResourceId: vnet.outputs.resourceId
+      }
+    ]
+    tags: tags
+  }
+}
+
+module keyVaultPrivateDnsZone 'br/public:avm/res/network/private-dns-zone:0.8.0' = {
+  name: 'keyvault-private-dns'
+  params: {
+    name: 'privatelink.vaultcore.azure.net'
+    virtualNetworkLinks: [
+      {
+        virtualNetworkResourceId: vnet.outputs.resourceId
+      }
+    ]
+    tags: tags
+  }
+}
+
+module aiServicesPrivateDnsZone 'br/public:avm/res/network/private-dns-zone:0.8.0' = {
+  name: 'aiservices-private-dns'
+  params: {
+    name: 'privatelink.cognitiveservices.azure.com'
+    virtualNetworkLinks: [
+      {
+        virtualNetworkResourceId: vnet.outputs.resourceId
+      }
+    ]
+    tags: tags
+  }
+}
+
+// Log Analytics Workspace (AVM)
+module logAnalytics 'br/public:avm/res/operational-insights/workspace:0.15.0' = {
+  name: 'log-analytics'
+  params: {
+    name: logAnalyticsName
+    location: location
+    skuName: 'PerGB2018'
+    dataRetention: 90
+    tags: tags
+  }
+}
+
+// Application Insights (AVM)
+module appInsights 'br/public:avm/res/insights/component:0.7.1' = {
+  name: 'app-insights'
+  params: {
+    name: appInsightsName
+    location: location
+    applicationType: 'web'
+    ingestionMode: 'LogAnalytics'
+    workspaceResourceId: logAnalytics.outputs.resourceId
+    tags: tags
+  }
+}
+
+// Azure Container Registry (AVM)
+module acr 'br/public:avm/res/container-registry/registry:0.9.3' = {
+  name: 'acr'
+  params: {
+    #disable-next-line BCP334 // projectName @minLength(5) ensures acrName >= 8 chars
+    name: acrName
+    location: location
+    acrSku: 'Premium'
+    acrAdminUserEnabled: false
+    publicNetworkAccess: 'Disabled'
     networkRuleBypassOptions: 'AzureServices'
+    managedIdentities: {
+      systemAssigned: true
+    }
+    privateEndpoints: [
+      {
+        subnetResourceId: peSubnetId
+        privateDnsZoneGroup: {
+          privateDnsZoneGroupConfigs: [
+            {
+              privateDnsZoneResourceId: acrPrivateDnsZone.outputs.resourceId
+            }
+          ]
+        }
+      }
+    ]
+    tags: tags
   }
 }
 
-// Cosmos DB Account (shared across all services and agents)
-resource cosmos 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' = {
-  name: cosmosAccountName
-  location: location
-  kind: 'GlobalDocumentDB'
-  identity: {
-    type: 'SystemAssigned'
-  }
-  properties: {
+// Cosmos DB Account + SQL DB (AVM)
+// Cosmos is reserved for agent warm memory containers (warm-{agent}-chat-memory).
+var cosmosContainers = []
+
+module cosmos 'br/public:avm/res/document-db/database-account:0.18.0' = {
+  name: 'cosmos'
+  params: {
+    name: cosmosAccountName
+    location: location
     databaseAccountOfferType: 'Standard'
-    consistencyPolicy: {
-      defaultConsistencyLevel: 'Session'
-    }
-    locations: [
+    defaultConsistencyLevel: 'Session'
+    failoverLocations: [
       {
         locationName: location
         failoverPriority: 0
         isZoneRedundant: environment == 'prod'
       }
     ]
-    capabilities: [
-      {
-        name: 'EnableServerless' // Use serverless for dev, remove for prod
-      }
+    capabilitiesToAdd: environment == 'prod' ? [] : [
+      'EnableServerless'
     ]
-    publicNetworkAccess: 'Disabled' // Private endpoint only
+    networkRestrictions: {
+      publicNetworkAccess: 'Disabled'
+      ipRules: []
+      virtualNetworkRules: []
+    }
     enableAutomaticFailover: environment == 'prod'
     enableMultipleWriteLocations: false
-    backupPolicy: {
-      type: 'Continuous'
-      continuousModeProperties: {
-        tier: 'Continuous30Days'
-      }
+    backupPolicyType: 'Continuous'
+    backupPolicyContinuousTier: 'Continuous30Days'
+    managedIdentities: {
+      systemAssigned: true
     }
+    privateEndpoints: [
+      {
+        subnetResourceId: peSubnetId
+        service: 'Sql'
+        privateDnsZoneGroup: {
+          privateDnsZoneGroupConfigs: [
+            {
+              privateDnsZoneResourceId: cosmosPrivateDnsZone.outputs.resourceId
+            }
+          ]
+        }
+      }
+    ]
+    sqlDatabases: [
+      {
+        name: databaseName
+        containers: cosmosContainers
+      }
+    ]
+    tags: tags
   }
 }
 
-// Cosmos DB Database
-resource cosmosDb 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2023-11-15' = {
-  parent: cosmos
-  name: databaseName
-  properties: {
-    resource: {
-      id: databaseName
-    }
+// Azure Database for PostgreSQL Flexible Server (AVM) - CRUD transactional database
+module postgres 'br/public:avm/res/db-for-postgre-sql/flexible-server:0.15.0' = {
+  name: 'postgres'
+  params: {
+    name: postgresServerName
+    location: location
+    availabilityZone: environment == 'prod' ? 1 : -1
+    skuName: environment == 'prod' ? 'Standard_D4ds_v5' : 'Standard_B2s'
+    tier: environment == 'prod' ? 'GeneralPurpose' : 'Burstable'
+    version: '16'
+    administratorLogin: postgresAdminUser
+    administratorLoginPassword: resolvedPostgresAdminPassword
+    backupRetentionDays: environment == 'prod' ? 14 : 7
+    geoRedundantBackup: environment == 'prod' ? 'Enabled' : 'Disabled'
+    highAvailability: environment == 'prod' ? 'ZoneRedundant' : 'Disabled'
+    storageSizeGB: environment == 'prod' ? 128 : 32
+    publicNetworkAccess: 'Disabled'
+    databases: [
+      {
+        name: postgresDatabaseName
+      }
+    ]
+    privateEndpoints: [
+      {
+        subnetResourceId: peSubnetId
+        privateDnsZoneGroup: {
+          privateDnsZoneGroupConfigs: [
+            {
+              privateDnsZoneResourceId: postgresPrivateDnsZone.outputs.resourceId
+            }
+          ]
+        }
+      }
+    ]
+    tags: tags
   }
 }
 
-// Operational Data Containers (for CRUD service)
-resource usersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2023-11-15' = {
-  parent: cosmosDb
-  name: 'users'
-  properties: {
-    resource: {
-      id: 'users'
-      partitionKey: {
-        paths: ['/user_id']
-        kind: 'Hash'
-      }
-      indexingPolicy: {
-        indexingMode: 'consistent'
-        automatic: true
-        includedPaths: [
-          { path: '/*' }
-        ]
-      }
-    }
-  }
-}
-
-resource productsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2023-11-15' = {
-  parent: cosmosDb
-  name: 'products'
-  properties: {
-    resource: {
-      id: 'products'
-      partitionKey: {
-        paths: ['/category_slug']
-        kind: 'Hash'
-      }
-    }
-  }
-}
-
-resource ordersContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2023-11-15' = {
-  parent: cosmosDb
-  name: 'orders'
-  properties: {
-    resource: {
-      id: 'orders'
-      partitionKey: {
-        paths: ['/user_id']
-        kind: 'Hash'
-      }
-    }
-  }
-}
-
-resource cartContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2023-11-15' = {
-  parent: cosmosDb
-  name: 'cart'
-  properties: {
-    resource: {
-      id: 'cart'
-      partitionKey: {
-        paths: ['/user_id']
-        kind: 'Hash'
-      }
-      defaultTtl: 7776000 // 90 days
-    }
-  }
-}
-
-resource reviewsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2023-11-15' = {
-  parent: cosmosDb
-  name: 'reviews'
-  properties: {
-    resource: {
-      id: 'reviews'
-      partitionKey: {
-        paths: ['/product_id']
-        kind: 'Hash'
-      }
-    }
-  }
-}
-
-resource addressesContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2023-11-15' = {
-  parent: cosmosDb
-  name: 'addresses'
-  properties: {
-    resource: {
-      id: 'addresses'
-      partitionKey: {
-        paths: ['/user_id']
-        kind: 'Hash'
-      }
-    }
-  }
-}
-
-resource paymentMethodsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2023-11-15' = {
-  parent: cosmosDb
-  name: 'payment_methods'
-  properties: {
-    resource: {
-      id: 'payment_methods'
-      partitionKey: {
-        paths: ['/user_id']
-        kind: 'Hash'
-      }
-    }
-  }
-}
-
-resource ticketsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2023-11-15' = {
-  parent: cosmosDb
-  name: 'tickets'
-  properties: {
-    resource: {
-      id: 'tickets'
-      partitionKey: {
-        paths: ['/user_id']
-        kind: 'Hash'
-      }
-    }
-  }
-}
-
-resource shipmentsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2023-11-15' = {
-  parent: cosmosDb
-  name: 'shipments'
-  properties: {
-    resource: {
-      id: 'shipments'
-      partitionKey: {
-        paths: ['/order_id']
-        kind: 'Hash'
-      }
-    }
-  }
-}
-
-resource auditLogsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2023-11-15' = {
-  parent: cosmosDb
-  name: 'audit_logs'
-  properties: {
-    resource: {
-      id: 'audit_logs'
-      partitionKey: {
-        paths: ['/entity_type']
-        kind: 'Hash'
-      }
-      defaultTtl: 7776000 // 90 days, then archive
-    }
-  }
-}
-
-// Redis Cache (shared - agents use different databases)
-resource redis 'Microsoft.Cache/Redis@2023-08-01' = {
-  name: redisName
-  location: location
-  properties: {
-    sku: {
-      name: 'Premium'
-      family: 'P'
-      capacity: 1 // 6GB
-    }
-    enableNonSslPort: false
+// Redis Cache (AVM)
+module redis 'br/public:avm/res/cache/redis:0.16.4' = {
+  name: 'redis'
+  params: {
+    name: redisName
+    location: location
+    skuName: 'Premium'
+    capacity: 1
     minimumTlsVersion: '1.2'
-    publicNetworkAccess: 'Disabled' // Private endpoint only
+    publicNetworkAccess: 'Disabled'
     redisConfiguration: {
       'maxmemory-policy': 'allkeys-lru'
     }
+    privateEndpoints: [
+      {
+        subnetResourceId: peSubnetId
+        privateDnsZoneGroup: {
+          privateDnsZoneGroupConfigs: [
+            {
+              privateDnsZoneResourceId: redisPrivateDnsZone.outputs.resourceId
+            }
+          ]
+        }
+      }
+    ]
+    tags: tags
   }
 }
 
-// Storage Account (shared - agents use different containers)
-resource storage 'Microsoft.Storage/storageAccounts@2023-01-01' = {
-  name: storageAccountName
-  location: location
-  sku: {
-    name: 'Standard_LRS'
-  }
-  kind: 'StorageV2'
-  identity: {
-    type: 'SystemAssigned'
-  }
-  properties: {
+// Storage Account (AVM)
+module storage 'br/public:avm/res/storage/storage-account:0.31.0' = {
+  name: 'storage'
+  params: {
+    name: storageAccountName
+    location: location
+    kind: 'StorageV2'
+    skuName: 'Standard_LRS'
     allowBlobPublicAccess: false
     minimumTlsVersion: 'TLS1_2'
-    publicNetworkAccess: 'Disabled' // Private endpoint only
+    publicNetworkAccess: 'Disabled'
     networkAcls: {
       defaultAction: 'Deny'
       bypass: 'AzureServices'
     }
-  }
-}
-
-resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-01-01' = {
-  parent: storage
-  name: 'default'
-  properties: {
-    deleteRetentionPolicy: {
-      enabled: true
-      days: 7
+    managedIdentities: {
+      systemAssigned: true
     }
+    privateEndpoints: [
+      {
+        subnetResourceId: peSubnetId
+        service: 'blob'
+        privateDnsZoneGroup: {
+          privateDnsZoneGroupConfigs: [
+            {
+              privateDnsZoneResourceId: storagePrivateDnsZone.outputs.resourceId
+            }
+          ]
+        }
+      }
+    ]
+    blobServices: {
+      deleteRetentionPolicyEnabled: true
+      deleteRetentionPolicyDays: 7
+    }
+    tags: tags
   }
 }
 
-// Event Hubs Namespace (shared across all services)
-resource eventHubsNamespace 'Microsoft.EventHub/namespaces@2023-01-01-preview' = {
-  name: eventHubsNamespaceName
-  location: location
-  sku: {
-    name: 'Standard'
-    tier: 'Standard'
-    capacity: 1
-  }
-  identity: {
-    type: 'SystemAssigned'
-  }
-  properties: {
-    publicNetworkAccess: 'Disabled' // Private endpoint only
+// Event Hubs Namespace + Hubs (AVM)
+module eventHubs 'br/public:avm/res/event-hub/namespace:0.14.0' = {
+  name: 'event-hubs'
+  params: {
+    name: eventHubsNamespaceName
+    location: location
+    skuName: 'Standard'
+    skuCapacity: 1
     minimumTlsVersion: '1.2'
-  }
-}
-
-// Event Hub Topics
-resource orderEventsHub 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' = {
-  parent: eventHubsNamespace
-  name: 'order-events'
-  properties: {
-    messageRetentionInDays: 7
-    partitionCount: 4
-  }
-}
-
-resource inventoryEventsHub 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' = {
-  parent: eventHubsNamespace
-  name: 'inventory-events'
-  properties: {
-    messageRetentionInDays: 7
-    partitionCount: 4
-  }
-}
-
-resource shipmentEventsHub 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' = {
-  parent: eventHubsNamespace
-  name: 'shipment-events'
-  properties: {
-    messageRetentionInDays: 7
-    partitionCount: 4
-  }
-}
-
-resource paymentEventsHub 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' = {
-  parent: eventHubsNamespace
-  name: 'payment-events'
-  properties: {
-    messageRetentionInDays: 7
-    partitionCount: 4
-  }
-}
-
-resource userEventsHub 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' = {
-  parent: eventHubsNamespace
-  name: 'user-events'
-  properties: {
-    messageRetentionInDays: 7
-    partitionCount: 2
-  }
-}
-
-// Key Vault
-resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
-  name: keyVaultName
-  location: location
-  properties: {
-    sku: {
-      family: 'A'
-      name: 'premium'
+    publicNetworkAccess: 'Disabled'
+    managedIdentities: {
+      systemAssigned: true
     }
-    tenantId: subscription().tenantId
-    enableRbacAuthorization: true // Use RBAC instead of access policies
+    privateEndpoints: [
+      {
+        subnetResourceId: peSubnetId
+        privateDnsZoneGroup: {
+          privateDnsZoneGroupConfigs: [
+            {
+              privateDnsZoneResourceId: eventHubsPrivateDnsZone.outputs.resourceId
+            }
+          ]
+        }
+      }
+    ]
+    eventhubs: [
+      {
+        name: 'order-events'
+        messageRetentionInDays: 7
+        partitionCount: 4
+      }
+      {
+        name: 'inventory-events'
+        messageRetentionInDays: 7
+        partitionCount: 4
+      }
+      {
+        name: 'shipment-events'
+        messageRetentionInDays: 7
+        partitionCount: 4
+      }
+      {
+        name: 'payment-events'
+        messageRetentionInDays: 7
+        partitionCount: 4
+      }
+      {
+        name: 'user-events'
+        messageRetentionInDays: 7
+        partitionCount: 2
+      }
+    ]
+    tags: tags
+  }
+}
+
+// Key Vault (AVM)
+module keyVault 'br/public:avm/res/key-vault/vault:0.13.3' = {
+  name: 'key-vault'
+  params: {
+    name: keyVaultName
+    location: location
+    sku: 'premium'
+    enableRbacAuthorization: true
     enableSoftDelete: true
     softDeleteRetentionInDays: 90
     enablePurgeProtection: true
-    publicNetworkAccess: 'Disabled' // Private endpoint only
+    publicNetworkAccess: 'Disabled'
     networkAcls: {
       defaultAction: 'Deny'
       bypass: 'AzureServices'
     }
+    privateEndpoints: [
+      {
+        subnetResourceId: peSubnetId
+        privateDnsZoneGroup: {
+          privateDnsZoneGroupConfigs: [
+            {
+              privateDnsZoneResourceId: keyVaultPrivateDnsZone.outputs.resourceId
+            }
+          ]
+        }
+      }
+    ]
+    tags: tags
   }
 }
 
-// Azure Kubernetes Service
-resource aks 'Microsoft.ContainerService/managedClusters@2024-01-01' = {
-  name: aksClusterName
-  location: location
-  identity: {
-    type: 'SystemAssigned'
+// Azure AI Foundry Project (AVM)
+module aiFoundry 'br/public:avm/ptn/ai-ml/ai-foundry:0.6.0' = {
+  name: 'ai-foundry'
+  params: {
+    #disable-next-line BCP334 // projectName @minLength(5) ensures aiFoundryBaseName >= 5 chars
+    baseName: aiFoundryBaseName
+    location: aiFoundryLocation
+    includeAssociatedResources: true
+    aiFoundryConfiguration: {
+      accountName: aiServicesName
+      location: aiFoundryLocation
+      sku: 'S0'
+      project: {
+        name: aiProjectInstanceName
+        displayName: aiProjectFriendlyName
+        desc: aiProjectDescription
+      }
+    }
+    keyVaultConfiguration: {
+      existingResourceId: keyVault.outputs.resourceId
+    }
+    storageAccountConfiguration: {
+      existingResourceId: storage.outputs.resourceId
+    }
+    cosmosDbConfiguration: {
+      existingResourceId: cosmos.outputs.resourceId
+    }
   }
-  properties: {
-    dnsPrefix: '${projectName}${envSuffix}'
-    kubernetesVersion: '1.29'
+}
+
+// Azure Kubernetes Service (AVM)
+module aks 'br/public:avm/res/container-service/managed-cluster:0.12.0' = {
+  name: 'aks'
+  params: {
+    name: aksClusterName
+    location: location
     enableRBAC: true
     aadProfile: {
       managed: true
       enableAzureRBAC: true
     }
-    networkProfile: {
-      networkPlugin: 'azure'
-      networkPolicy: 'azure'
-      serviceCidr: '10.1.0.0/16'
-      dnsServiceIP: '10.1.0.10'
+    managedIdentities: {
+      systemAssigned: true
     }
-    agentPoolProfiles: [
+    networkPlugin: 'azure'
+    networkPolicy: 'azure'
+    serviceCidr: '10.1.0.0/16'
+    dnsServiceIP: '10.1.0.10'
+    kubernetesVersion: empty(aksKubernetesVersion) ? null : aksKubernetesVersion
+    publicNetworkAccess: 'Enabled'
+    disableLocalAccounts: true
+    monitoringWorkspaceResourceId: logAnalytics.outputs.resourceId
+    omsAgentEnabled: true
+    enableKeyvaultSecretsProvider: true
+    enableOidcIssuerProfile: true
+    primaryAgentPoolProfiles: [
       {
         name: 'system'
         count: environment == 'prod' ? 3 : 1
-        vmSize: 'Standard_D4s_v5'
+        vmSize: 'Standard_D8ds_v5'
         osType: 'Linux'
         mode: 'System'
-        vnetSubnetID: '${vnet.id}/subnets/aks-system'
+        vnetSubnetResourceId: aksSystemSubnetId
         enableAutoScaling: true
         minCount: 1
         maxCount: environment == 'prod' ? 5 : 3
       }
+    ]
+    agentPools: [
       {
         name: 'agents'
         count: environment == 'prod' ? 5 : 2
-        vmSize: 'Standard_D8s_v5'
+        vmSize: 'Standard_D8ds_v5'
         osType: 'Linux'
         mode: 'User'
-        vnetSubnetID: '${vnet.id}/subnets/aks-agents'
+        vnetSubnetResourceId: aksAgentsSubnetId
         enableAutoScaling: true
         minCount: 2
         maxCount: environment == 'prod' ? 20 : 10
@@ -592,10 +685,10 @@ resource aks 'Microsoft.ContainerService/managedClusters@2024-01-01' = {
       {
         name: 'crud'
         count: environment == 'prod' ? 3 : 1
-        vmSize: 'Standard_D4s_v5'
+        vmSize: 'Standard_D8ds_v5'
         osType: 'Linux'
         mode: 'User'
-        vnetSubnetID: '${vnet.id}/subnets/aks-crud'
+        vnetSubnetResourceId: aksCrudSubnetId
         enableAutoScaling: true
         minCount: 1
         maxCount: environment == 'prod' ? 10 : 5
@@ -604,129 +697,171 @@ resource aks 'Microsoft.ContainerService/managedClusters@2024-01-01' = {
         ]
       }
     ]
-    oidcIssuerProfile: {
-      enabled: true
-    }
-    securityProfile: {
-      workloadIdentity: {
-        enabled: true
-      }
-    }
-    addonProfiles: {
-      omsagent: {
-        enabled: true
-        config: {
-          logAnalyticsWorkspaceResourceID: logAnalytics.id
-        }
-      }
-      azureKeyvaultSecretsProvider: {
-        enabled: true
-      }
-    }
+    tags: tags
   }
 }
 
-// API Management (Consumption tier for dev, Standard for prod)
-resource apim 'Microsoft.ApiManagement/service@2023-05-01-preview' = {
-  name: apimName
-  location: location
-  sku: {
-    name: environment == 'prod' ? 'StandardV2' : 'Consumption'
-    capacity: environment == 'prod' ? 1 : 0
-  }
-  identity: {
-    type: 'SystemAssigned'
-  }
-  properties: {
+// API Management (AVM) — Consumption tier for dev, StandardV2 for prod
+var apimSkuName = environment == 'prod' ? 'StandardV2' : 'Developer'
+var apimSkuCapacity = environment == 'prod' ? 1 : 1
+var apimVirtualNetworkType = environment == 'prod' ? 'None' : 'External'
+var apimSubnetResourceId = environment == 'prod' ? '' : apimSubnetId
+
+module apim 'br/public:avm/res/api-management/service:0.14.0' = {
+  name: 'apim'
+  params: {
+    name: apimName
+    location: location
+    sku: apimSkuName
+    skuCapacity: apimSkuCapacity
     publisherEmail: 'admin@holidaypeakhub.com'
     publisherName: 'Holiday Peak Hub'
-    virtualNetworkType: environment == 'prod' ? 'Internal' : 'None'
-    virtualNetworkConfiguration: environment == 'prod' ? {
-      subnetResourceId: '${vnet.id}/subnets/apim'
-    } : null
+    virtualNetworkType: apimVirtualNetworkType
+    subnetResourceId: apimSubnetResourceId
+    managedIdentities: {
+      systemAssigned: true
+    }
+    tags: tags
   }
+}
+
+resource acrResource 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = {
+  #disable-next-line BCP334 // projectName @minLength(5) ensures acrName >= 8 chars
+  name: acrName
+}
+
+resource cosmosAccount 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' existing = {
+  name: cosmosAccountName
+}
+
+resource eventHubsNamespaceResource 'Microsoft.EventHub/namespaces@2023-01-01-preview' existing = {
+  name: eventHubsNamespaceName
+}
+
+resource keyVaultResource 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
+  name: keyVaultName
+}
+
+resource postgresPasswordSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVaultResource
+  name: postgresAdminPasswordSecretName
+  properties: {
+    value: resolvedPostgresAdminPassword
+  }
+  dependsOn: [
+    keyVault
+    postgres
+  ]
+}
+
+resource storageResource 'Microsoft.Storage/storageAccounts@2023-01-01' existing = {
+  name: storageAccountName
 }
 
 // RBAC Assignments
 // AKS -> ACR (pull images)
 resource aksAcrPullRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(aks.id, acr.id, 'AcrPull')
-  scope: acr
+  name: guid(resourceGroup().id, aksClusterName, acrName, 'AcrPull')
+  scope: acrResource
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d') // AcrPull
-    principalId: aks.properties.identityProfile.kubeletidentity.objectId
+    principalId: aks.outputs.?kubeletIdentityObjectId ?? ''
     principalType: 'ServicePrincipal'
   }
+  dependsOn: [
+    acr
+  ]
 }
 
 // AKS -> Cosmos DB (Data Contributor)
 resource aksCosmosRole 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2023-11-15' = {
-  parent: cosmos
-  name: guid(aks.id, cosmos.id, 'CosmosDataContributor')
+  parent: cosmosAccount
+  name: guid(resourceGroup().id, aksClusterName, cosmosAccountName, 'CosmosDataContributor')
   properties: {
-    roleDefinitionId: '${cosmos.id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002' // Built-in Data Contributor
-    principalId: aks.identity.principalId
-    scope: cosmos.id
+    roleDefinitionId: '${cosmosAccount.id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002' // Built-in Data Contributor
+    principalId: aks.outputs.?systemAssignedMIPrincipalId ?? ''
+    scope: cosmosAccount.id
   }
+  dependsOn: [
+    cosmos
+  ]
 }
 
 // AKS -> Event Hubs (Data Sender/Receiver)
 resource aksEventHubSenderRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(aks.id, eventHubsNamespace.id, 'EventHubSender')
-  scope: eventHubsNamespace
+  name: guid(resourceGroup().id, aksClusterName, eventHubsNamespaceName, 'EventHubSender')
+  scope: eventHubsNamespaceResource
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '2b629674-e913-4c01-ae53-ef4638d8f975') // Azure Event Hubs Data Sender
-    principalId: aks.identity.principalId
+    principalId: aks.outputs.?systemAssignedMIPrincipalId ?? ''
     principalType: 'ServicePrincipal'
   }
+  dependsOn: [
+    eventHubs
+  ]
 }
 
 resource aksEventHubReceiverRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(aks.id, eventHubsNamespace.id, 'EventHubReceiver')
-  scope: eventHubsNamespace
+  name: guid(resourceGroup().id, aksClusterName, eventHubsNamespaceName, 'EventHubReceiver')
+  scope: eventHubsNamespaceResource
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a638d3c7-ab3a-418d-83e6-5f17a39d4fde') // Azure Event Hubs Data Receiver
-    principalId: aks.identity.principalId
+    principalId: aks.outputs.?systemAssignedMIPrincipalId ?? ''
     principalType: 'ServicePrincipal'
   }
+  dependsOn: [
+    eventHubs
+  ]
 }
 
 // AKS -> Key Vault (Secrets User)
 resource aksKeyVaultRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(aks.id, keyVault.id, 'KeyVaultSecretsUser')
-  scope: keyVault
+  name: guid(resourceGroup().id, aksClusterName, keyVaultName, 'KeyVaultSecretsUser')
+  scope: keyVaultResource
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6') // Key Vault Secrets User
-    principalId: aks.properties.addonProfiles.azureKeyvaultSecretsProvider.identity.objectId
+    principalId: aks.outputs.?keyvaultIdentityObjectId ?? ''
     principalType: 'ServicePrincipal'
   }
+  dependsOn: [
+    keyVault
+  ]
 }
 
 // AKS -> Storage (Blob Data Contributor)
 resource aksStorageRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(aks.id, storage.id, 'BlobDataContributor')
-  scope: storage
+  name: guid(resourceGroup().id, aksClusterName, storageAccountName, 'BlobDataContributor')
+  scope: storageResource
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe') // Storage Blob Data Contributor
-    principalId: aks.identity.principalId
+    principalId: aks.outputs.?systemAssignedMIPrincipalId ?? ''
     principalType: 'ServicePrincipal'
   }
+  dependsOn: [
+    storage
+  ]
 }
 
 // Outputs
-output aksClusterName string = aks.name
-output acrLoginServer string = acr.properties.loginServer
-output cosmosAccountName string = cosmos.name
-output cosmosEndpoint string = cosmos.properties.documentEndpoint
+output aksClusterName string = aks.outputs.name
+output acrLoginServer string = acr.outputs.loginServer
+output cosmosAccountName string = cosmos.outputs.name
+output cosmosEndpoint string = cosmos.outputs.endpoint
 output databaseName string = databaseName
-output eventHubsNamespaceName string = eventHubsNamespace.name
-output redisName string = redis.name
-output storageAccountName string = storage.name
-output keyVaultName string = keyVault.name
-output keyVaultUri string = keyVault.properties.vaultUri
-output apimName string = apim.name
-output apimGatewayUrl string = apim.properties.gatewayUrl
-output appInsightsConnectionString string = appInsights.properties.ConnectionString
-output appInsightsInstrumentationKey string = appInsights.properties.InstrumentationKey
-output vnetId string = vnet.id
-output vnetName string = vnet.name
+output postgresServerName string = postgres.outputs.name
+output postgresFqdn string = postgres.outputs.?fqdn ?? ''
+output postgresDatabaseName string = postgresDatabaseName
+output postgresAdminUser string = postgresAdminUser
+output eventHubsNamespaceName string = eventHubs.outputs.name
+output redisName string = redis.outputs.name
+output storageAccountName string = storage.outputs.name
+output keyVaultName string = keyVault.outputs.name
+output keyVaultUri string = keyVault.outputs.uri
+output apimName string = apim.outputs.name
+output apimGatewayUrl string = 'https://${apimName}.azure-api.net'
+output aiServicesName string = aiFoundry.outputs.aiServicesName
+output aiProjectName string = aiFoundry.outputs.aiProjectName
+output appInsightsConnectionString string = appInsights.outputs.connectionString
+output appInsightsInstrumentationKey string = appInsights.outputs.instrumentationKey
+output vnetId string = vnet.outputs.resourceId
+output vnetName string = vnet.outputs.name

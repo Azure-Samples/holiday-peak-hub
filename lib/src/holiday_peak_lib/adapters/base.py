@@ -23,7 +23,6 @@ from typing import Any, Iterable, Optional, Type, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
-
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
 
@@ -357,7 +356,9 @@ class BaseConnector:
         except ValidationError as exc:
             raise AdapterError(f"Invalid payload for {model.__name__}") from exc
 
-    async def _map_many(self, model: Type[ModelT], payloads: Iterable[dict[str, Any]]) -> list[ModelT]:
+    async def _map_many(
+        self, model: Type[ModelT], payloads: Iterable[dict[str, Any]]
+    ) -> list[ModelT]:
         """Normalize multiple payloads concurrently with a bounded semaphore.
 
         >>> class Model(BaseModel):

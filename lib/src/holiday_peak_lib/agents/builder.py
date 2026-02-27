@@ -1,13 +1,14 @@
 """Agent builder using a simple Builder pattern."""
+
 from typing import Any, Callable
 
 from .base_agent import AgentDependencies, BaseRetailAgent, ModelTarget
-from .foundry import FoundryAgentConfig, build_foundry_model_target
 from .fastapi_mcp import FastAPIMCPServer
+from .foundry import FoundryAgentConfig, build_foundry_model_target
+from .memory.builder import MemoryBuilder
+from .memory.cold import ColdMemory
 from .memory.hot import HotMemory
 from .memory.warm import WarmMemory
-from .memory.cold import ColdMemory
-from .memory.builder import MemoryBuilder
 from .orchestration.router import RoutingStrategy
 
 
@@ -96,7 +97,11 @@ class AgentBuilder:
         if not self._agent_class:
             raise ValueError("Agent class is required")
         if not self._slm and not self._llm:
-            raise ValueError("At least one model target (SLM or LLM) is required")
+            import logging
+
+            logging.getLogger("holiday_peak_lib.agents.builder").warning(
+                "No model target configured — agent starts in degraded mode"
+            )
         deps = AgentDependencies(
             router=self._router or RoutingStrategy(),
             tools=self._tools,
@@ -107,9 +112,9 @@ class AgentBuilder:
         agent = self._agent_class(config=deps)
         if self._memory_builder:
             if any([self._hot_memory, self._warm_memory, self._cold_memory]):
-                self._memory_builder.with_hot(self._hot_memory).with_warm(self._warm_memory).with_cold(
-                    self._cold_memory
-                )
+                self._memory_builder.with_hot(self._hot_memory).with_warm(
+                    self._warm_memory
+                ).with_cold(self._cold_memory)
             memory_client = self._memory_builder.build()
             agent.memory_client = memory_client
             agent.attach_memory(memory_client.hot, memory_client.warm, memory_client.cold)

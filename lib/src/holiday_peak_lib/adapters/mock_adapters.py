@@ -29,8 +29,18 @@ class MockProductAdapter(BaseAdapter):
             return [{"sku": sku, "name": "Mock Product", "price": 10.0, "currency": "USD"}]
         if query.get("entity") == "related":
             return [
-                {"sku": "SKU-REL-1", "name": "Mock Related A", "price": 8.0, "currency": "USD"},
-                {"sku": "SKU-REL-2", "name": "Mock Related B", "price": 12.0, "currency": "USD"},
+                {
+                    "sku": "SKU-REL-1",
+                    "name": "Mock Related A",
+                    "price": 8.0,
+                    "currency": "USD",
+                },
+                {
+                    "sku": "SKU-REL-2",
+                    "name": "Mock Related B",
+                    "price": 12.0,
+                    "currency": "USD",
+                },
             ]
         return []
 

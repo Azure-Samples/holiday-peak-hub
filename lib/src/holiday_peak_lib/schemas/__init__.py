@@ -1,12 +1,12 @@
 """Pydantic schemas for agents and adapters."""
 
-from .core import UserContext, Product, RecommendationRequest, RecommendationResponse
+from .core import Product, RecommendationRequest, RecommendationResponse, UserContext
 from .crm import CRMAccount, CRMContact, CRMContext, CRMInteraction
+from .funnel import FunnelContext, FunnelMetric
+from .inventory import InventoryContext, InventoryItem, WarehouseStock
+from .logistics import LogisticsContext, Shipment, ShipmentEvent
+from .pricing import PriceContext, PriceEntry
 from .product import CatalogProduct, ProductContext
-from .inventory import InventoryItem, WarehouseStock, InventoryContext
-from .pricing import PriceEntry, PriceContext
-from .logistics import Shipment, ShipmentEvent, LogisticsContext
-from .funnel import FunnelMetric, FunnelContext
 
 __all__ = [
     "UserContext",

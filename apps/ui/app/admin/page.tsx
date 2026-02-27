@@ -4,12 +4,11 @@ import React from 'react';
 import Link from 'next/link';
 import { MainLayout } from '@/components/templates/MainLayout';
 import { Card } from '@/components/molecules/Card';
-import { Button } from '@/components/atoms/Button';
 import { Badge } from '@/components/atoms/Badge';
 import { 
   FiShoppingCart, FiPackage, FiTruck, FiUsers, FiTrendingUp,
   FiDatabase, FiLayers, FiSettings, FiShield, FiBarChart2,
-  FiActivity, FiCpu, FiServer, FiTool, FiGlobe, FiList,
+  FiActivity, FiCpu, FiServer, FiTool, FiGlobe,
   FiBox, FiTag, FiGrid, FiCheckSquare, FiFileText, FiClock,
   FiMapPin
 } from 'react-icons/fi';

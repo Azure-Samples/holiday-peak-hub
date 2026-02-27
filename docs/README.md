@@ -7,6 +7,181 @@
 
 Holiday Peak Hub is a **cloud-native, agent-driven retail accelerator** with complete frontend implementation and comprehensive backend architecture plan. This documentation covers all architectural decisions, implementation plans, and operational procedures.
 
+## Developer Scripts
+
+Per-app run and test scripts are available under [scripts](scripts). These scripts create per-app virtual environments under each app src folder and run tests with coverage outputs per app directory.
+
+- Run an app: [scripts/run-app.sh](scripts/run-app.sh) with a per-app wrapper like [scripts/run-ecommerce-checkout-support.sh](scripts/run-ecommerce-checkout-support.sh)
+- Run all tests with coverage per app: [scripts/run-all-tests.sh](scripts/run-all-tests.sh)
+
+## Infrastructure CLI
+
+Provisioning and deployment use the azd project defined in `azure.yaml`.
+The Python CLI in `.infra/cli.py` is scaffolding-only (`generate-bicep`, `generate-dockerfile`).
+
+### Production Deployment Runbook (GitHub Actions + azd)
+
+Use workflow `.github/workflows/deploy-azd.yml` for ordered production rollout.
+
+**Required repository/environment secrets**:
+
+- `AZURE_CLIENT_ID`
+- `AZURE_TENANT_ID`
+- `AZURE_SUBSCRIPTION_ID`
+
+**Workflow inputs**:
+
+- `environment` (azd env name, e.g. `dev`, `staging`, `prod`)
+- `location` (Azure region)
+- `projectName` (naming prefix, default `holidaypeakhub`)
+- `imageTag` (container image tag to deploy)
+- `deployStatic` (boolean to provision Static Web App resources)
+- `seedDemoData` (boolean to run or skip demo faker seeding in non-prod)
+
+**Manual trigger examples**:
+
+- Full non-prod demo rollout with seeding (default):
+
+```bash
+gh workflow run deploy-azd.yml -f environment=dev -f location=eastus2 -f projectName=holidaypeakhub -f imageTag=latest -f deployStatic=true -f seedDemoData=true
+```
+
+- Fast non-prod rerun without reseeding:
+
+```bash
+gh workflow run deploy-azd.yml -f environment=dev -f location=eastus2 -f projectName=holidaypeakhub -f imageTag=latest -f deployStatic=true -f seedDemoData=false
+```
+
+**Execution order**:
+
+1. `provision` job: sets azd env values and runs `azd provision`.
+2. `deploy-crud` job: fetches AKS credentials and deploys `crud-service` first.
+3. `deploy-ui` job (when `deployStatic=true`): resolves APIM URL, fetches the SWA deployment token from Azure, and deploys `apps/ui` via `Azure/static-web-apps-deploy@v1` (framework-aware build for dynamic Next.js routes).
+4. `deploy-agents` job: deploys 21 agent services in parallel matrix.
+5. `seed-demo-data` job (non-prod only, when `seedDemoData=true`): runs a Kubernetes Job in `holiday-peak` that executes `python -m crud_service.scripts.seed_demo_data` from the deployed CRUD image to populate demo categories/products.
+
+**Operational notes**:
+
+- Keep `deployShared=true` for all shared-environment rollouts.
+- UI deployment intentionally uses the SWA GitHub Action path (not `azd deploy --service ui`) so App Router dynamic segments (`[id]`, `[slug]`) are built in the same mode as standard SWA workflows.
+- Frontend API calls must always use APIM via `NEXT_PUBLIC_API_URL` (no localhost fallback in UI runtime/build config).
+- Demo seeding is idempotent by item ID (`demo-cat-*`, `demo-prd-*`): re-runs update existing seeded records instead of duplicating them.
+- Lowering `DEMO_SEED_CATEGORIES` or `DEMO_SEED_PRODUCTS` does not delete previously seeded higher-index items; use a table cleanup step when a strict reset is required.
+- Use environment approvals in GitHub Environments for `staging`/`prod`.
+- Keep image tags immutable for reproducible rollback.
+
+### Reproducible Deployment Operations (Non-Bicep)
+
+The following steps were used to deploy and validate services without changing Bicep infrastructure definitions. These commands are intended for operators reproducing the same workflow in another subscription.
+
+1. **Resolve active environment and resource names**
+
+```bash
+azd env get-values -e dev
+```
+
+2. **Verify current public egress IP (for ACR firewall allowlist)**
+
+```powershell
+$ip = Invoke-RestMethod -Uri 'https://api.ipify.org'
+Write-Output "PUBLIC_IP=$ip"
+```
+
+3. **Inspect ACR network posture and firewall rules**
+
+```bash
+az acr show -n <acrName> --query "{publicNetworkAccess:publicNetworkAccess,defaultAction:networkRuleSet.defaultAction,bypass:networkRuleBypassOptions,exportPolicy:policies.exportPolicy.status}" -o json
+az acr network-rule list -n <acrName> -o table
+```
+
+4. **Temporarily unblock ACR publish from operator IP (if `azd deploy` fails with DENIED/IP blocked)**
+
+```bash
+az acr update -n <acrName> --allow-exports true
+az acr update -n <acrName> --public-network-enabled true --default-action Deny
+az acr network-rule add -n <acrName> --ip-address <PUBLIC_IP>/32
+```
+
+5. **Deploy CRUD service through azd (Helm-driven AKS deploy)**
+
+```bash
+azd deploy --service crud-service --no-prompt -e dev
+```
+
+6. **Deploy UI through azd**
+
+```bash
+azd deploy --service ui --no-prompt -e dev
+```
+
+7. **Validate AKS health and CRUD runtime**
+
+```bash
+az aks show -g <resourceGroup> -n <aksName> --query "{powerState:powerState.code,provisioningState:provisioningState}" -o json
+az aks get-credentials -g <resourceGroup> -n <aksName> --overwrite-existing
+kubectl get svc,pods -n holiday-peak
+```
+
+8. **Validate Helm-rendered desired state before applying manual fixes**
+
+```bash
+apps/crud-service/src/../../../.infra/azd/hooks/render-helm.sh crud-service
+kubectl apply --dry-run=server -f .kubernetes/rendered/crud-service/all.yaml -n holiday-peak
+```
+
+9. **Manual recovery only (if probes cause crash loops)**
+
+```powershell
+$patch = '{"spec":{"template":{"spec":{"containers":[{"name":"crud-service","readinessProbe":{"initialDelaySeconds":45,"failureThreshold":10},"livenessProbe":{"initialDelaySeconds":90,"failureThreshold":10}}]}}}}'
+kubectl patch deployment crud-service-crud-service -n holiday-peak -p $patch
+kubectl rollout status deployment/crud-service-crud-service -n holiday-peak --timeout=300s
+```
+
+10. **APIM operational checks and bootstrap (when APIs are missing)**
+
+```bash
+az apim show -g <resourceGroup> -n <apimName> --query "{gatewayUrl:gatewayUrl,publicNetworkAccess:publicNetworkAccess,virtualNetworkType:virtualNetworkType}" -o json
+az apim api list -g <resourceGroup> --service-name <apimName> -o table
+./.infra/azd/hooks/sync-apim-agents.sh
+```
+
+This sync script is also executed automatically by the global `postdeploy` hook in `azure.yaml`.
+It discovers all AKS services from `azure.yaml` (excluding `crud-service`) and upserts APIM APIs with this path contract:
+
+- API path: `/agents/<service-name>`
+- Operations: `GET /health`, `POST /invoke`, `POST /mcp/{tool}`
+- Backend URL template: `http://<service-name>-<service-name>.<namespace>.svc.cluster.local`
+
+Examples:
+
+- `https://<apimName>.azure-api.net/agents/ecommerce-cart-intelligence/invoke`
+- `https://<apimName>.azure-api.net/agents/inventory-health-check/health`
+
+11. **End-to-end smoke checks (APIM and SWA)**
+
+```powershell
+$apim = "https://<apimName>.azure-api.net"
+$ui = "https://<swaHost>.azurestaticapps.net"
+Invoke-WebRequest "$apim/api/products" -UseBasicParsing
+Invoke-WebRequest "$apim/api/categories" -UseBasicParsing
+Invoke-WebRequest "$ui/api/products" -UseBasicParsing
+Invoke-WebRequest "$ui/api/categories" -UseBasicParsing
+```
+
+12. **Post-deploy hardening (recommended)**
+
+After deployment succeeds, remove temporary ACR public ingress:
+
+```bash
+az acr network-rule remove -n <acrName> --ip-address <PUBLIC_IP>/32
+az acr update -n <acrName> --public-network-enabled false
+```
+
+> Notes:
+> - Use Microsoft VPN only if it provides a stable egress IP that you can consistently allowlist on ACR.
+> - Keep manual `kubectl patch` usage as recovery-only; normal deployments should remain `azd deploy` + Helm-rendered manifests.
+> - Demo data seeding runs inside AKS (not from the GitHub runner) to support private PostgreSQL networking.
+
 ---
 
 ## 📚 Documentation Index
@@ -56,6 +231,10 @@ Holiday Peak Hub is a **cloud-native, agent-driven retail accelerator** with com
 - CORS policies
 - Request routing
 - WAF integration
+
+**Networking posture**:
+- Non-prod environments run APIM in VNET `External` mode (public gateway, private backend reachability to AKS).
+- This supports the APIM-in-front pattern while keeping AKS services as `ClusterIP` behind private network paths.
 
 ### Application Layer
 **Technology**: FastAPI (Python 3.13)  

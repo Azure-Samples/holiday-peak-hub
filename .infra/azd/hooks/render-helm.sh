@@ -1,0 +1,79 @@
+#!/usr/bin/env sh
+set -eu
+
+SERVICE_NAME="$1"
+
+NAMESPACE="${K8S_NAMESPACE:-holiday-peak}"
+IMAGE_PREFIX="${IMAGE_PREFIX:-ghcr.io/azure-samples}"
+IMAGE_TAG="${IMAGE_TAG:-latest}"
+KEDA_ENABLED="${KEDA_ENABLED:-false}"
+
+SERVICE_IMAGE_VAR_NAME="SERVICE_$(printf '%s' "$SERVICE_NAME" | tr '[:lower:]-' '[:upper:]_')_IMAGE_NAME"
+SERVICE_IMAGE="$(printenv "$SERVICE_IMAGE_VAR_NAME" || true)"
+
+if [ -n "$SERVICE_IMAGE" ]; then
+  IMAGE_PREFIX="${SERVICE_IMAGE%:*}"
+  if [ "$IMAGE_PREFIX" = "$SERVICE_IMAGE" ]; then
+    IMAGE_TAG="latest"
+  else
+    IMAGE_TAG="${SERVICE_IMAGE##*:}"
+  fi
+else
+  IMAGE_PREFIX="$IMAGE_PREFIX/$SERVICE_NAME"
+fi
+
+REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+CHART_PATH="$REPO_ROOT/.kubernetes/chart"
+OUT_DIR="$REPO_ROOT/.kubernetes/rendered/$SERVICE_NAME"
+
+mkdir -p "$OUT_DIR"
+
+HELM_ARGS="--namespace $NAMESPACE --set serviceName=$SERVICE_NAME --set image.repository=$IMAGE_PREFIX --set image.tag=$IMAGE_TAG --set keda.enabled=$KEDA_ENABLED"
+
+add_env_arg() {
+  key="$1"
+  value="${2:-}"
+  if [ -n "$value" ]; then
+    HELM_ARGS="$HELM_ARGS --set-string env.$key=$value"
+  fi
+}
+
+# Database
+add_env_arg "POSTGRES_HOST" "${POSTGRES_HOST:-}"
+add_env_arg "POSTGRES_USER" "${POSTGRES_USER:-}"
+add_env_arg "POSTGRES_PASSWORD" "${POSTGRES_PASSWORD:-}"
+add_env_arg "POSTGRES_DATABASE" "${POSTGRES_DATABASE:-}"
+add_env_arg "POSTGRES_PORT" "${POSTGRES_PORT:-}"
+add_env_arg "POSTGRES_SSL" "${POSTGRES_SSL:-}"
+
+# Messaging & Infrastructure
+add_env_arg "EVENT_HUB_NAMESPACE" "${EVENT_HUB_NAMESPACE:-}"
+add_env_arg "KEY_VAULT_URI" "${KEY_VAULT_URI:-}"
+add_env_arg "REDIS_HOST" "${REDIS_HOST:-}"
+
+# Azure AI Foundry
+add_env_arg "PROJECT_ENDPOINT" "${PROJECT_ENDPOINT:-}"
+add_env_arg "PROJECT_NAME" "${PROJECT_NAME:-}"
+add_env_arg "FOUNDRY_AGENT_ID_FAST" "${FOUNDRY_AGENT_ID_FAST:-}"
+add_env_arg "FOUNDRY_AGENT_ID_RICH" "${FOUNDRY_AGENT_ID_RICH:-}"
+add_env_arg "MODEL_DEPLOYMENT_NAME_FAST" "${MODEL_DEPLOYMENT_NAME_FAST:-}"
+add_env_arg "MODEL_DEPLOYMENT_NAME_RICH" "${MODEL_DEPLOYMENT_NAME_RICH:-}"
+add_env_arg "FOUNDRY_STREAM" "${FOUNDRY_STREAM:-}"
+add_env_arg "FOUNDRY_STRICT_ENFORCEMENT" "${FOUNDRY_STRICT_ENFORCEMENT:-}"
+add_env_arg "FOUNDRY_AUTO_ENSURE_ON_STARTUP" "${FOUNDRY_AUTO_ENSURE_ON_STARTUP:-}"
+
+# Memory tiers
+add_env_arg "REDIS_URL" "${REDIS_URL:-}"
+add_env_arg "COSMOS_ACCOUNT_URI" "${COSMOS_ACCOUNT_URI:-}"
+add_env_arg "COSMOS_DATABASE" "${COSMOS_DATABASE:-}"
+add_env_arg "COSMOS_CONTAINER" "${COSMOS_CONTAINER:-}"
+add_env_arg "BLOB_ACCOUNT_URL" "${BLOB_ACCOUNT_URL:-}"
+add_env_arg "BLOB_CONTAINER" "${BLOB_CONTAINER:-}"
+
+# Observability
+add_env_arg "APPLICATIONINSIGHTS_CONNECTION_STRING" "${APPLICATIONINSIGHTS_CONNECTION_STRING:-}"
+
+# shellcheck disable=SC2086
+helm template "$SERVICE_NAME" "$CHART_PATH" $HELM_ARGS > "$OUT_DIR/all.yaml"
+
+echo "Rendered Helm manifests to $OUT_DIR/all.yaml"

@@ -1,4 +1,5 @@
 """Adapters for the inventory health check service."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

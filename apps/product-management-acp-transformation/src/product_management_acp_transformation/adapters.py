@@ -1,4 +1,5 @@
 """Adapters for the product ACP transformation service."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

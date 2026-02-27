@@ -1,9 +1,11 @@
 """Tests for base agent functionality."""
-import pytest
+
 from unittest.mock import AsyncMock, Mock
+
+import pytest
 from holiday_peak_lib.agents.base_agent import (
-    BaseRetailAgent,
     AgentDependencies,
+    BaseRetailAgent,
     ModelTarget,
 )
 
@@ -18,12 +20,14 @@ class SimpleTestAgent(BaseRetailAgent):
 @pytest.fixture
 def model_invoker():
     """Mock model invoker."""
+
     async def invoker(**kwargs):
         return {
             "response": "test response",
             "content": "test content",
             "model": kwargs.get("model", "test-model"),
         }
+
     return invoker
 
 
@@ -107,7 +111,7 @@ class TestBaseRetailAgent:
         agent = SimpleTestAgent(config=agent_deps)
         agent.service_name = "new-service"
         assert agent.service_name == "new-service"
-        
+
         new_tools = {"new_tool": lambda: None}
         agent.tools = new_tools
         assert agent.tools == new_tools
@@ -131,10 +135,7 @@ class TestBaseRetailAgent:
     def test_assess_complexity_complex(self, agent_deps):
         """Test complexity assessment for complex requests."""
         agent = SimpleTestAgent(config=agent_deps)
-        request = {
-            "query": " ".join(["word"] * 100),
-            "requires_multi_tool": True
-        }
+        request = {"query": " ".join(["word"] * 100), "requires_multi_tool": True}
         complexity = agent._assess_complexity(request)
         assert complexity > 0.5
 
@@ -148,10 +149,7 @@ class TestBaseRetailAgent:
     def test_select_model_llm_for_complex(self, agent_deps):
         """Test model selection chooses LLM for complex requests."""
         agent = SimpleTestAgent(config=agent_deps)
-        request = {
-            "query": " ".join(["word"] * 100),
-            "requires_multi_tool": True
-        }
+        request = {"query": " ".join(["word"] * 100), "requires_multi_tool": True}
         model = agent._select_model(request)
         assert model.name == "test-llm"
 
@@ -167,37 +165,108 @@ class TestBaseRetailAgent:
         """Test invoking model with only SLM."""
         deps = AgentDependencies(slm=slm_target, llm=None)
         agent = SimpleTestAgent(config=deps)
-        result = await agent.invoke_model(
-            {"query": "test"},
-            "test message"
-        )
+        result = await agent.invoke_model({"query": "test"}, "test message")
         assert "response" in result or "content" in result
         assert result.get("_target") == "test-slm"
 
     @pytest.mark.asyncio
     async def test_invoke_model_with_routing(self, slm_target, llm_target):
         """Test invoking model with SLM to LLM routing."""
+
         # Mock invoker that returns upgrade for evaluation
         async def routing_invoker(**kwargs):
             messages = kwargs.get("messages", "")
             if "Evaluate this request" in str(messages):
                 return {"response": "normal", "content": "normal"}
             return {"response": "test response", "content": "result"}
-        
-        slm = ModelTarget(
-            name="slm", model="small", invoker=routing_invoker
-        )
-        llm = ModelTarget(
-            name="llm", model="large", invoker=routing_invoker
-        )
+
+        slm = ModelTarget(name="slm", model="small", invoker=routing_invoker)
+        llm = ModelTarget(name="llm", model="large", invoker=routing_invoker)
         deps = AgentDependencies(slm=slm, llm=llm)
         agent = SimpleTestAgent(config=deps)
-        
+
         result = await agent.invoke_model(
-            {"query": "simple query"},
-            [{"role": "user", "content": "test"}]
+            {"query": "simple query"}, [{"role": "user", "content": "test"}]
         )
         assert result is not None
+
+    @pytest.mark.asyncio
+    async def test_foundry_governance_strips_system_prompt(self):
+        """Test Foundry governance strips local system prompts from messages."""
+        captured_messages = []
+
+        async def invoker(**kwargs):
+            captured_messages.append(kwargs.get("messages"))
+            return {"response": "ok"}
+
+        slm = ModelTarget(name="slm", model="small", invoker=invoker, provider="foundry")
+        deps = AgentDependencies(slm=slm, llm=None, enforce_foundry_prompt_governance=True)
+        agent = SimpleTestAgent(config=deps)
+
+        await agent.invoke_model(
+            {"query": "hello"},
+            [
+                {"role": "system", "content": "local prompt"},
+                {"role": "user", "content": "hello"},
+            ],
+        )
+
+        assert captured_messages
+        assert captured_messages[0] == [{"role": "user", "content": "hello"}]
+
+    @pytest.mark.asyncio
+    async def test_foundry_governance_uses_slm_first_then_llm_by_complexity(self):
+        """Test Foundry governance preserves SLM-first and escalates by complexity threshold."""
+        invocation_order = []
+
+        async def slm_invoker(**kwargs):
+            invocation_order.append("slm")
+            return {"response": "slm response"}
+
+        async def llm_invoker(**kwargs):
+            invocation_order.append("llm")
+            return {"response": "llm response"}
+
+        slm = ModelTarget(name="slm", model="small", invoker=slm_invoker, provider="foundry")
+        llm = ModelTarget(name="llm", model="large", invoker=llm_invoker, provider="foundry")
+        deps = AgentDependencies(
+            slm=slm,
+            llm=llm,
+            complexity_threshold=0.2,
+            enforce_foundry_prompt_governance=True,
+        )
+        agent = SimpleTestAgent(config=deps)
+
+        result = await agent.invoke_model(
+            {
+                "query": "please analyze the full order history and provide multi-step recommendations",
+                "requires_multi_tool": True,
+            },
+            [{"role": "user", "content": "request"}],
+        )
+
+        assert invocation_order == ["slm", "llm"]
+        assert result.get("_target") == "llm"
+
+    @pytest.mark.asyncio
+    async def test_foundry_governance_can_be_disabled(self):
+        """Test governance opt-out keeps local system messages untouched."""
+        captured_messages = []
+
+        async def invoker(**kwargs):
+            captured_messages.append(kwargs.get("messages"))
+            return {"response": "ok"}
+
+        slm = ModelTarget(name="slm", model="small", invoker=invoker, provider="foundry")
+        deps = AgentDependencies(slm=slm, llm=None, enforce_foundry_prompt_governance=False)
+        agent = SimpleTestAgent(config=deps)
+
+        original = [
+            {"role": "system", "content": "local prompt"},
+            {"role": "user", "content": "hello"},
+        ]
+        await agent.invoke_model({"query": "hello"}, original)
+        assert captured_messages[0] == original
 
     def test_attach_memory(self, agent_deps):
         """Test attaching memory to agent."""

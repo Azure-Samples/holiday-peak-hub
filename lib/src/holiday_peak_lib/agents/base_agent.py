@@ -8,6 +8,11 @@ from typing import Any, Awaitable, Callable
 from agent_framework import BaseAgent
 from pydantic import BaseModel, ConfigDict, Field
 
+from .provider_policy import (
+    sanitize_messages_for_provider,
+    should_use_local_routing_prompt,
+)
+
 ModelInvoker = Callable[..., Awaitable[dict[str, Any]]]
 
 UPGRADE_TOKEN = "upgrade"
@@ -28,6 +33,7 @@ class ModelTarget:
     temperature: float = 0.2
     top_p: float = 0.9
     stream: bool = False
+    provider: str | None = None
 
 
 class AgentDependencies(BaseModel):
@@ -46,6 +52,7 @@ class AgentDependencies(BaseModel):
     slm: ModelTarget | None = None
     llm: ModelTarget | None = None
     complexity_threshold: float = 0.5
+    enforce_foundry_prompt_governance: bool = True
 
 
 class BaseRetailAgent(BaseAgent, ABC):
@@ -195,6 +202,26 @@ class BaseRetailAgent(BaseAgent, ABC):
     def complexity_threshold(self, value: float) -> None:
         self.config.complexity_threshold = value
 
+    @property
+    def enforce_foundry_prompt_governance(self) -> bool:
+        return self.config.enforce_foundry_prompt_governance
+
+    @enforce_foundry_prompt_governance.setter
+    def enforce_foundry_prompt_governance(self, value: bool) -> None:
+        self.config.enforce_foundry_prompt_governance = value
+
+    def _shared_provider_for_routing(self) -> str | None:
+        """Return provider name only when SLM/LLM routing targets share one provider."""
+
+        if self.slm is None:
+            return None
+        slm_provider = self.slm.provider
+        if self.llm is None:
+            return slm_provider
+        if slm_provider and self.llm.provider and slm_provider == self.llm.provider:
+            return slm_provider
+        return None
+
     def attach_memory(self, hot: Any, warm: Any, cold: Any) -> None:
         self.hot_memory = hot
         self.warm_memory = warm
@@ -297,6 +324,11 @@ class BaseRetailAgent(BaseAgent, ABC):
         """
 
         payload_tools = kwargs.get("tools") or (self.tools if self.tools else None)
+        messages = sanitize_messages_for_provider(
+            messages,
+            provider=self._shared_provider_for_routing(),
+            enforce_prompt_governance=self.enforce_foundry_prompt_governance,
+        )
 
         if self.slm and self.llm:
             return await self._evaluate_with_slm_routing(request, messages, payload_tools, **kwargs)
@@ -311,6 +343,15 @@ class BaseRetailAgent(BaseAgent, ABC):
         **kwargs: Any,
     ) -> dict[str, Any]:
         """Evaluate request complexity with SLM and optionally upgrade to LLM."""
+
+        if not should_use_local_routing_prompt(
+            provider=self._shared_provider_for_routing(),
+            enforce_prompt_governance=self.enforce_foundry_prompt_governance,
+        ):
+            slm_result = await self.__invoke_target(self.slm, messages, payload_tools, **kwargs)
+            if self.llm and self._assess_complexity(request) >= self.complexity_threshold:
+                return await self.__invoke_target(self.llm, messages, payload_tools, **kwargs)
+            return slm_result
 
         evaluation_prompt = (
             "Evaluate this request and identify the complexity. If the complexity is higher than "

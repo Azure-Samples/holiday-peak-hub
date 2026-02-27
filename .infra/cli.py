@@ -1,56 +1,21 @@
-"""Typer CLI to deploy services via Bicep and maintain Dockerfiles."""
-import subprocess
+"""Typer CLI to scaffold Bicep modules and Dockerfiles for services."""
 from pathlib import Path
 from typing import Optional
 
 import typer
 
-app = typer.Typer(help="Provision Holiday Peak Hub services")
+app = typer.Typer(help="Scaffold infrastructure files for Holiday Peak Hub services")
 
 ROOT = Path(__file__).parent
 APPS_DIR = ROOT.parent / "apps"
 TEMPLATE_DIR = ROOT / "templates"
+
 
 def load_template(template_name: str) -> str:
     path = TEMPLATE_DIR / template_name
     if not path.exists():
         raise typer.BadParameter(f"Template not found: {path}")
     return path.read_text(encoding="utf-8")
-
-
-def deploy_file(
-    file_path: Path,
-    app_name: str,
-    resource_group: str,
-    location: str,
-    app_image: str,
-    subscription_id: Optional[str],
-) -> None:
-    typer.echo(
-        f"Deploying {file_path.name} to {resource_group} in {location}"
-    )
-    cmd = [
-        "az",
-        "deployment",
-        "sub",
-        "create",
-        "--location",
-        location,
-        "--template-file",
-        str(file_path),
-        "--parameters",
-        f"location={location}",
-        f"resourceGroupName={resource_group}",
-        f"appName={app_name}",
-        f"appImage={app_image}",
-    ]
-    if subscription_id:
-        cmd.extend(["--subscription", subscription_id, "--parameters", f"subscriptionId={subscription_id}"])
-    subprocess.run(cmd, check=False)
-
-
-def default_resource_group(service: str) -> str:
-    return f"{service}-rg"
 
 
 def write_bicep_files(app_name: str) -> tuple[Path, Path]:
@@ -64,42 +29,6 @@ def write_bicep_files(app_name: str) -> tuple[Path, Path]:
     main_bicep.write_text(main_template.replace("{app_name}", app_name), encoding="utf-8")
     typer.echo(f"Wrote {app_bicep} and {main_bicep}")
     return app_bicep, main_bicep
-
-
-@app.command()
-def deploy(
-    service: str,
-    resource_group: Optional[str] = typer.Option(None, help="Name of the resource group to create/use"),
-    location: str = typer.Option("eastus", help="Azure region"),
-    app_image: Optional[str] = typer.Option(None, help="Container image to deploy to AKS"),
-    subscription_id: Optional[str] = typer.Option(None, help="Azure subscription ID"),
-) -> None:
-    main_bicep = ROOT / "modules" / service / f"{service}-main.bicep"
-    if not main_bicep.exists():
-        typer.echo(f"No Bicep found for {service}; generating from template.")
-        write_bicep_files(service)
-    rg = resource_group or default_resource_group(service)
-    image = app_image or f"ghcr.io/OWNER/{service}:latest"
-    deploy_file(main_bicep, service, rg, location, image, subscription_id)
-
-
-@app.command()
-def deploy_all(
-    resource_group_prefix: Optional[str] = typer.Option(None, help="Prefix for RG names; defaults to <service>-rg"),
-    location: str = typer.Option("eastus", help="Azure region"),
-    app_image: Optional[str] = typer.Option(None, help="Container image to deploy to AKS"),
-    subscription_id: Optional[str] = typer.Option(None, help="Azure subscription ID"),
-) -> None:
-    for app_path in APPS_DIR.iterdir():
-        if not app_path.is_dir():
-            continue
-        service = app_path.name
-        main_bicep = ROOT / "modules" / service / f"{service}-main.bicep"
-        if not main_bicep.exists():
-            write_bicep_files(service)
-        rg = resource_group_prefix or default_resource_group(service)
-        image = app_image or f"ghcr.io/OWNER/{service}:latest"
-        deploy_file(main_bicep, service, rg, location, image, subscription_id)
 
 
 @app.command()

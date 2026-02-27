@@ -13,6 +13,19 @@ Provides agent orchestration scaffolding using Microsoft Agent Framework with Fo
 **Builder Pattern**: Agent assembly with memory tiers + models  
 **Dependency Injection**: Tools, adapters, and MCP hooks injected at runtime
 
+## Provider Strategy Pattern
+
+`BaseRetailAgent` now delegates provider-specific prompt/routing behavior through
+a Strategy abstraction in [lib/src/holiday_peak_lib/agents/provider_policy.py](../../../../lib/src/holiday_peak_lib/agents/provider_policy.py):
+
+- `ProviderPolicyStrategy` (interface)
+- `DefaultProviderPolicyStrategy`
+- `FoundryProviderPolicyStrategy`
+- `resolve_provider_policy(provider)` registry/factory
+
+This keeps base orchestration provider-agnostic while allowing Foundry-specific
+governance (portal/SDK-owned instructions) and future provider extensions.
+
 ```python
 import os
 from typing import Any
@@ -40,8 +53,8 @@ agent = (
     )
     .with_tool("check_inventory", inventory_tool)
     .with_models(
-        slm=ModelTarget(name="slm", model="gpt-4o-mini", invoker=fast_invoker),
-        llm=ModelTarget(name="llm", model="gpt-4o", invoker=rich_invoker),
+        slm=ModelTarget(name="slm", model="gpt-5-nano", invoker=fast_invoker),
+        llm=ModelTarget(name="llm", model="gpt-5.2", invoker=rich_invoker),
         complexity_threshold=0.6,
     )
     .build()
@@ -64,6 +77,11 @@ response = await agent.handle({"query": "Check inventory for SKU-123"})
 ✅ **Foundry Integration Helpers**:
 
 - `FoundryAgentConfig` + `build_foundry_model_target` (Azure AI Foundry Agents via `AIProjectClient`)
+- Foundry prompt governance in `BaseRetailAgent` (system/developer prompts are stripped in Foundry mode)
+- Agents V2 provisioning path (`project_client.agents.create_version` with `PromptAgentDefinition`)
+- Agents V2 execution path (`openai_client.conversations` + `openai_client.responses` + `agent_reference`)
+- **42 V2 agents provisioned** in Foundry project `aipholidaris` (21 services × 2 roles: fast + rich)
+- SDK requirement: `azure-ai-projects>=2.0.0b4` for V2 `create_version` support
 
 ✅ **MCP Server Exposure**:
 
@@ -144,11 +162,17 @@ response = await agent.handle({"query": "Find Nike shoes", "requires_multi_tool"
 
 **Env vars expected**
 - `PROJECT_ENDPOINT` (or `FOUNDRY_ENDPOINT`): Azure AI Foundry project endpoint
-- `FOUNDRY_AGENT_ID_*`: Agent IDs created in Foundry (use different ones for SLM/LLM if desired)
-- `MODEL_DEPLOYMENT_NAME_*` (optional): Deployment backing the Agent
+- `PROJECT_NAME` (or `FOUNDRY_PROJECT_NAME`): Azure AI Foundry project name (optional)
+- `FOUNDRY_AGENT_ID_FAST` / `FOUNDRY_AGENT_ID_RICH`: Agent IDs created in Foundry
+- `FOUNDRY_AGENT_NAME_FAST` / `FOUNDRY_AGENT_NAME_RICH`: Agent names (used for V2 lookup/creation)
+- `MODEL_DEPLOYMENT_NAME_FAST` / `MODEL_DEPLOYMENT_NAME_RICH` (optional): Deployment backing the Agent (defaults to `gpt-5-nano` / `gpt-5.2`)
 - `FOUNDRY_STREAM` (optional): `true` to aggregate streaming deltas per target
+- `FOUNDRY_STRICT_ENFORCEMENT` (optional): `true` to require successful ensure before serving `/invoke`
+- `FOUNDRY_AUTO_ENSURE_ON_STARTUP` (optional): `true` to auto-ensure agents on app startup
 
-**Streaming**: The Foundry SDK already streams deltas; `FoundryAgentConfig.stream=True` uses `runs.stream` and aggregates text so callers still receive a single payload. If you do not need deltas, leave it `False` and the SDK uses `runs.create_and_process`.
+**SDK Requirement**: `azure-ai-projects>=2.0.0b4` is required for V2 agent provisioning (`create_version` + `PromptAgentDefinition`).
+
+**V2 Execution**: Agents V2 uses `openai_client.conversations.create()` + `openai_client.responses.create()` with `agent_reference` instead of the legacy threads/runs API. Streaming is not yet supported in V2; the invoker returns a single payload.
 
 ### Configuration
 
@@ -189,6 +213,74 @@ MCP schema discovery is not implemented by default. Apps should publish their to
 - **Heuristic**: `_assess_complexity` considers query length and a `requires_multi_tool` flag, returning 0–1.
 - **Routing**: `_select_model` picks SLM when complexity < threshold and LLM otherwise (with sensible fallbacks).
 - **Integration**: `invoke_model` forwards the selected model + parameters to the provided invoker (e.g., Microsoft Agent Framework client).
+
+### Prompt Governance (Foundry)
+
+When `ModelTarget.provider == "foundry"` (set by `build_foundry_model_target`) and
+`AgentDependencies.enforce_foundry_prompt_governance=True` (default),
+`BaseRetailAgent` enforces portal/SDK-owned prompt instructions by:
+
+- Removing local `system`/`developer` role messages before model invocation.
+- Keeping only conversational roles (`user`, `assistant`) as runtime input.
+- Running SLM-first and escalating to LLM by complexity threshold without injecting
+    additional local instruction prompts.
+
+This guarantees instruction changes are managed in Azure AI Foundry (portal or SDK),
+not by editing service-local prompt strings in `apps/*/agents.py`.
+
+### Foundry Agent Provisioning Endpoint (Per Service)
+
+All services created with `build_service_app` now expose:
+
+- `POST /foundry/agents/ensure`
+
+This endpoint validates that configured Foundry agents exist and can create them
+once when missing (via Foundry SDK). Typical request:
+
+```json
+{
+    "role": "both",
+    "create_if_missing": true,
+    "names": {"fast": "catalog-fast", "rich": "catalog-rich"},
+    "instructions": {"fast": "...", "rich": "..."},
+    "models": {"fast": "gpt-5-nano", "rich": "gpt-5.2"}
+}
+```
+
+Supported roles:
+
+- `fast` (SLM)
+- `rich` (LLM)
+- `both`
+
+The service updates in-memory model targets with resolved/created Foundry agent IDs.
+
+Default deployment models in this repo are:
+
+- SLM (`fast`): `gpt-5-nano`
+- LLM (`rich`): `gpt-5.2`
+
+Use **GlobalStandard** (global deployment) SKU in Azure AI Foundry to maximize
+regional compatibility and avoid runtime dependency errors.
+
+When `create_if_missing=true`, agent creation requires a model to be provided via
+`models.<role>` or configured through `MODEL_DEPLOYMENT_NAME_FAST` /
+`MODEL_DEPLOYMENT_NAME_RICH`. If no model is available, the role result returns
+`status: "missing_model"` and no agent is created.
+
+### Strict Foundry Enforcement Mode
+
+Set `FOUNDRY_STRICT_ENFORCEMENT=true` to require a successful ensure step before
+serving `/invoke` requests:
+
+- Before ensure: `/invoke` returns `503`
+- After successful `POST /foundry/agents/ensure`: `/invoke` is enabled
+
+This mode is designed for environments where all agent prompts/instructions must be
+managed exclusively in Foundry.
+
+When strict mode is enabled, startup auto-ensure is also enabled by default to
+guarantee agent versions exist before serving traffic.
 
 ## Observability (PARTIALLY IMPLEMENTED)
 

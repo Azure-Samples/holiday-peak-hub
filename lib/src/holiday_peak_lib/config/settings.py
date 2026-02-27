@@ -1,16 +1,17 @@
 """Configuration models."""
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class MemorySettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env")
 
-    redis_url: str
-    cosmos_account_uri: str
-    cosmos_database: str
-    cosmos_container: str
-    blob_account_url: str
-    blob_container: str
+    redis_url: str | None = None
+    cosmos_account_uri: str | None = None
+    cosmos_database: str | None = None
+    cosmos_container: str | None = None
+    blob_account_url: str | None = None
+    blob_container: str | None = None
 
 
 class ServiceSettings(BaseSettings):

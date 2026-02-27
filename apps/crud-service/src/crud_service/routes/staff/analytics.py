@@ -1,9 +1,8 @@
 """Staff analytics routes."""
 
+from crud_service.auth import User, require_staff
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-
-from crud_service.auth import User, require_staff
 
 router = APIRouter()
 
@@ -21,7 +20,7 @@ class SalesAnalyticsResponse(BaseModel):
 async def get_sales_analytics(current_user: User = Depends(require_staff)):
     """
     Get sales analytics summary.
-    
+
     Requires staff role.
     """
     # TODO: Implement analytics aggregation

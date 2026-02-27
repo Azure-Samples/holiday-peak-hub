@@ -8,8 +8,8 @@ import { Card } from '@/components/molecules/Card';
 import { Badge } from '@/components/atoms/Badge';
 import { Timeline } from '@/components/molecules/Timeline';
 import { 
-  FiPackage, FiTruck, FiMapPin, FiCheck, 
-  FiClock, FiArrowRight, FiPhone, FiMail 
+  FiPackage, FiTruck, FiMapPin, 
+  FiArrowRight, FiPhone, FiMail 
 } from 'react-icons/fi';
 
 export default function OrderTrackingPage() {

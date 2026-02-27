@@ -1,8 +1,7 @@
 """Unit tests for health routes."""
 
-from fastapi.testclient import TestClient
-
 from crud_service.main import app
+from fastapi.testclient import TestClient
 
 client = TestClient(app)
 

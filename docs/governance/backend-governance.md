@@ -55,6 +55,10 @@ This document defines the coding standards, architectural patterns, and complian
 - pytest-cov for coverage
 - pytest-mock for mocking
 
+**AI / Agent SDK**:
+- `azure-ai-projects>=2.0.0b4` (required for V2 Agents API — `create_version`, `PromptAgentDefinition`)
+- Azure AI Foundry SDK for conversations/responses execution pattern
+
 **Utilities**:
 - uv for package management
 - pyproject.toml for dependency management

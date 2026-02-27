@@ -1,8 +1,11 @@
 """Campaign intelligence agent implementation and MCP tool registration."""
+
 from __future__ import annotations
 
+import os
 from typing import Any
 
+from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 
@@ -53,7 +56,7 @@ class CampaignIntelligenceAgent(BaseRetailAgent):
                         "contact_id": contact_id,
                         "account_id": account_id,
                         "campaign_id": campaign_id,
-                        "crm_context": crm_context.model_dump() if crm_context else None,
+                        "crm_context": (crm_context.model_dump() if crm_context else None),
                         "funnel_context": funnel_context.model_dump(),
                     },
                 },
@@ -105,6 +108,14 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
     mcp.add_tool("/campaign/contact-context", get_contact_context)
     mcp.add_tool("/campaign/funnel-context", get_funnel_context)
     mcp.add_tool("/campaign/roi", estimate_campaign_roi)
+    _register_crud_tools(mcp)
+
+
+def _register_crud_tools(mcp: FastAPIMCPServer) -> None:
+    crud_url = os.getenv("CRUD_SERVICE_URL")
+    if not crud_url:
+        return
+    BaseCRUDAdapter(crud_url).register_mcp_tools(mcp)
 
 
 def _campaign_instructions(service_name: str) -> str:

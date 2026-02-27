@@ -6,10 +6,9 @@ import { Card } from '@/components/molecules/Card';
 import { Button } from '@/components/atoms/Button';
 import { Badge } from '@/components/atoms/Badge';
 import { Input } from '@/components/atoms/Input';
-import { Timeline } from '@/components/molecules/Timeline';
 import { 
-  FiTruck, FiMapPin, FiClock, FiCheck, FiAlertCircle,
-  FiPackage, FiSearch, FiNavigation
+  FiTruck, FiMapPin, FiCheck, FiAlertCircle,
+  FiSearch, FiNavigation
 } from 'react-icons/fi';
 
 export default function LogisticsTrackingPage() {

@@ -1,9 +1,8 @@
 """End-to-end tests for checkout flow."""
 
 import pytest
-from fastapi.testclient import TestClient
-
 from crud_service.main import app
+from fastapi.testclient import TestClient
 
 client = TestClient(app)
 

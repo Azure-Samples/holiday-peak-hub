@@ -1,5 +1,5 @@
-from fastapi.testclient import TestClient
 from crm_segmentation_personalization.main import app
+from fastapi.testclient import TestClient
 
 
 def test_health():
@@ -7,3 +7,10 @@ def test_health():
     resp = client.get("/health")
     assert resp.status_code == 200
     assert resp.json()["service"] == "crm-segmentation-personalization"
+
+
+def test_invoke_requires_contact_id():
+    client = TestClient(app)
+    resp = client.post("/invoke", json={})
+    assert resp.status_code == 200
+    assert resp.json().get("error") == "contact_id is required"

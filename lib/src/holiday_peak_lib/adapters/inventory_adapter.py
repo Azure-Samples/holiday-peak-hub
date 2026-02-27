@@ -8,7 +8,11 @@ doctest to demonstrate normalization.
 from typing import Optional
 
 from holiday_peak_lib.adapters.base import BaseAdapter, BaseConnector
-from holiday_peak_lib.schemas.inventory import InventoryContext, InventoryItem, WarehouseStock
+from holiday_peak_lib.schemas.inventory import (
+    InventoryContext,
+    InventoryItem,
+    WarehouseStock,
+)
 
 
 class InventoryConnector(BaseConnector):

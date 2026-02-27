@@ -157,8 +157,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const instance = new PublicClientApplication(getMsalConfig());
-    setMsalInstance(instance);
+    const init = async () => {
+      const instance = new PublicClientApplication(getMsalConfig());
+      await instance.initialize();
+      setMsalInstance(instance);
+    };
+
+    init().catch((err) => console.error('MSAL initialization failed:', err));
   }, []);
 
   if (!msalInstance) {

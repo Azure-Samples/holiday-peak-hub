@@ -3,6 +3,7 @@ fastapi-mcp
 uvicorn
 pydantic>=2
 agent-framework
+httpx
 azure-ai-projects
 azure-identity
 azure-search-documents

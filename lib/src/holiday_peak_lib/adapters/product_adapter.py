@@ -94,7 +94,9 @@ class ProductConnector(BaseConnector):
         records = await self._fetch_many(entity="related", sku=sku, limit=limit)
         return await self._map_many(CatalogProduct, records)
 
-    async def build_product_context(self, sku: str, related_limit: int = 5) -> Optional[ProductContext]:
+    async def build_product_context(
+        self, sku: str, related_limit: int = 5
+    ) -> Optional[ProductContext]:
         """Assemble agent-ready product context with related items.
 
         Doctest::

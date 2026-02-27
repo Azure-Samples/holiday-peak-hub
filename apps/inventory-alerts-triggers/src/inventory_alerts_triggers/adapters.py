@@ -1,4 +1,5 @@
 """Adapters for the inventory alerts and triggers service."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

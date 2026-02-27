@@ -78,9 +78,15 @@ Use this mapping to know the current vs. former names—so you can correctly int
 
 ## MCP Tool Exposition
 
-- Agents expose capabilities as MCP tools for agent-to-agent communication.
-- Use `FastAPIMCPServer` to register tools at specific endpoints (e.g., `/crm/profile/context`).
-- Tools should return structured data (dicts) for downstream consumption.
+- **MCP tools are exclusively for agent-to-agent communication**. They are indexed and used by agents.
+- Agents expose MCP tools via `FastAPIMCPServer` (e.g., `/mcp/get_profile_context`).
+- MCP tools return structured data (dicts) for downstream agent consumption.
+
+## Service Endpoints
+
+- **CRUD REST endpoints**: Exposed for Frontend AND Agents to call (e.g., `/products`, `/orders`, `/cart`).
+- **Agent REST endpoints**: Exposed for Frontend AND CRUD to call (e.g., `/enrich`, `/search`, `/recommendations`).
+- When CRUD needs fast agent capabilities, it calls agent REST endpoints with circuit breakers.
 
 ## Coding Conventions
 
@@ -95,3 +101,61 @@ Use this mapping to know the current vs. former names—so you can correctly int
 - When troubleshooting issues, invoke **troubleshoot** tool if available.
 - Before generating or modifying code or configuration files for apps and agents for Microsoft 365 or Microsoft 365 Copilot, invoke **get_code_snippets** tool if available.
 - Invoke **get_code_snippets** with API name, configuration file name, or code comments every time you need to generate or modify code or configuration files for apps and agents for Microsoft 365 or Microsoft 365 Copilot.
+
+## Agentic Architecture Patterns
+
+**Core Principle**: Agents differ from microservices through dynamic planning, context aggregation, and adaptive behavior.
+
+### When to Use Each Pattern
+
+**Use Traditional Microservices** for:
+- Transactional operations requiring ACID guarantees (checkout, payment, cart updates)
+- Predictable, deterministic flows (user registration, order status lookup)
+- High-volume, low-latency operations (< 50ms response time)
+- Regulated processes requiring explicit audit trails
+
+**Use Intelligent Agents** for:
+- Multi-step workflows requiring contextual decisions (product recommendations, customer segmentation)
+- Operations benefiting from natural language understanding (semantic search, support queries)
+- Processes requiring adaptation based on real-time data (dynamic pricing, inventory optimization)
+- End-to-end experiences spanning multiple domains (intelligent checkout, campaign generation)
+
+### Key Architectural Differences
+
+| Pattern | Microservice | Agent |
+|---------|-------------|-------|
+| **Execution Model** | Static call sequence defined in code | Dynamic planning at runtime based on context |
+| **Decision Making** | Explicit conditionals (`if`/`else`) | Context-aware evaluation with adaptive strategies |
+| **State Management** | Database-persisted, service-local state | Ephemeral context (prompt + memory); externalized long-term memory |
+| **Error Handling** | Fixed compensation (Saga pattern) | Adaptive retry/fallback; user interaction when needed |
+| **Coordination** | Orchestrator or event choreography | Emergent collaboration via agent-to-agent messaging |
+| **Change Velocity** | Code changes → deployment cycle | Prompt/knowledge updates (fast); structural changes still require dev |
+| **Observability** | Request tracing with fixed paths | Decision logging; requires reasoning capture |
+| **Scalability** | Predictable resource usage | Variable (2-10+ calls); requires dynamic scaling |
+| **Security Model** | Interface validation at boundaries | Policy enforcement + prompt testing + sandboxing |
+
+### Implementation Guidelines for This Codebase
+
+1. **CRUD Service (apps/crud-service)**: Pure microservice, no agent logic
+   - Exposes REST endpoints for Frontend AND Agents
+   - Handles all transactional operations (products, orders, cart)
+   - Publishes events to Event Hubs
+   - Calls agent REST endpoints for fast enrichment (with circuit breakers)
+
+2. **Agent Services (apps/\*-\*)**: Extend `BaseRetailAgent`
+   - Subscribe to Event Hubs for async processing
+   - Expose REST endpoints for Frontend/CRUD calls
+   - Expose MCP tools for agent-to-agent communication
+   - Call CRUD REST endpoints when needing transactional operations
+   - Maintain context using three-tier memory (Hot/Warm/Cold)
+
+3. **Frontend (apps/ui)**: Routes requests based on operation type
+   - Transactional → CRUD API
+   - Intelligence/Search → Agent APIs (direct or via CRUD)
+   - Async operations → CRUD publishes events, agents process background
+
+4. **Agent-to-Agent Communication**: Use MCP protocol
+   - MCP tools indexed and called by agents only
+   - Register tools via `FastAPIMCPServer`
+   - Return structured data (dicts) for downstream consumption
+   - Maintain domain boundaries (MicroAgents pattern)

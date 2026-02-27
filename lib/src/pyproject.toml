@@ -13,7 +13,8 @@ dependencies = [
     "uvicorn",
     "pydantic>=2",
     "agent-framework",
-    "azure-ai-projects",
+    "httpx",
+    "azure-ai-projects>=2.0.0b4",
     "azure-identity",
     "azure-search-documents",
     "azure-cosmos",
@@ -23,13 +24,15 @@ dependencies = [
     "asyncpg",
     "aiohttp",
     "typing-extensions",
-    "python-dotenv",
-    "azure-monitor-opentelemetry-exporter",
-    "opentelemetry-api>=1.27.0",
-    "opentelemetry-sdk>=1.27.0"
+    "python-dotenv"
 ]
 
 [project.optional-dependencies]
+monitor = [
+    "azure-monitor-opentelemetry>=1.7.0",
+    "opentelemetry-api>=1.27.0",
+    "opentelemetry-sdk>=1.27.0"
+]
 dev = [
     "faker",
     "pre-commit",
