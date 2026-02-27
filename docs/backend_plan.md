@@ -39,27 +39,27 @@ This document outlines the comprehensive backend implementation plan for Holiday
 ```mermaid
 graph TB
     subgraph "Frontend Layer"
-        UI[Next.js UI<br/>13 Pages]
+        UI[Next.js UI - 13 Pages]
     end
     
     subgraph "API Gateway Layer"
-        Gateway[API Gateway<br/>REST + Auth]
+        Gateway[API Gateway - REST + Auth]
     end
     
     subgraph "Application Layer"
-        CRUD[CRUD Services<br/>Non-Agent]
-        Agents[AI Agent Services<br/>21 Services]
+        CRUD[CRUD Services - Non-Agent]
+        Agents[AI Agent Services - 21 Services]
     end
     
     subgraph "Data Layer"
-        CosmosOps[(Cosmos DB<br/>Operational Data)]
-        CosmosMemory[(Cosmos DB<br/>Agent Memory)]
-        Redis[(Redis<br/>Hot Memory)]
-        Blob[(Blob Storage<br/>Cold Memory)]
+        CosmosOps[(Cosmos DB - Operational Data)]
+        CosmosMemory[(Cosmos DB - Agent Memory)]
+        Redis[(Redis - Hot Memory)]
+        Blob[(Blob Storage - Cold Memory)]
     end
     
     subgraph "Integration Layer"
-        EventHubs[Azure Event Hubs<br/>Choreography]
+        EventHubs[Azure Event Hubs - Choreography]
     end
     
     UI -->|REST/JWT| Gateway
@@ -1107,13 +1107,13 @@ graph TB
     end
     
     subgraph "Backend API Layer"
-        APIGateway[API Gateway<br/>Port 8000]
-        AuthMiddleware[Auth Middleware<br/>JWT Validation]
+        APIGateway[API Gateway - Port 8000]
+        AuthMiddleware[Auth Middleware - JWT Validation]
     end
     
     subgraph "Backend Services"
-        CRUDService[CRUD Service<br/>Port 8001]
-        AgentServices[Agent Services<br/>Ports 8002-8022]
+        CRUDService[CRUD Service - Port 8001]
+        AgentServices[Agent Services - Ports 8002-8022]
     end
     
     subgraph "Data Layer"

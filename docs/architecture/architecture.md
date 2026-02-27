@@ -316,7 +316,7 @@ graph TB
     end
     
     subgraph "Azure Services"
-        Redis[Azure Cache<br/>for Redis]
+        Redis[Azure Cache for Redis]
         Cosmos[Azure Cosmos DB]
         Blob[Azure Blob Storage]
         Search[Azure AI Search]
