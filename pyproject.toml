@@ -25,6 +25,16 @@ disable = [
     "C0301",
     "W3101",
     "E0401",
+    "E0611",
+    "C0413",
+    "R0913",
+    "R0801",
     "too-few-public-methods",
+]
+
+[tool.pytest.ini_options]
+addopts = "--import-mode=importlib"
+markers = [
+    "e2e: marks end-to-end tests",
 ]
 
