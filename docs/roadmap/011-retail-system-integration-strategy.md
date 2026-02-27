@@ -40,7 +40,7 @@ holiday-peak-hub/
 │       │   ├── external_api_adapter.py  # Generic external API base
 │       │   └── ...                  # Domain-specific base classes
 │       └── connectors/
-│           ├── protocols.py         # Data models + abstract connector contracts
+│           ├── contracts.py         # Data models + abstract connector contracts
 │           └── registry.py          # Runtime connector registry
 │
 └── apps/crud-service/               # Integration hub
@@ -214,7 +214,7 @@ class ConnectorRegistry:
 ## Implementation Phases
 
 ### Phase 1: Foundation (Q1 2026)
-- Define connector contracts in `lib/src/holiday_peak_lib/connectors/protocols.py`
+- Define connector contracts in `lib/src/holiday_peak_lib/connectors/contracts.py`
 - Implement connector registry in `lib/src/holiday_peak_lib/connectors/registry.py`
 - Implement connector base classes
 - Create mock servers for testing

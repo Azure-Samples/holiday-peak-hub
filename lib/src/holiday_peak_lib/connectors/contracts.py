@@ -1,7 +1,8 @@
-"""Protocol interfaces and domain models for enterprise connectors.
+"""Connector contracts and domain models for enterprise integrations.
 
-These protocols define contracts for vendor-specific connectors. Connector
-implementations should extend `BaseAdapter` and satisfy one or more protocols.
+These contracts define abstract base classes for vendor-specific connectors.
+Implementations should extend `BaseAdapter` and satisfy one or more connector
+base classes.
 
 Constraint:
 - Product enrichment must use company-owned source data only.

@@ -1,6 +1,6 @@
 """Connector contracts and registry exports."""
 
-from holiday_peak_lib.connectors.protocols import (
+from holiday_peak_lib.connectors.contracts import (
     AnalyticsConnectorBase,
     AssetData,
     CRMConnectorBase,
