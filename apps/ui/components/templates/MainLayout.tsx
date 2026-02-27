@@ -3,7 +3,10 @@
  * Primary layout for all pages with navigation and footer
  */
 
+'use client';
+
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import { cn } from '../utils';
 import { Navigation } from '../organisms/Navigation';
 import type { NavigationProps, BaseComponentProps } from '../types';
@@ -37,6 +40,17 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
   testId,
   ariaLabel,
 }) => {
+  const router = useRouter();
+  const handleSearch = (query: string) => {
+    const trimmed = query.trim();
+    if (trimmed) {
+      router.push(`/search?q=${encodeURIComponent(trimmed)}`);
+    }
+  };
+  const mergedNavigationProps = {
+    ...navigationProps,
+    onSearch: navigationProps?.onSearch ?? handleSearch,
+  };
   return (
     <div
       data-testid={testId}
@@ -48,7 +62,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
       )}
     >
       {/* Navigation */}
-      {showNavigation && <Navigation {...navigationProps} />}
+      {showNavigation && <Navigation {...mergedNavigationProps} />}
 
       {/* Main Content */}
       <main className="flex-1">

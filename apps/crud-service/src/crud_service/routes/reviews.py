@@ -3,11 +3,10 @@
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
-
 from crud_service.auth import User, get_current_user
 from crud_service.repositories.base import BaseRepository
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
 
 router = APIRouter()
 
@@ -57,7 +56,7 @@ class ReviewResponse(BaseModel):
 async def list_reviews(product_id: str):
     """
     List reviews for a product.
-    
+
     Anonymous access allowed.
     """
     reviews = await review_repo.get_by_product(product_id, limit=20)

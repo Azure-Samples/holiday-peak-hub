@@ -5,9 +5,12 @@ pyproject.toml
 ./holiday_peak_lib/adapters/__init__.py
 ./holiday_peak_lib/adapters/base.py
 ./holiday_peak_lib/adapters/crm_adapter.py
+./holiday_peak_lib/adapters/crud_adapter.py
+./holiday_peak_lib/adapters/external_api_adapter.py
 ./holiday_peak_lib/adapters/funnel_adapter.py
 ./holiday_peak_lib/adapters/inventory_adapter.py
 ./holiday_peak_lib/adapters/logistics_adapter.py
+./holiday_peak_lib/adapters/mcp_adapter.py
 ./holiday_peak_lib/adapters/mock_adapters.py
 ./holiday_peak_lib/adapters/pricing_adapter.py
 ./holiday_peak_lib/adapters/product_adapter.py
@@ -36,6 +39,7 @@ pyproject.toml
 ./holiday_peak_lib/schemas/pricing.py
 ./holiday_peak_lib/schemas/product.py
 ./holiday_peak_lib/utils/__init__.py
+./holiday_peak_lib/utils/event_hub.py
 ./holiday_peak_lib/utils/logging.py
 ./holiday_peak_lib/utils/retry.py
 holiday_peak_lib/__init__.py
@@ -48,9 +52,12 @@ holiday_peak_lib.egg-info/top_level.txt
 holiday_peak_lib/adapters/__init__.py
 holiday_peak_lib/adapters/base.py
 holiday_peak_lib/adapters/crm_adapter.py
+holiday_peak_lib/adapters/crud_adapter.py
+holiday_peak_lib/adapters/external_api_adapter.py
 holiday_peak_lib/adapters/funnel_adapter.py
 holiday_peak_lib/adapters/inventory_adapter.py
 holiday_peak_lib/adapters/logistics_adapter.py
+holiday_peak_lib/adapters/mcp_adapter.py
 holiday_peak_lib/adapters/mock_adapters.py
 holiday_peak_lib/adapters/pricing_adapter.py
 holiday_peak_lib/adapters/product_adapter.py
@@ -79,5 +86,6 @@ holiday_peak_lib/schemas/logistics.py
 holiday_peak_lib/schemas/pricing.py
 holiday_peak_lib/schemas/product.py
 holiday_peak_lib/utils/__init__.py
+holiday_peak_lib/utils/event_hub.py
 holiday_peak_lib/utils/logging.py
 holiday_peak_lib/utils/retry.py

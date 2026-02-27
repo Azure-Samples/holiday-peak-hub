@@ -1,11 +1,15 @@
 """Adapters for the inventory reservation validation service."""
+
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from typing import Any, Optional
 
+from holiday_peak_lib.adapters import BaseExternalAPIAdapter
 from holiday_peak_lib.adapters.inventory_adapter import InventoryConnector
 from holiday_peak_lib.adapters.mock_adapters import MockInventoryAdapter
+from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.schemas.inventory import InventoryContext
 
 
@@ -51,3 +55,16 @@ def build_reservation_validation_adapters(
     inventory = inventory_connector or InventoryConnector(adapter=MockInventoryAdapter())
     validator = ReservationValidator()
     return ReservationValidationAdapters(inventory=inventory, validator=validator)
+
+
+def register_external_api_tools(mcp: FastAPIMCPServer) -> None:
+    """Register warehouse API tools with MCP when configured."""
+    base_url = os.getenv("WAREHOUSE_API_URL")
+    if not base_url:
+        return
+    api_key = os.getenv("WAREHOUSE_API_KEY")
+    adapter = BaseExternalAPIAdapter("warehouse", base_url=base_url, api_key=api_key)
+    adapter.add_api_tool("reserve", "POST", "/reservations")
+    adapter.add_api_tool("release", "POST", "/reservations/release")
+    adapter.add_api_tool("status", "GET", "/reservations/status")
+    adapter.register_mcp_tools(mcp)

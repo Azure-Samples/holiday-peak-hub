@@ -1,8 +1,11 @@
 """Order status agent implementation and MCP tool registration."""
+
 from __future__ import annotations
 
+import os
 from typing import Any
 
+from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 
@@ -34,7 +37,7 @@ class OrderStatusAgent(BaseRetailAgent):
             "order_id": order_id,
             "tracking_id": tracking_id,
             "status": context.shipment.status if context else None,
-            "events": [event.model_dump() for event in context.events] if context else [],
+            "events": ([event.model_dump() for event in context.events] if context else []),
         }
 
         if self.slm or self.llm:
@@ -69,7 +72,7 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
             "order_id": order_id,
             "tracking_id": tracking_id,
             "status": context.shipment.status if context else None,
-            "events": [event.model_dump() for event in context.events] if context else [],
+            "events": ([event.model_dump() for event in context.events] if context else []),
         }
 
     async def get_order_events(payload: dict[str, Any]) -> dict[str, Any]:
@@ -77,10 +80,21 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
         if not tracking_id:
             return {"error": "tracking_id is required"}
         events = await adapters.logistics.get_events(str(tracking_id))
-        return {"tracking_id": tracking_id, "events": [event.model_dump() for event in events]}
+        return {
+            "tracking_id": tracking_id,
+            "events": [event.model_dump() for event in events],
+        }
 
     mcp.add_tool("/order/status", get_order_status)
     mcp.add_tool("/order/events", get_order_events)
+    _register_crud_tools(mcp)
+
+
+def _register_crud_tools(mcp: FastAPIMCPServer) -> None:
+    crud_url = os.getenv("CRUD_SERVICE_URL")
+    if not crud_url:
+        return
+    BaseCRUDAdapter(crud_url).register_mcp_tools(mcp)
 
 
 def _order_status_instructions(service_name: str) -> str:

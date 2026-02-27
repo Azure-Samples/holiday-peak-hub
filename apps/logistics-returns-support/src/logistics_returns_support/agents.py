@@ -1,12 +1,19 @@
 """Logistics returns support agent implementation and MCP tool registration."""
+
 from __future__ import annotations
 
+import os
 from typing import Any
 
+from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 
-from .adapters import ReturnsSupportAdapters, build_returns_support_adapters
+from .adapters import (
+    ReturnsSupportAdapters,
+    build_returns_support_adapters,
+    register_external_api_tools,
+)
 
 
 class ReturnsSupportAgent(BaseRetailAgent):
@@ -76,6 +83,15 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
 
     mcp.add_tool("/logistics/returns/context", get_logistics_context)
     mcp.add_tool("/logistics/returns/plan", get_returns_plan)
+    _register_crud_tools(mcp)
+    register_external_api_tools(mcp)
+
+
+def _register_crud_tools(mcp: FastAPIMCPServer) -> None:
+    crud_url = os.getenv("CRUD_SERVICE_URL")
+    if not crud_url:
+        return
+    BaseCRUDAdapter(crud_url).register_mcp_tools(mcp)
 
 
 def _returns_instructions() -> str:

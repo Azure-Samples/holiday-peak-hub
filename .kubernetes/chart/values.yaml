@@ -16,7 +16,7 @@ probes:
     initialDelaySeconds: 10
     periodSeconds: 10
   readiness:
-    path: /health
+    path: /ready
     initialDelaySeconds: 5
     periodSeconds: 10
 keda:

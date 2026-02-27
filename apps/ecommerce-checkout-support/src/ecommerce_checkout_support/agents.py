@@ -1,13 +1,20 @@
 """Checkout support agent implementation and MCP tool registration."""
+
 from __future__ import annotations
 
 import asyncio
+import os
 from typing import Any
 
+from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 
-from .adapters import CheckoutAdapters, build_checkout_adapters
+from .adapters import (
+    CheckoutAdapters,
+    build_checkout_adapters,
+    register_external_api_tools,
+)
 
 
 class CheckoutSupportAgent(BaseRetailAgent):
@@ -24,7 +31,9 @@ class CheckoutSupportAgent(BaseRetailAgent):
     async def handle(self, request: dict[str, Any]) -> dict[str, Any]:
         items = _coerce_items(request.get("items"))
         price_tasks = [self.adapters.pricing.build_price_context(item["sku"]) for item in items]
-        inventory_tasks = [self.adapters.inventory.build_inventory_context(item["sku"]) for item in items]
+        inventory_tasks = [
+            self.adapters.inventory.build_inventory_context(item["sku"]) for item in items
+        ]
 
         pricing_contexts, inventory_contexts = await asyncio.gather(
             asyncio.gather(*price_tasks),
@@ -46,7 +55,9 @@ class CheckoutSupportAgent(BaseRetailAgent):
                     "content": {
                         "items": items,
                         "pricing": [ctx.model_dump() for ctx in pricing_contexts],
-                        "inventory": [ctx.model_dump() if ctx else None for ctx in inventory_contexts],
+                        "inventory": [
+                            ctx.model_dump() if ctx else None for ctx in inventory_contexts
+                        ],
                         "validation": validation,
                     },
                 },
@@ -96,6 +107,15 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
     mcp.add_tool("/checkout/validate", validate_checkout)
     mcp.add_tool("/checkout/pricing", get_pricing)
     mcp.add_tool("/checkout/inventory", get_inventory)
+    _register_crud_tools(mcp)
+    register_external_api_tools(mcp)
+
+
+def _register_crud_tools(mcp: FastAPIMCPServer) -> None:
+    crud_url = os.getenv("CRUD_SERVICE_URL")
+    if not crud_url:
+        return
+    BaseCRUDAdapter(crud_url).register_mcp_tools(mcp)
 
 
 def _coerce_items(raw_items: Any) -> list[dict[str, object]]:
@@ -104,7 +124,12 @@ def _coerce_items(raw_items: Any) -> list[dict[str, object]]:
     items: list[dict[str, object]] = []
     for entry in raw_items:
         if isinstance(entry, dict) and "sku" in entry:
-            items.append({"sku": str(entry.get("sku")), "quantity": int(entry.get("quantity", 1))})
+            items.append(
+                {
+                    "sku": str(entry.get("sku")),
+                    "quantity": int(entry.get("quantity", 1)),
+                }
+            )
     return items
 
 

@@ -1,4 +1,5 @@
 """Adapters for the assortment optimization service."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

@@ -1,0 +1,30 @@
+[tool.black]
+line-length = 100
+target-version = ['py311', 'py312', 'py313']
+extend-exclude = '\.venv|node_modules|\.next'
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+line_length = 100
+ensure_newline_before_comments = true
+
+[tool.pylint.main]
+ignore-paths = [".*\\.venv.*", ".*node_modules.*", ".*\\.next.*", ".*__pycache__.*"]
+fail-under = 8.5
+max-line-length = 100
+
+[tool.pylint."messages control"]
+disable = [
+    "C0114",
+    "C0115",
+    "C0116",
+    "C0301",
+    "W3101",
+    "E0401",
+    "too-few-public-methods",
+]
+

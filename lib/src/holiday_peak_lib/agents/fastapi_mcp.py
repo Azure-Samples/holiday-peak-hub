@@ -1,4 +1,5 @@
 """Thin wrapper to expose MCP endpoints over FastAPI."""
+
 from fastapi import APIRouter, FastAPI
 
 

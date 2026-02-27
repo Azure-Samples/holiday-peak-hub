@@ -8,6 +8,8 @@
 
 Generates campaign intelligence by combining CRM contact context with funnel metrics and producing actionable insights.
 
+[ADD INSTRUCTION FOR THE PROMPT ENHANCEMENT]
+
 ## Architecture
 
 ```mermaid

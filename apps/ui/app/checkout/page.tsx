@@ -5,7 +5,6 @@ import { CheckoutLayout } from '@/components/templates/CheckoutLayout';
 import { Card } from '@/components/molecules/Card';
 import { Button } from '@/components/atoms/Button';
 import { Input } from '@/components/atoms/Input';
-import { Select } from '@/components/atoms/Select';
 import { Checkbox } from '@/components/atoms/Checkbox';
 import { Radio } from '@/components/atoms/Radio';
 import { Badge } from '@/components/atoms/Badge';

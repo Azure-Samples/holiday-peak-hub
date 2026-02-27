@@ -1,11 +1,13 @@
 """Tests for CRM schemas."""
-import pytest
+
 from datetime import datetime
+
+import pytest
 from holiday_peak_lib.schemas.crm import (
     CRMAccount,
     CRMContact,
-    CRMInteraction,
     CRMContext,
+    CRMInteraction,
 )
 
 
@@ -30,7 +32,7 @@ class TestCRMAccount:
             industry="Technology",
             tier="Enterprise",
             lifecycle_stage="Active",
-            attributes={"employees": 500, "revenue": "10M"}
+            attributes={"employees": 500, "revenue": "10M"},
         )
         assert account.account_id == "A123"
         assert account.name == "Test Corp"
@@ -50,7 +52,7 @@ class TestCRMAccount:
         """Test account field validation."""
         with pytest.raises(Exception):  # Pydantic ValidationError
             CRMAccount(account_id="A1")  # Missing name
-        
+
         with pytest.raises(Exception):
             CRMAccount(name="Test")  # Missing account_id
 
@@ -81,7 +83,7 @@ class TestCRMContact:
             title="VP Engineering",
             tags=["vip", "technical"],
             preferences={"newsletter": True, "frequency": "weekly"},
-            attributes={"linkedin": "johndoe"}
+            attributes={"linkedin": "johndoe"},
         )
         assert contact.contact_id == "C123"
         assert contact.account_id == "A456"
@@ -103,7 +105,7 @@ class TestCRMContact:
         """Test marketing opt-in behavior."""
         contact_opted_out = CRMContact(contact_id="C1")
         contact_opted_in = CRMContact(contact_id="C2", marketing_opt_in=True)
-        
+
         assert contact_opted_out.marketing_opt_in is False
         assert contact_opted_in.marketing_opt_in is True
 
@@ -116,7 +118,7 @@ class TestCRMInteraction:
         interaction = CRMInteraction(
             interaction_id="I123",
             channel="email",
-            occurred_at=datetime(2024, 1, 15, 10, 30)
+            occurred_at=datetime(2024, 1, 15, 10, 30),
         )
         assert interaction.interaction_id == "I123"
         assert interaction.channel == "email"
@@ -136,7 +138,7 @@ class TestCRMInteraction:
             subject="Support Request",
             summary="Customer needed help with API integration",
             sentiment="positive",
-            metadata={"agent": "Jane", "category": "technical"}
+            metadata={"agent": "Jane", "category": "technical"},
         )
         assert interaction.interaction_id == "I123"
         assert interaction.contact_id == "C456"
@@ -153,18 +155,14 @@ class TestCRMInteraction:
             interaction = CRMInteraction(
                 interaction_id=f"I_{channel}",
                 channel=channel,
-                occurred_at=datetime.now()
+                occurred_at=datetime.now(),
             )
             assert interaction.channel == channel
 
     def test_interaction_datetime_handling(self):
         """Test datetime handling in interactions."""
         now = datetime(2024, 6, 15, 14, 30, 0)
-        interaction = CRMInteraction(
-            interaction_id="I1",
-            channel="email",
-            occurred_at=now
-        )
+        interaction = CRMInteraction(interaction_id="I1", channel="email", occurred_at=now)
         assert interaction.occurred_at == now
         assert interaction.occurred_at.hour == 14
         assert interaction.occurred_at.minute == 30
@@ -183,35 +181,15 @@ class TestCRMContext:
 
     def test_create_full_context(self):
         """Test creating context with all fields."""
-        contact = CRMContact(
-            contact_id="C123",
-            email="test@example.com",
-            first_name="John"
-        )
-        account = CRMAccount(
-            account_id="A456",
-            name="Test Corp",
-            tier="Enterprise"
-        )
+        contact = CRMContact(contact_id="C123", email="test@example.com", first_name="John")
+        account = CRMAccount(account_id="A456", name="Test Corp", tier="Enterprise")
         interactions = [
-            CRMInteraction(
-                interaction_id="I1",
-                channel="email",
-                occurred_at=datetime(2024, 1, 10)
-            ),
-            CRMInteraction(
-                interaction_id="I2",
-                channel="phone",
-                occurred_at=datetime(2024, 1, 12)
-            )
+            CRMInteraction(interaction_id="I1", channel="email", occurred_at=datetime(2024, 1, 10)),
+            CRMInteraction(interaction_id="I2", channel="phone", occurred_at=datetime(2024, 1, 12)),
         ]
-        
-        context = CRMContext(
-            contact=contact,
-            account=account,
-            interactions=interactions
-        )
-        
+
+        context = CRMContext(contact=contact, account=account, interactions=interactions)
+
         assert context.contact.contact_id == "C123"
         assert context.account.account_id == "A456"
         assert len(context.interactions) == 2
@@ -226,11 +204,11 @@ class TestCRMContext:
                 contact_id="C1",
                 channel="email",
                 occurred_at=datetime(2024, 1, i + 1),
-                sentiment=["positive", "neutral", "negative"][i % 3]
+                sentiment=["positive", "neutral", "negative"][i % 3],
             )
             for i in range(10)
         ]
-        
+
         context = CRMContext(contact=contact, interactions=interactions)
         assert len(context.interactions) == 10
         assert context.interactions[0].sentiment == "positive"
@@ -241,7 +219,7 @@ class TestCRMContext:
         contact = CRMContact(contact_id="C1")
         context = CRMContext(contact=contact)
         assert context.account is None
-        
+
         # Add account later
         account = CRMAccount(account_id="A1", name="Test")
         context2 = CRMContext(contact=contact, account=account)
@@ -253,7 +231,7 @@ class TestCRMContext:
         contact = CRMContact(contact_id="C1", email="test@example.com")
         account = CRMAccount(account_id="A1", name="Test Corp")
         context = CRMContext(contact=contact, account=account)
-        
+
         # Test that it can be converted to dict
         context_dict = context.model_dump()
         assert context_dict["contact"]["contact_id"] == "C1"
@@ -265,21 +243,12 @@ class TestSchemaValidation:
 
     def test_account_empty_attributes(self):
         """Test account with empty attributes."""
-        account = CRMAccount(
-            account_id="A1",
-            name="Test",
-            attributes={}
-        )
+        account = CRMAccount(account_id="A1", name="Test", attributes={})
         assert account.attributes == {}
 
     def test_contact_empty_collections(self):
         """Test contact with empty collections."""
-        contact = CRMContact(
-            contact_id="C1",
-            tags=[],
-            preferences={},
-            attributes={}
-        )
+        contact = CRMContact(contact_id="C1", tags=[], preferences={}, attributes={})
         assert contact.tags == []
         assert contact.preferences == {}
         assert contact.attributes == {}
@@ -294,8 +263,8 @@ class TestSchemaValidation:
                 "nested": {"key": "value"},
                 "list": [1, 2, 3],
                 "bool": True,
-                "number": 42
-            }
+                "number": 42,
+            },
         )
         assert interaction.metadata["nested"]["key"] == "value"
         assert interaction.metadata["list"] == [1, 2, 3]

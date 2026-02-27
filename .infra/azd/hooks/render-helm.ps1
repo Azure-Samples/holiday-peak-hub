@@ -1,0 +1,95 @@
+param(
+    [Parameter(Mandatory = $true)]
+    [string]$ServiceName
+)
+
+$namespace = if ($env:K8S_NAMESPACE) { $env:K8S_NAMESPACE } else { "holiday-peak" }
+$imagePrefix = if ($env:IMAGE_PREFIX) { $env:IMAGE_PREFIX } else { "ghcr.io/azure-samples" }
+$imageTag = if ($env:IMAGE_TAG) { $env:IMAGE_TAG } else { "latest" }
+$kedaEnabled = if ($env:KEDA_ENABLED) { $env:KEDA_ENABLED } else { "false" }
+
+$serviceImageVarName = "SERVICE_$($ServiceName.ToUpper().Replace('-', '_'))_IMAGE_NAME"
+$serviceImage = [Environment]::GetEnvironmentVariable($serviceImageVarName)
+
+if ($serviceImage) {
+  $lastColon = $serviceImage.LastIndexOf(':')
+  if ($lastColon -gt 0) {
+    $imagePrefix = $serviceImage.Substring(0, $lastColon)
+    $imageTag = $serviceImage.Substring($lastColon + 1)
+  } else {
+    $imagePrefix = $serviceImage
+  }
+} else {
+  $imagePrefix = "$imagePrefix/$ServiceName"
+}
+
+$repoRoot = Resolve-Path "$PSScriptRoot\..\..\.."
+$chartPath = Join-Path $repoRoot ".kubernetes\chart"
+$outDir = Join-Path $repoRoot ".kubernetes\rendered\$ServiceName"
+New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+
+$rendered = Join-Path $outDir "all.yaml"
+
+$helmArgs = @(
+  'template',
+  $ServiceName,
+  $chartPath,
+  '--namespace',
+  $namespace,
+  '--set',
+  "serviceName=$ServiceName",
+  '--set',
+  "image.repository=$imagePrefix",
+  '--set',
+  "image.tag=$imageTag",
+  '--set',
+  "keda.enabled=$kedaEnabled"
+)
+
+$envMappings = @{
+  # Database
+  POSTGRES_HOST = $env:POSTGRES_HOST
+  POSTGRES_USER = $env:POSTGRES_USER
+  POSTGRES_PASSWORD = $env:POSTGRES_PASSWORD
+  POSTGRES_DATABASE = $env:POSTGRES_DATABASE
+  POSTGRES_PORT = $env:POSTGRES_PORT
+  POSTGRES_SSL = $env:POSTGRES_SSL
+
+  # Messaging & Infrastructure
+  EVENT_HUB_NAMESPACE = $env:EVENT_HUB_NAMESPACE
+  KEY_VAULT_URI = $env:KEY_VAULT_URI
+  REDIS_HOST = $env:REDIS_HOST
+
+  # Azure AI Foundry
+  PROJECT_ENDPOINT = $env:PROJECT_ENDPOINT
+  PROJECT_NAME = $env:PROJECT_NAME
+  FOUNDRY_AGENT_ID_FAST = $env:FOUNDRY_AGENT_ID_FAST
+  FOUNDRY_AGENT_ID_RICH = $env:FOUNDRY_AGENT_ID_RICH
+  MODEL_DEPLOYMENT_NAME_FAST = $env:MODEL_DEPLOYMENT_NAME_FAST
+  MODEL_DEPLOYMENT_NAME_RICH = $env:MODEL_DEPLOYMENT_NAME_RICH
+  FOUNDRY_STREAM = $env:FOUNDRY_STREAM
+  FOUNDRY_STRICT_ENFORCEMENT = $env:FOUNDRY_STRICT_ENFORCEMENT
+  FOUNDRY_AUTO_ENSURE_ON_STARTUP = $env:FOUNDRY_AUTO_ENSURE_ON_STARTUP
+
+  # Memory tiers
+  REDIS_URL = $env:REDIS_URL
+  COSMOS_ACCOUNT_URI = $env:COSMOS_ACCOUNT_URI
+  COSMOS_DATABASE = $env:COSMOS_DATABASE
+  COSMOS_CONTAINER = $env:COSMOS_CONTAINER
+  BLOB_ACCOUNT_URL = $env:BLOB_ACCOUNT_URL
+  BLOB_CONTAINER = $env:BLOB_CONTAINER
+
+  # Observability
+  APPLICATIONINSIGHTS_CONNECTION_STRING = $env:APPLICATIONINSIGHTS_CONNECTION_STRING
+}
+
+foreach ($key in $envMappings.Keys) {
+  $value = $envMappings[$key]
+  if ($value) {
+    $helmArgs += @('--set-string', "env.$key=$value")
+  }
+}
+
+& helm @helmArgs | Out-File -FilePath $rendered -Encoding utf8
+
+Write-Host "Rendered Helm manifests to $rendered"

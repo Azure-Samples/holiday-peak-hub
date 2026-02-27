@@ -1,12 +1,14 @@
 """Tests for agent builder."""
-import pytest
+
 from unittest.mock import Mock
-from holiday_peak_lib.agents.builder import AgentBuilder
+
+import pytest
 from holiday_peak_lib.agents.base_agent import BaseRetailAgent, ModelTarget
-from holiday_peak_lib.agents.orchestration.router import RoutingStrategy
+from holiday_peak_lib.agents.builder import AgentBuilder
+from holiday_peak_lib.agents.memory.cold import ColdMemory
 from holiday_peak_lib.agents.memory.hot import HotMemory
 from holiday_peak_lib.agents.memory.warm import WarmMemory
-from holiday_peak_lib.agents.memory.cold import ColdMemory
+from holiday_peak_lib.agents.orchestration.router import RoutingStrategy
 
 
 class SampleAgent(BaseRetailAgent):
@@ -19,8 +21,10 @@ class SampleAgent(BaseRetailAgent):
 @pytest.fixture
 def model_invoker():
     """Mock model invoker."""
+
     async def invoker(**kwargs):
         return {"response": "test"}
+
     return invoker
 
 
@@ -38,7 +42,7 @@ def mock_warm_memory(mock_cosmos_client, monkeypatch):
     memory = WarmMemory(
         account_uri="https://test.documents.azure.com",
         database="test",
-        container="test"
+        container="test",
     )
     monkeypatch.setattr(memory, "client", mock_cosmos_client)
     return memory
@@ -47,10 +51,7 @@ def mock_warm_memory(mock_cosmos_client, monkeypatch):
 @pytest.fixture
 def mock_cold_memory(mock_blob_client, monkeypatch):
     """Mock cold memory."""
-    memory = ColdMemory(
-        account_url="https://test.blob.core.windows.net",
-        container_name="test"
-    )
+    memory = ColdMemory(account_url="https://test.blob.core.windows.net", container_name="test")
     monkeypatch.setattr(memory, "client", mock_blob_client)
     return memory
 
@@ -79,11 +80,7 @@ class SampleAgentBuilder:
     def test_with_memory(self, mock_hot_memory, mock_warm_memory, mock_cold_memory):
         """Test setting memory layers."""
         builder = AgentBuilder()
-        result = builder.with_memory(
-            mock_hot_memory,
-            mock_warm_memory,
-            mock_cold_memory
-        )
+        result = builder.with_memory(mock_hot_memory, mock_warm_memory, mock_cold_memory)
         assert result is builder
 
     def test_with_tool(self):
@@ -96,10 +93,7 @@ class SampleAgentBuilder:
     def test_with_tools(self):
         """Test adding multiple tools."""
         builder = AgentBuilder()
-        tools = {
-            "tool1": lambda x: x,
-            "tool2": lambda y: y
-        }
+        tools = {"tool1": lambda x: x, "tool2": lambda y: y}
         result = builder.with_tools(tools)
         assert result is builder
 
@@ -120,29 +114,24 @@ class SampleAgentBuilder:
         assert agent.slm is not None
 
     def test_build_full_agent(
-        self,
-        model_invoker,
-        mock_hot_memory,
-        mock_warm_memory,
-        mock_cold_memory
+        self, model_invoker, mock_hot_memory, mock_warm_memory, mock_cold_memory
     ):
         """Test building agent with full configuration."""
         slm = ModelTarget(name="slm", model="small", invoker=model_invoker)
         llm = ModelTarget(name="llm", model="large", invoker=model_invoker)
         router = RoutingStrategy()
         tools = {"test": lambda x: x}
-        
+
         builder = AgentBuilder()
         agent = (
-            builder
-            .with_agent(SampleAgent)
+            builder.with_agent(SampleAgent)
             .with_router(router)
             .with_memory(mock_hot_memory, mock_warm_memory, mock_cold_memory)
             .with_tools(tools)
             .with_models(slm=slm, llm=llm)
             .build()
         )
-        
+
         assert isinstance(agent, SampleAgent)
         assert agent.hot_memory is not None
         assert agent.warm_memory is not None
@@ -173,13 +162,7 @@ class SampleAgentBuilder:
         slm = ModelTarget(name="slm", model="test", invoker=model_invoker)
         mcp = Mock()
         builder = AgentBuilder()
-        agent = (
-            builder
-            .with_agent(SampleAgent)
-            .with_models(slm=slm)
-            .with_mcp(mcp)
-            .build()
-        )
+        agent = builder.with_agent(SampleAgent).with_models(slm=slm).with_mcp(mcp).build()
         assert agent.mcp_server == mcp
 
     @pytest.mark.asyncio
@@ -199,42 +182,31 @@ class TestBuilderChaining:
         """Test chaining all builder methods."""
         slm = ModelTarget(name="slm", model="test", invoker=model_invoker)
         router = RoutingStrategy()
-        
+
         builder = AgentBuilder()
         agent = (
-            builder
-            .with_agent(SampleAgent)
+            builder.with_agent(SampleAgent)
             .with_router(router)
             .with_tool("tool1", lambda x: x)
             .with_tools({"tool2": lambda y: y})
             .with_models(slm=slm)
             .build()
         )
-        
+
         assert isinstance(agent, SampleAgent)
         assert len(agent.tools) == 2
 
     def test_order_independence(self, model_invoker):
         """Test that method call order doesn't matter."""
         slm = ModelTarget(name="slm", model="test", invoker=model_invoker)
-        
+
         # Build in one order
         builder1 = AgentBuilder()
-        agent1 = (
-            builder1
-            .with_models(slm=slm)
-            .with_agent(SampleAgent)
-            .build()
-        )
-        
+        agent1 = builder1.with_models(slm=slm).with_agent(SampleAgent).build()
+
         # Build in different order
         builder2 = AgentBuilder()
-        agent2 = (
-            builder2
-            .with_agent(SampleAgent)
-            .with_models(slm=slm)
-            .build()
-        )
-        
+        agent2 = builder2.with_agent(SampleAgent).with_models(slm=slm).build()
+
         assert isinstance(agent1, SampleAgent)
         assert isinstance(agent2, SampleAgent)

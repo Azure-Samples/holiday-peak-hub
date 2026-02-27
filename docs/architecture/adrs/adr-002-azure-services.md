@@ -2,6 +2,7 @@
 
 **Status**: Accepted  
 **Date**: 2024-12  
+**Updated**: 2026-02  
 **Deciders**: Architecture Team, Ricardo Cataldi
 
 ## Context
@@ -28,12 +29,16 @@ Requirements:
 | Hot Memory | Azure Cache for Redis | Sub-50ms P99, native Python SDK, clustering support |
 | Warm Memory | Azure Cosmos DB | Global distribution, session consistency, hierarchical partition keys |
 | Cold Memory | Azure Blob Storage | Lowest cost/GB, lifecycle policies, soft delete |
-| Transactional DB | Azure Database for PostgreSQL | ACID guarantees, vector extension for hybrid scenarios |
+| Transactional DB | Azure Database for PostgreSQL Flexible Server | ACID transactions, relational constraints, joins for CRUD workflows |
 | Vector Search | Azure AI Search | Vector+hybrid, semantic ranking, built-in chunking |
 | Async Messaging | Azure Event Hubs | High throughput, Kafka-compatible, retention policies |
 | API Gateway | Azure API Management | Rate limiting, OAuth, developer portal |
-| Container Orchestration | Azure Kubernetes Service | Managed control plane, KEDA integration, canary deployments |
+| Container Orchestration | Azure Kubernetes Service | Managed control plane, KEDA integration, 3 dedicated node pools |
+| Container Registry | Azure Container Registry (Premium) | Private endpoints, zone-redundant, AcrPull via Managed Identity |
+| AI/ML Platform | Azure AI Foundry | Foundry project, model management, agent orchestration |
+| Secrets Management | Azure Key Vault (Premium) | HSM-backed secrets, certificates, purge protection |
 | Observability | Azure Monitor | Application Insights, Log Analytics, distributed tracing |
+| Networking | Azure Virtual Network | 5 subnets, 5 NSGs, 8 Private DNS Zones, Private Endpoints |
 
 ## Consequences
 
@@ -69,7 +74,14 @@ Requirements:
 - **Mode**: NoSQL (Core SQL API)
 - **Consistency**: Session (balance latency + consistency)
 - **Partition Strategy**: Hierarchical partition keys for multi-tenant isolation
-- **Rationale**: [Cosmos DB best practices](https://learn.microsoft.com/azure/cosmos-db/best-practices) for agent memory
+- **Agent memory containers**: `warm-{agent}-chat-memory` per agent service
+- **Rationale**: Optimized for warm memory state and session history in agent workflows. See [Cosmos DB best practices](https://learn.microsoft.com/azure/cosmos-db/best-practices).
+
+### Azure Database for PostgreSQL Flexible Server
+- **Mode**: Managed PostgreSQL 16 (Flexible Server)
+- **Connectivity**: Private Endpoint + private DNS in shared VNet
+- **Database**: `holiday_peak_crud`
+- **Rationale**: CRUD service requires transactional consistency, relational querying, and ACID semantics.
 
 ### Azure Cache for Redis
 - **Tier**: Standard (clustering for prod)
@@ -88,12 +100,16 @@ Requirements:
 
 ## Implementation Notes
 
-- Bicep templates provision all services with naming convention: `<app>-<service>-<version>`
+- All infrastructure provisioned via Bicep using [Azure Verified Modules (AVM)](https://azure.github.io/Azure-Verified-Modules/)
+- Naming convention: `{projectName}-{environment}-{service}` (e.g., `holidaypeakhub-dev-aks`)
 - Managed identities for service-to-service auth (no connection strings in code)
-- Private endpoints for production environments
+- Private endpoints for all data services in production (8 Private DNS Zones)
 - Cost alerts configured at 80% budget threshold
+- Two provisioning strategies: demo (per-service standalone) and production (shared infrastructure)
 
 ## Related ADRs
 
 - [ADR-008: Three-Tier Memory](adr-008-memory-tiers.md) — Redis + Cosmos + Blob rationale
-- [ADR-009: AKS Deployment](adr-009-aks-deployment.md) — Kubernetes choice
+- [ADR-009: AKS Deployment](adr-009-aks-deployment.md) — Kubernetes choice and node pool strategy
+- [ADR-014: Memory Partitioning](adr-014-memory-partitioning.md) — Data placement rules
+- [ADR-021: azd-First Deployment](adr-021-azd-first-deployment.md) — Provisioning and CI/CD strategy

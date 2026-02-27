@@ -1,4 +1,5 @@
 """Adapters for the ecommerce cart intelligence service."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -80,4 +81,6 @@ def build_cart_adapters(
     pricing = pricing_connector or PricingConnector(adapter=MockPricingAdapter())
     inventory = inventory_connector or InventoryConnector(adapter=MockInventoryAdapter())
     analytics = CartAnalyticsAdapter()
-    return CartAdapters(products=products, pricing=pricing, inventory=inventory, analytics=analytics)
+    return CartAdapters(
+        products=products, pricing=pricing, inventory=inventory, analytics=analytics
+    )

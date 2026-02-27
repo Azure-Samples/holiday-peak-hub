@@ -11,9 +11,22 @@
 
 [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FAzure-Samples%2Fholiday-peak-hub%2Fmain%2F.infra%2Fmodules%2Fshared-infrastructure%2Fshared-infrastructure-main.bicep)
 
-## 🎉 Recent Updates (January 2026)
+## 🎉 Recent Updates (February 2026)
+
+### ✅ Agents V2 Migration Complete
+
+- **42 V2 prompt agents** provisioned in Azure AI Foundry project `aipholidaris` (21 services × 2 roles)
+- **Model defaults**: `gpt-5-nano` (SLM/fast) and `gpt-5.2` (LLM/rich)
+- **SDK**: `azure-ai-projects>=2.0.0b4` for V2 `create_version` API with `PromptAgentDefinition`
+- **Execution**: Conversations/responses pattern via `openai_client.conversations.create()` + `openai_client.responses.create()`
+- **Strict enforcement mode**: `FOUNDRY_STRICT_ENFORCEMENT` env var gates `/invoke` until agents are provisioned
+- **Auto-ensure on startup**: `FOUNDRY_AUTO_ENSURE_ON_STARTUP` creates missing agents automatically
+- **All 29 lib tests passing**
+
+### Previous Updates (January 2026)
 
 ### ✅ Frontend Implementation Complete
+
 - **13 production-ready pages** across 4 user roles (anonymous, customer, staff, admin)
 - **52-component library** following atomic design principles
 - **Ocean Blue/Lime Green/Cyan color system** with dark mode support
@@ -21,6 +34,7 @@
 - See [Components Documentation](docs/architecture/components.md) for complete details
 
 ### ✅ Backend Implementation Progress
+
 - **CRUD Service**: Fully implemented with 31 endpoints across 15 route modules
 - **Cloud-native architecture** with Azure best practices
 - **10 database schemas** for operational data (Cosmos DB)
@@ -30,6 +44,7 @@
 - See [Implementation Roadmap](docs/IMPLEMENTATION_ROADMAP.md) and [CRUD Service Documentation](docs/architecture/crud-service-implementation.md)
 
 ### ✅ Architecture Documentation
+
 - **20 ADRs** covering all major decisions
 - **Cloud-native patterns**: Key Vault, Managed Identity, APIM, Front Door
 - **Event-driven choreography** with Azure Event Hubs
@@ -59,7 +74,7 @@ Agent-driven retail accelerator with a reusable micro-framework, multi-tier memo
 - [ADR-009](docs/architecture/adrs/adr-009-aks-deployment.md) - AKS with Helm, KEDA, and Canary Deployments
 - [ADR-015](docs/architecture/adrs/adr-015-nextjs-app-router.md) - Next.js 15 with App Router for Frontend
 - [ADR-019](docs/architecture/adrs/adr-019-authentication-rbac.md) - Microsoft Entra ID Authentication and RBAC
-- **[View all 20 ADRs](docs/architecture/ADRs.md)**
+- **[View all 21 ADRs](docs/architecture/ADRs.md)**
 
 ### Key Documents
 - **[Components Documentation](docs/architecture/components.md)** - Library components, service components, and frontend component library
@@ -178,6 +193,33 @@ curl http://localhost:3000/api/health
 
 **See [Implementation Roadmap](docs/IMPLEMENTATION_ROADMAP.md) for deployment to Azure.**
 
+### Per-team deploy variables (important)
+
+For shared Azure subscriptions, each team should use its own azd environment and its own CRUD env file.
+
+- Start from [apps/crud-service/.env.deploy.sample](apps/crud-service/.env.deploy.sample)
+- Copy to `.env` in the CRUD service deployment context
+- Populate values from your team azd environment after `azd provision`
+
+Provisioning sequence for team environments:
+
+1. `azd env new <team-env>`
+2. `azd provision -e <team-env>`
+3. Generate CRUD `.env` from azd values:
+
+  ```powershell
+  pwsh ./.infra/azd/hooks/generate-crud-env.ps1 -EnvironmentName <team-env> -Force
+  ```
+
+  ```bash
+  FORCE=true ./.infra/azd/hooks/generate-crud-env.sh <team-env>
+  ```
+
+4. Set `AGENT_APIM_BASE_URL` to `https://<apimName>.azure-api.net`
+5. Deploy CRUD and agents with the same `<team-env>`
+
+This prevents cross-team routing mistakes and ensures CRUD calls the correct APIM instance.
+
 ## Testing and linting
 
 Commands align with CI gates (coverage floor 75%):
@@ -192,12 +234,122 @@ pytest lib/tests apps/**/tests --maxfail=1 --cov=. --cov-report=term-missing --c
 ## CI
 
 The workflow in .github/workflows/ci.yml runs lint, format, and tests on pushes/PRs and, on main, builds and pushes every app image to GHCR (`ghcr.io/<owner>/<app>:latest`).
+For production-style rollout with ordering, use `.github/workflows/deploy-azd.yml` (provision, deploy CRUD, optionally deploy the Static Web App UI, then deploy agent services).
 
 ## Infrastructure and deployment
 
 - Bicep modules live in .infra/modules; per-service entry points are in .infra/*.bicep.
-- A Typer CLI wraps deployment: `python -m .infra.cli deploy <service> --location <region> --version <release> [--subscription-id <sub>] [--resource-group <rg>]` or `deploy_all` to iterate every service (defaults RG to `<service>-rg`). Each deployment is subscription-scoped, creates the RG, and names resources as `appname-azureservicename-version` (storage accounts use a hyphen-stripped variant).
+- **Use Azure Developer CLI (`azd`) for all provisioning and deployments.**
+- The Python CLI in `.infra/cli.py` is now scaffolding-only (`generate-bicep`, `generate-dockerfile`).
 - Helm chart scaffolding lives in .kubernetes/chart for AKS + KEDA; supply your image names, environment, and HPA/KEDA triggers via values.yaml.
+- Service provisioning guide: [Infrastructure README - Deploy Services with azd](.infra/README.md#-deploy-services-with-azd)
+
+### CLI command reference
+
+#### Shared infrastructure (azd)
+
+```bash
+azd env set deployShared true -e dev
+azd env set deployStatic false -e dev
+azd env set environment dev -e dev
+azd env set location eastus2 -e dev
+azd provision -e dev
+```
+
+#### Static web app infra (azd)
+
+```bash
+azd env set deployShared false -e dev
+azd env set deployStatic true -e dev
+azd env set environment dev -e dev
+azd env set location eastus2 -e dev
+azd provision -e dev
+```
+
+#### Shared infra + static web app + services
+
+```bash
+azd env set deployShared true -e dev
+azd env set deployStatic true -e dev
+azd env set environment dev -e dev
+azd env set location eastus2 -e dev
+azd up -e dev
+```
+
+#### Shared AKS workloads (azd service deploy)
+
+```bash
+# Ensure kubeconfig is available for AKS-hosted services
+az aks get-credentials --resource-group holidaypeakhub-dev-rg --name holidaypeakhub-dev-aks
+
+# Deploy CRUD first
+azd deploy --service crud-service -e dev
+
+# Deploy UI (Static Web App)
+azd deploy --service ui -e dev
+
+# Deploy all services
+azd deploy --all -e dev
+```
+
+#### Single service update
+
+```bash
+azd deploy --service ecommerce-catalog-search -e dev
+```
+
+#### Scaffolding commands (Python CLI)
+
+```bash
+# Bicep modules
+python .infra/cli.py generate-bicep --service ecommerce-catalog-search
+python .infra/cli.py generate-bicep --apply-all
+
+# Dockerfiles
+python .infra/cli.py generate-dockerfile --service ecommerce-catalog-search
+python .infra/cli.py generate-dockerfile --apply-all
+```
+
+### Step-by-step scenarios
+
+**Scenario A: Shared infra + static web app + all services (recommended)**
+
+```bash
+# 1) Provision shared infra + static infra
+azd env set deployShared true -e dev
+azd env set deployStatic true -e dev
+azd env set environment dev -e dev
+azd env set location eastus2 -e dev
+azd provision -e dev
+
+# 2) Get AKS credentials
+az aks get-credentials --resource-group holidaypeakhub-dev-rg --name holidaypeakhub-dev-aks
+
+# 3) Deploy CRUD first, then the remaining services
+azd deploy --service crud-service -e dev
+azd deploy --service ui -e dev
+azd deploy --all -e dev
+```
+
+**Scenario B: Shared infra only (foundation)**
+
+```bash
+azd env set deployShared true -e dev
+azd env set deployStatic false -e dev
+azd env set environment dev -e dev
+azd env set location eastus2 -e dev
+azd provision -e dev
+```
+
+**Scenario C: Shared infra + Static Web App only**
+
+```bash
+azd env set deployShared true -e dev
+azd env set deployStatic true -e dev
+azd env set environment dev -e dev
+azd env set location eastus2 -e dev
+azd provision -e dev
+```
 
 ## Services catalog
 

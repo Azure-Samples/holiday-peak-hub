@@ -1,13 +1,14 @@
 """User routes."""
 
+from crud_service.auth import User, get_current_user
+from crud_service.integrations import get_agent_client
+from crud_service.repositories import UserRepository
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
-from crud_service.auth import User, get_current_user
-from crud_service.repositories import UserRepository
-
 router = APIRouter()
 user_repo = UserRepository()
+agent_client = get_agent_client()
 
 
 class UserProfileResponse(BaseModel):
@@ -59,3 +60,23 @@ async def update_my_profile(
 
     updated = await user_repo.update(user)
     return UserProfileResponse(**updated)
+
+
+class CrmProfileResponse(BaseModel):
+    """Enriched CRM profile."""
+
+    user_id: str
+    crm_profile: dict | None = None
+    personalization: dict | None = None
+
+
+@router.get("/users/me/crm", response_model=CrmProfileResponse)
+async def get_crm_profile(current_user: User = Depends(get_current_user)):
+    """Get the enriched CRM profile and personalization for the current user."""
+    crm_profile = await agent_client.get_customer_profile(current_user.user_id)
+    personalization = await agent_client.get_personalization(current_user.user_id)
+    return CrmProfileResponse(
+        user_id=current_user.user_id,
+        crm_profile=crm_profile,
+        personalization=personalization,
+    )

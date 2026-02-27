@@ -1,0 +1,523 @@
+name: deploy-azd
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Deployment environment name (for azd -e)
+        required: true
+        default: dev
+      location:
+        description: Azure location
+        required: true
+        default: eastus2
+      projectName:
+        description: Project prefix used by naming convention
+        required: true
+        default: holidaypeakhub
+      imageTag:
+        description: Image tag to deploy
+        required: true
+        default: latest
+      deployStatic:
+        description: Provision static web app resources
+        required: true
+        type: boolean
+        default: true
+      seedDemoData:
+        description: Run demo faker seed job after deployment (non-prod only)
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    outputs:
+      AI_SERVICES_NAME: ${{ steps.outputs.outputs.AI_SERVICES_NAME }}
+      PROJECT_ENDPOINT: ${{ steps.outputs.outputs.PROJECT_ENDPOINT }}
+      PROJECT_NAME: ${{ steps.outputs.outputs.PROJECT_NAME }}
+      COSMOS_ACCOUNT_URI: ${{ steps.outputs.outputs.COSMOS_ACCOUNT_URI }}
+      COSMOS_DATABASE: ${{ steps.outputs.outputs.COSMOS_DATABASE }}
+      KEY_VAULT_URI: ${{ steps.outputs.outputs.KEY_VAULT_URI }}
+      REDIS_HOST: ${{ steps.outputs.outputs.REDIS_HOST }}
+      EVENT_HUB_NAMESPACE: ${{ steps.outputs.outputs.EVENT_HUB_NAMESPACE }}
+      APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ steps.outputs.outputs.APPLICATIONINSIGHTS_CONNECTION_STRING }}
+      POSTGRES_HOST: ${{ steps.outputs.outputs.POSTGRES_HOST }}
+      POSTGRES_USER: ${{ steps.outputs.outputs.POSTGRES_USER }}
+      POSTGRES_DATABASE: ${{ steps.outputs.outputs.POSTGRES_DATABASE }}
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup azd
+        uses: Azure/setup-azd@v1
+
+      - name: Configure azd environment
+        run: |
+          azd env set AZURE_SUBSCRIPTION_ID "${AZURE_SUBSCRIPTION_ID}" -e "${{ inputs.environment }}"
+          azd env set AZURE_LOCATION "${{ inputs.location }}" -e "${{ inputs.environment }}"
+          azd env set AZURE_ENV_NAME "${{ inputs.environment }}" -e "${{ inputs.environment }}"
+
+          azd env set deployShared true -e "${{ inputs.environment }}"
+          azd env set deployStatic "${{ inputs.deployStatic }}" -e "${{ inputs.environment }}"
+          azd env set environment "${{ inputs.environment }}" -e "${{ inputs.environment }}"
+          azd env set location "${{ inputs.location }}" -e "${{ inputs.environment }}"
+          azd env set projectName "${{ inputs.projectName }}" -e "${{ inputs.environment }}"
+
+          azd env set IMAGE_PREFIX "ghcr.io/${{ github.repository_owner }}" -e "${{ inputs.environment }}"
+          azd env set IMAGE_TAG "${{ inputs.imageTag }}" -e "${{ inputs.environment }}"
+          azd env set K8S_NAMESPACE holiday-peak -e "${{ inputs.environment }}"
+          azd env set KEDA_ENABLED false -e "${{ inputs.environment }}"
+
+      - name: Provision infrastructure
+        run: azd provision --no-prompt -e "${{ inputs.environment }}"
+
+      - name: Export provisioned outputs
+        id: outputs
+        run: |
+          eval "$(azd env get-values -e '${{ inputs.environment }}' | sed 's/^/export /')"
+          {
+            echo "AI_SERVICES_NAME=${AI_SERVICES_NAME}"
+            echo "PROJECT_ENDPOINT=${PROJECT_ENDPOINT}"
+            echo "PROJECT_NAME=${PROJECT_NAME}"
+            echo "COSMOS_ACCOUNT_URI=${COSMOS_ACCOUNT_URI}"
+            echo "COSMOS_DATABASE=${COSMOS_DATABASE}"
+            echo "KEY_VAULT_URI=${KEY_VAULT_URI}"
+            echo "REDIS_HOST=${REDIS_HOST}"
+            echo "EVENT_HUB_NAMESPACE=${EVENT_HUB_NAMESPACE}"
+            echo "APPLICATIONINSIGHTS_CONNECTION_STRING=${APPLICATIONINSIGHTS_CONNECTION_STRING}"
+            echo "POSTGRES_HOST=${POSTGRES_HOST}"
+            echo "POSTGRES_USER=${POSTGRES_USER}"
+            echo "POSTGRES_DATABASE=${POSTGRES_DATABASE}"
+          } >> "$GITHUB_OUTPUT"
+
+  deploy-foundry-models:
+    runs-on: ubuntu-latest
+    needs: provision
+    environment: ${{ inputs.environment }}
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy AI model deployments
+        run: |
+          bash .infra/azd/hooks/deploy-foundry-models.sh \
+            "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
+            "${{ needs.provision.outputs.AI_SERVICES_NAME }}"
+        env:
+          AZURE_RESOURCE_GROUP: ${{ inputs.projectName }}-${{ inputs.environment }}-rg
+          AI_SERVICES_NAME: ${{ needs.provision.outputs.AI_SERVICES_NAME }}
+
+  deploy-crud:
+    runs-on: ubuntu-latest
+    needs: provision
+    environment: ${{ inputs.environment }}
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup azd
+        uses: Azure/setup-azd@v1
+
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
+            --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
+            --overwrite-existing
+
+      - name: Deploy CRUD service
+        run: azd deploy --service crud-service --no-prompt -e "${{ inputs.environment }}"
+
+  deploy-ui:
+    runs-on: ubuntu-latest
+    if: ${{ inputs.deployStatic }}
+    needs: provision
+    environment: ${{ inputs.environment }}
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup azd
+        uses: Azure/setup-azd@v1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Resolve API URL
+        id: api
+        run: |
+          RESOURCE_GROUP="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+
+          APIM_URL=$(az apim show \
+            --name "${{ inputs.projectName }}-${{ inputs.environment }}-apim" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query "gatewayUrl" -o tsv)
+
+          echo "api_url=$APIM_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve SWA deployment token
+        id: swa
+        run: |
+          RESOURCE_GROUP="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+
+          SWA_NAME=$(az resource list \
+            --resource-group "$RESOURCE_GROUP" \
+            --resource-type "Microsoft.Web/staticSites" \
+            --query "[0].name" -o tsv)
+
+          if [ -z "$SWA_NAME" ]; then
+            echo "No Static Web App found in resource group $RESOURCE_GROUP"
+            exit 1
+          fi
+
+          SWA_TOKEN=$(az staticwebapp secrets list \
+            --name "$SWA_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query "properties.apiKey" -o tsv)
+
+          if [ -z "$SWA_TOKEN" ]; then
+            echo "Failed to resolve deployment token for SWA $SWA_NAME"
+            exit 1
+          fi
+
+          echo "::add-mask::$SWA_TOKEN"
+          echo "swa_name=$SWA_NAME" >> "$GITHUB_OUTPUT"
+          echo "swa_token=$SWA_TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy UI via Static Web Apps action
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          action: upload
+          azure_static_web_apps_api_token: ${{ steps.swa.outputs.swa_token }}
+          app_location: apps/ui
+          output_location: ''
+          skip_api_build: true
+          app_build_command: yarn install --frozen-lockfile && yarn build
+        env:
+          NEXT_PUBLIC_API_URL: ${{ steps.api.outputs.api_url }}
+
+  deploy-agents:
+    runs-on: ubuntu-latest
+    needs:
+      - deploy-crud
+      - deploy-foundry-models
+    environment: ${{ inputs.environment }}
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - crm-campaign-intelligence
+          - crm-profile-aggregation
+          - crm-segmentation-personalization
+          - crm-support-assistance
+          - ecommerce-cart-intelligence
+          - ecommerce-catalog-search
+          - ecommerce-checkout-support
+          - ecommerce-order-status
+          - ecommerce-product-detail-enrichment
+          - inventory-alerts-triggers
+          - inventory-health-check
+          - inventory-jit-replenishment
+          - inventory-reservation-validation
+          - logistics-carrier-selection
+          - logistics-eta-computation
+          - logistics-returns-support
+          - logistics-route-issue-detection
+          - product-management-acp-transformation
+          - product-management-assortment-optimization
+          - product-management-consistency-validation
+          - product-management-normalization-classification
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup azd
+        uses: Azure/setup-azd@v1
+
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
+            --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
+            --overwrite-existing
+
+      - name: Deploy service
+        run: azd deploy --service "${{ matrix.service }}" --no-prompt -e "${{ inputs.environment }}"
+        env:
+          PROJECT_ENDPOINT: ${{ needs.provision.outputs.PROJECT_ENDPOINT }}
+          PROJECT_NAME: ${{ needs.provision.outputs.PROJECT_NAME }}
+          FOUNDRY_AUTO_ENSURE_ON_STARTUP: "true"
+          FOUNDRY_STRICT_ENFORCEMENT: "true"
+          MODEL_DEPLOYMENT_NAME_FAST: gpt-5-nano
+          MODEL_DEPLOYMENT_NAME_RICH: gpt-5.2
+          COSMOS_ACCOUNT_URI: ${{ needs.provision.outputs.COSMOS_ACCOUNT_URI }}
+          COSMOS_DATABASE: ${{ needs.provision.outputs.COSMOS_DATABASE }}
+          REDIS_HOST: ${{ needs.provision.outputs.REDIS_HOST }}
+          EVENT_HUB_NAMESPACE: ${{ needs.provision.outputs.EVENT_HUB_NAMESPACE }}
+          KEY_VAULT_URI: ${{ needs.provision.outputs.KEY_VAULT_URI }}
+          APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ needs.provision.outputs.APPLICATIONINSIGHTS_CONNECTION_STRING }}
+          POSTGRES_HOST: ${{ needs.provision.outputs.POSTGRES_HOST }}
+          POSTGRES_USER: ${{ needs.provision.outputs.POSTGRES_USER }}
+          POSTGRES_DATABASE: ${{ needs.provision.outputs.POSTGRES_DATABASE }}
+
+  sync-apim:
+    runs-on: ubuntu-latest
+    needs: deploy-agents
+    environment: ${{ inputs.environment }}
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Sync APIM agent APIs
+        run: |
+          bash .infra/azd/hooks/sync-apim-agents.sh
+        env:
+          AZURE_RESOURCE_GROUP: ${{ inputs.projectName }}-${{ inputs.environment }}-rg
+
+  ensure-foundry-agents:
+    runs-on: ubuntu-latest
+    needs: deploy-agents
+    environment: ${{ inputs.environment }}
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Python (for azure.yaml parser)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
+            --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
+            --overwrite-existing
+
+      - name: Ensure all V2 Foundry agents are provisioned
+        run: |
+          bash .infra/azd/hooks/ensure-foundry-agents.sh --port-forward
+        env:
+          K8S_NAMESPACE: holiday-peak
+
+      - name: Verify Foundry readiness across services
+        run: |
+          SERVICES=$(python3 -c "
+          import re
+          with open('azure.yaml') as f: lines = f.readlines()
+          s, cs, ch = False, None, None
+          svcs = []
+          for l in lines:
+            l = l.rstrip()
+            if not s:
+              if re.match(r'^services:\s*$', l): s = True
+              continue
+            if re.match(r'^[^\s]', l): break
+            m = re.match(r'^  ([a-z0-9\-]+):\s*$', l)
+            if m:
+              if cs and ch == 'aks' and cs != 'crud-service': svcs.append(cs)
+              cs, ch = m.group(1), None
+              continue
+            h = re.match(r'^    host:\s*(\S+)', l)
+            if h: ch = h.group(1)
+          if cs and ch == 'aks' and cs != 'crud-service': svcs.append(cs)
+          print('\n'.join(svcs))
+          ")
+
+          FAILED=0
+          echo "$SERVICES" | while IFS= read -r SVC; do
+            [ -z "$SVC" ] && continue
+            LOCAL_PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("",0)); print(s.getsockname()[1]); s.close()')
+            kubectl port-forward "svc/$SVC" "$LOCAL_PORT:8000" -n holiday-peak &
+            PF_PID=$!
+            sleep 3
+
+            STATUS=$(curl -s "http://localhost:$LOCAL_PORT/health" 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('status','unknown'))" 2>/dev/null || echo "unreachable")
+            kill "$PF_PID" 2>/dev/null || true
+
+            if [ "$STATUS" = "ok" ]; then
+              echo "  [OK] $SVC"
+            else
+              echo "  [WARN] $SVC: status=$STATUS"
+              FAILED=$((FAILED + 1))
+            fi
+          done
+
+          if [ "$FAILED" -gt 0 ]; then
+            echo "WARNING: $FAILED service(s) not fully ready."
+          fi
+
+  seed-demo-data:
+    runs-on: ubuntu-latest
+    needs:
+      - sync-apim
+      - ensure-foundry-agents
+      - deploy-ui
+    if: ${{ always() && inputs.seedDemoData && needs.ensure-foundry-agents.result == 'success' && (needs.deploy-ui.result == 'success' || needs.deploy-ui.result == 'skipped') && inputs.environment != 'prod' && inputs.environment != 'production' }}
+    environment: ${{ inputs.environment }}
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup azd
+        uses: Azure/setup-azd@v1
+
+      - name: Resolve environment values
+        run: |
+          eval "$(azd env get-values -e '${{ inputs.environment }}' | sed 's/^/export /')"
+
+          if [ -z "${SERVICE_CRUD_SERVICE_IMAGE_NAME:-}" ]; then
+            echo "SERVICE_CRUD_SERVICE_IMAGE_NAME is required for seed job"
+            exit 1
+          fi
+
+          echo "CRUD_IMAGE=${SERVICE_CRUD_SERVICE_IMAGE_NAME}" >> "$GITHUB_ENV"
+          echo "POSTGRES_HOST=${POSTGRES_HOST}" >> "$GITHUB_ENV"
+          echo "POSTGRES_USER=${POSTGRES_USER}" >> "$GITHUB_ENV"
+          echo "POSTGRES_PASSWORD=${POSTGRES_PASSWORD}" >> "$GITHUB_ENV"
+          echo "POSTGRES_DATABASE=${POSTGRES_DATABASE}" >> "$GITHUB_ENV"
+          echo "POSTGRES_PORT=${POSTGRES_PORT}" >> "$GITHUB_ENV"
+          echo "POSTGRES_SSL=${POSTGRES_SSL}" >> "$GITHUB_ENV"
+
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
+            --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
+            --overwrite-existing
+
+      - name: Run demo faker seed job
+        run: |
+          JOB_NAME="crud-demo-seed-${{ github.run_id }}"
+
+          cat <<EOF | kubectl apply -f -
+          apiVersion: batch/v1
+          kind: Job
+          metadata:
+            name: ${JOB_NAME}
+            namespace: holiday-peak
+          spec:
+            backoffLimit: 1
+            ttlSecondsAfterFinished: 600
+            template:
+              spec:
+                restartPolicy: Never
+                containers:
+                  - name: seed
+                    image: ${CRUD_IMAGE}
+                    imagePullPolicy: Always
+                    command: ["python", "-m", "crud_service.scripts.seed_demo_data"]
+                    env:
+                      - name: DEMO_ENVIRONMENT
+                        value: "${{ inputs.environment }}"
+                      - name: DEMO_SEED_CATEGORIES
+                        value: "10"
+                      - name: DEMO_SEED_PRODUCTS
+                        value: "100"
+                      - name: DEMO_SEED_RANDOM
+                        value: "42"
+                      - name: POSTGRES_HOST
+                        value: "${POSTGRES_HOST}"
+                      - name: POSTGRES_USER
+                        value: "${POSTGRES_USER}"
+                      - name: POSTGRES_PASSWORD
+                        value: "${POSTGRES_PASSWORD}"
+                      - name: POSTGRES_DATABASE
+                        value: "${POSTGRES_DATABASE}"
+                      - name: POSTGRES_PORT
+                        value: "${POSTGRES_PORT}"
+                      - name: POSTGRES_SSL
+                        value: "${POSTGRES_SSL}"
+          EOF
+
+          kubectl wait --for=condition=complete "job/${JOB_NAME}" -n holiday-peak --timeout=10m
+          kubectl logs "job/${JOB_NAME}" -n holiday-peak

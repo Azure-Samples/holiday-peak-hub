@@ -8,7 +8,7 @@ import { Input } from '@/components/atoms/Input';
 import { Tabs } from '@/components/molecules/Tabs';
 import { Badge } from '@/components/atoms/Badge';
 import { 
-  FiUser, FiMail, FiPhone, FiMapPin, FiCreditCard,
+  FiMapPin, FiCreditCard,
   FiLock, FiBell, FiShield, FiEdit2, FiTrash2, FiPlus
 } from 'react-icons/fi';
 

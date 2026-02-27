@@ -1,4 +1,5 @@
 """Adapters for the product consistency validation service."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

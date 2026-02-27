@@ -1,4 +1,5 @@
 """Adapters for the logistics route issue detection service."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

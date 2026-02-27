@@ -1,0 +1,142 @@
+#!/usr/bin/env sh
+# Ensures all V2 Foundry agents are provisioned by calling each service's
+# POST /foundry/agents/ensure endpoint.
+#
+# Usage:
+#   ensure-foundry-agents.sh                              # in-cluster direct
+#   ensure-foundry-agents.sh --port-forward               # via kubectl port-forward
+#   ensure-foundry-agents.sh --base-url https://api/agents # via Ingress/APIM
+set -eu
+
+REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+AZURE_YAML_PATH="${AZURE_YAML_PATH:-$REPO_ROOT/azure.yaml}"
+NAMESPACE="${K8S_NAMESPACE:-holiday-peak}"
+MAX_RETRIES="${MAX_RETRIES:-3}"
+USE_PORT_FORWARD=false
+BASE_URL=""
+
+# ---- Parse arguments ----
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --port-forward) USE_PORT_FORWARD=true; shift ;;
+    --base-url)     BASE_URL="$2"; shift 2 ;;
+    --namespace)    NAMESPACE="$2"; shift 2 ;;
+    --retries)      MAX_RETRIES="$2"; shift 2 ;;
+    *)              shift ;;
+  esac
+done
+
+# ---- Discover agent services from azure.yaml ----
+SERVICES="$(python3 - "$AZURE_YAML_PATH" << 'PY'
+import re, sys
+path = sys.argv[1]
+with open(path, encoding="utf-8") as f:
+    lines = f.readlines()
+in_services = False
+current_service = None
+current_host = None
+services = []
+for raw in lines:
+    line = raw.rstrip("\n")
+    if not in_services:
+        if re.match(r"^services:\s*$", line):
+            in_services = True
+        continue
+    if re.match(r"^[^\s]", line):
+        break
+    m = re.match(r"^  ([a-z0-9\-]+):\s*$", line)
+    if m:
+        if current_service and current_host == "aks" and current_service != "crud-service":
+            services.append(current_service)
+        current_service = m.group(1)
+        current_host = None
+        continue
+    h = re.match(r"^    host:\s*([^\s]+)\s*$", line)
+    if h:
+        current_host = h.group(1)
+if current_service and current_host == "aks" and current_service != "crud-service":
+    services.append(current_service)
+print("\n".join(services))
+PY
+)"
+
+if [ -z "$SERVICES" ]; then
+  echo "No agent services found in azure.yaml."
+  exit 0
+fi
+
+SERVICE_COUNT="$(echo "$SERVICES" | wc -l | tr -d ' ')"
+echo "Found $SERVICE_COUNT agent services to ensure."
+
+FAILED=""
+FAIL_COUNT=0
+
+call_ensure() {
+  SVC="$1"
+  URL="$2"
+  attempt=1
+
+  while [ "$attempt" -le "$MAX_RETRIES" ]; do
+    echo "  [$SVC] Calling $URL (attempt $attempt/$MAX_RETRIES)..."
+    HTTP_CODE="$(curl -s -o /tmp/ensure_response.json -w "%{http_code}" \
+      -X POST "$URL" \
+      -H "Content-Type: application/json" \
+      --connect-timeout 10 \
+      --max-time 120 2>/dev/null || echo "000")"
+
+    if [ "$HTTP_CODE" = "200" ]; then
+      echo "  [$SVC] OK (HTTP $HTTP_CODE)"
+      cat /tmp/ensure_response.json 2>/dev/null || true
+      echo ""
+      return 0
+    fi
+
+    echo "  [$SVC] Attempt $attempt failed (HTTP $HTTP_CODE)"
+    attempt=$((attempt + 1))
+    [ "$attempt" -le "$MAX_RETRIES" ] && sleep $((5 * (attempt - 1)))
+  done
+
+  return 1
+}
+
+echo "$SERVICES" | while IFS= read -r SVC; do
+  [ -z "$SVC" ] && continue
+
+  if [ -n "$BASE_URL" ]; then
+    URL="$BASE_URL/$SVC/foundry/agents/ensure"
+  elif [ "$USE_PORT_FORWARD" = "true" ]; then
+    # Find free port and start port-forward
+    LOCAL_PORT="$(python3 -c 'import socket; s=socket.socket(); s.bind(("",0)); print(s.getsockname()[1]); s.close()')"
+    kubectl port-forward "svc/$SVC" "$LOCAL_PORT:8000" -n "$NAMESPACE" &
+    PF_PID=$!
+    sleep 3
+    URL="http://localhost:$LOCAL_PORT/foundry/agents/ensure"
+
+    if call_ensure "$SVC" "$URL"; then
+      kill "$PF_PID" 2>/dev/null || true
+    else
+      kill "$PF_PID" 2>/dev/null || true
+      FAILED="$FAILED $SVC"
+      FAIL_COUNT=$((FAIL_COUNT + 1))
+    fi
+    continue
+  else
+    URL="http://$SVC.$NAMESPACE.svc.cluster.local:8000/foundry/agents/ensure"
+  fi
+
+  if ! call_ensure "$SVC" "$URL"; then
+    FAILED="$FAILED $SVC"
+    FAIL_COUNT=$((FAIL_COUNT + 1))
+  fi
+done
+
+echo ""
+echo "=== Ensure Summary ==="
+echo "Total services: $SERVICE_COUNT"
+
+if [ -n "$FAILED" ]; then
+  echo "Failed:$FAILED"
+  exit 1
+fi
+
+echo "All agents provisioned successfully."

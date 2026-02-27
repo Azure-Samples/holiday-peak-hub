@@ -1,11 +1,11 @@
-"""Base repository for Cosmos DB operations using Managed Identity."""
+"""Base repository for PostgreSQL operations using asyncpg."""
 
+import json
 import logging
+import re
 from typing import Any, Generic, TypeVar
 
-from azure.cosmos.aio import CosmosClient, DatabaseProxy
-from azure.identity.aio import DefaultAzureCredential
-
+import asyncpg
 from crud_service.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -16,100 +16,207 @@ T = TypeVar("T")
 
 class BaseRepository(Generic[T]):
     """
-    Base repository for Cosmos DB operations.
-    
-    Uses Managed Identity for authentication (no connection string).
-    Provides common CRUD operations with partition key support.
+    Base repository for PostgreSQL operations.
+
+    Uses asyncpg connection pooling and JSONB-backed tables.
+    Preserves existing repository API while migrating storage from Cosmos DB.
     """
+
+    _pool: asyncpg.Pool | None = None
+    _initialized_tables: set[str] = set()
 
     def __init__(self, container_name: str):
         """
         Initialize repository.
-        
+
         Args:
-            container_name: Name of Cosmos DB container
+            container_name: Logical repository/table name
         """
         self.container_name = container_name
-        self._client: CosmosClient | None = None
-        self._database: DatabaseProxy | None = None
+        self.table_name = container_name
 
-    async def _ensure_client(self):
-        """Ensure Cosmos DB client is initialized."""
-        if self._client is None:
-            credential = DefaultAzureCredential()
-            self._client = CosmosClient(
-                url=settings.cosmos_account_uri,
-                credential=credential,
+    @classmethod
+    async def initialize_pool(cls):
+        """Initialize shared PostgreSQL connection pool."""
+        if cls._pool is None:
+            cls._pool = await asyncpg.create_pool(
+                dsn=settings.postgres_dsn,
+                min_size=settings.postgres_min_pool_size,
+                max_size=settings.postgres_max_pool_size,
             )
-            self._database = self._client.get_database_client(settings.cosmos_database)
 
-    async def get_container(self):
-        """Get container client."""
-        await self._ensure_client()
-        return self._database.get_container_client(self.container_name)
+    @classmethod
+    async def close_pool(cls):
+        """Close shared PostgreSQL connection pool."""
+        if cls._pool is not None:
+            await cls._pool.close()
+            cls._pool = None
+            cls._initialized_tables = set()
+
+    async def _get_pool(self) -> asyncpg.Pool:
+        """Get initialized PostgreSQL pool."""
+        await self.initialize_pool()
+        assert self._pool is not None
+        return self._pool
+
+    @staticmethod
+    def _extract_partition_key(item: dict[str, Any]) -> str:
+        """Extract best-effort partition key from item for compatibility."""
+        for field_name in (
+            "user_id",
+            "order_id",
+            "product_id",
+            "category_slug",
+            "entity_type",
+            "agent_id",
+            "session_id",
+            "id",
+        ):
+            value = item.get(field_name)
+            if value is not None:
+                return str(value)
+        return str(item.get("id", ""))
+
+    async def _ensure_table(self):
+        """Ensure JSONB table exists for this repository."""
+        if self.table_name in self._initialized_tables:
+            return
+
+        pool = await self._get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(f"""
+                CREATE TABLE IF NOT EXISTS {self.table_name} (
+                    id TEXT PRIMARY KEY,
+                    partition_key TEXT,
+                    data JSONB NOT NULL,
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                )
+                """)
+            await conn.execute(
+                f"CREATE INDEX IF NOT EXISTS idx_{self.table_name}_partition_key ON {self.table_name}(partition_key)"
+            )
+            await conn.execute(
+                f"CREATE INDEX IF NOT EXISTS idx_{self.table_name}_data_gin ON {self.table_name} USING GIN (data)"
+            )
+
+        self._initialized_tables.add(self.table_name)
 
     async def create(self, item: dict[str, Any]) -> dict[str, Any]:
         """
         Create a new item.
-        
+
         Args:
             item: Item to create (must include 'id' and partition key)
-            
+
         Returns:
             Created item with metadata
         """
-        container = await self.get_container()
-        return await container.create_item(body=item)
+        await self._ensure_table()
+        pool = await self._get_pool()
+        partition_key = self._extract_partition_key(item)
+
+        async with pool.acquire() as conn:
+            await conn.execute(
+                f"INSERT INTO {self.table_name} (id, partition_key, data) VALUES ($1, $2, $3::jsonb)",
+                item["id"],
+                partition_key,
+                json.dumps(item),
+            )
+
+        return item
 
     async def get_by_id(
         self, item_id: str, partition_key: str | None = None
     ) -> dict[str, Any] | None:
         """
         Get item by ID.
-        
+
         Args:
             item_id: Item ID
             partition_key: Partition key value (optional if same as ID)
-            
+
         Returns:
             Item or None if not found
         """
-        container = await self.get_container()
-        try:
-            return await container.read_item(
-                item=item_id,
-                partition_key=partition_key or item_id,
-            )
-        except Exception as e:
-            logger.warning(f"Item not found: {item_id} - {e}")
-            return None
+        await self._ensure_table()
+        pool = await self._get_pool()
+
+        async with pool.acquire() as conn:
+            if partition_key:
+                row = await conn.fetchrow(
+                    f"SELECT data FROM {self.table_name} WHERE id = $1 AND partition_key = $2",
+                    item_id,
+                    partition_key,
+                )
+            else:
+                row = await conn.fetchrow(
+                    f"SELECT data FROM {self.table_name} WHERE id = $1",
+                    item_id,
+                )
+
+        if row:
+            data = row["data"]
+            return json.loads(data) if isinstance(data, str) else dict(data)
+
+        logger.warning("Item not found: %s", item_id)
+        return None
 
     async def update(self, item: dict[str, Any]) -> dict[str, Any]:
         """
         Update an existing item (upsert).
-        
+
         Args:
             item: Item to update (must include 'id' and partition key)
-            
+
         Returns:
             Updated item with metadata
         """
-        container = await self.get_container()
-        return await container.upsert_item(body=item)
+        await self._ensure_table()
+        pool = await self._get_pool()
+        partition_key = self._extract_partition_key(item)
+
+        async with pool.acquire() as conn:
+            await conn.execute(
+                f"""
+                INSERT INTO {self.table_name} (id, partition_key, data, created_at, updated_at)
+                VALUES ($1, $2, $3::jsonb, NOW(), NOW())
+                ON CONFLICT (id)
+                DO UPDATE SET
+                    partition_key = EXCLUDED.partition_key,
+                    data = EXCLUDED.data,
+                    updated_at = NOW()
+                """,
+                item["id"],
+                partition_key,
+                json.dumps(item),
+            )
+
+        return item
 
     async def delete(self, item_id: str, partition_key: str | None = None) -> None:
         """
         Delete an item.
-        
+
         Args:
             item_id: Item ID
             partition_key: Partition key value (optional if same as ID)
         """
-        container = await self.get_container()
-        await container.delete_item(
-            item=item_id,
-            partition_key=partition_key or item_id,
-        )
+        await self._ensure_table()
+        pool = await self._get_pool()
+
+        async with pool.acquire() as conn:
+            if partition_key:
+                await conn.execute(
+                    f"DELETE FROM {self.table_name} WHERE id = $1 AND partition_key = $2",
+                    item_id,
+                    partition_key,
+                )
+            else:
+                await conn.execute(
+                    f"DELETE FROM {self.table_name} WHERE id = $1",
+                    item_id,
+                )
 
     async def query(
         self,
@@ -119,28 +226,101 @@ class BaseRepository(Generic[T]):
     ) -> list[dict[str, Any]]:
         """
         Execute a SQL query.
-        
+
         Args:
             query: SQL query string
             parameters: Query parameters (e.g., [{"name": "@id", "value": "123"}])
             partition_key: Partition key for query (enables single-partition query)
-            
+
         Returns:
             List of items matching query
         """
-        container = await self.get_container()
-        items = []
-        async for item in container.query_items(
-            query=query,
-            parameters=parameters,
-            partition_key=partition_key,
-        ):
-            items.append(item)
+        await self._ensure_table()
+        pool = await self._get_pool()
+
+        parameter_map = {p["name"]: p["value"] for p in (parameters or [])}
+
+        async with pool.acquire() as conn:
+            if partition_key:
+                rows = await conn.fetch(
+                    f"SELECT data FROM {self.table_name} WHERE partition_key = $1",
+                    partition_key,
+                )
+            else:
+                rows = await conn.fetch(f"SELECT data FROM {self.table_name}")
+
+        items = [
+            (json.loads(row["data"]) if isinstance(row["data"], str) else dict(row["data"]))
+            for row in rows
+        ]
+
+        where_clause = ""
+        where_match = re.search(r"WHERE\s+(.*?)\s*(ORDER BY|OFFSET|LIMIT|$)", query, re.IGNORECASE)
+        if where_match:
+            where_clause = where_match.group(1).strip()
+
+        if where_clause:
+            items = [
+                item for item in items if self._matches_where(item, where_clause, parameter_map)
+            ]
+
+        order_match = re.search(r"ORDER BY\s+c\.(\w+)\s+(ASC|DESC)", query, re.IGNORECASE)
+        if order_match:
+            order_field = order_match.group(1)
+            reverse = order_match.group(2).upper() == "DESC"
+            items = sorted(items, key=lambda item: item.get(order_field, ""), reverse=reverse)
+
+        limit_match = re.search(r"LIMIT\s+(@\w+|\d+)", query, re.IGNORECASE)
+        if limit_match:
+            limit_token = limit_match.group(1)
+            if limit_token.startswith("@"):
+                limit_value = int(parameter_map.get(limit_token, len(items)))
+            else:
+                limit_value = int(limit_token)
+            items = items[:limit_value]
+
         return items
 
-    async def close(self):
-        """Close Cosmos DB client."""
-        if self._client:
-            await self._client.close()
-            self._client = None
-            self._database = None
+    @staticmethod
+    def _matches_where(item: dict[str, Any], clause: str, params: dict[str, Any]) -> bool:
+        """Evaluate limited Cosmos-style WHERE clauses against JSON data."""
+        if " OR " in clause.upper():
+            parts = re.split(r"\s+OR\s+", clause, flags=re.IGNORECASE)
+            return any(BaseRepository._matches_where(item, part, params) for part in parts)
+
+        if " AND " in clause.upper():
+            parts = re.split(r"\s+AND\s+", clause, flags=re.IGNORECASE)
+            return all(BaseRepository._matches_where(item, part, params) for part in parts)
+
+        contains_match = re.match(
+            r"CONTAINS\(LOWER\(c\.(\w+)\),\s*LOWER\((@\w+)\)\)",
+            clause,
+            re.IGNORECASE,
+        )
+        if contains_match:
+            field_name, param_name = contains_match.groups()
+            value = str(item.get(field_name, "")).lower()
+            term = str(params.get(param_name, "")).lower()
+            return term in value
+
+        not_defined_match = re.match(r"NOT IS_DEFINED\(c\.(\w+)\)", clause, re.IGNORECASE)
+        if not_defined_match:
+            field_name = not_defined_match.group(1)
+            return field_name not in item
+
+        null_match = re.match(r"c\.(\w+)\s*=\s*null", clause, re.IGNORECASE)
+        if null_match:
+            field_name = null_match.group(1)
+            return item.get(field_name) is None
+
+        parameter_match = re.match(r"c\.(\w+)\s*=\s*(@\w+)", clause, re.IGNORECASE)
+        if parameter_match:
+            field_name, param_name = parameter_match.groups()
+            return item.get(field_name) == params.get(param_name)
+
+        literal_match = re.match(r"c\.(\w+)\s*=\s*'([^']*)'", clause, re.IGNORECASE)
+        if literal_match:
+            field_name, literal_value = literal_match.groups()
+            return str(item.get(field_name)) == literal_value
+
+        return True

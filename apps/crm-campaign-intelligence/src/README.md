@@ -1,5 +1,365 @@
 # CRM Campaign Intelligence
 
-Local package wrapper for the CRM campaign intelligence service.
+Intelligent agent service for marketing campaign analysis, performance tracking, and ROI optimization.
 
-See the repository-level README for full details.
+## Overview
+
+The CRM Campaign Intelligence service provides AI-powered insights for marketing campaigns by analyzing funnel metrics, customer interactions, and conversion data. It combines real-time event processing with adaptive AI models to deliver actionable recommendations for campaign optimization.
+
+## Architecture
+
+### Components
+
+```
+crm-campaign-intelligence/
+├── agents.py              # CampaignIntelligenceAgent with SLM/LLM routing
+├── adapters.py            # CRM, funnel, and analytics adapters
+├── event_handlers.py      # Event Hub subscribers for user/order/payment events
+└── main.py                # FastAPI application with MCP tools
+```
+
+### Communication Patterns
+
+1. **Agent REST Endpoints** (`/invoke`): Synchronous campaign analysis requests from frontend/CRUD
+2. **MCP Tools**: Agent-to-agent communication for campaign context sharing
+3. **Event Handlers**: Asynchronous processing of user, order, and payment events
+
+## Features
+
+### 🎯 Campaign Analysis
+- **Performance Tracking**: Monitor funnel metrics across campaign stages (view → click → checkout → purchase)
+- **ROI Estimation**: Calculate campaign ROI based on spend, conversions, and average order value
+- **Drop-off Analysis**: Identify funnel stages with low conversion rates
+- **Segment Insights**: Analyze performance by customer segment or account
+
+### 🤖 AI-Powered Intelligence
+- **SLM-First Routing**: Fast responses for simple queries (funnel summaries, metric lookups)
+- **LLM Escalation**: Complex analysis requiring cross-campaign comparisons or predictive insights
+- **Contextual Recommendations**: AI-generated next actions to improve campaign performance
+- **Anomaly Detection**: Identify unusual patterns in funnel metrics or conversion rates
+
+### 📊 Real-Time Event Processing
+- **User Events**: Track registration, profile updates, segment changes
+- **Order Events**: Monitor purchase conversions linked to campaigns
+- **Payment Events**: Correlate payment success/failure with campaign attribution
+
+## Configuration
+
+### Required Environment Variables
+
+```bash
+# Azure AI Foundry Configuration
+PROJECT_ENDPOINT=https://your-project.cognitiveservices.azure.com/
+FOUNDRY_AGENT_ID_FAST=<slm-agent-id>          # Small language model (GPT-4o-mini)
+FOUNDRY_AGENT_ID_RICH=<llm-agent-id>          # Large language model (GPT-4o)
+MODEL_DEPLOYMENT_NAME_FAST=<slm-deployment>
+MODEL_DEPLOYMENT_NAME_RICH=<llm-deployment>
+FOUNDRY_PROJECT_NAME=<project-name>           # Optional
+FOUNDRY_STREAM=false                          # Enable streaming responses
+
+# Memory Configuration (Three-Tier Architecture)
+REDIS_URL=redis://localhost:6379/0            # Hot memory (session context)
+COSMOS_ACCOUNT_URI=<cosmos-uri>               # Warm memory (recent interactions)
+COSMOS_DATABASE=holiday-peak
+COSMOS_CONTAINER=agent-memory
+BLOB_ACCOUNT_URL=<blob-uri>                   # Cold memory (historical data)
+BLOB_CONTAINER=agent-memory
+
+# Event Hub Configuration
+EVENTHUB_NAMESPACE=<namespace>.servicebus.windows.net
+EVENTHUB_CONNECTION_STRING=<connection-string>
+# Subscriptions: user-events, order-events, payment-events
+# Consumer Group: campaign-intel-group
+
+# CRUD Service Integration (for MCP tools)
+CRUD_SERVICE_URL=http://localhost:8000
+```
+
+## API Reference
+
+### Agent REST Endpoint
+
+**POST** `/invoke` - Generate campaign intelligence insights
+
+**Request Body:**
+```json
+{
+  "query": "How is my Q1 email campaign performing?",
+  "campaign_id": "campaign-123",
+  "account_id": "account-456",
+  "contact_id": "user-789",
+  "interaction_limit": 20,
+  "funnel_limit": 20
+}
+```
+
+**Response:**
+```json
+{
+  "service": "crm-campaign-intelligence",
+  "query": "How is my Q1 email campaign performing?",
+  "crm_context": {
+    "contact": { "contact_id": "user-789", "email": "user@example.com" },
+    "account": { "account_id": "account-456", "name": "Acme Corp" },
+    "interactions": [...]
+  },
+  "funnel_context": {
+    "campaign_id": "campaign-123",
+    "metrics": [
+      { "stage": "view", "count": 5000 },
+      { "stage": "click", "count": 1200 },
+      { "stage": "checkout", "count": 350 },
+      { "stage": "purchase", "count": 280 }
+    ]
+  },
+  "insight": "Your Q1 email campaign shows strong performance with 5.6% conversion rate (280/5000). Key finding: 20% drop-off at checkout stage suggests payment friction. Recommend: A/B test simplified checkout flow."
+}
+```
+
+### MCP Tools (Agent-to-Agent Communication)
+
+#### 1. Get Contact Context
+**POST** `/mcp/campaign/contact-context`
+
+```json
+{
+  "contact_id": "user-789",
+  "interaction_limit": 20
+}
+```
+
+Returns CRM context including contact details, account information, and recent interactions.
+
+#### 2. Get Funnel Context
+**POST** `/mcp/campaign/funnel-context`
+
+```json
+{
+  "campaign_id": "campaign-123",
+  "account_id": "account-456",
+  "limit": 20
+}
+```
+
+Returns funnel metrics for a specific campaign or account.
+
+#### 3. Estimate Campaign ROI
+**POST** `/mcp/campaign/roi`
+
+```json
+{
+  "campaign_id": "campaign-123",
+  "spend": 5000.0,
+  "avg_order_value": 75.0,
+  "limit": 20
+}
+```
+
+Returns estimated ROI calculation based on funnel conversions.
+
+**Response:**
+```json
+{
+  "roi": {
+    "conversions": 280,
+    "revenue": 21000.0,
+    "spend": 5000.0,
+    "roi": 3.2
+  },
+  "funnel_context": { ... }
+}
+```
+
+## Event Processing
+
+### Subscribed Events
+
+| Event Hub | Consumer Group | Purpose |
+|-----------|----------------|---------|
+| `user-events` | `campaign-intel-group` | Track user registration, profile updates, segment changes |
+| `order-events` | `campaign-intel-group` | Monitor purchase conversions with campaign attribution |
+| `payment-events` | `campaign-intel-group` | Correlate payment outcomes with campaign performance |
+
+### Event Handling Logic
+
+1. **Extract Identifiers**: Parse `campaign_id`, `account_id`, `contact_id` from event payload
+2. **Build Context**: Fetch CRM context (contact/account) if `contact_id` present
+3. **Fetch Funnel Metrics**: Retrieve funnel data for campaign/account
+4. **Estimate ROI**: Calculate conversions, revenue, and ROI
+5. **Log Insights**: Structured logging with campaign performance metrics
+
+## Development
+
+### Running Locally
+
+```bash
+# Install dependencies (from repository root)
+uv sync
+
+# Set environment variables
+export PROJECT_ENDPOINT=https://your-project.cognitiveservices.azure.com/
+export FOUNDRY_AGENT_ID_FAST=<slm-agent-id>
+export REDIS_URL=redis://localhost:6379/0
+
+# Run service
+uvicorn crm_campaign_intelligence.main:app --reload --port 8010
+```
+
+### Testing
+
+```bash
+# Run unit tests
+pytest apps/crm-campaign-intelligence/tests/
+
+# Test agent endpoint
+curl -X POST http://localhost:8010/invoke \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "Campaign performance summary",
+    "campaign_id": "campaign-123"
+  }'
+
+# Test MCP tool
+curl -X POST http://localhost:8010/mcp/campaign/roi \
+  -H "Content-Type: application/json" \
+  -d '{
+    "campaign_id": "campaign-123",
+    "spend": 5000,
+    "avg_order_value": 75
+  }'
+```
+
+## Dependencies
+
+- **holiday-peak-lib**: Shared framework (agents, adapters, memory, utilities)
+- **FastAPI**: REST API and MCP server
+- **Azure Event Hubs**: Async event processing
+- **Azure AI Foundry**: SLM/LLM inference
+- **Redis**: Hot memory (session context)
+- **Azure Cosmos DB**: Warm memory (recent interactions)
+- **Azure Blob Storage**: Cold memory (historical data)
+
+## Agent Behavior
+
+### System Instructions
+
+The agent is instructed to:
+- **Proactively analyze**: Don't just report metrics—identify issues and opportunities
+- **Recommend actions**: Suggest specific next steps (e.g., "Test different subject lines")
+- **Flag risks**: Call out anomalies or missing data
+- **Monitor continuously**: Specify what to track next (stage, segment, channel)
+
+### SLM vs LLM Routing
+
+| Query Type | Model | Reasoning |
+|------------|-------|-----------|
+| "What's the conversion rate?" | SLM | Simple metric lookup |
+| "Show funnel metrics for campaign-123" | SLM | Direct data retrieval |
+| "Compare Q1 vs Q2 email campaigns" | LLM | Cross-campaign analysis |
+| "Predict next month's performance" | LLM | Predictive modeling |
+| "Why is checkout drop-off increasing?" | LLM | Root cause analysis |
+
+## Integration Examples
+
+### From Frontend (Direct Call)
+
+```typescript
+// React component
+const { data, isLoading } = useQuery({
+  queryKey: ['campaign-analysis', campaignId],
+  queryFn: () => 
+    fetch(`${AGENT_URL}/invoke`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: 'Analyze campaign performance',
+        campaign_id: campaignId
+      })
+    }).then(r => r.json())
+});
+```
+
+### From CRUD Service (Via Agent Client)
+
+```python
+# CRUD service calling campaign intelligence
+from crud_service.integrations.agent_client import get_agent_client
+
+agent_client = get_agent_client()
+insights = await agent_client.call_endpoint(
+    agent_url=settings.campaign_intelligence_agent_url,
+    endpoint="/invoke",
+    data={"campaign_id": "campaign-123"},
+    fallback_value={"insight": "Agent unavailable"}
+)
+```
+
+### From Another Agent (MCP Tool)
+
+```python
+# Another agent calling campaign intelligence via MCP
+async with httpx.AsyncClient() as client:
+    response = await client.post(
+        "http://crm-campaign-intelligence:8010/mcp/campaign/roi",
+        json={
+            "campaign_id": "campaign-123",
+            "spend": 5000.0,
+            "avg_order_value": 75.0
+        }
+    )
+    roi_data = response.json()
+```
+
+## Monitoring & Observability
+
+### Key Metrics
+
+- `campaign_event_processed`: Event processing count by event type and scope
+- `agent_invocation_duration`: Agent response time (SLM vs LLM)
+- `funnel_context_size`: Number of metrics per funnel query
+- `roi_estimation_count`: ROI calculation frequency
+
+### Logs
+
+All operations emit structured logs with correlation IDs:
+
+```json
+{
+  "event": "campaign_event_processed",
+  "event_type": "order.created",
+  "scope": "order",
+  "campaign_id": "campaign-123",
+  "account_id": "account-456",
+  "conversions": 280,
+  "roi": 3.2,
+  "timestamp": "2026-02-03T10:30:00Z"
+}
+```
+
+## Production Considerations
+
+### Resilience
+- **Circuit Breaker**: Downstream adapter calls (CRM, funnel) have circuit breakers
+- **Fallback**: Returns safe defaults if adapters unavailable (mock data)
+- **Timeout**: Fast timeouts prevent cascading failures
+
+### Scalability
+- **Stateless Agent**: Horizontal scaling via Kubernetes/Container Apps
+- **Event Processing**: Consumer group allows parallel processing across partitions
+- **Memory Tiering**: Hot (Redis) → Warm (Cosmos) → Cold (Blob) for efficient context retrieval
+
+### Security
+- **Authentication**: Azure Managed Identity for Event Hubs, Cosmos DB, Blob Storage
+- **API Keys**: Azure AI Foundry uses key-based auth (rotate regularly)
+- **Network Isolation**: Deploy in private subnet with service endpoints
+
+## Related Services
+
+- **crm-profile-aggregation**: Aggregates customer profiles from multiple sources
+- **crm-segmentation-personalization**: Dynamic customer segmentation
+- **crm-support-assistance**: Customer support agent with ticket context
+- **crud-service**: Transactional API for CRM data (called via MCP tools)
+
+## License
+
+See repository root for license information.

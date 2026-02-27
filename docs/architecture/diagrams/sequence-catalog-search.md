@@ -19,8 +19,8 @@ sequenceDiagram
     participant API as FastAPI App
     participant Agent as Catalog Agent
     participant Router as Model Router
-    participant SLM as GPT-4o-mini
-    participant LLM as GPT-4o
+    participant SLM as GPT-5-nano
+    participant LLM as GPT-5.2
     participant Search as Azure AI Search
     participant Inventory as Inventory Adapter
     participant Memory as Memory Stack

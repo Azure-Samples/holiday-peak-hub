@@ -1,11 +1,10 @@
 """Product routes."""
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
-
 from crud_service.auth import User, get_current_user_optional
 from crud_service.integrations import get_agent_client
 from crud_service.repositories import ProductRepository
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 
 router = APIRouter()
 product_repo = ProductRepository()
@@ -22,6 +21,12 @@ class ProductResponse(BaseModel):
     category_id: str
     image_url: str | None = None
     in_stock: bool = True
+    rating: float | None = None
+    review_count: int | None = None
+    features: list[str] | None = None
+    media: list[dict[str, object]] | None = None
+    inventory: dict[str, object] | None = None
+    related: list[dict[str, object]] | None = None
 
 
 @router.get("/products", response_model=list[ProductResponse])
@@ -33,28 +38,46 @@ async def list_products(
 ):
     """
     List products with optional search and filters.
-    
+
     Anonymous users can browse products.
-    Authenticated users may get personalized results (via agent).
+    Semantic search is attempted first when a search term is provided;
+    the CRUD keyword search is used as fallback.
+    Authenticated users may get personalized ordering (via agent).
     """
+    products: list[dict] = []
+
     if search:
-        products = await product_repo.search_by_name(search, limit=limit)
+        # Try semantic search via the catalog-search agent first
+        try:
+            agent_results = await agent_client.semantic_search(search, limit=limit)
+            if agent_results:
+                products = agent_results
+        except Exception:
+            pass
+        # Fallback to keyword search
+        if not products:
+            products = await product_repo.search_by_name(search, limit=limit)
     elif category:
         products = await product_repo.get_by_category(category, limit=limit)
     else:
-        # Get all products (TODO: add pagination)
         products = await product_repo.query(
             query="SELECT * FROM c OFFSET 0 LIMIT @limit",
             parameters=[{"name": "@limit", "value": limit}],
         )
 
-    # Optionally enhance with agent recommendations
+    # Personalized ordering for authenticated users
     if current_user:
         try:
             recommendations = await agent_client.get_user_recommendations(
-                user_id=current_user.user_id, category=category
+                user_id=current_user.user_id
             )
-            # TODO: Reorder products based on recommendations
+            if isinstance(recommendations, dict):
+                boosted_skus = recommendations.get("boosted_skus") or []
+                if boosted_skus:
+                    sku_set = set(boosted_skus)
+                    boosted = [p for p in products if p.get("id") in sku_set]
+                    rest = [p for p in products if p.get("id") not in sku_set]
+                    products = boosted + rest
         except Exception:
             pass  # Fallback to default ordering
 
@@ -67,6 +90,20 @@ async def get_product(product_id: str):
     product = await product_repo.get_by_id(product_id)
     if not product:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
+
+    # Optionally enrich product details
+    try:
+        enrichment = await agent_client.get_product_enrichment(product_id)
+        if isinstance(enrichment, dict):
+            product["description"] = enrichment.get("description", product.get("description"))
+            product["rating"] = enrichment.get("rating")
+            product["review_count"] = enrichment.get("review_count")
+            product["features"] = enrichment.get("features")
+            product["media"] = enrichment.get("media")
+            product["inventory"] = enrichment.get("inventory")
+            product["related"] = enrichment.get("related")
+    except Exception:
+        pass  # Use base product data
 
     # Optionally get dynamic pricing
     try:

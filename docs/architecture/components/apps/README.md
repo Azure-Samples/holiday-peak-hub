@@ -4,6 +4,7 @@ Links to all app-level component docs.
 
 ## E-commerce Domain
 
+- [CRUD Service](crud-service.md)
 - [Catalog Search](ecommerce-catalog-search.md)
 - [Product Detail Enrichment](ecommerce-product-detail-enrichment.md)
 - [Cart Intelligence](ecommerce-cart-intelligence.md)

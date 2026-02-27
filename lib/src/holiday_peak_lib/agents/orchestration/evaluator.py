@@ -1,4 +1,5 @@
 """Evaluation hooks for latency and quality."""
+
 from dataclasses import dataclass
 from typing import Dict
 
@@ -27,4 +28,8 @@ class Evaluator:
         count = len(self.results)
         avg_latency = sum(r.latency_ms for r in self.results) / count
         success_rate = sum(1 for r in self.results if r.success) / count
-        return {"count": count, "avg_latency_ms": avg_latency, "success_rate": success_rate}
+        return {
+            "count": count,
+            "avg_latency_ms": avg_latency,
+            "success_rate": success_rate,
+        }

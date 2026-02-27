@@ -3,17 +3,17 @@
 import uuid
 from datetime import datetime
 
+from crud_service.auth import User, get_current_user
+from crud_service.integrations import get_agent_client, get_event_publisher
+from crud_service.repositories import CartRepository, OrderRepository
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-
-from crud_service.auth import User, get_current_user
-from crud_service.integrations import get_event_publisher
-from crud_service.repositories import CartRepository, OrderRepository
 
 router = APIRouter()
 order_repo = OrderRepository()
 cart_repo = CartRepository()
 event_publisher = get_event_publisher()
+agent_client = get_agent_client()
 
 
 class OrderItem(BaseModel):
@@ -49,9 +49,30 @@ async def list_orders(current_user: User = Depends(get_current_user)):
     return [OrderResponse(**order) for order in orders]
 
 
-@router.get("/orders/{order_id}", response_model=OrderResponse)
+class OrderTrackingResponse(BaseModel):
+    """Order with tracking/status enrichment."""
+
+    id: str
+    user_id: str
+    items: list[OrderItem]
+    total: float
+    status: str
+    created_at: str
+    tracking: dict | None = None
+    eta: dict | None = None
+    carrier: dict | None = None
+
+
+class ReturnPlanResponse(BaseModel):
+    """Return plan for an order."""
+
+    order_id: str
+    plan: dict | None = None
+
+
+@router.get("/orders/{order_id}", response_model=OrderTrackingResponse)
 async def get_order(order_id: str, current_user: User = Depends(get_current_user)):
-    """Get order details."""
+    """Get order details enriched with tracking status and ETA."""
     order = await order_repo.get_by_id(order_id, partition_key=current_user.user_id)
     if not order:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
@@ -60,7 +81,44 @@ async def get_order(order_id: str, current_user: User = Depends(get_current_user
     if order["user_id"] != current_user.user_id and "staff" not in current_user.roles:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
-    return OrderResponse(**order)
+    # Enrich with agent-driven tracking & ETA
+    tracking = None
+    eta = None
+    carrier = None
+    try:
+        tracking = await agent_client.get_order_status(order_id)
+    except Exception:
+        pass
+    tracking_id = order.get("tracking_id") or order_id
+    try:
+        eta = await agent_client.get_delivery_eta(tracking_id)
+    except Exception:
+        pass
+    try:
+        carrier = await agent_client.get_carrier_recommendation(tracking_id)
+    except Exception:
+        pass
+
+    return OrderTrackingResponse(
+        **{k: v for k, v in order.items() if k in OrderResponse.model_fields},
+        tracking=tracking,
+        eta=eta,
+        carrier=carrier,
+    )
+
+
+@router.get("/orders/{order_id}/returns", response_model=ReturnPlanResponse)
+async def get_return_plan(order_id: str, current_user: User = Depends(get_current_user)):
+    """Get a returns plan for an order via the logistics agent."""
+    order = await order_repo.get_by_id(order_id, partition_key=current_user.user_id)
+    if not order:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+    if order["user_id"] != current_user.user_id and "staff" not in current_user.roles:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+
+    tracking_id = order.get("tracking_id") or order_id
+    plan = await agent_client.get_return_plan(tracking_id)
+    return ReturnPlanResponse(order_id=order_id, plan=plan)
 
 
 @router.post("/orders", response_model=OrderResponse)
@@ -70,7 +128,7 @@ async def create_order(
 ):
     """
     Create order from cart.
-    
+
     Publishes OrderCreated event to event-hub for agent processing.
     """
     # Get cart

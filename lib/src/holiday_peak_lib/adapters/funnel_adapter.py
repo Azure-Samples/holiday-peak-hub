@@ -37,7 +37,10 @@ class FunnelConnector(BaseConnector):
         super().__init__(adapter=adapter, map_concurrency=map_concurrency)
 
     async def get_metrics(
-        self, campaign_id: Optional[str] = None, account_id: Optional[str] = None, limit: int = 20
+        self,
+        campaign_id: Optional[str] = None,
+        account_id: Optional[str] = None,
+        limit: int = 20,
     ) -> list[FunnelMetric]:
         """Fetch and normalize funnel metrics for a campaign or account.
 
@@ -66,7 +69,10 @@ class FunnelConnector(BaseConnector):
         return await self._map_many(FunnelMetric, records)
 
     async def build_funnel_context(
-        self, campaign_id: Optional[str] = None, account_id: Optional[str] = None, limit: int = 20
+        self,
+        campaign_id: Optional[str] = None,
+        account_id: Optional[str] = None,
+        limit: int = 20,
     ) -> FunnelContext:
         """Assemble funnel metrics into agent-ready context.
 
@@ -87,5 +93,7 @@ class FunnelConnector(BaseConnector):
             >>> (ctx.account_id, ctx.metrics[0].count)
             ('acct-1', 50)
         """
-        metrics = await self.get_metrics(campaign_id=campaign_id, account_id=account_id, limit=limit)
+        metrics = await self.get_metrics(
+            campaign_id=campaign_id, account_id=account_id, limit=limit
+        )
         return FunnelContext(campaign_id=campaign_id, account_id=account_id, metrics=metrics)

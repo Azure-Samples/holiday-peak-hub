@@ -1,4 +1,5 @@
 """Adapters for the ecommerce order status service."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

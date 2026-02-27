@@ -1,9 +1,8 @@
 """Category routes."""
 
+from crud_service.repositories.base import BaseRepository
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
-
-from crud_service.repositories.base import BaseRepository
 
 router = APIRouter()
 
@@ -34,7 +33,7 @@ async def list_categories(
 ):
     """
     List product categories.
-    
+
     Anonymous access allowed.
     """
     if parent_id:

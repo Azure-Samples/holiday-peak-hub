@@ -162,6 +162,9 @@ output aksIdentityPrincipalId string = aks.identity.principalId
 - Storage Account: `holidaypeakprodsa01` (no hyphens for storage)
 - Key Vault: `holidaypeak-prod-kv-01`
 
+**Shared Infra Override**:
+When a Key Vault name is blocked by soft-delete or purge protection, use the shared infra parameter `keyVaultNameOverride` to set a new name. Keep the override within 3-24 characters using lowercase letters, numbers, and hyphens.
+
 **Environment Codes**:
 - `dev` - Development
 - `stg` - Staging

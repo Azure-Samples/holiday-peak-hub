@@ -1,9 +1,11 @@
 """Tests for memory modules."""
-import pytest
+
 from unittest.mock import AsyncMock, patch
+
+import pytest
+from holiday_peak_lib.agents.memory.cold import ColdMemory
 from holiday_peak_lib.agents.memory.hot import HotMemory
 from holiday_peak_lib.agents.memory.warm import WarmMemory
-from holiday_peak_lib.agents.memory.cold import ColdMemory
 
 
 class TestHotMemory:
@@ -23,7 +25,7 @@ class TestHotMemory:
             socket_timeout=5.0,
             socket_connect_timeout=2.0,
             health_check_interval=30,
-            retry_on_timeout=True
+            retry_on_timeout=True,
         )
         assert memory.max_connections == 50
         assert memory.socket_timeout == 5.0
@@ -33,7 +35,7 @@ class TestHotMemory:
     async def test_connect(self, mock_redis_client, monkeypatch):
         """Test connecting to Redis."""
         memory = HotMemory("redis://localhost:6379")
-        
+
         with patch("redis.asyncio.ConnectionPool.from_url") as mock_pool:
             with patch("redis.asyncio.Redis") as mock_redis:
                 mock_redis.return_value = mock_redis_client
@@ -45,7 +47,7 @@ class TestHotMemory:
         """Test setting a value in Redis."""
         memory = HotMemory("redis://localhost:6379")
         monkeypatch.setattr(memory, "client", mock_redis_client)
-        
+
         await memory.set("test_key", "test_value", ttl_seconds=300)
         mock_redis_client.set.assert_called_once()
 
@@ -53,7 +55,7 @@ class TestHotMemory:
     async def test_set_connects_if_needed(self, mock_redis_client):
         """Test set auto-connects if not connected."""
         memory = HotMemory("redis://localhost:6379")
-        
+
         with patch.object(memory, "connect", new_callable=AsyncMock) as mock_connect:
             mock_connect.return_value = None
             memory.client = mock_redis_client
@@ -66,7 +68,7 @@ class TestHotMemory:
         memory = HotMemory("redis://localhost:6379")
         monkeypatch.setattr(memory, "client", mock_redis_client)
         mock_redis_client.get.return_value = "retrieved_value"
-        
+
         result = await memory.get("test_key")
         assert result == "retrieved_value"
         mock_redis_client.get.assert_called_once_with("test_key")
@@ -75,7 +77,7 @@ class TestHotMemory:
     async def test_get_connects_if_needed(self, mock_redis_client):
         """Test get auto-connects if not connected."""
         memory = HotMemory("redis://localhost:6379")
-        
+
         with patch.object(memory, "connect", new_callable=AsyncMock) as mock_connect:
             mock_connect.return_value = None
             memory.client = mock_redis_client
@@ -90,7 +92,7 @@ class TestWarmMemory:
         memory = WarmMemory(
             account_uri="https://test.documents.azure.com",
             database="test_db",
-            container="test_container"
+            container="test_container",
         )
         assert memory.account_uri == "https://test.documents.azure.com"
         assert memory.database == "test_db"
@@ -104,7 +106,7 @@ class TestWarmMemory:
             database="test_db",
             container="test_container",
             connection_limit=100,
-            client_kwargs={"timeout": 10}
+            client_kwargs={"timeout": 10},
         )
         assert memory.connection_limit == 100
         assert memory.client_kwargs == {"timeout": 10}
@@ -115,9 +117,9 @@ class TestWarmMemory:
         memory = WarmMemory(
             account_uri="https://test.documents.azure.com",
             database="test_db",
-            container="test_container"
+            container="test_container",
         )
-        
+
         with patch("azure.cosmos.aio.CosmosClient") as mock_client_class:
             mock_client_class.return_value = mock_cosmos_client
             await memory.connect()
@@ -129,10 +131,10 @@ class TestWarmMemory:
         memory = WarmMemory(
             account_uri="https://test.documents.azure.com",
             database="test_db",
-            container="test_container"
+            container="test_container",
         )
         monkeypatch.setattr(memory, "client", mock_cosmos_client)
-        
+
         item = {"id": "test123", "data": "value"}
         result = await memory.upsert(item)
         assert result["id"] == "test123"
@@ -143,9 +145,9 @@ class TestWarmMemory:
         memory = WarmMemory(
             account_uri="https://test.documents.azure.com",
             database="test_db",
-            container="test_container"
+            container="test_container",
         )
-        
+
         with patch.object(memory, "connect", new_callable=AsyncMock) as mock_connect:
             mock_connect.return_value = None
             memory.client = mock_cosmos_client
@@ -157,10 +159,10 @@ class TestWarmMemory:
         memory = WarmMemory(
             account_uri="https://test.documents.azure.com",
             database="test_db",
-            container="test_container"
+            container="test_container",
         )
         monkeypatch.setattr(memory, "client", mock_cosmos_client)
-        
+
         result = await memory.read("test123", "partition_key")
         assert result["id"] == "test"
 
@@ -170,9 +172,9 @@ class TestWarmMemory:
         memory = WarmMemory(
             account_uri="https://test.documents.azure.com",
             database="test_db",
-            container="test_container"
+            container="test_container",
         )
-        
+
         with patch.object(memory, "connect", new_callable=AsyncMock) as mock_connect:
             mock_connect.return_value = None
             memory.client = mock_cosmos_client
@@ -186,7 +188,7 @@ class TestColdMemory:
         """Test creating cold memory instance."""
         memory = ColdMemory(
             account_url="https://test.blob.core.windows.net",
-            container_name="test_container"
+            container_name="test_container",
         )
         assert memory.account_url == "https://test.blob.core.windows.net"
         assert memory.container_name == "test_container"
@@ -199,7 +201,7 @@ class TestColdMemory:
             container_name="test_container",
             connection_pool_size=50,
             connection_timeout=5.0,
-            read_timeout=30.0
+            read_timeout=30.0,
         )
         assert memory.connection_pool_size == 50
         assert memory.connection_timeout == 5.0
@@ -210,9 +212,9 @@ class TestColdMemory:
         """Test connecting to Blob Storage."""
         memory = ColdMemory(
             account_url="https://test.blob.core.windows.net",
-            container_name="test_container"
+            container_name="test_container",
         )
-        
+
         with patch("azure.storage.blob.aio.BlobServiceClient") as mock_client_class:
             mock_client_class.return_value = mock_blob_client
             await memory.connect()
@@ -223,10 +225,10 @@ class TestColdMemory:
         """Test uploading text to blob."""
         memory = ColdMemory(
             account_url="https://test.blob.core.windows.net",
-            container_name="test_container"
+            container_name="test_container",
         )
         monkeypatch.setattr(memory, "client", mock_blob_client)
-        
+
         await memory.upload_text("test_blob.txt", "test data content")
         # Verify container client was obtained
         mock_blob_client.get_container_client.assert_called_once_with("test_container")
@@ -236,9 +238,9 @@ class TestColdMemory:
         """Test upload auto-connects if not connected."""
         memory = ColdMemory(
             account_url="https://test.blob.core.windows.net",
-            container_name="test_container"
+            container_name="test_container",
         )
-        
+
         with patch.object(memory, "connect", new_callable=AsyncMock) as mock_connect:
             mock_connect.return_value = None
             memory.client = mock_blob_client
@@ -249,10 +251,10 @@ class TestColdMemory:
         """Test downloading text from blob."""
         memory = ColdMemory(
             account_url="https://test.blob.core.windows.net",
-            container_name="test_container"
+            container_name="test_container",
         )
         monkeypatch.setattr(memory, "client", mock_blob_client)
-        
+
         result = await memory.download_text("test_blob.txt")
         assert result == b"test data"
 
@@ -261,9 +263,9 @@ class TestColdMemory:
         """Test download auto-connects if not connected."""
         memory = ColdMemory(
             account_url="https://test.blob.core.windows.net",
-            container_name="test_container"
+            container_name="test_container",
         )
-        
+
         with patch.object(memory, "connect", new_callable=AsyncMock) as mock_connect:
             mock_connect.return_value = None
             memory.client = mock_blob_client
@@ -275,26 +277,22 @@ class TestMemoryIntegration:
 
     @pytest.mark.asyncio
     async def test_three_tier_memory_setup(
-        self,
-        mock_redis_client,
-        mock_cosmos_client,
-        mock_blob_client,
-        monkeypatch
+        self, mock_redis_client, mock_cosmos_client, mock_blob_client, monkeypatch
     ):
         """Test setting up all three memory tiers."""
         hot = HotMemory("redis://localhost:6379")
         warm = WarmMemory("https://test.documents.azure.com", "db", "container")
         cold = ColdMemory("https://test.blob.core.windows.net", "container")
-        
+
         monkeypatch.setattr(hot, "client", mock_redis_client)
         monkeypatch.setattr(warm, "client", mock_cosmos_client)
         monkeypatch.setattr(cold, "client", mock_blob_client)
-        
+
         # Test operations on each tier
         await hot.set("key", "value")
         await warm.upsert({"id": "test"})
         await cold.upload_text("blob", "data")
-        
+
         assert mock_redis_client.set.called
         assert hot.client is not None
         assert warm.client is not None

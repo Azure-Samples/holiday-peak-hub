@@ -1,4 +1,5 @@
 """Adapters for the CRM segmentation and personalization service."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

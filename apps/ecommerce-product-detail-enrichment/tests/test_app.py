@@ -1,5 +1,5 @@
-from fastapi.testclient import TestClient
 from ecommerce_product_detail_enrichment.main import app
+from fastapi.testclient import TestClient
 
 
 def test_health():
@@ -7,3 +7,10 @@ def test_health():
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json()["service"] == "ecommerce-product-detail-enrichment"
+
+
+def test_invoke_requires_sku():
+    client = TestClient(app)
+    response = client.post("/invoke", json={})
+    assert response.status_code == 200
+    assert response.json().get("error") == "sku is required"
