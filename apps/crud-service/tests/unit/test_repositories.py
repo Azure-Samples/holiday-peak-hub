@@ -14,7 +14,7 @@ async def test_search_by_name(mock_cosmos_db):
     # results = await repo.search_by_name("test")
     # assert len(results) > 0
     
-    pass
+    pytest.skip("Not implemented yet")
 
 
 @pytest.mark.asyncio
@@ -26,4 +26,4 @@ async def test_get_by_category(mock_cosmos_db):
     # results = await repo.get_by_category("category-123")
     # assert len(results) > 0
     
-    pass
+    pytest.skip("Not implemented yet")

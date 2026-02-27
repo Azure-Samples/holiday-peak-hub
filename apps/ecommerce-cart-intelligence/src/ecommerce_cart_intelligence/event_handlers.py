@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Any
 
 from holiday_peak_lib.utils.event_hub import EventHandler
 from holiday_peak_lib.utils.logging import configure_logging

@@ -5,12 +5,11 @@ import { MainLayout } from '@/components/templates/MainLayout';
 import { Button } from '@/components/atoms/Button';
 import { Badge } from '@/components/atoms/Badge';
 import { Card } from '@/components/molecules/Card';
-import { Select } from '@/components/atoms/Select';
 import { Tabs } from '@/components/molecules/Tabs';
 import Link from 'next/link';
 import { 
   FiShoppingCart, FiHeart, FiTruck, FiShield, 
-  FiRotateCcw, FiStar, FiCheck, FiMinus, FiPlus 
+  FiRotateCcw, FiCheck, FiMinus, FiPlus 
 } from 'react-icons/fi';
 
 export default function ProductPage({ params }: { params: { id: string } }) {

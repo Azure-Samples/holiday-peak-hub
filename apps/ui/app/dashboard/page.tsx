@@ -7,8 +7,8 @@ import { Card } from '@/components/molecules/Card';
 import { Button } from '@/components/atoms/Button';
 import { Badge } from '@/components/atoms/Badge';
 import { 
-  FiPackage, FiHeart, FiUser, FiMapPin, FiCreditCard,
-  FiShoppingBag, FiTruck, FiClock, FiCheck, FiArrowRight
+  FiPackage, FiHeart, FiMapPin,
+  FiShoppingBag, FiArrowRight
 } from 'react-icons/fi';
 
 export default function DashboardPage() {

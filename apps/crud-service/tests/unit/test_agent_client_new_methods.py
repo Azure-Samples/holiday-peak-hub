@@ -2,8 +2,9 @@
 
 import pytest
 
-from crud_service.integrations.agent_client import AgentClient
 import crud_service.integrations.agent_client as agent_client_module
+
+AgentClient = agent_client_module.AgentClient
 
 
 # ── Semantic Search ─────────────────────────────────────────────────

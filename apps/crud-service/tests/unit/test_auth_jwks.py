@@ -8,8 +8,11 @@ import pytest
 from fastapi import HTTPException
 from jose import jwt as jose_jwt
 
-from crud_service.auth.dependencies import JWTConfig, get_current_user, User
 import crud_service.auth.dependencies as deps_module
+
+JWTConfig = deps_module.JWTConfig
+get_current_user = deps_module.get_current_user
+User = deps_module.User
 
 
 # ── JWTConfig JWKS caching ──────────────────────────────────────────

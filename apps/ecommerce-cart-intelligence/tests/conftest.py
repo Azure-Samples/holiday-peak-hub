@@ -1,8 +1,6 @@
 """Test configuration and fixtures for cart intelligence service."""
 import pytest
-from unittest.mock import AsyncMock, Mock
-from dataclasses import dataclass
-from typing import Any
+from unittest.mock import AsyncMock
 
 from holiday_peak_lib.schemas.inventory import InventoryContext, InventoryItem
 from holiday_peak_lib.schemas.pricing import PriceContext, PriceEntry
