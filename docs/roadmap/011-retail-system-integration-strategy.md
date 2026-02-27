@@ -33,13 +33,13 @@ Agents SHALL NOT:
 
 ```
 holiday-peak-hub/
-├── lib/                              # Framework + connector contracts/registry
+├── lib/                              # Framework + integration contracts/registry
 │   └── src/holiday_peak_lib/
 │       ├── adapters/
 │       │   ├── base.py              # BaseAdapter, BaseConnector interfaces
 │       │   ├── external_api_adapter.py  # Generic external API base
 │       │   └── ...                  # Domain-specific base classes
-│       └── connectors/
+│       └── integrations/
 │           ├── contracts.py         # Data models + abstract connector contracts
 │           └── registry.py          # Runtime connector registry
 │
@@ -51,7 +51,7 @@ holiday-peak-hub/
 
 Each connector MUST:
 1. Extend `BaseAdapter` from `holiday_peak_lib`
-2. Implement domain-specific interface (e.g., `PIMAdapterProtocol`)
+2. Implement domain-specific interface (e.g., `PIMConnectorBase`)
 3. Provide configuration via environment variables
 4. Include comprehensive tests with mock responses
 5. Document the REST API mappings

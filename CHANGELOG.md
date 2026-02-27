@@ -7,7 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_No unreleased changes._
+### Changed
+
+#### Shared Library — Connector → Integration Refactor
+- Moved connector abstractions from root `connectors/` into `lib/src/holiday_peak_lib/integrations/`
+- Replaced `typing.Protocol` + `@runtime_checkable` with `abc.ABC` + `@abstractmethod` for simpler, more explicit contracts
+- Renamed base classes from `*ConnectorProtocol` → `*ConnectorBase` (e.g. `PIMConnectorBase`, `CRMConnectorBase`)
+- Renamed module `protocols.py` → `contracts.py`
+- Renamed package `connectors` → `integrations`
+- Renamed runtime endpoint `/connectors` → `/integrations` and response field `connectors_registered` → `integrations_registered`
+- Wired `ConnectorRegistry` into `build_service_app` for runtime integration tracking
+- Deleted root `connectors/` folder (superseded by `lib/src/holiday_peak_lib/integrations/`)
+- Updated all documentation references to match new paths and naming
 
 ## [1.0.0] - 2026-02-27
 
