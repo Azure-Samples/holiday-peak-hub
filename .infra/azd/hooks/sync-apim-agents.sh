@@ -62,7 +62,7 @@ for raw in lines:
 
     service_match = re.match(r"^  ([a-z0-9\-]+):\s*$", line)
     if service_match:
-        if current_service and current_host == "aks" and current_service != "crud-service":
+        if current_service and current_host == "aks":
             services.append(current_service)
         current_service = service_match.group(1)
         current_host = None
@@ -72,7 +72,7 @@ for raw in lines:
     if host_match:
         current_host = host_match.group(1)
 
-if current_service and current_host == "aks" and current_service != "crud-service":
+if current_service and current_host == "aks":
     services.append(current_service)
 
 print("\n".join(services))
@@ -86,13 +86,115 @@ fi
 
 echo "Syncing APIM APIs for AKS agent services into $APIM_NAME (RG: $RESOURCE_GROUP)..."
 
+resolve_backend_url() {
+  svc="$1"
+  resolved_name=""
+  resolved_port="80"
+
+  if command -v kubectl >/dev/null 2>&1; then
+    resolved_name="$(kubectl get svc -n "$NAMESPACE" -l "app=$svc" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
+    if [ -n "$resolved_name" ]; then
+      resolved_port="$(kubectl get svc "$resolved_name" -n "$NAMESPACE" -o jsonpath='{.spec.ports[0].port}' 2>/dev/null || true)"
+      [ -z "$resolved_port" ] && resolved_port="80"
+      printf 'http://%s.%s.svc.cluster.local:%s' "$resolved_name" "$NAMESPACE" "$resolved_port"
+      return
+    fi
+  fi
+
+  printf 'http://%s-%s.%s.svc.cluster.local:80' "$svc" "$svc" "$NAMESPACE"
+}
+
+ensure_crud_api() {
+  API_ID="crud-service"
+  DISPLAY_NAME="CRUD Service"
+  API_PATH="api"
+  BACKEND_URL="$(resolve_backend_url crud-service)"
+
+  if az apim api show --resource-group "$RESOURCE_GROUP" --service-name "$APIM_NAME" --api-id "$API_ID" >/dev/null 2>&1; then
+    az apim api update \
+      --resource-group "$RESOURCE_GROUP" \
+      --service-name "$APIM_NAME" \
+      --api-id "$API_ID" \
+      --display-name "$DISPLAY_NAME" \
+      --path "$API_PATH" \
+      --protocols https http \
+      --service-url "$BACKEND_URL" \
+      --subscription-required false \
+      >/dev/null
+    echo "Updated API: $API_ID"
+  else
+    az apim api create \
+      --resource-group "$RESOURCE_GROUP" \
+      --service-name "$APIM_NAME" \
+      --api-id "$API_ID" \
+      --display-name "$DISPLAY_NAME" \
+      --path "$API_PATH" \
+      --protocols https http \
+      --service-url "$BACKEND_URL" \
+      --subscription-required false \
+      >/dev/null
+    echo "Created API: $API_ID"
+  fi
+
+  for OP_ID in \
+    health \
+    api-root-get api-root-post \
+    api-get api-post api-put api-patch api-delete api-options \
+    acp-get acp-post acp-put acp-patch acp-delete; do
+    az apim api operation delete \
+      --resource-group "$RESOURCE_GROUP" \
+      --service-name "$APIM_NAME" \
+      --api-id "$API_ID" \
+      --operation-id "$OP_ID" \
+      --if-match '*' \
+      >/dev/null 2>&1 || true
+  done
+
+  az apim api operation create --resource-group "$RESOURCE_GROUP" --service-name "$APIM_NAME" --api-id "$API_ID" --operation-id health --display-name "Health" --method GET --url-template "/health" >/dev/null
+  az apim api operation create --resource-group "$RESOURCE_GROUP" --service-name "$APIM_NAME" --api-id "$API_ID" --operation-id api-root-get --display-name "API Root GET" --method GET --url-template "/api" >/dev/null
+  az apim api operation create --resource-group "$RESOURCE_GROUP" --service-name "$APIM_NAME" --api-id "$API_ID" --operation-id api-root-post --display-name "API Root POST" --method POST --url-template "/api" >/dev/null
+
+  for METHOD in GET POST PUT PATCH DELETE OPTIONS; do
+    op="api-$(printf '%s' "$METHOD" | tr '[:upper:]' '[:lower:]')"
+    az apim api operation create \
+      --resource-group "$RESOURCE_GROUP" \
+      --service-name "$APIM_NAME" \
+      --api-id "$API_ID" \
+      --operation-id "$op" \
+      --display-name "API $METHOD" \
+      --method "$METHOD" \
+      --url-template "/api/{*path}" \
+      --template-parameters name=path description="Wildcard route path" type=string required=false \
+      >/dev/null
+  done
+
+  for METHOD in GET POST PUT PATCH DELETE; do
+    op="acp-$(printf '%s' "$METHOD" | tr '[:upper:]' '[:lower:]')"
+    az apim api operation create \
+      --resource-group "$RESOURCE_GROUP" \
+      --service-name "$APIM_NAME" \
+      --api-id "$API_ID" \
+      --operation-id "$op" \
+      --display-name "ACP $METHOD" \
+      --method "$METHOD" \
+      --url-template "/acp/{*path}" \
+      --template-parameters name=path description="Wildcard ACP path" type=string required=false \
+      >/dev/null
+  done
+}
+
 echo "$SERVICES" | while IFS= read -r SERVICE; do
   [ -z "$SERVICE" ] && continue
+
+  if [ "$SERVICE" = "crud-service" ]; then
+    ensure_crud_api
+    continue
+  fi
 
   API_ID="agent-$SERVICE"
   DISPLAY_NAME="Agent - $SERVICE"
   API_PATH="$API_PATH_PREFIX/$SERVICE"
-  BACKEND_URL="http://$SERVICE-$SERVICE.$NAMESPACE.svc.cluster.local"
+  BACKEND_URL="$(resolve_backend_url "$SERVICE")"
 
   if az apim api show --resource-group "$RESOURCE_GROUP" --service-name "$APIM_NAME" --api-id "$API_ID" >/dev/null 2>&1; then
     az apim api update \

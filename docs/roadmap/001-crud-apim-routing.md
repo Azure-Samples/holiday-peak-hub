@@ -33,6 +33,15 @@ The `sync-apim-agents` deployment job was designed for agent services only. The 
 3. Apply JWT validation, rate limiting, and CORS policies at the APIM level
 4. Update `deploy-azd.yml` to run CRUD APIM sync after `deploy-crud` job
 
+## Implementation Notes (Feb 2026)
+
+- `sync-apim-agents.ps1` and `sync-apim-agents.sh` now register `crud-service` in APIM.
+- CRUD sync now creates a dedicated API (`api-id: crud-service`, path: `api`) with route operations for:
+  - `/health`
+  - `/api` and `/api/{*path}`
+  - `/acp/{*path}`
+- This enables frontend calls proxied as `/api/*` to resolve through APIM to the CRUD backend.
+
 ## Files to Modify
 
 - `.github/workflows/deploy-azd.yml` — Add CRUD APIM sync job

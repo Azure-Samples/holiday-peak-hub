@@ -36,6 +36,12 @@ All 21 agent services return HTTP 500 errors when their `/health` endpoint is ac
 4. Verify APIM backend pool URLs match AKS service DNS
 5. Test direct pod access: `kubectl port-forward svc/<agent-service> 8000:8000`
 
+## Implementation Notes (Feb 2026)
+
+- APIM backend URL construction in `sync-apim-agents.ps1` and `sync-apim-agents.sh` now resolves the **actual Kubernetes service name and port** using `kubectl` label lookup (`app=<service>`).
+- When cluster metadata cannot be resolved, hooks still fall back to the prior deterministic DNS format.
+- This removes hard-coded assumptions in APIM backend registration and reduces gateway-side `500` errors on `/health` caused by backend target drift.
+
 ## Files to Modify
 
 - `lib/src/holiday_peak_lib/app_factory.py` — Ensure health endpoint never depends on external services

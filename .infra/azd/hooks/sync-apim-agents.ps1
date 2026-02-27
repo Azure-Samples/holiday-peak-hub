@@ -115,9 +115,7 @@ function Get-AksServicesFromAzureYaml {
 
         if ($line -match '^  ([a-z0-9\-]+):\s*$') {
             if ($currentService -and $currentHost -eq 'aks') {
-                if ($IncludeCrud -or $currentService -ne 'crud-service') {
-                    $services += $currentService
-                }
+                $services += $currentService
             }
             $currentService = $Matches[1]
             $currentHost = ''
@@ -130,12 +128,37 @@ function Get-AksServicesFromAzureYaml {
     }
 
     if ($currentService -and $currentHost -eq 'aks') {
-        if ($IncludeCrud -or $currentService -ne 'crud-service') {
-            $services += $currentService
-        }
+        $services += $currentService
+    }
+
+    if (-not $IncludeCrud) {
+        return $services | Where-Object { $_ -ne 'crud-service' }
     }
 
     return $services
+}
+
+function Resolve-ServiceBackendUrl {
+    param(
+        [Parameter(Mandatory = $true)][string]$Service,
+        [Parameter(Mandatory = $true)][string]$Namespace
+    )
+
+    $serviceName = ''
+    $servicePort = '80'
+
+    if (Get-Command kubectl -ErrorAction SilentlyContinue) {
+        $serviceName = kubectl get svc -n $Namespace -l "app=$Service" -o jsonpath="{.items[0].metadata.name}" 2>$null
+        if ($LASTEXITCODE -eq 0 -and $serviceName) {
+            $servicePortCandidate = kubectl get svc $serviceName -n $Namespace -o jsonpath="{.spec.ports[0].port}" 2>$null
+            if ($LASTEXITCODE -eq 0 -and $servicePortCandidate) {
+                $servicePort = $servicePortCandidate
+            }
+            return "http://$serviceName.$Namespace.svc.cluster.local:$servicePort"
+        }
+    }
+
+    return "http://$Service-$Service.$Namespace.svc.cluster.local:$servicePort"
 }
 
 function Ensure-AgentApi {
@@ -151,7 +174,7 @@ function Ensure-AgentApi {
     $apiId = "agent-$Service"
     $displayName = "Agent - $Service"
     $path = "$Prefix/$Service"
-    $backend = "http://$Service-$Service.$Ns.svc.cluster.local"
+    $backend = Resolve-ServiceBackendUrl -Service $Service -Namespace $Ns
 
     if ($DryRun) {
         Write-Host "[preview] api-id=$apiId path=$path backend=$backend"
@@ -202,6 +225,80 @@ function Ensure-AgentApi {
     }
 }
 
+function Update-CrudApi {
+    param(
+        [Parameter(Mandatory = $true)][string]$Rg,
+        [Parameter(Mandatory = $true)][string]$Apim,
+        [Parameter(Mandatory = $true)][string]$Ns,
+        [switch]$DryRun
+    )
+
+    $service = 'crud-service'
+    $apiId = 'crud-service'
+    $displayName = 'CRUD Service'
+    $path = 'api'
+    $backend = Resolve-ServiceBackendUrl -Service $service -Namespace $Ns
+
+    if ($DryRun) {
+        Write-Host "[preview] api-id=$apiId path=$path backend=$backend"
+        return
+    }
+
+    az apim api show --resource-group $Rg --service-name $Apim --api-id $apiId --only-show-errors *> $null
+    if ($LASTEXITCODE -eq 0) {
+        az apim api update --resource-group $Rg --service-name $Apim --api-id $apiId --display-name $displayName --path $path --protocols https http --service-url $backend --subscription-required false --only-show-errors *> $null
+        Write-Host "Updated API: $apiId"
+    }
+    else {
+        az apim api create --resource-group $Rg --service-name $Apim --api-id $apiId --display-name $displayName --path $path --protocols https http --service-url $backend --subscription-required false --only-show-errors *> $null
+        Write-Host "Created API: $apiId"
+    }
+
+    $operations = @(
+        @{ id = 'health'; method = 'GET'; template = '/health'; name = 'Health' },
+        @{ id = 'api-root-get'; method = 'GET'; template = '/api'; name = 'API Root GET' },
+        @{ id = 'api-root-post'; method = 'POST'; template = '/api'; name = 'API Root POST' },
+        @{ id = 'api-get'; method = 'GET'; template = '/api/{*path}'; name = 'API GET' },
+        @{ id = 'api-post'; method = 'POST'; template = '/api/{*path}'; name = 'API POST' },
+        @{ id = 'api-put'; method = 'PUT'; template = '/api/{*path}'; name = 'API PUT' },
+        @{ id = 'api-patch'; method = 'PATCH'; template = '/api/{*path}'; name = 'API PATCH' },
+        @{ id = 'api-delete'; method = 'DELETE'; template = '/api/{*path}'; name = 'API DELETE' },
+        @{ id = 'api-options'; method = 'OPTIONS'; template = '/api/{*path}'; name = 'API OPTIONS' },
+        @{ id = 'acp-get'; method = 'GET'; template = '/acp/{*path}'; name = 'ACP GET' },
+        @{ id = 'acp-post'; method = 'POST'; template = '/acp/{*path}'; name = 'ACP POST' },
+        @{ id = 'acp-put'; method = 'PUT'; template = '/acp/{*path}'; name = 'ACP PUT' },
+        @{ id = 'acp-patch'; method = 'PATCH'; template = '/acp/{*path}'; name = 'ACP PATCH' },
+        @{ id = 'acp-delete'; method = 'DELETE'; template = '/acp/{*path}'; name = 'ACP DELETE' }
+    )
+
+    foreach ($op in $operations) {
+        az apim api operation delete --resource-group $Rg --service-name $Apim --api-id $apiId --operation-id $op.id --if-match '*' --only-show-errors *> $null
+        $createArgs = @(
+            'apim', 'api', 'operation', 'create',
+            '--resource-group', $Rg,
+            '--service-name', $Apim,
+            '--api-id', $apiId,
+            '--operation-id', $op.id,
+            '--display-name', $op.name,
+            '--method', $op.method,
+            '--url-template', $op.template,
+            '--only-show-errors'
+        )
+
+        if ($op.template -like '*{*path}*') {
+            $createArgs += @(
+                '--template-parameters',
+                'name=path',
+                'description=Wildcard route path',
+                'type=string',
+                'required=false'
+            )
+        }
+
+        az @createArgs *> $null
+    }
+}
+
 $resolvedResourceGroup = Get-ResourceGroup -RepoRoot $repoRoot
 if (-not $resolvedResourceGroup) {
     throw 'Resource group could not be resolved. Set AZURE_RESOURCE_GROUP, pass -ResourceGroup, or run within an azd environment.'
@@ -221,6 +318,11 @@ if (-not $agentServices -or $agentServices.Count -eq 0) {
 Write-Host "Syncing $($agentServices.Count) AKS services into APIM '$resolvedApimName' (RG: $resolvedResourceGroup)..."
 
 foreach ($service in $agentServices) {
+    if ($service -eq 'crud-service') {
+        Update-CrudApi -Rg $resolvedResourceGroup -Apim $resolvedApimName -Ns $Namespace -DryRun:$Preview
+        continue
+    }
+
     Ensure-AgentApi -Rg $resolvedResourceGroup -Service $service -Apim $resolvedApimName -Ns $Namespace -Prefix $ApiPathPrefix -DryRun:$Preview
 }
 

@@ -34,6 +34,14 @@ The Static Web App (SWA) returns 404 for all `/api/*` routes. The `staticwebapp.
 2. **Option B**: Use SWA linked backend (Standard tier required) to connect to the AKS-hosted CRUD service
 3. **Option C**: Use Azure Front Door to unify SWA and APIM under a single domain
 
+## Implementation Notes (Feb 2026)
+
+- Removed external `/api/*` rewrite rules from:
+  - `apps/ui/staticwebapp.config.json`
+  - `apps/ui/public/staticwebapp.config.json`
+- Frontend now relies on direct APIM calls via `NEXT_PUBLIC_API_URL` (already required by `apps/ui/lib/api/client.ts`).
+- This avoids SWA rewrite/proxy behavior differences and prevents SWA from returning route-level 404 for API calls.
+
 ## Files to Modify
 
 - `apps/ui/staticwebapp.config.json` — Fix or remove rewrite rules
