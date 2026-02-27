@@ -309,15 +309,3 @@ class WorkforceConnectorBase(ABC):
     @abstractmethod
     async def get_task_status(self, task_id: str) -> dict:
         """Get task status."""
-
-
-# Backward-compatible aliases
-PIMConnectorProtocol = PIMConnectorBase
-DAMConnectorProtocol = DAMConnectorBase
-InventoryConnectorProtocol = InventoryConnectorBase
-CRMConnectorProtocol = CRMConnectorBase
-CommerceConnectorProtocol = CommerceConnectorBase
-AnalyticsConnectorProtocol = AnalyticsConnectorBase
-IntegrationConnectorProtocol = IntegrationConnectorBase
-IdentityConnectorProtocol = IdentityConnectorBase
-WorkforceConnectorProtocol = WorkforceConnectorBase
