@@ -10,6 +10,7 @@ from holiday_peak_lib.agents.memory.cold import ColdMemory
 from holiday_peak_lib.agents.memory.hot import HotMemory
 from holiday_peak_lib.agents.memory.warm import WarmMemory
 from holiday_peak_lib.app_factory import build_service_app
+from holiday_peak_lib.connectors import ConnectorRegistry
 
 
 class SampleServiceAgent(BaseRetailAgent):
@@ -194,7 +195,39 @@ class TestBuildServiceApp:
         assert "/health" in routes
         assert "/ready" in routes
         assert "/invoke" in routes
+        assert "/connectors" in routes
         assert "/foundry/agents/ensure" in routes
+
+    @pytest.mark.asyncio
+    async def test_app_wires_connector_registry(
+        self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
+    ):
+        """Test connector registry is attached to app state and used by endpoints."""
+        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-123")
+
+        registry = ConnectorRegistry()
+        await registry.register("mock-pim", object(), domain="pim")
+
+        app = build_service_app(
+            service_name="test-service",
+            agent_class=SampleServiceAgent,
+            hot_memory=mock_hot_memory,
+            warm_memory=mock_warm_memory,
+            cold_memory=mock_cold_memory,
+            connector_registry=registry,
+        )
+
+        assert app.state.connector_registry is registry
+
+        client = TestClient(app)
+        health_response = client.get("/health")
+        assert health_response.status_code == 200
+        assert health_response.json()["connectors_registered"] == 1
+
+        connectors_response = client.get("/connectors")
+        assert connectors_response.status_code == 200
+        assert connectors_response.json()["domains"]["pim"] == ["mock-pim"]
 
     def test_foundry_ensure_endpoint(
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch

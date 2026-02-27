@@ -8,6 +8,7 @@ configure_logging()
 __all__ = [
     "adapters",
     "agents",
+    "connectors",
     "schemas",
     "utils",
     "config",

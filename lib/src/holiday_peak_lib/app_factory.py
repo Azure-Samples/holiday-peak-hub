@@ -10,6 +10,7 @@ from holiday_peak_lib.agents.foundry import (
     build_foundry_model_target,
     ensure_foundry_agent,
 )
+from holiday_peak_lib.connectors import ConnectorRegistry
 from holiday_peak_lib.agents.memory import ColdMemory, HotMemory, WarmMemory
 from holiday_peak_lib.agents.orchestration.router import RoutingStrategy
 from holiday_peak_lib.utils.logging import configure_logging, log_async_operation
@@ -49,12 +50,15 @@ def build_service_app(
     cold_memory: ColdMemory | None = None,
     slm_config: FoundryAgentConfig | None = None,
     llm_config: FoundryAgentConfig | None = None,
+    connector_registry: ConnectorRegistry | None = None,
     mcp_setup: Optional[Callable[[FastAPIMCPServer, BaseRetailAgent], None]] = None,
     lifespan: Callable[[FastAPI], AsyncIterator[None]] | None = None,
 ) -> FastAPI:
     """Return a FastAPI app pre-wired with MCP and required memory tiers."""
     logger = configure_logging(app_name=service_name)
     app = FastAPI(title=service_name, lifespan=lifespan)
+    registry = connector_registry or ConnectorRegistry()
+    app.state.connector_registry = registry
 
     mcp = FastAPIMCPServer(app)
     router = RoutingStrategy()
@@ -71,6 +75,8 @@ def build_service_app(
     if slm_config or llm_config:
         builder = builder.with_foundry_models(slm_config=slm_config, llm_config=llm_config)
     agent = builder.build()
+    if hasattr(agent, "connector_registry"):
+        agent.connector_registry = registry
     strict_foundry_mode = (os.getenv("FOUNDRY_STRICT_ENFORCEMENT") or "").lower() in {
         "1",
         "true",
@@ -147,7 +153,19 @@ def build_service_app(
 
     @app.get("/health")
     async def health():
-        return {"status": "ok", "service": service_name}
+        return {
+            "status": "ok",
+            "service": service_name,
+            "connectors_registered": await registry.count(),
+        }
+
+    @app.get("/connectors")
+    async def connectors():
+        return {
+            "service": service_name,
+            "domains": await registry.list_domains(),
+            "health": await registry.health(),
+        }
 
     @app.get("/ready")
     async def ready():
@@ -168,6 +186,7 @@ def build_service_app(
             "status": "ready",
             "service": service_name,
             "foundry_ready": foundry_ready,
+            "connectors_registered": await registry.count(),
         }
 
     @app.post("/invoke")
