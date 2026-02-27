@@ -20,7 +20,7 @@ dependencies = [
     "azure-eventhub",
     "redis",
     "asyncpg",
-    "holiday-peak-lib @ git+https://github.com/Azure-Samples/holiday-peak-hub.git@main#subdirectory=lib/src"
+    "holiday-peak-lib @ git+https://github.com/Azure-Samples/holiday-peak-hub.git@feat/api-layer#subdirectory=lib/src"
 ]
 
 [project.optional-dependencies]
