@@ -24,13 +24,15 @@ dependencies = [
     "asyncpg",
     "aiohttp",
     "typing-extensions",
-    "python-dotenv",
+    "python-dotenv"
+]
+
+[project.optional-dependencies]
+monitor = [
     "azure-monitor-opentelemetry>=1.7.0",
     "opentelemetry-api>=1.27.0",
     "opentelemetry-sdk>=1.27.0"
 ]
-
-[project.optional-dependencies]
 dev = [
     "faker",
     "pre-commit",
