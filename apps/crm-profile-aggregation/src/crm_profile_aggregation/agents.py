@@ -97,7 +97,7 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
 
     mcp.add_tool("/crm/profile/context", get_contact_context)
     mcp.add_tool("/crm/profile/summary", get_profile_summary)
-        _register_crud_tools(mcp)
+    _register_crud_tools(mcp)
 
 
 def _register_crud_tools(mcp: FastAPIMCPServer) -> None:
