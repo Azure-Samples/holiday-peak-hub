@@ -3,52 +3,20 @@
 **Agent-driven retail accelerator** with cloud-native architecture, complete frontend implementation, and comprehensive backend plan.
 
 ![Status](https://img.shields.io/badge/Status-Active%20Development-green)
+![Version](https://img.shields.io/badge/lib-v1.0.0--stable-brightgreen)
 ![Frontend](https://img.shields.io/badge/Frontend-Complete-brightgreen)
 ![Backend](https://img.shields.io/badge/Backend-Complete-brightgreen)
 ![Architecture](https://img.shields.io/badge/Architecture-Cloud--Native-orange)
 ![Code Style](https://img.shields.io/badge/code%20style-black-000000.svg)
-![Coverage](https://img.shields.io/badge/coverage-91%25-brightgreen)
+![Coverage](https://img.shields.io/badge/coverage-73%25-yellow)
+![Tests](https://img.shields.io/badge/tests-165%20passing-brightgreen)
+![Python](https://img.shields.io/badge/python-3.13-blue)
 
 [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FAzure-Samples%2Fholiday-peak-hub%2Fmain%2F.infra%2Fmodules%2Fshared-infrastructure%2Fshared-infrastructure-main.bicep)
 
-## 🎉 Recent Updates (February 2026)
+## What's New
 
-### ✅ Agents V2 Migration Complete
-
-- **42 V2 prompt agents** provisioned in Azure AI Foundry project `aipholidaris` (21 services × 2 roles)
-- **Model defaults**: `gpt-5-nano` (SLM/fast) and `gpt-5.2` (LLM/rich)
-- **SDK**: `azure-ai-projects>=2.0.0b4` for V2 `create_version` API with `PromptAgentDefinition`
-- **Execution**: Conversations/responses pattern via `openai_client.conversations.create()` + `openai_client.responses.create()`
-- **Strict enforcement mode**: `FOUNDRY_STRICT_ENFORCEMENT` env var gates `/invoke` until agents are provisioned
-- **Auto-ensure on startup**: `FOUNDRY_AUTO_ENSURE_ON_STARTUP` creates missing agents automatically
-- **All 29 lib tests passing**
-
-### Previous Updates (January 2026)
-
-### ✅ Frontend Implementation Complete
-
-- **13 production-ready pages** across 4 user roles (anonymous, customer, staff, admin)
-- **52-component library** following atomic design principles
-- **Ocean Blue/Lime Green/Cyan color system** with dark mode support
-- **Full responsive design** with Tailwind CSS 4.0
-- See [Components Documentation](docs/architecture/components.md) for complete details
-
-### ✅ Backend Implementation Progress
-
-- **CRUD Service**: Fully implemented with 31 endpoints across 15 route modules
-- **Cloud-native architecture** with Azure best practices
-- **10 database schemas** for operational data (Cosmos DB)
-- **Event-driven integration** with Azure Event Hubs (5 topics)
-- **Authentication**: Microsoft Entra ID JWT validation with RBAC
-- **Zero-trust networking** with Private Endpoints and Managed Identity
-- See [Implementation Roadmap](docs/IMPLEMENTATION_ROADMAP.md) and [CRUD Service Documentation](docs/architecture/crud-service-implementation.md)
-
-### ✅ Architecture Documentation
-
-- **20 ADRs** covering all major decisions
-- **Cloud-native patterns**: Key Vault, Managed Identity, APIM, Front Door
-- **Event-driven choreography** with Azure Event Hubs
-- **Complete observability** with Application Insights
+> **v1.0.0** — First stable release. See the [CHANGELOG](CHANGELOG.md) for the full version history and the [GitHub Release](https://github.com/Azure-Samples/holiday-peak-hub/releases/tag/v1.0.0) for details.
 
 ---
 
@@ -383,13 +351,14 @@ azd provision -e dev
 - Agent orchestration and MCP helpers live in lib/agents; app_factory wires FastAPI apps with shared logging and settings.
 - Use .vscode/tasks.json for local lint/test shortcuts and launch.json for debugging via uvicorn.
 
-### Planned (Backend Implementation)
-- **Authentication**: Microsoft Entra ID (OAuth 2.0) - no local password storage
-- **Secrets**: Azure Key Vault with Managed Identity - zero hardcoded secrets
-- **Networking**: Private Endpoints for all Azure services - zero public backend endpoints
-- **API Gateway**: Azure API Management with JWT validation policies
-- **Deployment**: AKS with Helm, KEDA autoscaling, canary deployments
+### Current (Backend / CRUD Service)
+- **Authentication**: Microsoft Entra ID (JWKS-based JWT) — no local password storage
+- **Secrets**: Azure Key Vault with Managed Identity — zero hardcoded secrets
+- **Networking**: Private Endpoints for all Azure services — zero public backend endpoints
+- **API Gateway**: Azure API Management with APIM-routed agent client (circuit breaker + retry)
+- **Deployment**: AKS with Helm, KEDA autoscaling, `deploy-azd.yml` 8-job pipeline
 - **Monitoring**: Application Insights with distributed tracing, Log Analytics
+- **Database**: PostgreSQL (asyncpg) with JSONB + GIN indexes
 - See [Implementation Roadmap](docs/IMPLEMENTATION_ROADMAP.md) for deployment steps
 
 ---
@@ -485,7 +454,7 @@ See [Implementation Roadmap](docs/IMPLEMENTATION_ROADMAP.md) for deployment deta
 
 ---
 
-## 🎯 Implementation Status
+## Implementation Status
 
 | Component | Status | Documentation |
 |-----------|--------|---------------|
@@ -493,10 +462,10 @@ See [Implementation Roadmap](docs/IMPLEMENTATION_ROADMAP.md) for deployment deta
 | **21 AI Agent Services** | ✅ Complete | [Components](docs/architecture/components.md) |
 | **CRUD Service** | ✅ Complete | [CRUD Service Docs](docs/architecture/crud-service-implementation.md) |
 | **Frontend Integration** | ✅ Complete | [Integration Guide](apps/ui/INTEGRATION.md) |
-| **Cloud Architecture** | ✅ Designed | [Shared Infrastructure](.infra/modules/shared-infrastructure/README.md) |
-| **Infrastructure (Bicep)** | ⏳ Pending Deployment | [Implementation Roadmap](docs/IMPLEMENTATION_ROADMAP.md) |
-| **Agent Deployment** | ⏳ Pending | [Implementation Roadmap](docs/IMPLEMENTATION_ROADMAP.md) |
-| **E2E Integration** | ⏳ Pending | Phases 2-8 |
+| **Cloud Architecture (Bicep)** | ✅ Complete | [Shared Infrastructure](.infra/modules/shared-infrastructure/README.md) |
+| **Infrastructure Deployment** | ⚠️ Partial | AKS + ACR + APIM + PostgreSQL deployed; agent routing needs validation |
+| **Agent Deployment** | ⚠️ Partial | Deployed to AKS; health endpoints return 500 through APIM |
+| **E2E Integration** | ⏳ Pending | Frontend pages still use mock data; see [Roadmap](docs/roadmap/) |
 
 ---
 

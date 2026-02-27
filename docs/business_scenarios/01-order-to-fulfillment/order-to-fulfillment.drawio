@@ -1,0 +1,366 @@
+<mxfile host="draw.io" type="device">
+  <diagram name="Order-to-Fulfillment BPMN" id="otf-bpmn">
+    <mxGraphModel dx="1422" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- ==================== POOLS ==================== -->
+
+        <!-- Pool: Customer -->
+        <mxCell id="pool1" value="Customer" style="shape=mxgraph.bpmn.swimlane;horizontal=0;startSize=30;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;fontSize=12;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="20" y="20" width="1540" height="100" as="geometry"/>
+        </mxCell>
+
+        <!-- Pool: CRUD Service (Order API) -->
+        <mxCell id="pool2" value="CRUD Service" style="shape=mxgraph.bpmn.swimlane;horizontal=0;startSize=30;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;fontSize=12;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="20" y="120" width="1540" height="110" as="geometry"/>
+        </mxCell>
+
+        <!-- Pool: Azure Event Hubs -->
+        <mxCell id="pool3" value="Event Hubs" style="shape=mxgraph.bpmn.swimlane;horizontal=0;startSize=30;fillColor=#FFF3E0;strokeColor=#E65100;fontStyle=1;fontSize=12;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="20" y="230" width="1540" height="80" as="geometry"/>
+        </mxCell>
+
+        <!-- Pool: Inventory Reservation Agent -->
+        <mxCell id="pool4" value="Inventory Agent" style="shape=mxgraph.bpmn.swimlane;horizontal=0;startSize=30;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;fontSize=12;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="20" y="310" width="1540" height="120" as="geometry"/>
+        </mxCell>
+
+        <!-- Pool: Payment Service -->
+        <mxCell id="pool5" value="Payment Service" style="shape=mxgraph.bpmn.swimlane;horizontal=0;startSize=30;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;fontSize=12;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="20" y="430" width="1540" height="120" as="geometry"/>
+        </mxCell>
+
+        <!-- Pool: Logistics Carrier Selection Agent -->
+        <mxCell id="pool6" value="Logistics Agent" style="shape=mxgraph.bpmn.swimlane;horizontal=0;startSize=30;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;fontSize=12;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="20" y="550" width="1540" height="120" as="geometry"/>
+        </mxCell>
+
+        <!-- Pool: CRM Agent -->
+        <mxCell id="pool7" value="CRM Agent" style="shape=mxgraph.bpmn.swimlane;horizontal=0;startSize=30;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;fontSize=12;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="20" y="670" width="1540" height="100" as="geometry"/>
+        </mxCell>
+
+        <!-- ==================== CUSTOMER LANE ==================== -->
+
+        <!-- Start Event -->
+        <mxCell id="c1" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=general;outline=standard;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="pool1">
+          <mxGeometry x="60" y="35" width="30" height="30" as="geometry"/>
+        </mxCell>
+
+        <!-- Task: Fill Cart -->
+        <mxCell id="c2" value="Browse Products&#xa;&amp; Fill Cart" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool1">
+          <mxGeometry x="130" y="25" width="120" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Task: Submit Order -->
+        <mxCell id="c3" value="Submit Order" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool1">
+          <mxGeometry x="290" y="25" width="120" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Task: Receive Confirmation -->
+        <mxCell id="c4" value="Receive&#xa;Confirmation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;arcSize=20;fontSize=10;" vertex="1" parent="pool1">
+          <mxGeometry x="1310" y="25" width="120" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- End Event -->
+        <mxCell id="c5" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=terminate;outline=end;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="pool1">
+          <mxGeometry x="1470" y="35" width="30" height="30" as="geometry"/>
+        </mxCell>
+
+        <!-- Customer arrows -->
+        <mxCell id="ca1" style="edgeStyle=orthogonalEdgeStyle;" edge="1" parent="pool1" source="c1" target="c2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="ca2" style="edgeStyle=orthogonalEdgeStyle;" edge="1" parent="pool1" source="c2" target="c3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="ca3" style="edgeStyle=orthogonalEdgeStyle;" edge="1" parent="pool1" source="c4" target="c5"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <!-- ==================== CRUD SERVICE LANE ==================== -->
+
+        <!-- Task: Validate Order -->
+        <mxCell id="s1" value="Validate&#xa;Order" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool2">
+          <mxGeometry x="290" y="30" width="120" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Task: Create Order Record -->
+        <mxCell id="s2" value="Create Order&#xa;Record" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool2">
+          <mxGeometry x="450" y="30" width="120" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Task: Update Order Status -->
+        <mxCell id="s3" value="Update Status&#xa;to Processing" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;arcSize=20;fontSize=10;" vertex="1" parent="pool2">
+          <mxGeometry x="1150" y="30" width="120" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Task: Send Confirmation -->
+        <mxCell id="s4" value="Send&#xa;Confirmation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;arcSize=20;fontSize=10;" vertex="1" parent="pool2">
+          <mxGeometry x="1310" y="30" width="120" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- CRUD arrows -->
+        <mxCell id="sa1" style="edgeStyle=orthogonalEdgeStyle;" edge="1" parent="pool2" source="s1" target="s2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="sa2" style="edgeStyle=orthogonalEdgeStyle;" edge="1" parent="pool2" source="s3" target="s4"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <!-- ==================== EVENT HUB LANE ==================== -->
+
+        <!-- Event: OrderCreated -->
+        <mxCell id="e1" value="Order&#xa;Created" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=throwing;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=8;" vertex="1" parent="pool3">
+          <mxGeometry x="490" y="15" width="40" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- Event: InventoryReserved -->
+        <mxCell id="e2" value="Inventory&#xa;Reserved" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=throwing;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=8;" vertex="1" parent="pool3">
+          <mxGeometry x="700" y="15" width="40" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- Event: PaymentProcessed -->
+        <mxCell id="e3" value="Payment&#xa;Processed" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=throwing;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=8;" vertex="1" parent="pool3">
+          <mxGeometry x="900" y="15" width="40" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- Event: PaymentFailed -->
+        <mxCell id="e4" value="Payment&#xa;Failed" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=throwing;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#f8cecc;strokeColor=#b85450;fontSize=8;" vertex="1" parent="pool3">
+          <mxGeometry x="980" y="15" width="40" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- Event: ShipmentScheduled -->
+        <mxCell id="e5" value="Shipment&#xa;Scheduled" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=throwing;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=8;" vertex="1" parent="pool3">
+          <mxGeometry x="1100" y="15" width="40" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- Event: InventoryReleased -->
+        <mxCell id="e6" value="Inventory&#xa;Released" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=throwing;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#f8cecc;strokeColor=#b85450;fontSize=8;" vertex="1" parent="pool3">
+          <mxGeometry x="1350" y="15" width="40" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- ==================== INVENTORY AGENT LANE ==================== -->
+
+        <!-- Message Catch: OrderCreated -->
+        <mxCell id="i1" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=catching;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="pool4">
+          <mxGeometry x="495" y="20" width="30" height="30" as="geometry"/>
+        </mxCell>
+
+        <!-- Task: Check Stock -->
+        <mxCell id="i2" value="Check Stock&#xa;Availability" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool4">
+          <mxGeometry x="560" y="10" width="110" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Gateway: Stock Available? -->
+        <mxCell id="i3" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.rhombusPerimeter;symbol=exclusiveGw;isMarkerVisible=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="pool4">
+          <mxGeometry x="695" y="15" width="40" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- Task: Reserve Stock -->
+        <mxCell id="i4" value="Reserve&#xa;Stock" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;arcSize=20;fontSize=10;" vertex="1" parent="pool4">
+          <mxGeometry x="765" y="10" width="100" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Task: Reject (insufficient stock) -->
+        <mxCell id="i5" value="Reject:&#xa;No Stock" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;arcSize=20;fontSize=10;" vertex="1" parent="pool4">
+          <mxGeometry x="765" y="70" width="100" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- Compensation: Receive PaymentFailed -->
+        <mxCell id="i6" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=catching;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="pool4">
+          <mxGeometry x="988" y="65" width="30" height="30" as="geometry"/>
+        </mxCell>
+
+        <!-- Task: Release Stock -->
+        <mxCell id="i7" value="Release&#xa;Reserved Stock" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;arcSize=20;fontSize=10;" vertex="1" parent="pool4">
+          <mxGeometry x="1060" y="60" width="120" height="45" as="geometry"/>
+        </mxCell>
+
+        <!-- Inventory arrows -->
+        <mxCell id="ia1" style="edgeStyle=orthogonalEdgeStyle;" edge="1" parent="pool4" source="i1" target="i2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="ia2" style="edgeStyle=orthogonalEdgeStyle;" edge="1" parent="pool4" source="i2" target="i3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="ia3" value="Yes" style="edgeStyle=orthogonalEdgeStyle;fontSize=9;" edge="1" parent="pool4" source="i3" target="i4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="ia4" value="No" style="edgeStyle=orthogonalEdgeStyle;fontSize=9;" edge="1" parent="pool4" source="i3" target="i5"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="ia5" style="edgeStyle=orthogonalEdgeStyle;" edge="1" parent="pool4" source="i6" target="i7"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <!-- ==================== PAYMENT SERVICE LANE ==================== -->
+
+        <!-- Message Catch: InventoryReserved -->
+        <mxCell id="p1" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=catching;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="pool5">
+          <mxGeometry x="708" y="25" width="30" height="30" as="geometry"/>
+        </mxCell>
+
+        <!-- Task: Process Payment -->
+        <mxCell id="p2" value="Process&#xa;Payment" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool5">
+          <mxGeometry x="775" y="15" width="110" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Gateway: Payment Success? -->
+        <mxCell id="p3" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.rhombusPerimeter;symbol=exclusiveGw;isMarkerVisible=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="pool5">
+          <mxGeometry x="908" y="20" width="40" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- Task: Capture Payment (success) -->
+        <mxCell id="p4" value="Capture&#xa;Payment" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;arcSize=20;fontSize=10;" vertex="1" parent="pool5">
+          <mxGeometry x="975" y="5" width="100" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- Task: Log Failure -->
+        <mxCell id="p5" value="Log Payment&#xa;Failure" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;arcSize=20;fontSize=10;" vertex="1" parent="pool5">
+          <mxGeometry x="975" y="65" width="100" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- Payment arrows -->
+        <mxCell id="pa1" style="edgeStyle=orthogonalEdgeStyle;" edge="1" parent="pool5" source="p1" target="p2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="pa2" style="edgeStyle=orthogonalEdgeStyle;" edge="1" parent="pool5" source="p2" target="p3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="pa3" value="Success" style="edgeStyle=orthogonalEdgeStyle;fontSize=9;" edge="1" parent="pool5" source="p3" target="p4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="pa4" value="Failure" style="edgeStyle=orthogonalEdgeStyle;fontSize=9;" edge="1" parent="pool5" source="p3" target="p5"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <!-- ==================== LOGISTICS AGENT LANE ==================== -->
+
+        <!-- Message Catch: PaymentProcessed -->
+        <mxCell id="l1" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=catching;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="pool6">
+          <mxGeometry x="908" y="25" width="30" height="30" as="geometry"/>
+        </mxCell>
+
+        <!-- Task: Evaluate Carriers -->
+        <mxCell id="l2" value="Evaluate&#xa;Carriers (AI)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool6">
+          <mxGeometry x="975" y="15" width="110" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Task: Schedule Shipment -->
+        <mxCell id="l3" value="Schedule&#xa;Shipment" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;arcSize=20;fontSize=10;" vertex="1" parent="pool6">
+          <mxGeometry x="1120" y="15" width="110" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- End Event -->
+        <mxCell id="l4" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=terminate;outline=end;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="pool6">
+          <mxGeometry x="1270" y="25" width="30" height="30" as="geometry"/>
+        </mxCell>
+
+        <!-- Logistics arrows -->
+        <mxCell id="la1" style="edgeStyle=orthogonalEdgeStyle;" edge="1" parent="pool6" source="l1" target="l2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="la2" style="edgeStyle=orthogonalEdgeStyle;" edge="1" parent="pool6" source="l2" target="l3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="la3" style="edgeStyle=orthogonalEdgeStyle;" edge="1" parent="pool6" source="l3" target="l4"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <!-- ==================== CRM AGENT LANE ==================== -->
+
+        <!-- Message Catch: OrderCreated -->
+        <mxCell id="crm1" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=catching;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="pool7">
+          <mxGeometry x="495" y="35" width="30" height="30" as="geometry"/>
+        </mxCell>
+
+        <!-- Task: Update Customer Profile -->
+        <mxCell id="crm2" value="Update LTV&#xa;&amp; Profile" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool7">
+          <mxGeometry x="565" y="25" width="110" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Task: Recalculate Segment -->
+        <mxCell id="crm3" value="Recalculate&#xa;Segment" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool7">
+          <mxGeometry x="710" y="25" width="110" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- End Event -->
+        <mxCell id="crm4" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=terminate;outline=end;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="pool7">
+          <mxGeometry x="860" y="35" width="30" height="30" as="geometry"/>
+        </mxCell>
+
+        <!-- CRM arrows -->
+        <mxCell id="crma1" style="edgeStyle=orthogonalEdgeStyle;" edge="1" parent="pool7" source="crm1" target="crm2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="crma2" style="edgeStyle=orthogonalEdgeStyle;" edge="1" parent="pool7" source="crm2" target="crm3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="crma3" style="edgeStyle=orthogonalEdgeStyle;" edge="1" parent="pool7" source="crm3" target="crm4"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <!-- ==================== CROSS-POOL MESSAGE FLOWS ==================== -->
+
+        <!-- Customer → CRUD: Submit Order -->
+        <mxCell id="mf1" value="POST /orders" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#0066CC;fontSize=9;fontColor=#0066CC;" edge="1" parent="1" source="c3" target="s1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- CRUD → Event Hub: OrderCreated -->
+        <mxCell id="mf2" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#9673a6;" edge="1" parent="1" source="s2" target="e1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Event Hub → Inventory: OrderCreated -->
+        <mxCell id="mf3" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#9673a6;" edge="1" parent="1" source="e1" target="i1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Event Hub → CRM: OrderCreated -->
+        <mxCell id="mf4" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#9673a6;" edge="1" parent="1" source="e1" target="crm1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Inventory → Event Hub: InventoryReserved -->
+        <mxCell id="mf5" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#9673a6;" edge="1" parent="1" source="i4" target="e2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Event Hub → Payment: InventoryReserved -->
+        <mxCell id="mf6" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#9673a6;" edge="1" parent="1" source="e2" target="p1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Payment → Event Hub: PaymentProcessed (success) -->
+        <mxCell id="mf7" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#82b366;" edge="1" parent="1" source="p4" target="e3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Payment → Event Hub: PaymentFailed (failure) -->
+        <mxCell id="mf8" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#b85450;" edge="1" parent="1" source="p5" target="e4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Event Hub → Logistics: PaymentProcessed -->
+        <mxCell id="mf9" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#82b366;" edge="1" parent="1" source="e3" target="l1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Event Hub → Inventory: PaymentFailed (compensation) -->
+        <mxCell id="mf10" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#b85450;" edge="1" parent="1" source="e4" target="i6">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Logistics → Event Hub: ShipmentScheduled -->
+        <mxCell id="mf11" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#82b366;" edge="1" parent="1" source="l3" target="e5">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Event Hub → CRUD: ShipmentScheduled -->
+        <mxCell id="mf12" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#82b366;" edge="1" parent="1" source="e5" target="s3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Inventory (compensation) → Event Hub: InventoryReleased -->
+        <mxCell id="mf13" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#b85450;" edge="1" parent="1" source="i7" target="e6">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- CRUD → Customer: Confirmation -->
+        <mxCell id="mf14" value="Email" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#0066CC;fontSize=9;fontColor=#0066CC;" edge="1" parent="1" source="s4" target="c4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ==================== LEGEND ==================== -->
+        <mxCell id="legend" value="LEGEND" style="text;html=1;fontSize=11;fontStyle=1;fillColor=none;align=left;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="20" y="790" width="60" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg1" value="  Happy Path (green)" style="text;html=1;fontSize=9;fillColor=none;align=left;fontColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="20" y="810" width="150" height="18" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg2" value="  Compensation Path (red)" style="text;html=1;fontSize=9;fillColor=none;align=left;fontColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="20" y="828" width="180" height="18" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg3" value="  Message Flow (dashed = async via Event Hub)" style="text;html=1;fontSize=9;fillColor=none;align=left;fontColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="20" y="846" width="280" height="18" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg4" value="  Synchronous Call (blue dashed)" style="text;html=1;fontSize=9;fillColor=none;align=left;fontColor=#0066CC;" vertex="1" parent="1">
+          <mxGeometry x="20" y="864" width="220" height="18" as="geometry"/>
+        </mxCell>
+
+        <!-- Title -->
+        <mxCell id="title" value="BPMN: Order-to-Fulfillment SAGA Choreography" style="text;html=1;fontSize=16;fontStyle=1;fillColor=none;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="400" y="790" width="500" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="subtitle" value="Holiday Peak Hub — Event-Driven Order Processing with Compensation" style="text;html=1;fontSize=11;fontStyle=2;fillColor=none;align=center;verticalAlign=middle;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="400" y="815" width="500" height="20" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

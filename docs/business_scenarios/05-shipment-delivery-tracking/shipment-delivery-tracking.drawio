@@ -1,0 +1,433 @@
+<mxfile host="draw.io" type="device">
+  <diagram name="Shipment &amp; Delivery Tracking" id="bpmn-shipment-tracking">
+    <mxGraphModel dx="1422" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- Title -->
+        <mxCell id="title" value="BPMN: Shipment &amp; Delivery Tracking" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=18;fontStyle=1;fontColor=#1A237E;" vertex="1" parent="1">
+          <mxGeometry x="500" y="20" width="400" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="subtitle" value="Carrier Selection → ETA Computation → Route Monitoring → Proactive Notification" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=11;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="420" y="55" width="560" height="25" as="geometry"/>
+        </mxCell>
+
+        <!-- ==================== POOL 1: CRUD Service / Order Events ==================== -->
+        <mxCell id="pool1" value="CRUD Service" style="shape=mxgraph.bpmn.swimlane;horizontal=0;startSize=30;swimlaneHead=0;swimlaneBody=0;fillColor=#E3F2FD;strokeColor=#1565C0;rounded=1;collapsible=0;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="100" width="1500" height="130" as="geometry"/>
+        </mxCell>
+
+        <!-- Start Event: Payment Processed -->
+        <mxCell id="p1_start" value="Payment&#xa;Processed" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=general;outline=standard;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="pool1">
+          <mxGeometry x="60" y="40" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p1_t1" value="Retrieve Order&#xa;Details" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool1">
+          <mxGeometry x="160" y="35" width="120" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p1_msg1" value="Publish&#xa;order.ready_to_ship" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=throwing;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="pool1">
+          <mxGeometry x="330" y="40" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p1_t2" value="Update Order&#xa;with Carrier Info" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool1">
+          <mxGeometry x="680" y="35" width="120" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p1_t3" value="Provide Tracking&#xa;to Customer" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;arcSize=20;fontSize=10;" vertex="1" parent="pool1">
+          <mxGeometry x="1050" y="35" width="120" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p1_t4" value="Update Tracking&#xa;Page" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool1">
+          <mxGeometry x="1340" y="35" width="110" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- Arrows within Pool 1 -->
+        <mxCell id="p1_e1" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p1_start" target="p1_t1" parent="pool1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_e2" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p1_t1" target="p1_msg1" parent="pool1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ==================== POOL 2: Carrier Selection Agent ==================== -->
+        <mxCell id="pool2" value="Carrier Selection Agent" style="shape=mxgraph.bpmn.swimlane;horizontal=0;startSize=30;swimlaneHead=0;swimlaneBody=0;fillColor=#FFF3E0;strokeColor=#E65100;rounded=1;collapsible=0;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="250" width="1500" height="130" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_catch" value="Receive&#xa;order.ready_to_ship" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=catching;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="pool2">
+          <mxGeometry x="60" y="40" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_t1" value="Query Carrier&#xa;Rates &amp; Capacity" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool2">
+          <mxGeometry x="160" y="35" width="120" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_t2" value="AI: Evaluate&#xa;Cost vs Speed&#xa;vs Reliability" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;arcSize=20;fontSize=10;fontStyle=1;" vertex="1" parent="pool2">
+          <mxGeometry x="330" y="35" width="120" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_gw" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.rhombusPerimeter;symbol=exclusiveGw;isMarkerVisible=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="pool2">
+          <mxGeometry x="500" y="40" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_t3" value="Select Single&#xa;Carrier" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool2">
+          <mxGeometry x="600" y="10" width="110" height="45" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_t4" value="Plan Split&#xa;Shipment" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool2">
+          <mxGeometry x="600" y="75" width="110" height="45" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_msg1" value="Publish&#xa;CarrierSelected" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=throwing;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="pool2">
+          <mxGeometry x="760" y="40" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Arrows within Pool 2 -->
+        <mxCell id="p2_e1" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p2_catch" target="p2_t1" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e2" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p2_t1" target="p2_t2" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e3" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p2_t2" target="p2_gw" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e4" value="single origin" style="edgeStyle=orthogonalEdgeStyle;fontSize=9;fontColor=#666666;" edge="1" source="p2_gw" target="p2_t3" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e5" value="multi-warehouse" style="edgeStyle=orthogonalEdgeStyle;fontSize=9;fontColor=#666666;" edge="1" source="p2_gw" target="p2_t4" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e6" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p2_t3" target="p2_msg1" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e7" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p2_t4" target="p2_msg1" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ==================== POOL 3: ETA Computation Agent ==================== -->
+        <mxCell id="pool3" value="ETA Computation Agent" style="shape=mxgraph.bpmn.swimlane;horizontal=0;startSize=30;swimlaneHead=0;swimlaneBody=0;fillColor=#E8F5E9;strokeColor=#2E7D32;rounded=1;collapsible=0;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="400" width="1500" height="130" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p3_catch" value="Receive&#xa;order.shipped" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=catching;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="pool3">
+          <mxGeometry x="800" y="40" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p3_t1" value="Compute Transit&#xa;Time for Route" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool3">
+          <mxGeometry x="900" y="35" width="120" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p3_t2" value="AI: Factor&#xa;Historical Data&#xa;&amp; Disruptions" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;arcSize=20;fontSize=10;fontStyle=1;" vertex="1" parent="pool3">
+          <mxGeometry x="1060" y="35" width="120" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p3_msg1" value="Publish&#xa;ETAComputed" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=throwing;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="pool3">
+          <mxGeometry x="1230" y="40" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Recalculation branch (from delay detection) -->
+        <mxCell id="p3_catch2" value="Receive&#xa;DelayDetected" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=catching;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="pool3">
+          <mxGeometry x="60" y="40" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p3_t3" value="Recalculate ETA&#xa;with Delay Factors" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;arcSize=20;fontSize=10;" vertex="1" parent="pool3">
+          <mxGeometry x="160" y="35" width="120" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p3_msg2" value="Publish&#xa;ETAUpdated" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=throwing;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="pool3">
+          <mxGeometry x="330" y="40" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Arrows within Pool 3 -->
+        <mxCell id="p3_e1" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p3_catch" target="p3_t1" parent="pool3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p3_e2" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p3_t1" target="p3_t2" parent="pool3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p3_e3" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p3_t2" target="p3_msg1" parent="pool3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p3_e4" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p3_catch2" target="p3_t3" parent="pool3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p3_e5" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p3_t3" target="p3_msg2" parent="pool3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ==================== POOL 4: Route Issue Detection Agent ==================== -->
+        <mxCell id="pool4" value="Route Issue Detection Agent" style="shape=mxgraph.bpmn.swimlane;horizontal=0;startSize=30;swimlaneHead=0;swimlaneBody=0;fillColor=#FCE4EC;strokeColor=#C62828;rounded=1;collapsible=0;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="550" width="1500" height="150" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p4_catch" value="Receive&#xa;order.in_transit" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=catching;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="pool4">
+          <mxGeometry x="60" y="50" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p4_t1" value="Monitor Route&#xa;Progress" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool4">
+          <mxGeometry x="160" y="45" width="120" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p4_t2" value="AI: Detect&#xa;Anomalies" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;arcSize=20;fontSize=10;fontStyle=1;" vertex="1" parent="pool4">
+          <mxGeometry x="330" y="45" width="110" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p4_gw1" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.rhombusPerimeter;symbol=exclusiveGw;isMarkerVisible=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="pool4">
+          <mxGeometry x="490" y="50" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p4_end_ok" value="No Issue" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=terminate;outline=end;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="pool4">
+          <mxGeometry x="600" y="10" width="40" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- Severity Gateway for delays -->
+        <mxCell id="p4_gw2" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.rhombusPerimeter;symbol=exclusiveGw;isMarkerVisible=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="pool4">
+          <mxGeometry x="600" y="80" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p4_t3" value="Minor Delay&#xa;Update ETA only" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;arcSize=20;fontSize=9;" vertex="1" parent="pool4">
+          <mxGeometry x="710" y="10" width="110" height="40" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p4_t4" value="Significant Delay&#xa;Notify Customer" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;arcSize=20;fontSize=9;" vertex="1" parent="pool4">
+          <mxGeometry x="710" y="60" width="120" height="40" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p4_t5" value="Severe / Lost&#xa;Escalate to Ops" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;arcSize=20;fontSize=9;fontStyle=1;" vertex="1" parent="pool4">
+          <mxGeometry x="710" y="110" width="120" height="40" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p4_msg1" value="Publish&#xa;DelayDetected" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=throwing;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="pool4">
+          <mxGeometry x="890" y="65" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Arrows within Pool 4 -->
+        <mxCell id="p4_e1" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p4_catch" target="p4_t1" parent="pool4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4_e2" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p4_t1" target="p4_t2" parent="pool4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4_e3" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p4_t2" target="p4_gw1" parent="pool4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4_e4" value="on track" style="edgeStyle=orthogonalEdgeStyle;fontSize=9;fontColor=#82b366;" edge="1" source="p4_gw1" target="p4_end_ok" parent="pool4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4_e5" value="delay detected" style="edgeStyle=orthogonalEdgeStyle;fontSize=9;fontColor=#b85450;" edge="1" source="p4_gw1" target="p4_gw2" parent="pool4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4_e6" value="&lt; 1 day" style="edgeStyle=orthogonalEdgeStyle;fontSize=9;fontColor=#d6b656;" edge="1" source="p4_gw2" target="p4_t3" parent="pool4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4_e7" value="1–3 days" style="edgeStyle=orthogonalEdgeStyle;fontSize=9;fontColor=#b85450;" edge="1" source="p4_gw2" target="p4_t4" parent="pool4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4_e8" value="&gt; 3 days / lost" style="edgeStyle=orthogonalEdgeStyle;fontSize=9;fontColor=#b85450;" edge="1" source="p4_gw2" target="p4_t5" parent="pool4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4_e9" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p4_t4" target="p4_msg1" parent="pool4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4_e10" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p4_t5" target="p4_msg1" parent="pool4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ==================== POOL 5: Order Status Agent (Notification) ==================== -->
+        <mxCell id="pool5" value="Order Status Agent" style="shape=mxgraph.bpmn.swimlane;horizontal=0;startSize=30;swimlaneHead=0;swimlaneBody=0;fillColor=#EDE7F6;strokeColor=#4527A0;rounded=1;collapsible=0;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="720" width="1500" height="130" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p5_catch1" value="Receive&#xa;ShipmentStatus&#xa;Updated" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=catching;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="pool5">
+          <mxGeometry x="800" y="40" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p5_t1" value="Update Tracking&#xa;Timeline" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool5">
+          <mxGeometry x="900" y="35" width="120" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p5_catch2" value="Receive&#xa;ETAUpdated" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=catching;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="pool5">
+          <mxGeometry x="60" y="40" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p5_t2" value="Send Proactive&#xa;Notification" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;arcSize=20;fontSize=10;" vertex="1" parent="pool5">
+          <mxGeometry x="160" y="35" width="120" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p5_t3" value="Update Tracking&#xa;Page with New ETA" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;arcSize=20;fontSize=10;" vertex="1" parent="pool5">
+          <mxGeometry x="330" y="35" width="120" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p5_end1" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=terminate;outline=end;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="pool5">
+          <mxGeometry x="500" y="45" width="40" height="40" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p5_end2" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=terminate;outline=end;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="pool5">
+          <mxGeometry x="1060" y="45" width="40" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- Arrows within Pool 5 -->
+        <mxCell id="p5_e1" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p5_catch1" target="p5_t1" parent="pool5">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p5_e2" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p5_t1" target="p5_end2" parent="pool5">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p5_e3" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p5_catch2" target="p5_t2" parent="pool5">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p5_e4" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p5_t2" target="p5_t3" parent="pool5">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p5_e5" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p5_t3" target="p5_end1" parent="pool5">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ==================== CROSS-POOL MESSAGE FLOWS ==================== -->
+
+        <!-- CRUD → Carrier Selection (order.ready_to_ship) -->
+        <mxCell id="msg_1_2" value="" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#9673a6;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="p1_msg1" target="p2_catch" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Carrier Selection → CRUD (CarrierSelected) -->
+        <mxCell id="msg_2_1" value="" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#E65100;strokeWidth=2;" edge="1" source="p2_msg1" target="p1_t2" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="825" y="215"/>
+              <mxPoint x="740" y="215"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Carrier Selection → ETA (order.shipped via Event Hub) -->
+        <mxCell id="msg_2_3" value="" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#2E7D32;strokeWidth=2;" edge="1" source="p2_msg1" target="p3_catch" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="825" y="390"/>
+              <mxPoint x="825" y="390"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ETA Computed → CRUD (tracking info) -->
+        <mxCell id="msg_3_1" value="" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#2E7D32;strokeWidth=2;" edge="1" source="p3_msg1" target="p1_t3" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1295" y="370"/>
+              <mxPoint x="1110" y="370"/>
+              <mxPoint x="1110" y="200"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Route Issue → ETA (DelayDetected) -->
+        <mxCell id="msg_4_3" value="" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#C62828;strokeWidth=2;" edge="1" source="p4_msg1" target="p3_catch2" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="955" y="545"/>
+              <mxPoint x="45" y="545"/>
+              <mxPoint x="45" y="465"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ETA Updated → Order Status (notification) -->
+        <mxCell id="msg_3_5" value="" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#4527A0;strokeWidth=2;" edge="1" source="p3_msg2" target="p5_catch2" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="395" y="540"/>
+              <mxPoint x="30" y="540"/>
+              <mxPoint x="30" y="785"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Shipment Status → Order Status -->
+        <mxCell id="msg_crud_5" value="" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#4527A0;strokeWidth=2;" edge="1" source="p1_t3" target="p5_catch1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1110" y="225"/>
+              <mxPoint x="870" y="225"/>
+              <mxPoint x="870" y="760"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Order Status → CRUD (Update tracking page) -->
+        <mxCell id="msg_5_1" value="" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#1565C0;strokeWidth=2;" edge="1" source="p5_t1" target="p1_t4" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1400" y="860"/>
+              <mxPoint x="1400" y="225"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ==================== LEGEND ==================== -->
+        <mxCell id="legend_bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FAFAFA;strokeColor=#E0E0E0;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="880" width="700" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend_title" value="Legend" style="text;html=1;fontSize=11;fontStyle=1;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="50" y="885" width="60" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="leg1" value="" style="ellipse;fillColor=#d5e8d4;strokeColor=#82b366;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="55" y="915" width="20" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg1t" value="Start / Success" style="text;fontSize=9;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="80" y="915" width="80" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="leg2" value="" style="ellipse;fillColor=#f8cecc;strokeColor=#b85450;strokeWidth=3;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="170" y="915" width="20" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg2t" value="End / Error" style="text;fontSize=9;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="195" y="915" width="80" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="leg3" value="" style="rounded=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="275" y="912" width="30" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg3t" value="Task" style="text;fontSize=9;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="310" y="915" width="40" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="leg4" value="" style="rounded=1;fillColor=#FFF9C4;strokeColor=#F9A825;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="355" y="912" width="30" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg4t" value="AI Task" style="text;fontSize=9;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="390" y="915" width="50" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="leg5" value="" style="rhombus;fillColor=#fff2cc;strokeColor=#d6b656;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="445" y="910" width="25" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg5t" value="Gateway" style="text;fontSize=9;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="475" y="915" width="60" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="leg6" value="" style="ellipse;fillColor=#e1d5e7;strokeColor=#9673a6;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="540" y="915" width="20" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg6t" value="Message Event" style="text;fontSize=9;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="565" y="915" width="80" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="leg7" value="" style="endArrow=block;dashed=1;strokeColor=#9673a6;strokeWidth=2;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="650" y="925" as="sourcePoint"/>
+            <mxPoint x="690" y="925" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="leg7t" value="Msg Flow" style="text;fontSize=9;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="695" y="915" width="60" height="20" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

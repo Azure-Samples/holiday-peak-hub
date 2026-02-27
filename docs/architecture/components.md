@@ -72,7 +72,7 @@ Runnable services built on the framework, one per retail process.
 
 Next.js 15 application with atomic design component library connecting to all backend services.
 
-**Frontend Stack**: Next.js 15.1.6, React 19.0.0, TypeScript 5.7.2, Tailwind CSS 4.0.0
+**Frontend Stack**: Next.js 16.2.0-canary.17, React 19, TypeScript 5.7.2, Tailwind CSS 3.4.0
 
 ### Component Library
 

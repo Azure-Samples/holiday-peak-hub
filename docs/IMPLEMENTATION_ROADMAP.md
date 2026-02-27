@@ -1,13 +1,18 @@
 # Implementation Roadmap
 
-**Last Updated**: January 29, 2026  
-**Status**: Phase 1 Complete | Phases 2-3 Pending
+**Last Updated**: February 27, 2026  
+**Version**: [v1.0.0](https://github.com/Azure-Samples/holiday-peak-hub/releases/tag/v1.0.0)  
+**Status**: Phase 1 Complete | Phase 2 Partially Deployed | Phases 3-8 Pending
 
 ---
 
 ## Overview
 
-This document tracks the implementation progress of the Holiday Peak Hub platform. The CRUD service and frontend integration are complete. Remaining work focuses on infrastructure deployment and agent event handlers.
+This document tracks the implementation progress of the Holiday Peak Hub platform. The CRUD service, frontend integration, 21 AI agents, and shared infrastructure (Bicep) are complete. Infrastructure has been partially deployed (AKS, ACR, APIM, PostgreSQL). Remaining work focuses on completing deployment validation, agent event handlers, end-to-end integration, and **enterprise system connectors**.
+
+> **Known Issues**: See [docs/roadmap/](roadmap/) for tracked corrections and gaps discovered during deployment validation.
+> 
+> **Enterprise Integration**: See [docs/roadmap/011-retail-system-integration-strategy.md](roadmap/011-retail-system-integration-strategy.md) for the comprehensive connector strategy based on retail capabilities research.
 
 ---
 
@@ -395,6 +400,94 @@ This document tracks the implementation progress of the Holiday Peak Hub platfor
 
 ---
 
+### Phase 8: Enterprise Connector Integration
+
+> **Reference**: See [docs/roadmap/011-retail-system-integration-strategy.md](roadmap/011-retail-system-integration-strategy.md) for full details.
+
+#### 8.1 Connector Registry Implementation
+**Priority**: HIGH  
+**Estimated Time**: 3-4 hours  
+**Issue**: [#79](https://github.com/Azure-Samples/holiday-peak-hub/issues/79)
+
+**Tasks**:
+- [ ] Implement ConnectorRegistry in `lib/src/holiday_peak_lib/integrations/`
+- [ ] Add connector health monitoring with circuit breakers
+- [ ] Create configuration loader for connector settings
+- [ ] Integrate with CRUD service as central hub
+- [ ] Write unit and integration tests
+
+#### 8.2 Core Connector Development (Phase 2a)
+**Priority**: HIGH  
+**Estimated Time**: 8-12 hours
+
+**Recommended Default Connectors** (for greenfield deployments):
+- Azure Synapse Analytics (#60) - Analytics/Data warehouse
+- Azure Cosmos DB - Already integrated via CRUD service
+- Azure Event Hubs - Already integrated for events
+
+**Customer-Specific Connector Priority**:
+1. PIM connector (choose based on customer: Salsify, Akeneo, or Pimcore)
+2. DAM connector (choose based on customer: Cloudinary, Bynder, or AEM)
+3. Inventory/WMS connector (choose based on customer: SAP, Oracle, Manhattan)
+4. CRM connector (choose based on customer: Salesforce, D365 CE)
+
+#### 8.3 Event-Driven Connector Sync
+**Priority**: MEDIUM  
+**Estimated Time**: 4-6 hours  
+**Issue**: [#80](https://github.com/Azure-Samples/holiday-peak-hub/issues/80)
+
+**Tasks**:
+- [ ] Define event schemas for each domain (ProductChanged, InventoryUpdated, etc.)
+- [ ] Implement webhook receivers in CRUD service
+- [ ] Create Event Hub consumers for connector events
+- [ ] Add idempotency and dead-letter handling
+- [ ] Test end-to-end event flow
+
+#### 8.4 Multi-Tenant Connector Configuration
+**Priority**: MEDIUM  
+**Estimated Time**: 3-4 hours  
+**Issue**: [#81](https://github.com/Azure-Samples/holiday-peak-hub/issues/81)
+
+**Tasks**:
+- [ ] Design tenant configuration schema
+- [ ] Implement TenantResolver middleware
+- [ ] Add Azure Key Vault integration for secrets
+- [ ] Create connector instance caching
+- [ ] Document multi-tenant setup
+
+#### 8.5 Internal Data Guardrails
+**Priority**: CRITICAL  
+**Estimated Time**: 2-3 hours  
+**Issue**: [#83](https://github.com/Azure-Samples/holiday-peak-hub/issues/83)
+
+**Tasks**:
+- [ ] Create GuardrailMiddleware for enrichment agents
+- [ ] Implement source data validation (no AI generation without source)
+- [ ] Add audit logging for data lineage
+- [ ] Create rejection handlers for missing sources
+- [ ] Test guardrail enforcement
+
+---
+
+## Enterprise Connector Summary
+
+| Domain | Connectors | Issues |
+|--------|------------|--------|
+| Inventory/SCM | SAP S/4HANA, Oracle SCM, Manhattan, Blue Yonder, D365 SCM, Infor | #36-40, #77 |
+| CRM/Loyalty | Salesforce, D365 CE, Adobe AEP, Braze, Segment, Oracle CX | #41-45, #78 |
+| PIM | Salsify, inRiver, Akeneo, Pimcore, SAP Hybris, Informatica | #46-49, #74-75 |
+| DAM | Cloudinary, Adobe AEM, Bynder, Sitecore | #50-52, #76 |
+| Commerce/Order | Shopify, commercetools, SFCC, Magento, SAP Commerce, Manhattan OMS, VTEX | #53-59 |
+| Data/Analytics | Azure Synapse, Snowflake, Databricks, GA4, Adobe Analytics | #60-64 |
+| Integration | MuleSoft, Confluent, Boomi, IBM Sterling | #65-68 |
+| Identity | Okta/Auth0, OneTrust | #69-70 |
+| Workforce | UKG/Kronos, Zebra Reflexis, WorkJam | #71-73 |
+| Architecture | Registry, Events, Multi-tenant, Guardrails, Reference Patterns | #79-84 |
+
+**Total Connector Issues**: 49 issues (#36-#84)
+
+---
+
 ## Timeline Estimate
 
 | Phase | Tasks | Estimated Time |
@@ -405,9 +498,10 @@ This document tracks the implementation progress of the Holiday Peak Hub platfor
 | Phase 5: Monitoring & Observability | 2 | 3-5 hours |
 | Phase 6: Performance Optimization | 2 | 3-5 hours |
 | Phase 7: Security Hardening | 3 | 4-6 hours |
-| **Total** | **19** | **29-46 hours** |
+| Phase 8: Enterprise Connectors | 5 | 20-29 hours |
+| **Total** | **24** | **49-75 hours** |
 
-**Estimated completion**: 1-2 weeks (full-time work)
+**Estimated completion**: 2-3 weeks (full-time work)
 
 ---
 
@@ -432,6 +526,13 @@ This document tracks the implementation progress of the Holiday Peak Hub platfor
 - ✅ Staff can view analytics
 - ✅ Events flowing to agents
 
+### Enterprise Connectors (Phase 8)
+- ✅ Connector Registry operational
+- ✅ At least one PIM connector integrated
+- ✅ At least one DAM connector integrated
+- ✅ Data guardrails enforced (no AI generation without source)
+- ✅ Multi-tenant configuration working
+
 ### Performance
 - ✅ API p99 latency < 1 second
 - ✅ No 429 errors under normal load
@@ -452,4 +553,6 @@ This document tracks the implementation progress of the Holiday Peak Hub platfor
 - [Frontend Integration Guide](../apps/ui/INTEGRATION.md)
 - [Shared Infrastructure README](.infra/modules/shared-infrastructure/README.md)
 - [Static Web App README](.infra/modules/static-web-app/README.md)
+- [Enterprise Integration Strategy](roadmap/011-retail-system-integration-strategy.md)
+- [Connector Contracts and Registry](../lib/src/holiday_peak_lib/integrations/)
 - [CHANGELOG](../CHANGELOG.md)
