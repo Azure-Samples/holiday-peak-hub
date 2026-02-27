@@ -1,0 +1,370 @@
+<mxfile host="draw.io" type="device">
+  <diagram name="Customer 360 &amp; Personalization" id="bpmn-customer-360">
+    <mxGraphModel dx="1422" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- Title -->
+        <mxCell id="title" value="BPMN: Customer 360 &amp; Personalization" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=18;fontStyle=1;fontColor=#1A237E;" vertex="1" parent="1">
+          <mxGeometry x="500" y="20" width="400" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="subtitle" value="Profile Aggregation → Segmentation → Campaign Intelligence (Event-Driven Pipeline)" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=11;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="400" y="55" width="600" height="25" as="geometry"/>
+        </mxCell>
+
+        <!-- ==================== POOL 1: Customer Events (Triggers) ==================== -->
+        <mxCell id="pool1" value="Customer Events" style="shape=mxgraph.bpmn.swimlane;horizontal=0;startSize=30;swimlaneHead=0;swimlaneBody=0;fillColor=#E3F2FD;strokeColor=#1565C0;rounded=1;collapsible=0;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="100" width="1500" height="120" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p1_ev1" value="user.registered" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=throwing;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="pool1">
+          <mxGeometry x="80" y="35" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p1_ev2" value="user.browsed&#xa;user.searched" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=throwing;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="pool1">
+          <mxGeometry x="280" y="35" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p1_ev3" value="order.placed" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=throwing;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="pool1">
+          <mxGeometry x="500" y="35" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p1_ev4" value="profile.updated" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=throwing;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="pool1">
+          <mxGeometry x="940" y="35" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p1_ev5" value="segment.updated" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=throwing;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#FFF3E0;strokeColor=#E65100;" vertex="1" parent="pool1">
+          <mxGeometry x="1280" y="35" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- ==================== POOL 2: Profile Aggregation Agent ==================== -->
+        <mxCell id="pool2" value="Profile Aggregation Agent" style="shape=mxgraph.bpmn.swimlane;horizontal=0;startSize=30;swimlaneHead=0;swimlaneBody=0;fillColor=#E8F5E9;strokeColor=#2E7D32;rounded=1;collapsible=0;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="240" width="1500" height="160" as="geometry"/>
+        </mxCell>
+
+        <!-- Registration path -->
+        <mxCell id="p2_catch1" value="Receive&#xa;registered" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=catching;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="pool2">
+          <mxGeometry x="80" y="25" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_t1" value="Create Profile&#xa;in Cosmos DB" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool2">
+          <mxGeometry x="170" y="20" width="110" height="55" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_t1b" value="Set Default&#xa;Segment" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;arcSize=20;fontSize=10;" vertex="1" parent="pool2">
+          <mxGeometry x="170" y="90" width="110" height="55" as="geometry"/>
+        </mxCell>
+
+        <!-- Browsing path -->
+        <mxCell id="p2_catch2" value="Receive&#xa;browsed" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=catching;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="pool2">
+          <mxGeometry x="310" y="55" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_t2" value="Update Hot Memory&#xa;(Redis)&#xa;Session &amp; Affinity" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;arcSize=20;fontSize=10;" vertex="1" parent="pool2">
+          <mxGeometry x="400" y="45" width="120" height="65" as="geometry"/>
+        </mxCell>
+
+        <!-- Purchase path -->
+        <mxCell id="p2_catch3" value="Receive&#xa;order.placed" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=catching;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="pool2">
+          <mxGeometry x="560" y="55" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_t3" value="Add to Purchase&#xa;History" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool2">
+          <mxGeometry x="650" y="20" width="110" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_t4" value="Recalculate&#xa;LTV Score" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;arcSize=20;fontSize=10;fontStyle=1;" vertex="1" parent="pool2">
+          <mxGeometry x="650" y="85" width="110" height="55" as="geometry"/>
+        </mxCell>
+
+        <!-- Parallel gateway for purchase processing -->
+        <mxCell id="p2_pgw" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.rhombusPerimeter;symbol=parallelGw;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="pool2">
+          <mxGeometry x="800" y="55" width="40" height="40" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_t5" value="Update Warm&#xa;Memory (Cosmos DB)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool2">
+          <mxGeometry x="880" y="50" width="120" height="55" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_msg1" value="Publish&#xa;profile.updated" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=throwing;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="pool2">
+          <mxGeometry x="1040" y="55" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Arrows within Pool 2 -->
+        <mxCell id="p2_e1" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p2_catch1" target="p2_t1" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e1b" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p2_t1" target="p2_t1b" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e2" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p2_catch2" target="p2_t2" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e3" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p2_catch3" target="p2_t3" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e4" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p2_catch3" target="p2_t4" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e5" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p2_t3" target="p2_pgw" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e6" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p2_t4" target="p2_pgw" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e7" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p2_pgw" target="p2_t5" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e8" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p2_t5" target="p2_msg1" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ==================== POOL 3: Segmentation & Personalization Agent ==================== -->
+        <mxCell id="pool3" value="Segmentation &amp; Personalization Agent" style="shape=mxgraph.bpmn.swimlane;horizontal=0;startSize=30;swimlaneHead=0;swimlaneBody=0;fillColor=#FFF3E0;strokeColor=#E65100;rounded=1;collapsible=0;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="420" width="1500" height="160" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p3_catch" value="Receive&#xa;profile.updated" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=catching;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="pool3">
+          <mxGeometry x="940" y="55" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p3_t1" value="Load Full&#xa;Profile" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool3">
+          <mxGeometry x="1030" y="50" width="100" height="55" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p3_gw" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.rhombusPerimeter;symbol=exclusiveGw;isMarkerVisible=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="pool3">
+          <mxGeometry x="1155" y="55" width="40" height="40" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p3_t2" value="SLM: Standard&#xa;Segmentation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;arcSize=20;fontSize=10;" vertex="1" parent="pool3">
+          <mxGeometry x="1220" y="20" width="110" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p3_t3" value="LLM: Complex&#xa;Edge-Case&#xa;Segmentation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;arcSize=20;fontSize=10;fontStyle=1;" vertex="1" parent="pool3">
+          <mxGeometry x="1220" y="85" width="110" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p3_msg1" value="Publish&#xa;segment.updated" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=throwing;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#FFF3E0;strokeColor=#E65100;" vertex="1" parent="pool3">
+          <mxGeometry x="1380" y="55" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Arrows within Pool 3 -->
+        <mxCell id="p3_e1" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p3_catch" target="p3_t1" parent="pool3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p3_e2" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p3_t1" target="p3_gw" parent="pool3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p3_e3" value="standard" style="edgeStyle=orthogonalEdgeStyle;fontSize=9;fontColor=#82b366;" edge="1" source="p3_gw" target="p3_t2" parent="pool3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p3_e4" value="complex" style="edgeStyle=orthogonalEdgeStyle;fontSize=9;fontColor=#E65100;" edge="1" source="p3_gw" target="p3_t3" parent="pool3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p3_e5" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p3_t2" target="p3_msg1" parent="pool3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p3_e6" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p3_t3" target="p3_msg1" parent="pool3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ==================== POOL 4: Campaign Intelligence Agent ==================== -->
+        <mxCell id="pool4" value="Campaign Intelligence Agent" style="shape=mxgraph.bpmn.swimlane;horizontal=0;startSize=30;swimlaneHead=0;swimlaneBody=0;fillColor=#EDE7F6;strokeColor=#4527A0;rounded=1;collapsible=0;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="600" width="1500" height="130" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p4_catch" value="Receive&#xa;segment.updated" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=catching;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#FFF3E0;strokeColor=#E65100;" vertex="1" parent="pool4">
+          <mxGeometry x="60" y="40" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p4_t1" value="Load Segment&#xa;&amp; Profile" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool4">
+          <mxGeometry x="160" y="35" width="110" height="55" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p4_t2" value="AI: Generate&#xa;Personalized&#xa;Campaign Content" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;arcSize=20;fontSize=10;fontStyle=1;" vertex="1" parent="pool4">
+          <mxGeometry x="310" y="30" width="130" height="65" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p4_pgw" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.rhombusPerimeter;symbol=parallelGw;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="pool4">
+          <mxGeometry x="480" y="42" width="40" height="40" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p4_t3" value="Generate Email&#xa;Subject Lines" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool4">
+          <mxGeometry x="560" y="10" width="110" height="45" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p4_t4" value="Select Product&#xa;Recommendations" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool4">
+          <mxGeometry x="560" y="70" width="120" height="45" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p4_t5" value="Compute&#xa;Discount Strategy" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool4">
+          <mxGeometry x="720" y="10" width="110" height="45" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p4_t6" value="Store Campaign&#xa;in Cosmos DB" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool4">
+          <mxGeometry x="870" y="35" width="120" height="55" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p4_t7" value="Track Campaign&#xa;Attribution" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;arcSize=20;fontSize=10;" vertex="1" parent="pool4">
+          <mxGeometry x="1030" y="35" width="110" height="55" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p4_end" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=terminate;outline=end;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="pool4">
+          <mxGeometry x="1180" y="42" width="40" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- Arrows within Pool 4 -->
+        <mxCell id="p4_e1" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p4_catch" target="p4_t1" parent="pool4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4_e2" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p4_t1" target="p4_t2" parent="pool4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4_e3" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p4_t2" target="p4_pgw" parent="pool4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4_e4" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p4_pgw" target="p4_t3" parent="pool4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4_e5" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p4_pgw" target="p4_t4" parent="pool4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4_e6" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p4_t3" target="p4_t5" parent="pool4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4_e7" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p4_t5" target="p4_t6" parent="pool4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4_e8" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p4_t4" target="p4_t6" parent="pool4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4_e9" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p4_t6" target="p4_t7" parent="pool4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4_e10" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p4_t7" target="p4_end" parent="pool4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ==================== CROSS-POOL MESSAGE FLOWS ==================== -->
+
+        <!-- Customer Events → Profile Aggregation (user.registered) -->
+        <mxCell id="msg_1_2a" value="" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#82b366;strokeWidth=2;" edge="1" source="p1_ev1" target="p2_catch1" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Customer Events → Profile Aggregation (user.browsed) -->
+        <mxCell id="msg_1_2b" value="" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#6c8ebf;strokeWidth=2;" edge="1" source="p1_ev2" target="p2_catch2" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Customer Events → Profile Aggregation (order.placed) -->
+        <mxCell id="msg_1_2c" value="" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#9673a6;strokeWidth=2;" edge="1" source="p1_ev3" target="p2_catch3" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Profile Aggregation → Events (profile.updated) -->
+        <mxCell id="msg_2_1" value="" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#d6b656;strokeWidth=2;" edge="1" source="p2_msg1" target="p1_ev4" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Events → Segmentation (profile.updated) -->
+        <mxCell id="msg_1_3" value="" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#d6b656;strokeWidth=2;" edge="1" source="p1_ev4" target="p3_catch" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Segmentation → Events (segment.updated) -->
+        <mxCell id="msg_3_1" value="" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#E65100;strokeWidth=2;" edge="1" source="p3_msg1" target="p1_ev5" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1445" y="540"/>
+              <mxPoint x="1445" y="200"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Events → Campaign Intelligence (segment.updated) -->
+        <mxCell id="msg_1_4" value="" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#4527A0;strokeWidth=2;" edge="1" source="p1_ev5" target="p4_catch" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1305" y="210"/>
+              <mxPoint x="30" y="210"/>
+              <mxPoint x="30" y="670"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ==================== MEMORY ARCHITECTURE NOTE ==================== -->
+        <mxCell id="mem_box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3E5F5;strokeColor=#7B1FA2;arcSize=10;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="755" width="500" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="mem_title" value="Three-Tier Memory Architecture" style="text;html=1;fontSize=11;fontStyle=1;fillColor=none;strokeColor=none;fontColor=#7B1FA2;" vertex="1" parent="1">
+          <mxGeometry x="50" y="758" width="220" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="mem_hot" value="HOT: Redis (session, affinity, 15min TTL)" style="text;html=1;fontSize=10;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="55" y="780" width="250" height="18" as="geometry"/>
+        </mxCell>
+        <mxCell id="mem_warm" value="WARM: Cosmos DB (profile, LTV, segments)" style="text;html=1;fontSize=10;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="55" y="798" width="250" height="18" as="geometry"/>
+        </mxCell>
+        <mxCell id="mem_cold" value="COLD: Blob Storage (historical logs, archive)" style="text;html=1;fontSize=10;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="55" y="816" width="260" height="18" as="geometry"/>
+        </mxCell>
+
+        <!-- ==================== LEGEND ==================== -->
+        <mxCell id="legend_bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FAFAFA;strokeColor=#E0E0E0;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="560" y="755" width="700" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend_title" value="Legend" style="text;html=1;fontSize=11;fontStyle=1;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="570" y="758" width="60" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="leg1" value="" style="ellipse;fillColor=#d5e8d4;strokeColor=#82b366;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="575" y="790" width="20" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg1t" value="Start / Registration" style="text;fontSize=9;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="600" y="790" width="100" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="leg2" value="" style="rounded=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="710" y="787" width="30" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg2t" value="Task" style="text;fontSize=9;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="745" y="790" width="40" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="leg3" value="" style="rounded=1;fillColor=#FFF9C4;strokeColor=#F9A825;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="790" y="787" width="30" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg3t" value="AI Task" style="text;fontSize=9;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="825" y="790" width="50" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="leg4" value="" style="rhombus;fillColor=#fff2cc;strokeColor=#d6b656;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="880" y="785" width="25" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg4t" value="Gateway" style="text;fontSize=9;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="910" y="790" width="60" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="leg5" value="" style="ellipse;fillColor=#e1d5e7;strokeColor=#9673a6;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="975" y="790" width="20" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg5t" value="Message Event" style="text;fontSize=9;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="790" width="80" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="leg6" value="" style="endArrow=block;dashed=1;strokeColor=#9673a6;strokeWidth=2;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1090" y="800" as="sourcePoint"/>
+            <mxPoint x="1130" y="800" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="leg6t" value="Msg Flow" style="text;fontSize=9;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="1135" y="790" width="60" height="20" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

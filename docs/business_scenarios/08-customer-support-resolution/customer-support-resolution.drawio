@@ -1,0 +1,422 @@
+<mxfile host="draw.io" type="device">
+  <diagram name="Customer Support Resolution" id="bpmn-customer-support">
+    <mxGraphModel dx="1422" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- Title -->
+        <mxCell id="title" value="BPMN: Customer Support Resolution" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=18;fontStyle=1;fontColor=#1A237E;" vertex="1" parent="1">
+          <mxGeometry x="500" y="20" width="400" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="subtitle" value="AI-First Intake → Classification → Resolution or Escalation → Pattern Detection → KB Update" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=11;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="380" y="55" width="640" height="25" as="geometry"/>
+        </mxCell>
+
+        <!-- ==================== POOL 1: Customer ==================== -->
+        <mxCell id="pool1" value="Customer" style="shape=mxgraph.bpmn.swimlane;horizontal=0;startSize=30;swimlaneHead=0;swimlaneBody=0;fillColor=#E3F2FD;strokeColor=#1565C0;rounded=1;collapsible=0;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="100" width="1500" height="120" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p1_start" value="Support&#xa;Request" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=general;outline=standard;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="pool1">
+          <mxGeometry x="60" y="35" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p1_t1" value="Submit Issue&#xa;via Chat / Email" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool1">
+          <mxGeometry x="160" y="30" width="120" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p1_t2" value="Receive AI&#xa;Response" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;arcSize=20;fontSize=10;" vertex="1" parent="pool1">
+          <mxGeometry x="800" y="30" width="110" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p1_t3" value="Receive&#xa;Escalation&#xa;Notice" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;arcSize=20;fontSize=10;" vertex="1" parent="pool1">
+          <mxGeometry x="1050" y="30" width="110" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p1_t4" value="CSAT&#xa;Survey" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;arcSize=20;fontSize=10;" vertex="1" parent="pool1">
+          <mxGeometry x="1300" y="30" width="100" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p1_end" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=terminate;outline=end;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="pool1">
+          <mxGeometry x="1435" y="40" width="40" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- Arrows within Pool 1 -->
+        <mxCell id="p1_e1" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p1_start" target="p1_t1" parent="pool1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_e4" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p1_t4" target="p1_end" parent="pool1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ==================== POOL 2: CRM Support Assistance Agent ==================== -->
+        <mxCell id="pool2" value="CRM Support Assistance Agent" style="shape=mxgraph.bpmn.swimlane;horizontal=0;startSize=30;swimlaneHead=0;swimlaneBody=0;fillColor=#E8F5E9;strokeColor=#2E7D32;rounded=1;collapsible=0;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="240" width="1500" height="200" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_catch" value="Receive&#xa;ticket_created" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=catching;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="pool2">
+          <mxGeometry x="60" y="75" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_t1" value="AI: Parse &amp;&#xa;Classify Intent" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;arcSize=20;fontSize=10;fontStyle=1;" vertex="1" parent="pool2">
+          <mxGeometry x="160" y="70" width="120" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_t1b" value="Load Customer&#xa;Profile" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool2">
+          <mxGeometry x="320" y="70" width="110" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- Complexity Gateway -->
+        <mxCell id="p2_gw1" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.rhombusPerimeter;symbol=exclusiveGw;isMarkerVisible=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="pool2">
+          <mxGeometry x="475" y="75" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Simple path (top) -->
+        <mxCell id="p2_t2" value="Retrieve KB&#xa;Article" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool2">
+          <mxGeometry x="575" y="10" width="100" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_t3" value="AI: Generate&#xa;Response" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;arcSize=20;fontSize=10;fontStyle=1;" vertex="1" parent="pool2">
+          <mxGeometry x="710" y="10" width="110" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_t3b" value="Auto-Resolve&#xa;Ticket" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;arcSize=20;fontSize=10;" vertex="1" parent="pool2">
+          <mxGeometry x="855" y="10" width="100" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Order-specific path (middle) -->
+        <mxCell id="p2_t4" value="Fetch Order&#xa;Details via CRUD" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool2">
+          <mxGeometry x="575" y="75" width="120" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_t5" value="AI: Compose&#xa;Order-Specific&#xa;Response" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;arcSize=20;fontSize=10;fontStyle=1;" vertex="1" parent="pool2">
+          <mxGeometry x="730" y="70" width="120" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- Complex path (bottom) -->
+        <mxCell id="p2_t6" value="AI: Enrich with&#xa;Full Context" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;arcSize=20;fontSize=10;fontStyle=1;" vertex="1" parent="pool2">
+          <mxGeometry x="575" y="145" width="120" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_t7" value="Generate Agent&#xa;Brief &amp; Recommended&#xa;Resolution" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;arcSize=20;fontSize=10;" vertex="1" parent="pool2">
+          <mxGeometry x="730" y="140" width="130" height="55" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_t8" value="Escalate to&#xa;Human Agent" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;arcSize=20;fontSize=10;fontStyle=1;" vertex="1" parent="pool2">
+          <mxGeometry x="900" y="145" width="110" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Post-resolution -->
+        <mxCell id="p2_t9" value="Mark Resolved&#xa;&amp; Log" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;arcSize=20;fontSize=10;" vertex="1" parent="pool2">
+          <mxGeometry x="1000" y="70" width="100" height="55" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_t10" value="Send CSAT&#xa;Survey" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;arcSize=20;fontSize=10;" vertex="1" parent="pool2">
+          <mxGeometry x="1140" y="75" width="100" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_end" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=terminate;outline=end;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="pool2">
+          <mxGeometry x="1280" y="80" width="40" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- Arrows within Pool 2 -->
+        <mxCell id="p2_e1" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p2_catch" target="p2_t1" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e2" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p2_t1" target="p2_t1b" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e3" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p2_t1b" target="p2_gw1" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e4" value="simple" style="edgeStyle=orthogonalEdgeStyle;fontSize=9;fontColor=#82b366;" edge="1" source="p2_gw1" target="p2_t2" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e5" value="order-specific" style="edgeStyle=orthogonalEdgeStyle;fontSize=9;fontColor=#6c8ebf;" edge="1" source="p2_gw1" target="p2_t4" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e6" value="complex" style="edgeStyle=orthogonalEdgeStyle;fontSize=9;fontColor=#b85450;" edge="1" source="p2_gw1" target="p2_t6" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e7" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p2_t2" target="p2_t3" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e8" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p2_t3" target="p2_t3b" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e8b" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p2_t3b" target="p2_t9" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e9" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p2_t4" target="p2_t5" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e10" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p2_t5" target="p2_t9" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e11" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p2_t6" target="p2_t7" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e12" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p2_t7" target="p2_t8" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e13" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p2_t9" target="p2_t10" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e14" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p2_t10" target="p2_end" parent="pool2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ==================== POOL 3: CRUD Service / External Agents ==================== -->
+        <mxCell id="pool3" value="CRUD Service / External Agents" style="shape=mxgraph.bpmn.swimlane;horizontal=0;startSize=30;swimlaneHead=0;swimlaneBody=0;fillColor=#FFF3E0;strokeColor=#E65100;rounded=1;collapsible=0;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="460" width="1500" height="120" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p3_t1" value="Provide Order&#xa;Details" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool3">
+          <mxGeometry x="575" y="30" width="120" height="55" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p3_t2" value="Provide Tracking&#xa;Data (MCP)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool3">
+          <mxGeometry x="730" y="30" width="120" height="55" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p3_t3" value="Human Agent&#xa;Queue" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;arcSize=20;fontSize=10;fontStyle=1;" vertex="1" parent="pool3">
+          <mxGeometry x="900" y="30" width="110" height="55" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p3_t4" value="Handle Complex&#xa;Case" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;arcSize=20;fontSize=10;" vertex="1" parent="pool3">
+          <mxGeometry x="1050" y="30" width="110" height="55" as="geometry"/>
+        </mxCell>
+
+        <!-- Arrows within Pool 3 -->
+        <mxCell id="p3_e1" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p3_t1" target="p3_t2" parent="pool3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p3_e2" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p3_t3" target="p3_t4" parent="pool3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ==================== POOL 4: Knowledge Base & Pattern Detection ==================== -->
+        <mxCell id="pool4" value="Knowledge Base &amp; Pattern Detection" style="shape=mxgraph.bpmn.swimlane;horizontal=0;startSize=30;swimlaneHead=0;swimlaneBody=0;fillColor=#EDE7F6;strokeColor=#4527A0;rounded=1;collapsible=0;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="600" width="1500" height="140" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p4_catch" value="Receive&#xa;resolved&#xa;tickets" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=message;outline=catching;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=0;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="pool4">
+          <mxGeometry x="60" y="45" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p4_t1" value="AI: Detect&#xa;Recurring Patterns" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9C4;strokeColor=#F9A825;arcSize=20;fontSize=10;fontStyle=1;" vertex="1" parent="pool4">
+          <mxGeometry x="160" y="40" width="130" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p4_gw" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.rhombusPerimeter;symbol=exclusiveGw;isMarkerVisible=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="pool4">
+          <mxGeometry x="330" y="45" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- No pattern branch -->
+        <mxCell id="p4_end1" value="Archive" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=terminate;outline=end;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="pool4">
+          <mxGeometry x="430" y="10" width="40" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- Pattern detected branch -->
+        <mxCell id="p4_pgw" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.rhombusPerimeter;symbol=parallelGw;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="pool4">
+          <mxGeometry x="430" y="80" width="40" height="40" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p4_t2" value="Generate / Update&#xa;KB Article" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool4">
+          <mxGeometry x="520" y="50" width="120" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p4_t3" value="Alert Ops Team&#xa;(Systemic Issue)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;arcSize=20;fontSize=10;" vertex="1" parent="pool4">
+          <mxGeometry x="520" y="110" width="120" height="40" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p4_t4" value="Update Routing&#xa;Rules" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;fontSize=10;" vertex="1" parent="pool4">
+          <mxGeometry x="690" y="65" width="110" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p4_end2" value="" style="shape=mxgraph.bpmn.shape;perimeter=mxPerimeter.ellipsePerimeter;symbol=terminate;outline=end;isLooping=0;isSequential=0;isCompensation=0;isCall=0;isInstantiating=0;isTask=0;isEnd=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="pool4">
+          <mxGeometry x="840" y="70" width="40" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- Arrows within Pool 4 -->
+        <mxCell id="p4_e1" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p4_catch" target="p4_t1" parent="pool4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4_e2" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p4_t1" target="p4_gw" parent="pool4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4_e3" value="no pattern" style="edgeStyle=orthogonalEdgeStyle;fontSize=9;fontColor=#82b366;" edge="1" source="p4_gw" target="p4_end1" parent="pool4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4_e4" value="pattern found" style="edgeStyle=orthogonalEdgeStyle;fontSize=9;fontColor=#b85450;" edge="1" source="p4_gw" target="p4_pgw" parent="pool4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4_e5" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p4_pgw" target="p4_t2" parent="pool4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4_e6" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p4_pgw" target="p4_t3" parent="pool4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4_e7" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p4_t2" target="p4_t4" parent="pool4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4_e8" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p4_t3" target="p4_t4" parent="pool4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4_e9" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="p4_t4" target="p4_end2" parent="pool4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ==================== CROSS-POOL MESSAGE FLOWS ==================== -->
+
+        <!-- Customer → Support Agent (ticket submitted) -->
+        <mxCell id="msg_1_2" value="" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#9673a6;strokeWidth=2;" edge="1" source="p1_t1" target="p2_catch" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="220" y="225"/>
+              <mxPoint x="85" y="225"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Support Agent → Customer (AI response for simple) -->
+        <mxCell id="msg_2_1a" value="AI response" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#82b366;strokeWidth=2;fontSize=9;fontColor=#82b366;" edge="1" source="p2_t3b" target="p1_t2" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="905" y="235"/>
+              <mxPoint x="855" y="235"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Support Agent → Customer (AI response for order-specific) -->
+        <mxCell id="msg_2_1b" value="" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#6c8ebf;strokeWidth=2;" edge="1" source="p2_t5" target="p1_t2" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="790" y="235"/>
+              <mxPoint x="855" y="235"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Support Agent → CRUD (fetch order details) -->
+        <mxCell id="msg_2_3a" value="" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#E65100;strokeWidth=2;" edge="1" source="p2_t4" target="p3_t1" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- CRUD → Support Agent (order details returned) -->
+        <mxCell id="msg_3_2a" value="" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#E65100;strokeWidth=2;" edge="1" source="p3_t2" target="p2_t5" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Support Agent → Human Queue (escalation) -->
+        <mxCell id="msg_2_3b" value="" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#b85450;strokeWidth=2;" edge="1" source="p2_t8" target="p3_t3" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Support Agent → Customer (escalation notice) -->
+        <mxCell id="msg_2_1c" value="escalation" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#b85450;strokeWidth=2;fontSize=9;fontColor=#b85450;" edge="1" source="p2_t8" target="p1_t3" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1020" y="420"/>
+              <mxPoint x="1020" y="225"/>
+              <mxPoint x="1105" y="225"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Support Agent → KB (resolved tickets) -->
+        <mxCell id="msg_2_4" value="" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#4527A0;strokeWidth=2;" edge="1" source="p2_t9" target="p4_catch" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1050" y="590"/>
+              <mxPoint x="85" y="590"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Support Agent → Customer (CSAT survey) -->
+        <mxCell id="msg_2_1d" value="" style="edgeStyle=orthogonalEdgeStyle;dashed=1;strokeColor=#9673a6;strokeWidth=2;" edge="1" source="p2_t10" target="p1_t4" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1190" y="235"/>
+              <mxPoint x="1350" y="235"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ==================== LEGEND ==================== -->
+        <mxCell id="legend_bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FAFAFA;strokeColor=#E0E0E0;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="770" width="800" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend_title" value="Legend" style="text;html=1;fontSize=11;fontStyle=1;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="50" y="775" width="60" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="leg1" value="" style="ellipse;fillColor=#d5e8d4;strokeColor=#82b366;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="55" y="805" width="20" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg1t" value="Start / Resolved" style="text;fontSize=9;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="80" y="805" width="90" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="leg2" value="" style="rounded=1;fillColor=#f8cecc;strokeColor=#b85450;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="180" y="802" width="30" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg2t" value="Escalation" style="text;fontSize=9;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="215" y="805" width="60" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="leg3" value="" style="rounded=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="280" y="802" width="30" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg3t" value="Task" style="text;fontSize=9;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="315" y="805" width="40" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="leg4" value="" style="rounded=1;fillColor=#FFF9C4;strokeColor=#F9A825;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="360" y="802" width="30" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg4t" value="AI Task" style="text;fontSize=9;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="395" y="805" width="50" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="leg5" value="" style="rhombus;fillColor=#fff2cc;strokeColor=#d6b656;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="450" y="800" width="25" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg5t" value="Gateway" style="text;fontSize=9;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="480" y="805" width="60" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="leg6" value="" style="ellipse;fillColor=#e1d5e7;strokeColor=#9673a6;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="545" y="805" width="20" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="leg6t" value="Message Event" style="text;fontSize=9;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="570" y="805" width="80" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="leg7" value="" style="endArrow=block;dashed=1;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="660" y="815" as="sourcePoint"/>
+            <mxPoint x="700" y="815" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="leg7t" value="Happy Path" style="text;fontSize=9;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="705" y="805" width="60" height="20" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="leg8" value="" style="endArrow=block;dashed=1;strokeColor=#b85450;strokeWidth=2;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="770" y="815" as="sourcePoint"/>
+            <mxPoint x="810" y="815" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="leg8t" value="Escalation" style="text;fontSize=9;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="815" y="805" width="60" height="20" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
