@@ -7,7 +7,7 @@ import { Card } from '@/components/molecules/Card';
 import { Button } from '@/components/atoms/Button';
 import { Badge } from '@/components/atoms/Badge';
 import { 
-  FiPackage, FiHeart, FiMapPin,
+  FiPackage, FiHeart, FiMapPin, FiUser,
   FiShoppingBag, FiArrowRight
 } from 'react-icons/fi';
 

@@ -38,7 +38,7 @@ export const semanticSearchService = {
 
     if (AGENT_API_BASE_URL) {
       try {
-        const response = await agentApiClient.post('/catalog-search/semantic', request);
+        const response = await agentApiClient.post('/ecommerce-catalog-search/invoke', request);
         const payload = response.data || {};
         const results = (payload.results || payload.items || []) as AcpProduct[];
         return { items: mapAcpProductsToUi(results), source: 'agent' };

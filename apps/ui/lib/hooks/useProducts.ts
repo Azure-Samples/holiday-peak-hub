@@ -13,10 +13,14 @@ export function useProducts(filters?: {
   search?: string;
   category?: string;
   limit?: number;
+  enrich?: boolean;
 }) {
   return useQuery({
     queryKey: ['products', filters],
-    queryFn: () => productService.list(filters),
+    queryFn: () =>
+      filters?.enrich
+        ? productService.listEnriched(filters)
+        : productService.list(filters),
   });
 }
 
@@ -26,7 +30,7 @@ export function useProducts(filters?: {
 export function useProduct(id: string) {
   return useQuery({
     queryKey: ['product', id],
-    queryFn: () => productService.get(id),
+    queryFn: () => productService.getEnriched(id),
     enabled: !!id,
   });
 }

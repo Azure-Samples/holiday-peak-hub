@@ -8,6 +8,54 @@ NAMESPACE="${K8S_NAMESPACE:-holiday-peak}"
 API_PATH_PREFIX="${API_PATH_PREFIX:-agents}"
 RESOURCE_GROUP="${AZURE_RESOURCE_GROUP:-${RESOURCE_GROUP:-}}"
 APIM_NAME="${APIM_NAME:-}"
+AKS_CLUSTER_NAME="${AKS_CLUSTER_NAME:-}"
+REQUIRE_LOAD_BALANCER=true
+BACKEND_RESOLVE_RETRIES="${BACKEND_RESOLVE_RETRIES:-24}"
+BACKEND_RESOLVE_DELAY_SECONDS="${BACKEND_RESOLVE_DELAY_SECONDS:-5}"
+PREVIEW=false
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --preview)
+      PREVIEW=true
+      ;;
+    --require-load-balancer)
+      REQUIRE_LOAD_BALANCER=true
+      ;;
+    --allow-non-lb)
+      REQUIRE_LOAD_BALANCER=false
+      ;;
+    --namespace)
+      shift
+      NAMESPACE="$1"
+      ;;
+    --resource-group)
+      shift
+      RESOURCE_GROUP="$1"
+      ;;
+    --apim-name)
+      shift
+      APIM_NAME="$1"
+      ;;
+    --aks-cluster-name)
+      shift
+      AKS_CLUSTER_NAME="$1"
+      ;;
+    --azure-yaml)
+      shift
+      AZURE_YAML_PATH="$1"
+      ;;
+    --api-path-prefix)
+      shift
+      API_PATH_PREFIX="$1"
+      ;;
+    *)
+      echo "Unknown argument: $1"
+      exit 1
+      ;;
+  esac
+  shift
+done
 
 if [ -z "$RESOURCE_GROUP" ] && [ -n "${AZURE_ENV_NAME:-}" ]; then
   ENV_FILE="$REPO_ROOT/.azure/$AZURE_ENV_NAME/.env"
@@ -35,6 +83,29 @@ fi
 if [ -z "$APIM_NAME" ]; then
   echo "APIM name could not be resolved. Set APIM_NAME."
   exit 1
+fi
+
+if [ -z "$AKS_CLUSTER_NAME" ] && [ -n "${AZURE_ENV_NAME:-}" ]; then
+  ENV_FILE="$REPO_ROOT/.azure/$AZURE_ENV_NAME/.env"
+  if [ -f "$ENV_FILE" ]; then
+    AKS_CLUSTER_NAME="$(grep -E '^(AKS_CLUSTER_NAME|aksClusterName)=' "$ENV_FILE" | head -n 1 | cut -d '=' -f2- | tr -d '"' || true)"
+  fi
+fi
+
+if [ -z "$AKS_CLUSTER_NAME" ]; then
+  AKS_CLUSTER_NAME="$(az aks list --resource-group "$RESOURCE_GROUP" --query '[0].name' -o tsv 2>/dev/null || true)"
+fi
+
+if [ "$PREVIEW" = false ]; then
+  if ! command -v kubectl >/dev/null 2>&1; then
+    echo "kubectl is required to resolve APIM backends."
+    exit 1
+  fi
+  if [ -z "$AKS_CLUSTER_NAME" ]; then
+    echo "AKS cluster name could not be resolved. Set AKS_CLUSTER_NAME."
+    exit 1
+  fi
+  az aks get-credentials --resource-group "$RESOURCE_GROUP" --name "$AKS_CLUSTER_NAME" --overwrite-existing --only-show-errors >/dev/null
 fi
 
 SERVICES="$(python - "$AZURE_YAML_PATH" << 'PY'
@@ -90,25 +161,75 @@ resolve_backend_url() {
   svc="$1"
   resolved_name=""
   resolved_port="80"
+  lb_host=""
+  attempt=1
 
   if command -v kubectl >/dev/null 2>&1; then
     resolved_name="$(kubectl get svc -n "$NAMESPACE" -l "app=$svc" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
     if [ -n "$resolved_name" ]; then
       resolved_port="$(kubectl get svc "$resolved_name" -n "$NAMESPACE" -o jsonpath='{.spec.ports[0].port}' 2>/dev/null || true)"
       [ -z "$resolved_port" ] && resolved_port="80"
-      printf 'http://%s.%s.svc.cluster.local:%s' "$resolved_name" "$NAMESPACE" "$resolved_port"
-      return
+
+      while [ "$attempt" -le "$BACKEND_RESOLVE_RETRIES" ]; do
+        lb_host="$(kubectl get svc "$resolved_name" -n "$NAMESPACE" -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)"
+        if [ -n "$lb_host" ]; then
+          printf 'http://%s:%s' "$lb_host" "$resolved_port"
+          return
+        fi
+
+        lb_host="$(kubectl get svc "$resolved_name" -n "$NAMESPACE" -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)"
+        if [ -n "$lb_host" ]; then
+          printf 'http://%s:%s' "$lb_host" "$resolved_port"
+          return
+        fi
+
+        if [ "$attempt" -lt "$BACKEND_RESOLVE_RETRIES" ]; then
+          sleep "$BACKEND_RESOLVE_DELAY_SECONDS"
+        fi
+        attempt=$((attempt + 1))
+      done
+
+      if [ "$REQUIRE_LOAD_BALANCER" = false ]; then
+        cluster_ip="$(kubectl get svc "$resolved_name" -n "$NAMESPACE" -o jsonpath='{.spec.clusterIP}' 2>/dev/null || true)"
+        if [ -n "$cluster_ip" ]; then
+          printf 'http://%s:%s' "$cluster_ip" "$resolved_port"
+          return
+        fi
+
+        printf 'http://%s.%s.svc.cluster.local:%s' "$resolved_name" "$NAMESPACE" "$resolved_port"
+        return
+      fi
+
+      echo "Service '$svc' has no load balancer address in namespace '$NAMESPACE'." >&2
+      return 1
     fi
+  fi
+
+  if [ "$REQUIRE_LOAD_BALANCER" = true ]; then
+    echo "Service '$svc' could not be resolved from Kubernetes in namespace '$NAMESPACE'." >&2
+    return 1
   fi
 
   printf 'http://%s-%s.%s.svc.cluster.local:80' "$svc" "$svc" "$NAMESPACE"
 }
 
 ensure_crud_api() {
-  API_ID="crud-service"
+  API_ID="crud"
   DISPLAY_NAME="CRUD Service"
   API_PATH="api"
+
+  if [ "$PREVIEW" = true ]; then
+    echo "[preview] api-id=$API_ID path=$API_PATH"
+    return
+  fi
+
   BACKEND_URL="$(resolve_backend_url crud-service)"
+
+  if az apim api show --resource-group "$RESOURCE_GROUP" --service-name "$APIM_NAME" --api-id "crud-service" >/dev/null 2>&1; then
+    API_ID="crud-service"
+  elif az apim api show --resource-group "$RESOURCE_GROUP" --service-name "$APIM_NAME" --api-id "crud" >/dev/null 2>&1; then
+    API_ID="crud"
+  fi
 
   if az apim api show --resource-group "$RESOURCE_GROUP" --service-name "$APIM_NAME" --api-id "$API_ID" >/dev/null 2>&1; then
     az apim api update \
@@ -151,8 +272,8 @@ ensure_crud_api() {
   done
 
   az apim api operation create --resource-group "$RESOURCE_GROUP" --service-name "$APIM_NAME" --api-id "$API_ID" --operation-id health --display-name "Health" --method GET --url-template "/health" >/dev/null
-  az apim api operation create --resource-group "$RESOURCE_GROUP" --service-name "$APIM_NAME" --api-id "$API_ID" --operation-id api-root-get --display-name "API Root GET" --method GET --url-template "/api" >/dev/null
-  az apim api operation create --resource-group "$RESOURCE_GROUP" --service-name "$APIM_NAME" --api-id "$API_ID" --operation-id api-root-post --display-name "API Root POST" --method POST --url-template "/api" >/dev/null
+  az apim api operation create --resource-group "$RESOURCE_GROUP" --service-name "$APIM_NAME" --api-id "$API_ID" --operation-id api-root-get --display-name "API Root GET" --method GET --url-template "/" >/dev/null
+  az apim api operation create --resource-group "$RESOURCE_GROUP" --service-name "$APIM_NAME" --api-id "$API_ID" --operation-id api-root-post --display-name "API Root POST" --method POST --url-template "/" >/dev/null
 
   for METHOD in GET POST PUT PATCH DELETE OPTIONS; do
     op="api-$(printf '%s' "$METHOD" | tr '[:upper:]' '[:lower:]')"
@@ -163,7 +284,7 @@ ensure_crud_api() {
       --operation-id "$op" \
       --display-name "API $METHOD" \
       --method "$METHOD" \
-      --url-template "/api/{*path}" \
+      --url-template "/{*path}" \
       --template-parameters name=path description="Wildcard route path" type=string required=false \
       >/dev/null
   done
@@ -181,6 +302,26 @@ ensure_crud_api() {
       --template-parameters name=path description="Wildcard ACP path" type=string required=false \
       >/dev/null
   done
+
+  SUBSCRIPTION_ID="$(az account show --query id -o tsv 2>/dev/null || true)"
+  if [ -z "$SUBSCRIPTION_ID" ]; then
+    echo "Failed to resolve Azure subscription id for CRUD APIM policy update."
+    return 1
+  fi
+
+  POLICY_FILE="$(mktemp)"
+  cat > "$POLICY_FILE" <<'JSON'
+{
+  "properties": {
+    "format": "rawxml",
+    "value": "<policies><inbound><base /><choose><when condition=\"@(context.Request.OriginalUrl.Path == &quot;/api/health&quot;)\"><rewrite-uri template=\"/health\" copy-unmatched-params=\"true\" /></when><otherwise><rewrite-uri template=\"@(string.Concat(&quot;/api&quot;, context.Request.OriginalUrl.Path.Substring(4)))\" copy-unmatched-params=\"true\" /></otherwise></choose></inbound><backend><base /></backend><outbound><base /></outbound><on-error><base /></on-error></policies>"
+  }
+}
+JSON
+
+  POLICY_URL="https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ApiManagement/service/$APIM_NAME/apis/$API_ID/policies/policy?api-version=2022-08-01"
+  az rest --method put --url "$POLICY_URL" --headers "Content-Type=application/json" --body "@$POLICY_FILE" --only-show-errors >/dev/null
+  rm -f "$POLICY_FILE"
 }
 
 echo "$SERVICES" | while IFS= read -r SERVICE; do
@@ -194,6 +335,12 @@ echo "$SERVICES" | while IFS= read -r SERVICE; do
   API_ID="agent-$SERVICE"
   DISPLAY_NAME="Agent - $SERVICE"
   API_PATH="$API_PATH_PREFIX/$SERVICE"
+
+  if [ "$PREVIEW" = true ]; then
+    echo "[preview] api-id=$API_ID path=$API_PATH"
+    continue
+  fi
+
   BACKEND_URL="$(resolve_backend_url "$SERVICE")"
 
   if az apim api show --resource-group "$RESOURCE_GROUP" --service-name "$APIM_NAME" --api-id "$API_ID" >/dev/null 2>&1; then

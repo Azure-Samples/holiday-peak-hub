@@ -7,17 +7,18 @@
 
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
+const IS_TEST_ENV = process.env.NODE_ENV === 'test';
+const CRUD_API_BASE_URL = process.env.NEXT_PUBLIC_CRUD_API_URL || (IS_TEST_ENV ? 'http://localhost:8000' : undefined);
 
-if (!API_BASE_URL) {
-  throw new Error('NEXT_PUBLIC_API_URL must be set to the APIM gateway URL.');
+if (!CRUD_API_BASE_URL) {
+  throw new Error('NEXT_PUBLIC_CRUD_API_URL must be set to the cloud CRUD gateway URL.');
 }
 
 /**
  * Create axios instance with default configuration
  */
 export const apiClient: AxiosInstance = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: CRUD_API_BASE_URL,
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',

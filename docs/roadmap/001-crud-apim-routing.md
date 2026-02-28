@@ -41,6 +41,14 @@ The `sync-apim-agents` deployment job was designed for agent services only. The 
   - `/api` and `/api/{*path}`
   - `/acp/{*path}`
 - This enables frontend calls proxied as `/api/*` to resolve through APIM to the CRUD backend.
+- `azure.yaml` postdeploy now enforces CRUD inclusion explicitly in APIM sync for `azd up`.
+- `.infra/azd/main.bicep` now exports `APIM_NAME` and `AKS_CLUSTER_NAME` to strengthen hook resolution in fresh environments.
+
+## Validation Snapshot (2026-02-28, env: `dev` / `405`)
+
+- `GET https://holidaypeakhub405-dev-apim.azure-api.net/api/health` returns `200`.
+- `GET https://holidaypeakhub405-dev-apim.azure-api.net/api/products?limit=1` reaches CRUD auth flow (returns `401` when unauthenticated), confirming APIM route-to-backend correctness.
+- CRUD remains included in strict postdeploy APIM sync (`-IncludeCrudService:$true -RequireLoadBalancer:$true`) and stays healthy in full 22-service sweep.
 
 ## Files to Modify
 

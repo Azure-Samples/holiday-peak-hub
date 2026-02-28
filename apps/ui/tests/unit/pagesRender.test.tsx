@@ -1,9 +1,9 @@
 import React from 'react';
-import { act, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 
 import HomePage from '../../app/page';
-import CategoryPage from '../../app/category/[slug]/page';
-import ProductPage from '../../app/product/[id]/page';
+import { CategoryPageClient } from '../../app/category/CategoryPageClient';
+import { ProductPageClient } from '../../app/product/ProductPageClient';
 import CheckoutPage from '../../app/checkout/page';
 import OrderTrackingPage from '../../app/order/[id]/page';
 import ProfilePage from '../../app/profile/page';
@@ -21,6 +21,72 @@ const redirect = jest.fn();
 
 jest.mock('next/navigation', () => ({
   redirect: (path: string) => redirect(path),
+}));
+
+jest.mock('../../lib/hooks/useCategories', () => ({
+  useCategories: () => ({
+    data: [
+      { id: 'electronics', name: 'Electronics', description: 'Electronic devices' },
+      { id: 'fashion', name: 'Fashion', description: 'Fashion products' },
+    ],
+    isLoading: false,
+    isError: false,
+  }),
+}));
+
+jest.mock('../../lib/hooks/useSemanticSearch', () => ({
+  useSemanticSearch: () => ({
+    data: {
+      source: 'agent',
+      items: [
+        {
+          sku: 'seed-product-0001',
+          title: 'Wireless Headphones',
+          description: 'Headphones',
+          brand: 'Holiday Peak',
+          category: 'electronics',
+          price: 199.99,
+          currency: 'USD',
+          images: ['/api/placeholder/300/300'],
+          thumbnail: '/api/placeholder/300/300',
+          inStock: true,
+          rating: 4.8,
+          reviewCount: 123,
+        },
+      ],
+    },
+    isLoading: false,
+    isError: false,
+  }),
+}));
+
+jest.mock('../../lib/hooks/useProducts', () => ({
+  useProduct: () => ({
+    data: {
+      id: 'seed-product-0001',
+      name: 'Wireless Headphones',
+      description: 'Headphones',
+      price: 199.99,
+      category_id: 'electronics',
+      image_url: '/api/placeholder/300/300',
+      in_stock: true,
+      rating: 4.8,
+      review_count: 123,
+      features: ['noise cancellation'],
+    },
+    isLoading: false,
+    isError: false,
+  }),
+}));
+
+jest.mock('../../contexts/AuthContext', () => ({
+  useAuth: () => ({
+    login: jest.fn(),
+    isAuthenticated: false,
+    isLoading: false,
+    user: null,
+    logout: jest.fn(),
+  }),
 }));
 
 jest.mock('@/components/templates/MainLayout', () => ({
@@ -49,27 +115,25 @@ describe('Page rendering smoke tests', () => {
     ).toBeInTheDocument();
   });
 
-  it('redirects categories page to /category/all', () => {
-    CategoriesPage();
-    expect(redirect).toHaveBeenCalledWith('/category/all');
+  it('renders categories page heading', () => {
+    render(<CategoriesPage />);
+    expect(screen.getByText('Categories')).toBeInTheDocument();
   });
 
-  it('redirects new arrivals page to /category/deals', () => {
+  it('redirects new arrivals page to query category route', () => {
     NewArrivalsPage();
-    expect(redirect).toHaveBeenCalledWith('/category/deals');
+    expect(redirect).toHaveBeenCalledWith('/category?slug=deals');
   });
 
-  it('renders category page heading', async () => {
-    await act(async () => {
-      render(<CategoryPage params={Promise.resolve({ slug: 'electronics' })} />);
-    });
-    expect(screen.getByText('Electronics Products')).toBeInTheDocument();
+  it('renders category page heading', () => {
+    render(<CategoryPageClient slug="electronics" />);
+    expect(screen.getByRole('heading', { name: 'Electronics' })).toBeInTheDocument();
   });
 
   it('renders product detail page', () => {
-    render(<ProductPage params={{ id: '1' }} />);
+    render(<ProductPageClient productId="seed-product-0001" />);
     expect(
-      screen.getByRole('heading', { name: 'Premium Wireless Headphones' })
+      screen.getByRole('heading', { name: 'Wireless Headphones' })
     ).toBeInTheDocument();
   });
 
@@ -115,11 +179,11 @@ describe('Page rendering smoke tests', () => {
 
   it('renders login page', () => {
     render(<LoginPage />);
-    expect(screen.getByText('Welcome Back')).toBeInTheDocument();
+    expect(screen.getByText('Welcome to Holiday Peak Hub')).toBeInTheDocument();
   });
 
   it('renders signup page', () => {
-    render(<SignupPage />);
-    expect(screen.getByText('Create Your Account')).toBeInTheDocument();
+    SignupPage();
+    expect(redirect).toHaveBeenCalledWith('/auth/login');
   });
 });

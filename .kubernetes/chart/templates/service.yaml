@@ -4,11 +4,15 @@ metadata:
   name: {{ include "holiday-peak-service.fullname" . }}
   labels:
     app: {{ .Values.serviceName }}
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   selector:
     app: {{ .Values.serviceName }}
   ports:
     - name: http
-      port: 80
-      targetPort: 8000
-  type: ClusterIP
+      port: {{ .Values.service.port | default 80 }}
+      targetPort: {{ .Values.service.targetPort | default 8000 }}
+  type: {{ .Values.service.type | default "ClusterIP" }}

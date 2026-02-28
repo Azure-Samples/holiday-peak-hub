@@ -1,8 +1,9 @@
 /** @type {import('next').NextConfig} */
-const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+const isTestEnv = process.env.NODE_ENV === 'test';
+const crudApiUrl = process.env.NEXT_PUBLIC_CRUD_API_URL || (isTestEnv ? 'http://localhost:8000' : undefined);
 
-if (!apiUrl) {
-  throw new Error('NEXT_PUBLIC_API_URL must be set to the APIM gateway URL.');
+if (!crudApiUrl) {
+  throw new Error('NEXT_PUBLIC_CRUD_API_URL must be set to the cloud CRUD gateway URL.');
 }
 
 const nextConfig = {
@@ -17,7 +18,7 @@ const nextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: `${apiUrl}/api/:path*`,
+        destination: `${crudApiUrl}/api/:path*`,
       },
     ];
   },
@@ -43,7 +44,8 @@ const nextConfig = {
 
   // Environment variables
   env: {
-    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+    NEXT_PUBLIC_CRUD_API_URL: crudApiUrl,
+    NEXT_PUBLIC_API_URL: crudApiUrl,
     NEXT_PUBLIC_ENTRA_CLIENT_ID: process.env.NEXT_PUBLIC_ENTRA_CLIENT_ID,
     NEXT_PUBLIC_ENTRA_TENANT_ID: process.env.NEXT_PUBLIC_ENTRA_TENANT_ID,
   },
