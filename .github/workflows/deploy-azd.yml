@@ -66,7 +66,7 @@ jobs:
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
       - name: Setup azd
-        uses: Azure/setup-azd@v1
+        uses: Azure/setup-azd@v2
 
       - name: Configure azd environment
         run: |
@@ -153,7 +153,7 @@ jobs:
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
       - name: Setup azd
-        uses: Azure/setup-azd@v1
+        uses: Azure/setup-azd@v2
 
       - name: Get AKS credentials
         run: |
@@ -185,7 +185,7 @@ jobs:
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
       - name: Setup azd
-        uses: Azure/setup-azd@v1
+        uses: Azure/setup-azd@v2
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -291,7 +291,7 @@ jobs:
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
       - name: Setup azd
-        uses: Azure/setup-azd@v1
+        uses: Azure/setup-azd@v2
 
       - name: Get AKS credentials
         run: |
@@ -449,7 +449,7 @@ jobs:
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
       - name: Setup azd
-        uses: Azure/setup-azd@v1
+        uses: Azure/setup-azd@v2
 
       - name: Resolve environment values
         run: |
