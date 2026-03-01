@@ -21,6 +21,7 @@ const redirect = jest.fn();
 
 jest.mock('next/navigation', () => ({
   redirect: (path: string) => redirect(path),
+  useParams: () => ({ id: 'ORD-2026-0123' }),
 }));
 
 jest.mock('../../lib/hooks/useCategories', () => ({
@@ -34,33 +35,22 @@ jest.mock('../../lib/hooks/useCategories', () => ({
   }),
 }));
 
-jest.mock('../../lib/hooks/useSemanticSearch', () => ({
-  useSemanticSearch: () => ({
-    data: {
-      source: 'agent',
-      items: [
-        {
-          sku: 'seed-product-0001',
-          title: 'Wireless Headphones',
-          description: 'Headphones',
-          brand: 'Holiday Peak',
-          category: 'electronics',
-          price: 199.99,
-          currency: 'USD',
-          images: ['/api/placeholder/300/300'],
-          thumbnail: '/api/placeholder/300/300',
-          inStock: true,
-          rating: 4.8,
-          reviewCount: 123,
-        },
-      ],
-    },
+jest.mock('../../lib/hooks/useProducts', () => ({
+  useProducts: () => ({
+    data: [
+      {
+        id: 'seed-product-0001',
+        name: 'Wireless Headphones',
+        description: 'Headphones',
+        price: 199.99,
+        category_id: 'electronics',
+        image_url: '/images/products/p1.jpg',
+        in_stock: true,
+      },
+    ],
     isLoading: false,
     isError: false,
   }),
-}));
-
-jest.mock('../../lib/hooks/useProducts', () => ({
   useProduct: () => ({
     data: {
       id: 'seed-product-0001',
@@ -73,6 +63,85 @@ jest.mock('../../lib/hooks/useProducts', () => ({
       rating: 4.8,
       review_count: 123,
       features: ['noise cancellation'],
+    },
+    isLoading: false,
+    isError: false,
+  }),
+}));
+
+jest.mock('../../lib/hooks/useOrders', () => ({
+  useOrder: () => ({
+    data: {
+      id: 'ORD-2026-0123',
+      user_id: 'user-1',
+      items: [
+        {
+          product_id: 'seed-product-0001',
+          quantity: 1,
+          price: 199.99,
+        },
+      ],
+      total: 199.99,
+      status: 'pending',
+      created_at: '2026-01-27T10:00:00Z',
+      tracking: { state: 'processing' },
+      eta: { date: '2026-01-31' },
+      carrier: { name: 'FedEx' },
+    },
+    isLoading: false,
+    isError: false,
+  }),
+}));
+
+jest.mock('../../lib/hooks/useStaff', () => ({
+  useStaffTickets: () => ({
+    data: [
+      {
+        id: 'ticket-1',
+        user_id: 'user-1',
+        subject: 'Need help',
+        status: 'open',
+        priority: 'high',
+        created_at: '2026-01-27T10:00:00Z',
+      },
+    ],
+    isLoading: false,
+    isError: false,
+  }),
+  useStaffReturns: () => ({
+    data: [
+      {
+        id: 'ret-1',
+        order_id: 'ORD-2026-0123',
+        user_id: 'user-1',
+        status: 'pending',
+        reason: 'Damaged',
+        created_at: '2026-01-27T10:00:00Z',
+      },
+    ],
+    isLoading: false,
+    isError: false,
+  }),
+  useStaffShipments: () => ({
+    data: [
+      {
+        id: 'ship-1',
+        order_id: 'ORD-2026-0123',
+        status: 'in_transit',
+        carrier: 'FedEx',
+        tracking_number: 'FDX123',
+        created_at: '2026-01-27T10:00:00Z',
+      },
+    ],
+    isLoading: false,
+    isError: false,
+  }),
+  useStaffAnalyticsSummary: () => ({
+    data: {
+      total_revenue: 1200,
+      total_orders: 12,
+      average_order_value: 100,
+      top_products: [{ name: 'Wireless Headphones' }],
     },
     isLoading: false,
     isError: false,
@@ -122,7 +191,7 @@ describe('Page rendering smoke tests', () => {
 
   it('redirects new arrivals page to query category route', () => {
     NewArrivalsPage();
-    expect(redirect).toHaveBeenCalledWith('/category?slug=deals');
+    expect(redirect).toHaveBeenCalledWith('/deals');
   });
 
   it('renders category page heading', () => {
@@ -142,9 +211,9 @@ describe('Page rendering smoke tests', () => {
     expect(screen.getByText('Order Summary')).toBeInTheDocument();
   });
 
-  it('renders order tracking form', () => {
+  it('renders order details page', () => {
     render(<OrderTrackingPage />);
-    expect(screen.getByText('Track Your Order')).toBeInTheDocument();
+    expect(screen.getByText('Order Details')).toBeInTheDocument();
   });
 
   it('renders profile page', () => {

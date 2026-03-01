@@ -81,6 +81,9 @@ export interface Order {
   total: number;
   status: string;
   created_at: string;
+  tracking?: Record<string, unknown>;
+  eta?: Record<string, unknown>;
+  carrier?: Record<string, unknown>;
 }
 
 export interface CreateOrderRequest {

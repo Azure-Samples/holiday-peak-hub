@@ -8,7 +8,10 @@ jest.mock('@/components/atoms/ThemeToggle', () => ({
 
 jest.mock('next/image', () => ({
 	__esModule: true,
-	default: (props: any) => React.createElement('img', { alt: props.alt || '', ...props }),
+	default: (props: any) => {
+		const { fill, priority, ...rest } = props;
+		return React.createElement('img', { alt: props.alt || '', ...rest });
+	},
 }));
 
 jest.mock('next/link', () => ({

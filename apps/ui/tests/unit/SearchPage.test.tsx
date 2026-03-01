@@ -14,12 +14,9 @@ jest.mock('next/navigation', () => ({
   }),
 }));
 
-jest.mock('../../lib/hooks/useSemanticSearch', () => ({
-  useSemanticSearch: () => ({
-    data: {
-      source: 'agent',
-      items: [],
-    },
+jest.mock('../../lib/hooks/useProducts', () => ({
+  useProductSearch: () => ({
+    data: [],
     isLoading: false,
   }),
 }));
@@ -44,7 +41,7 @@ describe('SearchPage', () => {
     render(<SearchPage />);
 
     expect(screen.getByDisplayValue('headphones')).toBeInTheDocument();
-    expect(screen.getByText('Source: Semantic Search')).toBeInTheDocument();
+    expect(screen.getByText('Source: Catalog Search')).toBeInTheDocument();
   });
 
   it('updates the URL when searching', () => {

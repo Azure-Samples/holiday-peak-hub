@@ -7,7 +7,8 @@ import { ProductGrid } from '@/components/organisms/ProductGrid';
 import { Badge } from '@/components/atoms/Badge';
 import { Select } from '@/components/atoms/Select';
 import { useCategories } from '@/lib/hooks/useCategories';
-import { useSemanticSearch } from '@/lib/hooks/useSemanticSearch';
+import { useProducts } from '@/lib/hooks/useProducts';
+import { mapApiProductsToUi } from '@/lib/utils/productMappers';
 import type { Product as UiProduct } from '@/components/types';
 
 type SortKey = 'popular' | 'price-low' | 'price-high' | 'rating' | 'name';
@@ -21,15 +22,16 @@ export function CategoryPageClient({ slug }: { slug: string }) {
       ? 'All Products'
       : categories.find((category) => category.id === slug)?.name || slug;
 
-  const semanticQuery = slug === 'all' ? 'featured products' : activeCategoryName;
-
   const {
-    data: semanticData,
+    data: categoryProducts,
     isLoading,
     isError,
-  } = useSemanticSearch(semanticQuery, 60);
+  } = useProducts({
+    category: slug === 'all' ? undefined : slug,
+    limit: 60,
+  });
 
-  const products = semanticData?.items || [];
+  const products = mapApiProductsToUi(categoryProducts || []);
 
   const sortedProducts = useMemo(() => {
     const copy = [...products];
@@ -66,11 +68,11 @@ export function CategoryPageClient({ slug }: { slug: string }) {
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{activeCategoryName}</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-2">
-            {uiProducts.length} products · details enriched through agent-backed product lookups.
+            {uiProducts.length} products
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Badge className="bg-ocean-500 text-white">Agent Enriched</Badge>
+          <Badge className="bg-ocean-500 text-white">Live Catalog</Badge>
           <Select
             name="category-sort"
             value={sortBy}

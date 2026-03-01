@@ -2,13 +2,24 @@
 
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { MainLayout } from '@/components/templates/MainLayout';
 import { Button } from '@/components/atoms/Button';
 import { Badge } from '@/components/atoms/Badge';
 import { Card } from '@/components/molecules/Card';
+import { ProductGrid } from '@/components/organisms/ProductGrid';
+import { useCategories } from '@/lib/hooks/useCategories';
+import { useProducts } from '@/lib/hooks/useProducts';
+import { mapApiProductsToUi } from '@/lib/utils/productMappers';
 import { FiShoppingCart, FiTrendingUp, FiPackage, FiZap, FiArrowRight } from 'react-icons/fi';
 
 export default function HomePage() {
+  const { data: categories = [] } = useCategories();
+  const { data: products = [], isLoading } = useProducts({ limit: 12 });
+
+  const featuredProducts = mapApiProductsToUi(products.slice(0, 8));
+  const featuredCategories = categories.slice(0, 4);
+
   return (
     <MainLayout>
       {/* Hero Section */}
@@ -26,7 +37,7 @@ export default function HomePage() {
               real-time inventory, and fast delivery.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
-              <Link href="/category?slug=all">
+              <Link href="/shop">
                 <Button 
                   size="lg" 
                   className="bg-white text-ocean-500 hover:bg-ocean-50 font-semibold px-8"
@@ -35,7 +46,7 @@ export default function HomePage() {
                   Start Shopping
                 </Button>
               </Link>
-              <Link href="/category?slug=deals">
+              <Link href="/deals">
                 <Button 
                   size="lg" 
                   variant="outline" 
@@ -64,32 +75,23 @@ export default function HomePage() {
           </Link>
         </div>
         
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          <CategoryCard
-            title="Electronics"
-            image="/api/placeholder/400/300"
-            href="/category?slug=electronics"
-            count="2,543 products"
-          />
-          <CategoryCard
-            title="Fashion"
-            image="/api/placeholder/400/300"
-            href="/category?slug=fashion"
-            count="8,921 products"
-          />
-          <CategoryCard
-            title="Home & Garden"
-            image="/api/placeholder/400/300"
-            href="/category?slug=home-garden"
-            count="1,234 products"
-          />
-          <CategoryCard
-            title="Sports"
-            image="/api/placeholder/400/300"
-            href="/category?slug=sports"
-            count="3,456 products"
-          />
-        </div>
+        {featuredCategories.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {featuredCategories.map((category) => (
+              <CategoryCard
+                key={category.id}
+                title={category.name}
+                image={category.image_url || '/images/products/p2.jpg'}
+                href={`/category?slug=${encodeURIComponent(category.id)}`}
+                count={category.description || 'Browse products'}
+              />
+            ))}
+          </div>
+        ) : (
+          <Card className="p-6 text-center text-gray-600 dark:text-gray-400">
+            Categories are loading from the backend.
+          </Card>
+        )}
       </section>
 
       {/* Featured Products */}
@@ -109,42 +111,13 @@ export default function HomePage() {
           </Badge>
         </div>
         
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          <ProductCard
-            title="Wireless Headphones"
-            price="$199.99"
-            originalPrice="$299.99"
-            image="/api/placeholder/300/300"
-            rating={4.5}
-            reviews={234}
-            href="/product?id=1"
-          />
-          <ProductCard
-            title="Smart Watch Pro"
-            price="$349.99"
-            image="/api/placeholder/300/300"
-            rating={4.8}
-            reviews={567}
-            href="/product?id=2"
-          />
-          <ProductCard
-            title="Running Shoes"
-            price="$89.99"
-            originalPrice="$129.99"
-            image="/api/placeholder/300/300"
-            rating={4.6}
-            reviews={890}
-            href="/product?id=3"
-          />
-          <ProductCard
-            title="Laptop Backpack"
-            price="$49.99"
-            image="/api/placeholder/300/300"
-            rating={4.4}
-            reviews={456}
-            href="/product?id=4"
-          />
-        </div>
+        <ProductGrid
+          products={featuredProducts}
+          loading={isLoading}
+          showSort={false}
+          showViewToggle={false}
+          emptyMessage="No products available from the backend yet."
+        />
       </section>
 
       {/* Features Section */}
@@ -179,7 +152,13 @@ function CategoryCard({ title, image, href, count }: { title: string; image: str
     <Link href={href}>
       <div className="group relative overflow-hidden rounded-xl bg-white dark:bg-gray-800 shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
         <div className="aspect-[4/3] overflow-hidden">
-          <div className="w-full h-full bg-gradient-to-br from-ocean-100 to-cyan-100 dark:from-ocean-900 dark:to-cyan-900" />
+          <Image
+            src={image}
+            alt={title}
+            width={400}
+            height={300}
+            className="w-full h-full object-cover"
+          />
         </div>
         <div className="p-4">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
@@ -189,49 +168,6 @@ function CategoryCard({ title, image, href, count }: { title: string; image: str
         </div>
         <div className="absolute inset-0 bg-ocean-500/10 dark:bg-ocean-300/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
       </div>
-    </Link>
-  );
-}
-
-function ProductCard({ title, price, originalPrice, image, rating, reviews, href }: { 
-  title: string; 
-  price: string; 
-  originalPrice?: string;
-  image: string; 
-  rating: number; 
-  reviews: number;
-  href: string;
-}) {
-  return (
-    <Link href={href}>
-      <Card className="group hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-        <div className="aspect-square overflow-hidden rounded-t-lg">
-          <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700" />
-        </div>
-        <div className="p-4">
-          <h3 className="font-semibold text-gray-900 dark:text-white mb-2 line-clamp-2">
-            {title}
-          </h3>
-          <div className="flex items-center mb-2">
-            <div className="flex items-center text-yellow-400">
-              {'★'.repeat(Math.floor(rating))}{'☆'.repeat(5 - Math.floor(rating))}
-            </div>
-            <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
-              ({reviews})
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xl font-bold text-ocean-500 dark:text-ocean-300">
-              {price}
-            </span>
-            {originalPrice && (
-              <span className="text-sm text-gray-500 dark:text-gray-400 line-through">
-                {originalPrice}
-              </span>
-            )}
-          </div>
-        </div>
-      </Card>
     </Link>
   );
 }

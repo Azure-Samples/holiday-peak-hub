@@ -162,10 +162,10 @@ export default function DashboardPage() {
                     My Wishlist
                   </Button>
                 </Link>
-                <Link href="/addresses">
+                <Link href="/categories">
                   <Button variant="outline" className="w-full justify-start">
                     <FiMapPin className="mr-2" />
-                    Manage Addresses
+                    Browse Categories
                   </Button>
                 </Link>
               </div>
@@ -205,7 +205,7 @@ export default function DashboardPage() {
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                 Our customer support team is here to assist you 24/7
               </p>
-              <Link href="/help">
+              <Link href="/agents/product-enrichment-chat">
                 <Button className="w-full bg-ocean-500 hover:bg-ocean-600 dark:bg-ocean-300 dark:hover:bg-ocean-400 text-white dark:text-gray-900">
                   Contact Support
                 </Button>

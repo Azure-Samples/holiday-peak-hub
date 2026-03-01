@@ -55,7 +55,7 @@ export const Navigation: React.FC<NavigationProps> = ({
     { label: 'Shop', href: '/shop' },
     { label: 'Categories', href: '/categories' },
     { label: 'Deals', href: '/deals' },
-    { label: 'New Arrivals', href: '/new' },
+    { label: 'Agent Chat', href: '/agents/product-enrichment-chat' },
   ],
   userMenuItems = [
     { key: 'profile', label: 'My Profile', href: '/profile' },
@@ -217,14 +217,16 @@ export const Navigation: React.FC<NavigationProps> = ({
                 iconButton
               />
             ) : (
-              <Button
-                variant="primary"
-                size="sm"
-                iconLeft={<FiUser className="w-4 h-4" />}
-                className="bg-ocean-500 hover:bg-ocean-600 dark:bg-ocean-300 dark:hover:bg-ocean-400"
-              >
-                <Link href="/login">Sign In</Link>
-              </Button>
+              <Link href="/auth/login">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  iconLeft={<FiUser className="w-4 h-4" />}
+                  className="bg-ocean-500 hover:bg-ocean-600 dark:bg-ocean-300 dark:hover:bg-ocean-400"
+                >
+                  Sign In
+                </Button>
+              </Link>
             )}
           </div>
         </div>
