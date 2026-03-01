@@ -1,0 +1,41 @@
+name: deploy-ui-swa
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target GitHub environment
+        required: true
+        default: dev
+      apiUrl:
+        description: Public API base URL used by the UI build
+        required: true
+        default: https://apim-holidaypeakhub405-dev.azure-api.net
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-ui:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Deploy UI to Azure Static Web Apps
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          action: upload
+          azure_static_web_apps_api_token: ${{ secrets.SWA_DEPLOYMENT_TOKEN }}
+          app_location: apps/ui
+          output_location: ''
+          skip_api_build: true
+          app_build_command: yarn install --frozen-lockfile && yarn build
+        env:
+          NEXT_PUBLIC_API_URL: ${{ inputs.apiUrl }}
+          NEXT_PUBLIC_CRUD_API_URL: ${{ inputs.apiUrl }}
