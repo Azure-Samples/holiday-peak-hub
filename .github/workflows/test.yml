@@ -34,4 +34,4 @@ jobs:
           pytest tests/ --maxfail=1
       - name: Run app tests
         run: |
-          pytest apps/**/tests --maxfail=1 || true
+          pytest apps/**/tests --maxfail=1

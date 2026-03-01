@@ -10,7 +10,7 @@ The CI pipeline uses `|| true` when running agent service tests, which masks all
 
 ## Current Behavior
 
-In `.github/workflows/ci.yml` (or test workflow), agent test execution includes:
+In `.github/workflows/test.yml`, app test execution previously included:
 
 ```bash
 pytest apps/*/tests || true
@@ -41,8 +41,6 @@ The `|| true` was likely added as a temporary workaround when agent tests had im
 3. If some agents genuinely cannot be tested in CI (e.g., require Azure services), mark those tests with `@pytest.mark.skip(reason="requires Azure")` instead
 4. Add a CI gate: all test commands must exit 0
 
-## Files to Modify
+## Files Modified
 
-- `.github/workflows/ci.yml` — Remove `|| true`
-- `.github/workflows/test.yml` — Remove `|| true` (if present)
-- `apps/*/tests/` — Fix any failing tests or add skip markers
+- `.github/workflows/test.yml` — Removed `|| true` from app test execution so failures are no longer masked
