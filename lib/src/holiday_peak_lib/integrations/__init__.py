@@ -1,5 +1,9 @@
 """Connector contracts and registry exports."""
 
+from holiday_peak_lib.integrations.pim_generic_rest import (
+    GenericRestPIMConnector,
+    PIMConnectionConfig,
+)
 from holiday_peak_lib.integrations.contracts import (
     AnalyticsConnectorBase,
     AssetData,
@@ -37,4 +41,6 @@ __all__ = [
     "WorkforceConnectorBase",
     "ConnectorRegistration",
     "ConnectorRegistry",
+    "GenericRestPIMConnector",
+    "PIMConnectionConfig",
 ]

@@ -11,7 +11,7 @@ Requires-Dist: uvicorn
 Requires-Dist: pydantic>=2
 Requires-Dist: agent-framework
 Requires-Dist: httpx
-Requires-Dist: azure-ai-projects
+Requires-Dist: azure-ai-projects>=2.0.0b4
 Requires-Dist: azure-identity
 Requires-Dist: azure-search-documents
 Requires-Dist: azure-cosmos
@@ -22,9 +22,10 @@ Requires-Dist: asyncpg
 Requires-Dist: aiohttp
 Requires-Dist: typing-extensions
 Requires-Dist: python-dotenv
-Requires-Dist: azure-monitor-opentelemetry-exporter
-Requires-Dist: opentelemetry-api>=1.27.0
-Requires-Dist: opentelemetry-sdk>=1.27.0
+Provides-Extra: monitor
+Requires-Dist: azure-monitor-opentelemetry>=1.7.0; extra == "monitor"
+Requires-Dist: opentelemetry-api>=1.27.0; extra == "monitor"
+Requires-Dist: opentelemetry-sdk>=1.27.0; extra == "monitor"
 Provides-Extra: dev
 Requires-Dist: faker; extra == "dev"
 Requires-Dist: pre-commit; extra == "dev"
@@ -45,4 +46,4 @@ Requires-Dist: mkdocs; extra == "docs"
 
 # holiday-peak-lib
 
-Shared adapters/connectors library for holiday-peak hub. See parent README for full details.
+Shared adapters/integrations library for holiday-peak hub. See parent README for full details.
