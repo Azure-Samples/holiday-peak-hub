@@ -464,3 +464,13 @@ yarn-error.log*
 
 # Improvements
 improvements.md
+
+# Python build artifacts
+*.egg-info/
+*.egg-info
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+htmlcov/
+.coverage
