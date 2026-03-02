@@ -2,9 +2,6 @@
 param(
     [string]$Namespace = $(if ($env:K8S_NAMESPACE) { $env:K8S_NAMESPACE } else { 'holiday-peak' }),
     [string]$EnvironmentName = $(if ($env:AZURE_ENV_NAME) { $env:AZURE_ENV_NAME } else { 'dev' }),
-    [int]$SeedCategories = $(if ($env:DEMO_SEED_CATEGORIES) { [int]$env:DEMO_SEED_CATEGORIES } else { 10 }),
-    [int]$SeedProducts = $(if ($env:DEMO_SEED_PRODUCTS) { [int]$env:DEMO_SEED_PRODUCTS } else { 100 }),
-    [int]$SeedRandom = $(if ($env:DEMO_SEED_RANDOM) { [int]$env:DEMO_SEED_RANDOM } else { 42 }),
     [int]$WaitTimeoutSeconds = 600,
     [bool]$EnableSeed = $(if ($env:DEMO_SEED_ENABLED) { $env:DEMO_SEED_ENABLED -eq 'true' } else { $true }),
     [bool]$FailOnError = $false
@@ -122,12 +119,6 @@ spec:
           env:
             - name: DEMO_ENVIRONMENT
               value: "$EnvironmentName"
-            - name: DEMO_SEED_CATEGORIES
-              value: "$SeedCategories"
-            - name: DEMO_SEED_PRODUCTS
-              value: "$SeedProducts"
-            - name: DEMO_SEED_RANDOM
-              value: "$SeedRandom"
             - name: POSTGRES_HOST
               value: "$postgresHost"
             - name: POSTGRES_USER
