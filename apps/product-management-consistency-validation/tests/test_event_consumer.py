@@ -6,6 +6,7 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
 from product_management_consistency_validation.completeness_engine import (
     CategorySchema,
     FieldDefinition,
@@ -80,12 +81,13 @@ async def test_skips_event_without_entity_id():
 
 @pytest.mark.asyncio
 async def test_skips_event_when_product_missing():
-    from holiday_peak_lib.adapters.mock_adapters import MockProductAdapter
-    from holiday_peak_lib.adapters.product_adapter import ProductConnector
     from product_management_consistency_validation.adapters import (
         CompletenessStorageAdapter,
         ProductConsistencyAdapters,
+        ProductConsistencyValidator,
     )
+    from holiday_peak_lib.adapters.mock_adapters import MockProductAdapter
+    from holiday_peak_lib.adapters.product_adapter import ProductConnector
 
     connector = ProductConnector(adapter=MockProductAdapter())
     # Mock get_product to return None
@@ -93,6 +95,7 @@ async def test_skips_event_when_product_missing():
     completeness = CompletenessStorageAdapter()
     adapters = ProductConsistencyAdapters(
         products=connector,
+        validator=ProductConsistencyValidator(),
         completeness=completeness,
     )
 
@@ -110,12 +113,13 @@ async def test_skips_event_when_product_missing():
 
 @pytest.mark.asyncio
 async def test_evaluates_completeness_and_stores_report():
-    from holiday_peak_lib.adapters.mock_adapters import MockProductAdapter
-    from holiday_peak_lib.adapters.product_adapter import ProductConnector
     from product_management_consistency_validation.adapters import (
         CompletenessStorageAdapter,
         ProductConsistencyAdapters,
+        ProductConsistencyValidator,
     )
+    from holiday_peak_lib.adapters.mock_adapters import MockProductAdapter
+    from holiday_peak_lib.adapters.product_adapter import ProductConnector
 
     product = _make_product(sku="SKU-10", category="apparel")
     schema = _make_schema("apparel")
@@ -126,6 +130,7 @@ async def test_evaluates_completeness_and_stores_report():
     completeness.seed_schema(schema)
     adapters = ProductConsistencyAdapters(
         products=connector,
+        validator=ProductConsistencyValidator(),
         completeness=completeness,
     )
 
@@ -152,13 +157,14 @@ async def test_evaluates_completeness_and_stores_report():
 
 @pytest.mark.asyncio
 async def test_publishes_enrichment_job_below_threshold(monkeypatch):
-    from holiday_peak_lib.adapters.mock_adapters import MockProductAdapter
-    from holiday_peak_lib.adapters.product_adapter import ProductConnector
-    from holiday_peak_lib.schemas.product import CatalogProduct
     from product_management_consistency_validation.adapters import (
         CompletenessStorageAdapter,
         ProductConsistencyAdapters,
+        ProductConsistencyValidator,
     )
+    from holiday_peak_lib.adapters.mock_adapters import MockProductAdapter
+    from holiday_peak_lib.adapters.product_adapter import ProductConnector
+    from holiday_peak_lib.schemas.product import CatalogProduct
 
     # Product missing description (enrichable) and price → score < 0.7 (name only: 2/4)
     product = CatalogProduct(
@@ -174,6 +180,7 @@ async def test_publishes_enrichment_job_below_threshold(monkeypatch):
     completeness.seed_schema(schema)
     adapters = ProductConsistencyAdapters(
         products=connector,
+        validator=ProductConsistencyValidator(),
         completeness=completeness,
     )
 
@@ -182,15 +189,12 @@ async def test_publishes_enrichment_job_below_threshold(monkeypatch):
     async def _fake_publish(entity_id, report):
         published.append(entity_id)
 
-    with (
-        patch(
-            "product_management_consistency_validation.event_consumer.build_consistency_adapters",
-            return_value=adapters,
-        ),
-        patch(
-            "product_management_consistency_validation.event_consumer._publish_enrichment_job",
-            side_effect=_fake_publish,
-        ),
+    with patch(
+        "product_management_consistency_validation.event_consumer.build_consistency_adapters",
+        return_value=adapters,
+    ), patch(
+        "product_management_consistency_validation.event_consumer._publish_enrichment_job",
+        side_effect=_fake_publish,
     ):
         handlers = build_completeness_event_handlers(completeness_threshold=0.9)
         handler = handlers["completeness-jobs"]
