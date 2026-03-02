@@ -432,6 +432,7 @@ FodyWeavers.xsd
 # Python Environment
 .env/
 .venv/
+*.egg-info/
 
 # Node.js / Next.js
 # dependencies
