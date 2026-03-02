@@ -81,16 +81,18 @@ class Bulkhead:
         """
         try:
             if self.queue_timeout == 0.0:
-                acquired = self._semaphore.locked() is False and self._semaphore._value > 0  # noqa: SLF001
-                if not acquired:
+                if self._semaphore.locked():
                     raise BulkheadFullError(self.name, self.concurrency_limit)
-                await asyncio.wait_for(self._semaphore.acquire(), timeout=0.001)
+                # semaphore.acquire() does not yield when capacity is available
+                await self._semaphore.acquire()
             elif self.queue_timeout is None:
                 await self._semaphore.acquire()
             else:
                 await asyncio.wait_for(
                     self._semaphore.acquire(), timeout=self.queue_timeout
                 )
+        except BulkheadFullError:
+            raise
         except asyncio.TimeoutError as exc:
             logger.warning(
                 "bulkhead name=%s limit=%d active=%d status=rejected",
