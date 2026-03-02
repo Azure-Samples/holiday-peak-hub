@@ -624,12 +624,6 @@ jobs:
                     env:
                       - name: DEMO_ENVIRONMENT
                         value: "${{ inputs.environment }}"
-                      - name: DEMO_SEED_CATEGORIES
-                        value: "10"
-                      - name: DEMO_SEED_PRODUCTS
-                        value: "100"
-                      - name: DEMO_SEED_RANDOM
-                        value: "42"
                       - name: POSTGRES_HOST
                         value: "${POSTGRES_HOST}"
                       - name: POSTGRES_USER

@@ -68,8 +68,7 @@ gh workflow run deploy-azd.yml -f environment=dev -f location=eastus2 -f project
 - Keep `deployShared=true` for all shared-environment rollouts.
 - UI deployment intentionally uses the SWA GitHub Action path (not `azd deploy --service ui`) so App Router dynamic segments (`[id]`, `[slug]`) are built in the same mode as standard SWA workflows.
 - Frontend API calls must always use APIM via `NEXT_PUBLIC_API_URL` (no localhost fallback in UI runtime/build config).
-- Demo seeding is idempotent by item ID (`demo-cat-*`, `demo-prd-*`): re-runs update existing seeded records instead of duplicating them.
-- Lowering `DEMO_SEED_CATEGORIES` or `DEMO_SEED_PRODUCTS` does not delete previously seeded higher-index items; use a table cleanup step when a strict reset is required.
+- Demo seeding uses a curated catalog of 10 categories and 100 products with realistic retail data. Re-runs are idempotent by item ID (`cat-*`, `prd-*`): existing seeded records are updated instead of duplicated.
 - Use environment approvals in GitHub Environments for `staging`/`prod`.
 - Keep image tags immutable for reproducible rollback.
 

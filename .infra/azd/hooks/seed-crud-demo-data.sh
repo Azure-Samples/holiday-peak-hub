@@ -3,9 +3,6 @@ set -eu
 
 NAMESPACE="${K8S_NAMESPACE:-holiday-peak}"
 ENVIRONMENT_NAME="${AZURE_ENV_NAME:-dev}"
-SEED_CATEGORIES="${DEMO_SEED_CATEGORIES:-10}"
-SEED_PRODUCTS="${DEMO_SEED_PRODUCTS:-100}"
-SEED_RANDOM="${DEMO_SEED_RANDOM:-42}"
 WAIT_TIMEOUT_SECONDS="${WAIT_TIMEOUT_SECONDS:-600}"
 SEED_ENABLED="${DEMO_SEED_ENABLED:-true}"
 FAIL_ON_ERROR="${FAIL_ON_ERROR:-false}"
@@ -19,18 +16,6 @@ while [ "$#" -gt 0 ]; do
     --environment)
       shift
       ENVIRONMENT_NAME="$1"
-      ;;
-    --categories)
-      shift
-      SEED_CATEGORIES="$1"
-      ;;
-    --products)
-      shift
-      SEED_PRODUCTS="$1"
-      ;;
-    --seed)
-      shift
-      SEED_RANDOM="$1"
       ;;
     --timeout-seconds)
       shift
@@ -165,12 +150,6 @@ spec:
           env:
             - name: DEMO_ENVIRONMENT
               value: "$ENVIRONMENT_NAME"
-            - name: DEMO_SEED_CATEGORIES
-              value: "$SEED_CATEGORIES"
-            - name: DEMO_SEED_PRODUCTS
-              value: "$SEED_PRODUCTS"
-            - name: DEMO_SEED_RANDOM
-              value: "$SEED_RANDOM"
             - name: POSTGRES_HOST
               value: "$POSTGRES_HOST"
             - name: POSTGRES_USER
