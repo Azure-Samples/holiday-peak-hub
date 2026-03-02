@@ -3,6 +3,7 @@ pyproject.toml
 ./holiday_peak_lib/__init__.py
 ./holiday_peak_lib/app_factory.py
 ./holiday_peak_lib/adapters/__init__.py
+./holiday_peak_lib/adapters/acp_mapper.py
 ./holiday_peak_lib/adapters/base.py
 ./holiday_peak_lib/adapters/crm_adapter.py
 ./holiday_peak_lib/adapters/crud_adapter.py
@@ -15,10 +16,12 @@ pyproject.toml
 ./holiday_peak_lib/adapters/pricing_adapter.py
 ./holiday_peak_lib/adapters/product_adapter.py
 ./holiday_peak_lib/agents/__init__.py
+./holiday_peak_lib/agents/_otel_compat.py
 ./holiday_peak_lib/agents/base_agent.py
 ./holiday_peak_lib/agents/builder.py
 ./holiday_peak_lib/agents/fastapi_mcp.py
 ./holiday_peak_lib/agents/foundry.py
+./holiday_peak_lib/agents/provider_policy.py
 ./holiday_peak_lib/agents/service_agent.py
 ./holiday_peak_lib/agents/memory/__init__.py
 ./holiday_peak_lib/agents/memory/builder.py
@@ -30,7 +33,11 @@ pyproject.toml
 ./holiday_peak_lib/agents/orchestration/router.py
 ./holiday_peak_lib/config/__init__.py
 ./holiday_peak_lib/config/settings.py
+./holiday_peak_lib/integrations/__init__.py
+./holiday_peak_lib/integrations/contracts.py
+./holiday_peak_lib/integrations/registry.py
 ./holiday_peak_lib/schemas/__init__.py
+./holiday_peak_lib/schemas/acp.py
 ./holiday_peak_lib/schemas/core.py
 ./holiday_peak_lib/schemas/crm.py
 ./holiday_peak_lib/schemas/funnel.py
@@ -38,6 +45,7 @@ pyproject.toml
 ./holiday_peak_lib/schemas/logistics.py
 ./holiday_peak_lib/schemas/pricing.py
 ./holiday_peak_lib/schemas/product.py
+./holiday_peak_lib/schemas/truth.py
 ./holiday_peak_lib/utils/__init__.py
 ./holiday_peak_lib/utils/event_hub.py
 ./holiday_peak_lib/utils/logging.py
