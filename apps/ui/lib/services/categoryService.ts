@@ -1,29 +1,9 @@
 import apiClient, { handleApiError } from '../api/client';
 import API_ENDPOINTS from '../api/endpoints';
 import type { Category } from '../types/api';
+import { MOCK_CATEGORIES } from '../data/mockData';
 
-const FALLBACK_CATEGORIES: Category[] = [
-  {
-    id: 'electronics',
-    name: 'Electronics',
-    description: 'Devices, gadgets, and accessories',
-  },
-  {
-    id: 'home',
-    name: 'Home',
-    description: 'Home essentials and decor',
-  },
-  {
-    id: 'fashion',
-    name: 'Fashion',
-    description: 'Clothing and lifestyle items',
-  },
-  {
-    id: 'toys',
-    name: 'Toys',
-    description: 'Toys and family favorites',
-  },
-];
+const FALLBACK_CATEGORIES: Category[] = MOCK_CATEGORIES;
 
 export const categoryService = {
   async list(parentId?: string): Promise<Category[]> {
