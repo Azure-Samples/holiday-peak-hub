@@ -34,9 +34,7 @@ dependencies = [
     "circuitbreaker>=2.0.0",
     "tenacity>=8.2.3",
     # Observability
-    "azure-monitor-opentelemetry>=1.7.0",
-    "opentelemetry-api>=1.28.0",
-    "opentelemetry-sdk>=1.28.0",
+    "azure-monitor-opentelemetry==1.8.6",
     "structlog>=24.4.0",
     # Utilities
     "python-dateutil>=2.9.0",

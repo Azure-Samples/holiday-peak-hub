@@ -157,6 +157,8 @@ class TestCartIntelligenceAgent:
             assert "product_contexts" in result
             assert "pricing_contexts" in result
             assert "inventory_contexts" in result
+            assert "acp" in result
+            assert result["acp"]["domain"] == "cart"
 
 
 class TestCartAnalyticsAdapter:

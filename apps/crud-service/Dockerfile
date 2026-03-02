@@ -6,14 +6,15 @@ WORKDIR /app
 RUN pip install uv
 
 # Copy dependency files
-COPY src/pyproject.toml ./
-COPY README.md ./README.md
+COPY apps/crud-service/src/pyproject.toml ./
+COPY apps/crud-service/README.md ./README.md
 
 # Copy package source for editable install
-COPY src/crud_service ./crud_service
+COPY apps/crud-service/src/crud_service ./crud_service
+COPY lib/src ./holiday_peak_lib_src
 
 # Install dependencies
-RUN uv pip install --system -e .
+RUN uv pip install --system -e ./holiday_peak_lib_src -e .
 
 # Expose port
 EXPOSE 8000

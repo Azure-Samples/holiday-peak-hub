@@ -32,12 +32,22 @@ class OrderStatusAgent(BaseRetailAgent):
             tracking_id = await self.adapters.resolver.resolve_tracking_id(str(order_id))
 
         context = await self.adapters.logistics.build_logistics_context(str(tracking_id))
+        acp_order_status = _build_acp_order_status_payload(
+            order_id=order_id,
+            tracking_id=tracking_id,
+            context=context,
+        )
         response = {
             "service": self.service_name,
             "order_id": order_id,
             "tracking_id": tracking_id,
             "status": context.shipment.status if context else None,
             "events": ([event.model_dump() for event in context.events] if context else []),
+            "acp": {
+                "acp_version": "0.1",
+                "domain": "order_status",
+                "order_status": acp_order_status,
+            },
         }
 
         if self.slm or self.llm:
@@ -68,11 +78,21 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
         if not tracking_id:
             tracking_id = await adapters.resolver.resolve_tracking_id(str(order_id))
         context = await adapters.logistics.build_logistics_context(str(tracking_id))
+        acp_order_status = _build_acp_order_status_payload(
+            order_id=order_id,
+            tracking_id=tracking_id,
+            context=context,
+        )
         return {
             "order_id": order_id,
             "tracking_id": tracking_id,
             "status": context.shipment.status if context else None,
             "events": ([event.model_dump() for event in context.events] if context else []),
+            "acp": {
+                "acp_version": "0.1",
+                "domain": "order_status",
+                "order_status": acp_order_status,
+            },
         }
 
     async def get_order_events(payload: dict[str, Any]) -> dict[str, Any]:
@@ -80,9 +100,20 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
         if not tracking_id:
             return {"error": "tracking_id is required"}
         events = await adapters.logistics.get_events(str(tracking_id))
+        acp_order_status = {
+            "order_id": None,
+            "tracking_id": str(tracking_id),
+            "status": None,
+            "events": [event.model_dump() for event in events],
+        }
         return {
             "tracking_id": tracking_id,
             "events": [event.model_dump() for event in events],
+            "acp": {
+                "acp_version": "0.1",
+                "domain": "order_status",
+                "order_status": acp_order_status,
+            },
         }
 
     mcp.add_tool("/order/status", get_order_status)
@@ -106,3 +137,14 @@ def _order_status_instructions(service_name: str) -> str:
         "Always include a monitoring note: what to track next (e.g., carrier updates, "
         "exception codes, or ETA drift) and any anomalies to watch."
     )
+
+
+def _build_acp_order_status_payload(
+    *, order_id: Any, tracking_id: Any, context: Any
+) -> dict[str, object]:
+    return {
+        "order_id": str(order_id) if order_id is not None else None,
+        "tracking_id": str(tracking_id) if tracking_id is not None else None,
+        "status": context.shipment.status if context else None,
+        "events": [event.model_dump() for event in context.events] if context else [],
+    }

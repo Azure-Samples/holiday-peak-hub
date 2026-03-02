@@ -6,6 +6,7 @@ import re
 from typing import Any, Generic, TypeVar
 
 import asyncpg
+from azure.identity.aio import DefaultAzureCredential
 from crud_service.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,7 @@ class BaseRepository(Generic[T]):
     """
 
     _pool: asyncpg.Pool | None = None
+    _credential: DefaultAzureCredential | None = None
     _initialized_tables: set[str] = set()
 
     def __init__(self, container_name: str):
@@ -39,11 +41,35 @@ class BaseRepository(Generic[T]):
     async def initialize_pool(cls):
         """Initialize shared PostgreSQL connection pool."""
         if cls._pool is None:
-            cls._pool = await asyncpg.create_pool(
-                dsn=settings.postgres_dsn,
-                min_size=settings.postgres_min_pool_size,
-                max_size=settings.postgres_max_pool_size,
-            )
+            if settings.postgres_auth_mode == "entra":
+                cls._pool = await asyncpg.create_pool(
+                    host=settings.postgres_host,
+                    port=settings.postgres_port,
+                    user=settings.postgres_user,
+                    database=settings.postgres_database,
+                    ssl="require" if settings.postgres_ssl else None,
+                    min_size=settings.postgres_min_pool_size,
+                    max_size=settings.postgres_max_pool_size,
+                    connect=cls._connect_with_entra_token,
+                )
+            else:
+                cls._pool = await asyncpg.create_pool(
+                    dsn=settings.postgres_dsn,
+                    min_size=settings.postgres_min_pool_size,
+                    max_size=settings.postgres_max_pool_size,
+                )
+
+    @classmethod
+    def _get_credential(cls) -> DefaultAzureCredential:
+        if cls._credential is None:
+            cls._credential = DefaultAzureCredential()
+        return cls._credential
+
+    @classmethod
+    async def _connect_with_entra_token(cls, *args, **kwargs):
+        token = await cls._get_credential().get_token(settings.postgres_entra_scope)
+        kwargs["password"] = token.token
+        return await asyncpg.connect(*args, **kwargs)
 
     @classmethod
     async def close_pool(cls):
@@ -52,6 +78,9 @@ class BaseRepository(Generic[T]):
             await cls._pool.close()
             cls._pool = None
             cls._initialized_tables = set()
+        if cls._credential is not None:
+            await cls._credential.close()
+            cls._credential = None
 
     async def _get_pool(self) -> asyncpg.Pool:
         """Get initialized PostgreSQL pool."""

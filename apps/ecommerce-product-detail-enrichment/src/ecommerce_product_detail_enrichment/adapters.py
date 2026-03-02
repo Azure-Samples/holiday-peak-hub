@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
+from holiday_peak_lib.adapters.acp_mapper import AcpCatalogMapper
 from holiday_peak_lib.adapters.inventory_adapter import InventoryConnector
 from holiday_peak_lib.adapters.mock_adapters import (
     MockInventoryAdapter,
@@ -22,6 +23,7 @@ class EnrichmentAdapters:
     inventory: InventoryConnector
     acp: "AcpContentAdapter"
     reviews: "ReviewAdapter"
+    acp_mapper: AcpCatalogMapper = field(default_factory=AcpCatalogMapper)
 
 
 class AcpContentAdapter:
@@ -63,7 +65,12 @@ def build_enrichment_adapters(
     inventory = inventory_connector or InventoryConnector(adapter=MockInventoryAdapter())
     acp = AcpContentAdapter()
     reviews = ReviewAdapter()
-    return EnrichmentAdapters(products=products, inventory=inventory, acp=acp, reviews=reviews)
+    return EnrichmentAdapters(
+        products=products,
+        inventory=inventory,
+        acp=acp,
+        reviews=reviews,
+    )
 
 
 def merge_product_enrichment(

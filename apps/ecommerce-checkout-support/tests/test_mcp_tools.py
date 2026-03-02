@@ -94,6 +94,8 @@ class TestMCPToolExecution:
 
         assert "items" in result
         assert "validation" in result
+        assert "acp" in result
+        assert result["acp"]["domain"] == "checkout"
 
     @pytest.mark.asyncio
     async def test_get_pricing_returns_pricing(self, mock_mcp_server, mock_agent):
@@ -106,6 +108,8 @@ class TestMCPToolExecution:
 
         assert "pricing" in result
         assert result["pricing"]["sku"] == "SKU-001"
+        assert "acp" in result
+        assert result["acp"]["domain"] == "checkout"
 
     @pytest.mark.asyncio
     async def test_get_pricing_requires_sku(self, mock_mcp_server, mock_agent):
@@ -130,6 +134,8 @@ class TestMCPToolExecution:
 
         assert "inventory" in result
         assert result["inventory"]["item"]["sku"] == "SKU-001"
+        assert "acp" in result
+        assert result["acp"]["domain"] == "checkout"
 
     @pytest.mark.asyncio
     async def test_get_inventory_requires_sku(self, mock_mcp_server, mock_agent):

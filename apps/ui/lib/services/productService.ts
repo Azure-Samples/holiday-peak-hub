@@ -38,35 +38,6 @@ export const productService = {
     };
   },
 
-import { MOCK_PRODUCTS } from '../data/mockData';
-
-  async listViaAgentFallback(params?: {
-    search?: string;
-    category?: string;
-    limit?: number;
-  }): Promise<Product[]> {
-    // Return local high-fidelity mock data to guarantee UI populated with requested items
-    let items = [...MOCK_PRODUCTS];
-
-    if (params?.category && params.category !== 'all') {
-      items = items.filter(p => p.category_id === params.category);
-    }
-
-    if (params?.search) {
-      const q = params.search.toLowerCase();
-      items = items.filter(p => 
-        p.name.toLowerCase().includes(q) || 
-        p.description.toLowerCase().includes(q)
-      );
-    }
-
-    if (params?.limit) {
-      items = items.slice(0, params.limit);
-    }
-
-    return items;
-  },
-
   /**
    * List all products with optional filters
    */
@@ -85,10 +56,6 @@ import { MOCK_PRODUCTS } from '../data/mockData';
       const response = await apiClient.get<Product[]>(url);
       return response.data;
     } catch (error) {
-      const status = (error as { response?: { status?: number } })?.response?.status;
-      if (status === 401 || (status !== undefined && status >= 500)) {
-        return this.listViaAgentFallback(params);
-      }
       throw handleApiError(error);
     }
   },

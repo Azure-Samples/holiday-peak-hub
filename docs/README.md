@@ -111,6 +111,14 @@ az acr network-rule add -n <acrName> --ip-address <PUBLIC_IP>/32
 azd deploy --service crud-service --no-prompt -e dev
 ```
 
+For Entra-only PostgreSQL authentication in CRUD, set these `azd` environment values before deploy:
+
+```bash
+azd env set POSTGRES_AUTH_MODE entra
+azd env set POSTGRES_USER <aks-managed-identity-name>
+azd env set POSTGRES_PASSWORD ""
+```
+
 6. **Deploy UI through azd**
 
 ```bash

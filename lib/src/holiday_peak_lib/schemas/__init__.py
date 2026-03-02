@@ -1,5 +1,6 @@
 """Pydantic schemas for agents and adapters."""
 
+from .acp import AcpProduct
 from .core import Product, RecommendationRequest, RecommendationResponse, UserContext
 from .crm import CRMAccount, CRMContact, CRMContext, CRMInteraction
 from .funnel import FunnelContext, FunnelMetric
@@ -9,6 +10,7 @@ from .pricing import PriceContext, PriceEntry
 from .product import CatalogProduct, ProductContext
 
 __all__ = [
+    "AcpProduct",
     "UserContext",
     "Product",
     "RecommendationRequest",

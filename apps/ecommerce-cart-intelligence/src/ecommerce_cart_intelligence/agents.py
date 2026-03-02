@@ -83,6 +83,8 @@ class CartIntelligenceAgent(BaseRetailAgent):
             ]
             return await self.invoke_model(request=request, messages=messages)
 
+        acp_cart = _build_acp_cart_payload(items)
+
         return {
             "service": self.service_name,
             "items": items,
@@ -90,6 +92,11 @@ class CartIntelligenceAgent(BaseRetailAgent):
             "pricing_contexts": [ctx.model_dump() for ctx in pricing_contexts],
             "inventory_contexts": [ctx.model_dump() if ctx else None for ctx in inventory_contexts],
             "abandonment_risk": risk,
+            "acp": {
+                "acp_version": "0.1",
+                "domain": "cart",
+                "cart": acp_cart,
+            },
             "insight": "Cart intelligence stub response.",
         }
 
@@ -124,6 +131,11 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
         )
         return {
             "items": items,
+            "acp": {
+                "acp_version": "0.1",
+                "domain": "cart",
+                "cart": _build_acp_cart_payload(items),
+            },
             "product_contexts": [ctx.model_dump() if ctx else None for ctx in product_contexts],
             "pricing_contexts": [ctx.model_dump() for ctx in pricing_contexts],
             "inventory_contexts": [ctx.model_dump() if ctx else None for ctx in inventory_contexts],
@@ -140,7 +152,15 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
         risk = await adapters.analytics.estimate_abandonment_risk(
             items, inventory=inventory_contexts, pricing=pricing_contexts
         )
-        return {"items": items, "abandonment_risk": risk}
+        return {
+            "items": items,
+            "abandonment_risk": risk,
+            "acp": {
+                "acp_version": "0.1",
+                "domain": "cart",
+                "cart": _build_acp_cart_payload(items),
+            },
+        }
 
     async def recommend_actions(payload: dict[str, Any]) -> dict[str, Any]:
         items = _coerce_cart_items(payload.get("items"))
@@ -162,6 +182,11 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
             "items": items,
             "abandonment_risk": risk,
             "recommended_actions": actions,
+            "acp": {
+                "acp_version": "0.1",
+                "domain": "cart",
+                "cart": _build_acp_cart_payload(items),
+            },
         }
 
     mcp.add_tool("/cart/context", get_cart_context)
@@ -190,6 +215,18 @@ def _coerce_cart_items(raw_items: Any) -> list[dict[str, object]]:
                 }
             )
     return items
+
+
+def _build_acp_cart_payload(items: list[dict[str, object]]) -> dict[str, object]:
+    return {
+        "items": [
+            {
+                "sku": str(item.get("sku", "")),
+                "quantity": int(item.get("quantity", 1)),
+            }
+            for item in items
+        ]
+    }
 
 
 def _cart_instructions(service_name: str) -> str:

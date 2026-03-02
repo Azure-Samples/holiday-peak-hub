@@ -51,6 +51,16 @@ class ProductDetailEnrichmentAgent(BaseRetailAgent):
         enriched = merge_product_enrichment(product, acp_content, review_summary)
         enriched["inventory"] = inventory.model_dump() if inventory else None
         enriched["related"] = [item.model_dump() for item in related]
+        availability = "unknown"
+        if inventory and inventory.item.available > 0:
+            availability = "in_stock"
+        elif inventory:
+            availability = "out_of_stock"
+        if product:
+            enriched["acp_product"] = self.adapters.acp_mapper.to_acp_product(
+                product,
+                availability=availability,
+            )
 
         if self.hot_memory:
             await self.hot_memory.set(
@@ -96,6 +106,16 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
         enriched = merge_product_enrichment(product, acp_content, review_summary)
         enriched["inventory"] = inventory.model_dump() if inventory else None
         enriched["related"] = [item.model_dump() for item in related]
+        availability = "unknown"
+        if inventory and inventory.item.available > 0:
+            availability = "in_stock"
+        elif inventory:
+            availability = "out_of_stock"
+        if product:
+            enriched["acp_product"] = adapters.acp_mapper.to_acp_product(
+                product,
+                availability=availability,
+            )
         return {"enriched_product": enriched}
 
     async def get_similar_products(payload: dict[str, Any]) -> dict[str, Any]:

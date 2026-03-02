@@ -1,6 +1,7 @@
 """Routes package."""
 
 from crud_service.routes import (
+    acp_products,
     auth,
     cart,
     categories,
@@ -14,6 +15,7 @@ from crud_service.routes import (
 )
 
 __all__ = [
+    "acp_products",
     "health",
     "auth",
     "users",
