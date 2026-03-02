@@ -15,7 +15,7 @@ const CRUD_API_BASE_URL = IS_TEST_ENV
     ? ''
     : SERVER_CRUD_API_BASE_URL;
 
-if (!CRUD_API_BASE_URL) {
+if (!CRUD_API_BASE_URL && typeof window === 'undefined') {
   throw new Error('NEXT_PUBLIC_CRUD_API_URL must be set to the cloud CRUD gateway URL.');
 }
 

@@ -14,7 +14,7 @@ const AGENT_API_BASE_URL = IS_TEST_ENV
     ? '/agent-api'
     : process.env.NEXT_PUBLIC_AGENT_API_URL || `${SERVER_CRUD_API_BASE_URL.replace(/\/$/, '')}/agents`;
 
-if (!AGENT_API_BASE_URL) {
+if (!AGENT_API_BASE_URL && typeof window === 'undefined') {
   throw new Error('NEXT_PUBLIC_AGENT_API_URL or NEXT_PUBLIC_CRUD_API_URL must be set to a cloud backend URL.');
 }
 
