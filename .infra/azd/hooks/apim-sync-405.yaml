@@ -1,0 +1,3 @@
+services:
+  crud-service:
+    host: aks

@@ -1,4 +1,10 @@
 serviceName: "example-service"
+service:
+  type: "LoadBalancer"
+  port: 80
+  targetPort: 8000
+  annotations:
+    service.beta.kubernetes.io/azure-load-balancer-internal: "true"
 image:
   repository: "ghcr.io/azure-samples/holiday-peak-hub/example"
   tag: "latest"

@@ -26,7 +26,7 @@ export default function HomePage() {
               real-time inventory, and fast delivery.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
-              <Link href="/category/all">
+              <Link href="/category?slug=all">
                 <Button 
                   size="lg" 
                   className="bg-white text-ocean-500 hover:bg-ocean-50 font-semibold px-8"
@@ -35,7 +35,7 @@ export default function HomePage() {
                   Start Shopping
                 </Button>
               </Link>
-              <Link href="/category/deals">
+              <Link href="/category?slug=deals">
                 <Button 
                   size="lg" 
                   variant="outline" 
@@ -59,7 +59,7 @@ export default function HomePage() {
           <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
             Shop by Category
           </h2>
-          <Link href="/category/all" className="text-ocean-500 dark:text-ocean-300 hover:underline font-medium flex items-center">
+          <Link href="/category?slug=all" className="text-ocean-500 dark:text-ocean-300 hover:underline font-medium flex items-center">
             View All <FiArrowRight className="ml-1 w-4 h-4" />
           </Link>
         </div>
@@ -68,25 +68,25 @@ export default function HomePage() {
           <CategoryCard
             title="Electronics"
             image="/api/placeholder/400/300"
-            href="/category/electronics"
+            href="/category?slug=electronics"
             count="2,543 products"
           />
           <CategoryCard
             title="Fashion"
             image="/api/placeholder/400/300"
-            href="/category/fashion"
+            href="/category?slug=fashion"
             count="8,921 products"
           />
           <CategoryCard
             title="Home & Garden"
             image="/api/placeholder/400/300"
-            href="/category/home-garden"
+            href="/category?slug=home-garden"
             count="1,234 products"
           />
           <CategoryCard
             title="Sports"
             image="/api/placeholder/400/300"
-            href="/category/sports"
+            href="/category?slug=sports"
             count="3,456 products"
           />
         </div>
@@ -117,7 +117,7 @@ export default function HomePage() {
             image="/api/placeholder/300/300"
             rating={4.5}
             reviews={234}
-            href="/product/1"
+            href="/product?id=1"
           />
           <ProductCard
             title="Smart Watch Pro"
@@ -125,7 +125,7 @@ export default function HomePage() {
             image="/api/placeholder/300/300"
             rating={4.8}
             reviews={567}
-            href="/product/2"
+            href="/product?id=2"
           />
           <ProductCard
             title="Running Shoes"
@@ -134,7 +134,7 @@ export default function HomePage() {
             image="/api/placeholder/300/300"
             rating={4.6}
             reviews={890}
-            href="/product/3"
+            href="/product?id=3"
           />
           <ProductCard
             title="Laptop Backpack"
@@ -142,7 +142,7 @@ export default function HomePage() {
             image="/api/placeholder/300/300"
             rating={4.4}
             reviews={456}
-            href="/product/4"
+            href="/product?id=4"
           />
         </div>
       </section>

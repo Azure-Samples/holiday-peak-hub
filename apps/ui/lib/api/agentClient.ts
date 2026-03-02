@@ -6,7 +6,13 @@
 
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 
-const AGENT_API_BASE_URL = process.env.NEXT_PUBLIC_AGENT_API_URL || '';
+const IS_TEST_ENV = process.env.NODE_ENV === 'test';
+const CRUD_API_BASE_URL = process.env.NEXT_PUBLIC_CRUD_API_URL || (IS_TEST_ENV ? 'http://localhost:8000' : '');
+const AGENT_API_BASE_URL = process.env.NEXT_PUBLIC_AGENT_API_URL || `${CRUD_API_BASE_URL.replace(/\/$/, '')}/agents`;
+
+if (!AGENT_API_BASE_URL) {
+  throw new Error('NEXT_PUBLIC_AGENT_API_URL or NEXT_PUBLIC_CRUD_API_URL must be set to a cloud backend URL.');
+}
 
 export const agentApiClient: AxiosInstance = axios.create({
   baseURL: AGENT_API_BASE_URL,

@@ -10,9 +10,9 @@ from holiday_peak_lib.agents.foundry import (
     build_foundry_model_target,
     ensure_foundry_agent,
 )
-from holiday_peak_lib.integrations import ConnectorRegistry
 from holiday_peak_lib.agents.memory import ColdMemory, HotMemory, WarmMemory
 from holiday_peak_lib.agents.orchestration.router import RoutingStrategy
+from holiday_peak_lib.integrations import ConnectorRegistry
 from holiday_peak_lib.utils.logging import configure_logging, log_async_operation
 
 DEFAULT_FOUNDY_MODELS = {

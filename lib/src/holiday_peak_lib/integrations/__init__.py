@@ -3,8 +3,8 @@
 from holiday_peak_lib.integrations.contracts import (
     AnalyticsConnectorBase,
     AssetData,
-    CRMConnectorBase,
     CommerceConnectorBase,
+    CRMConnectorBase,
     CustomerData,
     DAMConnectorBase,
     IdentityConnectorBase,

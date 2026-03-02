@@ -14,6 +14,7 @@ NAMESPACE="${K8S_NAMESPACE:-holiday-peak}"
 MAX_RETRIES="${MAX_RETRIES:-3}"
 USE_PORT_FORWARD=false
 BASE_URL=""
+FAIL_ON_ERROR="${FAIL_ON_ERROR:-false}"
 
 # ---- Parse arguments ----
 while [ $# -gt 0 ]; do
@@ -22,6 +23,8 @@ while [ $# -gt 0 ]; do
     --base-url)     BASE_URL="$2"; shift 2 ;;
     --namespace)    NAMESPACE="$2"; shift 2 ;;
     --retries)      MAX_RETRIES="$2"; shift 2 ;;
+    --fail-on-error) FAIL_ON_ERROR=true; shift ;;
+    --non-blocking) FAIL_ON_ERROR=false; shift ;;
     *)              shift ;;
   esac
 done
@@ -71,6 +74,20 @@ echo "Found $SERVICE_COUNT agent services to ensure."
 FAILED=""
 FAIL_COUNT=0
 
+resolve_service_endpoint() {
+  SVC_KEY="$1"
+  RESOLVED_NAME="$(kubectl get svc -n "$NAMESPACE" -l "app=$SVC_KEY" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
+  if [ -z "$RESOLVED_NAME" ]; then
+    return 1
+  fi
+
+  RESOLVED_PORT="$(kubectl get svc "$RESOLVED_NAME" -n "$NAMESPACE" -o jsonpath='{.spec.ports[0].port}' 2>/dev/null || true)"
+  [ -z "$RESOLVED_PORT" ] && RESOLVED_PORT="80"
+
+  echo "$RESOLVED_NAME|$RESOLVED_PORT"
+  return 0
+}
+
 call_ensure() {
   SVC="$1"
   URL="$2"
@@ -99,15 +116,26 @@ call_ensure() {
   return 1
 }
 
-echo "$SERVICES" | while IFS= read -r SVC; do
+while IFS= read -r SVC; do
   [ -z "$SVC" ] && continue
+
+  RESOLVED="$(resolve_service_endpoint "$SVC" || true)"
+  if [ -z "$RESOLVED" ]; then
+    echo "  [$SVC] Service resolution failed (label app=$SVC not found in namespace $NAMESPACE)"
+    FAILED="$FAILED $SVC"
+    FAIL_COUNT=$((FAIL_COUNT + 1))
+    continue
+  fi
+
+  RESOLVED_NAME="${RESOLVED%%|*}"
+  RESOLVED_PORT="${RESOLVED##*|}"
 
   if [ -n "$BASE_URL" ]; then
     URL="$BASE_URL/$SVC/foundry/agents/ensure"
   elif [ "$USE_PORT_FORWARD" = "true" ]; then
     # Find free port and start port-forward
     LOCAL_PORT="$(python3 -c 'import socket; s=socket.socket(); s.bind(("",0)); print(s.getsockname()[1]); s.close()')"
-    kubectl port-forward "svc/$SVC" "$LOCAL_PORT:8000" -n "$NAMESPACE" &
+    kubectl port-forward "svc/$RESOLVED_NAME" "$LOCAL_PORT:$RESOLVED_PORT" -n "$NAMESPACE" >/tmp/ensure_port_forward.log 2>&1 &
     PF_PID=$!
     sleep 3
     URL="http://localhost:$LOCAL_PORT/foundry/agents/ensure"
@@ -121,14 +149,16 @@ echo "$SERVICES" | while IFS= read -r SVC; do
     fi
     continue
   else
-    URL="http://$SVC.$NAMESPACE.svc.cluster.local:8000/foundry/agents/ensure"
+    URL="http://$RESOLVED_NAME.$NAMESPACE.svc.cluster.local:$RESOLVED_PORT/foundry/agents/ensure"
   fi
 
   if ! call_ensure "$SVC" "$URL"; then
     FAILED="$FAILED $SVC"
     FAIL_COUNT=$((FAIL_COUNT + 1))
   fi
-done
+done <<EOF
+$SERVICES
+EOF
 
 echo ""
 echo "=== Ensure Summary ==="
@@ -136,7 +166,11 @@ echo "Total services: $SERVICE_COUNT"
 
 if [ -n "$FAILED" ]; then
   echo "Failed:$FAILED"
-  exit 1
+  if [ "$FAIL_ON_ERROR" = "true" ]; then
+    exit 1
+  fi
+  echo "WARNING: Foundry ensure completed with failures, but FAIL_ON_ERROR=false so deployment can continue."
+  exit 0
 fi
 
 echo "All agents provisioned successfully."
