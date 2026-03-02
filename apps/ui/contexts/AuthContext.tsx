@@ -77,6 +77,25 @@ function AuthProviderInner({ children }: { children: ReactNode }) {
   };
 
   /**
+   * Set the msal-auth cookie so Next.js middleware can detect the auth session
+   * and enforce server-side route protection without a client-side flash.
+   */
+  const setAuthCookie = (roles: string[]) => {
+    if (typeof document === 'undefined') return;
+    const secure = location.protocol === 'https:' ? '; Secure' : '';
+    document.cookie = `msal-auth=${roles.join(',')}; path=/; SameSite=Strict${secure}`;
+  };
+
+  /**
+   * Clear the msal-auth cookie on logout.
+   */
+  const clearAuthCookie = () => {
+    if (typeof document === 'undefined') return;
+    document.cookie =
+      'msal-auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict';
+  };
+
+  /**
    * Login handler
    */
   const login = async () => {
@@ -99,7 +118,10 @@ function AuthProviderInner({ children }: { children: ReactNode }) {
     try {
       // Clear backend session
       await authService.logout();
-      
+
+      // Clear middleware auth cookie
+      clearAuthCookie();
+
       // Clear MSAL session
       await instance.logoutPopup({
         account: account,
@@ -128,13 +150,20 @@ function AuthProviderInner({ children }: { children: ReactNode }) {
             // Fetch user profile from backend
             const userProfile = await authService.getCurrentUser();
             setUser(userProfile);
+
+            // Persist roles in a cookie for Next.js middleware route protection
+            setAuthCookie(userProfile.roles ?? []);
           }
         } catch (error) {
           console.error('Failed to load user:', error);
           setUser(null);
+          clearAuthCookie();
         } finally {
           setIsLoading(false);
         }
+      } else if (!isAuthenticated && inProgress === InteractionStatus.None) {
+        clearAuthCookie();
+        setIsLoading(false);
       } else {
         setIsLoading(false);
       }
