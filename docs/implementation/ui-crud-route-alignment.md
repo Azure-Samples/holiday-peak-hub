@@ -37,3 +37,14 @@
 - Staff routes require staff authorization from backend auth policy.
 - Added a Next.js server route proxy at `/api/*` (`apps/ui/app/api/[...path]/route.ts`) so SWA calls forward to `${NEXT_PUBLIC_CRUD_API_URL}/api/*` consistently in production.
 - Browser-side API clients now use same-origin routes (`/api/*` and `/agent-api/*`) to avoid APIM CORS failures from the SWA origin.
+
+## Entra provisioning update (2026-03-02)
+
+- `azd` `postprovision` now runs `.infra/azd/hooks/ensure-entra-ui-app.ps1` / `.infra/azd/hooks/ensure-entra-ui-app.sh` before model deployment.
+- The hook creates or updates a single-tenant Entra app registration for UI login and sets these azd env values automatically:
+  - `NEXT_PUBLIC_ENTRA_CLIENT_ID`
+  - `NEXT_PUBLIC_ENTRA_TENANT_ID`
+  - `ENTRA_CLIENT_ID`
+  - `ENTRA_TENANT_ID`
+- Redirect URIs are maintained idempotently and include local development (`http://localhost:3000` and `/auth/callback`) plus SWA callback URLs when `staticWebAppDefaultHostname` is available.
+- CRUD env generation hooks now source `ENTRA_TENANT_ID` and `ENTRA_CLIENT_ID` from azd env values instead of leaving them blank.

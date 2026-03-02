@@ -422,11 +422,15 @@ hooks:
   postprovision:
     windows:
       shell: pwsh
-      run: ./.infra/azd/hooks/deploy-foundry-models.ps1
+      run: |
+        ./.infra/azd/hooks/ensure-entra-ui-app.ps1 -FailOnError:$false
+        try { ./.infra/azd/hooks/deploy-foundry-models.ps1 } catch { Write-Warning "deploy-foundry-models failed but continuing postprovision" }
       interactive: false
     posix:
       shell: sh
-      run: ./.infra/azd/hooks/deploy-foundry-models.sh
+      run: |
+        FAIL_ON_ERROR=false ./.infra/azd/hooks/ensure-entra-ui-app.sh
+        ./.infra/azd/hooks/deploy-foundry-models.sh || echo "Warning: deploy-foundry-models failed but continuing postprovision"
       interactive: false
   postdeploy:
     windows:

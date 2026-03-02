@@ -96,6 +96,8 @@ $eventHubNamespace = Ensure-Suffix -Value (First-Value -Map $values -Keys @('EVE
 $keyVaultUri = First-Value -Map $values -Keys @('KEY_VAULT_URI', 'keyVaultUri')
 $redisHost = Ensure-Suffix -Value (First-Value -Map $values -Keys @('REDIS_HOST', 'redisName')) -Suffix '.redis.cache.windows.net'
 $apimGatewayUrl = Resolve-ApimGatewayUrl -Map $values -ResourceGroup $resourceGroup
+$entraTenantId = First-Value -Map $values -Keys @('ENTRA_TENANT_ID', 'NEXT_PUBLIC_ENTRA_TENANT_ID')
+$entraClientId = First-Value -Map $values -Keys @('ENTRA_CLIENT_ID', 'NEXT_PUBLIC_ENTRA_CLIENT_ID')
 
 $outputDir = Split-Path -Parent $OutputPath
 if (-not (Test-Path $outputDir)) {
@@ -129,8 +131,8 @@ REDIS_PORT=6380
 REDIS_DB=0
 REDIS_SSL=true
 
-ENTRA_TENANT_ID=
-ENTRA_CLIENT_ID=
+ENTRA_TENANT_ID=$entraTenantId
+ENTRA_CLIENT_ID=$entraClientId
 ENTRA_CLIENT_SECRET=
 ENTRA_ISSUER=
 

@@ -72,7 +72,8 @@ export const productService = {
       const response = await apiClient.get<Product[]>(url);
       return response.data;
     } catch (error) {
-      if ((error as { response?: { status?: number } })?.response?.status === 401) {
+      const status = (error as { response?: { status?: number } })?.response?.status;
+      if (status === 401 || (status !== undefined && status >= 500)) {
         return this.listViaAgentFallback(params);
       }
       throw handleApiError(error);
