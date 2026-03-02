@@ -5,8 +5,21 @@
  */
 
 import apiClient, { handleApiError } from '../api/client';
+import agentApiClient from '../api/agentClient';
 import API_ENDPOINTS from '../api/endpoints';
 import type { Product } from '../types/api';
+
+type AgentEnrichmentPayload = {
+  title?: string;
+  description?: string;
+  rating?: number;
+  review_count?: number;
+  reviewCount?: number;
+  features?: string[];
+  media?: Array<{ url: string; type?: string }>;
+  inventory?: Record<string, unknown>;
+  related?: Array<Record<string, unknown>>;
+};
 
 export const productService = {
   /**
@@ -31,6 +44,24 @@ export const productService = {
     }
   },
 
+  async listEnriched(params?: {
+    search?: string;
+    category?: string;
+    limit?: number;
+  }): Promise<Product[]> {
+    const products = await this.list(params);
+    const enrichedProducts = await Promise.all(
+      products.map(async (product) => {
+        try {
+          return await this.get(product.id);
+        } catch {
+          return product;
+        }
+      })
+    );
+    return enrichedProducts;
+  },
+
   /**
    * Get single product by ID
    */
@@ -41,6 +72,48 @@ export const productService = {
     } catch (error) {
       throw handleApiError(error);
     }
+  },
+
+  async getEnriched(id: string): Promise<Product> {
+    let baseProduct: Product | null = null;
+    let enrichment: AgentEnrichmentPayload | null = null;
+
+    try {
+      baseProduct = await this.get(id);
+    } catch {
+      baseProduct = null;
+    }
+
+    try {
+      const response = await agentApiClient.post('/ecommerce-product-detail-enrichment/invoke', {
+        sku: id,
+      });
+      const payload = response.data || {};
+      enrichment = (payload.enriched_product || payload) as AgentEnrichmentPayload;
+    } catch {
+      enrichment = null;
+    }
+
+    if (!baseProduct && !enrichment) {
+      throw new Error('Product not found');
+    }
+
+    return {
+      id,
+      name: baseProduct?.name || enrichment?.title || id,
+      description: enrichment?.description || baseProduct?.description || '',
+      price: baseProduct?.price || 0,
+      category_id: baseProduct?.category_id || 'catalog',
+      image_url: baseProduct?.image_url,
+      in_stock: baseProduct?.in_stock ?? true,
+      rating: enrichment?.rating ?? baseProduct?.rating,
+      review_count:
+        enrichment?.review_count ?? enrichment?.reviewCount ?? baseProduct?.review_count,
+      features: enrichment?.features ?? baseProduct?.features,
+      media: enrichment?.media ?? baseProduct?.media,
+      inventory: enrichment?.inventory ?? baseProduct?.inventory,
+      related: enrichment?.related ?? baseProduct?.related,
+    };
   },
 
   /**

@@ -1,11 +1,3 @@
 {
-  "routes": [
-    {
-      "route": "/api/*",
-      "rewrite": "https://holidaypeakhub405-dev-apim.azure-api.net/api/*",
-      "allowedRoles": [
-        "anonymous"
-      ]
-    }
-  ]
+  "routes": []
 }

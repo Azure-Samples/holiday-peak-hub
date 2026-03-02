@@ -24,6 +24,8 @@ The Python CLI in `.infra/cli.py` is scaffolding-only (`generate-bicep`, `genera
 
 Use workflow `.github/workflows/deploy-azd.yml` for ordered production rollout.
 
+> Provisioning is mandatory before frontend/backend consumption in any environment. Always run `azd provision` (and then `azd deploy`) before validating APIs or UI integration.
+
 **Required repository/environment secrets**:
 
 - `AZURE_CLIENT_ID`
@@ -158,7 +160,17 @@ Examples:
 - `https://<apimName>.azure-api.net/agents/ecommerce-cart-intelligence/invoke`
 - `https://<apimName>.azure-api.net/agents/inventory-health-check/health`
 
-11. **End-to-end smoke checks (APIM and SWA)**
+12. **Postdeploy Foundry ensure + CRUD demo seed hooks (`azd deploy` / `azd up`)**
+
+- `ensure-foundry-agents` postdeploy hook now resolves Kubernetes service names by `app=<service>` label and uses the actual Service port, avoiding false failures from chart-generated service names and non-8000 service ports.
+- Foundry ensure runs in non-blocking mode by default for `azd` hooks (`FailOnError=false` / `--non-blocking`) so transient per-service ensure failures do not fail the deployment.
+- `seed-crud-demo-data` postdeploy hook runs a Kubernetes Job with the deployed CRUD image and executes `python -m crud_service.scripts.seed_demo_data`.
+- Seeding is skipped automatically for `prod` / `production` environments and can be disabled with `DEMO_SEED_ENABLED=false`.
+- Seed hook prechecks PostgreSQL connectivity from the running CRUD pod; when DB is unreachable, it reports a warning and exits successfully by default (`--non-blocking` / `FailOnError=false`).
+
+13. **End-to-end smoke checks (APIM and SWA)**
+
+14. **Post-deploy hardening (recommended)**
 
 ```powershell
 $apim = "https://<apimName>.azure-api.net"
@@ -169,7 +181,6 @@ Invoke-WebRequest "$ui/api/products" -UseBasicParsing
 Invoke-WebRequest "$ui/api/categories" -UseBasicParsing
 ```
 
-12. **Post-deploy hardening (recommended)**
 
 After deployment succeeds, remove temporary ACR public ingress:
 

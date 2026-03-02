@@ -28,7 +28,8 @@ axios@1.7.9
 ```
 
 **Backend Requirements**:
-- CRUD Service running on `http://localhost:8000` (or configured `NEXT_PUBLIC_API_URL`)
+- Azure infrastructure must be provisioned (`azd provision`) and services deployed (`azd deploy`) for the target environment.
+- CRUD/Agent APIs must be reachable through cloud APIM endpoint(s) configured in UI env vars.
 - Microsoft Entra ID app registration (client ID, tenant ID)
 
 ## Environment Configuration
@@ -40,7 +41,9 @@ axios@1.7.9
 
 2. Update `.env.local` with your values:
    ```bash
-   NEXT_PUBLIC_API_URL=http://localhost:8000
+  NEXT_PUBLIC_CRUD_API_URL=https://<apimName>.azure-api.net
+  NEXT_PUBLIC_API_URL=https://<apimName>.azure-api.net
+  NEXT_PUBLIC_AGENT_API_URL=https://<apimName>.azure-api.net/agents
    NEXT_PUBLIC_ENTRA_CLIENT_ID=your-client-id
    NEXT_PUBLIC_ENTRA_TENANT_ID=your-tenant-id
    ```
@@ -50,6 +53,12 @@ axios@1.7.9
 ### API Layer (`lib/api/`)
 - **`client.ts`** - Axios client with request/response interceptors
 - **`endpoints.ts`** - Centralized API endpoint definitions
+
+### Route Compatibility (Azure Static Web Apps)
+- Category and product navigation uses query routes for cloud compatibility:
+  - `/category?slug=<categoryId>`
+  - `/product?id=<productId>`
+- Dynamic routes still exist for local/dev compatibility (`/category/[slug]`, `/product/[id]`).
 
 ### Services Layer (`lib/services/`)
 - **`productService.ts`** - Product CRUD operations
@@ -229,8 +238,10 @@ function CartButton({ productId }: { productId: string }) {
 
 **Required** (`.env.local`):
 ```bash
-# Backend API URL
-NEXT_PUBLIC_API_URL=http://localhost:8000
+# Cloud Backend API URLs
+NEXT_PUBLIC_CRUD_API_URL=https://<apimName>.azure-api.net
+NEXT_PUBLIC_API_URL=https://<apimName>.azure-api.net
+NEXT_PUBLIC_AGENT_API_URL=https://<apimName>.azure-api.net/agents
 
 # Microsoft Entra ID (Azure AD)
 NEXT_PUBLIC_ENTRA_CLIENT_ID=your-client-id
@@ -248,7 +259,7 @@ async rewrites() {
   return [
     {
       source: '/api/:path*',
-      destination: `${process.env.NEXT_PUBLIC_API_URL}/:path*`,
+      destination: `${process.env.NEXT_PUBLIC_CRUD_API_URL}/api/:path*`,
     },
   ];
 }

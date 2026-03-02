@@ -33,7 +33,8 @@ param(
     [switch]$UsePortForward,
     [string]$BaseUrl,
     [string]$AzureYamlPath,
-    [int]$MaxRetries = 3
+    [int]$MaxRetries = 3,
+    [bool]$FailOnError = $false
 )
 
 $ErrorActionPreference = 'Stop'
@@ -115,6 +116,28 @@ function Invoke-EnsureEndpoint {
     return $false
 }
 
+function Resolve-K8sServiceEndpoint {
+    param(
+        [Parameter(Mandatory = $true)][string]$ServiceKey,
+        [Parameter(Mandatory = $true)][string]$Ns
+    )
+
+    $resolvedName = kubectl get svc -n $Ns -l "app=$ServiceKey" -o jsonpath="{.items[0].metadata.name}" 2>$null
+    if (-not $resolvedName) {
+        throw "Service '$ServiceKey' not found in namespace '$Ns' with label app=$ServiceKey."
+    }
+
+    $resolvedPort = kubectl get svc $resolvedName -n $Ns -o jsonpath="{.spec.ports[0].port}" 2>$null
+    if (-not $resolvedPort) {
+        $resolvedPort = '80'
+    }
+
+    return @{
+        Name = $resolvedName
+        Port = [string]$resolvedPort
+    }
+}
+
 # ---- Main ----
 $services = Get-AgentServices -Path $AzureYamlPath
 Write-Host "Found $($services.Count) agent services to ensure."
@@ -124,6 +147,16 @@ $portForwardJobs = @()
 
 foreach ($svc in $services) {
     $url = $null
+    $resolved = $null
+
+    try {
+        $resolved = Resolve-K8sServiceEndpoint -ServiceKey $svc -Ns $Namespace
+    }
+    catch {
+        Write-Warning "  [$svc] Service resolution failed: $($_.Exception.Message)"
+        $failed += $svc
+        continue
+    }
 
     if ($UsePortForward) {
         # Find a free local port
@@ -134,12 +167,12 @@ foreach ($svc in $services) {
 
         # Start port-forward in background
         $job = Start-Job -ScriptBlock {
-            param($svc, $ns, $port)
-            kubectl port-forward "svc/$svc" "${port}:8000" -n $ns 2>&1
-        } -ArgumentList $svc, $Namespace, $localPort
+            param($resolvedServiceName, $resolvedServicePort, $ns, $port)
+            kubectl port-forward "svc/$resolvedServiceName" "${port}:$resolvedServicePort" -n $ns 2>&1
+        } -ArgumentList $resolved.Name, $resolved.Port, $Namespace, $localPort
         $portForwardJobs += $job
 
-        Start-Sleep -Seconds 2
+        Start-Sleep -Seconds 3
         $url = "http://localhost:$localPort/foundry/agents/ensure"
     }
     elseif ($BaseUrl) {
@@ -147,7 +180,7 @@ foreach ($svc in $services) {
     }
     else {
         # In-cluster direct call (assumes running from within cluster or with network access)
-        $url = "http://$svc.$Namespace.svc.cluster.local:8000/foundry/agents/ensure"
+        $url = "http://$($resolved.Name).$Namespace.svc.cluster.local:$($resolved.Port)/foundry/agents/ensure"
     }
 
     $ok = Invoke-EnsureEndpoint -ServiceName $svc -Url $url -Retries $MaxRetries
@@ -171,7 +204,12 @@ if ($failed.Count -gt 0) {
     Write-Host ""
     Write-Host "Failed services:"
     $failed | ForEach-Object { Write-Host "  - $_" }
-    exit 1
+    if ($FailOnError) {
+        exit 1
+    }
+
+    Write-Warning 'Foundry ensure completed with failures, but FailOnError=false so deployment can continue.'
+    exit 0
 }
 
 Write-Host ""

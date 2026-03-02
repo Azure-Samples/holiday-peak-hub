@@ -123,11 +123,17 @@ uvicorn main:app --reload --port 8001
 
 ```bash
 cd apps/ui
-cp .env.example .env.local  # Configure API URL and Entra ID
+cp .env.example .env.local  # Configure cloud API URL(s) and Entra ID
 yarn install
 yarn dev
 # Open http://localhost:3000
 ```
+
+> Provisioning is required before frontend usage against cloud backend:
+>
+> 1. `azd env new <env>`
+> 2. `azd provision -e <env>`
+> 3. `azd deploy -e <env>`
 
 ### 3. Configure Environment Variables
 
@@ -144,7 +150,9 @@ ENTRA_CLIENT_ID=your-client-id
 
 **Frontend** (`.env.local`):
 ```bash
-NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_CRUD_API_URL=https://<apimName>.azure-api.net
+NEXT_PUBLIC_API_URL=https://<apimName>.azure-api.net
+NEXT_PUBLIC_AGENT_API_URL=https://<apimName>.azure-api.net/agents
 NEXT_PUBLIC_ENTRA_CLIENT_ID=your-client-id
 NEXT_PUBLIC_ENTRA_TENANT_ID=your-tenant-id
 ```

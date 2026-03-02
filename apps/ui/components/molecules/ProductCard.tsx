@@ -86,7 +86,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       >
         {/* Image */}
         <Link
-          href={`/products/${sku}`}
+          href={`/product?id=${encodeURIComponent(sku)}`}
           className="shrink-0 w-24 h-24 relative overflow-hidden rounded-md"
         >
           <Image
@@ -113,7 +113,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                 </p>
               )}
               <Link
-                href={`/products/${sku}`}
+                href={`/product?id=${encodeURIComponent(sku)}`}
                 className="block font-semibold text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 truncate"
               >
                 {title}
@@ -235,7 +235,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
       {/* Image */}
       <Link
-        href={`/products/${sku}`}
+        href={`/product?id=${encodeURIComponent(sku)}`}
         className="relative aspect-square overflow-hidden bg-gray-100 dark:bg-gray-900"
       >
         <Image
@@ -256,7 +256,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         )}
         
         <Link
-          href={`/products/${sku}`}
+          href={`/product?id=${encodeURIComponent(sku)}`}
           className="font-semibold text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 line-clamp-2 mb-2"
         >
           {title}
