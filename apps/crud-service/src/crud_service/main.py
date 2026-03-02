@@ -8,11 +8,6 @@ import logging
 from contextlib import asynccontextmanager
 
 from azure.monitor.opentelemetry import configure_azure_monitor
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from opentelemetry import trace
-
 from crud_service.auth.dependencies import get_key_vault_secret
 from crud_service.config.settings import get_settings
 from crud_service.integrations.event_publisher import get_event_publisher
@@ -33,6 +28,10 @@ from crud_service.routes import (
     users,
 )
 from crud_service.routes.staff import analytics, returns, shipments, tickets
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from opentelemetry import trace
 
 # Configure structured logging
 logging.basicConfig(
