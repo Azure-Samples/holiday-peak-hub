@@ -1,6 +1,9 @@
 README.md
 pyproject.toml
 crm_campaign_intelligence/__init__.py
+crm_campaign_intelligence/adapters.py
+crm_campaign_intelligence/agents.py
+crm_campaign_intelligence/event_handlers.py
 crm_campaign_intelligence/main.py
 crm_campaign_intelligence.egg-info/PKG-INFO
 crm_campaign_intelligence.egg-info/SOURCES.txt

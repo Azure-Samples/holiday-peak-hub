@@ -1,0 +1,11 @@
+pyproject.toml
+ecommerce_product_detail_enrichment/__init__.py
+ecommerce_product_detail_enrichment/adapters.py
+ecommerce_product_detail_enrichment/agents.py
+ecommerce_product_detail_enrichment/event_handlers.py
+ecommerce_product_detail_enrichment/main.py
+ecommerce_product_detail_enrichment.egg-info/PKG-INFO
+ecommerce_product_detail_enrichment.egg-info/SOURCES.txt
+ecommerce_product_detail_enrichment.egg-info/dependency_links.txt
+ecommerce_product_detail_enrichment.egg-info/requires.txt
+ecommerce_product_detail_enrichment.egg-info/top_level.txt

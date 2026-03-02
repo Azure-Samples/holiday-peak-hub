@@ -1,16 +1,14 @@
 Metadata-Version: 2.4
-Name: holiday-peak-lib
+Name: crm-segmentation-personalization
 Version: 0.1.0
-Summary: Core micro-framework for retail agent adapters, agents, and memory tiers
+Summary: CRM segmentation and personalization
 Author-email: Ricardo Cataldi <rcataldi@microsoft.com>
 Requires-Python: >=3.13
-Description-Content-Type: text/markdown
 Requires-Dist: fastapi
 Requires-Dist: fastapi-mcp
 Requires-Dist: uvicorn
 Requires-Dist: pydantic>=2
 Requires-Dist: agent-framework
-Requires-Dist: httpx
 Requires-Dist: azure-ai-projects>=2.0.0b4
 Requires-Dist: azure-identity
 Requires-Dist: azure-search-documents
@@ -19,13 +17,7 @@ Requires-Dist: azure-storage-blob
 Requires-Dist: azure-eventhub
 Requires-Dist: redis
 Requires-Dist: asyncpg
-Requires-Dist: aiohttp
-Requires-Dist: typing-extensions
-Requires-Dist: python-dotenv
-Provides-Extra: monitor
-Requires-Dist: azure-monitor-opentelemetry>=1.7.0; extra == "monitor"
-Requires-Dist: opentelemetry-api>=1.27.0; extra == "monitor"
-Requires-Dist: opentelemetry-sdk>=1.27.0; extra == "monitor"
+Requires-Dist: holiday-peak-lib @ git+https://github.com/Azure-Samples/holiday-peak-hub.git@v1.0.0#subdirectory=lib/src
 Provides-Extra: dev
 Requires-Dist: faker; extra == "dev"
 Requires-Dist: pre-commit; extra == "dev"
@@ -41,9 +33,3 @@ Provides-Extra: lint
 Requires-Dist: pylint; extra == "lint"
 Requires-Dist: isort; extra == "lint"
 Requires-Dist: black[jupyter]>=25.1.0; extra == "lint"
-Provides-Extra: docs
-Requires-Dist: mkdocs; extra == "docs"
-
-# holiday-peak-lib
-
-Shared adapters/integrations library for holiday-peak hub. See parent README for full details.

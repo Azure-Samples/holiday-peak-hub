@@ -1,0 +1,11 @@
+pyproject.toml
+product_management_acp_transformation/__init__.py
+product_management_acp_transformation/adapters.py
+product_management_acp_transformation/agents.py
+product_management_acp_transformation/event_handlers.py
+product_management_acp_transformation/main.py
+product_management_acp_transformation.egg-info/PKG-INFO
+product_management_acp_transformation.egg-info/SOURCES.txt
+product_management_acp_transformation.egg-info/dependency_links.txt
+product_management_acp_transformation.egg-info/requires.txt
+product_management_acp_transformation.egg-info/top_level.txt

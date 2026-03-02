@@ -1,0 +1,11 @@
+pyproject.toml
+product_management_assortment_optimization/__init__.py
+product_management_assortment_optimization/adapters.py
+product_management_assortment_optimization/agents.py
+product_management_assortment_optimization/event_handlers.py
+product_management_assortment_optimization/main.py
+product_management_assortment_optimization.egg-info/PKG-INFO
+product_management_assortment_optimization.egg-info/SOURCES.txt
+product_management_assortment_optimization.egg-info/dependency_links.txt
+product_management_assortment_optimization.egg-info/requires.txt
+product_management_assortment_optimization.egg-info/top_level.txt
