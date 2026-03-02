@@ -53,6 +53,13 @@ Use this mapping to know the current vs. former names—so you can correctly int
 - Use pytest for Python tests, with pytest-asyncio for async code.
 - Maintain minimum 75% code coverage.
 
+### Build & Deployment Policy
+- **Use GitHub Actions workflows as the source of truth for build/deploy history**.
+- Prefer workflow-based build and deployment over local Docker builds.
+- For service deployments, use workflow matrix filtering to process **only changed services** whenever possible.
+- Treat local Docker builds as exception-only (for explicit debugging) and not as the default validation path.
+- When proposing operational changes, update workflow files first (for example `.github/workflows/deploy-azd.yml`) so all builds are traceable in GitHub.
+
 ## Agent Development Patterns
 
 - All agents extend `BaseRetailAgent` from `holiday_peak_lib.agents`.
