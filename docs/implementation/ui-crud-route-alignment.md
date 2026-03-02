@@ -36,3 +36,4 @@
 - Wishlist persistence is still not exposed by current CRUD endpoints; the page now clearly communicates this and stays functional.
 - Staff routes require staff authorization from backend auth policy.
 - Added a Next.js server route proxy at `/api/*` (`apps/ui/app/api/[...path]/route.ts`) so SWA calls forward to `${NEXT_PUBLIC_CRUD_API_URL}/api/*` consistently in production.
+- Browser-side API clients now use same-origin routes (`/api/*` and `/agent-api/*`) to avoid APIM CORS failures from the SWA origin.

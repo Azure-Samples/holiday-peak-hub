@@ -8,7 +8,12 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 
 const IS_TEST_ENV = process.env.NODE_ENV === 'test';
-const CRUD_API_BASE_URL = process.env.NEXT_PUBLIC_CRUD_API_URL || (IS_TEST_ENV ? 'http://localhost:8000' : undefined);
+const SERVER_CRUD_API_BASE_URL = process.env.NEXT_PUBLIC_CRUD_API_URL;
+const CRUD_API_BASE_URL = IS_TEST_ENV
+  ? 'http://localhost:8000'
+  : typeof window !== 'undefined'
+    ? ''
+    : SERVER_CRUD_API_BASE_URL;
 
 if (!CRUD_API_BASE_URL) {
   throw new Error('NEXT_PUBLIC_CRUD_API_URL must be set to the cloud CRUD gateway URL.');
