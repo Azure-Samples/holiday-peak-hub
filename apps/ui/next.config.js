@@ -13,16 +13,6 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
 
-  // API proxy for local development
-  async rewrites() {
-    return [
-      {
-        source: '/api/:path*',
-        destination: `${crudApiUrl}/api/:path*`,
-      },
-    ];
-  },
-
   // Image optimization configuration
   images: {
     remotePatterns: [
