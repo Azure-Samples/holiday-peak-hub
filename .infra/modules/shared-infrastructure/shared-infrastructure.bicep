@@ -31,21 +31,40 @@ var resolvedPostgresAdminPassword = empty(postgresAdminPassword)
   ? '${take(uniqueString(resourceGroup().id, projectName, environment), 16)}Aa!12345'
   : postgresAdminPassword
 var eventHubsNamespaceName = '${projectName}${envSuffix}-eventhub'
-var truthEventHubNames = [
-  'ingest-jobs'
-  'enrichment-jobs'
-  'export-jobs'
-  'hitl-jobs'
-]
-var truthEventHubConsumerGroups = {
-  'ingest-jobs': [
-    'ingestion-group'
-  ]
-  'enrichment-jobs': [
-    'enrichment-engine'
-  ]
-  'export-jobs': [
+var redisName = '${projectName}${envSuffix}-redis'
+var storageAccountName = take('${safeProjectName}${replace(envSuffix, '-', '')}store', 24)
+var keyVaultName = empty(keyVaultNameOverride)
+  ? take('${projectName}${envSuffix}-kv', 24)
+  : toLower(keyVaultNameOverride)
+var apimName = '${projectName}${envSuffix}-apim'
+var appInsightsName = '${projectName}${envSuffix}-insights'
+var logAnalyticsName = '${projectName}${envSuffix}-logs'
+var vnetName = '${projectName}${envSuffix}-vnet'
+var aiServicesName = take('${safeProjectName}${replace(envSuffix, '-', '')}ais', 24)
+var aiProjectSuffix = substring(uniqueString(resourceGroup().id), 0, 3)
+var aiProjectInstanceName = 'aip${take(safeProjectName, 6)}${aiProjectSuffix}'
+var aiProjectFriendlyName = '${projectName}${envSuffix} Foundry Project'
+var aiProjectDescription = 'Holiday Peak Hub Foundry project for ${environment}.'
+var aiFoundryBaseName = take('${safeProjectName}${replace(envSuffix, '-', '')}', 12)
+var aiFoundryLocation = 'westus3'
+var tags = {
+  Project: projectName
+  Environment: environment
+}
+// Network Security Groups (AVM)
+module aksSystemNsg 'br/public:avm/res/network/network-security-group:0.5.2' = {
+  name: 'nsg-aks-system'
+  params: {
+    name: 'aks-system-nsg'
+    location: location
+    securityRules: [
       {
+        name: 'AllowAKSControlPlane'
+        properties: {
+          protocol: 'Tcp'
+          sourcePortRange: '*'
+          destinationPortRange: '443'
+          sourceAddressPrefix: 'AzureCloud'
           destinationAddressPrefix: '*'
           access: 'Allow'
           priority: 100
@@ -584,37 +603,31 @@ module eventHubs 'br/public:avm/res/event-hub/namespace:0.14.0' = {
         messageRetentionInDays: 7
         partitionCount: 2
       }
+      // Truth-layer job queues (Issue #89)
       {
-        name: truthEventHubNames[0]
+        name: 'ingest-jobs'
         messageRetentionInDays: 7
-        partitionCount: 2
-        consumergroups: [for groupName in truthEventHubConsumerGroups[truthEventHubNames[0]]: {
-          name: groupName
-        }]
+        partitionCount: 4
       }
       {
-        name: truthEventHubNames[1]
+        name: 'gap-jobs'
         messageRetentionInDays: 7
-        partitionCount: 2
-        consumergroups: [for groupName in truthEventHubConsumerGroups[truthEventHubNames[1]]: {
-          name: groupName
-        }]
+        partitionCount: 4
       }
       {
-        name: truthEventHubNames[2]
+        name: 'enrichment-jobs'
         messageRetentionInDays: 7
-        partitionCount: 2
-        consumergroups: [for groupName in truthEventHubConsumerGroups[truthEventHubNames[2]]: {
-          name: groupName
-        }]
+        partitionCount: 4
       }
       {
-        name: truthEventHubNames[3]
+        name: 'writeback-jobs'
         messageRetentionInDays: 7
-        partitionCount: 2
-        consumergroups: [for groupName in truthEventHubConsumerGroups[truthEventHubNames[3]]: {
-          name: groupName
-        }]
+        partitionCount: 4
+      }
+      {
+        name: 'export-jobs'
+        messageRetentionInDays: 7
+        partitionCount: 4
       }
     ]
     tags: tags
