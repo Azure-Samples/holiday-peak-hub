@@ -89,6 +89,26 @@ export const API_ENDPOINTS = {
       get: (id: string) => `/api/staff/shipments/${id}`,
     },
   },
+
+  // Truth Layer Admin
+  truth: {
+    schemas: {
+      list: '/api/truth/schemas',
+      get: (id: string) => `/api/truth/schemas/${id}`,
+      create: '/api/truth/schemas',
+      update: (id: string) => `/api/truth/schemas/${id}`,
+      delete: (id: string) => `/api/truth/schemas/${id}`,
+    },
+    config: {
+      get: '/api/truth/config',
+      update: '/api/truth/config',
+    },
+    analytics: {
+      summary: '/api/truth/analytics/summary',
+      completeness: '/api/truth/analytics/completeness',
+      throughput: '/api/truth/analytics/throughput',
+    },
+  },
 } as const;
 
 export default API_ENDPOINTS;

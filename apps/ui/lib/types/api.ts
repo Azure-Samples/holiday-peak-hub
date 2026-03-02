@@ -170,6 +170,64 @@ export interface Shipment {
   created_at: string;
 }
 
+// Truth Layer Admin types
+
+export interface SchemaField {
+  name: string;
+  type: 'string' | 'number' | 'boolean' | 'array' | 'object';
+  required: boolean;
+  description?: string;
+  enum_values?: string[];
+}
+
+export interface CategorySchema {
+  id: string;
+  category: string;
+  version: string;
+  fields: SchemaField[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TenantConfig {
+  tenant_id: string;
+  auto_approve_threshold: number;
+  enrichment_enabled: boolean;
+  hitl_enabled: boolean;
+  writeback_enabled: boolean;
+  writeback_dry_run: boolean;
+  feature_flags: Record<string, boolean>;
+  updated_at: string;
+}
+
+export interface TruthAnalyticsSummary {
+  overall_completeness: number;
+  total_products: number;
+  enrichment_jobs_processed: number;
+  auto_approved: number;
+  sent_to_hitl: number;
+  queue_pending: number;
+  queue_approved: number;
+  queue_rejected: number;
+  avg_review_time_minutes: number;
+  acp_exports: number;
+  ucp_exports: number;
+}
+
+export interface CompletenessBreakdown {
+  category: string;
+  completeness: number;
+  product_count: number;
+}
+
+export interface PipelineThroughput {
+  timestamp: string;
+  ingested: number;
+  enriched: number;
+  approved: number;
+  rejected: number;
+}
+
 // API Response wrappers
 export interface ApiResponse<T> {
   data: T;
