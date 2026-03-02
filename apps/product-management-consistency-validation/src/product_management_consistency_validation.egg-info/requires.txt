@@ -3,7 +3,6 @@ fastapi-mcp
 uvicorn
 pydantic>=2
 agent-framework
-httpx
 azure-ai-projects>=2.0.0b4
 azure-identity
 azure-search-documents
@@ -12,9 +11,7 @@ azure-storage-blob
 azure-eventhub
 redis
 asyncpg
-aiohttp
-typing-extensions
-python-dotenv
+holiday-peak-lib @ git+https://github.com/Azure-Samples/holiday-peak-hub.git@v1.0.0#subdirectory=lib/src
 
 [dev]
 faker
@@ -22,18 +19,10 @@ pre-commit
 python-dotenv
 debugpy
 
-[docs]
-mkdocs
-
 [lint]
 pylint
 isort
 black[jupyter]>=25.1.0
-
-[monitor]
-azure-monitor-opentelemetry>=1.7.0
-opentelemetry-api>=1.27.0
-opentelemetry-sdk>=1.27.0
 
 [test]
 pytest
