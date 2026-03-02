@@ -42,6 +42,11 @@ from .mappings import (
 _DEFAULT_API_VERSION = "v59.0"
 
 
+def _sanitize_soql_value(value: str) -> str:
+    """Escape single quotes in a SOQL string literal to prevent injection."""
+    return value.replace("\\", "\\\\").replace("'", "\\'")
+
+
 class SalesforceCRMConnector(CRMConnectorBase):
     """Salesforce CRM REST API connector.
 
@@ -168,14 +173,14 @@ class SalesforceCRMConnector(CRMConnectorBase):
             "SELECT Id, Email, FirstName, LastName, Phone, "
             "loyalty_tier__c, Segments__c, HasOptedOutOfEmail, HasOptedOutOfFax, "
             "LastActivityDate, npo02__TotalOppAmount__c "
-            f"FROM Contact WHERE Id = '{customer_id}' LIMIT 1"
+            f"FROM Contact WHERE Id = '{_sanitize_soql_value(customer_id)}' LIMIT 1"
         )
         records = await self._soql(soql)
         return map_contact_to_customer(records[0]) if records else None
 
     async def get_customer_by_email(self, email: str) -> CustomerData | None:
         """Find a Salesforce Contact by email address."""
-        safe_email = email.replace("'", "\\'")
+        safe_email = email.replace("\\", "\\\\").replace("'", "\\'")
         soql = (
             "SELECT Id, Email, FirstName, LastName, Phone, "
             "loyalty_tier__c, Segments__c, HasOptedOutOfEmail, HasOptedOutOfFax, "
@@ -191,7 +196,7 @@ class SalesforceCRMConnector(CRMConnectorBase):
             "SELECT CampaignId, Campaign.Id, Campaign.Name, Campaign.Description, "
             "Campaign.Type, Campaign.Status, Campaign.StartDate, Campaign.EndDate, "
             "Campaign.NumberOfContacts "
-            f"FROM CampaignMember WHERE ContactId = '{customer_id}'"
+            f"FROM CampaignMember WHERE ContactId = '{_sanitize_soql_value(customer_id)}'"
         )
         records = await self._soql(soql)
         segments: list[SegmentData] = []
@@ -209,7 +214,7 @@ class SalesforceCRMConnector(CRMConnectorBase):
         limit: int = 100,
     ) -> list[OrderData]:
         """Retrieve Salesforce Orders linked to the customer's Account."""
-        where_clauses = [f"AccountId = '{customer_id}'"]
+        where_clauses = [f"AccountId = '{_sanitize_soql_value(customer_id)}'"]
         if since is not None:
             since_str = since.strftime("%Y-%m-%dT%H:%M:%SZ")
             where_clauses.append(f"CreatedDate >= {since_str}")
