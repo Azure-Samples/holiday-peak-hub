@@ -5,8 +5,8 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from holiday_peak_lib.adapters.acp_mapper import AcpCatalogMapper
 from holiday_peak_lib.adapters import BaseCRUDAdapter
+from holiday_peak_lib.adapters.acp_mapper import AcpCatalogMapper
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 
