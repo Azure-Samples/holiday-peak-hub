@@ -27,6 +27,7 @@ This document indexes all architectural decisions for the Holiday Peak Hub accel
 | [ADR-019](adrs/adr-019-authentication-rbac.md) | Authentication and Role-Based Access Control | Accepted | 2026-01 |
 | [ADR-020](adrs/adr-020-api-client-architecture.md) | API Client Architecture | Accepted | 2026-01 |
 | [ADR-021](adrs/adr-021-azd-first-deployment.md) | azd-First Deployment with GitHub Actions CI/CD | Accepted | 2026-02 |
+| [ADR-022](adrs/adr-022-branch-naming-convention.md) | Git Branch Naming Convention | Accepted | 2026-03 |
 
 ## How to Use ADRs
 
@@ -84,6 +85,9 @@ Each ADR follows a standard template:
 - Three-tier memory for latency/cost optimization ([ADR-008](adrs/adr-008-memory-tiers.md))
 - AKS with KEDA for elastic scaling, 3 node pools ([ADR-009](adrs/adr-009-aks-deployment.md))
 - azd-first deployment with GitHub Actions CI/CD ([ADR-021](adrs/adr-021-azd-first-deployment.md))
+
+### Governance
+- Git branch naming convention ([ADR-022](adrs/adr-022-branch-naming-convention.md))
 
 ## References
 
