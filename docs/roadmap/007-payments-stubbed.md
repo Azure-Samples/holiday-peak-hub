@@ -2,55 +2,82 @@
 
 **Severity**: Medium  
 **Category**: Backend  
-**Discovered**: February 2026
+**Discovered**: February 2026  
+**Status**: ✅ Resolved — March 2026
 
 ## Summary
 
-Payment processing is completely stubbed in both the backend CRUD service and the frontend checkout flow. No actual payment provider integration exists.
+Payment processing was completely stubbed in both the backend CRUD service and the frontend checkout flow. This has been replaced with a real Stripe integration.
 
-## Current State
+## Previous State
 
 ### Backend (`apps/crud-service/src/crud_service/routes/payments.py`)
-- `POST /payments/intent` — Returns a fake `PaymentIntent` object with a hardcoded client secret
-- `POST /payments/{id}/confirm` — Always returns success without calling any payment API
-- Stripe SDK is listed as a dependency but never used for real API calls
+- `POST /payments/intent` — Returned a fake `PaymentIntent` object with a hardcoded client secret
+- `POST /payments/{id}/confirm` — Always returned success without calling any payment API
+- Stripe SDK was listed as a dependency but never used for real API calls
 - No webhook handler for Stripe events
 
 ### Frontend (`apps/ui/app/checkout/page.tsx`)
-- Checkout form collects card details but does not submit to Stripe
+- Checkout form collected raw card details but did not submit to Stripe
 - No Stripe Elements integration
-- Payment confirmation is simulated client-side
+- Payment confirmation was simulated client-side
 
-## Expected Behavior
+## Current Implementation
 
-- Backend should create real Stripe PaymentIntents via the Stripe SDK
-- Frontend should render Stripe Elements for PCI-compliant card collection
-- Webhook handler should process `payment_intent.succeeded` events
-- Payment events should be published to the `payment-events` Event Hub topic
+### Backend
 
-## Suggested Fix
+#### `POST /api/payments/intent`
+Creates a real Stripe `PaymentIntent` and returns the `client_secret` for frontend confirmation.  
+Requires `STRIPE_SECRET_KEY` environment variable (loaded from Key Vault).
 
-### Phase 1: Backend
-1. Implement real Stripe PaymentIntent creation in `payments.py`
-2. Add webhook endpoint: `POST /webhooks/stripe`
-3. Verify Stripe signature on webhook events
-4. Publish payment events to Event Hubs on success/failure
+#### `POST /api/payments`
+Server-side payment confirmation: creates a `PaymentIntent` with `confirm=True`, updates the
+order status to `paid`, and publishes a `PaymentProcessed` event to Event Hubs.
 
-### Phase 2: Frontend
-1. Add `@stripe/stripe-js` and `@stripe/react-stripe-js` dependencies
-2. Render `<Elements>` + `<PaymentElement>` in checkout
-3. Handle `confirmPayment()` result
-4. Show payment confirmation/error states
+#### `POST /webhooks/stripe`
+Stripe webhook endpoint with signature verification (`STRIPE_WEBHOOK_SECRET`).  
+Handles:
+- `payment_intent.succeeded` → marks order paid, publishes event
+- `payment_intent.payment_failed` → logs the failure
 
-### Phase 3: Testing
-1. Use Stripe test keys and test card numbers
-2. Add integration tests for payment flow
-3. Test webhook handler with Stripe CLI: `stripe trigger payment_intent.succeeded`
+### Frontend
 
-## Files to Modify
+- Added `@stripe/stripe-js` and `@stripe/react-stripe-js` dependencies.
+- Step 2 of checkout now wraps `<PaymentElement>` in an `<Elements>` provider using the
+  `client_secret` fetched from `POST /api/payments/intent`.
+- `stripe.confirmPayment()` is called on form submit (no raw card data touches the server).
+- Falls back to a demo mode placeholder when `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` is not set.
+
+## Configuration
+
+### Environment Variables
+
+| Variable | Where | Description |
+|---|---|---|
+| `STRIPE_SECRET_KEY` | Key Vault / CRUD service env | Stripe secret key (`sk_live_…` / `sk_test_…`) |
+| `STRIPE_WEBHOOK_SECRET` | Key Vault / CRUD service env | Webhook signing secret (`whsec_…`) |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Frontend env / SWA config | Stripe publishable key (`pk_live_…` / `pk_test_…`) |
+
+### Testing with Stripe
+
+Use Stripe test keys and test card numbers.  
+Simulate webhooks locally:
+
+```bash
+stripe listen --forward-to localhost:8000/webhooks/stripe
+stripe trigger payment_intent.succeeded
+```
+
+## Files Modified
 
 - `apps/crud-service/src/crud_service/routes/payments.py`
-- `apps/crud-service/src/crud_service/routes/checkout.py`
+- `apps/crud-service/src/crud_service/routes/webhooks.py` (new)
+- `apps/crud-service/src/crud_service/routes/__init__.py`
+- `apps/crud-service/src/crud_service/main.py`
+- `apps/crud-service/tests/unit/test_payments.py` (new)
 - `apps/ui/app/checkout/page.tsx`
 - `apps/ui/lib/services/checkoutService.ts`
-- `apps/ui/package.json` — Add Stripe dependencies
+- `apps/ui/lib/api/endpoints.ts`
+- `apps/ui/lib/types/api.ts`
+- `apps/ui/package.json`
+

@@ -60,6 +60,7 @@ export const API_ENDPOINTS = {
 
   // Payments
   payments: {
+    intent: '/api/payments/intent',
     process: '/api/payments',
     get: (id: string) => `/api/payments/${id}`,
   },
