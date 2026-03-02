@@ -3,6 +3,13 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/main/VisualStudio.gitignore
 
+# Python build artifacts
+*.egg-info/
+__pycache__/
+*.pyc
+dist/
+build/
+
 # User-specific files
 *.rsuser
 *.suo
