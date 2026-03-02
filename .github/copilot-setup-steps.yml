@@ -1,0 +1,81 @@
+##
+# Copilot Coding Agent — Environment Bootstrap
+#
+# This workflow is executed by the GitHub Copilot coding agent before it begins
+# working on an issue. It installs every runtime dependency the agent needs to
+# build, lint, and test all Python services and the Next.js frontend.
+#
+# Docs: https://docs.github.com/en/copilot/using-github-copilot/coding-agent
+##
+
+name: "Copilot Setup Steps"
+
+on: workflow_dispatch
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout ────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Python 3.13 ─────────────────────────────────────────────
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      # ── 3. Install uv (fast Python package manager) ────────────────
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      # ── 4. Install shared library (lib) with all extras ────────────
+      - name: Install holiday-peak-lib
+        run: |
+          uv pip install --system -e "lib/src[test,lint,dev]"
+
+      # ── 5. Install every Python app ─────────────────────────────────
+      - name: Install all Python service apps
+        run: |
+          for d in apps/*/src; do
+            if [ -f "$d/pyproject.toml" ]; then
+              echo "::group::Installing $(basename $(dirname $d))"
+              uv pip install --system -e "$d" || echo "⚠ Skipped $d"
+              echo "::endgroup::"
+            fi
+          done
+
+      # ── 6. Install additional test dependencies ────────────────────
+      - name: Install test tooling
+        run: |
+          uv pip install --system pytest pytest-cov pytest-asyncio httpx requests
+
+      # ── 7. Node.js 20 (for the UI) ─────────────────────────────────
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # ── 8. Install frontend dependencies ────────────────────────────
+      - name: Install UI dependencies
+        working-directory: apps/ui
+        run: |
+          corepack enable
+          yarn install --frozen-lockfile || yarn install
+
+      # ── 9. Verify Python setup ──────────────────────────────────────
+      - name: Verify Python environment
+        run: |
+          python --version
+          python -c "import holiday_peak_lib; print('✓ holiday-peak-lib importable')"
+          python -m pytest --co -q lib/tests/ 2>/dev/null | tail -5 || true
+
+      # ── 10. Verify frontend setup ───────────────────────────────────
+      - name: Verify frontend build
+        working-directory: apps/ui
+        run: |
+          npx next --version || true
