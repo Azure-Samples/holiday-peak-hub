@@ -8,6 +8,7 @@ import apiClient, { handleApiError } from '../api/client';
 import agentApiClient from '../api/agentClient';
 import API_ENDPOINTS from '../api/endpoints';
 import type { Product } from '../types/api';
+import { parsePriceString, type AcpProduct } from '../utils/productMappers';
 
 type AgentEnrichmentPayload = {
   title?: string;
@@ -22,6 +23,37 @@ type AgentEnrichmentPayload = {
 };
 
 export const productService = {
+  mapAcpToProduct(product: AcpProduct): Product {
+    const { amount } = parsePriceString(product.price);
+    const availability = (product.availability || '').toLowerCase();
+
+    return {
+      id: product.item_id,
+      name: product.title || product.item_id,
+      description: product.description || '',
+      price: amount,
+      category_id: product.category_id || product.category || 'search',
+      image_url: product.image_url || product.image,
+      in_stock: availability !== 'out_of_stock',
+    };
+  },
+
+  async listViaAgentFallback(params?: {
+    search?: string;
+    category?: string;
+    limit?: number;
+  }): Promise<Product[]> {
+    const response = await agentApiClient.post('/ecommerce-catalog-search/invoke', {
+      query: params?.search || '',
+      limit: params?.limit || 24,
+      filters: params?.category ? { category: params.category } : undefined,
+    });
+
+    const payload = response.data || {};
+    const items = (payload.results || payload.items || []) as AcpProduct[];
+    return items.map((item) => this.mapAcpToProduct(item));
+  },
+
   /**
    * List all products with optional filters
    */
@@ -40,6 +72,9 @@ export const productService = {
       const response = await apiClient.get<Product[]>(url);
       return response.data;
     } catch (error) {
+      if ((error as { response?: { status?: number } })?.response?.status === 401) {
+        return this.listViaAgentFallback(params);
+      }
       throw handleApiError(error);
     }
   },
@@ -120,26 +155,14 @@ export const productService = {
    * Search products by name
    */
   async search(query: string, limit = 20): Promise<Product[]> {
-    try {
-      const url = `${API_ENDPOINTS.products.list}?search=${encodeURIComponent(query)}&limit=${limit}`;
-      const response = await apiClient.get<Product[]>(url);
-      return response.data;
-    } catch (error) {
-      throw handleApiError(error);
-    }
+    return this.list({ search: query, limit });
   },
 
   /**
    * Get products by category
    */
   async getByCategory(categoryId: string, limit = 50): Promise<Product[]> {
-    try {
-      const url = `${API_ENDPOINTS.products.list}?category=${categoryId}&limit=${limit}`;
-      const response = await apiClient.get<Product[]>(url);
-      return response.data;
-    } catch (error) {
-      throw handleApiError(error);
-    }
+    return this.list({ category: categoryId, limit });
   },
 };
 
