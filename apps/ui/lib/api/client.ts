@@ -8,9 +8,14 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 
 const IS_TEST_ENV = process.env.NODE_ENV === 'test';
-const CRUD_API_BASE_URL = process.env.NEXT_PUBLIC_CRUD_API_URL || (IS_TEST_ENV ? 'http://localhost:8000' : undefined);
+const SERVER_CRUD_API_BASE_URL = process.env.NEXT_PUBLIC_CRUD_API_URL;
+const CRUD_API_BASE_URL = IS_TEST_ENV
+  ? 'http://localhost:8000'
+  : typeof window !== 'undefined'
+    ? ''
+    : SERVER_CRUD_API_BASE_URL;
 
-if (!CRUD_API_BASE_URL) {
+if (!CRUD_API_BASE_URL && typeof window === 'undefined') {
   throw new Error('NEXT_PUBLIC_CRUD_API_URL must be set to the cloud CRUD gateway URL.');
 }
 
@@ -50,15 +55,9 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    const originalRequest = error.config;
-
     // Handle 401 Unauthorized
-    if (error.response?.status === 401) {
-      // Clear token and redirect to login
-      if (typeof window !== 'undefined') {
-        sessionStorage.removeItem('auth_token');
-        window.location.href = '/auth/login';
-      }
+    if (error.response?.status === 401 && typeof window !== 'undefined') {
+      sessionStorage.removeItem('auth_token');
     }
 
     // Handle 403 Forbidden

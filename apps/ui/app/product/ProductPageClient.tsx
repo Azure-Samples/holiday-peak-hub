@@ -2,6 +2,7 @@
 
 import React, { useMemo } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { MainLayout } from '@/components/templates/MainLayout';
 import { Badge } from '@/components/atoms/Badge';
 import { Button } from '@/components/atoms/Button';
@@ -53,7 +54,15 @@ export function ProductPageClient({ productId }: { productId: string }) {
           </nav>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mb-12">
-            <div className="aspect-square bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 rounded-2xl" />
+            <div className="aspect-square rounded-2xl overflow-hidden bg-gray-100 dark:bg-gray-800">
+              <Image
+                src={uiProduct.thumbnail || '/images/products/p1.jpg'}
+                alt={product.name}
+                width={800}
+                height={800}
+                className="w-full h-full object-cover"
+              />
+            </div>
 
             <div>
               <div className="flex items-center gap-3 mb-4">
@@ -87,6 +96,13 @@ export function ProductPageClient({ productId }: { productId: string }) {
                 <FiShoppingCart className="mr-2 w-5 h-5" />
                 Add to Cart
               </Button>
+
+              <Link
+                href={`/agents/product-enrichment-chat?sku=${encodeURIComponent(product.id)}`}
+                className="inline-flex w-full sm:w-auto mt-3 sm:mt-0 sm:ml-3"
+              >
+                <Button variant="outline" size="lg" className="w-full">Ask Product Agent</Button>
+              </Link>
 
               {uiProduct.tags && uiProduct.tags.length > 0 && (
                 <div className="mt-6 flex flex-wrap gap-2">

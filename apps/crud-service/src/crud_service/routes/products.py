@@ -29,6 +29,50 @@ class ProductResponse(BaseModel):
     related: list[dict[str, object]] | None = None
 
 
+async def _fetch_products(
+    *,
+    search: str | None,
+    category: str | None,
+    limit: int,
+    current_user: User | None,
+) -> list[dict]:
+    products: list[dict] = []
+
+    if search:
+        try:
+            agent_results = await agent_client.semantic_search(search, limit=limit)
+            if agent_results:
+                products = agent_results
+        except Exception:
+            pass
+        if not products:
+            products = await product_repo.search_by_name(search, limit=limit)
+    elif category:
+        products = await product_repo.get_by_category(category, limit=limit)
+    else:
+        products = await product_repo.query(
+            query="SELECT * FROM c OFFSET 0 LIMIT @limit",
+            parameters=[{"name": "@limit", "value": limit}],
+        )
+
+    if current_user:
+        try:
+            recommendations = await agent_client.get_user_recommendations(
+                user_id=current_user.user_id
+            )
+            if isinstance(recommendations, dict):
+                boosted_skus = recommendations.get("boosted_skus") or []
+                if boosted_skus:
+                    sku_set = set(boosted_skus)
+                    boosted = [p for p in products if p.get("id") in sku_set]
+                    rest = [p for p in products if p.get("id") not in sku_set]
+                    products = boosted + rest
+        except Exception:
+            pass
+
+    return products
+
+
 @router.get("/products", response_model=list[ProductResponse])
 async def list_products(
     search: str | None = Query(None, description="Search term"),
@@ -44,42 +88,12 @@ async def list_products(
     the CRUD keyword search is used as fallback.
     Authenticated users may get personalized ordering (via agent).
     """
-    products: list[dict] = []
-
-    if search:
-        # Try semantic search via the catalog-search agent first
-        try:
-            agent_results = await agent_client.semantic_search(search, limit=limit)
-            if agent_results:
-                products = agent_results
-        except Exception:
-            pass
-        # Fallback to keyword search
-        if not products:
-            products = await product_repo.search_by_name(search, limit=limit)
-    elif category:
-        products = await product_repo.get_by_category(category, limit=limit)
-    else:
-        products = await product_repo.query(
-            query="SELECT * FROM c OFFSET 0 LIMIT @limit",
-            parameters=[{"name": "@limit", "value": limit}],
-        )
-
-    # Personalized ordering for authenticated users
-    if current_user:
-        try:
-            recommendations = await agent_client.get_user_recommendations(
-                user_id=current_user.user_id
-            )
-            if isinstance(recommendations, dict):
-                boosted_skus = recommendations.get("boosted_skus") or []
-                if boosted_skus:
-                    sku_set = set(boosted_skus)
-                    boosted = [p for p in products if p.get("id") in sku_set]
-                    rest = [p for p in products if p.get("id") not in sku_set]
-                    products = boosted + rest
-        except Exception:
-            pass  # Fallback to default ordering
+    products = await _fetch_products(
+        search=search,
+        category=category,
+        limit=limit,
+        current_user=current_user,
+    )
 
     return [ProductResponse(**p) for p in products]
 

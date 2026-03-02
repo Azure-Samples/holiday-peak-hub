@@ -2,6 +2,26 @@
  * MSAL Configuration for Microsoft Entra ID authentication
  */
 
+const entraClientId = process.env.NEXT_PUBLIC_ENTRA_CLIENT_ID || '';
+const entraTenantId = process.env.NEXT_PUBLIC_ENTRA_TENANT_ID || '';
+
+export const isEntraConfigured = Boolean(entraClientId && entraTenantId);
+
+export const getMissingEntraConfigKeys = (): string[] => {
+  const missing: string[] = [];
+  if (!entraClientId) missing.push('NEXT_PUBLIC_ENTRA_CLIENT_ID');
+  if (!entraTenantId) missing.push('NEXT_PUBLIC_ENTRA_TENANT_ID');
+  return missing;
+};
+
+export const getEntraConfigError = (): string | null => {
+  if (isEntraConfigured) {
+    return null;
+  }
+
+  return "Couldn't proceed with your login.";
+};
+
 /**
  * Get MSAL configuration object (client-only)
  */
@@ -10,8 +30,8 @@ export const getMsalConfig = () => {
 
   return {
     auth: {
-      clientId: process.env.NEXT_PUBLIC_ENTRA_CLIENT_ID || '',
-      authority: `https://login.microsoftonline.com/${process.env.NEXT_PUBLIC_ENTRA_TENANT_ID || 'common'}`,
+      clientId: entraClientId,
+      authority: `https://login.microsoftonline.com/${entraTenantId || 'common'}`,
       redirectUri,
       postLogoutRedirectUri: redirectUri,
       navigateToLoginRequestUrl: true,
@@ -42,5 +62,7 @@ export const loginRequest = {
  * Scopes for API access
  */
 export const apiRequest = {
-  scopes: [`api://${process.env.NEXT_PUBLIC_ENTRA_CLIENT_ID}/user_impersonation`],
+  scopes: entraClientId
+    ? [`api://${entraClientId}/user_impersonation`]
+    : ['openid', 'profile', 'email', 'User.Read'],
 };

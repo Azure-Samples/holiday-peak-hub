@@ -24,8 +24,22 @@ on:
         required: true
         type: boolean
         default: true
+      uiOnly:
+        description: Deploy only the UI using SWA token (skips provision and Azure login jobs)
+        required: true
+        type: boolean
+        default: false
+      apiBaseUrl:
+        description: Optional API base URL for UI build override
+        required: false
+        default: ''
       seedDemoData:
         description: Run demo faker seed job after deployment (non-prod only)
+        required: true
+        type: boolean
+        default: true
+      deployChangedOnly:
+        description: Deploy only services changed vs default branch
         required: true
         type: boolean
         default: true
@@ -35,7 +49,97 @@ permissions:
   contents: read
 
 jobs:
+  detect-changes:
+    if: ${{ !inputs.uiOnly }}
+    runs-on: ubuntu-latest
+    outputs:
+      crud_changed: ${{ steps.detect.outputs.crud_changed }}
+      ui_changed: ${{ steps.detect.outputs.ui_changed }}
+      agents_changed: ${{ steps.detect.outputs.agents_changed }}
+      changed_agents_matrix: ${{ steps.detect.outputs.changed_agents_matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed services
+        id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
+          git fetch origin "$DEFAULT_BRANCH" --depth=1
+
+          CHANGED_FILES=$(git diff --name-only "origin/$DEFAULT_BRANCH...HEAD")
+
+          mapfile -t AGENT_SERVICES <<'EOF'
+          crm-campaign-intelligence
+          crm-profile-aggregation
+          crm-segmentation-personalization
+          crm-support-assistance
+          ecommerce-cart-intelligence
+          ecommerce-catalog-search
+          ecommerce-checkout-support
+          ecommerce-order-status
+          ecommerce-product-detail-enrichment
+          inventory-alerts-triggers
+          inventory-health-check
+          inventory-jit-replenishment
+          inventory-reservation-validation
+          logistics-carrier-selection
+          logistics-eta-computation
+          logistics-returns-support
+          logistics-route-issue-detection
+          product-management-acp-transformation
+          product-management-assortment-optimization
+          product-management-consistency-validation
+          product-management-normalization-classification
+          EOF
+
+          SHARED_CHANGED=false
+          if echo "$CHANGED_FILES" | grep -Eq '^(lib/|pyproject.toml|azure.yaml|\.infra/|\.kubernetes/)'; then
+            SHARED_CHANGED=true
+          fi
+
+          CRUD_CHANGED=false
+          if [ "$SHARED_CHANGED" = true ] || echo "$CHANGED_FILES" | grep -Eq '^apps/crud-service/'; then
+            CRUD_CHANGED=true
+          fi
+
+          UI_CHANGED=false
+          if [ "$SHARED_CHANGED" = true ] || echo "$CHANGED_FILES" | grep -Eq '^apps/ui/'; then
+            UI_CHANGED=true
+          fi
+
+          AGENTS_CHANGED=false
+          MATRIX='[]'
+
+          if [ "$SHARED_CHANGED" = true ]; then
+            AGENTS_CHANGED=true
+            MATRIX=$(printf '%s\n' "${AGENT_SERVICES[@]}" | jq -R . | jq -s 'map({service: .})')
+          else
+            CHANGED_AGENTS=()
+            for service in "${AGENT_SERVICES[@]}"; do
+              if echo "$CHANGED_FILES" | grep -Eq "^apps/$service/"; then
+                CHANGED_AGENTS+=("$service")
+              fi
+            done
+
+            if [ ${#CHANGED_AGENTS[@]} -gt 0 ]; then
+              AGENTS_CHANGED=true
+              MATRIX=$(printf '%s\n' "${CHANGED_AGENTS[@]}" | jq -R . | jq -s 'map({service: .})')
+            fi
+          fi
+
+          echo "crud_changed=$CRUD_CHANGED" >> "$GITHUB_OUTPUT"
+          echo "ui_changed=$UI_CHANGED" >> "$GITHUB_OUTPUT"
+          echo "agents_changed=$AGENTS_CHANGED" >> "$GITHUB_OUTPUT"
+          echo "changed_agents_matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+
   provision:
+    if: ${{ !inputs.uiOnly }}
+    needs: detect-changes
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     outputs:
@@ -66,7 +170,7 @@ jobs:
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
       - name: Setup azd
-        uses: Azure/setup-azd@v1
+        uses: Azure/setup-azd@v2
 
       - name: Configure azd environment
         run: |
@@ -137,6 +241,7 @@ jobs:
   deploy-crud:
     runs-on: ubuntu-latest
     needs: provision
+    if: ${{ !inputs.uiOnly && (!inputs.deployChangedOnly || needs.detect-changes.outputs.crud_changed == 'true') }}
     environment: ${{ inputs.environment }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -153,7 +258,7 @@ jobs:
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
       - name: Setup azd
-        uses: Azure/setup-azd@v1
+        uses: Azure/setup-azd@v2
 
       - name: Get AKS credentials
         run: |
@@ -167,7 +272,7 @@ jobs:
 
   deploy-ui:
     runs-on: ubuntu-latest
-    if: ${{ inputs.deployStatic }}
+    if: ${{ inputs.deployStatic && !inputs.uiOnly && (!inputs.deployChangedOnly || needs.detect-changes.outputs.ui_changed == 'true') }}
     needs: provision
     environment: ${{ inputs.environment }}
     env:
@@ -185,7 +290,7 @@ jobs:
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
       - name: Setup azd
-        uses: Azure/setup-azd@v1
+        uses: Azure/setup-azd@v2
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -244,38 +349,58 @@ jobs:
           app_build_command: yarn install --frozen-lockfile && yarn build
         env:
           NEXT_PUBLIC_API_URL: ${{ steps.api.outputs.api_url }}
+          NEXT_PUBLIC_CRUD_API_URL: ${{ steps.api.outputs.api_url }}
+          NEXT_PUBLIC_ENTRA_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_ENTRA_CLIENT_ID }}
+          NEXT_PUBLIC_ENTRA_TENANT_ID: ${{ secrets.NEXT_PUBLIC_ENTRA_TENANT_ID }}
+
+  deploy-ui-token:
+    runs-on: ubuntu-latest
+    if: ${{ inputs.deployStatic && inputs.uiOnly }}
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Resolve API URL
+        id: api
+        run: |
+          if [ -n "${{ inputs.apiBaseUrl }}" ]; then
+            echo "api_url=${{ inputs.apiBaseUrl }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "api_url=https://apim-${{ inputs.projectName }}-${{ inputs.environment }}.azure-api.net" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy UI via Static Web Apps action (token mode)
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          action: upload
+          azure_static_web_apps_api_token: ${{ secrets.SWA_DEPLOYMENT_TOKEN }}
+          app_location: apps/ui
+          output_location: ''
+          skip_api_build: true
+          app_build_command: yarn install --frozen-lockfile && yarn build
+        env:
+          NEXT_PUBLIC_API_URL: ${{ steps.api.outputs.api_url }}
+          NEXT_PUBLIC_CRUD_API_URL: ${{ steps.api.outputs.api_url }}
+          NEXT_PUBLIC_ENTRA_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_ENTRA_CLIENT_ID }}
+          NEXT_PUBLIC_ENTRA_TENANT_ID: ${{ secrets.NEXT_PUBLIC_ENTRA_TENANT_ID }}
 
   deploy-agents:
     runs-on: ubuntu-latest
+    if: ${{ !inputs.uiOnly && (!inputs.deployChangedOnly || needs.detect-changes.outputs.agents_changed == 'true') }}
     needs:
       - deploy-crud
       - deploy-foundry-models
+      - detect-changes
     environment: ${{ inputs.environment }}
     strategy:
       fail-fast: false
       matrix:
-        service:
-          - crm-campaign-intelligence
-          - crm-profile-aggregation
-          - crm-segmentation-personalization
-          - crm-support-assistance
-          - ecommerce-cart-intelligence
-          - ecommerce-catalog-search
-          - ecommerce-checkout-support
-          - ecommerce-order-status
-          - ecommerce-product-detail-enrichment
-          - inventory-alerts-triggers
-          - inventory-health-check
-          - inventory-jit-replenishment
-          - inventory-reservation-validation
-          - logistics-carrier-selection
-          - logistics-eta-computation
-          - logistics-returns-support
-          - logistics-route-issue-detection
-          - product-management-acp-transformation
-          - product-management-assortment-optimization
-          - product-management-consistency-validation
-          - product-management-normalization-classification
+        include: ${{ inputs.deployChangedOnly && fromJSON(needs.detect-changes.outputs.changed_agents_matrix) || fromJSON('[{"service":"crm-campaign-intelligence"},{"service":"crm-profile-aggregation"},{"service":"crm-segmentation-personalization"},{"service":"crm-support-assistance"},{"service":"ecommerce-cart-intelligence"},{"service":"ecommerce-catalog-search"},{"service":"ecommerce-checkout-support"},{"service":"ecommerce-order-status"},{"service":"ecommerce-product-detail-enrichment"},{"service":"inventory-alerts-triggers"},{"service":"inventory-health-check"},{"service":"inventory-jit-replenishment"},{"service":"inventory-reservation-validation"},{"service":"logistics-carrier-selection"},{"service":"logistics-eta-computation"},{"service":"logistics-returns-support"},{"service":"logistics-route-issue-detection"},{"service":"product-management-acp-transformation"},{"service":"product-management-assortment-optimization"},{"service":"product-management-consistency-validation"},{"service":"product-management-normalization-classification"}]') }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -291,7 +416,7 @@ jobs:
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
       - name: Setup azd
-        uses: Azure/setup-azd@v1
+        uses: Azure/setup-azd@v2
 
       - name: Get AKS credentials
         run: |
@@ -449,7 +574,7 @@ jobs:
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
       - name: Setup azd
-        uses: Azure/setup-azd@v1
+        uses: Azure/setup-azd@v2
 
       - name: Resolve environment values
         run: |

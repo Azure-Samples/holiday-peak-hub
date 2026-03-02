@@ -15,6 +15,7 @@ from crud_service.repositories.base import BaseRepository
 from crud_service.routes import (
     acp_checkout,
     acp_payments,
+    acp_products,
     auth,
     cart,
     categories,
@@ -64,11 +65,13 @@ async def lifespan(_app: FastAPI):
     await event_publisher.start()
     logger.info("Event publisher started")
 
-    # Resolve DB credentials from Key Vault when not provided as env vars
-    if not settings.postgres_password:
+    # Resolve DB credentials from Key Vault only for password mode
+    if settings.postgres_auth_mode == "password" and not settings.postgres_password:
         settings.postgres_password = await get_key_vault_secret(
             settings.postgres_password_secret_name
         )
+    if settings.postgres_auth_mode == "entra":
+        logger.info("PostgreSQL auth mode: Entra token")
 
     # Initialize PostgreSQL connection pool
     try:
@@ -139,6 +142,7 @@ app.include_router(orders.router, prefix="/api", tags=["Orders"])
 app.include_router(checkout.router, prefix="/api", tags=["Checkout"])
 app.include_router(payments.router, prefix="/api", tags=["Payments"])
 app.include_router(reviews.router, prefix="/api", tags=["Reviews"])
+app.include_router(acp_products.router, prefix="/acp", tags=["ACP Products"])
 app.include_router(acp_checkout.router, prefix="/acp", tags=["ACP Checkout"])
 app.include_router(acp_payments.router, prefix="/acp", tags=["ACP Payments"])
 

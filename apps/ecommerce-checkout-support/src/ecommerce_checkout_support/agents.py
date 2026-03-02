@@ -64,12 +64,19 @@ class CheckoutSupportAgent(BaseRetailAgent):
             ]
             return await self.invoke_model(request=request, messages=messages)
 
+        acp_checkout = _build_acp_checkout_payload(items)
+
         return {
             "service": self.service_name,
             "items": items,
             "pricing": [ctx.model_dump() for ctx in pricing_contexts],
             "inventory": [ctx.model_dump() if ctx else None for ctx in inventory_contexts],
             "validation": validation,
+            "acp": {
+                "acp_version": "0.1",
+                "domain": "checkout",
+                "checkout": acp_checkout,
+            },
         }
 
 
@@ -88,21 +95,57 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
         validation = await adapters.validator.validate(
             items, pricing=pricing_contexts, inventory=inventory_contexts
         )
-        return {"items": items, "validation": validation}
+        return {
+            "items": items,
+            "validation": validation,
+            "acp": {
+                "acp_version": "0.1",
+                "domain": "checkout",
+                "checkout": _build_acp_checkout_payload(items),
+            },
+        }
 
     async def get_pricing(payload: dict[str, Any]) -> dict[str, Any]:
         sku = payload.get("sku")
         if not sku:
             return {"error": "sku is required"}
         pricing = await adapters.pricing.build_price_context(str(sku))
-        return {"pricing": pricing.model_dump()}
+        return {
+            "pricing": pricing.model_dump(),
+            "acp": {
+                "acp_version": "0.1",
+                "domain": "checkout",
+                "checkout": {
+                    "items": [
+                        {
+                            "sku": str(sku),
+                            "quantity": 1,
+                        }
+                    ]
+                },
+            },
+        }
 
     async def get_inventory(payload: dict[str, Any]) -> dict[str, Any]:
         sku = payload.get("sku")
         if not sku:
             return {"error": "sku is required"}
         inventory = await adapters.inventory.build_inventory_context(str(sku))
-        return {"inventory": inventory.model_dump() if inventory else None}
+        return {
+            "inventory": inventory.model_dump() if inventory else None,
+            "acp": {
+                "acp_version": "0.1",
+                "domain": "checkout",
+                "checkout": {
+                    "items": [
+                        {
+                            "sku": str(sku),
+                            "quantity": 1,
+                        }
+                    ]
+                },
+            },
+        }
 
     mcp.add_tool("/checkout/validate", validate_checkout)
     mcp.add_tool("/checkout/pricing", get_pricing)
@@ -131,6 +174,18 @@ def _coerce_items(raw_items: Any) -> list[dict[str, object]]:
                 }
             )
     return items
+
+
+def _build_acp_checkout_payload(items: list[dict[str, object]]) -> dict[str, object]:
+    return {
+        "items": [
+            {
+                "sku": str(item.get("sku", "")),
+                "quantity": int(item.get("quantity", 1)),
+            }
+            for item in items
+        ]
+    }
 
 
 def _checkout_instructions(service_name: str) -> str:

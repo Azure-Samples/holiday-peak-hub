@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 security = HTTPBearer()
+optional_security = HTTPBearer(auto_error=False)
 
 
 class User(BaseModel):
@@ -179,7 +180,10 @@ require_admin = require_role("admin")
 
 # Optional authentication (for endpoints that work for both anonymous and authenticated)
 async def get_current_user_optional(
-    credentials: Annotated[HTTPAuthorizationCredentials | None, Security(security)] = None,
+    credentials: Annotated[
+        HTTPAuthorizationCredentials | None,
+        Security(optional_security),
+    ] = None,
 ) -> User | None:
     """Get current user if authenticated, otherwise return None."""
     if credentials is None:

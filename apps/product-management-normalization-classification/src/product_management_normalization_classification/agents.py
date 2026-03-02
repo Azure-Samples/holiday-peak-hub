@@ -6,6 +6,7 @@ import os
 from typing import Any
 
 from holiday_peak_lib.adapters import BaseCRUDAdapter
+from holiday_peak_lib.adapters.acp_mapper import AcpCatalogMapper
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 
@@ -32,6 +33,7 @@ class ProductNormalizationAgent(BaseRetailAgent):
             return {"error": "sku not found", "sku": sku}
 
         normalized = await self.adapters.normalizer.normalize(product)
+        acp_product = AcpCatalogMapper().to_acp_product(product, availability="unknown")
 
         if self.slm or self.llm:
             messages = [
@@ -41,6 +43,7 @@ class ProductNormalizationAgent(BaseRetailAgent):
                     "content": {
                         "sku": sku,
                         "product": product.model_dump(),
+                        "acp_product": acp_product,
                         "normalized": normalized,
                     },
                 },
@@ -51,6 +54,7 @@ class ProductNormalizationAgent(BaseRetailAgent):
             "service": self.service_name,
             "sku": sku,
             "product": product.model_dump(),
+            "acp_product": acp_product,
             "normalized": normalized,
         }
 
@@ -67,7 +71,8 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
         if not product:
             return {"error": "sku not found", "sku": sku}
         normalized = await adapters.normalizer.normalize(product)
-        return {"normalized": normalized}
+        acp_product = AcpCatalogMapper().to_acp_product(product, availability="unknown")
+        return {"normalized": normalized, "acp_product": acp_product}
 
     async def classify_product(payload: dict[str, Any]) -> dict[str, Any]:
         sku = payload.get("sku")

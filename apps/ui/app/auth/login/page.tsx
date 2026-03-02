@@ -9,15 +9,23 @@ import { FiShoppingBag } from 'react-icons/fi';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function LoginPage() {
-  const { login, isAuthenticated, isLoading } = useAuth();
+  const { login, isAuthenticated, isLoading, authConfigError } = useAuth();
+  const [loginError, setLoginError] = React.useState<string | null>(null);
 
   const handleMicrosoftLogin = async () => {
     try {
+      setLoginError(null);
       await login();
-    } catch (error) {
-      console.error('Microsoft login failed:', error);
+    } catch {
+      setLoginError("Couldn't proceed with your login. Please try again later.");
     }
   };
+
+  React.useEffect(() => {
+    if (authConfigError) {
+      setLoginError("Couldn't proceed with your login. Please try again later.");
+    }
+  }, [authConfigError]);
 
   // If already authenticated, redirect
   if (isAuthenticated && !isLoading) {
@@ -54,7 +62,7 @@ export default function LoginPage() {
             onClick={handleMicrosoftLogin}
             size="lg"
             className="w-full bg-[#2F2F2F] hover:bg-[#1a1a1a] dark:bg-white dark:hover:bg-gray-100 text-white dark:text-gray-900 flex items-center justify-center gap-3"
-            disabled={isLoading}
+            disabled={isLoading || Boolean(authConfigError)}
           >
             <svg className="w-5 h-5" viewBox="0 0 23 23" fill="none">
               <rect width="11" height="11" fill="#F25022" />
@@ -64,6 +72,12 @@ export default function LoginPage() {
             </svg>
             {isLoading ? 'Signing in…' : 'Sign in with Microsoft'}
           </Button>
+
+          {loginError && (
+            <div className="mt-4 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300">
+              {loginError}
+            </div>
+          )}
 
           <p className="mt-4 text-xs text-center text-gray-500 dark:text-gray-400">
             Authentication is managed by Microsoft Entra ID.

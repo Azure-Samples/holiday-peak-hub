@@ -116,6 +116,8 @@ class TestMCPToolExecution:
         assert "product_contexts" in result
         assert "pricing_contexts" in result
         assert "inventory_contexts" in result
+        assert "acp" in result
+        assert result["acp"]["domain"] == "cart"
 
     @pytest.mark.asyncio
     async def test_get_abandonment_risk_returns_risk(self, mock_mcp_server, mock_agent):
@@ -129,6 +131,8 @@ class TestMCPToolExecution:
         assert "items" in result
         assert "abandonment_risk" in result
         assert "risk_score" in result["abandonment_risk"]
+        assert "acp" in result
+        assert result["acp"]["domain"] == "cart"
 
     @pytest.mark.asyncio
     async def test_recommend_actions_returns_actions(self, mock_mcp_server, mock_agent):
@@ -143,6 +147,8 @@ class TestMCPToolExecution:
         assert "abandonment_risk" in result
         assert "recommended_actions" in result
         assert len(result["recommended_actions"]) > 0
+        assert "acp" in result
+        assert result["acp"]["domain"] == "cart"
 
     @pytest.mark.asyncio
     async def test_cart_context_empty_items(self, mock_mcp_server, mock_agent):

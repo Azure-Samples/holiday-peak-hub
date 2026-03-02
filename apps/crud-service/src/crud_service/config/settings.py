@@ -1,7 +1,7 @@
 """Configuration settings using Pydantic."""
 
 from functools import lru_cache
-from typing import List
+from typing import List, Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     postgres_database: str = Field(
         default="holiday_peak_crud", description="PostgreSQL database name"
     )
+    postgres_auth_mode: Literal["password", "entra"] = Field(
+        default="password",
+        description="PostgreSQL auth mode: password or Entra token",
+    )
     postgres_user: str = Field(..., description="PostgreSQL username")
     postgres_password: str | None = Field(default=None, description="PostgreSQL password")
     postgres_password_secret_name: str = Field(
@@ -35,6 +39,10 @@ class Settings(BaseSettings):
         description="Key Vault secret name for PostgreSQL password",
     )
     postgres_ssl: bool = Field(default=True, description="Use SSL for PostgreSQL connection")
+    postgres_entra_scope: str = Field(
+        default="https://ossrdbms-aad.database.windows.net/.default",
+        description="Token scope used for Entra auth with Azure PostgreSQL",
+    )
     postgres_min_pool_size: int = Field(default=2, description="Minimum PostgreSQL pool size")
     postgres_max_pool_size: int = Field(default=20, description="Maximum PostgreSQL pool size")
 
@@ -168,6 +176,11 @@ class Settings(BaseSettings):
     @property
     def postgres_dsn(self) -> str:
         """Construct PostgreSQL DSN for asyncpg."""
+        if self.postgres_auth_mode == "entra":
+            raise ValueError(
+                "PostgreSQL DSN is unavailable when POSTGRES_AUTH_MODE=entra. "
+                "Use token-based connection parameters instead."
+            )
         if not self.postgres_password:
             raise ValueError(
                 "PostgreSQL password is not configured. "

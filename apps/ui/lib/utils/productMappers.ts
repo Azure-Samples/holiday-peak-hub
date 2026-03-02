@@ -10,12 +10,15 @@ export interface AcpProduct {
   title: string;
   description?: string;
   image_url?: string;
+  image?: string;
+  category?: string;
+  category_id?: string;
   brand?: string;
   price?: string;
   availability?: string;
 }
 
-const PLACEHOLDER_IMAGE = '/api/placeholder/300/300';
+const PLACEHOLDER_IMAGE = '/images/products/p1.jpg';
 
 export const parsePriceString = (
   rawPrice?: string
@@ -34,7 +37,8 @@ export const parsePriceString = (
 };
 
 export const mapApiProductToUiProduct = (product: ApiProduct): UiProduct => {
-  const thumbnail = product.image_url || PLACEHOLDER_IMAGE;
+  const mediaImage = product.media?.find((media) => Boolean(media.url))?.url;
+  const thumbnail = product.image_url || mediaImage || PLACEHOLDER_IMAGE;
   return {
     sku: product.id,
     title: product.name,
@@ -43,7 +47,8 @@ export const mapApiProductToUiProduct = (product: ApiProduct): UiProduct => {
     category: product.category_id,
     price: product.price,
     currency: 'USD',
-    images: product.media?.map((media) => String(media.url)) || [thumbnail],
+    images:
+      product.media?.map((media) => String(media.url)).filter(Boolean) || [thumbnail],
     thumbnail,
     rating: product.rating,
     reviewCount: product.review_count,
@@ -54,14 +59,14 @@ export const mapApiProductToUiProduct = (product: ApiProduct): UiProduct => {
 
 export const mapAcpProductToUiProduct = (product: AcpProduct): UiProduct => {
   const { amount, currency } = parsePriceString(product.price);
-  const thumbnail = product.image_url || PLACEHOLDER_IMAGE;
+  const thumbnail = product.image_url || product.image || PLACEHOLDER_IMAGE;
   const availability = (product.availability || '').toLowerCase();
   return {
     sku: product.item_id,
     title: product.title,
     description: product.description || '',
     brand: product.brand || 'Holiday Peak',
-    category: 'search',
+    category: product.category_id || product.category || 'search',
     price: amount,
     currency,
     images: [thumbnail],

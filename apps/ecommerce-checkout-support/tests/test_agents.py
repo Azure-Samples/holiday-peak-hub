@@ -207,6 +207,8 @@ class TestCheckoutSupportAgent:
             assert result["service"] == "test-checkout-support"
             assert "validation" in result
             assert result["validation"]["status"] == "ready"
+            assert "acp" in result
+            assert result["acp"]["domain"] == "checkout"
 
     @pytest.mark.asyncio
     async def test_handle_empty_checkout(self, agent_config):

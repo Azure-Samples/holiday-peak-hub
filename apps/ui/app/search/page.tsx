@@ -6,7 +6,8 @@ import { MainLayout } from '@/components/templates/MainLayout';
 import { SearchInput } from '@/components/molecules/SearchInput';
 import { ProductGrid } from '@/components/organisms/ProductGrid';
 import { Badge } from '@/components/atoms/Badge';
-import { useSemanticSearch } from '@/lib/hooks/useSemanticSearch';
+import { useProductSearch } from '@/lib/hooks/useProducts';
+import { mapApiProductsToUi } from '@/lib/utils/productMappers';
 
 export default function SearchPage() {
   const router = useRouter();
@@ -14,7 +15,8 @@ export default function SearchPage() {
   const initialQuery = searchParams.get('q') ?? '';
   const [query, setQuery] = useState(initialQuery);
 
-  const { data, isLoading } = useSemanticSearch(query, 20);
+  const { data, isLoading } = useProductSearch(query, 20);
+  const products = mapApiProductsToUi(data || []);
 
   useEffect(() => {
     setQuery(initialQuery);
@@ -43,17 +45,13 @@ export default function SearchPage() {
           onSearch={handleSearch}
           size="lg"
         />
-        {data?.source && (
-          <div>
-            <Badge className="bg-ocean-500 text-white">
-              Source: {data.source === 'agent' ? 'Semantic Search' : 'Catalog Search'}
-            </Badge>
-          </div>
-        )}
+        <div>
+          <Badge className="bg-ocean-500 text-white">Source: Catalog Search</Badge>
+        </div>
       </div>
 
       <ProductGrid
-        products={data?.items || []}
+        products={products}
         loading={isLoading}
         emptyMessage={query ? 'No products matched your search.' : 'Search for products above.'}
       />

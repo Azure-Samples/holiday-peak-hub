@@ -25,7 +25,7 @@ services:
     host: aks
     docker:
       path: ../Dockerfile
-      context: ..
+      context: ../../..
     k8s:
       namespace: holiday-peak
       deploymentPath: ../../../.kubernetes/rendered/crud-service
@@ -422,11 +422,15 @@ hooks:
   postprovision:
     windows:
       shell: pwsh
-      run: ./.infra/azd/hooks/deploy-foundry-models.ps1
+      run: |
+        ./.infra/azd/hooks/ensure-entra-ui-app.ps1 -FailOnError:$false
+        ./.infra/azd/hooks/deploy-foundry-models.ps1
       interactive: false
     posix:
       shell: sh
-      run: ./.infra/azd/hooks/deploy-foundry-models.sh
+      run: |
+        FAIL_ON_ERROR=false ./.infra/azd/hooks/ensure-entra-ui-app.sh
+        ./.infra/azd/hooks/deploy-foundry-models.sh
       interactive: false
   postdeploy:
     windows:
