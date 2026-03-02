@@ -33,9 +33,7 @@ class ProductConsistencyAgent(BaseRetailAgent):
             return {"error": "sku not found", "sku": sku}
 
         validation = await self.adapters.validator.validate(product)
-        acp_product = AcpCatalogMapper().to_acp_product(
-            product, availability="unknown"
-        )
+        acp_product = AcpCatalogMapper().to_acp_product(product, availability="unknown")
 
         if self.slm or self.llm:
             messages = [
@@ -73,9 +71,7 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
         if not product:
             return {"error": "sku not found", "sku": sku}
         validation = await adapters.validator.validate(product)
-        acp_product = AcpCatalogMapper().to_acp_product(
-            product, availability="unknown"
-        )
+        acp_product = AcpCatalogMapper().to_acp_product(product, availability="unknown")
         return {"validation": validation, "acp_product": acp_product}
 
     async def get_product(payload: dict[str, Any]) -> dict[str, Any]:

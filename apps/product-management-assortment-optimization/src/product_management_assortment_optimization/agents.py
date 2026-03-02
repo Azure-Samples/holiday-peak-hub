@@ -44,8 +44,7 @@ class AssortmentOptimizationAgent(BaseRetailAgent):
         )
         mapper = AcpCatalogMapper()
         acp_products = [
-            mapper.to_acp_product(product, availability="unknown")
-            for product in products
+            mapper.to_acp_product(product, availability="unknown") for product in products
         ]
 
         if self.slm or self.llm:
@@ -83,8 +82,7 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
         mapper = AcpCatalogMapper()
         scored = await adapters.optimizer.score_products(products)
         acp_products = [
-            mapper.to_acp_product(product, availability="unknown")
-            for product in products
+            mapper.to_acp_product(product, availability="unknown") for product in products
         ]
         return {"scores": scored, "acp_products": acp_products}
 
@@ -99,8 +97,7 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
             products, target_size=target_size
         )
         acp_products = [
-            mapper.to_acp_product(product, availability="unknown")
-            for product in products
+            mapper.to_acp_product(product, availability="unknown") for product in products
         ]
         return {"assortment": recommendations, "acp_products": acp_products}
 
