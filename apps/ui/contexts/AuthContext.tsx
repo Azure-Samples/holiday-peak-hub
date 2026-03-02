@@ -13,7 +13,13 @@ import {
   AccountInfo,
 } from '@azure/msal-browser';
 import { MsalProvider, useMsal, useIsAuthenticated } from '@azure/msal-react';
-import { getMsalConfig, loginRequest, apiRequest } from '../lib/auth/msalConfig';
+import {
+  getMsalConfig,
+  loginRequest,
+  apiRequest,
+  getEntraConfigError,
+  isEntraConfigured,
+} from '../lib/auth/msalConfig';
 import { authService } from '../lib/services/authService';
 import type { User } from '../lib/types/api';
 
@@ -22,6 +28,7 @@ interface AuthContextType {
   account: AccountInfo | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  authConfigError: string | null;
   login: () => Promise<void>;
   logout: () => Promise<void>;
   getAccessToken: () => Promise<string | null>;
@@ -37,6 +44,7 @@ function AuthProviderInner({ children }: { children: ReactNode }) {
   const isAuthenticated = useIsAuthenticated();
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const authConfigError = getEntraConfigError();
 
   const account = accounts[0] || null;
 
@@ -70,6 +78,10 @@ function AuthProviderInner({ children }: { children: ReactNode }) {
    * Login handler
    */
   const login = async () => {
+    if (authConfigError) {
+      throw new Error(authConfigError);
+    }
+
     try {
       await instance.loginPopup(loginRequest);
     } catch (error) {
@@ -134,6 +146,7 @@ function AuthProviderInner({ children }: { children: ReactNode }) {
     account,
     isAuthenticated,
     isLoading: isLoading || inProgress !== InteractionStatus.None,
+    authConfigError,
     login,
     logout,
     getAccessToken,
@@ -153,11 +166,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [msalInstance, setMsalInstance] = useState<PublicClientApplication | null>(
     null
   );
+  const [configError, setConfigError] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
     const init = async () => {
+      if (!isEntraConfigured) {
+        setConfigError(getEntraConfigError());
+        return;
+      }
+
       const instance = new PublicClientApplication(getMsalConfig());
       await instance.initialize();
       setMsalInstance(instance);
@@ -173,8 +192,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           user: null,
           account: null,
           isAuthenticated: false,
-          isLoading: true,
-          login: async () => {},
+          isLoading: false,
+          authConfigError: configError,
+          login: async () => {
+            throw new Error(configError || 'Authentication configuration is missing.');
+          },
           logout: async () => {},
           getAccessToken: async () => null,
         }}
