@@ -11,7 +11,8 @@ import asyncio
 import json
 import os
 import random
-from datetime import UTC, datetime
+import uuid
+from datetime import UTC, datetime, timedelta
 
 import asyncpg
 
@@ -816,6 +817,695 @@ _PRODUCTS_BY_CATEGORY: dict[str, list[tuple[str, str, float, list[str], str]]] =
     ],
 }
 
+# ---------------------------------------------------------------------------
+# Demo users — synthetic customers for orders, reviews, tickets, etc.
+# ---------------------------------------------------------------------------
+
+DEMO_USERS: list[dict] = [
+    {
+        "id": "usr-001",
+        "entra_id": "00000000-demo-0001-0000-000000000001",
+        "email": "sarah.chen@example.com",
+        "name": "Sarah Chen",
+        "phone": "+1-555-0101",
+    },
+    {
+        "id": "usr-002",
+        "entra_id": "00000000-demo-0002-0000-000000000002",
+        "email": "marcus.johnson@example.com",
+        "name": "Marcus Johnson",
+        "phone": "+1-555-0102",
+    },
+    {
+        "id": "usr-003",
+        "entra_id": "00000000-demo-0003-0000-000000000003",
+        "email": "emily.taylor@example.com",
+        "name": "Emily Taylor",
+        "phone": "+1-555-0103",
+    },
+    {
+        "id": "usr-004",
+        "entra_id": "00000000-demo-0004-0000-000000000004",
+        "email": "david.martinez@example.com",
+        "name": "David Martinez",
+        "phone": "+1-555-0104",
+    },
+    {
+        "id": "usr-005",
+        "entra_id": "00000000-demo-0005-0000-000000000005",
+        "email": "olivia.patel@example.com",
+        "name": "Olivia Patel",
+        "phone": "+1-555-0105",
+    },
+    {
+        "id": "usr-006",
+        "entra_id": "00000000-demo-0006-0000-000000000006",
+        "email": "james.kim@example.com",
+        "name": "James Kim",
+        "phone": "+1-555-0106",
+    },
+    {
+        "id": "usr-007",
+        "entra_id": "00000000-demo-0007-0000-000000000007",
+        "email": "rachel.nguyen@example.com",
+        "name": "Rachel Nguyen",
+        "phone": None,
+    },
+    {
+        "id": "usr-008",
+        "entra_id": "00000000-demo-0008-0000-000000000008",
+        "email": "chris.anderson@example.com",
+        "name": "Chris Anderson",
+        "phone": "+1-555-0108",
+    },
+    {
+        "id": "usr-009",
+        "entra_id": "00000000-demo-0009-0000-000000000009",
+        "email": "mia.thompson@example.com",
+        "name": "Mia Thompson",
+        "phone": "+1-555-0109",
+    },
+    {
+        "id": "usr-010",
+        "entra_id": "00000000-demo-0010-0000-000000000010",
+        "email": "alex.garcia@example.com",
+        "name": "Alex Garcia",
+        "phone": "+1-555-0110",
+    },
+]
+
+# ---------------------------------------------------------------------------
+# Demo orders — spread across users, products, and statuses
+# ---------------------------------------------------------------------------
+
+_CARRIERS = ["FedEx", "UPS", "USPS", "DHL Express"]
+
+# Each entry: (order_id, user_id, items[(product_id, qty, price)], status,
+#               days_ago, shipping_address_id, payment_method_id)
+_DEMO_ORDERS_RAW: list[tuple[str, str, list[tuple[str, int, float]], str, int, str, str]] = [
+    # Recent pending orders
+    (
+        "ord-001",
+        "usr-001",
+        [("prd-electronics-001", 1, 179.99), ("prd-electronics-003", 1, 349.99)],
+        "pending",
+        0,
+        "addr-001",
+        "pm-001",
+    ),
+    (
+        "ord-002",
+        "usr-003",
+        [("prd-clothing-002", 2, 89.99), ("prd-clothing-005", 1, 54.99)],
+        "pending",
+        1,
+        "addr-003",
+        "pm-003",
+    ),
+    # Confirmed, waiting to ship
+    (
+        "ord-003",
+        "usr-002",
+        [("prd-home-kitchen-001", 1, 249.99)],
+        "confirmed",
+        2,
+        "addr-002",
+        "pm-002",
+    ),
+    (
+        "ord-004",
+        "usr-005",
+        [
+            ("prd-beauty-health-003", 3, 42.99),
+            ("prd-beauty-health-007", 1, 64.99),
+        ],
+        "confirmed",
+        3,
+        "addr-005",
+        "pm-005",
+    ),
+    # Shipped, in transit
+    (
+        "ord-005",
+        "usr-004",
+        [("prd-toys-games-001", 1, 159.99), ("prd-toys-games-004", 2, 34.99)],
+        "shipped",
+        5,
+        "addr-004",
+        "pm-004",
+    ),
+    (
+        "ord-006",
+        "usr-006",
+        [("prd-sports-outdoors-002", 1, 299.99)],
+        "shipped",
+        4,
+        "addr-006",
+        "pm-006",
+    ),
+    (
+        "ord-007",
+        "usr-001",
+        [
+            ("prd-jewelry-watches-001", 1, 189.99),
+            ("prd-jewelry-watches-005", 1, 79.99),
+        ],
+        "shipped",
+        6,
+        "addr-001",
+        "pm-001",
+    ),
+    # Delivered
+    (
+        "ord-008",
+        "usr-007",
+        [("prd-books-media-001", 2, 28.99), ("prd-books-media-006", 1, 34.99)],
+        "delivered",
+        14,
+        "addr-007",
+        "pm-007",
+    ),
+    (
+        "ord-009",
+        "usr-008",
+        [("prd-food-gourmet-002", 1, 54.99), ("prd-food-gourmet-005", 2, 38.99)],
+        "delivered",
+        10,
+        "addr-008",
+        "pm-008",
+    ),
+    (
+        "ord-010",
+        "usr-002",
+        [("prd-pet-supplies-001", 1, 59.99), ("prd-pet-supplies-006", 1, 44.99)],
+        "delivered",
+        21,
+        "addr-002",
+        "pm-002",
+    ),
+    (
+        "ord-011",
+        "usr-009",
+        [("prd-electronics-005", 1, 899.99)],
+        "delivered",
+        18,
+        "addr-009",
+        "pm-009",
+    ),
+    (
+        "ord-012",
+        "usr-010",
+        [
+            ("prd-home-kitchen-004", 1, 89.99),
+            ("prd-home-kitchen-008", 2, 32.99),
+        ],
+        "delivered",
+        25,
+        "addr-010",
+        "pm-010",
+    ),
+    (
+        "ord-013",
+        "usr-003",
+        [
+            ("prd-clothing-001", 1, 129.99),
+            ("prd-sports-outdoors-005", 1, 44.99),
+        ],
+        "delivered",
+        30,
+        "addr-003",
+        "pm-003",
+    ),
+    (
+        "ord-014",
+        "usr-005",
+        [("prd-toys-games-006", 1, 54.99), ("prd-toys-games-009", 1, 29.99)],
+        "delivered",
+        35,
+        "addr-005",
+        "pm-005",
+    ),
+    (
+        "ord-015",
+        "usr-004",
+        [("prd-electronics-008", 1, 129.99)],
+        "delivered",
+        45,
+        "addr-004",
+        "pm-004",
+    ),
+    # Cancelled
+    (
+        "ord-016",
+        "usr-006",
+        [("prd-jewelry-watches-003", 1, 599.99)],
+        "cancelled",
+        7,
+        "addr-006",
+        "pm-006",
+    ),
+    (
+        "ord-017",
+        "usr-008",
+        [("prd-electronics-002", 1, 999.99)],
+        "cancelled",
+        12,
+        "addr-008",
+        "pm-008",
+    ),
+    # Additional delivered orders for review variety
+    (
+        "ord-018",
+        "usr-001",
+        [("prd-beauty-health-001", 1, 48.99)],
+        "delivered",
+        40,
+        "addr-001",
+        "pm-001",
+    ),
+    (
+        "ord-019",
+        "usr-007",
+        [("prd-food-gourmet-001", 1, 42.99)],
+        "delivered",
+        28,
+        "addr-007",
+        "pm-007",
+    ),
+    (
+        "ord-020",
+        "usr-009",
+        [("prd-clothing-003", 1, 199.99), ("prd-clothing-007", 1, 149.99)],
+        "delivered",
+        22,
+        "addr-009",
+        "pm-009",
+    ),
+]
+
+# ---------------------------------------------------------------------------
+# Demo reviews — curated across products and users
+# Each entry: (review_id, product_id, user_id, rating, title, comment, days_ago)
+# ---------------------------------------------------------------------------
+
+DEMO_REVIEWS: list[tuple[str, str, str, int, str, str, int]] = [
+    # Electronics
+    (
+        "rev-001",
+        "prd-electronics-001",
+        "usr-007",
+        5,
+        "Best headphones I've owned",
+        "The noise cancellation is incredible. I can finally work from the coffee shop without distractions. Battery lasts well over the claimed 30 hours.",
+        12,
+    ),
+    (
+        "rev-002",
+        "prd-electronics-001",
+        "usr-002",
+        4,
+        "Great sound, slightly tight fit",
+        "Audio quality is outstanding for the price. My only complaint is they feel a bit tight after 3+ hours. Noise cancellation works really well on flights.",
+        20,
+    ),
+    (
+        "rev-003",
+        "prd-electronics-002",
+        "usr-009",
+        5,
+        "MacBook Pro replacement?",
+        "This laptop seriously competes with machines twice the price. The display is gorgeous, and it handles my development workflows without breaking a sweat.",
+        15,
+    ),
+    (
+        "rev-004",
+        "prd-electronics-005",
+        "usr-009",
+        5,
+        "Perfect home theater upgrade",
+        "Replaced my old soundbar and the difference is night and day. The Dolby Atmos support makes movies feel like a cinema experience.",
+        16,
+    ),
+    (
+        "rev-005",
+        "prd-electronics-008",
+        "usr-004",
+        4,
+        "Solid portable speaker",
+        "Great battery life and surprisingly loud. Took it camping and it survived a light rain. Bass could be a bit deeper for the price, but overall very happy.",
+        42,
+    ),
+    # Clothing
+    (
+        "rev-006",
+        "prd-clothing-001",
+        "usr-003",
+        5,
+        "My go-to winter jacket",
+        "Warm without being bulky. I've worn it in below-freezing temps and stayed comfortable. The pockets are well-placed and the hood stays put in wind.",
+        28,
+    ),
+    (
+        "rev-007",
+        "prd-clothing-002",
+        "usr-003",
+        4,
+        "Beautiful holiday sweater",
+        "Got so many compliments at the office party. The merino wool is soft and doesn't itch. Runs slightly large — consider sizing down.",
+        25,
+    ),
+    (
+        "rev-008",
+        "prd-clothing-003",
+        "usr-009",
+        5,
+        "Dress to impress",
+        "Wore this to a holiday gala and received nothing but compliments. The velvet fabric drapes beautifully and the tailoring is impeccable for this price point.",
+        20,
+    ),
+    # Home & Kitchen
+    (
+        "rev-009",
+        "prd-home-kitchen-001",
+        "usr-002",
+        5,
+        "Restaurant-quality cookware",
+        "Upgraded from a basic set and the difference is remarkable. Even heating, comfortable handles, and everything cleans up easily. Worth every penny.",
+        30,
+    ),
+    (
+        "rev-010",
+        "prd-home-kitchen-004",
+        "usr-010",
+        4,
+        "Great blender for the price",
+        "Makes perfectly smooth smoothies and can handle frozen fruit without issue. It's a bit loud, but that's expected for the power it provides.",
+        23,
+    ),
+    # Toys & Games
+    (
+        "rev-011",
+        "prd-toys-games-001",
+        "usr-004",
+        5,
+        "My kids are obsessed",
+        "The build quality is excellent and the coding concepts are introduced gradually. Both my 7 and 10-year-old love it. Great educational gift.",
+        32,
+    ),
+    (
+        "rev-012",
+        "prd-toys-games-004",
+        "usr-004",
+        4,
+        "Fun for family game night",
+        "Easy to learn but hard to master. We play it every Friday night now. Some card stock could be thicker, but the gameplay makes up for it.",
+        33,
+    ),
+    # Sports & Outdoors
+    (
+        "rev-013",
+        "prd-sports-outdoors-002",
+        "usr-006",
+        5,
+        "Game changer for my fitness routine",
+        "The automatic resistance adjustment is incredibly smooth. Syncs perfectly with multiple fitness apps. Compact enough for my apartment's spare room.",
+        35,
+    ),
+    (
+        "rev-014",
+        "prd-sports-outdoors-005",
+        "usr-003",
+        4,
+        "Perfect for morning runs",
+        "Moisture-wicking fabric actually works. Pockets are well-placed for keys and phone. Wish they made more color options, but the quality is excellent.",
+        28,
+    ),
+    # Beauty & Health
+    (
+        "rev-015",
+        "prd-beauty-health-001",
+        "usr-001",
+        5,
+        "Visible results in two weeks",
+        "I was skeptical, but my skin genuinely looks brighter and more even after using the full set. The serum absorbs quickly and the moisturizer isn't greasy at all.",
+        38,
+    ),
+    (
+        "rev-016",
+        "prd-beauty-health-003",
+        "usr-005",
+        4,
+        "Lovely gift set",
+        "Bought three of these as holiday gifts. The scents are subtle and natural, and the oil quality is excellent. Packaging is beautiful enough to not need wrapping.",
+        29,
+    ),
+    # Books & Media
+    (
+        "rev-017",
+        "prd-books-media-001",
+        "usr-007",
+        5,
+        "Could not put it down",
+        "Read it in two sittings. The world-building is extraordinary and the characters feel real. Already pre-ordered the sequel.",
+        12,
+    ),
+    (
+        "rev-018",
+        "prd-books-media-006",
+        "usr-007",
+        4,
+        "Beautiful vinyl pressing",
+        "The 180-gram pressing sounds phenomenal on my turntable. Comes with great liner notes and a download card. Minor surface noise on one track, but excellent overall.",
+        13,
+    ),
+    # Jewelry & Watches
+    (
+        "rev-019",
+        "prd-jewelry-watches-001",
+        "usr-001",
+        5,
+        "Elegant and affordable",
+        "Bought this for my anniversary and my wife absolutely loves it. The craftsmanship looks much more expensive than it is. The sterling silver has held up beautifully.",
+        40,
+    ),
+    (
+        "rev-020",
+        "prd-jewelry-watches-005",
+        "usr-001",
+        4,
+        "Classy everyday watch",
+        "Great minimalist design. The leather strap is comfortable and the automatic movement keeps good time. Crystal has a few micro-scratches after a month of daily wear.",
+        39,
+    ),
+    # Food & Gourmet
+    (
+        "rev-021",
+        "prd-food-gourmet-001",
+        "usr-007",
+        5,
+        "Chocolate lover's dream",
+        "Every piece is a different flavor journey. The dark chocolate truffle with sea salt is my new obsession. Arrived well-packaged and in perfect condition.",
+        26,
+    ),
+    (
+        "rev-022",
+        "prd-food-gourmet-002",
+        "usr-008",
+        4,
+        "Impressive gift basket",
+        "Sent this to my parents and they were thrilled. Great variety of cheeses and crackers. The olive oil was a standout. One jar arrived with a loose lid but no spillage.",
+        8,
+    ),
+    (
+        "rev-023",
+        "prd-food-gourmet-005",
+        "usr-008",
+        5,
+        "Best coffee subscription start",
+        "All three origins are distinct and delicious. The Ethiopian is fruity and bright, the Colombian is smooth, and the Sumatran is bold. Freshly roasted — you can tell.",
+        9,
+    ),
+    # Pet Supplies
+    (
+        "rev-024",
+        "prd-pet-supplies-001",
+        "usr-002",
+        5,
+        "My dog sleeps through the night now",
+        "Our golden retriever claimed this bed immediately. The orthopedic foam gives great support for his aging joints. The removable cover is a huge plus for washing.",
+        19,
+    ),
+    (
+        "rev-025",
+        "prd-pet-supplies-006",
+        "usr-002",
+        4,
+        "Cats love the tower",
+        "Our two cats fight over who gets the top perch. Sturdy construction — doesn't wobble at all. Assembly took about 30 minutes. Wish the sisal posts were a bit thicker.",
+        20,
+    ),
+]
+
+# ---------------------------------------------------------------------------
+# Demo support tickets
+# Each entry: (ticket_id, user_id, subject, status, priority, days_ago)
+# ---------------------------------------------------------------------------
+
+DEMO_TICKETS: list[tuple[str, str, str, str, str, int]] = [
+    (
+        "tkt-001",
+        "usr-001",
+        "Order arrived with damaged packaging",
+        "open",
+        "high",
+        1,
+    ),
+    (
+        "tkt-002",
+        "usr-003",
+        "Request to change shipping address on pending order",
+        "open",
+        "medium",
+        0,
+    ),
+    (
+        "tkt-003",
+        "usr-005",
+        "Promo code not applying at checkout",
+        "in_progress",
+        "medium",
+        3,
+    ),
+    (
+        "tkt-004",
+        "usr-002",
+        "Missing item from delivered order",
+        "in_progress",
+        "high",
+        5,
+    ),
+    (
+        "tkt-005",
+        "usr-008",
+        "How to initiate a product return?",
+        "resolved",
+        "low",
+        10,
+    ),
+    (
+        "tkt-006",
+        "usr-006",
+        "Cancelled order still showing as pending",
+        "resolved",
+        "medium",
+        8,
+    ),
+    (
+        "tkt-007",
+        "usr-004",
+        "Item arrived different color than pictured",
+        "open",
+        "medium",
+        2,
+    ),
+    (
+        "tkt-008",
+        "usr-009",
+        "Requesting invoice for business purchase",
+        "closed",
+        "low",
+        15,
+    ),
+    (
+        "tkt-009",
+        "usr-010",
+        "Account shows wrong email address",
+        "resolved",
+        "high",
+        12,
+    ),
+    (
+        "tkt-010",
+        "usr-007",
+        "Tracking number not updating for 5 days",
+        "in_progress",
+        "critical",
+        4,
+    ),
+    (
+        "tkt-011",
+        "usr-001",
+        "Received wrong product — need exchange",
+        "open",
+        "high",
+        1,
+    ),
+    (
+        "tkt-012",
+        "usr-004",
+        "Gift card balance not reflecting after purchase",
+        "in_progress",
+        "medium",
+        6,
+    ),
+]
+
+# ---------------------------------------------------------------------------
+# Demo returns — tied to delivered orders
+# Each entry: (return_id, order_id, user_id, status, reason, days_ago)
+# ---------------------------------------------------------------------------
+
+DEMO_RETURNS: list[tuple[str, str, str, str, str, int]] = [
+    (
+        "ret-001",
+        "ord-010",
+        "usr-002",
+        "pending",
+        "Product did not match description — expected larger size",
+        2,
+    ),
+    (
+        "ret-002",
+        "ord-011",
+        "usr-009",
+        "approved",
+        "Minor cosmetic defect on device casing",
+        8,
+    ),
+    (
+        "ret-003",
+        "ord-012",
+        "usr-010",
+        "completed",
+        "Changed mind — house décor style changed",
+        18,
+    ),
+    (
+        "ret-004",
+        "ord-013",
+        "usr-003",
+        "pending",
+        "Jacket zipper broke after first wash",
+        3,
+    ),
+    (
+        "ret-005",
+        "ord-015",
+        "usr-004",
+        "rejected",
+        "Return requested outside return window",
+        30,
+    ),
+    (
+        "ret-006",
+        "ord-008",
+        "usr-007",
+        "approved",
+        "Received duplicate books — returning extras",
+        5,
+    ),
+]
+
 
 def _required_env(name: str) -> str:
     value = os.getenv(name, "").strip()
@@ -885,14 +1575,28 @@ async def main() -> None:
 
     dsn = _build_dsn()
     conn = await asyncpg.connect(dsn)
+    rng = random.Random(42)
 
     try:
-        await _ensure_table(conn, "categories")
-        await _ensure_table(conn, "products")
+        # Ensure all tables exist
+        for table in (
+            "categories",
+            "products",
+            "users",
+            "orders",
+            "shipments",
+            "reviews",
+            "tickets",
+            "returns",
+        ):
+            await _ensure_table(conn, table)
 
-        now = datetime.now(UTC).isoformat()
+        now_dt = datetime.now(UTC)
+        now = now_dt.isoformat()
 
-        # Seed categories
+        # ------------------------------------------------------------------
+        # 1. Seed categories
+        # ------------------------------------------------------------------
         for cat in CATEGORIES:
             category = {
                 **cat,
@@ -908,13 +1612,15 @@ async def main() -> None:
                 item=category,
             )
 
-        # Seed products
+        # ------------------------------------------------------------------
+        # 2. Seed products
+        # ------------------------------------------------------------------
         product_count = 0
         for category_id, products in _PRODUCTS_BY_CATEGORY.items():
             for idx, (name, description, price, features, img_kw) in enumerate(products, start=1):
                 product_count += 1
                 product_id = f"prd-{category_id.removeprefix('cat-')}-{idx:03d}"
-                in_stock = random.choice([True, True, True, False])
+                in_stock = rng.choice([True, True, True, False])
 
                 product = {
                     "id": product_id,
@@ -926,8 +1632,8 @@ async def main() -> None:
                         f"https://images.unsplash.com/photo-{img_kw}" f"?w=800&q=80&fit=crop"
                     ),
                     "in_stock": in_stock,
-                    "rating": round(random.uniform(3.8, 5.0), 1),
-                    "review_count": random.randint(12, 850),
+                    "rating": round(rng.uniform(3.8, 5.0), 1),
+                    "review_count": rng.randint(12, 850),
                     "features": features,
                     "seeded": True,
                     "environment": environment,
@@ -942,9 +1648,212 @@ async def main() -> None:
                     item=product,
                 )
 
+        # ------------------------------------------------------------------
+        # 3. Seed users
+        # ------------------------------------------------------------------
+        for usr in DEMO_USERS:
+            user = {
+                **usr,
+                "created_at": (now_dt - timedelta(days=rng.randint(60, 180))).isoformat(),
+                "seeded": True,
+                "environment": environment,
+                "updated_at": now,
+            }
+            await _upsert_item(
+                conn=conn,
+                table_name="users",
+                item_id=usr["id"],
+                partition_key=usr["id"],
+                item=user,
+            )
+
+        # ------------------------------------------------------------------
+        # 4. Seed orders
+        # ------------------------------------------------------------------
+        order_count = 0
+        for (
+            order_id,
+            user_id,
+            raw_items,
+            status,
+            days_ago,
+            addr_id,
+            pm_id,
+        ) in _DEMO_ORDERS_RAW:
+            order_count += 1
+            items = [
+                {"product_id": pid, "quantity": qty, "price": price}
+                for pid, qty, price in raw_items
+            ]
+            total = round(sum(i["price"] * i["quantity"] for i in items), 2)
+            created_at = (now_dt - timedelta(days=days_ago)).isoformat()
+
+            order = {
+                "id": order_id,
+                "user_id": user_id,
+                "items": items,
+                "total": total,
+                "status": status,
+                "shipping_address_id": addr_id,
+                "payment_method_id": pm_id,
+                "created_at": created_at,
+                "seeded": True,
+                "environment": environment,
+                "updated_at": now,
+            }
+            await _upsert_item(
+                conn=conn,
+                table_name="orders",
+                item_id=order_id,
+                partition_key=user_id,
+                item=order,
+            )
+
+        # ------------------------------------------------------------------
+        # 5. Seed shipments (for shipped + delivered orders)
+        # ------------------------------------------------------------------
+        shipment_count = 0
+        for (
+            order_id,
+            user_id,
+            _raw_items,
+            status,
+            days_ago,
+            _addr,
+            _pm,
+        ) in _DEMO_ORDERS_RAW:
+            if status not in ("shipped", "delivered"):
+                continue
+            shipment_count += 1
+            carrier = rng.choice(_CARRIERS)
+            tracking = (
+                f"{carrier[:3].upper()}-"
+                f"{uuid.uuid5(uuid.NAMESPACE_DNS, order_id).hex[:12].upper()}"
+            )
+            ship_status = "delivered" if status == "delivered" else "in_transit"
+            ship_id = f"shp-{order_id.removeprefix('ord-')}"
+            created_at = (now_dt - timedelta(days=max(days_ago - 1, 0))).isoformat()
+
+            shipment = {
+                "id": ship_id,
+                "order_id": order_id,
+                "status": ship_status,
+                "carrier": carrier,
+                "tracking_number": tracking,
+                "created_at": created_at,
+                "seeded": True,
+                "environment": environment,
+                "updated_at": now,
+            }
+            await _upsert_item(
+                conn=conn,
+                table_name="shipments",
+                item_id=ship_id,
+                partition_key=order_id,
+                item=shipment,
+            )
+
+        # ------------------------------------------------------------------
+        # 6. Seed reviews
+        # ------------------------------------------------------------------
+        for (
+            rev_id,
+            product_id,
+            user_id,
+            rating,
+            title,
+            comment,
+            days_ago,
+        ) in DEMO_REVIEWS:
+            created_at = (now_dt - timedelta(days=days_ago)).isoformat()
+            review = {
+                "id": rev_id,
+                "product_id": product_id,
+                "user_id": user_id,
+                "rating": rating,
+                "title": title,
+                "comment": comment,
+                "created_at": created_at,
+                "seeded": True,
+                "environment": environment,
+                "updated_at": now,
+            }
+            await _upsert_item(
+                conn=conn,
+                table_name="reviews",
+                item_id=rev_id,
+                partition_key=user_id,
+                item=review,
+            )
+
+        # ------------------------------------------------------------------
+        # 7. Seed tickets
+        # ------------------------------------------------------------------
+        for (
+            tkt_id,
+            user_id,
+            subject,
+            status,
+            priority,
+            days_ago,
+        ) in DEMO_TICKETS:
+            created_at = (now_dt - timedelta(days=days_ago)).isoformat()
+            ticket = {
+                "id": tkt_id,
+                "user_id": user_id,
+                "subject": subject,
+                "status": status,
+                "priority": priority,
+                "created_at": created_at,
+                "seeded": True,
+                "environment": environment,
+                "updated_at": now,
+            }
+            await _upsert_item(
+                conn=conn,
+                table_name="tickets",
+                item_id=tkt_id,
+                partition_key=user_id,
+                item=ticket,
+            )
+
+        # ------------------------------------------------------------------
+        # 8. Seed returns
+        # ------------------------------------------------------------------
+        for (
+            ret_id,
+            order_id,
+            user_id,
+            status,
+            reason,
+            days_ago,
+        ) in DEMO_RETURNS:
+            created_at = (now_dt - timedelta(days=days_ago)).isoformat()
+            ret = {
+                "id": ret_id,
+                "order_id": order_id,
+                "user_id": user_id,
+                "status": status,
+                "reason": reason,
+                "created_at": created_at,
+                "seeded": True,
+                "environment": environment,
+                "updated_at": now,
+            }
+            await _upsert_item(
+                conn=conn,
+                table_name="returns",
+                item_id=ret_id,
+                partition_key=user_id,
+                item=ret,
+            )
+
         print(
             f"Seed completed for environment={environment}: "
-            f"categories={len(CATEGORIES)}, products={product_count}"
+            f"categories={len(CATEGORIES)}, products={product_count}, "
+            f"users={len(DEMO_USERS)}, orders={order_count}, "
+            f"shipments={shipment_count}, reviews={len(DEMO_REVIEWS)}, "
+            f"tickets={len(DEMO_TICKETS)}, returns={len(DEMO_RETURNS)}"
         )
     finally:
         await conn.close()
