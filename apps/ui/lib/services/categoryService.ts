@@ -35,7 +35,7 @@ export const categoryService = {
       return response.data;
     } catch (error) {
       const status = (error as { response?: { status?: number } })?.response?.status;
-      if (status !== undefined && status >= 500) {
+      if (status === 401 || (status !== undefined && status >= 500)) {
         return FALLBACK_CATEGORIES;
       }
       throw handleApiError(error);

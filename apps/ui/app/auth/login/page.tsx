@@ -10,14 +10,22 @@ import { useAuth } from '@/contexts/AuthContext';
 
 export default function LoginPage() {
   const { login, isAuthenticated, isLoading, authConfigError } = useAuth();
+  const [loginError, setLoginError] = React.useState<string | null>(null);
 
   const handleMicrosoftLogin = async () => {
     try {
+      setLoginError(null);
       await login();
-    } catch (error) {
-      console.error('Microsoft login failed:', error);
+    } catch {
+      setLoginError("Couldn't proceed with your login. Please try again later.");
     }
   };
+
+  React.useEffect(() => {
+    if (authConfigError) {
+      setLoginError("Couldn't proceed with your login. Please try again later.");
+    }
+  }, [authConfigError]);
 
   // If already authenticated, redirect
   if (isAuthenticated && !isLoading) {
@@ -65,9 +73,9 @@ export default function LoginPage() {
             {isLoading ? 'Signing in…' : 'Sign in with Microsoft'}
           </Button>
 
-          {authConfigError && (
+          {loginError && (
             <div className="mt-4 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300">
-              {authConfigError}. Ask the admin to set these values in the UI deployment environment.
+              {loginError}
             </div>
           )}
 

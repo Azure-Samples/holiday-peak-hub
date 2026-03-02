@@ -7,16 +7,19 @@ const entraTenantId = process.env.NEXT_PUBLIC_ENTRA_TENANT_ID || '';
 
 export const isEntraConfigured = Boolean(entraClientId && entraTenantId);
 
+export const getMissingEntraConfigKeys = (): string[] => {
+  const missing: string[] = [];
+  if (!entraClientId) missing.push('NEXT_PUBLIC_ENTRA_CLIENT_ID');
+  if (!entraTenantId) missing.push('NEXT_PUBLIC_ENTRA_TENANT_ID');
+  return missing;
+};
+
 export const getEntraConfigError = (): string | null => {
   if (isEntraConfigured) {
     return null;
   }
 
-  const missing: string[] = [];
-  if (!entraClientId) missing.push('NEXT_PUBLIC_ENTRA_CLIENT_ID');
-  if (!entraTenantId) missing.push('NEXT_PUBLIC_ENTRA_TENANT_ID');
-
-  return `Missing Entra configuration: ${missing.join(', ')}`;
+  return "Couldn't proceed with your login.";
 };
 
 /**

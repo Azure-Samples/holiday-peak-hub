@@ -55,15 +55,9 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    const originalRequest = error.config;
-
     // Handle 401 Unauthorized
-    if (error.response?.status === 401) {
-      // Clear token and redirect to login
-      if (typeof window !== 'undefined') {
-        sessionStorage.removeItem('auth_token');
-        window.location.href = '/auth/login';
-      }
+    if (error.response?.status === 401 && typeof window !== 'undefined') {
+      sessionStorage.removeItem('auth_token');
     }
 
     // Handle 403 Forbidden

@@ -18,10 +18,12 @@ import {
   loginRequest,
   apiRequest,
   getEntraConfigError,
+  getMissingEntraConfigKeys,
   isEntraConfigured,
 } from '../lib/auth/msalConfig';
 import { authService } from '../lib/services/authService';
 import type { User } from '../lib/types/api';
+import { trackWarning } from '../lib/utils/telemetry';
 
 interface AuthContextType {
   user: User | null;
@@ -173,6 +175,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const init = async () => {
       if (!isEntraConfigured) {
+        const missingKeys = getMissingEntraConfigKeys();
+        trackWarning('UI login blocked due to missing Entra configuration.', {
+          missingKeys: missingKeys.join(','),
+        });
         setConfigError(getEntraConfigError());
         return;
       }
