@@ -9,6 +9,7 @@ Requires-Dist: fastapi
 Requires-Dist: fastapi-mcp
 Requires-Dist: uvicorn
 Requires-Dist: pydantic>=2
+Requires-Dist: pydantic-settings>=2
 Requires-Dist: agent-framework
 Requires-Dist: httpx
 Requires-Dist: azure-ai-projects>=2.0.0b4
