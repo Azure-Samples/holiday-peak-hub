@@ -3,13 +3,6 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/main/VisualStudio.gitignore
 
-# Python build artifacts
-*.egg-info/
-__pycache__/
-*.pyc
-dist/
-build/
-
 # User-specific files
 *.rsuser
 *.suo
@@ -352,8 +345,7 @@ paket-files/
 # Python Tools for Visual Studio (PTVS)
 **/__pycache__/
 *.pyc
-**/*.egg-info/
-lib/src/holiday_peak_lib.egg-info/
+*.egg-info/
 
 # Cake - Uncomment if you are using it
 #tools/**
@@ -463,7 +455,6 @@ yarn-error.log*
 
 # local env files
 .env.*
-!.env.example
 
 # TypeScript
 *.tsbuildinfo
@@ -474,13 +465,3 @@ yarn-error.log*
 
 # Improvements
 improvements.md
-
-# Python build artifacts
-*.egg-info/
-*.egg-info
-__pycache__/
-*.pyc
-*.pyo
-.pytest_cache/
-htmlcov/
-.coverage
