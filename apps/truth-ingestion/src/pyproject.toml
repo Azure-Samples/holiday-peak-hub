@@ -1,0 +1,36 @@
+[project]
+name = "truth-ingestion"
+version = "0.1.0"
+description = "Truth Ingestion service — pulls products from PIM/DAM and stores them in the Product Truth Layer"
+authors = [
+    {name = "Holiday Peak Hub", email = "noreply@microsoft.com"}
+]
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi",
+    "fastapi-mcp",
+    "uvicorn",
+    "pydantic>=2",
+    "agent-framework",
+    "azure-ai-projects>=2.0.0b4",
+    "azure-identity",
+    "azure-cosmos",
+    "azure-storage-blob",
+    "azure-eventhub",
+    "redis",
+    "httpx",
+    "holiday-peak-lib @ git+https://github.com/Azure-Samples/holiday-peak-hub.git@v1.0.0#subdirectory=lib/src"
+]
+
+[project.optional-dependencies]
+dev = ["faker", "pre-commit", "python-dotenv", "debugpy"]
+test = ["pytest", "pytest-cov", "pytest-asyncio", "httpx", "requests"]
+lint = ["pylint", "isort", "black[jupyter]>=25.1.0"]
+
+[tool.pytest.ini_options]
+addopts = "-ra -q -s --cov=truth_ingestion --cov-report=term-missing"
+testpaths = ["tests"]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
