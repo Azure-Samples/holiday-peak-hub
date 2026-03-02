@@ -95,6 +95,16 @@ Use this mapping to know the current vs. former names—so you can correctly int
 - **Agent REST endpoints**: Exposed for Frontend AND CRUD to call (e.g., `/enrich`, `/search`, `/recommendations`).
 - When CRUD needs fast agent capabilities, it calls agent REST endpoints with circuit breakers.
 
+## Git Branch Naming Convention
+
+- Follow the branch naming convention defined in [ADR-022](../docs/architecture/adrs/adr-022-branch-naming-convention.md).
+- **Branch prefixes**: `feature/`, `issue/`, `bug/`, `hotfix/`, `docs/`, `chore/`.
+- **Format**: `<prefix>/<issue-id>-<short-description>` (e.g., `feature/42-cart-intelligence`).
+- Always use **lowercase** with **hyphens** as word separators.
+- Always include the **issue number** after the prefix.
+- All branches are created from `main` and merge back to `main` via Pull Request.
+- Delete branches after merge — branches are ephemeral.
+
 ## Coding Conventions
 
 - Keep agents lightweight: delegate domain logic to adapters (in each app's `adapters.py`).
