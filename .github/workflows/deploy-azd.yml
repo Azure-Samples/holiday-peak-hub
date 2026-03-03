@@ -173,6 +173,14 @@ jobs:
       - name: Setup azd
         uses: Azure/setup-azd@v2
 
+      - name: Authenticate azd (OIDC)
+        run: |
+          azd auth login \
+            --client-id "${AZURE_CLIENT_ID}" \
+            --tenant-id "${AZURE_TENANT_ID}" \
+            --federated-credential-provider github \
+            --no-prompt
+
       - name: Configure azd environment
         run: |
           azd env set AZURE_SUBSCRIPTION_ID "${AZURE_SUBSCRIPTION_ID}" -e "${{ inputs.environment }}"
@@ -260,6 +268,14 @@ jobs:
 
       - name: Setup azd
         uses: Azure/setup-azd@v2
+
+      - name: Authenticate azd (OIDC)
+        run: |
+          azd auth login \
+            --client-id "${AZURE_CLIENT_ID}" \
+            --tenant-id "${AZURE_TENANT_ID}" \
+            --federated-credential-provider github \
+            --no-prompt
 
       - name: Get AKS credentials
         run: |
@@ -401,7 +417,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ inputs.deployChangedOnly && fromJSON(needs.detect-changes.outputs.changed_agents_matrix) || fromJSON('[{"service":"crm-campaign-intelligence"},{"service":"crm-profile-aggregation"},{"service":"crm-segmentation-personalization"},{"service":"crm-support-assistance"},{"service":"ecommerce-cart-intelligence"},{"service":"ecommerce-catalog-search"},{"service":"ecommerce-checkout-support"},{"service":"ecommerce-order-status"},{"service":"ecommerce-product-detail-enrichment"},{"service":"inventory-alerts-triggers"},{"service":"inventory-health-check"},{"service":"inventory-jit-replenishment"},{"service":"inventory-reservation-validation"},{"service":"logistics-carrier-selection"},{"service":"logistics-eta-computation"},{"service":"logistics-returns-support"},{"service":"logistics-route-issue-detection"},{"service":"product-management-acp-transformation"},{"service":"product-management-assortment-optimization"},{"service":"product-management-consistency-validation"},{"service":"product-management-normalization-classification"}]') }}
+        include: ${{ inputs.deployChangedOnly && fromJSON(needs.detect-changes.outputs.changed_agents_matrix) || fromJSON('[{"service":"crm-campaign-intelligence"},{"service":"crm-profile-aggregation"},{"service":"crm-segmentation-personalization"},{"service":"crm-support-assistance"},{"service":"ecommerce-cart-intelligence"},{"service":"ecommerce-catalog-search"},{"service":"ecommerce-checkout-support"},{"service":"ecommerce-order-status"},{"service":"ecommerce-product-detail-enrichment"},{"service":"inventory-alerts-triggers"},{"service":"inventory-health-check"},{"service":"inventory-jit-replenishment"},{"service":"inventory-reservation-validation"},{"service":"logistics-carrier-selection"},{"service":"logistics-eta-computation"},{"service":"logistics-returns-support"},{"service":"logistics-route-issue-detection"},{"service":"product-management-acp-transformation"},{"service":"product-management-assortment-optimization"},{"service":"product-management-consistency-validation"},{"service":"product-management-normalization-classification"},{"service":"truth-ingestion"}]') }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -418,6 +434,14 @@ jobs:
 
       - name: Setup azd
         uses: Azure/setup-azd@v2
+
+      - name: Authenticate azd (OIDC)
+        run: |
+          azd auth login \
+            --client-id "${AZURE_CLIENT_ID}" \
+            --tenant-id "${AZURE_TENANT_ID}" \
+            --federated-credential-provider github \
+            --no-prompt
 
       - name: Get AKS credentials
         run: |
