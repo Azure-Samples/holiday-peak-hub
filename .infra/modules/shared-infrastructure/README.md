@@ -58,6 +58,7 @@ This module creates **ONE instance** of each resource, shared across all service
   - `aks-crud` - 10.0.8.0/24 (CRUD node pool)
   - `apim` - 10.0.9.0/24 (API Management)
   - `private-endpoints` - 10.0.10.0/24 (Private endpoints for PaaS services)
+  - `appgw` - 10.0.11.0/24 (Application Gateway subnet, delegated to `Microsoft.Network/applicationGateways`)
 - **Network Security Groups** - One per subnet
 - **Private Endpoints** - PaaS services are private by default; Azure AI Foundry is the intentional public-access exception
 
