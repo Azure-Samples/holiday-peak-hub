@@ -13,6 +13,8 @@ from holiday_peak_lib.adapters.mock_adapters import (
     MockPricingAdapter,
     MockProductAdapter,
 )
+from holiday_peak_lib.adapters.protocol_mapper import ProtocolMapper
+from holiday_peak_lib.adapters.ucp_mapper import UcpProtocolMapper
 
 __all__ = [
     "AcpCatalogMapper",
@@ -28,4 +30,6 @@ __all__ = [
     "MockLogisticsAdapter",
     "MockPricingAdapter",
     "MockProductAdapter",
+    "ProtocolMapper",
+    "UcpProtocolMapper",
 ]

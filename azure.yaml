@@ -454,6 +454,25 @@ services:
           run: ../../../.infra/azd/hooks/render-helm.sh truth-enrichment
           interactive: false
 
+  truth-export:
+    project: apps/truth-export/src
+    dist: .
+    language: python
+    host: aks
+    k8s:
+      namespace: holiday-peak
+      deploymentPath: ../../../.kubernetes/rendered/truth-export
+    hooks:
+      predeploy:
+        windows:
+          shell: pwsh
+          run: ../../../.infra/azd/hooks/render-helm.ps1 -ServiceName truth-export
+          interactive: false
+        posix:
+          shell: sh
+          run: ../../../.infra/azd/hooks/render-helm.sh truth-export
+          interactive: false
+
 hooks:
   postprovision:
     windows:
