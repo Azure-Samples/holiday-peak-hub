@@ -3,20 +3,30 @@
 **Agent-driven retail accelerator** with cloud-native architecture, complete frontend implementation, and comprehensive backend plan.
 
 ![Status](https://img.shields.io/badge/Status-Active%20Development-green)
-![Version](https://img.shields.io/badge/lib-v1.0.0--stable-brightgreen)
+![Version](https://img.shields.io/badge/lib-v1.1.0--stable-brightgreen)
 ![Frontend](https://img.shields.io/badge/Frontend-Complete-brightgreen)
 ![Backend](https://img.shields.io/badge/Backend-Complete-brightgreen)
+![Connectors](https://img.shields.io/badge/Connectors-Oracle%7CSalesforce%7CSAP%7CDynamics-blue)
 ![Architecture](https://img.shields.io/badge/Architecture-Cloud--Native-orange)
 ![Code Style](https://img.shields.io/badge/code%20style-black-000000.svg)
 ![Coverage](https://img.shields.io/badge/coverage-73%25-yellow)
-![Tests](https://img.shields.io/badge/tests-165%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-508%20passing-brightgreen)
 ![Python](https://img.shields.io/badge/python-3.13-blue)
 
 [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FAzure-Samples%2Fholiday-peak-hub%2Fmain%2F.infra%2Fmodules%2Fshared-infrastructure%2Fshared-infrastructure-main.bicep)
 
 ## What's New
 
-> **v1.0.0** — First stable release. See the [CHANGELOG](CHANGELOG.md) for the full version history and the [GitHub Release](https://github.com/Azure-Samples/holiday-peak-hub/releases/tag/v1.0.0) for details.
+> **v1.1.0** — Enterprise Connectors, Product Truth Layer, HITL Review System
+>
+> - **Enterprise Connectors**: Oracle Fusion Cloud SCM, Salesforce CRM, SAP S/4HANA, Dynamics 365
+> - **Product Truth Layer**: Foundation data models, ingestion service, Cosmos DB integration
+> - **HITL Review UI**: Staff review queue, proposal cards, audit timeline
+> - **Enterprise Hardening**: Circuit breaker, bulkhead, rate limiter, telemetry
+> - **PIM Writeback**: Opt-in config, conflict detection, audit trail
+> - **508 tests passing** (↑343 from v1.0.0)
+>
+> See the [CHANGELOG](CHANGELOG.md) for the full version history and the [GitHub Release](https://github.com/Azure-Samples/holiday-peak-hub/releases/tag/v1.1.0) for details.
 
 ---
 

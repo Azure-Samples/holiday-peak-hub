@@ -14,6 +14,55 @@ Core micro-framework providing reusable patterns for retail AI agents.
 | [Orchestration](components/libs/orchestration.md) | `lib/src/holiday_peak_lib/orchestration/` | SAGA choreography helpers | Event-driven |
 | [Schemas](components/libs/schemas.md) | `lib/src/holiday_peak_lib/schemas/` | Pydantic models for data contracts | Domain Models |
 | [Utils](components/libs/utils.md) | `lib/src/holiday_peak_lib/utils/` | Logging, config, retry logic | Utilities |
+| [Integrations](components/libs/integrations.md) | `lib/src/holiday_peak_lib/integrations/` | Connector contracts, registry, writeback | Integration Pattern |
+| [Connectors](components/libs/connectors.md) | `lib/src/holiday_peak_lib/connectors/` | Enterprise system connectors | Adapter Pattern |
+
+## Enterprise Connectors (v1.1.0)
+
+Production-ready connectors for enterprise retail systems.
+
+### Inventory & SCM Connectors
+
+| Connector | Path | Capabilities |
+|-----------|------|--------------|
+| Oracle Fusion Cloud SCM | `connectors/inventory_scm/oracle_scm/` | Inventory, Purchase Orders, Shipments |
+| SAP S/4HANA | (integrated) | Material Master, Inventory Positions, POs |
+
+### CRM & Loyalty Connectors
+
+| Connector | Path | Capabilities |
+|-----------|------|--------------|
+| Salesforce CRM | `connectors/crm_loyalty/salesforce/` | Contacts, Accounts, Leads, Campaigns |
+| Dynamics 365 | (integrated) | Contact, Account, Opportunity, Case |
+
+### DAM & PIM Connectors
+
+| Connector | Path | Capabilities |
+|-----------|------|--------------|
+| Generic REST DAM | `integrations/dam_generic.py` | Configurable asset management |
+| PIM Writeback | `integrations/pim_writeback.py` | Bi-directional sync with conflict detection |
+
+## Enterprise Hardening (v1.1.0)
+
+Resilience patterns for production workloads.
+
+| Component | Path | Purpose |
+|-----------|------|---------|
+| Circuit Breaker | `utils/circuit_breaker.py` | Failure isolation with half-open recovery |
+| Bulkhead | `utils/bulkhead.py` | Semaphore-based resource isolation |
+| Rate Limiter | `utils/rate_limiter.py` | Token bucket with async support |
+| Telemetry | `utils/telemetry.py` | OpenTelemetry spans and metrics |
+
+## Product Truth Layer (v1.1.0)
+
+Foundation for unified product data management.
+
+| Component | Path | Purpose |
+|-----------|------|---------|
+| Truth Schemas | `schemas/truth.py` | `TruthAttribute`, `ProposedAttribute`, `GapReport`, `AuditEvent` |
+| Truth Ingestion | `apps/truth-ingestion-service/` | Event-driven product record processing |
+| HITL Review UI | `apps/ui/app/staff/review/` | Human-in-the-loop attribute validation |
+| Admin UI | `apps/ui/app/admin/` | Schema management, tenant config, analytics |
 
 ## Apps (Domain Services)
 
