@@ -12,6 +12,7 @@ from crud_service.routes import (
     products,
     reviews,
     users,
+    webhooks,
 )
 
 __all__ = [
@@ -26,4 +27,5 @@ __all__ = [
     "checkout",
     "payments",
     "reviews",
+    "webhooks",
 ]
