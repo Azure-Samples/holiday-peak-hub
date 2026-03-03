@@ -10,6 +10,7 @@ This document describes currently available truth-layer endpoints and planned se
   - `ecommerce-product-detail-enrichment` (enrichment via `/invoke`)
   - `product-management-acp-transformation` (ACP export via `/invoke`)
   - `crud-service` (transactional APIs, including review endpoints used as interim review flow)
+- Deployment behavior: `truth-ingestion` is included in the same `deploy-azd` agent service matrix path as other agent services.
 - Planned but not yet delivered as standalone services in this repository:
   - dedicated Truth HITL service
   - dedicated Truth Export service for protocol variants beyond ACP
