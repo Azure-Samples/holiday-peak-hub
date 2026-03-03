@@ -8,6 +8,23 @@ from .inventory import InventoryContext, InventoryItem, WarehouseStock
 from .logistics import LogisticsContext, Shipment, ShipmentEvent
 from .pricing import PriceContext, PriceEntry
 from .product import CatalogProduct, ProductContext
+from .truth import (
+    AssetMetadata,
+    AuditAction,
+    AuditEvent,
+    AttributeSource,
+    AttributeStatus,
+    CategorySchema,
+    EntityType,
+    GapReport,
+    GapReportTarget,
+    ProductStyle,
+    ProductVariant,
+    ProposedAttribute,
+    Provenance,
+    SharePolicy,
+    TruthAttribute,
+)
 
 __all__ = [
     "AcpProduct",
@@ -31,4 +48,20 @@ __all__ = [
     "LogisticsContext",
     "FunnelMetric",
     "FunnelContext",
+    # Truth Layer models
+    "AssetMetadata",
+    "AuditAction",
+    "AuditEvent",
+    "AttributeSource",
+    "AttributeStatus",
+    "CategorySchema",
+    "EntityType",
+    "GapReport",
+    "GapReportTarget",
+    "ProductStyle",
+    "ProductVariant",
+    "ProposedAttribute",
+    "Provenance",
+    "SharePolicy",
+    "TruthAttribute",
 ]
