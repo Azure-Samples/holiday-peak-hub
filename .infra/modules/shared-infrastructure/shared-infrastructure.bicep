@@ -350,8 +350,45 @@ module acr 'br/public:avm/res/container-registry/registry:0.9.3' = {
 }
 
 // Cosmos DB Account + SQL DB (AVM)
-// Cosmos is reserved for agent warm memory containers (warm-{agent}-chat-memory).
-var cosmosContainers = []
+// Cosmos hosts agent warm memory containers and Product Truth Layer containers.
+var cosmosContainers = [
+  {
+    name: 'products'
+    paths: ['/categoryId']
+  }
+  {
+    name: 'attributes_truth'
+    paths: ['/entityId']
+  }
+  {
+    name: 'attributes_proposed'
+    paths: ['/entityId']
+  }
+  {
+    name: 'assets'
+    paths: ['/productId']
+  }
+  {
+    name: 'evidence'
+    paths: ['/entityId']
+  }
+  {
+    name: 'schemas'
+    paths: ['/categoryId']
+  }
+  {
+    name: 'mappings'
+    paths: ['/protocolVersion']
+  }
+  {
+    name: 'audit'
+    paths: ['/entityId']
+  }
+  {
+    name: 'config'
+    paths: ['/tenantId']
+  }
+]
 
 module cosmos 'br/public:avm/res/document-db/database-account:0.18.0' = {
   name: 'cosmos'
