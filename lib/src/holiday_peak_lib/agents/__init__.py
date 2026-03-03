@@ -13,6 +13,7 @@ from .foundry import (
     build_foundry_model_target,
     ensure_foundry_agent,
 )
+from .guardrails import EnrichmentGuardrail, SourceValidationResult
 
 __all__ = [
     "AgentBuilder",
@@ -22,4 +23,6 @@ __all__ = [
     "FoundryAgentConfig",
     "build_foundry_model_target",
     "ensure_foundry_agent",
+    "EnrichmentGuardrail",
+    "SourceValidationResult",
 ]
