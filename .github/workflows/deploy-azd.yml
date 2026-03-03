@@ -95,6 +95,7 @@ jobs:
           product-management-assortment-optimization
           product-management-consistency-validation
           product-management-normalization-classification
+          truth-ingestion
           EOF
 
           SHARED_CHANGED=false
