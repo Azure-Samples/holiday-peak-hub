@@ -26,6 +26,7 @@ from crud_service.routes import (
     products,
     reviews,
     users,
+    webhooks,
 )
 from crud_service.routes.staff import analytics, returns, shipments, tickets
 from fastapi import FastAPI
@@ -141,6 +142,7 @@ app.include_router(cart.router, prefix="/api", tags=["Cart"])
 app.include_router(orders.router, prefix="/api", tags=["Orders"])
 app.include_router(checkout.router, prefix="/api", tags=["Checkout"])
 app.include_router(payments.router, prefix="/api", tags=["Payments"])
+app.include_router(webhooks.router, tags=["Webhooks"])
 app.include_router(reviews.router, prefix="/api", tags=["Reviews"])
 app.include_router(acp_products.router, prefix="/acp", tags=["ACP Products"])
 app.include_router(acp_checkout.router, prefix="/acp", tags=["ACP Checkout"])

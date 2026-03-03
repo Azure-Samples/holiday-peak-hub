@@ -9,9 +9,13 @@ import OrderTrackingPage from '../../app/order/[id]/page';
 import ProfilePage from '../../app/profile/page';
 import DashboardPage from '../../app/dashboard/page';
 import AdminPortalPage from '../../app/admin/page';
+import SchemasPage from '../../app/admin/schemas/page';
+import ConfigPage from '../../app/admin/config/page';
+import TruthAnalyticsPage from '../../app/admin/truth-analytics/page';
 import RequestsPage from '../../app/staff/requests/page';
 import LogisticsTrackingPage from '../../app/staff/logistics/page';
 import SalesAnalyticsPage from '../../app/staff/sales/page';
+import StaffReviewQueuePage from '../../app/staff/review/page';
 import LoginPage from '../../app/auth/login/page';
 import SignupPage from '../../app/auth/signup/page';
 import CategoriesPage from '../../app/categories/page';
@@ -21,7 +25,8 @@ const redirect = jest.fn();
 
 jest.mock('next/navigation', () => ({
   redirect: (path: string) => redirect(path),
-  useParams: () => ({ id: 'ORD-2026-0123' }),
+  useParams: () => ({ id: 'ORD-2026-0123', entityId: 'prod-001' }),
+  useRouter: () => ({ push: jest.fn() }),
 }));
 
 jest.mock('../../lib/hooks/useCategories', () => ({
@@ -148,6 +153,71 @@ jest.mock('../../lib/hooks/useStaff', () => ({
   }),
 }));
 
+jest.mock('../../lib/hooks/useTruthAdmin', () => ({
+  useTruthSchemas: () => ({
+    data: [
+      {
+        id: 'schema-1',
+        category: 'electronics',
+        version: '1.0.0',
+        fields: [{ name: 'brand', type: 'string', required: true }],
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+      },
+    ],
+    isLoading: false,
+    isError: false,
+  }),
+  useCreateTruthSchema: () => ({ mutate: jest.fn(), isPending: false }),
+  useUpdateTruthSchema: () => ({ mutate: jest.fn(), isPending: false }),
+  useDeleteTruthSchema: () => ({ mutate: jest.fn(), isPending: false }),
+  useTruthConfig: () => ({
+    data: {
+      tenant_id: 'tenant-1',
+      auto_approve_threshold: 0.95,
+      enrichment_enabled: true,
+      hitl_enabled: true,
+      writeback_enabled: false,
+      writeback_dry_run: false,
+      feature_flags: { new_dashboard: true },
+      updated_at: '2026-01-01T00:00:00Z',
+    },
+    isLoading: false,
+    isError: false,
+  }),
+  useUpdateTruthConfig: () => ({ mutate: jest.fn(), isPending: false, isSuccess: false, isError: false }),
+  useTruthAnalyticsSummary: () => ({
+    data: {
+      overall_completeness: 0.82,
+      total_products: 500,
+      enrichment_jobs_processed: 1200,
+      auto_approved: 980,
+      sent_to_hitl: 220,
+      queue_pending: 45,
+      queue_approved: 155,
+      queue_rejected: 20,
+      avg_review_time_minutes: 8.5,
+      acp_exports: 800,
+      ucp_exports: 300,
+    },
+    isLoading: false,
+    isError: false,
+  }),
+  useTruthCompletenessBreakdown: () => ({
+    data: [
+      { category: 'electronics', completeness: 0.9, product_count: 120 },
+      { category: 'fashion', completeness: 0.75, product_count: 200 },
+    ],
+    isLoading: false,
+  }),
+  useTruthPipelineThroughput: () => ({
+    data: [
+      { timestamp: '2026-01-01T00:00:00Z', ingested: 100, enriched: 95, approved: 80, rejected: 5 },
+    ],
+    isLoading: false,
+  }),
+}));
+
 jest.mock('../../contexts/AuthContext', () => ({
   useAuth: () => ({
     login: jest.fn(),
@@ -156,6 +226,46 @@ jest.mock('../../contexts/AuthContext', () => ({
     user: null,
     logout: jest.fn(),
   }),
+}));
+
+jest.mock('../../lib/hooks/useTruth', () => ({
+  useReviewQueue: () => ({
+    data: {
+      items: [
+        {
+          id: 'proposal-1',
+          entity_id: 'prod-001',
+          product_title: 'Wireless Headphones',
+          category: 'Electronics',
+          field_name: 'color',
+          current_value: null,
+          proposed_value: 'Midnight Black',
+          confidence: 0.92,
+          source: 'gpt-4o',
+          proposed_at: '2026-03-01T10:00:00Z',
+          status: 'pending',
+        },
+      ],
+      total: 1,
+      page: 1,
+      page_size: 20,
+    },
+    isLoading: false,
+    isError: false,
+  }),
+  useReviewStats: () => ({
+    data: {
+      pending: 1,
+      approved_today: 5,
+      rejected_today: 2,
+      avg_confidence: 0.87,
+    },
+    isLoading: false,
+    isError: false,
+  }),
+  useProductReviewDetail: () => ({ data: undefined, isLoading: false, isError: false }),
+  useAuditHistory: () => ({ data: [], isLoading: false, isError: false }),
+  useReviewAction: () => ({ mutate: jest.fn(), isPending: false }),
 }));
 
 jest.mock('@/components/templates/MainLayout', () => ({
@@ -231,6 +341,21 @@ describe('Page rendering smoke tests', () => {
     expect(screen.getByText('Admin Portal')).toBeInTheDocument();
   });
 
+  it('renders admin schemas page', () => {
+    render(<SchemasPage />);
+    expect(screen.getByText('Schema Management')).toBeInTheDocument();
+  });
+
+  it('renders admin config page', () => {
+    render(<ConfigPage />);
+    expect(screen.getAllByText('Tenant Configuration').length).toBeGreaterThan(0);
+  });
+
+  it('renders truth analytics page', () => {
+    render(<TruthAnalyticsPage />);
+    expect(screen.getByText('Truth Layer Analytics')).toBeInTheDocument();
+  });
+
   it('renders staff requests page', () => {
     render(<RequestsPage />);
     expect(screen.getByText('Customer Requests')).toBeInTheDocument();
@@ -254,5 +379,10 @@ describe('Page rendering smoke tests', () => {
   it('renders signup page', () => {
     SignupPage();
     expect(redirect).toHaveBeenCalledWith('/auth/login');
+  });
+
+  it('renders staff review queue page', () => {
+    render(<StaffReviewQueuePage />);
+    expect(screen.getByText('AI Review Queue')).toBeInTheDocument();
   });
 });

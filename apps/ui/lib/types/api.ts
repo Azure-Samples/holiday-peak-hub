@@ -102,6 +102,20 @@ export interface CheckoutValidationResponse {
 }
 
 // Payment types
+export interface CreatePaymentIntentRequest {
+  order_id: string;
+  amount: number;
+  currency?: string;
+}
+
+export interface PaymentIntentResponse {
+  client_secret: string;
+  payment_intent_id: string;
+  amount: number;
+  currency: string;
+  status: string;
+}
+
 export interface ProcessPaymentRequest {
   order_id: string;
   payment_method_id: string;
@@ -168,6 +182,135 @@ export interface Shipment {
   carrier: string;
   tracking_number: string;
   created_at: string;
+}
+
+<<<<<<< HEAD
+// Truth Layer Admin types
+
+export interface SchemaField {
+  name: string;
+  type: 'string' | 'number' | 'boolean' | 'array' | 'object';
+  required: boolean;
+  description?: string;
+  enum_values?: string[];
+}
+
+export interface CategorySchema {
+  id: string;
+  category: string;
+  version: string;
+  fields: SchemaField[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TenantConfig {
+  tenant_id: string;
+  auto_approve_threshold: number;
+  enrichment_enabled: boolean;
+  hitl_enabled: boolean;
+  writeback_enabled: boolean;
+  writeback_dry_run: boolean;
+  feature_flags: Record<string, boolean>;
+  updated_at: string;
+}
+
+export interface TruthAnalyticsSummary {
+  overall_completeness: number;
+  total_products: number;
+  enrichment_jobs_processed: number;
+  auto_approved: number;
+  sent_to_hitl: number;
+  queue_pending: number;
+  queue_approved: number;
+  queue_rejected: number;
+  avg_review_time_minutes: number;
+  acp_exports: number;
+  ucp_exports: number;
+}
+
+export interface CompletenessBreakdown {
+  category: string;
+  completeness: number;
+  product_count: number;
+}
+
+export interface PipelineThroughput {
+  timestamp: string;
+  ingested: number;
+  enriched: number;
+  approved: number;
+  rejected: number;
+}
+
+// Truth Layer / HITL types
+export type ReviewStatus = 'pending' | 'approved' | 'rejected';
+
+export interface ReviewQueueItem {
+  id: string;
+  entity_id: string;
+  product_title: string;
+  category: string;
+  field_name: string;
+  current_value: string | null;
+  proposed_value: string;
+  confidence: number;
+  source: string;
+  proposed_at: string;
+  status: ReviewStatus;
+}
+
+export interface ReviewQueueResponse {
+  items: ReviewQueueItem[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface ProposedAttribute {
+  id: string;
+  field_name: string;
+  current_value: string | null;
+  proposed_value: string;
+  confidence: number;
+  source: string;
+  evidence: string[];
+  proposed_at: string;
+  status: ReviewStatus;
+}
+
+export interface ProductReviewDetail {
+  entity_id: string;
+  product_title: string;
+  category: string;
+  image_url?: string;
+  completeness_score: number;
+  proposed_attributes: ProposedAttribute[];
+}
+
+export interface AuditEvent {
+  id: string;
+  entity_id: string;
+  action: string;
+  field_name?: string;
+  old_value?: string | null;
+  new_value?: string | null;
+  actor: string;
+  timestamp: string;
+  reason?: string;
+}
+
+export interface ReviewActionRequest {
+  action: 'approve' | 'reject' | 'edit';
+  reason?: string;
+  edited_value?: string;
+}
+
+export interface ReviewStatsResponse {
+  pending: number;
+  approved_today: number;
+  rejected_today: number;
+  avg_confidence: number;
 }
 
 // API Response wrappers

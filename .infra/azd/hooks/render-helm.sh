@@ -7,6 +7,17 @@ NAMESPACE="${K8S_NAMESPACE:-holiday-peak}"
 IMAGE_PREFIX="${IMAGE_PREFIX:-ghcr.io/azure-samples}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 KEDA_ENABLED="${KEDA_ENABLED:-false}"
+INGRESS_ENABLED="${INGRESS_ENABLED:-true}"
+CANARY_ENABLED="${CANARY_ENABLED:-false}"
+
+# Determine workload type (crud-service goes to crud pool, others to agents pool)
+if [ "$SERVICE_NAME" = "crud-service" ]; then
+  NODE_POOL="crud"
+  WORKLOAD_TYPE="crud"
+else
+  NODE_POOL="agents"
+  WORKLOAD_TYPE="agents"
+fi
 
 SERVICE_IMAGE_VAR_NAME="SERVICE_$(printf '%s' "$SERVICE_NAME" | tr '[:lower:]-' '[:upper:]_')_IMAGE_NAME"
 SERVICE_IMAGE="$(printenv "$SERVICE_IMAGE_VAR_NAME" || true)"
@@ -28,7 +39,21 @@ OUT_DIR="$REPO_ROOT/.kubernetes/rendered/$SERVICE_NAME"
 
 mkdir -p "$OUT_DIR"
 
-HELM_ARGS="--namespace $NAMESPACE --set serviceName=$SERVICE_NAME --set image.repository=$IMAGE_PREFIX --set image.tag=$IMAGE_TAG --set keda.enabled=$KEDA_ENABLED"
+# Base Helm arguments
+HELM_ARGS="--namespace $NAMESPACE"
+HELM_ARGS="$HELM_ARGS --set serviceName=$SERVICE_NAME"
+HELM_ARGS="$HELM_ARGS --set image.repository=$IMAGE_PREFIX"
+HELM_ARGS="$HELM_ARGS --set image.tag=$IMAGE_TAG"
+HELM_ARGS="$HELM_ARGS --set keda.enabled=$KEDA_ENABLED"
+HELM_ARGS="$HELM_ARGS --set ingress.enabled=$INGRESS_ENABLED"
+HELM_ARGS="$HELM_ARGS --set canary.enabled=$CANARY_ENABLED"
+
+# Node pool targeting
+HELM_ARGS="$HELM_ARGS --set nodeSelector.agentpool=$NODE_POOL"
+HELM_ARGS="$HELM_ARGS --set tolerations[0].key=workload"
+HELM_ARGS="$HELM_ARGS --set tolerations[0].operator=Equal"
+HELM_ARGS="$HELM_ARGS --set tolerations[0].value=$WORKLOAD_TYPE"
+HELM_ARGS="$HELM_ARGS --set tolerations[0].effect=NoSchedule"
 
 add_env_arg() {
   key="$1"
