@@ -52,9 +52,7 @@ class ProductDetailEnrichmentAgent(BaseRetailAgent):
 
         validation = self._guardrail.validate_sources(product=product, acp_content=acp_content)
         if not validation.is_valid:
-            self._guardrail.log_audit(
-                str(sku), [], rejection_reason=validation.rejection_reason
-            )
+            self._guardrail.log_audit(str(sku), [], rejection_reason=validation.rejection_reason)
             return {"error": "enrichment not available", "reason": validation.rejection_reason}
 
         self._guardrail.log_audit(str(sku), validation.source_ids)

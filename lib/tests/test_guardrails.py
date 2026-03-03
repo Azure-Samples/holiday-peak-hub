@@ -119,16 +119,22 @@ class TestEnrichmentGuardrailTagContent:
 
 class TestEnrichmentGuardrailLogAudit:
     def test_log_audit_approved_emits_info(self, guardrail, caplog):
-        with caplog.at_level(logging.INFO, logger="holiday_peak_lib.agents.guardrails.enrichment_guardrail"):
+        with caplog.at_level(
+            logging.INFO, logger="holiday_peak_lib.agents.guardrails.enrichment_guardrail"
+        ):
             guardrail.log_audit("SKU-001", ["pim:SKU-001"])
         assert any("Enrichment approved" in r.message for r in caplog.records)
 
     def test_log_audit_rejected_emits_warning(self, guardrail, caplog):
-        with caplog.at_level(logging.WARNING, logger="holiday_peak_lib.agents.guardrails.enrichment_guardrail"):
+        with caplog.at_level(
+            logging.WARNING, logger="holiday_peak_lib.agents.guardrails.enrichment_guardrail"
+        ):
             guardrail.log_audit("SKU-999", [], rejection_reason="No source data")
         assert any("Enrichment rejected" in r.message for r in caplog.records)
 
     def test_log_audit_approved_does_not_warn(self, guardrail, caplog):
-        with caplog.at_level(logging.WARNING, logger="holiday_peak_lib.agents.guardrails.enrichment_guardrail"):
+        with caplog.at_level(
+            logging.WARNING, logger="holiday_peak_lib.agents.guardrails.enrichment_guardrail"
+        ):
             guardrail.log_audit("SKU-001", ["pim:SKU-001"])
         assert not any(r.levelno == logging.WARNING for r in caplog.records)
