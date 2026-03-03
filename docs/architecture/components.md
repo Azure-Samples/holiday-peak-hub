@@ -9,7 +9,6 @@ Core micro-framework providing reusable patterns for retail AI agents.
 | Component | Path | Description | Pattern |
 |-----------|------|-------------|---------|
 | [Adapters](components/libs/adapters.md) | `lib/src/holiday_peak_lib/adapters/` | Pluggable retail system integrations | Adapter Pattern |
-| [Integrations](components/libs/integrations.md) | `lib/src/holiday_peak_lib/integrations/` | Connector contracts, registry, and vendor-agnostic implementations | Adapter Pattern |
 | [Agents](components/libs/agents.md) | `lib/src/holiday_peak_lib/agents/` | Agent orchestration and MCP wrappers | Builder Pattern (memory) |
 | [Memory](components/libs/memory.md) | `lib/src/holiday_peak_lib/memory/` | Three-tier memory management | Tiered Caching |
 | [Orchestration](components/libs/orchestration.md) | `lib/src/holiday_peak_lib/orchestration/` | SAGA choreography helpers | Event-driven |
@@ -41,6 +40,7 @@ Production-ready connectors for enterprise retail systems.
 | Connector | Path | Capabilities |
 |-----------|------|--------------|
 | Generic REST DAM | `integrations/dam_generic.py` | Configurable asset management |
+| Generic REST PIM | `integrations/pim_generic_rest.py` | Configurable product ingestion and enrichment write-back |
 | PIM Writeback | `integrations/pim_writeback.py` | Bi-directional sync with conflict detection |
 
 ## Enterprise Hardening (v1.1.0)

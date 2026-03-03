@@ -5,6 +5,7 @@ Connector framework for external enterprise systems (PIM, DAM, inventory, CRM, c
 ## Purpose
 
 `holiday_peak_lib.integrations` provides:
+
 - Canonical connector contracts used across apps.
 - Strongly typed domain payloads (`ProductData`, `AssetData`, etc.).
 - Runtime connector registration and lookup via `ConnectorRegistry`.
