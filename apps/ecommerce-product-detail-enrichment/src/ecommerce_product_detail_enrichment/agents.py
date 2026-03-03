@@ -9,6 +9,7 @@ from typing import Any
 from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
+from holiday_peak_lib.agents.guardrails import EnrichmentGuardrail
 
 from .adapters import (
     EnrichmentAdapters,
@@ -23,6 +24,7 @@ class ProductDetailEnrichmentAgent(BaseRetailAgent):
     def __init__(self, config, *args: Any, **kwargs: Any) -> None:
         super().__init__(config, *args, **kwargs)
         self._adapters = build_enrichment_adapters()
+        self._guardrail = EnrichmentGuardrail()
 
     @property
     def adapters(self) -> EnrichmentAdapters:
@@ -48,6 +50,15 @@ class ProductDetailEnrichmentAgent(BaseRetailAgent):
             review_task,
         )
 
+        validation = self._guardrail.validate_sources(product=product, acp_content=acp_content)
+        if not validation.is_valid:
+            self._guardrail.log_audit(
+                str(sku), [], rejection_reason=validation.rejection_reason
+            )
+            return {"error": "enrichment not available", "reason": validation.rejection_reason}
+
+        self._guardrail.log_audit(str(sku), validation.source_ids)
+
         enriched = merge_product_enrichment(product, acp_content, review_summary)
         enriched["inventory"] = inventory.model_dump() if inventory else None
         enriched["related"] = [item.model_dump() for item in related]
@@ -61,6 +72,8 @@ class ProductDetailEnrichmentAgent(BaseRetailAgent):
                 product,
                 availability=availability,
             )
+
+        enriched = self._guardrail.tag_content(enriched, validation.source_ids)
 
         if self.hot_memory:
             await self.hot_memory.set(
