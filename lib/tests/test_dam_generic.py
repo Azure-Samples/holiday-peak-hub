@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from urllib.parse import urlparse
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -195,7 +196,9 @@ class TestMapToInternal:
         assert asset.id == "b2"
         assert asset.content_type == "image/png"
         # Relative URL with cdn_base_url should be resolved
-        assert asset.url.startswith("https://cdn.example.com")
+        parsed = urlparse(asset.url)
+        assert parsed.scheme == "https"
+        assert parsed.netloc == "cdn.example.com"
 
     def test_tags_as_string(self, connector):
         raw = {"id": "c3", "url": "https://cdn.example.com/c3.jpg", "tags": "swatch,color"}

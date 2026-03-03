@@ -1,6 +1,7 @@
 """Unit tests for telemetry helpers."""
 
-import pytest
+import sys
+
 from holiday_peak_lib.utils.telemetry import (
     _NoopMeter,
     _NoopTracer,
@@ -12,7 +13,7 @@ from holiday_peak_lib.utils.telemetry import (
 
 class TestGetTracer:
     def test_returns_noop_tracer_without_otel(self, monkeypatch):
-        import holiday_peak_lib.utils.telemetry as telemetry_mod
+        telemetry_mod = sys.modules[get_tracer.__module__]
 
         monkeypatch.setattr(telemetry_mod, "_OTEL_AVAILABLE", False)
         tracer = get_tracer("svc")
@@ -33,7 +34,7 @@ class TestGetTracer:
 
 class TestGetMeter:
     def test_returns_noop_meter_without_otel(self, monkeypatch):
-        import holiday_peak_lib.utils.telemetry as telemetry_mod
+        telemetry_mod = sys.modules[get_meter.__module__]
 
         monkeypatch.setattr(telemetry_mod, "_OTEL_AVAILABLE", False)
         meter = get_meter("svc")

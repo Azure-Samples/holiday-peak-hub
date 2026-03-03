@@ -313,7 +313,7 @@ class TestAuditEvent:
         assert isinstance(ae.timestamp, datetime)
 
     def test_all_actions(self):
-        for action in AuditAction:
+        for action in AuditAction.__members__.values():
             ae = AuditEvent(entityId="E1", action=action, actor="actor")
             assert ae.action == action
 
