@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
-
 from holiday_peak_lib.connectors.inventory_scm.oracle_scm.auth import (
     OracleSCMAuth,
     OracleSCMAuthError,
@@ -89,7 +88,9 @@ class TestOracleSCMAuthFetchToken:
 
     @pytest.mark.asyncio
     async def test_missing_credentials_raises(self):
-        auth = OracleSCMAuth(token_url="https://t.example.com/token", client_id="", client_secret="")
+        auth = OracleSCMAuth(
+            token_url="https://t.example.com/token", client_id="", client_secret=""
+        )
         with pytest.raises(OracleSCMAuthError, match="CLIENT_ID"):
             await auth.get_token()
 

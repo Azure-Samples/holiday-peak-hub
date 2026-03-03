@@ -6,7 +6,6 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from truth_ingestion.event_handlers import build_event_handlers
 
 
@@ -34,9 +33,7 @@ class TestBuildEventHandlers:
     ):
         handlers = build_event_handlers()
         handler = handlers["ingest-jobs"]
-        event = _make_event(
-            {"event_type": "ingest_job", "data": sample_pim_product}
-        )
+        event = _make_event({"event_type": "ingest_job", "data": sample_pim_product})
 
         with patch(
             "truth_ingestion.event_handlers.build_ingestion_adapters",
@@ -71,9 +68,7 @@ class TestBuildEventHandlers:
 
         with patch(
             "truth_ingestion.event_handlers.ingest_single_product",
-            new_callable=lambda: (
-                lambda *a, **kw: (_ for _ in ()).throw(ValueError("boom"))
-            ),
+            new_callable=lambda: (lambda *a, **kw: (_ for _ in ()).throw(ValueError("boom"))),
         ):
             # Should log and not re-raise
             try:

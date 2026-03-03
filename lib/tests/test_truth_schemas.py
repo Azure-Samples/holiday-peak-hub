@@ -5,10 +5,10 @@ from datetime import datetime, timezone
 import pytest
 from holiday_peak_lib.schemas.truth import (
     AssetMetadata,
-    AuditAction,
-    AuditEvent,
     AttributeSource,
     AttributeStatus,
+    AuditAction,
+    AuditEvent,
     CategorySchema,
     EntityType,
     GapReport,
@@ -26,9 +26,7 @@ class TestProductStyle:
     """Tests for ProductStyle model."""
 
     def test_create_minimal(self):
-        style = ProductStyle(
-            id="S1", brand="Acme", modelName="Widget Pro", categoryId="cat-001"
-        )
+        style = ProductStyle(id="S1", brand="Acme", modelName="Widget Pro", categoryId="cat-001")
         assert style.id == "S1"
         assert style.brand == "Acme"
         assert style.model_name == "Widget Pro"
@@ -52,12 +50,8 @@ class TestProductStyle:
 
     def test_alias_population(self):
         """Both alias and Python name should work."""
-        style_alias = ProductStyle(
-            id="S3", brand="X", modelName="Y", categoryId="Z"
-        )
-        style_python = ProductStyle(
-            id="S3", brand="X", model_name="Y", category_id="Z"
-        )
+        style_alias = ProductStyle(id="S3", brand="X", modelName="Y", categoryId="Z")
+        style_python = ProductStyle(id="S3", brand="X", model_name="Y", category_id="Z")
         assert style_alias.model_name == style_python.model_name
 
     def test_updated_at_default(self):

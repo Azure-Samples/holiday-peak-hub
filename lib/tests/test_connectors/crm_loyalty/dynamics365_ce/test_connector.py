@@ -9,7 +9,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
-
 from holiday_peak_lib.connectors.crm_loyalty.dynamics365_ce.auth import (
     AzureADTokenProvider,
     _TokenCache,
@@ -23,7 +22,6 @@ from holiday_peak_lib.connectors.crm_loyalty.dynamics365_ce.mappings import (
     map_marketinglist_to_segment,
     map_salesorder_to_order,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -267,9 +265,7 @@ class TestGetCustomer:
             "emailaddress1": "test@example.com",
             "firstname": "Test",
         }
-        mock_transport = httpx.MockTransport(
-            lambda req: _json_response(contact_payload)
-        )
+        mock_transport = httpx.MockTransport(lambda req: _json_response(contact_payload))
         connector._http_client = httpx.AsyncClient(transport=mock_transport)
         result = await connector.get_customer("c-1")
         assert result is not None
@@ -278,9 +274,7 @@ class TestGetCustomer:
 
     @pytest.mark.asyncio
     async def test_returns_none_for_404(self, connector):
-        mock_transport = httpx.MockTransport(
-            lambda req: httpx.Response(404, content=b"{}")
-        )
+        mock_transport = httpx.MockTransport(lambda req: httpx.Response(404, content=b"{}"))
         connector._http_client = httpx.AsyncClient(transport=mock_transport)
         result = await connector.get_customer("nonexistent")
         assert result is None
@@ -454,14 +448,14 @@ class TestBaseAdapterIntegration:
 
         mock_transport = httpx.MockTransport(handler)
         connector._http_client = httpx.AsyncClient(transport=mock_transport)
-        result = await connector._upsert_impl({"_entity": "contacts", "_id": "c-1", "firstname": "X"})
+        result = await connector._upsert_impl(
+            {"_entity": "contacts", "_id": "c-1", "firstname": "X"}
+        )
         assert result == {"id": "c-1"}
 
     @pytest.mark.asyncio
     async def test_delete_impl(self, connector):
-        mock_transport = httpx.MockTransport(
-            lambda req: httpx.Response(204, content=b"")
-        )
+        mock_transport = httpx.MockTransport(lambda req: httpx.Response(204, content=b""))
         connector._http_client = httpx.AsyncClient(transport=mock_transport)
         result = await connector._delete_impl("contacts(c-1)")
         assert result is True

@@ -317,7 +317,9 @@ class PIMWritebackManager:
             pim_version = getattr(product, "last_modified", None)
             if pim_version is None:
                 return None
-            pim_ts = pim_version.isoformat() if isinstance(pim_version, datetime) else str(pim_version)
+            pim_ts = (
+                pim_version.isoformat() if isinstance(pim_version, datetime) else str(pim_version)
+            )
             truth_ts = truth_version
             if pim_ts > truth_ts:
                 return (
@@ -360,9 +362,7 @@ class PIMWritebackManager:
                 )
             except Exception as exc:
                 await self._cb.record_failure()
-                logger.error(
-                    "PIM writeback failed for %s/%s: %s", entity_id, field, exc
-                )
+                logger.error("PIM writeback failed for %s/%s: %s", entity_id, field, exc)
                 result = WritebackResult(
                     entity_id=entity_id,
                     field=field,
@@ -374,9 +374,7 @@ class PIMWritebackManager:
         await self._record_audit(result, value)
         return result
 
-    async def _writeback_one_attr(
-        self, entity_id: str, attr: dict
-    ) -> WritebackResult:
+    async def _writeback_one_attr(self, entity_id: str, attr: dict) -> WritebackResult:
         return await self.writeback_attribute(
             entity_id,
             field=attr["field"],

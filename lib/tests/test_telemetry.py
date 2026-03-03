@@ -1,7 +1,6 @@
 """Unit tests for telemetry helpers."""
 
 import pytest
-
 from holiday_peak_lib.utils.telemetry import (
     _NoopMeter,
     _NoopTracer,

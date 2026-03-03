@@ -76,9 +76,7 @@ class OracleSCMAuth:
     async def _fetch_token(self) -> str:
         """Request a new access token from the Oracle token endpoint."""
         if not self._token_url:
-            raise OracleSCMAuthError(
-                "ORACLE_SCM_TOKEN_URL is not configured."
-            )
+            raise OracleSCMAuthError("ORACLE_SCM_TOKEN_URL is not configured.")
         if not self._client_id or not self._client_secret:
             raise OracleSCMAuthError(
                 "ORACLE_SCM_CLIENT_ID and ORACLE_SCM_CLIENT_SECRET must be set."
@@ -102,16 +100,12 @@ class OracleSCMAuth:
                     f"{exc.response.text}"
                 ) from exc
             except httpx.RequestError as exc:
-                raise OracleSCMAuthError(
-                    f"Token request network error: {exc}"
-                ) from exc
+                raise OracleSCMAuthError(f"Token request network error: {exc}") from exc
 
         payload = response.json()
         token = payload.get("access_token")
         if not token:
-            raise OracleSCMAuthError(
-                f"No access_token in Oracle token response: {payload}"
-            )
+            raise OracleSCMAuthError(f"No access_token in Oracle token response: {payload}")
 
         expires_in = int(payload.get("expires_in", 3600))
         self._token = token

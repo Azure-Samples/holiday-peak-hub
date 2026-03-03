@@ -7,14 +7,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
-
+from holiday_peak_lib.integrations.contracts import AssetData
 from holiday_peak_lib.integrations.dam_generic import (
     DAMConnectionConfig,
     GenericDAMConnector,
     _classify_role,
 )
-from holiday_peak_lib.integrations.contracts import AssetData
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -231,7 +229,9 @@ class TestGetAsset:
             404,
             request=httpx.Request("GET", "https://dam.example.com/api/assets/missing"),
         )
-        error = httpx.HTTPStatusError("not found", request=response_404.request, response=response_404)
+        error = httpx.HTTPStatusError(
+            "not found", request=response_404.request, response=response_404
+        )
         client = AsyncMock(spec=httpx.AsyncClient)
         client.get = AsyncMock(side_effect=error)
         connector = GenericDAMConnector(bearer_config, http_client=client)
@@ -292,7 +292,9 @@ class TestSearchAssets:
         }
         client = _mock_client(_make_response(results_payload))
         connector = GenericDAMConnector(bearer_config, http_client=client)
-        assets = await connector.search_assets("jacket", tags=["outdoor"], content_type="image/jpeg")
+        assets = await connector.search_assets(
+            "jacket", tags=["outdoor"], content_type="image/jpeg"
+        )
         assert len(assets) == 1
 
     @pytest.mark.asyncio
@@ -382,7 +384,11 @@ class TestRetryLogic:
             return httpx.Response(
                 200,
                 content=json.dumps(
-                    {"id": "ok", "url": "https://dam.example.com/ok.jpg", "content_type": "image/jpeg"}
+                    {
+                        "id": "ok",
+                        "url": "https://dam.example.com/ok.jpg",
+                        "content_type": "image/jpeg",
+                    }
                 ).encode(),
                 request=req,
             )

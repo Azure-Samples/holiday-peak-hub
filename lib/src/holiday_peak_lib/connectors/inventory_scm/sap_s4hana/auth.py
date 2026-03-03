@@ -74,13 +74,9 @@ class SAPS4HANAAuth:
     async def _fetch_token(self) -> None:
         """Acquire a new OAuth 2.0 token via the client credentials flow."""
         if not self._token_url:
-            raise ValueError(
-                "SAP_S4HANA_TOKEN_URL must be set for OAuth 2.0 authentication"
-            )
+            raise ValueError("SAP_S4HANA_TOKEN_URL must be set for OAuth 2.0 authentication")
         if not self._client_id or not self._client_secret:
-            raise ValueError(
-                "SAP_S4HANA_CLIENT_ID and SAP_S4HANA_CLIENT_SECRET must be set"
-            )
+            raise ValueError("SAP_S4HANA_CLIENT_ID and SAP_S4HANA_CLIENT_SECRET must be set")
 
         request_data: dict[str, Any] = {
             "grant_type": "client_credentials",

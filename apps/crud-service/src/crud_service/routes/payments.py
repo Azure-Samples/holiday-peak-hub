@@ -5,13 +5,12 @@ import uuid
 from datetime import datetime
 
 import stripe
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
-
 from crud_service.auth import User, get_current_user
 from crud_service.config import get_settings
 from crud_service.integrations import get_event_publisher
 from crud_service.repositories import OrderRepository
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
