@@ -468,7 +468,7 @@ jobs:
           FOUNDRY_AUTO_ENSURE_ON_STARTUP: "true"
           FOUNDRY_STRICT_ENFORCEMENT: "true"
           MODEL_DEPLOYMENT_NAME_FAST: gpt-5-nano
-          MODEL_DEPLOYMENT_NAME_RICH: gpt-5.2
+          MODEL_DEPLOYMENT_NAME_RICH: gpt-5-nano
           COSMOS_ACCOUNT_URI: ${{ needs.provision.outputs.COSMOS_ACCOUNT_URI }}
           COSMOS_DATABASE: ${{ needs.provision.outputs.COSMOS_DATABASE }}
           REDIS_HOST: ${{ needs.provision.outputs.REDIS_HOST }}
