@@ -9,6 +9,8 @@ API_PATH_PREFIX="${API_PATH_PREFIX:-agents}"
 RESOURCE_GROUP="${AZURE_RESOURCE_GROUP:-${RESOURCE_GROUP:-}}"
 APIM_NAME="${APIM_NAME:-}"
 AKS_CLUSTER_NAME="${AKS_CLUSTER_NAME:-}"
+APP_GW_NAME="${APP_GW_NAME:-}"
+USE_INGRESS="${USE_INGRESS:-false}"
 REQUIRE_LOAD_BALANCER=true
 BACKEND_RESOLVE_RETRIES="${BACKEND_RESOLVE_RETRIES:-24}"
 BACKEND_RESOLVE_DELAY_SECONDS="${BACKEND_RESOLVE_DELAY_SECONDS:-5}"
@@ -21,8 +23,13 @@ while [ "$#" -gt 0 ]; do
       ;;
     --require-load-balancer)
       REQUIRE_LOAD_BALANCER=true
+      USE_INGRESS=false
       ;;
     --allow-non-lb)
+      REQUIRE_LOAD_BALANCER=false
+      ;;
+    --use-ingress)
+      USE_INGRESS=true
       REQUIRE_LOAD_BALANCER=false
       ;;
     --namespace)
@@ -41,6 +48,10 @@ while [ "$#" -gt 0 ]; do
       shift
       AKS_CLUSTER_NAME="$1"
       ;;
+    --app-gw-name)
+      shift
+      APP_GW_NAME="$1"
+      ;;
     --azure-yaml)
       shift
       AZURE_YAML_PATH="$1"
@@ -56,6 +67,9 @@ while [ "$#" -gt 0 ]; do
   esac
   shift
 done
+
+# Initialize App Gateway IP cache
+APP_GW_IP=""
 
 if [ -z "$RESOURCE_GROUP" ] && [ -n "${AZURE_ENV_NAME:-}" ]; then
   ENV_FILE="$REPO_ROOT/.azure/$AZURE_ENV_NAME/.env"
@@ -163,6 +177,31 @@ resolve_backend_url() {
   resolved_port="80"
   lb_host=""
   attempt=1
+
+  # If using Ingress (AGIC), resolve via App Gateway public IP
+  if [ "$USE_INGRESS" = true ]; then
+    if [ -z "$APP_GW_IP" ]; then
+      if [ -n "$APP_GW_NAME" ]; then
+        APP_GW_IP="$(az network public-ip show \
+          --resource-group "$RESOURCE_GROUP" \
+          --name "${APP_GW_NAME}-pip" \
+          --query ipAddress -o tsv 2>/dev/null || true)"
+      fi
+      if [ -z "$APP_GW_IP" ]; then
+        # Try to find App Gateway public IP from VNet
+        APP_GW_IP="$(az network application-gateway list \
+          --resource-group "$RESOURCE_GROUP" \
+          --query "[0].frontendIPConfigurations[0].publicIPAddress.id" -o tsv 2>/dev/null | \
+          xargs -I{} az network public-ip show --ids {} --query ipAddress -o tsv 2>/dev/null || true)"
+      fi
+    fi
+    if [ -n "$APP_GW_IP" ]; then
+      # Route through App Gateway with path-based routing
+      printf 'http://%s/%s' "$APP_GW_IP" "$svc"
+      return
+    fi
+    echo "App Gateway IP could not be resolved. Falling back to cluster DNS." >&2
+  fi
 
   if command -v kubectl >/dev/null 2>&1; then
     resolved_name="$(kubectl get svc -n "$NAMESPACE" -l "app=$svc" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"

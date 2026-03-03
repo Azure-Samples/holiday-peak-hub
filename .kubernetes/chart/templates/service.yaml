@@ -11,8 +11,32 @@ metadata:
 spec:
   selector:
     app: {{ .Values.serviceName }}
+    {{- if not .Values.canary.enabled }}
+    # When canary is disabled, select all pods
+    {{- end }}
   ports:
     - name: http
       port: {{ .Values.service.port | default 80 }}
       targetPort: {{ .Values.service.targetPort | default 8000 }}
   type: {{ .Values.service.type | default "ClusterIP" }}
+
+---
+{{- if .Values.canary.enabled }}
+# Canary service for progressive deployment testing
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "holiday-peak-service.fullname" . }}-canary
+  labels:
+    app: {{ .Values.serviceName }}
+    canary: "true"
+spec:
+  selector:
+    app: {{ .Values.serviceName }}
+    canary: "true"
+  ports:
+    - name: http
+      port: {{ .Values.service.port | default 80 }}
+      targetPort: {{ .Values.service.targetPort | default 8000 }}
+  type: ClusterIP
+{{- end }}
