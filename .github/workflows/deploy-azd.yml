@@ -181,6 +181,9 @@ jobs:
             --federated-credential-provider github \
             --no-prompt
 
+      - name: Install kubelogin
+        run: az aks install-cli --kubelogin-version latest
+
       - name: Configure azd environment
         run: |
           azd env set AZURE_SUBSCRIPTION_ID "${AZURE_SUBSCRIPTION_ID}" -e "${{ inputs.environment }}"
