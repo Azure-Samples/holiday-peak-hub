@@ -190,6 +190,7 @@ jobs:
           azd env set resourceGroupName "${{ inputs.projectName }}-${{ inputs.environment }}-rg" -e "${{ inputs.environment }}"
           azd env set AZURE_AKS_CLUSTER_NAME "${{ inputs.projectName }}-${{ inputs.environment }}-aks" -e "${{ inputs.environment }}"
           azd env set AKS_CLUSTER_NAME "${{ inputs.projectName }}-${{ inputs.environment }}-aks" -e "${{ inputs.environment }}"
+          azd env set AZURE_CONTAINER_REGISTRY_ENDPOINT "${{ inputs.projectName }}${{ inputs.environment }}acr.azurecr.io" -e "${{ inputs.environment }}"
 
       - name: Install kubelogin
         run: az aks install-cli --kubelogin-version latest
@@ -206,6 +207,7 @@ jobs:
           azd env set resourceGroupName "${{ inputs.projectName }}-${{ inputs.environment }}-rg" -e "${{ inputs.environment }}"
           azd env set AZURE_AKS_CLUSTER_NAME "${{ inputs.projectName }}-${{ inputs.environment }}-aks" -e "${{ inputs.environment }}"
           azd env set AKS_CLUSTER_NAME "${{ inputs.projectName }}-${{ inputs.environment }}-aks" -e "${{ inputs.environment }}"
+          azd env set AZURE_CONTAINER_REGISTRY_ENDPOINT "${{ inputs.projectName }}${{ inputs.environment }}acr.azurecr.io" -e "${{ inputs.environment }}"
 
           azd env set deployShared true -e "${{ inputs.environment }}"
           azd env set deployStatic "${{ inputs.deployStatic }}" -e "${{ inputs.environment }}"
@@ -306,6 +308,7 @@ jobs:
           azd env set resourceGroupName "${{ inputs.projectName }}-${{ inputs.environment }}-rg" -e "${{ inputs.environment }}"
           azd env set AZURE_AKS_CLUSTER_NAME "${{ inputs.projectName }}-${{ inputs.environment }}-aks" -e "${{ inputs.environment }}"
           azd env set AKS_CLUSTER_NAME "${{ inputs.projectName }}-${{ inputs.environment }}-aks" -e "${{ inputs.environment }}"
+          azd env set AZURE_CONTAINER_REGISTRY_ENDPOINT "${{ inputs.projectName }}${{ inputs.environment }}acr.azurecr.io" -e "${{ inputs.environment }}"
 
       - name: Get AKS credentials
         run: |
