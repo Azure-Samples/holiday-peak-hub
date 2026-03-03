@@ -10,6 +10,22 @@ type BrowserAppInsights = {
 
 const WARNING_SEVERITY = 2;
 
+export function trackDebug(message: string, properties?: Record<string, string>) {
+  if (typeof window !== 'undefined') {
+    const appInsights = (window as unknown as { appInsights?: BrowserAppInsights }).appInsights;
+    if (appInsights?.trackTrace) {
+      appInsights.trackTrace({
+        message,
+        severityLevel: 0,
+        properties,
+      });
+      return;
+    }
+  }
+
+  console.debug(message, properties || {});
+}
+
 export function trackWarning(message: string, properties?: Record<string, string>) {
   if (typeof window !== 'undefined') {
     const appInsights = (window as unknown as { appInsights?: BrowserAppInsights }).appInsights;
