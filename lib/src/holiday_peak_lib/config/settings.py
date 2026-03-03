@@ -34,3 +34,36 @@ class PostgresSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     postgres_dsn: str
+
+
+class TruthLayerSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="TRUTH_", env_file=".env", extra="ignore")
+
+    # Cosmos DB containers
+    cosmos_products_container: str = "products"
+    cosmos_attributes_truth_container: str = "attributes_truth"
+    cosmos_attributes_proposed_container: str = "attributes_proposed"
+    cosmos_schemas_container: str = "schemas"
+    cosmos_mappings_container: str = "mappings"
+    cosmos_audit_container: str = "audit"
+    cosmos_config_container: str = "config"
+    cosmos_relationships_container: str = "relationships"
+    cosmos_completeness_container: str = "completeness"
+
+    # Event Hub topics
+    eventhub_enrichment_jobs: str = "enrichment-jobs"
+    eventhub_completeness_jobs: str = "completeness-jobs"
+    eventhub_export_jobs: str = "export-jobs"
+    eventhub_hitl_jobs: str = "hitl-jobs"
+    eventhub_ingestion_notifications: str = "ingestion-notifications"
+
+    # Feature toggles
+    enrichment_enabled: bool = True
+    auto_approve_enabled: bool = True
+    auto_approve_threshold: float = 0.85
+    writeback_enabled: bool = False
+    evidence_extraction_enabled: bool = False
+
+    # Operational
+    max_enrichment_retries: int = 3
+    completeness_cache_ttl_seconds: int = 300
