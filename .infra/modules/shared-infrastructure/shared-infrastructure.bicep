@@ -603,6 +603,46 @@ module eventHubs 'br/public:avm/res/event-hub/namespace:0.14.0' = {
         messageRetentionInDays: 7
         partitionCount: 2
       }
+      {
+        name: 'ingest-jobs'
+        messageRetentionInDays: 7
+        partitionCount: 4
+        consumergroups: [
+          { name: 'ingestion-group' }
+        ]
+      }
+      {
+        name: 'gap-jobs'
+        messageRetentionInDays: 7
+        partitionCount: 4
+        consumergroups: [
+          { name: 'completeness-group' }
+        ]
+      }
+      {
+        name: 'enrichment-jobs'
+        messageRetentionInDays: 7
+        partitionCount: 4
+        consumergroups: [
+          { name: 'enrichment-group' }
+        ]
+      }
+      {
+        name: 'writeback-jobs'
+        messageRetentionInDays: 7
+        partitionCount: 2
+        consumergroups: [
+          { name: 'writeback-group' }
+        ]
+      }
+      {
+        name: 'export-jobs'
+        messageRetentionInDays: 7
+        partitionCount: 4
+        consumergroups: [
+          { name: 'export-group' }
+        ]
+      }
     ]
     tags: tags
   }
