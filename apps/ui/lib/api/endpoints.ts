@@ -89,6 +89,13 @@ export const API_ENDPOINTS = {
       list: '/api/staff/shipments',
       get: (id: string) => `/api/staff/shipments/${id}`,
     },
+    review: {
+      queue: '/api/staff/review',
+      stats: '/api/staff/review/stats',
+      product: (entityId: string) => `/api/staff/review/${entityId}`,
+      audit: (entityId: string) => `/api/staff/review/${entityId}/audit`,
+      action: (id: string) => `/api/staff/review/proposals/${id}`,
+    },
   },
 
   // Truth Layer Admin

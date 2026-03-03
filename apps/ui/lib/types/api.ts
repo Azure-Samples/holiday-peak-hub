@@ -184,6 +184,7 @@ export interface Shipment {
   created_at: string;
 }
 
+<<<<<<< HEAD
 // Truth Layer Admin types
 
 export interface SchemaField {
@@ -240,6 +241,76 @@ export interface PipelineThroughput {
   enriched: number;
   approved: number;
   rejected: number;
+}
+
+// Truth Layer / HITL types
+export type ReviewStatus = 'pending' | 'approved' | 'rejected';
+
+export interface ReviewQueueItem {
+  id: string;
+  entity_id: string;
+  product_title: string;
+  category: string;
+  field_name: string;
+  current_value: string | null;
+  proposed_value: string;
+  confidence: number;
+  source: string;
+  proposed_at: string;
+  status: ReviewStatus;
+}
+
+export interface ReviewQueueResponse {
+  items: ReviewQueueItem[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface ProposedAttribute {
+  id: string;
+  field_name: string;
+  current_value: string | null;
+  proposed_value: string;
+  confidence: number;
+  source: string;
+  evidence: string[];
+  proposed_at: string;
+  status: ReviewStatus;
+}
+
+export interface ProductReviewDetail {
+  entity_id: string;
+  product_title: string;
+  category: string;
+  image_url?: string;
+  completeness_score: number;
+  proposed_attributes: ProposedAttribute[];
+}
+
+export interface AuditEvent {
+  id: string;
+  entity_id: string;
+  action: string;
+  field_name?: string;
+  old_value?: string | null;
+  new_value?: string | null;
+  actor: string;
+  timestamp: string;
+  reason?: string;
+}
+
+export interface ReviewActionRequest {
+  action: 'approve' | 'reject' | 'edit';
+  reason?: string;
+  edited_value?: string;
+}
+
+export interface ReviewStatsResponse {
+  pending: number;
+  approved_today: number;
+  rejected_today: number;
+  avg_confidence: number;
 }
 
 // API Response wrappers
