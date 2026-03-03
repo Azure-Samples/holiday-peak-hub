@@ -7,18 +7,178 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-03-03
+
+> **Release**: [v1.1.0](https://github.com/Azure-Samples/holiday-peak-hub/releases/tag/v1.1.0)
+> **Theme**: Enterprise Connectors, Product Truth Layer, HITL Review System
+
+### Added
+
+#### Product Truth Layer (Foundation)
+- **Phase 1**: Pydantic v2 data models for product truth records [`377923a`]
+  - `TruthAttribute`, `ProposedAttribute`, `GapReport`, `AuditEvent`
+  - `ProductStyle`, `ProductVariant`, `Provenance` models
+  - `AssetMetadata`, `CategorySchema` for hierarchy management
+- **Phase 2**: Truth Ingestion service with Cosmos DB integration [`f311ea4`]
+  - Event Hub job queue processing
+  - Sample data and category schema seeding [`9bc28d2`]
+  - Cosmos DB container population script [`7ebdf98`]
+
+#### Enterprise System Connectors
+- **Oracle Fusion Cloud SCM** connector [`252363d`]
+  - Authentication: OAuth 2.0 with JWKS
+  - Endpoints: Inventory, Purchase Orders, Shipments
+  - Field mappings to canonical models
+- **Salesforce CRM & Marketing Cloud** connector [`5d110fb`]
+  - Authentication: OAuth 2.0 + refresh token
+  - Endpoints: Contacts, Accounts, Leads, Campaigns
+  - Bi-directional sync with CRM agents
+- **SAP S/4HANA Inventory & SCM** connector [`f0e5dc1`]
+  - OData v4 with SAP authentication
+  - Material master, inventory positions, purchase orders
+- **Dynamics 365 Customer Engagement** connector [`875a634`]
+  - Dataverse Web API integration
+  - Contact, Account, Opportunity, Case entities
+- **Generic REST DAM** connector [`d027b0f`]
+  - Configurable endpoint mapping
+  - OAuth/API key authentication
+
+#### Enterprise Hardening (PR #110) [`652490f`]
+- **Circuit Breaker** (`lib/utils/circuit_breaker.py`)
+  - Configurable failure threshold and recovery timeout
+  - Half-open state with gradual recovery
+  - Metrics integration for monitoring
+- **Bulkhead Pattern** (`lib/utils/bulkhead.py`)
+  - Semaphore-based resource isolation
+  - Per-service concurrency limits
+  - Queue overflow protection
+- **Rate Limiter** (`lib/utils/rate_limiter.py`)
+  - Token bucket algorithm
+  - Configurable burst and replenishment
+  - Async-first implementation
+- **Telemetry Integration** (`lib/utils/telemetry.py`)
+  - OpenTelemetry spans and metrics
+  - Automatic trace propagation
+  - Custom attribute injection
+- **Health Probes** (enhanced `routes/health.py`)
+  - Kubernetes liveness/readiness endpoints
+  - Dependency health aggregation
+  - Graceful degradation reporting
+
+#### PIM Writeback Module (PR #107) [`d0f1126`]
+- **Opt-in Configuration** (`TenantConfig`)
+  - Per-tenant writeback enable/disable
+  - Field-level allow lists
+  - Dry-run mode for validation
+- **Circuit Breaker Protection**
+  - Automatic PIM API isolation on failures
+  - Configurable reset timeout
+- **Conflict Detection**
+  - Version comparison before writes
+  - Automatic conflict resolution strategies
+- **Audit Trail**
+  - All writeback operations logged
+  - Failure reason capture
+  - Timestamp and actor tracking
+
+#### HITL Staff Review UI (PR #103) [`c83fbd7`]
+- **Review Queue** (`/staff/review`)
+  - Filterable table with pagination
+  - Status badges (pending, approved, rejected)
+  - Bulk action support
+- **Entity Detail Review** (`/staff/review/[entityId]`)
+  - Side-by-side current vs proposed view
+  - Confidence scoring visualization
+  - One-click approve/reject
+- **UI Components** (`components/truth/`)
+  - `ReviewQueueTable` - Sortable queue display
+  - `ProposalCard` - Attribute comparison cards
+  - `ConfidenceBadge` - AI confidence indicators
+  - `CompletenessBar` - Data quality progress
+  - `AuditTimeline` - Change history visualization
+- **Hooks** (`lib/hooks/useTruth.ts`)
+  - `useReviewQueue` - Queue data fetching
+  - `useProductReview` - Entity detail loading
+  - `useReviewActions` - Approve/reject mutations
+
+#### Admin UI for Truth Layer [`2eebe63`]
+- **Schema Management** (`/admin/schemas`)
+  - Category hierarchy editor
+  - Field definition CRUD
+- **Tenant Configuration** (`/admin/config`)
+  - Writeback settings per tenant
+  - Connector toggle switches
+- **Analytics Dashboard** (`/admin/analytics`)
+  - Completeness metrics by category
+  - Pipeline throughput charts
+  - AI vs human contribution ratios
+
+#### Frontend Enhancements
+- **Stripe Checkout Integration** [`a17c5ba`]
+  - Payment intent creation
+  - Card element with validation
+  - Success/failure handling
+- **Live API Integration** [`c254785`]
+  - Dashboard with real data hooks
+  - Profile page API connection
+  - Checkout flow completion
+- **Server-Side Route Protection** [`7de1bfe`]
+  - Next.js middleware for auth guards
+  - Role-based page access control
+
+#### Authentication & Documentation
+- **Entra ID Configuration Guide** [`33bf896`]
+  - Local development setup
+  - Azure deployment configuration
+  - Token validation troubleshooting
+
+#### Demo Data & Seeding
+- **Full Retail Catalog** [`07bbee9`]
+  - Curated users, orders, shipments
+  - Product reviews with ratings
+  - Support tickets and returns history
+- **Legacy Asset Cleanup** [`3601ba8`]
+  - Removed Faker-generated data
+  - Replaced with realistic retail scenarios
+
 ### Changed
 
-#### Shared Library — Connector → Integration Refactor
-- Moved connector abstractions from root `connectors/` into `lib/src/holiday_peak_lib/integrations/`
-- Replaced `typing.Protocol` + `@runtime_checkable` with `abc.ABC` + `@abstractmethod` for simpler, more explicit contracts
-- Renamed base classes from `*ConnectorProtocol` → `*ConnectorBase` (e.g. `PIMConnectorBase`, `CRMConnectorBase`)
-- Renamed module `protocols.py` → `contracts.py`
-- Renamed package `connectors` → `integrations`
-- Renamed runtime endpoint `/connectors` → `/integrations` and response field `connectors_registered` → `integrations_registered`
-- Wired `ConnectorRegistry` into `build_service_app` for runtime integration tracking
-- Deleted root `connectors/` folder (superseded by `lib/src/holiday_peak_lib/integrations/`)
-- Updated all documentation references to match new paths and naming
+- **Stripe SDK**: Fixed `stripe.Stripe` → `stripe.StripeClient` [`3ac9915`]
+- **CI Pipeline**: Fail on app test failures (no silent swallowing) [`fc32dc3`, `6f5f291`]
+- **Docker Build**: Guard loop against non-directory entries [`0cc8f16`]
+- **Git Workflow**: ADR-022 for branch naming convention [`ba353c8`]
+
+### Testing
+
+- **508 tests passing** (↑343 from v1.0.0)
+  - Lib unit tests: 287 tests
+  - Connector tests: 96 tests (Oracle, Salesforce, SAP, Dynamics)
+  - Enterprise hardening tests: 50 tests
+  - PIM writeback tests: 25 tests
+  - Integration tests: 50 tests
+- **Coverage**: 73% lib statements
+- **New Test Files**:
+  - `test_circuit_breaker.py` - 15 tests
+  - `test_bulkhead.py` - 12 tests
+  - `test_rate_limiter.py` - 10 tests
+  - `test_telemetry.py` - 8 tests
+  - `test_pim_writeback.py` - 25 tests
+  - `test_connectors/inventory_scm/oracle_scm/` - 48 tests
+  - `test_connectors/crm_loyalty/salesforce/` - 48 tests
+
+### Dependencies
+
+**New Backend Dependencies**:
+- `circuitbreaker>=2.0` - Circuit breaker pattern
+- `tenacity>=8.2` - Retry with backoff
+- `opentelemetry-api>=1.20` - Telemetry integration
+- `stripe>=7.0` - Payment processing
+
+**New Frontend Dependencies**:
+- `@stripe/stripe-js@2.4` - Stripe Elements
+- `@stripe/react-stripe-js@2.4` - React bindings
+
+---
 
 ## [1.0.0] - 2026-02-27
 

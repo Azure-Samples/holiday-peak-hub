@@ -1,14 +1,34 @@
 serviceName: "example-service"
+
+# Service configuration
 service:
-  type: "LoadBalancer"
+  type: "ClusterIP"  # Changed from LoadBalancer - use Ingress for external access
   port: 80
   targetPort: 8000
-  annotations:
-    service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+  annotations: {}
+
+# Ingress configuration for AGIC (Application Gateway Ingress Controller)
+ingress:
+  enabled: true
+  host: ""  # Leave empty for path-based routing, or set hostname for host-based
+  path: ""  # Defaults to /{serviceName}
+  pathType: "Prefix"
+  requestTimeout: 30
+  ssl:
+    enabled: false
+  healthProbe:
+    path: "/health"
+  tls: []
+  annotations: {}
+
+# Container image
 image:
   repository: "ghcr.io/azure-samples/holiday-peak-hub/example"
   tag: "latest"
+
 replicaCount: 2
+
+# Resource limits and requests
 resources:
   limits:
     cpu: "500m"
@@ -16,7 +36,14 @@ resources:
   requests:
     cpu: "250m"
     memory: "256Mi"
+
+# Health probes
 probes:
+  startup:
+    path: /health
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    failureThreshold: 30
   liveness:
     path: /health
     initialDelaySeconds: 10
@@ -25,6 +52,18 @@ probes:
     path: /ready
     initialDelaySeconds: 5
     periodSeconds: 10
+
+# Node selector for targeting specific node pools
+# For agents: agentpool: agents
+# For crud: agentpool: crud
+nodeSelector: {}
+
+# Tolerations for node pool taints
+# For agents: { key: "workload", operator: "Equal", value: "agents", effect: "NoSchedule" }
+# For crud: { key: "workload", operator: "Equal", value: "crud", effect: "NoSchedule" }
+tolerations: []
+
+# KEDA autoscaling configuration
 keda:
   enabled: true
   minReplicaCount: 1
@@ -38,6 +77,18 @@ keda:
         consumerGroup: $Default
         blobContainer: keda-checkpoints
         storageConnection: StorageConnection
+
+# Canary deployment configuration
 canary:
-  enabled: true
-  weight: 10
+  enabled: false  # Disabled by default, enable for progressive rollouts
+  replicaCount: 1
+  image:
+    repository: ""  # Uses main image.repository if empty
+    tag: ""  # Uses main image.tag if empty
+  ingress:
+    enabled: false
+    annotations: {}
+  headerRouting:
+    enabled: false
+    headerName: "x-canary"
+    headerValue: "true"

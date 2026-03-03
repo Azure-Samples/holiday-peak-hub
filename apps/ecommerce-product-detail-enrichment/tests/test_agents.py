@@ -199,9 +199,89 @@ class TestProductDetailEnrichmentAgent:
             agent = ProductDetailEnrichmentAgent(config=agent_config)
             result = await agent.handle({"sku": "NONEXISTENT"})
 
-            # Should still return enrichment from ACP even if product not found
+            # Real ACP content exists, so enrichment should proceed
             assert result["sku"] == "NONEXISTENT"
             assert "description" in result
+            assert "_sources" in result
+            assert "acp:NONEXISTENT" in result["_sources"]
+
+    @pytest.mark.asyncio
+    async def test_guardrail_rejects_no_source_data(self, agent_config):
+        """Test that guardrail rejects enrichment when no internal source data exists."""
+        stub_acp = {
+            "sku": "GHOST",
+            "long_description": "Rich, ACP-supplied product description.",
+            "features": [],
+            "media": [],
+        }
+
+        with patch(
+            "ecommerce_product_detail_enrichment.agents.build_enrichment_adapters"
+        ) as mock_build:
+            mock_products = AsyncMock()
+            mock_products.get_product = AsyncMock(return_value=None)
+            mock_products.get_related = AsyncMock(return_value=[])
+
+            mock_inventory = AsyncMock()
+            mock_inventory.build_inventory_context = AsyncMock(return_value=None)
+
+            mock_acp = AsyncMock()
+            mock_acp.get_content = AsyncMock(return_value=stub_acp)
+
+            mock_reviews = AsyncMock()
+            mock_reviews.get_summary = AsyncMock(return_value={})
+
+            mock_build.return_value = EnrichmentAdapters(
+                products=mock_products,
+                inventory=mock_inventory,
+                acp=mock_acp,
+                reviews=mock_reviews,
+            )
+
+            agent = ProductDetailEnrichmentAgent(config=agent_config)
+            result = await agent.handle({"sku": "GHOST"})
+
+            assert result["error"] == "enrichment not available"
+            assert "reason" in result
+
+    @pytest.mark.asyncio
+    async def test_guardrail_tags_content_with_sources(
+        self,
+        agent_config,
+        mock_catalog_product,
+        mock_inventory_context,
+        mock_acp_content,
+        mock_review_summary,
+    ):
+        """Test that enriched content is tagged with source references."""
+        with patch(
+            "ecommerce_product_detail_enrichment.agents.build_enrichment_adapters"
+        ) as mock_build:
+            mock_products = AsyncMock()
+            mock_products.get_product = AsyncMock(return_value=mock_catalog_product)
+            mock_products.get_related = AsyncMock(return_value=[])
+
+            mock_inventory = AsyncMock()
+            mock_inventory.build_inventory_context = AsyncMock(return_value=mock_inventory_context)
+
+            mock_acp = AsyncMock()
+            mock_acp.get_content = AsyncMock(return_value=mock_acp_content)
+
+            mock_reviews = AsyncMock()
+            mock_reviews.get_summary = AsyncMock(return_value=mock_review_summary)
+
+            mock_build.return_value = EnrichmentAdapters(
+                products=mock_products,
+                inventory=mock_inventory,
+                acp=mock_acp,
+                reviews=mock_reviews,
+            )
+
+            agent = ProductDetailEnrichmentAgent(config=agent_config)
+            result = await agent.handle({"sku": "SKU-001"})
+
+            assert "_sources" in result
+            assert "pim:SKU-001" in result["_sources"]
 
     @pytest.mark.asyncio
     async def test_handle_caches_to_hot_memory(
