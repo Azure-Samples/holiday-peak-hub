@@ -102,6 +102,20 @@ export interface CheckoutValidationResponse {
 }
 
 // Payment types
+export interface CreatePaymentIntentRequest {
+  order_id: string;
+  amount: number;
+  currency?: string;
+}
+
+export interface PaymentIntentResponse {
+  client_secret: string;
+  payment_intent_id: string;
+  amount: number;
+  currency: string;
+  status: string;
+}
+
 export interface ProcessPaymentRequest {
   order_id: string;
   payment_method_id: string;

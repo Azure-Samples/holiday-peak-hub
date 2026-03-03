@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
+import { loadStripe } from '@stripe/stripe-js';
 import { CheckoutLayout } from '@/components/templates/CheckoutLayout';
 import { Card } from '@/components/molecules/Card';
 import { Button } from '@/components/atoms/Button';
@@ -8,7 +10,78 @@ import { Input } from '@/components/atoms/Input';
 import { Checkbox } from '@/components/atoms/Checkbox';
 import { Radio } from '@/components/atoms/Radio';
 import { Badge } from '@/components/atoms/Badge';
-import { FiCreditCard, FiLock, FiTruck, FiGift } from 'react-icons/fi';
+import { FiGift, FiLock, FiTruck } from 'react-icons/fi';
+import checkoutService from '@/lib/services/checkoutService';
+
+const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+  ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
+  : null;
+
+// Mock order id used until real order creation is wired up
+const DEMO_ORDER_ID = 'demo-order-id';
+
+// ─── Stripe Payment Form ──────────────────────────────────────────────────────
+
+interface StripePaymentFormProps {
+  onSuccess: () => void;
+  onBack: () => void;
+}
+
+function StripePaymentForm({ onSuccess, onBack }: StripePaymentFormProps) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!stripe || !elements) return;
+
+    setIsSubmitting(true);
+    setErrorMessage(null);
+
+    const { error } = await stripe.confirmPayment({
+      elements,
+      confirmParams: {
+        return_url: `${window.location.origin}/orders`,
+      },
+      redirect: 'if_required',
+    });
+
+    if (error) {
+      setErrorMessage(error.message ?? 'Payment failed. Please try again.');
+      setIsSubmitting(false);
+    } else {
+      onSuccess();
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <PaymentElement />
+
+      {errorMessage && (
+        <p className="text-sm text-red-600 dark:text-red-400">{errorMessage}</p>
+      )}
+
+      <div className="flex gap-4">
+        <Button type="button" variant="ghost" onClick={onBack} className="flex-1">
+          Back
+        </Button>
+        <Button
+          type="submit"
+          size="lg"
+          disabled={!stripe || isSubmitting}
+          className="flex-1 bg-ocean-500 hover:bg-ocean-600 dark:bg-ocean-300 dark:hover:bg-ocean-400 text-white dark:text-gray-900"
+        >
+          {isSubmitting ? 'Processing…' : 'Review Order'}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+// ─── Main Checkout Page ───────────────────────────────────────────────────────
 
 export default function CheckoutPage() {
   const [currentStep, setCurrentStep] = useState(1);
@@ -25,33 +98,57 @@ export default function CheckoutPage() {
     saveAddress: false,
   });
   const [shippingMethod, setShippingMethod] = useState('standard');
-  const [paymentMethod, setPaymentMethod] = useState('card');
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [intentError, setIntentError] = useState<string | null>(null);
 
-  // Mock cart data
+  // Mock cart data – replaced by the cart hook once issue #28 is addressed
   const cartItems = [
     { id: 1, name: 'Wireless Headphones', price: 199.99, quantity: 1, image: '/placeholder.jpg' },
     { id: 2, name: 'Phone Case', price: 29.99, quantity: 2, image: '/placeholder.jpg' },
   ];
 
-  const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const shippingCost = shippingMethod === 'express' ? 15.99 : shippingMethod === 'overnight' ? 29.99 : 5.99;
+  const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const shippingCost =
+    shippingMethod === 'express' ? 15.99 : shippingMethod === 'overnight' ? 29.99 : 5.99;
   const tax = subtotal * 0.08;
   const total = subtotal + shippingCost + tax;
 
-  const handleShippingSubmit = (e: React.FormEvent) => {
+  // Create a PaymentIntent when moving to Step 2
+  const createIntent = useCallback(async () => {
+    if (!stripePromise) {
+      // Stripe not configured – skip (demo/dev mode)
+      return;
+    }
+    try {
+      const intent = await checkoutService.createPaymentIntent({
+        order_id: DEMO_ORDER_ID,
+        amount: total,
+        currency: 'usd',
+      });
+      setClientSecret(intent.client_secret);
+    } catch {
+      setIntentError('Unable to initialise payment. Please try again.');
+    }
+  }, [total]);
+
+  const handleShippingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    await createIntent();
     setCurrentStep(2);
   };
 
-  const handlePaymentSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setCurrentStep(3);
-  };
-
   const handlePlaceOrder = () => {
-    // Will be replaced with actual order placement
+    // Will be replaced with real order-placement call
     console.log('Order placed');
   };
+
+  // Re-create intent if shipping method changes while on step 2
+  useEffect(() => {
+    if (currentStep === 2) {
+      createIntent();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shippingMethod]);
 
   return (
     <CheckoutLayout currentStep={currentStep}>
@@ -79,7 +176,7 @@ export default function CheckoutPage() {
                     <Input
                       type="text"
                       value={shippingData.firstName}
-                      onChange={(e) => setShippingData({...shippingData, firstName: e.target.value})}
+                      onChange={(e) => setShippingData({ ...shippingData, firstName: e.target.value })}
                       required
                     />
                   </div>
@@ -90,7 +187,7 @@ export default function CheckoutPage() {
                     <Input
                       type="text"
                       value={shippingData.lastName}
-                      onChange={(e) => setShippingData({...shippingData, lastName: e.target.value})}
+                      onChange={(e) => setShippingData({ ...shippingData, lastName: e.target.value })}
                       required
                     />
                   </div>
@@ -103,7 +200,7 @@ export default function CheckoutPage() {
                   <Input
                     type="email"
                     value={shippingData.email}
-                    onChange={(e) => setShippingData({...shippingData, email: e.target.value})}
+                    onChange={(e) => setShippingData({ ...shippingData, email: e.target.value })}
                     required
                   />
                 </div>
@@ -115,7 +212,7 @@ export default function CheckoutPage() {
                   <Input
                     type="tel"
                     value={shippingData.phone}
-                    onChange={(e) => setShippingData({...shippingData, phone: e.target.value})}
+                    onChange={(e) => setShippingData({ ...shippingData, phone: e.target.value })}
                     required
                   />
                 </div>
@@ -127,7 +224,7 @@ export default function CheckoutPage() {
                   <Input
                     type="text"
                     value={shippingData.address}
-                    onChange={(e) => setShippingData({...shippingData, address: e.target.value})}
+                    onChange={(e) => setShippingData({ ...shippingData, address: e.target.value })}
                     required
                   />
                 </div>
@@ -140,7 +237,7 @@ export default function CheckoutPage() {
                     <Input
                       type="text"
                       value={shippingData.city}
-                      onChange={(e) => setShippingData({...shippingData, city: e.target.value})}
+                      onChange={(e) => setShippingData({ ...shippingData, city: e.target.value })}
                       required
                     />
                   </div>
@@ -151,7 +248,7 @@ export default function CheckoutPage() {
                     <Input
                       type="text"
                       value={shippingData.state}
-                      onChange={(e) => setShippingData({...shippingData, state: e.target.value})}
+                      onChange={(e) => setShippingData({ ...shippingData, state: e.target.value })}
                       required
                     />
                   </div>
@@ -162,7 +259,7 @@ export default function CheckoutPage() {
                     <Input
                       type="text"
                       value={shippingData.zipCode}
-                      onChange={(e) => setShippingData({...shippingData, zipCode: e.target.value})}
+                      onChange={(e) => setShippingData({ ...shippingData, zipCode: e.target.value })}
                       required
                     />
                   </div>
@@ -171,7 +268,7 @@ export default function CheckoutPage() {
                 <Checkbox
                   label="Save this address for future orders"
                   checked={shippingData.saveAddress}
-                  onChange={(e) => setShippingData({...shippingData, saveAddress: e.target.checked})}
+                  onChange={(e) => setShippingData({ ...shippingData, saveAddress: e.target.checked })}
                 />
 
                 <Button
@@ -185,7 +282,7 @@ export default function CheckoutPage() {
             </Card>
           )}
 
-          {/* Step 2: Payment Information */}
+          {/* Step 2: Shipping Method + Payment */}
           {currentStep === 2 && (
             <>
               {/* Shipping Method */}
@@ -237,101 +334,42 @@ export default function CheckoutPage() {
                   </h2>
                 </div>
 
-                <form onSubmit={handlePaymentSubmit} className="space-y-6">
-                  <div className="space-y-3">
-                    <div
-                      onClick={() => setPaymentMethod('card')}
-                      className={`p-4 border-2 rounded-lg cursor-pointer transition-colors ${
-                        paymentMethod === 'card'
-                          ? 'border-ocean-500 bg-ocean-50 dark:border-ocean-300 dark:bg-ocean-950'
-                          : 'border-gray-200 dark:border-gray-700'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <Radio
-                          name="payment"
-                          checked={paymentMethod === 'card'}
-                          onChange={() => setPaymentMethod('card')}
-                        />
-                        <FiCreditCard className="w-5 h-5" />
-                        <span className="font-semibold text-gray-900 dark:text-white">
-                          Credit / Debit Card
-                        </span>
-                      </div>
-                    </div>
+                {intentError && (
+                  <p className="text-sm text-red-600 dark:text-red-400 mb-4">{intentError}</p>
+                )}
 
-                    <div
-                      onClick={() => setPaymentMethod('paypal')}
-                      className={`p-4 border-2 rounded-lg cursor-pointer transition-colors ${
-                        paymentMethod === 'paypal'
-                          ? 'border-ocean-500 bg-ocean-50 dark:border-ocean-300 dark:bg-ocean-950'
-                          : 'border-gray-200 dark:border-gray-700'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <Radio
-                          name="payment"
-                          checked={paymentMethod === 'paypal'}
-                          onChange={() => setPaymentMethod('paypal')}
-                        />
-                        <span className="font-semibold text-gray-900 dark:text-white">
-                          PayPal
-                        </span>
-                      </div>
+                {stripePromise && clientSecret ? (
+                  <Elements stripe={stripePromise} options={{ clientSecret }}>
+                    <StripePaymentForm
+                      onSuccess={() => setCurrentStep(3)}
+                      onBack={() => setCurrentStep(1)}
+                    />
+                  </Elements>
+                ) : (
+                  /* Fallback: Stripe not configured (demo / local dev without keys) */
+                  <div className="space-y-6">
+                    <p className="text-sm text-amber-600 dark:text-amber-400">
+                      Payment provider is not configured. Using demo mode.
+                    </p>
+                    <div className="flex gap-4">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="flex-1"
+                      >
+                        Back
+                      </Button>
+                      <Button
+                        type="button"
+                        size="lg"
+                        onClick={() => setCurrentStep(3)}
+                        className="flex-1 bg-ocean-500 hover:bg-ocean-600 dark:bg-ocean-300 dark:hover:bg-ocean-400 text-white dark:text-gray-900"
+                      >
+                        Review Order
+                      </Button>
                     </div>
                   </div>
-
-                  {paymentMethod === 'card' && (
-                    <div className="space-y-4 mt-6">
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">
-                          Card Number *
-                        </label>
-                        <Input type="text" placeholder="1234 5678 9012 3456" required />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">
-                            Expiry Date *
-                          </label>
-                          <Input type="text" placeholder="MM/YY" required />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">
-                            CVV *
-                          </label>
-                          <Input type="text" placeholder="123" required />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">
-                          Cardholder Name *
-                        </label>
-                        <Input type="text" placeholder="John Doe" required />
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex gap-4">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setCurrentStep(1)}
-                      className="flex-1"
-                    >
-                      Back
-                    </Button>
-                    <Button
-                      type="submit"
-                      size="lg"
-                      className="flex-1 bg-ocean-500 hover:bg-ocean-600 dark:bg-ocean-300 dark:hover:bg-ocean-400 text-white dark:text-gray-900"
-                    >
-                      Review Order
-                    </Button>
-                  </div>
-                </form>
+                )}
               </Card>
             </>
           )}
@@ -365,13 +403,6 @@ export default function CheckoutPage() {
                     {shippingMethod === 'standard' ? 'Standard Shipping (5-7 days)' :
                      shippingMethod === 'express' ? 'Express Shipping (2-3 days)' :
                      'Overnight Shipping (Next day)'}
-                  </p>
-                </div>
-
-                <div>
-                  <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Payment Method</h3>
-                  <p className="text-gray-600 dark:text-gray-400">
-                    {paymentMethod === 'card' ? 'Credit/Debit Card' : 'PayPal'}
                   </p>
                 </div>
 
@@ -493,3 +524,4 @@ function ShippingOption({ id, title, description, price, selected, onSelect, bad
     </div>
   );
 }
+
