@@ -81,7 +81,9 @@ class AzureADTokenProvider:
             None,
             lambda: self._credential.get_token(self._scope),
         )
-        expires_in = max(0.0, token_obj.expires_on - time.time()) if token_obj.expires_on else 3600.0
+        expires_in = (
+            max(0.0, token_obj.expires_on - time.time()) if token_obj.expires_on else 3600.0
+        )
         self._cache.set(token_obj.token, expires_in)
         return token_obj.token
 

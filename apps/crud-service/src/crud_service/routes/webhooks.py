@@ -5,11 +5,10 @@ import uuid
 from datetime import datetime
 
 import stripe
-from fastapi import APIRouter, Header, HTTPException, Request, status
-
 from crud_service.config import get_settings
 from crud_service.integrations import get_event_publisher
 from crud_service.repositories import OrderRepository
+from fastapi import APIRouter, Header, HTTPException, Request, status
 
 logger = logging.getLogger(__name__)
 

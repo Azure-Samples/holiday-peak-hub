@@ -11,12 +11,10 @@ from typing import Any
 
 import httpx
 import pytest
-
 from holiday_peak_lib.adapters.base import AdapterError
 from holiday_peak_lib.connectors.inventory_scm.sap_s4hana.auth import SAPS4HANAAuth
 from holiday_peak_lib.connectors.inventory_scm.sap_s4hana.connector import SAPS4HANAConnector
 from holiday_peak_lib.integrations.contracts import InventoryData, ProductData
-
 
 # ---------------------------------------------------------------------------
 # Mock transport builder
@@ -180,9 +178,7 @@ class TestReserveInventory:
             auth=_auth(),
             transport=httpx.MockTransport(routes.handler),
         )
-        result = asyncio.run(
-            connector.reserve_inventory("MAT-001", "1000", 25, "REF-001")
-        )
+        result = asyncio.run(connector.reserve_inventory("MAT-001", "1000", 25, "REF-001"))
         assert result["reservation_id"] == "4500000001"
         assert result["sku"] == "MAT-001"
         assert result["quantity"] == 25
@@ -378,9 +374,7 @@ class TestBaseAdapterHooks:
             auth=_auth(),
             transport=httpx.MockTransport(routes.handler),
         )
-        result = asyncio.run(
-            connector._fetch_impl({"endpoint": "/API_PRODUCT_SRV/A_Product"})
-        )
+        result = asyncio.run(connector._fetch_impl({"endpoint": "/API_PRODUCT_SRV/A_Product"}))
         assert result[0]["Product"] == "P1"
 
     def test_upsert_impl(self):

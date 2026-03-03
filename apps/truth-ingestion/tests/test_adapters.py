@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from truth_ingestion.adapters import (
     AuditEvent,
     DAMConnector,
@@ -162,9 +161,7 @@ class TestTruthStoreAdapterInMemory:
 
 class TestIngestSingleProduct:
     @pytest.mark.asyncio
-    async def test_ingest_creates_style_and_variant(
-        self, sample_pim_product, mock_adapters
-    ):
+    async def test_ingest_creates_style_and_variant(self, sample_pim_product, mock_adapters):
         result = await ingest_single_product(sample_pim_product, mock_adapters)
         assert result["entity_id"] == "PROD-001"
         assert "style" in result
@@ -186,12 +183,8 @@ class TestIngestSingleProduct:
         mock_adapters.truth_store.write_audit_event.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_ingest_no_variants(
-        self, sample_pim_product_no_variants, mock_adapters
-    ):
-        result = await ingest_single_product(
-            sample_pim_product_no_variants, mock_adapters
-        )
+    async def test_ingest_no_variants(self, sample_pim_product_no_variants, mock_adapters):
+        result = await ingest_single_product(sample_pim_product_no_variants, mock_adapters)
         assert result["entity_id"] == "PROD-002"
         assert result["variants"] == []
 
@@ -201,8 +194,12 @@ class TestIngestSingleProduct:
         result = await ingest_single_product(
             raw,
             mock_adapters,
-            field_mapping={"entity_id": "product_code", "name": "title", "category": "dept",
-                           "brand": "maker"},
+            field_mapping={
+                "entity_id": "product_code",
+                "name": "title",
+                "category": "dept",
+                "brand": "maker",
+            },
         )
         assert result["entity_id"] == "PC-999"
 

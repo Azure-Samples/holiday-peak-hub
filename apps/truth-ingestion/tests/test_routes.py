@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pytest
 from fastapi.testclient import TestClient
-
 from truth_ingestion.main import app
 from truth_ingestion.routes import set_adapters
 
@@ -44,9 +43,7 @@ class TestIngestProductEndpoint:
 
 
 class TestBulkIngestEndpoint:
-    def test_bulk_ingest_success(
-        self, sample_pim_product, sample_pim_product_no_variants
-    ):
+    def test_bulk_ingest_success(self, sample_pim_product, sample_pim_product_no_variants):
         client = TestClient(app)
         response = client.post(
             "/ingest/bulk",

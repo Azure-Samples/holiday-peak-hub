@@ -3,7 +3,6 @@
 import asyncio
 
 import pytest
-
 from holiday_peak_lib.utils.circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerOpenError,

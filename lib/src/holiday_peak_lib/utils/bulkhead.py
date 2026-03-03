@@ -88,9 +88,7 @@ class Bulkhead:
             elif self.queue_timeout is None:
                 await self._semaphore.acquire()
             else:
-                await asyncio.wait_for(
-                    self._semaphore.acquire(), timeout=self.queue_timeout
-                )
+                await asyncio.wait_for(self._semaphore.acquire(), timeout=self.queue_timeout)
         except BulkheadFullError:
             raise
         except asyncio.TimeoutError as exc:

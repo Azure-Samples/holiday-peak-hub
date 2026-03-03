@@ -20,7 +20,6 @@ from typing import Any, Optional
 
 import httpx
 
-
 # ---------------------------------------------------------------------------
 # Domain models
 # ---------------------------------------------------------------------------
@@ -168,8 +167,11 @@ def map_pim_to_product_style(
         category=str(mapped.get("category", "")),
         brand=str(mapped.get("brand", "")),
         description=str(mapped.get("description", "")),
-        attributes={k: v for k, v in mapped.items()
-                    if k not in {"entity_id", "id", "name", "category", "brand", "description"}},
+        attributes={
+            k: v
+            for k, v in mapped.items()
+            if k not in {"entity_id", "id", "name", "category", "brand", "description"}
+        },
         source=str(mapped.get("source", "pim")),
     )
 
@@ -190,9 +192,7 @@ def map_pim_to_product_variant(
     mapping = {**defaults, **(field_mapping or {})}
     mapped = apply_field_mapping(raw, mapping)
 
-    entity_id = str(
-        mapped.get("entity_id") or mapped.get("variant_id") or str(uuid.uuid4())
-    )
+    entity_id = str(mapped.get("entity_id") or mapped.get("variant_id") or str(uuid.uuid4()))
     return ProductVariant(
         entity_id=entity_id,
         style_id=style_id,
@@ -200,10 +200,11 @@ def map_pim_to_product_variant(
         color=str(mapped.get("color", "")),
         size=str(mapped.get("size", "")),
         price=float(mapped.get("price", 0.0)),
-        attributes={k: v for k, v in mapped.items()
-                    if k not in {
-                        "entity_id", "variant_id", "sku", "color", "size", "price"
-                    }},
+        attributes={
+            k: v
+            for k, v in mapped.items()
+            if k not in {"entity_id", "variant_id", "sku", "color", "size", "price"}
+        },
         source=str(mapped.get("source", "pim")),
     )
 
@@ -234,7 +235,10 @@ class TruthStoreAdapter:
             return None
         if self._client is None:
             from azure.cosmos.aio import CosmosClient  # pylint: disable=import-outside-toplevel
-            from azure.identity.aio import DefaultAzureCredential  # pylint: disable=import-outside-toplevel
+            from azure.identity.aio import (
+                DefaultAzureCredential,  # pylint: disable=import-outside-toplevel
+            )
+
             credential = DefaultAzureCredential()
             self._client = CosmosClient(self._cosmos_uri, credential=credential)
         database = self._client.get_database_client(self._cosmos_db)
@@ -337,9 +341,7 @@ class PIMConnector:
                 return data
             return data.get("items") or data.get("products") or data.get("data") or []
 
-    async def fetch_all_products(
-        self, max_pages: int = 100
-    ) -> list[dict[str, Any]]:
+    async def fetch_all_products(self, max_pages: int = 100) -> list[dict[str, Any]]:
         """Fetch all products via paginated pull (up to max_pages)."""
         all_products: list[dict[str, Any]] = []
         for page in range(1, max_pages + 1):
@@ -411,8 +413,11 @@ class EventPublisher:
         """Send ``payload`` as a JSON event to the given Event Hub topic."""
         if not self._connection_string:
             return
-        from azure.eventhub.aio import EventHubProducerClient  # pylint: disable=import-outside-toplevel
         from azure.eventhub import EventData  # pylint: disable=import-outside-toplevel
+        from azure.eventhub.aio import (
+            EventHubProducerClient,  # pylint: disable=import-outside-toplevel
+        )
+
         async with EventHubProducerClient.from_connection_string(
             self._connection_string,
             eventhub_name=eventhub_name,
@@ -534,9 +539,7 @@ async def ingest_single_product(
     # Publish downstream events
     await asyncio.gather(
         adapters.events.publish_completeness_job(style.entity_id),
-        adapters.events.publish_ingestion_notification(
-            style.entity_id, source=style.source
-        ),
+        adapters.events.publish_ingestion_notification(style.entity_id, source=style.source),
     )
 
     return {
@@ -561,9 +564,7 @@ async def ingest_bulk_products(
     async def _ingest_one(raw: dict[str, Any]) -> dict[str, Any]:
         async with semaphore:
             try:
-                return await ingest_single_product(
-                    raw, adapters, field_mapping=field_mapping
-                )
+                return await ingest_single_product(raw, adapters, field_mapping=field_mapping)
             except Exception as exc:  # noqa: BLE001
                 entity_id = raw.get("id") or raw.get("entity_id", "unknown")
                 return {"entity_id": entity_id, "error": str(exc)}

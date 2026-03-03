@@ -22,7 +22,6 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from .product import CatalogProduct
 
-
 # ---------------------------------------------------------------------------
 # Enumerations
 # ---------------------------------------------------------------------------

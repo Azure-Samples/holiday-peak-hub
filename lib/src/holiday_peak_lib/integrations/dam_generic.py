@@ -16,9 +16,8 @@ from typing import Any
 from urllib.parse import urlencode, urljoin
 
 import httpx
-from pydantic import BaseModel, Field
-
 from holiday_peak_lib.integrations.contracts import AssetData, DAMConnectorBase
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -59,9 +58,7 @@ class DAMConnectionConfig(BaseModel):
     """Runtime configuration for :class:`GenericDAMConnector`."""
 
     base_url: str
-    auth_type: str = Field(
-        description="Authentication strategy: 'bearer', 'api_key', or 'oauth2'."
-    )
+    auth_type: str = Field(description="Authentication strategy: 'bearer', 'api_key', or 'oauth2'.")
     auth_credentials: dict = Field(default_factory=dict)
     asset_endpoint: str = "/api/assets"
     cdn_base_url: str | None = None
@@ -192,9 +189,7 @@ class GenericDAMConnector(DAMConnectorBase):
 
         if auth_type == "oauth2":
             if not self._oauth_cache.is_valid():
-                token, expires_in = await _fetch_oauth2_token(
-                    creds, self._config.timeout_seconds
-                )
+                token, expires_in = await _fetch_oauth2_token(creds, self._config.timeout_seconds)
                 self._oauth_cache.store(token, expires_in)
             return {"Authorization": f"Bearer {self._oauth_cache.token}"}
 
@@ -204,9 +199,7 @@ class GenericDAMConnector(DAMConnectorBase):
     # Retry wrapper
     # ------------------------------------------------------------------
 
-    async def _get_with_retry(
-        self, url: str, *, params: dict | None = None
-    ) -> httpx.Response:
+    async def _get_with_retry(self, url: str, *, params: dict | None = None) -> httpx.Response:
         client = await self._get_client()
         headers = await self._auth_headers()
         backoff = self._config.retry_backoff_seconds
@@ -333,9 +326,7 @@ class GenericDAMConnector(DAMConnectorBase):
         """
         asset_id = str(raw.get("id") or raw.get("asset_id") or "")
         url = str(raw.get("url") or raw.get("download_url") or raw.get("src") or "")
-        content_type = str(
-            raw.get("content_type") or raw.get("mime_type") or raw.get("type") or ""
-        )
+        content_type = str(raw.get("content_type") or raw.get("mime_type") or raw.get("type") or "")
         filename = raw.get("filename") or raw.get("name") or raw.get("file_name")
         size_bytes: int | None = raw.get("size") or raw.get("size_bytes") or raw.get("file_size")
         width: int | None = raw.get("width")

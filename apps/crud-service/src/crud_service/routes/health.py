@@ -40,9 +40,7 @@ async def _check_cosmos() -> tuple[str, str]:
 
         credential = DefaultAzureCredential()
         async with CosmosClient(cosmos_uri, credential=credential) as client:
-            await client.get_database_client(
-                os.getenv("COSMOS_DATABASE", "holiday_peak")
-            ).read()
+            await client.get_database_client(os.getenv("COSMOS_DATABASE", "holiday_peak")).read()
         return "healthy", "read ok"
     except Exception as exc:  # pylint: disable=broad-except
         logger.warning("health_check cosmos error: %s", exc)

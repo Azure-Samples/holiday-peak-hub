@@ -5,7 +5,6 @@ from __future__ import annotations
 from unittest.mock import AsyncMock
 
 import pytest
-
 from truth_ingestion.adapters import (
     DAMConnector,
     EventPublisher,
@@ -54,12 +53,8 @@ def sample_pim_product_no_variants():
 def mock_truth_store():
     """TruthStoreAdapter with mocked async methods."""
     store = TruthStoreAdapter()
-    store.upsert_product_style = AsyncMock(
-        side_effect=lambda style: style.to_dict()
-    )
-    store.upsert_product_variant = AsyncMock(
-        side_effect=lambda variant: variant.to_dict()
-    )
+    store.upsert_product_style = AsyncMock(side_effect=lambda style: style.to_dict())
+    store.upsert_product_variant = AsyncMock(side_effect=lambda variant: variant.to_dict())
     store.write_audit_event = AsyncMock(return_value=None)
     store.get_product_style = AsyncMock(return_value=None)
     return store
@@ -79,9 +74,9 @@ def mock_pim():
 def mock_dam():
     """DAMConnector with mocked async methods."""
     dam = DAMConnector()
-    dam.fetch_assets = AsyncMock(return_value=[
-        {"type": "image", "url": "https://example.com/images/PROD-001.png"}
-    ])
+    dam.fetch_assets = AsyncMock(
+        return_value=[{"type": "image", "url": "https://example.com/images/PROD-001.png"}]
+    )
     return dam
 
 

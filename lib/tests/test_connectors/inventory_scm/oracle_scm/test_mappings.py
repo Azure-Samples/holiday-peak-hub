@@ -3,7 +3,6 @@
 from datetime import datetime
 
 import pytest
-
 from holiday_peak_lib.connectors.inventory_scm.oracle_scm.mappings import (
     _parse_datetime,
     map_on_hand_quantities,

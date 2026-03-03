@@ -23,7 +23,6 @@ from abc import ABC, abstractmethod
 from typing import Any, Optional
 
 import httpx
-
 from holiday_peak_lib.adapters.base import AdapterError, BaseAdapter
 from holiday_peak_lib.connectors.common.protocols import InventoryData
 from holiday_peak_lib.connectors.inventory_scm.oracle_scm.auth import (
@@ -93,9 +92,8 @@ class OracleSCMConnector(InventoryConnectorBase):
         super().__init__(timeout=http_timeout, **adapter_kwargs)
         self._base_url = (base_url or os.environ.get("ORACLE_SCM_BASE_URL", "")).rstrip("/")
         self._auth = auth or OracleSCMAuth()
-        self._api_version = (
-            api_version
-            or os.environ.get("ORACLE_SCM_API_VERSION", self._DEFAULT_API_VERSION)
+        self._api_version = api_version or os.environ.get(
+            "ORACLE_SCM_API_VERSION", self._DEFAULT_API_VERSION
         )
         self._page_size = int(
             page_size or os.environ.get("ORACLE_SCM_PAGE_SIZE", self._DEFAULT_PAGE_SIZE)
@@ -241,9 +239,7 @@ class OracleSCMConnector(InventoryConnectorBase):
     ) -> list[dict[str, Any]]:
         """Paginate through Oracle onHandQuantities and return raw records."""
         if not self._base_url:
-            raise AdapterError(
-                "ORACLE_SCM_BASE_URL is not configured."
-            )
+            raise AdapterError("ORACLE_SCM_BASE_URL is not configured.")
 
         headers = await self._get_headers()
         url = self._resource_url("onHandQuantities")

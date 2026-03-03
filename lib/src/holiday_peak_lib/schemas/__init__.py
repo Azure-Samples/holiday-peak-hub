@@ -10,10 +10,10 @@ from .pricing import PriceContext, PriceEntry
 from .product import CatalogProduct, ProductContext
 from .truth import (
     AssetMetadata,
-    AuditAction,
-    AuditEvent,
     AttributeSource,
     AttributeStatus,
+    AuditAction,
+    AuditEvent,
     CategorySchema,
     EntityType,
     GapReport,

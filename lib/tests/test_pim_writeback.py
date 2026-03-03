@@ -6,7 +6,6 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from holiday_peak_lib.integrations.pim_writeback import (
     CircuitBreaker,
     CircuitBreakerState,
@@ -14,7 +13,6 @@ from holiday_peak_lib.integrations.pim_writeback import (
     TenantConfig,
     WritebackStatus,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers / fixtures
@@ -54,7 +52,12 @@ def _make_manager(
 
 def _sample_attributes(fields=("color", "size")) -> list[dict]:
     return [
-        {"field": f, "value": f"val-{f}", "version": "2024-01-01T00:00:00", "writeback_eligible": True}
+        {
+            "field": f,
+            "value": f"val-{f}",
+            "version": "2024-01-01T00:00:00",
+            "writeback_eligible": True,
+        }
         for f in fields
     ]
 

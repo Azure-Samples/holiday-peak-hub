@@ -462,9 +462,17 @@ jobs:
           tenant-id: ${{ env.AZURE_TENANT_ID }}
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
+            --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
+            --overwrite-existing
+
       - name: Sync APIM agent APIs
         run: |
-          bash .infra/azd/hooks/sync-apim-agents.sh
+          bash .infra/azd/hooks/sync-apim-agents.sh --use-ingress \
+            --app-gw-name "${{ inputs.projectName }}-${{ inputs.environment }}-appgw"
         env:
           AZURE_RESOURCE_GROUP: ${{ inputs.projectName }}-${{ inputs.environment }}-rg
 

@@ -1,0 +1,88 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "holiday-peak-service.fullname" . }}
+  labels:
+    app: {{ .Values.serviceName }}
+  annotations:
+    kubernetes.io/ingress.class: azure/application-gateway
+    {{- if .Values.ingress.ssl.enabled }}
+    appgw.ingress.kubernetes.io/ssl-redirect: "true"
+    {{- end }}
+    {{- if .Values.ingress.healthProbe.path }}
+    appgw.ingress.kubernetes.io/health-probe-path: "{{ .Values.ingress.healthProbe.path }}"
+    {{- end }}
+    appgw.ingress.kubernetes.io/backend-protocol: "http"
+    appgw.ingress.kubernetes.io/request-timeout: "{{ .Values.ingress.requestTimeout | default 30 }}"
+    appgw.ingress.kubernetes.io/connection-draining: "true"
+    appgw.ingress.kubernetes.io/connection-draining-timeout: "30"
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if .Values.ingress.tls }}
+  tls:
+    {{- range .Values.ingress.tls }}
+    - hosts:
+        {{- range .hosts }}
+        - {{ . | quote }}
+        {{- end }}
+      secretName: {{ .secretName }}
+    {{- end }}
+  {{- end }}
+  rules:
+    {{- if .Values.ingress.host }}
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+    {{- else }}
+    - http:
+    {{- end }}
+        paths:
+          - path: {{ .Values.ingress.path | default (printf "/%s" .Values.serviceName) }}
+            pathType: {{ .Values.ingress.pathType | default "Prefix" }}
+            backend:
+              service:
+                name: {{ include "holiday-peak-service.fullname" . }}
+                port:
+                  number: {{ .Values.service.port | default 80 }}
+{{- end }}
+
+---
+{{- if and .Values.canary.enabled .Values.canary.ingress.enabled }}
+# Canary Ingress for progressive deployment
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "holiday-peak-service.fullname" . }}-canary
+  labels:
+    app: {{ .Values.serviceName }}
+    canary: "true"
+  annotations:
+    kubernetes.io/ingress.class: azure/application-gateway
+    # AGIC doesn't support weight-based canary natively, but we can use header-based routing
+    # For true weight-based canary, use Azure Front Door or Traffic Manager in front of App Gateway
+    appgw.ingress.kubernetes.io/backend-path-prefix: "/"
+    {{- if .Values.canary.headerRouting.enabled }}
+    appgw.ingress.kubernetes.io/rewrite-rule-set: "canary-{{ .Values.serviceName }}"
+    {{- end }}
+    {{- with .Values.canary.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  rules:
+    {{- if .Values.ingress.host }}
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+    {{- else }}
+    - http:
+    {{- end }}
+        paths:
+          - path: {{ .Values.ingress.path | default (printf "/%s" .Values.serviceName) }}/canary
+            pathType: {{ .Values.ingress.pathType | default "Prefix" }}
+            backend:
+              service:
+                name: {{ include "holiday-peak-service.fullname" . }}-canary
+                port:
+                  number: {{ .Values.service.port | default 80 }}
+{{- end }}

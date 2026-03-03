@@ -38,9 +38,7 @@ class TruthIngestionAgent(BaseRetailAgent):
             if not products:
                 return {"error": "products list is required for bulk ingestion"}
             concurrency = int(request.get("concurrency", 5))
-            results = await ingest_bulk_products(
-                products, self._adapters, concurrency=concurrency
-            )
+            results = await ingest_bulk_products(products, self._adapters, concurrency=concurrency)
             return {"action": action, "results": results, "count": len(results)}
 
         if action == "get_status":
