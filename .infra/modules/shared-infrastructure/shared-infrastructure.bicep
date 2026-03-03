@@ -239,6 +239,7 @@ module vnet 'br/public:avm/res/network/virtual-network:0.7.2' = {
       {
         name: 'appgw'
         addressPrefix: '10.0.11.0/24'
+        delegation: 'Microsoft.Network/applicationGateways'
         networkSecurityGroupResourceId: appGwNsg.outputs.resourceId
       }
       {
