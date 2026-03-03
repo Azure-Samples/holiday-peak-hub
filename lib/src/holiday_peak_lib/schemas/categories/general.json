@@ -1,0 +1,35 @@
+{
+  "category_id": "general",
+  "label": "General Merchandise",
+  "version": "1.0",
+  "fields": [
+    {
+      "name": "title",
+      "type": "string",
+      "required": true,
+      "enrichable": false,
+      "weight": 1.5
+    },
+    {
+      "name": "brand",
+      "type": "string",
+      "required": true,
+      "enrichable": true,
+      "weight": 1.2
+    },
+    {
+      "name": "description",
+      "type": "string",
+      "required": false,
+      "enrichable": true,
+      "weight": 1.0
+    },
+    {
+      "name": "primary_image",
+      "type": "image",
+      "required": true,
+      "enrichable": false,
+      "weight": 1.3
+    }
+  ]
+}

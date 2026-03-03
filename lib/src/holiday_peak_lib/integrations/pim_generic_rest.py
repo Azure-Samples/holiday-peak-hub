@@ -22,14 +22,13 @@ from datetime import datetime
 from typing import Any
 
 import httpx
-from pydantic import BaseModel, Field
-
 from holiday_peak_lib.integrations.contracts import (
     AssetData,
     DAMConnectorBase,
     PIMConnectorBase,
     ProductData,
 )
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -189,7 +188,7 @@ class GenericRestPIMConnector(PIMConnectorBase):
                 response = await client.request(method, path, params=params, json=json)
                 if response.status_code in (429, 500, 502, 503, 504):
                     if attempt < self._cfg.max_retries:
-                        wait = self._cfg.retry_backoff_base * (2 ** attempt)
+                        wait = self._cfg.retry_backoff_base * (2**attempt)
                         logger.warning(
                             "PIM responded %s; retrying in %.1fs (attempt %d/%d)",
                             response.status_code,
@@ -203,7 +202,7 @@ class GenericRestPIMConnector(PIMConnectorBase):
             except (httpx.TransportError, httpx.TimeoutException) as exc:
                 last_exc = exc
                 if attempt < self._cfg.max_retries:
-                    wait = self._cfg.retry_backoff_base * (2 ** attempt)
+                    wait = self._cfg.retry_backoff_base * (2**attempt)
                     logger.warning(
                         "Transport error contacting PIM: %s; retrying in %.1fs",
                         exc,
@@ -503,7 +502,9 @@ class GenericRestPIMConnector(PIMConnectorBase):
     async def health(self) -> dict[str, Any]:
         """Return a basic health status for the connector."""
         try:
-            response = await self._request("GET", self._cfg.product_endpoint, params={"page": 1, "page_size": 1})
+            response = await self._request(
+                "GET", self._cfg.product_endpoint, params={"page": 1, "page_size": 1}
+            )
             return {"ok": response.is_success, "status_code": response.status_code}
         except httpx.HTTPError as exc:
             return {"ok": False, "error": str(exc)}
