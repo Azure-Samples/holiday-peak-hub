@@ -31,7 +31,6 @@ from holiday_peak_lib.connectors.inventory_scm.oracle_scm.auth import (
 )
 from holiday_peak_lib.connectors.inventory_scm.oracle_scm.mappings import (
     map_on_hand_quantities,
-    map_on_hand_quantity,
 )
 
 
