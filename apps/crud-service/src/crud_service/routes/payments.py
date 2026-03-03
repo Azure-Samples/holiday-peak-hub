@@ -58,14 +58,14 @@ class PaymentResponse(BaseModel):
     created_at: str
 
 
-def _get_stripe_client() -> stripe.Stripe:
+def _get_stripe_client() -> stripe.StripeClient:
     """Return a configured Stripe client."""
     if not settings.stripe_secret_key:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Stripe is not configured",
         )
-    return stripe.Stripe(settings.stripe_secret_key)
+    return stripe.StripeClient(settings.stripe_secret_key)
 
 
 @router.post("/payments/intent", response_model=PaymentIntentResponse)
