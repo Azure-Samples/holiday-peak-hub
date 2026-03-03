@@ -1,0 +1,37 @@
+{
+  "category_id": "apparel",
+  "label": "Apparel",
+  "version": "1.0",
+  "fields": [
+    {
+      "name": "material",
+      "type": "string",
+      "required": true,
+      "enrichable": true,
+      "weight": 1.2
+    },
+    {
+      "name": "size",
+      "type": "enum",
+      "required": true,
+      "enrichable": false,
+      "weight": 1.5,
+      "allowed_values": ["XS", "S", "M", "L", "XL", "XXL"]
+    },
+    {
+      "name": "color",
+      "type": "string",
+      "required": true,
+      "enrichable": true,
+      "weight": 1.0
+    },
+    {
+      "name": "care_instructions",
+      "type": "string",
+      "required": false,
+      "enrichable": true,
+      "weight": 0.5
+    }
+  ],
+  "parent_category_id": "general"
+}

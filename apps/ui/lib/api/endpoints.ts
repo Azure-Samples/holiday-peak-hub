@@ -60,6 +60,7 @@ export const API_ENDPOINTS = {
 
   // Payments
   payments: {
+    intent: '/api/payments/intent',
     process: '/api/payments',
     get: (id: string) => `/api/payments/${id}`,
   },
@@ -87,6 +88,33 @@ export const API_ENDPOINTS = {
     shipments: {
       list: '/api/staff/shipments',
       get: (id: string) => `/api/staff/shipments/${id}`,
+    },
+    review: {
+      queue: '/api/staff/review',
+      stats: '/api/staff/review/stats',
+      product: (entityId: string) => `/api/staff/review/${entityId}`,
+      audit: (entityId: string) => `/api/staff/review/${entityId}/audit`,
+      action: (id: string) => `/api/staff/review/proposals/${id}`,
+    },
+  },
+
+  // Truth Layer Admin
+  truth: {
+    schemas: {
+      list: '/api/truth/schemas',
+      get: (id: string) => `/api/truth/schemas/${id}`,
+      create: '/api/truth/schemas',
+      update: (id: string) => `/api/truth/schemas/${id}`,
+      delete: (id: string) => `/api/truth/schemas/${id}`,
+    },
+    config: {
+      get: '/api/truth/config',
+      update: '/api/truth/config',
+    },
+    analytics: {
+      summary: '/api/truth/analytics/summary',
+      completeness: '/api/truth/analytics/completeness',
+      throughput: '/api/truth/analytics/throughput',
     },
   },
 } as const;

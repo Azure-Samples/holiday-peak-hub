@@ -1,14 +1,14 @@
 # Implementation Roadmap
 
-**Last Updated**: February 27, 2026  
-**Version**: [v1.0.0](https://github.com/Azure-Samples/holiday-peak-hub/releases/tag/v1.0.0)  
-**Status**: Phase 1 Complete | Phase 2 Partially Deployed | Phases 3-8 Pending
+**Last Updated**: March 3, 2026  
+**Version**: [v1.1.0](https://github.com/Azure-Samples/holiday-peak-hub/releases/tag/v1.1.0)  
+**Status**: Phase 1 Complete | Phase 2 Complete | Truth Layer Phase 1-2 Complete | Enterprise Connectors Active
 
 ---
 
 ## Overview
 
-This document tracks the implementation progress of the Holiday Peak Hub platform. The CRUD service, frontend integration, 21 AI agents, and shared infrastructure (Bicep) are complete. Infrastructure has been partially deployed (AKS, ACR, APIM, PostgreSQL). Remaining work focuses on completing deployment validation, agent event handlers, end-to-end integration, and **enterprise system connectors**.
+This document tracks the implementation progress of the Holiday Peak Hub platform. The CRUD service, frontend integration, 21 AI agents, and shared infrastructure (Bicep) are complete. v1.1.0 adds enterprise system connectors (Oracle, Salesforce, SAP, Dynamics 365), the Product Truth Layer foundation, HITL review system, and enterprise hardening patterns (circuit breaker, bulkhead, rate limiter).
 
 > **Known Issues**: See [docs/roadmap/](roadmap/) for tracked corrections and gaps discovered during deployment validation.
 > 
@@ -18,7 +18,72 @@ This document tracks the implementation progress of the Holiday Peak Hub platfor
 
 ## Completed Work ✅
 
-### Phase 1: Foundation & Core Services
+### v1.1.0 Features (March 2026)
+
+#### Product Truth Layer (Foundation)
+- ✅ **Phase 1**: Pydantic v2 data models (`TruthAttribute`, `ProposedAttribute`, `GapReport`, `AuditEvent`, `ProductStyle`, `ProductVariant`)
+- ✅ **Phase 2**: Truth Ingestion service with Cosmos DB integration
+- ✅ Sample data, category schemas, and seeding scripts
+- ✅ Cosmos DB container population for Truth Layer
+
+#### Enterprise System Connectors
+- ✅ **Oracle Fusion Cloud SCM** (`lib/connectors/inventory_scm/oracle_scm/`)
+  - OAuth 2.0 authentication with JWKS
+  - Inventory, Purchase Orders, Shipments endpoints
+  - Canonical model field mappings
+- ✅ **Salesforce CRM & Marketing Cloud** (`lib/connectors/crm_loyalty/salesforce/`)
+  - OAuth 2.0 + refresh token authentication
+  - Contacts, Accounts, Leads, Campaigns endpoints
+  - Bi-directional sync capabilities
+- ✅ **SAP S/4HANA Inventory & SCM**
+  - OData v4 with SAP authentication
+  - Material master, inventory positions, purchase orders
+- ✅ **Dynamics 365 Customer Engagement**
+  - Dataverse Web API integration
+  - Contact, Account, Opportunity, Case entities
+- ✅ **Generic REST DAM** (`lib/integrations/dam_generic.py`)
+  - Configurable endpoint mapping
+  - OAuth/API key authentication
+
+#### Enterprise Hardening (PR #110)
+- ✅ **Circuit Breaker** (`lib/utils/circuit_breaker.py`) — Failure isolation with recovery
+- ✅ **Bulkhead Pattern** (`lib/utils/bulkhead.py`) — Resource isolation
+- ✅ **Rate Limiter** (`lib/utils/rate_limiter.py`) — Token bucket algorithm
+- ✅ **Telemetry** (`lib/utils/telemetry.py`) — OpenTelemetry integration
+- ✅ **Health Probes** — Kubernetes liveness/readiness enhanced
+
+#### PIM Writeback Module (PR #107)
+- ✅ Opt-in tenant configuration (`TenantConfig`)
+- ✅ Circuit breaker protection for PIM APIs
+- ✅ Conflict detection with version comparison
+- ✅ Audit trail for all writeback operations
+
+#### HITL Staff Review UI (PR #103)
+- ✅ Review queue page (`/staff/review`) with filtering and pagination
+- ✅ Entity detail review (`/staff/review/[entityId]`) with side-by-side comparison
+- ✅ UI components: `ReviewQueueTable`, `ProposalCard`, `ConfidenceBadge`, `CompletenessBar`, `AuditTimeline`
+- ✅ React hooks: `useReviewQueue`, `useProductReview`, `useReviewActions`
+
+#### Admin UI for Truth Layer
+- ✅ Schema management (`/admin/schemas`)
+- ✅ Tenant configuration (`/admin/config`)
+- ✅ Analytics dashboard (`/admin/analytics`)
+
+#### Frontend Enhancements
+- ✅ Stripe checkout integration (real payments)
+- ✅ Dashboard and profile pages with live API hooks
+- ✅ Server-side route protection (Next.js middleware)
+- ✅ Entra ID configuration documentation
+
+#### Testing & Quality
+- ✅ **508 tests passing** (↑343 from v1.0.0)
+- ✅ Connector test suites (Oracle: 48 tests, Salesforce: 48 tests)
+- ✅ Enterprise hardening tests (circuit breaker, bulkhead, rate limiter, telemetry)
+- ✅ PIM writeback tests (25 tests)
+
+---
+
+### Phase 1: Foundation & Core Services (v1.0.0)
 
 #### 1.1 Shared Infrastructure (Bicep Modules)
 - ✅ Created `.infra/modules/shared-infrastructure/`

@@ -345,6 +345,7 @@ paket-files/
 # Python Tools for Visual Studio (PTVS)
 **/__pycache__/
 *.pyc
+*.egg-info/
 
 # Cake - Uncomment if you are using it
 #tools/**
@@ -424,6 +425,16 @@ FodyWeavers.xsd
 .env/
 .venv/
 
+# Python build artifacts
+*.egg-info/
+__pycache__/
+*.pyc
+dist/
+.pytest_cache/
+htmlcov/
+.coverage
+
+
 # Node.js / Next.js
 # dependencies
 /node_modules
@@ -464,3 +475,4 @@ yarn-error.log*
 
 # Improvements
 improvements.md
+*.egg-info/

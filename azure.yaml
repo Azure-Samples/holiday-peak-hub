@@ -417,6 +417,24 @@ services:
           shell: sh
           run: ../../../.infra/azd/hooks/render-helm.sh product-management-normalization-classification
           interactive: false
+  truth-ingestion:
+    project: apps/truth-ingestion/src
+    dist: .
+    language: python
+    host: aks
+    k8s:
+      namespace: holiday-peak
+      deploymentPath: ../../../.kubernetes/rendered/truth-ingestion
+    hooks:
+      predeploy:
+        windows:
+          shell: pwsh
+          run: ../../../.infra/azd/hooks/render-helm.ps1 -ServiceName truth-ingestion
+          interactive: false
+        posix:
+          shell: sh
+          run: ../../../.infra/azd/hooks/render-helm.sh truth-ingestion
+          interactive: false
 
 hooks:
   postprovision:

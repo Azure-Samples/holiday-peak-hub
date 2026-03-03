@@ -25,8 +25,13 @@ jobs:
         run: pip install pytest pytest-cov pytest-asyncio httpx requests
       - name: Install apps
         run: |
+          set -e
           for d in apps/*/src; do
-            [ -f "$d/pyproject.toml" ] && pip install -e "$d" || echo "Skipping $d"
+            if [ -f "$d/pyproject.toml" ]; then
+              pip install -e "$d"
+            else
+              echo "Skipping $d (no pyproject.toml)"
+            fi
           done
       - name: Run lib tests with coverage
         working-directory: lib
@@ -34,4 +39,4 @@ jobs:
           pytest tests/ --maxfail=1
       - name: Run app tests
         run: |
-          pytest apps/**/tests --maxfail=1
+          pytest apps/*/tests --ignore=apps/ui/tests

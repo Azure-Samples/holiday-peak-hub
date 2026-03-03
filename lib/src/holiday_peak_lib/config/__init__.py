@@ -1,5 +1,5 @@
 """Configuration exports."""
 
-from .settings import MemorySettings, PostgresSettings, ServiceSettings
+from .settings import MemorySettings, PostgresSettings, ServiceSettings, TruthLayerSettings
 
-__all__ = ["MemorySettings", "ServiceSettings", "PostgresSettings"]
+__all__ = ["MemorySettings", "ServiceSettings", "PostgresSettings", "TruthLayerSettings"]

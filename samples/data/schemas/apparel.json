@@ -1,0 +1,70 @@
+{
+  "schema_id": "apparel-v1",
+  "category": "apparel",
+  "version": "1.0.0",
+  "display_name": "Apparel",
+  "description": "Category schema for clothing and accessories",
+  "required_fields": [
+    "style_id",
+    "name",
+    "brand",
+    "category",
+    "gender",
+    "material",
+    "care_instructions",
+    "size_range",
+    "color_options",
+    "price",
+    "currency",
+    "image_url",
+    "description"
+  ],
+  "optional_fields": [
+    "fit_type",
+    "season",
+    "collection",
+    "sustainability_rating",
+    "country_of_origin",
+    "weight_grams",
+    "tags",
+    "rating",
+    "review_count"
+  ],
+  "variant_required_fields": [
+    "variant_id",
+    "sku",
+    "size",
+    "color",
+    "stock_quantity",
+    "price"
+  ],
+  "variant_optional_fields": [
+    "weight_grams",
+    "barcode",
+    "image_url"
+  ],
+  "field_definitions": {
+    "style_id": {"type": "string", "description": "Unique style identifier"},
+    "name": {"type": "string", "description": "Product display name"},
+    "brand": {"type": "string", "description": "Brand name"},
+    "category": {"type": "string", "description": "Product category"},
+    "gender": {"type": "string", "enum": ["men", "women", "unisex", "kids"], "description": "Target gender"},
+    "material": {"type": "string", "description": "Primary material composition"},
+    "care_instructions": {"type": "string", "description": "Washing and care instructions"},
+    "size_range": {"type": "array", "items": {"type": "string"}, "description": "Available sizes"},
+    "color_options": {"type": "array", "items": {"type": "string"}, "description": "Available colors"},
+    "price": {"type": "number", "minimum": 0, "description": "Base price"},
+    "currency": {"type": "string", "description": "Price currency code"},
+    "image_url": {"type": "string", "format": "uri", "description": "Primary product image URL"},
+    "description": {"type": "string", "description": "Product description"},
+    "fit_type": {"type": "string", "enum": ["slim", "regular", "relaxed", "oversized"], "description": "Fit type"},
+    "season": {"type": "string", "enum": ["spring", "summer", "fall", "winter", "all-season"], "description": "Target season"},
+    "collection": {"type": "string", "description": "Collection or product line name"},
+    "sustainability_rating": {"type": "string", "enum": ["A", "B", "C", "D", "F"], "description": "Sustainability rating"},
+    "country_of_origin": {"type": "string", "description": "Manufacturing country"},
+    "weight_grams": {"type": "integer", "minimum": 0, "description": "Product weight in grams"},
+    "tags": {"type": "array", "items": {"type": "string"}, "description": "Searchable tags"},
+    "rating": {"type": "number", "minimum": 0, "maximum": 5, "description": "Average customer rating"},
+    "review_count": {"type": "integer", "minimum": 0, "description": "Number of customer reviews"}
+  }
+}
