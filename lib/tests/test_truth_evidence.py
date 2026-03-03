@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from unittest.mock import patch
+from datetime import timezone
 
 import pytest
 
@@ -11,9 +10,8 @@ from holiday_peak_lib.truth.evidence import (
     VALID_MODELS,
     VALID_SOURCE_TYPES,
     EnrichmentEvidence,
+    EvidenceConfig,
     EvidenceExtractor,
-    ProposedAttribute,
-    TenantConfig,
 )
 
 
@@ -35,6 +33,28 @@ class TestEnrichmentEvidence:
         assert ev.model_used == "slm"
         assert ev.prompt_version == "v1.0"
         assert ev.confidence_factors == []
+
+    def test_id_and_entity_id_default_to_empty_string(self):
+        ev = EnrichmentEvidence(
+            source_type="ai_reasoning",
+            source_text="Some text.",
+            model_used="slm",
+            prompt_version="v1.0",
+        )
+        assert ev.id == ""
+        assert ev.entity_id == ""
+
+    def test_id_and_entity_id_can_be_set(self):
+        ev = EnrichmentEvidence(
+            id="cosmos-doc-1",
+            entity_id="prod-001",
+            source_type="product_context",
+            source_text="Category is Outdoor Gear.",
+            model_used="llm",
+            prompt_version="v2.1",
+        )
+        assert ev.id == "cosmos-doc-1"
+        assert ev.entity_id == "prod-001"
 
     def test_confidence_factors_populated(self):
         ev = EnrichmentEvidence(
@@ -81,104 +101,36 @@ class TestEnrichmentEvidence:
 
 
 # ---------------------------------------------------------------------------
-# ProposedAttribute
+# EvidenceConfig
 # ---------------------------------------------------------------------------
 
 
-class TestProposedAttribute:
-    def test_minimal_creation(self):
-        attr = ProposedAttribute(
-            entity_id="prod-001",
-            attribute_name="waterproof",
-            proposed_value=True,
-            confidence=0.92,
-            source="slm",
-        )
-        assert attr.entity_id == "prod-001"
-        assert attr.evidence == []
-        assert attr.status == "pending"
-
-    def test_id_auto_generated(self):
-        a = ProposedAttribute(
-            entity_id="e1", attribute_name="color", proposed_value="red", confidence=0.8, source="slm"
-        )
-        b = ProposedAttribute(
-            entity_id="e2", attribute_name="color", proposed_value="blue", confidence=0.8, source="slm"
-        )
-        assert a.id != b.id
-
-    def test_evidence_attached(self):
-        ev = EnrichmentEvidence(
-            source_type="ai_reasoning",
-            source_text="Title says 'red'.",
-            model_used="slm",
-            prompt_version="v1.0",
-        )
-        attr = ProposedAttribute(
-            entity_id="p1",
-            attribute_name="color",
-            proposed_value="red",
-            confidence=0.95,
-            source="slm",
-            evidence=[ev],
-        )
-        assert len(attr.evidence) == 1
-        assert attr.evidence[0].source_type == "ai_reasoning"
-
-    def test_confidence_bounds(self):
-        with pytest.raises(Exception):
-            ProposedAttribute(
-                entity_id="p1",
-                attribute_name="x",
-                proposed_value="y",
-                confidence=1.5,
-                source="slm",
-            )
-        with pytest.raises(Exception):
-            ProposedAttribute(
-                entity_id="p1",
-                attribute_name="x",
-                proposed_value="y",
-                confidence=-0.1,
-                source="slm",
-            )
-
-    def test_status_default(self):
-        attr = ProposedAttribute(
-            entity_id="e1", attribute_name="size", proposed_value="L", confidence=0.7, source="llm"
-        )
-        assert attr.status == "pending"
-
-
-# ---------------------------------------------------------------------------
-# TenantConfig
-# ---------------------------------------------------------------------------
-
-
-class TestTenantConfig:
+class TestEvidenceConfig:
     def test_defaults(self):
-        cfg = TenantConfig(tenant_id="t-001")
+        cfg = EvidenceConfig(tenant_id="t-001")
         assert cfg.tenant_id == "t-001"
         assert cfg.evidence_extraction_enabled is False
         assert cfg.auto_approve_threshold is None
 
     def test_enable_evidence_extraction(self):
-        cfg = TenantConfig(tenant_id="t-002", evidence_extraction_enabled=True)
+        cfg = EvidenceConfig(tenant_id="t-002", evidence_extraction_enabled=True)
         assert cfg.evidence_extraction_enabled is True
 
-    def test_auto_approve_threshold_bounds(self):
-        cfg = TenantConfig(tenant_id="t-003", auto_approve_threshold=0.95)
+    def test_auto_approve_threshold_valid(self):
+        cfg = EvidenceConfig(tenant_id="t-003", auto_approve_threshold=0.95)
         assert cfg.auto_approve_threshold == 0.95
 
+    def test_auto_approve_threshold_upper_bound(self):
         with pytest.raises(Exception):
-            TenantConfig(tenant_id="t-bad", auto_approve_threshold=1.5)
+            EvidenceConfig(tenant_id="t-bad", auto_approve_threshold=1.5)
 
+    def test_auto_approve_threshold_lower_bound(self):
         with pytest.raises(Exception):
-            TenantConfig(tenant_id="t-bad", auto_approve_threshold=-0.1)
+            EvidenceConfig(tenant_id="t-bad", auto_approve_threshold=-0.1)
 
     def test_missing_tenant_id_raises(self):
         with pytest.raises(Exception):
-            TenantConfig()  # type: ignore[call-arg]
+            EvidenceConfig()  # type: ignore[call-arg]
 
 
 # ---------------------------------------------------------------------------
@@ -264,15 +216,8 @@ class TestEvidenceExtractor:
         result = extractor.extract({"evidence": "not a list"})
         assert result == []
 
-    def test_attach_evidence(self):
+    def test_extract_refs_returns_items_and_refs(self):
         extractor = EvidenceExtractor(model_used="slm", prompt_version="v1.0")
-        proposed = ProposedAttribute(
-            entity_id="p1",
-            attribute_name="color",
-            proposed_value="blue",
-            confidence=0.88,
-            source="slm",
-        )
         output = {
             "evidence": [
                 {
@@ -282,68 +227,63 @@ class TestEvidenceExtractor:
                 }
             ]
         }
-        result = extractor.attach_evidence(proposed, output)
-        assert result is proposed
-        assert len(proposed.evidence) == 1
-        assert proposed.evidence[0].source_type == "product_context"
+        items, refs = extractor.extract_refs(output, entity_id="prod-001")
+        assert len(items) == 1
+        assert len(refs) == 1
+        assert items[0].entity_id == "prod-001"
+        # IDs are empty strings until Cosmos assigns them
+        assert refs[0] == items[0].id
 
-    def test_attach_evidence_clears_existing(self):
+    def test_extract_refs_empty_output(self):
         extractor = EvidenceExtractor(model_used="slm", prompt_version="v1.0")
-        ev = EnrichmentEvidence(
-            source_type="ai_reasoning",
-            source_text="Old evidence.",
-            model_used="slm",
-            prompt_version="v0.1",
-        )
-        proposed = ProposedAttribute(
-            entity_id="p2",
-            attribute_name="size",
-            proposed_value="M",
-            confidence=0.75,
-            source="slm",
-            evidence=[ev],
-        )
-        extractor.attach_evidence(proposed, {})  # empty → clears
-        assert proposed.evidence == []
+        items, refs = extractor.extract_refs({})
+        assert items == []
+        assert refs == []
+
+    def test_extract_refs_assigns_entity_id(self):
+        extractor = EvidenceExtractor(model_used="llm", prompt_version="v2.0")
+        output = {
+            "evidence": [
+                {"source_type": "ai_reasoning", "source_text": "Reason A."},
+                {"source_type": "category_inference", "source_text": "Reason B."},
+            ]
+        }
+        items, _ = extractor.extract_refs(output, entity_id="sku-42")
+        for item in items:
+            assert item.entity_id == "sku-42"
 
 
 # ---------------------------------------------------------------------------
-# Integration: TenantConfig toggle
+# Integration: EvidenceConfig toggle
 # ---------------------------------------------------------------------------
 
 
 class TestEvidenceToggle:
     """Verify the toggle pattern: extractor only runs when config says so."""
 
-    def _enrich_with_toggle(
+    def _run_extraction(
         self,
-        config: TenantConfig,
+        config: EvidenceConfig,
         model_output: dict,
-    ) -> ProposedAttribute:
-        proposed = ProposedAttribute(
-            entity_id="p1",
-            attribute_name="material",
-            proposed_value="cotton",
-            confidence=0.9,
-            source="slm",
-        )
-        if config.evidence_extraction_enabled:
-            extractor = EvidenceExtractor(model_used="slm", prompt_version="v1.0")
-            extractor.attach_evidence(proposed, model_output)
-        return proposed
+    ) -> list[EnrichmentEvidence]:
+        """Simulate the enrichment-pipeline extraction branch."""
+        if not config.evidence_extraction_enabled:
+            return []
+        extractor = EvidenceExtractor(model_used="slm", prompt_version="v1.0")
+        return extractor.extract(model_output)
 
     def test_toggle_off_no_evidence(self):
-        cfg = TenantConfig(tenant_id="t-off")
+        cfg = EvidenceConfig(tenant_id="t-off")
         output = {
             "evidence": [{"source_type": "ai_reasoning", "source_text": "Some text."}]
         }
-        result = self._enrich_with_toggle(cfg, output)
-        assert result.evidence == []
+        result = self._run_extraction(cfg, output)
+        assert result == []
 
     def test_toggle_on_evidence_captured(self):
-        cfg = TenantConfig(tenant_id="t-on", evidence_extraction_enabled=True)
+        cfg = EvidenceConfig(tenant_id="t-on", evidence_extraction_enabled=True)
         output = {
             "evidence": [{"source_type": "ai_reasoning", "source_text": "Some text."}]
         }
-        result = self._enrich_with_toggle(cfg, output)
-        assert len(result.evidence) == 1
+        result = self._run_extraction(cfg, output)
+        assert len(result) == 1

@@ -3,13 +3,18 @@
 Captures the reasoning and evidence that supports AI-generated proposed
 attribute values, enabling HITL reviewers to understand and verify enrichment
 decisions.
+
+The :class:`EvidenceExtractor` produces :class:`EnrichmentEvidence` objects
+which are stored in the Cosmos ``evidence`` container and linked to
+:class:`~holiday_peak_lib.schemas.truth.ProposedAttribute` via the
+``evidence_refs`` field.  The :class:`EvidenceConfig` controls whether
+extraction runs for a given tenant (off by default).
 """
 
 from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any, Optional
-from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
@@ -37,6 +42,9 @@ class EnrichmentEvidence(BaseModel):
 
     Records the source text, confidence factors, and model metadata so that
     HITL reviewers can understand *why* the model produced a given value.
+    Instances are stored in the Cosmos ``evidence`` container and referenced
+    from :class:`~holiday_peak_lib.schemas.truth.ProposedAttribute` via
+    ``evidence_refs``.
 
     >>> ev = EnrichmentEvidence(
     ...     source_type="ai_reasoning",
@@ -51,6 +59,14 @@ class EnrichmentEvidence(BaseModel):
     'slm'
     """
 
+    id: str = Field(
+        default="",
+        description="Cosmos document ID; populated on write.",
+    )
+    entity_id: str = Field(
+        default="",
+        description="ID of the product/entity this evidence belongs to.",
+    )
     source_type: str = Field(
         ...,
         description=(
@@ -80,61 +96,18 @@ class EnrichmentEvidence(BaseModel):
     )
 
 
-class ProposedAttribute(BaseModel):
-    """A candidate attribute value produced by the enrichment pipeline.
+class EvidenceConfig(BaseModel):
+    """Evidence-extraction feature flags for the enrichment pipeline.
 
-    When ``evidence_extraction_enabled`` is ``True`` in :class:`TenantConfig`,
-    the ``evidence`` list is populated with :class:`EnrichmentEvidence` items
-    that justify the proposed value.
+    This model controls only the evidence-extraction toggle and should be
+    read alongside the tenant's top-level configuration.  It is intentionally
+    narrow so it does not conflict with the writeback-focused
+    :class:`~holiday_peak_lib.integrations.pim_writeback.TenantConfig`.
 
-    >>> attr = ProposedAttribute(
-    ...     entity_id="prod-001",
-    ...     attribute_name="waterproof",
-    ...     proposed_value=True,
-    ...     confidence=0.92,
-    ...     source="slm",
-    ... )
-    >>> attr.entity_id
-    'prod-001'
-    >>> attr.evidence
-    []
-    """
-
-    id: str = Field(default_factory=lambda: str(uuid4()))
-    entity_id: str = Field(..., description="ID of the product/entity being enriched.")
-    attribute_name: str = Field(..., description="Name of the attribute being proposed.")
-    proposed_value: Any = Field(..., description="The value proposed by the enrichment model.")
-    confidence: float = Field(
-        ...,
-        ge=0.0,
-        le=1.0,
-        description="Confidence score in [0, 1].",
-    )
-    source: str = Field(..., description="Service or model that generated the proposal.")
-    status: str = Field(
-        default="pending",
-        description="Review status: 'pending', 'approved', or 'rejected'.",
-    )
-    evidence: list[EnrichmentEvidence] = Field(
-        default_factory=list,
-        description="Evidence items captured when evidence extraction is enabled.",
-    )
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-    )
-
-
-class TenantConfig(BaseModel):
-    """Per-tenant configuration for the enrichment pipeline.
-
-    Controls optional features such as evidence extraction.  All toggles
-    default to their most conservative (off) setting so that existing
-    tenants are unaffected when new features are deployed.
-
-    >>> cfg = TenantConfig(tenant_id="t-001")
+    >>> cfg = EvidenceConfig(tenant_id="t-001")
     >>> cfg.evidence_extraction_enabled
     False
-    >>> TenantConfig(tenant_id="t-002", evidence_extraction_enabled=True).evidence_extraction_enabled
+    >>> EvidenceConfig(tenant_id="t-002", evidence_extraction_enabled=True).evidence_extraction_enabled
     True
     """
 
@@ -170,8 +143,9 @@ class EvidenceExtractor:
     Usage::
 
         extractor = EvidenceExtractor(model_used="slm", prompt_version="v1.0")
-        evidence = extractor.extract(model_output)
-        proposed.evidence = evidence
+        evidence_items, refs = extractor.extract_refs(model_output, entity_id="prod-001")
+        # persist evidence_items to Cosmos, then assign real IDs …
+        proposed.evidence_refs = refs
     """
 
     def __init__(self, model_used: str = "slm", prompt_version: str = "v1.0") -> None:
@@ -225,22 +199,30 @@ class EvidenceExtractor:
             )
         return results
 
-    def attach_evidence(
+    def extract_refs(
         self,
-        proposed: ProposedAttribute,
         model_output: dict[str, Any],
-    ) -> ProposedAttribute:
-        """Convenience method: extract evidence and attach it to *proposed*.
+        entity_id: str = "",
+    ) -> tuple[list[EnrichmentEvidence], list[str]]:
+        """Extract evidence items and return both items and placeholder ref IDs.
 
-        Returns the same ``ProposedAttribute`` instance (mutated in-place) so
-        callers can chain the call.
+        This helper pairs naturally with
+        :class:`~holiday_peak_lib.schemas.truth.ProposedAttribute`, which stores
+        evidence as ``evidence_refs`` (a list of Cosmos document IDs).  Callers
+        persist the returned :class:`EnrichmentEvidence` objects to Cosmos, then
+        use the returned ref list to populate ``proposed.evidence_refs``.
 
         Args:
-            proposed: The :class:`ProposedAttribute` to enrich with evidence.
             model_output: Raw dict from the enrichment model.
+            entity_id: Product/entity ID to tag on each evidence document.
 
         Returns:
-            The updated ``proposed`` object.
+            A tuple of ``(evidence_items, ref_ids)`` where *ref_ids* mirrors the
+            ``id`` field of each item.  IDs are empty strings until the caller
+            assigns them on Cosmos write.
         """
-        proposed.evidence = self.extract(model_output)
-        return proposed
+        items = self.extract(model_output)
+        for item in items:
+            item.entity_id = entity_id
+        refs = [item.id for item in items]
+        return items, refs

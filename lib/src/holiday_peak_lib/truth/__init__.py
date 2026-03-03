@@ -2,14 +2,12 @@
 
 from .evidence import (
     EnrichmentEvidence,
+    EvidenceConfig,
     EvidenceExtractor,
-    ProposedAttribute,
-    TenantConfig,
 )
 
 __all__ = [
     "EnrichmentEvidence",
+    "EvidenceConfig",
     "EvidenceExtractor",
-    "ProposedAttribute",
-    "TenantConfig",
 ]
