@@ -8,6 +8,8 @@ from .inventory import InventoryContext, InventoryItem, WarehouseStock
 from .logistics import LogisticsContext, Shipment, ShipmentEvent
 from .pricing import PriceContext, PriceEntry
 from .product import CatalogProduct, ProductContext
+from .ucp import UcpCompliance, UcpImage, UcpMetadata, UcpPricing, UcpProduct
+from .canonical import CategorySchema, FieldDef
 
 __all__ = [
     "AcpProduct",
@@ -26,6 +28,13 @@ __all__ = [
     "InventoryContext",
     "PriceEntry",
     "PriceContext",
+    "UcpImage",
+    "UcpPricing",
+    "UcpCompliance",
+    "UcpMetadata",
+    "UcpProduct",
+    "FieldDef",
+    "CategorySchema",
     "Shipment",
     "ShipmentEvent",
     "LogisticsContext",

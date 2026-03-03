@@ -187,6 +187,14 @@ class PriceQueryResponse(BaseModel):
 
 ## What's Implemented
 
+### Product Truth Layer Schemas (Phase 1)
+
+✅ **UCP External Model**: `schemas/ucp.py` with `UcpProduct`, `UcpImage`, `UcpPricing`, `UcpCompliance`, and `UcpMetadata` for downstream commerce consumers  
+✅ **Canonical Category Schema**: `schemas/canonical/base_schema.py` with `FieldDef` and `CategorySchema`  
+✅ **Schema Inheritance Support**: `CategorySchema.parent_category_id` and `resolve_fields()` allow parent-child field resolution  
+✅ **Sample Category Schemas**: `schemas/categories/general.json`, `apparel.json`, and `electronics.json`  
+✅ **Cosmos-Friendly Persistence**: `CategorySchema.to_cosmos_document()` / `from_cosmos_document()` for `schemas` container storage  
+
 ✅ **Base Event Schema**: `BaseEvent` with event_id, correlation_id, timestamp  
 ✅ **10+ Event Types**: OrderCreated, StockReserved, PaymentProcessed, etc.  
 ✅ **20+ API Schemas**: Search, product detail, cart, checkout requests/responses  
