@@ -40,6 +40,7 @@ Production-ready connectors for enterprise retail systems.
 | Connector | Path | Capabilities |
 |-----------|------|--------------|
 | Generic REST DAM | `integrations/dam_generic.py` | Configurable asset management |
+| Generic REST PIM | `integrations/pim_generic_rest.py` | Configurable product ingestion and enrichment write-back |
 | PIM Writeback | `integrations/pim_writeback.py` | Bi-directional sync with conflict detection |
 
 ## Enterprise Hardening (v1.1.0)

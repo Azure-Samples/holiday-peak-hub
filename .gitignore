@@ -475,3 +475,4 @@ yarn-error.log*
 
 # Improvements
 improvements.md
+*.egg-info/
