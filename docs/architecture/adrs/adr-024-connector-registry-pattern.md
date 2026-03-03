@@ -35,21 +35,46 @@ Key questions addressed:
 
 ### Registry Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    ConnectorRegistry                         │
-├─────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐         │
-│  │ InventorySCM│  │  CRMLoyalty │  │     PIM     │         │
-│  │   Factory   │  │   Factory   │  │   Factory   │   ...   │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘         │
-│         │                │                │                 │
-│    ┌────┴────┐      ┌────┴────┐      ┌────┴────┐           │
-│    │ Oracle  │      │Salesforce│     │ Akeneo  │           │
-│    │  SAP    │      │Dynamics  │     │ Salsify │           │
-│    │Manhattan│      │ SAP CRM  │     │ inRiver │           │
-│    └─────────┘      └──────────┘     └─────────┘           │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph ConnectorRegistry["ConnectorRegistry"]
+        subgraph Factories["Domain Factories"]
+            ISF["InventorySCM\nFactory"]
+            CRF["CRMLoyalty\nFactory"]
+            PF["PIM\nFactory"]
+            dots1["..."]
+        end
+        
+        subgraph InventoryConnectors["Inventory Connectors"]
+            Oracle["Oracle Fusion"]
+            SAP["SAP S/4HANA"]
+            Manhattan["Manhattan WMS"]
+        end
+        
+        subgraph CRMConnectors["CRM Connectors"]
+            Salesforce["Salesforce"]
+            Dynamics["Dynamics 365"]
+            SAPCRM["SAP CRM"]
+        end
+        
+        subgraph PIMConnectors["PIM Connectors"]
+            Akeneo["Akeneo"]
+            Salsify["Salsify"]
+            inRiver["inRiver"]
+        end
+        
+        ISF --> Oracle
+        ISF --> SAP
+        ISF --> Manhattan
+        
+        CRF --> Salesforce
+        CRF --> Dynamics
+        CRF --> SAPCRM
+        
+        PF --> Akeneo
+        PF --> Salsify
+        PF --> inRiver
+    end
 ```
 
 ### Factory Implementation

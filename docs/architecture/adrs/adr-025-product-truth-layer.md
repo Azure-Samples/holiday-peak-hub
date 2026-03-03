@@ -30,28 +30,35 @@ Key questions addressed:
 
 ### Architecture Overview
 
-```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                         Product Truth Layer                               │
-├──────────────────────────────────────────────────────────────────────────┤
-│                                                                           │
-│  ┌─────────────┐    ┌─────────────────┐    ┌──────────────────┐         │
-│  │ Source PIM  │───▶│  Truth Store    │───▶│  PIM Writeback   │         │
-│  │ (Akeneo,    │    │  (Cosmos DB)    │    │  (Sync Service)  │         │
-│  │  Salsify)   │    │                 │    │                  │         │
-│  └─────────────┘    │  ┌───────────┐  │    └────────┬─────────┘         │
-│                     │  │ Raw Data  │  │             │                    │
-│  ┌─────────────┐    │  ├───────────┤  │    ┌───────▼────────┐           │
-│  │ AI Enrichment│──▶│  │ Enriched  │  │    │  Target PIM    │           │
-│  │ (Agents)    │    │  ├───────────┤  │    │  (Golden       │           │
-│  └─────────────┘    │  │ Approved  │◀─┼────│   Record)      │           │
-│                     │  └───────────┘  │    └────────────────┘           │
-│  ┌─────────────┐    │                 │                                  │
-│  │ Staff UI    │───▶│   HITL Queue    │                                  │
-│  │ (Review)    │    │                 │                                  │
-│  └─────────────┘    └─────────────────┘                                  │
-│                                                                           │
-└──────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    subgraph TruthLayer["Product Truth Layer"]
+        subgraph Sources["Data Sources"]
+            PIM["Source PIM\n(Akeneo, Salsify)"]
+            AI["AI Enrichment\n(Agents)"]
+            Staff["Staff UI\n(Review)"]
+        end
+        
+        subgraph TruthStore["Truth Store (Cosmos DB)"]
+            Raw["Raw Data"]
+            Enriched["Enriched Data"]
+            Approved["Approved Data"]
+            HITL["HITL Queue"]
+        end
+        
+        subgraph Writeback["PIM Writeback"]
+            Sync["Sync Service"]
+            Target["Target PIM\n(Golden Record)"]
+        end
+        
+        PIM --> Raw
+        AI --> Enriched
+        Staff --> HITL
+        HITL --> Approved
+        Approved --> Sync
+        Sync --> Target
+        Target -.-> Approved
+    end
 ```
 
 ### Component 1: Truth Store
@@ -175,9 +182,16 @@ class HITLWorkflow:
 ```
 
 **Review States**:
-```
-PENDING_ENRICHMENT → PENDING_REVIEW → APPROVED → SYNCED
-                                   ↳ REJECTED → PENDING_ENRICHMENT (re-enrich)
+
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING_ENRICHMENT
+    PENDING_ENRICHMENT --> PENDING_REVIEW: AI enrichment complete
+    PENDING_REVIEW --> APPROVED: Staff approves
+    PENDING_REVIEW --> REJECTED: Staff rejects
+    APPROVED --> SYNCED: PIM writeback success
+    REJECTED --> PENDING_ENRICHMENT: Re-enrich with feedback
+    SYNCED --> [*]
 ```
 
 ### Component 3: PIM Writeback
@@ -266,18 +280,32 @@ interface ProductDiff {
 
 ### Event Flow
 
-```
-┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌─────────┐
-│ PIM Sync │───▶│ Enrichment│───▶│  HITL    │───▶│ Writeback│───▶│  PIM    │
-│          │    │  Agent   │    │ Review   │    │ Service  │    │         │
-└──────────┘    └──────────┘    └──────────┘    └──────────┘    └─────────┘
-     │               │               │               │               │
-     │  truth.       │  truth.       │  truth.       │  truth.       │
-     │  imported     │  enriched     │  approved     │  synced       │
-     ▼               ▼               ▼               ▼               ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         Event Hubs (Event Stream)                        │
-└─────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    subgraph Services["Services"]
+        PIMSync["PIM Sync"]
+        Enrichment["Enrichment\nAgent"]
+        HITL["HITL\nReview"]
+        Writeback["Writeback\nService"]
+        TargetPIM["PIM"]
+    end
+    
+    subgraph Events["Event Hubs (Event Stream)"]
+        E1["truth.imported"]
+        E2["truth.enriched"]
+        E3["truth.approved"]
+        E4["truth.synced"]
+    end
+    
+    PIMSync --> Enrichment
+    Enrichment --> HITL
+    HITL --> Writeback
+    Writeback --> TargetPIM
+    
+    PIMSync -.-> E1
+    Enrichment -.-> E2
+    HITL -.-> E3
+    Writeback -.-> E4
 ```
 
 ### Cosmos DB Partition Strategy
