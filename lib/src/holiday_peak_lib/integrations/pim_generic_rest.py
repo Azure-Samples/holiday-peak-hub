@@ -505,5 +505,5 @@ class GenericRestPIMConnector(PIMConnectorBase):
         try:
             response = await self._request("GET", self._cfg.product_endpoint, params={"page": 1, "page_size": 1})
             return {"ok": response.is_success, "status_code": response.status_code}
-        except Exception as exc:  # noqa: BLE001
+        except httpx.HTTPError as exc:
             return {"ok": False, "error": str(exc)}

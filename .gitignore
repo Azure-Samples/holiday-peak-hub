@@ -463,4 +463,5 @@ yarn-error.log*
 .vercel
 
 # Improvements
-improvements.md*.egg-info/
+improvements.md
+*.egg-info/

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -460,9 +460,6 @@ class TestRetryLogic:
             _mock_response(429),
             _mock_response(200, {"sku": "S", "title": "T"}),
         ]
-
-        async def fake_request(method, path, **kwargs):
-            return responses.pop(0)
 
         with patch.object(connector, "_bucket") as mock_bucket:
             mock_bucket.acquire = AsyncMock()
