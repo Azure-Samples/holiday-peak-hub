@@ -128,3 +128,13 @@ upsert (not duplicate) documents using the `style_id` as the Cosmos DB item `id`
 `data/mappings/acp_v1.json` describes how truth-layer product fields map to
 [ACP (Agentic Commerce Protocol)](https://example.com/docs/acp) v1 fields,
 including default values and transform rules applied during export.
+
+## API Workflow Assets
+
+Additional runnable artifacts for API-level validation and demos:
+
+- `postman/truth-layer.postman_collection.json`: Postman collection for truth-layer ingestion, completeness, enrichment, review, export, and CRUD endpoints.
+- `scripts/ingest_sample.py`: End-to-end single product ingestion demo.
+- `scripts/bulk_ingest.py`: Bulk ingestion demo.
+- `scripts/review_workflow.py`: HITL review demo with CRUD fallback when dedicated HITL service is unavailable.
+- `scripts/export_demo.py`: ACP export call plus UCP-shaped output demo.
