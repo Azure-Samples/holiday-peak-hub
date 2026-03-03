@@ -1,9 +1,5 @@
 """Connector contracts, registry, and writeback exports."""
 
-from holiday_peak_lib.integrations.pim_generic_rest import (
-    GenericRestPIMConnector,
-    PIMConnectionConfig,
-)
 from holiday_peak_lib.integrations.contracts import (
     AnalyticsConnectorBase,
     AssetData,
@@ -22,6 +18,10 @@ from holiday_peak_lib.integrations.contracts import (
     WorkforceConnectorBase,
 )
 from holiday_peak_lib.integrations.dam_generic import DAMConnectionConfig, GenericDAMConnector
+from holiday_peak_lib.integrations.pim_generic_rest import (
+    GenericRestPIMConnector,
+    PIMConnectionConfig,
+)
 from holiday_peak_lib.integrations.pim_writeback import (
     CircuitBreaker,
     CircuitBreakerState,

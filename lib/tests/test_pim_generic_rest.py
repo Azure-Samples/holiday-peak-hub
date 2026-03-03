@@ -16,10 +16,10 @@ from holiday_peak_lib.integrations import (
 )
 from holiday_peak_lib.integrations.pim_generic_rest import _TokenBucket
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_config(**overrides) -> PIMConnectionConfig:
     defaults = dict(
@@ -60,6 +60,7 @@ def _mock_response(status_code: int = 200, body: object = None) -> httpx.Respons
 # PIMConnectionConfig
 # ---------------------------------------------------------------------------
 
+
 class TestPIMConnectionConfig:
     def test_defaults(self):
         cfg = PIMConnectionConfig(
@@ -88,6 +89,7 @@ class TestPIMConnectionConfig:
 # Auth header building
 # ---------------------------------------------------------------------------
 
+
 class TestAuthHeaders:
     def test_bearer_auth(self):
         connector = _make_connector(auth_type="bearer", auth_credentials={"token": "abc"})
@@ -96,6 +98,7 @@ class TestAuthHeaders:
 
     def test_basic_auth(self):
         import base64
+
         connector = _make_connector(
             auth_type="basic",
             auth_credentials={"username": "user", "password": "pass"},
@@ -141,6 +144,7 @@ class TestAuthHeaders:
 # Token bucket
 # ---------------------------------------------------------------------------
 
+
 class TestTokenBucket:
     @pytest.mark.asyncio
     async def test_acquire_does_not_raise(self):
@@ -154,7 +158,9 @@ class TestTokenBucket:
         # Drain the bucket
         await bucket.acquire()
         # Next acquire should try to sleep; patch asyncio.sleep to verify
-        with patch("holiday_peak_lib.integrations.pim_generic_rest.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        with patch(
+            "holiday_peak_lib.integrations.pim_generic_rest.asyncio.sleep", new_callable=AsyncMock
+        ) as mock_sleep:
             await bucket.acquire()
             mock_sleep.assert_awaited()
 
@@ -162,6 +168,7 @@ class TestTokenBucket:
 # ---------------------------------------------------------------------------
 # map_to_internal
 # ---------------------------------------------------------------------------
+
 
 class TestMapToInternal:
     def test_basic_mapping(self):
@@ -233,6 +240,7 @@ class TestMapToInternal:
 # get_product
 # ---------------------------------------------------------------------------
 
+
 class TestGetProduct:
     @pytest.mark.asyncio
     async def test_returns_product_on_200(self):
@@ -264,6 +272,7 @@ class TestGetProduct:
 # ---------------------------------------------------------------------------
 # list_products
 # ---------------------------------------------------------------------------
+
 
 class TestListProducts:
     @pytest.mark.asyncio
@@ -308,6 +317,7 @@ class TestListProducts:
 # search_products
 # ---------------------------------------------------------------------------
 
+
 class TestSearchProducts:
     @pytest.mark.asyncio
     async def test_search_returns_products(self):
@@ -331,6 +341,7 @@ class TestSearchProducts:
 # ---------------------------------------------------------------------------
 # get_product_assets
 # ---------------------------------------------------------------------------
+
 
 class TestGetProductAssets:
     @pytest.mark.asyncio
@@ -375,6 +386,7 @@ class TestGetProductAssets:
 # get_categories
 # ---------------------------------------------------------------------------
 
+
 class TestGetCategories:
     @pytest.mark.asyncio
     async def test_returns_categories(self):
@@ -397,6 +409,7 @@ class TestGetCategories:
 # ---------------------------------------------------------------------------
 # fetch_products
 # ---------------------------------------------------------------------------
+
 
 class TestFetchProducts:
     @pytest.mark.asyncio
@@ -422,6 +435,7 @@ class TestFetchProducts:
 # ---------------------------------------------------------------------------
 # push_enrichment
 # ---------------------------------------------------------------------------
+
 
 class TestPushEnrichment:
     @pytest.mark.asyncio
@@ -451,6 +465,7 @@ class TestPushEnrichment:
 # Retry logic
 # ---------------------------------------------------------------------------
 
+
 class TestRetryLogic:
     @pytest.mark.asyncio
     async def test_retries_on_429(self):
@@ -475,7 +490,10 @@ class TestRetryLogic:
                 ]
                 http_client.request.side_effect = lambda *a, **kw: responses_inner.pop(0)
 
-                with patch("holiday_peak_lib.integrations.pim_generic_rest.asyncio.sleep", new_callable=AsyncMock):
+                with patch(
+                    "holiday_peak_lib.integrations.pim_generic_rest.asyncio.sleep",
+                    new_callable=AsyncMock,
+                ):
                     response = await connector._request("GET", "/api/products")
                 assert response.status_code == 200
 
@@ -489,7 +507,10 @@ class TestRetryLogic:
                 http_client.request = AsyncMock(side_effect=httpx.ConnectError("fail"))
                 mock_client.return_value = http_client
 
-                with patch("holiday_peak_lib.integrations.pim_generic_rest.asyncio.sleep", new_callable=AsyncMock):
+                with patch(
+                    "holiday_peak_lib.integrations.pim_generic_rest.asyncio.sleep",
+                    new_callable=AsyncMock,
+                ):
                     with pytest.raises(httpx.RequestError):
                         await connector._request("GET", "/api/products")
 
@@ -497,6 +518,7 @@ class TestRetryLogic:
 # ---------------------------------------------------------------------------
 # close / health
 # ---------------------------------------------------------------------------
+
 
 class TestLifecycle:
     @pytest.mark.asyncio
