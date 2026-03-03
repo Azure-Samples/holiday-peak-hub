@@ -16,15 +16,21 @@ from crud_service.routes import (
     acp_checkout,
     acp_payments,
     acp_products,
+    audit_trail,
     auth,
     cart,
     categories,
     checkout,
+    completeness,
     health,
     orders,
     payments,
     products,
+    proposed_attributes,
     reviews,
+    schemas_registry,
+    truth_attributes,
+    ucp_products,
     users,
     webhooks,
 )
@@ -153,6 +159,14 @@ app.include_router(analytics.router, prefix="/api/staff/analytics", tags=["Staff
 app.include_router(tickets.router, prefix="/api/staff/tickets", tags=["Staff Tickets"])
 app.include_router(returns.router, prefix="/api/staff/returns", tags=["Staff Returns"])
 app.include_router(shipments.router, prefix="/api/staff/shipments", tags=["Staff Shipments"])
+
+# Truth-layer routes
+app.include_router(truth_attributes.router, prefix="/api", tags=["Truth Attributes"])
+app.include_router(proposed_attributes.router, prefix="/api", tags=["Proposed Attributes"])
+app.include_router(schemas_registry.router, prefix="/api", tags=["Schemas Registry"])
+app.include_router(completeness.router, prefix="/api", tags=["Completeness"])
+app.include_router(audit_trail.router, prefix="/api", tags=["Audit Trail"])
+app.include_router(ucp_products.router, prefix="/api", tags=["UCP Products"])
 
 
 @app.get("/")
