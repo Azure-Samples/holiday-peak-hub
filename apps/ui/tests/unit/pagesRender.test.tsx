@@ -15,6 +15,7 @@ import TruthAnalyticsPage from '../../app/admin/truth-analytics/page';
 import RequestsPage from '../../app/staff/requests/page';
 import LogisticsTrackingPage from '../../app/staff/logistics/page';
 import SalesAnalyticsPage from '../../app/staff/sales/page';
+import StaffReviewQueuePage from '../../app/staff/review/page';
 import LoginPage from '../../app/auth/login/page';
 import SignupPage from '../../app/auth/signup/page';
 import CategoriesPage from '../../app/categories/page';
@@ -24,7 +25,8 @@ const redirect = jest.fn();
 
 jest.mock('next/navigation', () => ({
   redirect: (path: string) => redirect(path),
-  useParams: () => ({ id: 'ORD-2026-0123' }),
+  useParams: () => ({ id: 'ORD-2026-0123', entityId: 'prod-001' }),
+  useRouter: () => ({ push: jest.fn() }),
 }));
 
 jest.mock('../../lib/hooks/useCategories', () => ({
@@ -226,6 +228,46 @@ jest.mock('../../contexts/AuthContext', () => ({
   }),
 }));
 
+jest.mock('../../lib/hooks/useTruth', () => ({
+  useReviewQueue: () => ({
+    data: {
+      items: [
+        {
+          id: 'proposal-1',
+          entity_id: 'prod-001',
+          product_title: 'Wireless Headphones',
+          category: 'Electronics',
+          field_name: 'color',
+          current_value: null,
+          proposed_value: 'Midnight Black',
+          confidence: 0.92,
+          source: 'gpt-4o',
+          proposed_at: '2026-03-01T10:00:00Z',
+          status: 'pending',
+        },
+      ],
+      total: 1,
+      page: 1,
+      page_size: 20,
+    },
+    isLoading: false,
+    isError: false,
+  }),
+  useReviewStats: () => ({
+    data: {
+      pending: 1,
+      approved_today: 5,
+      rejected_today: 2,
+      avg_confidence: 0.87,
+    },
+    isLoading: false,
+    isError: false,
+  }),
+  useProductReviewDetail: () => ({ data: undefined, isLoading: false, isError: false }),
+  useAuditHistory: () => ({ data: [], isLoading: false, isError: false }),
+  useReviewAction: () => ({ mutate: jest.fn(), isPending: false }),
+}));
+
 jest.mock('@/components/templates/MainLayout', () => ({
   MainLayout: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="main-layout">{children}</div>
@@ -337,5 +379,10 @@ describe('Page rendering smoke tests', () => {
   it('renders signup page', () => {
     SignupPage();
     expect(redirect).toHaveBeenCalledWith('/auth/login');
+  });
+
+  it('renders staff review queue page', () => {
+    render(<StaffReviewQueuePage />);
+    expect(screen.getByText('AI Review Queue')).toBeInTheDocument();
   });
 });
