@@ -365,6 +365,20 @@ jobs:
 
       - name: Deploy CRUD service
         run: azd deploy --service crud-service --no-prompt -e "${{ inputs.environment }}"
+        env:
+          PROJECT_ENDPOINT: ${{ needs.provision.outputs.PROJECT_ENDPOINT }}
+          PROJECT_NAME: ${{ needs.provision.outputs.PROJECT_NAME }}
+          MODEL_DEPLOYMENT_NAME_FAST: gpt-5-nano
+          MODEL_DEPLOYMENT_NAME_RICH: gpt-5-nano
+          COSMOS_ACCOUNT_URI: ${{ needs.provision.outputs.COSMOS_ACCOUNT_URI }}
+          COSMOS_DATABASE: ${{ needs.provision.outputs.COSMOS_DATABASE }}
+          REDIS_HOST: ${{ needs.provision.outputs.REDIS_HOST }}
+          EVENT_HUB_NAMESPACE: ${{ needs.provision.outputs.EVENT_HUB_NAMESPACE }}
+          KEY_VAULT_URI: ${{ needs.provision.outputs.KEY_VAULT_URI }}
+          APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ needs.provision.outputs.APPLICATIONINSIGHTS_CONNECTION_STRING }}
+          POSTGRES_HOST: ${{ needs.provision.outputs.POSTGRES_HOST }}
+          POSTGRES_USER: ${{ needs.provision.outputs.POSTGRES_USER }}
+          POSTGRES_DATABASE: ${{ needs.provision.outputs.POSTGRES_DATABASE }}
 
   deploy-ui:
     runs-on: ubuntu-latest
