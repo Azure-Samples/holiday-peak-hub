@@ -198,6 +198,29 @@ jobs:
       - name: Ensure hook scripts executable
         run: chmod +x ./.infra/azd/hooks/*.sh
 
+      - name: Ensure AKS cluster is running
+        run: |
+          AKS_RG="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+          AKS_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-aks"
+
+          if az aks show --resource-group "$AKS_RG" --name "$AKS_NAME" >/dev/null 2>&1; then
+            POWER_STATE=$(az aks show --resource-group "$AKS_RG" --name "$AKS_NAME" --query "powerState.code" -o tsv 2>/dev/null || true)
+            if [ "$POWER_STATE" = "Stopped" ]; then
+              echo "AKS cluster is stopped. Starting $AKS_NAME..."
+              az aks start --resource-group "$AKS_RG" --name "$AKS_NAME"
+              for _ in $(seq 1 40); do
+                CURRENT_STATE=$(az aks show --resource-group "$AKS_RG" --name "$AKS_NAME" --query "powerState.code" -o tsv 2>/dev/null || true)
+                if [ "$CURRENT_STATE" = "Running" ]; then
+                  echo "AKS cluster is running."
+                  break
+                fi
+                sleep 30
+              done
+            fi
+          else
+            echo "AKS cluster does not exist yet. Continuing."
+          fi
+
       - name: Install kubelogin
         run: az aks install-cli --kubelogin-version latest
 
