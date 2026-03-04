@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-03-04
+
+> **Release**: `v2.0.0`
+> **Theme**: Single-path completeness operations (breaking compatibility removal)
+
+### Changed
+
+- Product consistency validation service now uses a **single canonical operation path**:
+  - schema-driven completeness evaluation only
+  - no legacy 4-field validator path
+  - no legacy `product-events` compatibility subscription
+
+### Removed
+
+- Legacy compatibility components removed from `product-management-consistency-validation`:
+  - legacy validator logic (`missing_name`, `negative_price`, `missing_currency`, `missing_image`)
+  - legacy event processing module for `product-events`
+  - legacy MCP tools:
+    - `/product/consistency/check`
+    - `/product/consistency/product`
+
+### Added
+
+- Canonical MCP operation for completeness:
+  - `/product/completeness/evaluate`
+
+### Migration Notes
+
+- Any integration relying on the removed consistency MCP tools must switch to `/product/completeness/evaluate`.
+- Event-driven completeness processing now requires publishing to `completeness-jobs` (consumer group `completeness-engine`).
+- This release intentionally removes backward compatibility to guarantee a single operation model.
+
 ## [1.1.0] - 2026-03-03
 
 > **Release**: [v1.1.0](https://github.com/Azure-Samples/holiday-peak-hub/releases/tag/v1.1.0)
