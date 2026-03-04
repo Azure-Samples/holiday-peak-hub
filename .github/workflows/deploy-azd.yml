@@ -270,6 +270,35 @@ jobs:
       - name: Provision infrastructure
         run: azd provision --no-prompt -e "${{ inputs.environment }}"
 
+      - name: Ensure AKS identity can read Key Vault secrets
+        run: |
+          AKS_RG="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+          AKS_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-aks"
+          KEY_VAULT_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-kv"
+
+          KUBELET_OBJECT_ID=$(az aks show \
+            --resource-group "$AKS_RG" \
+            --name "$AKS_NAME" \
+            --query "identityProfile.kubeletidentity.objectId" -o tsv)
+
+          KEY_VAULT_ID=$(az keyvault show \
+            --resource-group "$AKS_RG" \
+            --name "$KEY_VAULT_NAME" \
+            --query id -o tsv)
+
+          EXISTING=$(az role assignment list \
+            --assignee-object-id "$KUBELET_OBJECT_ID" \
+            --scope "$KEY_VAULT_ID" \
+            --query "[?roleDefinitionName=='Key Vault Secrets User'] | length(@)" -o tsv)
+
+          if [ "$EXISTING" = "0" ]; then
+            az role assignment create \
+              --assignee-object-id "$KUBELET_OBJECT_ID" \
+              --assignee-principal-type ServicePrincipal \
+              --role "Key Vault Secrets User" \
+              --scope "$KEY_VAULT_ID"
+          fi
+
       - name: Export provisioned outputs
         id: outputs
         run: |
