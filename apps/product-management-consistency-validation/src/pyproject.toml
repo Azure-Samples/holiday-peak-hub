@@ -1,6 +1,6 @@
 [project]
 name = "product-management-consistency-validation"
-version = "0.1.0"
+version = "1.0.0"
 description = "Product consistency validation"
 authors = [{name = "Ricardo Cataldi", email = "rcataldi@microsoft.com"}]
 requires-python = ">=3.13"

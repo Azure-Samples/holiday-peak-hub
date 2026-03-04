@@ -6,7 +6,7 @@ This document describes currently available truth-layer endpoints and planned se
 
 - Implemented services in the current repo/deployment topology:
   - `truth-ingestion` (custom REST ingestion routes + standard service endpoints)
-  - `product-management-consistency-validation` (legacy `/invoke` + event-driven completeness engine)
+  - `product-management-consistency-validation` (single-path schema-driven completeness engine)
   - `ecommerce-product-detail-enrichment` (enrichment via `/invoke`)
   - `product-management-acp-transformation` (ACP export via `/invoke`)
   - `crud-service` (transactional APIs, including review endpoints used as interim review flow)
@@ -83,7 +83,7 @@ Base URL: `http://<consistency-host>`
 | --- | --- | --- |
 | GET | `/health` | Liveness |
 | GET | `/ready` | Readiness |
-| POST | `/invoke` | Legacy consistency/completeness validation |
+| POST | `/invoke` | Schema-driven completeness evaluation for a SKU |
 
 ### Event-driven completeness flow (implemented)
 

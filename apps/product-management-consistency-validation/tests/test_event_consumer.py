@@ -85,7 +85,6 @@ async def test_skips_event_when_product_missing():
     from product_management_consistency_validation.adapters import (
         CompletenessStorageAdapter,
         ProductConsistencyAdapters,
-        ProductConsistencyValidator,
     )
 
     connector = ProductConnector(adapter=MockProductAdapter())
@@ -94,7 +93,6 @@ async def test_skips_event_when_product_missing():
     completeness = CompletenessStorageAdapter()
     adapters = ProductConsistencyAdapters(
         products=connector,
-        validator=ProductConsistencyValidator(),
         completeness=completeness,
     )
 
@@ -117,7 +115,6 @@ async def test_evaluates_completeness_and_stores_report():
     from product_management_consistency_validation.adapters import (
         CompletenessStorageAdapter,
         ProductConsistencyAdapters,
-        ProductConsistencyValidator,
     )
 
     product = _make_product(sku="SKU-10", category="apparel")
@@ -129,7 +126,6 @@ async def test_evaluates_completeness_and_stores_report():
     completeness.seed_schema(schema)
     adapters = ProductConsistencyAdapters(
         products=connector,
-        validator=ProductConsistencyValidator(),
         completeness=completeness,
     )
 
@@ -162,7 +158,6 @@ async def test_publishes_enrichment_job_below_threshold(monkeypatch):
     from product_management_consistency_validation.adapters import (
         CompletenessStorageAdapter,
         ProductConsistencyAdapters,
-        ProductConsistencyValidator,
     )
 
     # Product missing description (enrichable) and price → score < 0.7 (name only: 2/4)
@@ -179,7 +174,6 @@ async def test_publishes_enrichment_job_below_threshold(monkeypatch):
     completeness.seed_schema(schema)
     adapters = ProductConsistencyAdapters(
         products=connector,
-        validator=ProductConsistencyValidator(),
         completeness=completeness,
     )
 

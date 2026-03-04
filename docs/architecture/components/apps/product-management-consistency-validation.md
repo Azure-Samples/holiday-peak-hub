@@ -17,9 +17,9 @@ Implements a schema-driven Completeness Engine that:
 ```mermaid
 graph LR
     Client[Validation Request] -->|POST /invoke| API[FastAPI App]
-    API --> Agent[Consistency Agent]
+    API --> Agent[Completeness Agent]
     Agent --> Products[Product Adapter]
-    Agent --> Validator[Legacy Validator]
+    Agent --> Engine[Completeness Engine]
     EH[Event Hub completeness-jobs] --> Consumer[Completeness Event Consumer]
     Consumer --> Engine[Completeness Engine]
     Engine --> Cosmos[Completeness Storage]
@@ -35,14 +35,13 @@ graph LR
 - `GET /health`
 
 **MCP Tools**:
-- `/product/consistency/check`
-- `/product/consistency/product`
+- `/product/completeness/evaluate`
 
-### 2. Consistency Agent (`agents.py`)
+### 2. Completeness Agent (`agents.py`)
 
 Orchestrates:
 - Product retrieval
-- Legacy consistency validation (`/invoke` flow)
+- Schema-driven completeness evaluation (`/invoke` flow)
 
 ### 3. Completeness Engine (`completeness_engine.py`)
 
@@ -61,12 +60,11 @@ Consumes `completeness-jobs` and executes:
 - persist gap report
 - publish `enrichment_requested` to `enrichment-jobs` when score is below `COMPLETENESS_THRESHOLD`
 
-**Current Status**: ✅ **IMPLEMENTED (mock adapters)**
+**Current Status**: ✅ **IMPLEMENTED**
 
 ### 5. Adapters
 
 **Product Adapter**: Catalog product retrieval  
-**Validator**: Legacy consistency rules
 **Completeness Storage**: Cosmos-backed schema/gap-report adapter with in-memory fallback
 
 **Current Status**: ✅ **IMPLEMENTED** — Completeness engine pipeline is active; storage supports local in-memory fallback for tests/dev
@@ -74,7 +72,7 @@ Consumes `completeness-jobs` and executes:
 ## What's Implemented
 
 ✅ MCP tool registration  
-✅ Legacy consistency validation agent orchestration  
+✅ Single-path completeness evaluation orchestration  
 ✅ Schema-driven completeness scoring pipeline  
 ✅ Completeness Event Hub consumer (`completeness-jobs`)  
 ✅ Enrichment trigger publishing (`enrichment-jobs`)  

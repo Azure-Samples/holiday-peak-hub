@@ -67,7 +67,7 @@ Every agent service follows an identical pattern:
 |-----|-------------|
 | [product-management-acp-transformation](product-management-acp-transformation/) | Transforms catalog products into ACP-compliant (Agentic Commerce Protocol) payloads, ensuring all required fields are populated and flagging missing data for remediation. Subscribes to `product-events`. |
 | [product-management-assortment-optimization](product-management-assortment-optimization/) | Ranks products by performance indicators (rating, price, demand) and recommends optimal assortment sets of a target size, explaining keep/drop trade-offs. Subscribes to `order-events` and `product-events`. |
-| [product-management-consistency-validation](product-management-consistency-validation/) | Validates catalog product consistency — checks field completeness, detects data quality issues, and provides remediation steps for invalid items. Subscribes to `product-events`. |
+| [product-management-consistency-validation](product-management-consistency-validation/) | Evaluates schema-driven product completeness with weighted scoring, gap reports, and enrichment triggers. Uses a single completeness operation model across `/invoke`, MCP, and events. Subscribes to `completeness-jobs`. |
 | [product-management-normalization-classification](product-management-normalization-classification/) | Normalizes product names, categories, and tags into a canonical taxonomy, assigns classifications, and highlights missing attributes that need enrichment. Subscribes to `product-events`. |
 
 ## Infrastructure

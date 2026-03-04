@@ -14,9 +14,6 @@ from product_management_consistency_validation.agents import (
 from product_management_consistency_validation.event_consumer import (
     build_completeness_event_handlers,
 )
-from product_management_consistency_validation.event_handlers import (
-    build_event_handlers,
-)
 
 SERVICE_NAME = "product-management-consistency-validation"
 memory_settings = MemorySettings()
@@ -52,13 +49,9 @@ llm_config = (
     else None
 )
 
-# Merge product-events handlers (backward compat) with completeness-jobs handlers
-_all_handlers = {
-    **build_event_handlers(),
-    **build_completeness_event_handlers(
-        completeness_threshold=float(os.getenv("COMPLETENESS_THRESHOLD", "0.7"))
-    ),
-}
+_all_handlers = build_completeness_event_handlers(
+    completeness_threshold=float(os.getenv("COMPLETENESS_THRESHOLD", "0.7"))
+)
 
 app = build_service_app(
     SERVICE_NAME,
@@ -87,7 +80,6 @@ app = build_service_app(
     lifespan=create_eventhub_lifespan(
         service_name=SERVICE_NAME,
         subscriptions=[
-            EventHubSubscription("product-events", "validation-group"),
             EventHubSubscription("completeness-jobs", "completeness-engine"),
         ],
         handlers=_all_handlers,
