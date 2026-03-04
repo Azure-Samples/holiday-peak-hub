@@ -6,7 +6,7 @@ This document describes currently available truth-layer endpoints and planned se
 
 - Implemented services in the current repo/deployment topology:
   - `truth-ingestion` (custom REST ingestion routes + standard service endpoints)
-  - `product-management-consistency-validation` (completeness checks via `/invoke`)
+  - `product-management-consistency-validation` (legacy `/invoke` + event-driven completeness engine)
   - `ecommerce-product-detail-enrichment` (enrichment via `/invoke`)
   - `product-management-acp-transformation` (ACP export via `/invoke`)
   - `crud-service` (transactional APIs, including review endpoints used as interim review flow)
@@ -83,7 +83,24 @@ Base URL: `http://<consistency-host>`
 | --- | --- | --- |
 | GET | `/health` | Liveness |
 | GET | `/ready` | Readiness |
-| POST | `/invoke` | Validate SKU consistency/completeness |
+| POST | `/invoke` | Legacy consistency/completeness validation |
+
+### Event-driven completeness flow (implemented)
+
+- **Consumes**: Event Hub topic `completeness-jobs` (consumer group: `completeness-engine`)
+- **Loads**: product + category schema
+- **Evaluates**: weighted completeness score and field-level gaps
+- **Stores**: gap report via completeness storage adapter (Cosmos-backed with local/test fallback)
+- **Publishes**: `enrichment_requested` to `enrichment-jobs` when:
+  - completeness score `< COMPLETENESS_THRESHOLD` (default `0.7`)
+  - enrichable gaps are present
+
+### Completeness report model highlights
+
+- `entity_id`, `category_id`, `schema_version`
+- `completeness_score` (`0.0`–`1.0`)
+- `gaps[]` with gap type (`missing` / `invalid`)
+- `enrichable_gaps[]`
 
 ### Example request: `POST /invoke` (completeness)
 

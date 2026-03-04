@@ -84,7 +84,7 @@ The spec defines a **deployable reference implementation** for retailers to inge
 | Connector contracts | `PIMConnectorBase`, `DAMConnectorBase` + 7 other ABCs in `integrations/contracts.py` | **Good** — Need concrete implementations |
 | Connector registry | `ConnectorRegistry` in `integrations/registry.py` | **Good** — Runtime registry with health monitoring |
 | App factory | `build_service_app()` in `app_factory.py` | **Strong** — Standard service bootstrap |
-| Consistency validation | `product-management-consistency-validation` agent | **Weak** — Only checks 4 fields (name, price sign, currency, image); no completeness scoring |
+| Consistency validation | `product-management-consistency-validation` agent | **Implemented** — Schema-driven completeness scoring, gap reporting, and enrichment trigger integration (PR #123) |
 | Product enrichment | `ecommerce-product-detail-enrichment` agent | **Wrong target** — Enriches PDP display, not PIM attributes |
 | Product schemas | `CatalogProduct`, `ProductContext` in `schemas/product.py` | **Partial** — Missing style/variant split, provenance, share policy |
 | IaC | Full Bicep stack: AKS, ACR, Cosmos DB, Event Hubs, Redis, Storage, APIM, Key Vault, App Insights, VNet, AI Foundry | **Strong** — All infra provisioned; Cosmos containers empty, Service Bus absent |
@@ -120,7 +120,7 @@ Latest on `origin/main`: commit `74d56c6` — "Fix APIM routing, postdeploy hook
 | G1 | §3.1 Core Data Plane | No Cosmos DB containers for product graph, candidates, schemas, audit. Cosmos container array is `[]` in Bicep. | **CRITICAL** |
 | G2 | §7 Data Model | No `ProductStyle`, `ProductVariant`, `TruthAttribute`, `ProposedAttribute` models. Only flat `CatalogProduct`. | **CRITICAL** |
 | G3 | §3.1 Ingestion | No ingestion service. PIM/DAM connector ABCs exist but no concrete connectors or scheduled pull. | **CRITICAL** |
-| G4 | §3.1 Completeness Engine | No completeness scoring. Existing validation checks 4 fields. No category schema definitions. | **CRITICAL** |
+| G4 | §3.1 Completeness Engine | **Resolved in PR #123** — weighted completeness scoring, schema-driven gap analysis, and Event Hub enrichment trigger are implemented. | **CLOSED** |
 | G5 | §3.1 Enrichment Orchestrator | No PIM enrichment agent. Existing enrichment targets e-commerce PDP, not product graph. | **CRITICAL** |
 | G6 | §3.1 HITL Workflow | Zero implementation. No approval endpoints, no review queue, no UI. | **CRITICAL** |
 | G7 | §8 Category Schemas | No `/schemas/` directory. No category-level required attributes or validation rules. | **CRITICAL** |
@@ -186,20 +186,21 @@ GapReport          — entityId, missingKeys[], invalidKeys[], completenessScore
 **Add**: Optional parameter to register truth-layer specific middleware (audit logging, provenance tracking).
 **Add**: Truth-layer Event Hub consumer groups and lifespan helpers for job topics.
 
-### 4.7 `apps/product-management-consistency-validation/` — MAJOR REFACTOR
+### 4.7 `apps/product-management-consistency-validation/` — COMPLETED (PR #123)
 
-**Current**: Checks 4 fields (name, price, currency, image).
-**Target**: Becomes the **Completeness Engine** (§3.1.3, §8). Must:
-- Load category schemas from Cosmos `schemas` container
-- Compute `missing = required - truthAttributesPresent`
-- Compute `invalid = truthAttributesFailValidation`
-- Generate `GapReport` with `completenessScore`
-- Publish enrichment job events to Event Hub
-
-Keep existing MCP tools and add new ones:
-- `/product/completeness/check` — full gap analysis
-- `/product/completeness/score` — score-only endpoint
-- `/product/completeness/batch` — batch job trigger
+Delivered capabilities:
+- Added schema-driven completeness engine (`completeness_engine.py`) with:
+  - weighted scoring (`0.0`–`1.0`)
+  - nested field-path evaluation
+  - per-field gap typing (`missing`, `invalid`)
+  - enrichable gap extraction
+- Added completeness job consumer (`event_consumer.py`) for `completeness-jobs`.
+- Added enrichment trigger publishing to `enrichment-jobs` when:
+  - completeness score is below `COMPLETENESS_THRESHOLD`
+  - enrichable gaps exist.
+- Added Cosmos-backed completeness storage adapter with in-memory fallback for local/test.
+- Preserved backward compatibility of existing validator pathways.
+- Added unit and integration test coverage for scoring and event flow.
 
 ### 4.8 `apps/product-management-acp-transformation/` — EXTEND
 
