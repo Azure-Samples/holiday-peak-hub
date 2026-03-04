@@ -9,9 +9,6 @@ spec:
   selector:
     matchLabels:
       app: {{ .Values.serviceName }}
-      {{- if not .Values.canary.enabled }}
-      canary: "false"
-      {{- end }}
   template:
     metadata:
       labels:
