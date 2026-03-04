@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import timezone
 
 import pytest
-
 from holiday_peak_lib.truth.evidence import (
     VALID_MODELS,
     VALID_SOURCE_TYPES,
@@ -13,7 +12,6 @@ from holiday_peak_lib.truth.evidence import (
     EvidenceConfig,
     EvidenceExtractor,
 )
-
 
 # ---------------------------------------------------------------------------
 # EnrichmentEvidence
@@ -274,16 +272,12 @@ class TestEvidenceToggle:
 
     def test_toggle_off_no_evidence(self):
         cfg = EvidenceConfig(tenant_id="t-off")
-        output = {
-            "evidence": [{"source_type": "ai_reasoning", "source_text": "Some text."}]
-        }
+        output = {"evidence": [{"source_type": "ai_reasoning", "source_text": "Some text."}]}
         result = self._run_extraction(cfg, output)
         assert result == []
 
     def test_toggle_on_evidence_captured(self):
         cfg = EvidenceConfig(tenant_id="t-on", evidence_extraction_enabled=True)
-        output = {
-            "evidence": [{"source_type": "ai_reasoning", "source_text": "Some text."}]
-        }
+        output = {"evidence": [{"source_type": "ai_reasoning", "source_text": "Some text."}]}
         result = self._run_extraction(cfg, output)
         assert len(result) == 1
