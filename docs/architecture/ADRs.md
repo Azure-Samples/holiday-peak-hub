@@ -28,6 +28,9 @@ This document indexes all architectural decisions for the Holiday Peak Hub accel
 | [ADR-020](adrs/adr-020-api-client-architecture.md) | API Client Architecture | Accepted | 2026-01 |
 | [ADR-021](adrs/adr-021-azd-first-deployment.md) | azd-First Deployment with GitHub Actions CI/CD | Accepted | 2026-02 |
 | [ADR-022](adrs/adr-022-branch-naming-convention.md) | Git Branch Naming Convention | Accepted | 2026-03 |
+| [ADR-023](adrs/adr-023-enterprise-resilience-patterns.md) | Enterprise Resilience Patterns | Accepted | 2026-03 |
+| [ADR-024](adrs/adr-024-connector-registry-pattern.md) | Connector Registry Pattern | Accepted | 2026-03 |
+| [ADR-025](adrs/adr-025-product-truth-layer.md) | Product Truth Layer Architecture | Accepted | 2026-03 |
 
 ## How to Use ADRs
 
@@ -88,6 +91,15 @@ Each ADR follows a standard template:
 
 ### Governance
 - Git branch naming convention ([ADR-022](adrs/adr-022-branch-naming-convention.md))
+
+### Enterprise Integration
+- Enterprise resilience patterns (Circuit Breaker, Bulkhead, Rate Limiter) ([ADR-023](adrs/adr-023-enterprise-resilience-patterns.md))
+- Connector registry for pluggable backend systems ([ADR-024](adrs/adr-024-connector-registry-pattern.md))
+
+### Product Data Governance
+- Product Truth Layer for AI-enriched data validation ([ADR-025](adrs/adr-025-product-truth-layer.md))
+- Human-in-the-loop review workflow ([ADR-025](adrs/adr-025-product-truth-layer.md))
+- PIM writeback for approved changes ([ADR-025](adrs/adr-025-product-truth-layer.md))
 
 ## References
 

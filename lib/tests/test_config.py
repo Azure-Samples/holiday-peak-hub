@@ -5,6 +5,7 @@ from holiday_peak_lib.config.settings import (
     MemorySettings,
     PostgresSettings,
     ServiceSettings,
+    TruthLayerSettings,
 )
 
 
@@ -191,3 +192,76 @@ class TestSettingsIntegration:
         # Changing env var shouldn't affect existing instance
         monkeypatch.setenv("REDIS_URL", "redis://changed:6379")
         assert settings.redis_url == original_url
+
+
+class TestTruthLayerSettings:
+    """Test TruthLayerSettings configuration."""
+
+    def test_default_values(self):
+        """Test that TruthLayerSettings has correct default values."""
+        settings = TruthLayerSettings()
+
+        # Cosmos DB containers
+        assert settings.cosmos_products_container == "products"
+        assert settings.cosmos_attributes_truth_container == "attributes_truth"
+        assert settings.cosmos_attributes_proposed_container == "attributes_proposed"
+        assert settings.cosmos_schemas_container == "schemas"
+        assert settings.cosmos_mappings_container == "mappings"
+        assert settings.cosmos_audit_container == "audit"
+        assert settings.cosmos_config_container == "config"
+        assert settings.cosmos_relationships_container == "relationships"
+        assert settings.cosmos_completeness_container == "completeness"
+
+        # Event Hub topics
+        assert settings.eventhub_enrichment_jobs == "enrichment-jobs"
+        assert settings.eventhub_completeness_jobs == "completeness-jobs"
+        assert settings.eventhub_export_jobs == "export-jobs"
+        assert settings.eventhub_hitl_jobs == "hitl-jobs"
+        assert settings.eventhub_ingestion_notifications == "ingestion-notifications"
+
+        # Feature toggles - production-safe defaults
+        assert settings.enrichment_enabled is True
+        assert settings.auto_approve_enabled is True
+        assert settings.auto_approve_threshold == 0.85
+        assert settings.writeback_enabled is False
+        assert settings.evidence_extraction_enabled is False
+
+        # Operational
+        assert settings.max_enrichment_retries == 3
+        assert settings.completeness_cache_ttl_seconds == 300
+
+    def test_env_var_override(self, monkeypatch):
+        """Test that env vars with TRUTH_ prefix override defaults."""
+        monkeypatch.setenv("TRUTH_COSMOS_PRODUCTS_CONTAINER", "custom_products")
+        monkeypatch.setenv("TRUTH_EVENTHUB_ENRICHMENT_JOBS", "my-enrichment-topic")
+        monkeypatch.setenv("TRUTH_ENRICHMENT_ENABLED", "false")
+        monkeypatch.setenv("TRUTH_WRITEBACK_ENABLED", "true")
+        monkeypatch.setenv("TRUTH_AUTO_APPROVE_THRESHOLD", "0.95")
+        monkeypatch.setenv("TRUTH_MAX_ENRICHMENT_RETRIES", "5")
+        monkeypatch.setenv("TRUTH_COMPLETENESS_CACHE_TTL_SECONDS", "600")
+
+        settings = TruthLayerSettings()
+
+        assert settings.cosmos_products_container == "custom_products"
+        assert settings.eventhub_enrichment_jobs == "my-enrichment-topic"
+        assert settings.enrichment_enabled is False
+        assert settings.writeback_enabled is True
+        assert settings.auto_approve_threshold == 0.95
+        assert settings.max_enrichment_retries == 5
+        assert settings.completeness_cache_ttl_seconds == 600
+
+    def test_production_safe_defaults(self):
+        """Verify writeback and evidence extraction are off by default."""
+        settings = TruthLayerSettings()
+        assert settings.writeback_enabled is False
+        assert settings.evidence_extraction_enabled is False
+
+    def test_env_prefix_isolation(self, monkeypatch):
+        """Test that unprefixed env vars do not affect TruthLayerSettings."""
+        monkeypatch.setenv("COSMOS_PRODUCTS_CONTAINER", "should_be_ignored")
+        monkeypatch.setenv("ENRICHMENT_ENABLED", "false")
+
+        settings = TruthLayerSettings()
+
+        assert settings.cosmos_products_container == "products"
+        assert settings.enrichment_enabled is True

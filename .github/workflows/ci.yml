@@ -20,6 +20,7 @@ jobs:
       - name: Build images
         run: |
           for d in apps/*; do
+            [ -d "$d" ] || continue
             image_name=$(basename "$d")
             docker build -t "$REGISTRY/$image_name:latest" -f "$d/src/Dockerfile" "$d"
           done
@@ -42,6 +43,7 @@ jobs:
       - name: Build and push images
         run: |
           for d in apps/*; do
+            [ -d "$d" ] || continue
             image_name=$(basename "$d")
             docker build -t "$REGISTRY/$image_name:latest" -f "$d/src/Dockerfile" "$d"
             docker push "$REGISTRY/$image_name:latest"

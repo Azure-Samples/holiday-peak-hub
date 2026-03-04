@@ -43,3 +43,19 @@ These business scenarios map directly to the [C4 Component diagrams](../architec
 - **Asynchronous flows** use Azure Event Hubs (AMQP) with SAGA choreography
 - **Agent decisions** are powered by Microsoft Foundry (SLM-first, LLM upgrade)
 - **State** is managed through three-tier memory (Redis → Cosmos DB → Blob)
+
+## v1.1.0 Enhancements
+
+The following capabilities enhance all business scenarios:
+
+### Enterprise Connectors
+Production-ready integrations with Oracle Fusion, Salesforce, SAP S/4HANA, and Dynamics 365 enable direct data synchronization across scenarios.
+
+### Enterprise Hardening
+Circuit breaker, bulkhead, and rate limiter patterns provide production-grade resilience for all external API calls.
+
+### Product Truth Layer (Foundation)
+Pydantic v2 schemas, Truth Store Adapter, and Ingestion service provide a single source of truth for product data enrichment across all e-commerce scenarios.
+
+### HITL Review System
+Human-in-the-loop workflows allow staff to review and approve AI-proposed changes before they affect customer-facing scenarios.
