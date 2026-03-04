@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from truth_enrichment.enrichment_engine import EnrichmentEngine
 
 

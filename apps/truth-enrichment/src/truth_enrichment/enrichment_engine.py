@@ -6,7 +6,6 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-
 AUTO_APPROVE_THRESHOLD_DEFAULT = 0.95
 
 

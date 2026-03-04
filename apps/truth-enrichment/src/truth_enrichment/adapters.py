@@ -29,8 +29,12 @@ class ProposedAttributeStoreAdapter:
 
     async def upsert(self, proposed: dict[str, Any]) -> dict[str, Any]:
         """Persist a proposed attribute and return it."""
-        logger.info("proposed_attribute_upsert", entity_id=proposed.get("entity_id"),
-                    field_name=proposed.get("field_name"), status=proposed.get("status"))
+        logger.info(
+            "proposed_attribute_upsert",
+            entity_id=proposed.get("entity_id"),
+            field_name=proposed.get("field_name"),
+            status=proposed.get("status"),
+        )
         return proposed
 
     async def get(self, attribute_id: str) -> Optional[dict[str, Any]]:
@@ -43,8 +47,11 @@ class TruthAttributeStoreAdapter:
 
     async def upsert(self, attribute: dict[str, Any]) -> dict[str, Any]:
         """Persist a truth attribute and return it."""
-        logger.info("truth_attribute_upsert", entity_id=attribute.get("entity_id"),
-                    field_name=attribute.get("field_name"))
+        logger.info(
+            "truth_attribute_upsert",
+            entity_id=attribute.get("entity_id"),
+            field_name=attribute.get("field_name"),
+        )
         return attribute
 
 
@@ -53,8 +60,9 @@ class AuditStoreAdapter:
 
     async def append(self, event: dict[str, Any]) -> dict[str, Any]:
         """Persist an audit event and return it."""
-        logger.info("audit_event_appended", action=event.get("action"),
-                    entity_id=event.get("entity_id"))
+        logger.info(
+            "audit_event_appended", action=event.get("action"), entity_id=event.get("entity_id")
+        )
         return event
 
 
@@ -68,13 +76,17 @@ class EventHubPublisher:
     async def publish(self, payload: dict[str, Any]) -> None:
         """Send a message to the configured Event Hub topic."""
         if not self._connection_string:
-            logger.info("eventhub_publish_skipped_no_connection", topic=self.topic,
-                        entity_id=payload.get("entity_id"))
+            logger.info(
+                "eventhub_publish_skipped_no_connection",
+                topic=self.topic,
+                entity_id=payload.get("entity_id"),
+            )
             return
         try:
-            from azure.eventhub.aio import EventHubProducerClient
-            from azure.eventhub import EventData
             import json
+
+            from azure.eventhub import EventData
+            from azure.eventhub.aio import EventHubProducerClient
 
             async with EventHubProducerClient.from_connection_string(
                 self._connection_string, eventhub_name=self.topic
@@ -82,8 +94,9 @@ class EventHubPublisher:
                 batch = await producer.create_batch()
                 batch.add(EventData(json.dumps(payload)))
                 await producer.send_batch(batch)
-                logger.info("eventhub_published", topic=self.topic,
-                            entity_id=payload.get("entity_id"))
+                logger.info(
+                    "eventhub_published", topic=self.topic, entity_id=payload.get("entity_id")
+                )
         except Exception as exc:  # noqa: BLE001
             logger.warning("eventhub_publish_failed", topic=self.topic, error=str(exc))
 
