@@ -390,9 +390,19 @@ jobs:
             --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
             --overwrite-existing
 
+      - name: Resolve AKS managed identity client ID
+        run: |
+          AKS_MI_CLIENT_ID=$(az aks show \
+            --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
+            --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
+            --query "identityProfile.kubeletidentity.clientId" -o tsv)
+          echo "WORKLOAD_AZURE_CLIENT_ID=${AKS_MI_CLIENT_ID}" >> "$GITHUB_ENV"
+
       - name: Deploy CRUD service
         run: azd deploy --service crud-service --no-prompt -e "${{ inputs.environment }}"
         env:
+          AZURE_CLIENT_ID: ${{ env.WORKLOAD_AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ env.AZURE_TENANT_ID }}
           PROJECT_ENDPOINT: ${{ needs.provision.outputs.PROJECT_ENDPOINT }}
           PROJECT_NAME: ${{ needs.provision.outputs.PROJECT_NAME }}
           MODEL_DEPLOYMENT_NAME_FAST: gpt-5-nano
@@ -570,9 +580,19 @@ jobs:
             --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
             --overwrite-existing
 
+      - name: Resolve AKS managed identity client ID
+        run: |
+          AKS_MI_CLIENT_ID=$(az aks show \
+            --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
+            --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
+            --query "identityProfile.kubeletidentity.clientId" -o tsv)
+          echo "WORKLOAD_AZURE_CLIENT_ID=${AKS_MI_CLIENT_ID}" >> "$GITHUB_ENV"
+
       - name: Deploy service
         run: azd deploy --service "${{ matrix.service }}" --no-prompt -e "${{ inputs.environment }}"
         env:
+          AZURE_CLIENT_ID: ${{ env.WORKLOAD_AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ env.AZURE_TENANT_ID }}
           PROJECT_ENDPOINT: ${{ needs.provision.outputs.PROJECT_ENDPOINT }}
           PROJECT_NAME: ${{ needs.provision.outputs.PROJECT_NAME }}
           FOUNDRY_AUTO_ENSURE_ON_STARTUP: "true"
