@@ -43,15 +43,18 @@ probes:
     path: /health
     initialDelaySeconds: 5
     periodSeconds: 10
+    timeoutSeconds: 5
     failureThreshold: 30
   liveness:
     path: /health
     initialDelaySeconds: 10
     periodSeconds: 10
+    timeoutSeconds: 5
   readiness:
     path: /ready
     initialDelaySeconds: 5
     periodSeconds: 10
+    timeoutSeconds: 5
 
 # Node selector for targeting specific node pools
 # For agents: agentpool: agents
