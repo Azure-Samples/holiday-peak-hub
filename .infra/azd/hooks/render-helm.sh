@@ -75,6 +75,8 @@ add_env_arg "POSTGRES_SSL" "${POSTGRES_SSL:-}"
 add_env_arg "EVENT_HUB_NAMESPACE" "${EVENT_HUB_NAMESPACE:-}"
 add_env_arg "KEY_VAULT_URI" "${KEY_VAULT_URI:-}"
 add_env_arg "REDIS_HOST" "${REDIS_HOST:-}"
+add_env_arg "AZURE_CLIENT_ID" "${AZURE_CLIENT_ID:-}"
+add_env_arg "AZURE_TENANT_ID" "${AZURE_TENANT_ID:-}"
 
 # Azure AI Foundry
 add_env_arg "PROJECT_ENDPOINT" "${PROJECT_ENDPOINT:-}"
