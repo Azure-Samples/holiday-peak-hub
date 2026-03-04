@@ -150,9 +150,7 @@ class EvidenceExtractor:
 
     def __init__(self, model_used: str = "slm", prompt_version: str = "v1.0") -> None:
         if model_used not in VALID_MODELS:
-            raise ValueError(
-                f"model_used must be one of {VALID_MODELS}, got {model_used!r}"
-            )
+            raise ValueError(f"model_used must be one of {VALID_MODELS}, got {model_used!r}")
         self.model_used = model_used
         self.prompt_version = prompt_version
 
