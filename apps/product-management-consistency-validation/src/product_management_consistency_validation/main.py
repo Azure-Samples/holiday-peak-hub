@@ -11,6 +11,9 @@ from product_management_consistency_validation.agents import (
     ProductConsistencyAgent,
     register_mcp_tools,
 )
+from product_management_consistency_validation.event_consumer import (
+    build_completeness_event_handlers,
+)
 from product_management_consistency_validation.event_handlers import (
     build_event_handlers,
 )
@@ -48,6 +51,15 @@ llm_config = (
     if endpoint and llm_agent_id
     else None
 )
+
+# Merge product-events handlers (backward compat) with completeness-jobs handlers
+_all_handlers = {
+    **build_event_handlers(),
+    **build_completeness_event_handlers(
+        completeness_threshold=float(os.getenv("COMPLETENESS_THRESHOLD", "0.7"))
+    ),
+}
+
 app = build_service_app(
     SERVICE_NAME,
     agent_class=ProductConsistencyAgent,
@@ -76,7 +88,8 @@ app = build_service_app(
         service_name=SERVICE_NAME,
         subscriptions=[
             EventHubSubscription("product-events", "validation-group"),
+            EventHubSubscription("completeness-jobs", "completeness-engine"),
         ],
-        handlers=build_event_handlers(),
+        handlers=_all_handlers,
     ),
 )
