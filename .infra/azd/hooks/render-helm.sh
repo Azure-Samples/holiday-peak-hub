@@ -9,11 +9,13 @@ IMAGE_TAG="${IMAGE_TAG:-latest}"
 KEDA_ENABLED="${KEDA_ENABLED:-false}"
 INGRESS_ENABLED="${INGRESS_ENABLED:-true}"
 CANARY_ENABLED="${CANARY_ENABLED:-false}"
+READINESS_PATH="/ready"
 
 # Determine workload type (crud-service goes to crud pool, others to agents pool)
 if [ "$SERVICE_NAME" = "crud-service" ]; then
   NODE_POOL="crud"
   WORKLOAD_TYPE="crud"
+  READINESS_PATH="/health"
 else
   NODE_POOL="agents"
   WORKLOAD_TYPE="agents"
@@ -47,6 +49,7 @@ HELM_ARGS="$HELM_ARGS --set image.tag=$IMAGE_TAG"
 HELM_ARGS="$HELM_ARGS --set keda.enabled=$KEDA_ENABLED"
 HELM_ARGS="$HELM_ARGS --set ingress.enabled=$INGRESS_ENABLED"
 HELM_ARGS="$HELM_ARGS --set canary.enabled=$CANARY_ENABLED"
+HELM_ARGS="$HELM_ARGS --set probes.readiness.path=$READINESS_PATH"
 
 # Node pool targeting
 HELM_ARGS="$HELM_ARGS --set nodeSelector.agentpool=$NODE_POOL"

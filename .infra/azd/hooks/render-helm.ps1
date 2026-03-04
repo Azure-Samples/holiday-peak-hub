@@ -7,6 +7,11 @@ $namespace = if ($env:K8S_NAMESPACE) { $env:K8S_NAMESPACE } else { "holiday-peak
 $imagePrefix = if ($env:IMAGE_PREFIX) { $env:IMAGE_PREFIX } else { "ghcr.io/azure-samples" }
 $imageTag = if ($env:IMAGE_TAG) { $env:IMAGE_TAG } else { "latest" }
 $kedaEnabled = if ($env:KEDA_ENABLED) { $env:KEDA_ENABLED } else { "false" }
+$readinessPath = "/ready"
+
+if ($ServiceName -eq "crud-service") {
+  $readinessPath = "/health"
+}
 
 $serviceImageVarName = "SERVICE_$($ServiceName.ToUpper().Replace('-', '_'))_IMAGE_NAME"
 $serviceImage = [Environment]::GetEnvironmentVariable($serviceImageVarName)
@@ -44,6 +49,8 @@ $helmArgs = @(
   "image.tag=$imageTag",
   '--set',
   "keda.enabled=$kedaEnabled"
+  '--set',
+  "probes.readiness.path=$readinessPath"
 )
 
 $envMappings = @{
