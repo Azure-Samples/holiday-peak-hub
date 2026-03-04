@@ -193,7 +193,16 @@ jobs:
           azd env set AZURE_CONTAINER_REGISTRY_ENDPOINT "${{ inputs.projectName }}${{ inputs.environment }}acr.azurecr.io" -e "${{ inputs.environment }}"
 
       - name: Install kubelogin
-        run: az aks install-cli --kubelogin-version latest
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if az aks install-cli --kubelogin-version latest; then
+              exit 0
+            fi
+            echo "kubelogin install failed on attempt ${attempt}; retrying..."
+            sleep 15
+          done
+          echo "kubelogin install failed after retries"
+          exit 1
 
       - name: Ensure hook scripts executable
         run: chmod +x ./.infra/azd/hooks/*.sh
@@ -222,7 +231,16 @@ jobs:
           fi
 
       - name: Install kubelogin
-        run: az aks install-cli --kubelogin-version latest
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if az aks install-cli --kubelogin-version latest; then
+              exit 0
+            fi
+            echo "kubelogin install failed on attempt ${attempt}; retrying..."
+            sleep 15
+          done
+          echo "kubelogin install failed after retries"
+          exit 1
 
       - name: Ensure hook scripts executable
         run: chmod +x ./.infra/azd/hooks/*.sh
@@ -340,7 +358,16 @@ jobs:
           azd env set AZURE_CONTAINER_REGISTRY_ENDPOINT "${{ inputs.projectName }}${{ inputs.environment }}acr.azurecr.io" -e "${{ inputs.environment }}"
 
       - name: Install kubelogin
-        run: az aks install-cli --kubelogin-version latest
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if az aks install-cli --kubelogin-version latest; then
+              exit 0
+            fi
+            echo "kubelogin install failed on attempt ${attempt}; retrying..."
+            sleep 15
+          done
+          echo "kubelogin install failed after retries"
+          exit 1
 
       - name: Ensure hook scripts executable
         run: chmod +x ./.infra/azd/hooks/*.sh
