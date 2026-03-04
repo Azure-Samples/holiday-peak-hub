@@ -92,7 +92,9 @@ class TruthEnrichmentAgent(BaseRetailAgent):
         if not self.engine.needs_hitl(proposed):
             await self.adapters.truth.upsert({**proposed, "status": "approved"})
 
-        audit = self.engine.build_audit_event("enrichment_proposed", entity_id, field_name, proposed)
+        audit = self.engine.build_audit_event(
+            "enrichment_proposed", entity_id, field_name, proposed
+        )
         await self.adapters.audit.append(audit)
 
         if self.engine.needs_hitl(proposed):

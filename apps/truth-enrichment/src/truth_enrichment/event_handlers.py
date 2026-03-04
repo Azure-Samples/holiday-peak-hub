@@ -57,7 +57,11 @@ def build_event_handlers() -> dict[str, EventHandler]:
             await adapters.audit.append(audit)
             if engine.needs_hitl(proposed):
                 await adapters.hitl_publisher.publish(
-                    {"entity_id": entity_id, "field_name": field_name, "proposed_id": proposed["id"]}
+                    {
+                        "entity_id": entity_id,
+                        "field_name": field_name,
+                        "proposed_id": proposed["id"],
+                    }
                 )
                 hitl_count += 1
             else:
