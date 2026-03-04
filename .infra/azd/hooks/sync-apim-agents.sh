@@ -262,7 +262,13 @@ ensure_crud_api() {
     return
   fi
 
+  PREV_USE_INGRESS="$USE_INGRESS"
+  PREV_REQUIRE_LOAD_BALANCER="$REQUIRE_LOAD_BALANCER"
+  USE_INGRESS=false
+  REQUIRE_LOAD_BALANCER=true
   BACKEND_URL="$(resolve_backend_url crud-service)"
+  USE_INGRESS="$PREV_USE_INGRESS"
+  REQUIRE_LOAD_BALANCER="$PREV_REQUIRE_LOAD_BALANCER"
 
   if az apim api show --resource-group "$RESOURCE_GROUP" --service-name "$APIM_NAME" --api-id "crud-service" >/dev/null 2>&1; then
     API_ID="crud-service"

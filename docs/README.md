@@ -67,7 +67,10 @@ gh workflow run deploy-azd.yml -f environment=dev -f location=eastus2 -f project
 
 - Keep `deployShared=true` for all shared-environment rollouts.
 - UI deployment intentionally uses the SWA GitHub Action path (not `azd deploy --service ui`) so App Router dynamic segments (`[id]`, `[slug]`) are built in the same mode as standard SWA workflows.
-- Frontend API calls must always use APIM via `NEXT_PUBLIC_API_URL` (no localhost fallback in UI runtime/build config).
+- Backend communication standard is **APIM-only** for externally reachable service APIs:
+  - Frontend → backend MUST use APIM (`NEXT_PUBLIC_API_URL` / `NEXT_PUBLIC_CRUD_API_URL` / `NEXT_PUBLIC_AGENT_API_URL`).
+  - CRUD synchronous calls → agent REST MUST use APIM (`AGENT_APIM_BASE_URL`), not direct service URLs.
+  - Direct browser/client calls to AKS services, App Gateway backends, pod IPs, or `*.svc.cluster.local` are not allowed.
 - Demo seeding uses a curated catalog of 10 categories and 100 products with realistic retail data. Re-runs are idempotent by item ID (`cat-*`, `prd-*`): existing seeded records are updated instead of duplicated.
 - Use environment approvals in GitHub Environments for `staging`/`prod`.
 - Keep image tags immutable for reproducible rollback.
@@ -224,6 +227,7 @@ az acr update -n <acrName> --public-network-enabled false
 - **[Business Summary](architecture/business-summary.md)** - Business requirements and use cases
 - **[Components Documentation](architecture/components.md)** - All framework and service components
 - **[ADRs (Architecture Decision Records)](architecture/ADRs.md)** - Index of all 20 ADRs
+- **[Backend Networking Standard](governance/backend-networking-standard.md)** - APIM-only routing + private data-plane requirements
 
 ---
 
@@ -254,6 +258,7 @@ az acr update -n <acrName> --public-network-enabled false
 **Networking posture**:
 - Non-prod environments run APIM in VNET `External` mode (public gateway, private backend reachability to AKS).
 - This supports the APIM-in-front pattern while keeping AKS services as `ClusterIP` behind private network paths.
+- Agent memory and CRUD data dependencies (Redis, Cosmos DB, Blob Storage, PostgreSQL) MUST stay private-network reachable from AKS and MUST NOT require direct public-path app access.
 
 ### Application Layer
 **Technology**: FastAPI (Python 3.13)  

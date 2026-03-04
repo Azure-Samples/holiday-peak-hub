@@ -76,6 +76,11 @@ Each ADR follows a standard template:
 - SLM-first routing for cost optimization ([ADR-013](adrs/adr-013-model-routing.md))
 - Adapter boundaries and composition rules ([ADR-012](adrs/adr-012-adapter-boundaries.md))
 
+### Networking & Security
+- APIM as sole external API gateway, private data-plane dependencies ([ADR-027](adrs/adr-027-apim-only-backend-access.md))
+- AGIC for unified AKS ingress and canary traffic ([ADR-026](adrs/adr-026-agic-traffic-management.md))
+- JWT-based authentication with RBAC ([ADR-019](adrs/adr-019-authentication-rbac.md))
+
 ### Memory & State
 - Three-tier memory (Hot/Warm/Cold) ([ADR-008](adrs/adr-008-memory-tiers.md))
 - Memory partitioning and data placement ([ADR-014](adrs/adr-014-memory-partitioning.md))

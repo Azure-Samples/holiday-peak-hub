@@ -399,7 +399,7 @@ function Update-CrudApi {
         return
     }
 
-    $backend = Resolve-ServiceBackendUrl -Service $service -Namespace $Ns -RequireLb:$RequireLoadBalancer -Retries $BackendResolveRetries -DelaySeconds $BackendResolveDelaySeconds
+    $backend = Resolve-ServiceBackendUrl -Service $service -Namespace $Ns -RequireLb:$true -Retries $BackendResolveRetries -DelaySeconds $BackendResolveDelaySeconds
 
     $apiExists = $false
     az apim api show --resource-group $Rg --service-name $Apim --api-id 'crud-service' --only-show-errors *> $null

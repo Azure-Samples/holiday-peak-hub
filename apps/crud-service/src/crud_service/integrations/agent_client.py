@@ -25,15 +25,31 @@ class AgentClient:
         self.enable_fallback = settings.enable_agent_fallback
 
     def _resolve_agent_url(self, explicit_url: str | None, service_name: str) -> str | None:
-        """Resolve target agent URL using explicit override or APIM path convention."""
-        if explicit_url:
-            return explicit_url.rstrip("/")
-
-        apim_base = settings.agent_apim_base_url
+        """Resolve target agent URL using APIM-only routing."""
+        apim_base = str(settings.agent_apim_base_url or "")
         if not apim_base:
+            logger.warning(
+                "AGENT_APIM_BASE_URL is not configured; skipping agent call",
+                extra={"service_name": service_name},
+            )
             return None
 
-        return f"{apim_base.rstrip('/')}/agents/{service_name}"
+        apim_base = apim_base.rstrip("/")
+        apim_url = f"{apim_base}/agents/{service_name}"
+
+        if explicit_url:
+            normalized_explicit = explicit_url.rstrip("/")
+            if normalized_explicit.startswith(f"{apim_base}/agents/"):
+                return normalized_explicit
+            logger.warning(
+                "Ignoring non-APIM explicit agent URL; enforcing APIM-only routing",
+                extra={
+                    "service_name": service_name,
+                    "explicit_url": normalized_explicit,
+                    "apim_base": apim_base,
+                },
+            )
+        return apim_url
 
     @circuit(
         failure_threshold=settings.agent_circuit_failure_threshold,

@@ -21,6 +21,34 @@ else
   WORKLOAD_TYPE="agents"
 fi
 
+require_env() {
+  key="$1"
+  value="$(printenv "$key" || true)"
+  if [ -z "$value" ]; then
+    echo "Missing required environment variable: $key" >&2
+    exit 1
+  fi
+}
+
+if [ "$SERVICE_NAME" = "crud-service" ]; then
+  require_env "AGENT_APIM_BASE_URL"
+
+  POSTGRES_USER_VALUE="${POSTGRES_USER:-}"
+  POSTGRES_AUTH_MODE_VALUE="${POSTGRES_AUTH_MODE:-password}"
+  if [ "$POSTGRES_AUTH_MODE_VALUE" != "entra" ] && printf '%s' "$POSTGRES_USER_VALUE" | grep -q -- '-aks-agentpool$'; then
+    echo "Invalid POSTGRES_USER '$POSTGRES_USER_VALUE' for POSTGRES_AUTH_MODE '$POSTGRES_AUTH_MODE_VALUE'. Use the PostgreSQL admin user (for example: crud_admin) for password auth mode." >&2
+    exit 1
+  fi
+else
+  require_env "REDIS_URL"
+  require_env "COSMOS_ACCOUNT_URI"
+  require_env "COSMOS_DATABASE"
+  require_env "COSMOS_CONTAINER"
+  require_env "BLOB_ACCOUNT_URL"
+  require_env "BLOB_CONTAINER"
+  require_env "CRUD_SERVICE_URL"
+fi
+
 SERVICE_IMAGE_VAR_NAME="SERVICE_$(printf '%s' "$SERVICE_NAME" | tr '[:lower:]-' '[:upper:]_')_IMAGE_NAME"
 SERVICE_IMAGE="$(printenv "$SERVICE_IMAGE_VAR_NAME" || true)"
 
@@ -51,6 +79,11 @@ HELM_ARGS="$HELM_ARGS --set ingress.enabled=$INGRESS_ENABLED"
 HELM_ARGS="$HELM_ARGS --set canary.enabled=$CANARY_ENABLED"
 HELM_ARGS="$HELM_ARGS --set probes.readiness.path=$READINESS_PATH"
 
+if [ "$SERVICE_NAME" = "crud-service" ]; then
+  HELM_ARGS="$HELM_ARGS --set service.type=LoadBalancer"
+  HELM_ARGS="$HELM_ARGS --set-string service.annotations.service\\.beta\\.kubernetes\\.io/azure-load-balancer-internal=true"
+fi
+
 # Node pool targeting
 HELM_ARGS="$HELM_ARGS --set nodeSelector.agentpool=$NODE_POOL"
 HELM_ARGS="$HELM_ARGS --set tolerations[0].key=workload"
@@ -78,6 +111,8 @@ add_env_arg "POSTGRES_SSL" "${POSTGRES_SSL:-}"
 add_env_arg "EVENT_HUB_NAMESPACE" "${EVENT_HUB_NAMESPACE:-}"
 add_env_arg "KEY_VAULT_URI" "${KEY_VAULT_URI:-}"
 add_env_arg "REDIS_HOST" "${REDIS_HOST:-}"
+add_env_arg "CRUD_SERVICE_URL" "${CRUD_SERVICE_URL:-}"
+add_env_arg "AGENT_APIM_BASE_URL" "${AGENT_APIM_BASE_URL:-}"
 add_env_arg "AZURE_CLIENT_ID" "${AZURE_CLIENT_ID:-}"
 add_env_arg "AZURE_TENANT_ID" "${AZURE_TENANT_ID:-}"
 

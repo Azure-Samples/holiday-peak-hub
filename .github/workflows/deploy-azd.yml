@@ -419,6 +419,12 @@ jobs:
             --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
             --overwrite-existing
 
+      - name: Preflight ingress dependencies (App Gateway + AGIC)
+        run: |
+          bash .infra/azd/hooks/preflight-ingress-deps.sh \
+            "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
+            "${{ inputs.projectName }}-${{ inputs.environment }}-appgw"
+
       - name: Resolve AKS managed identity client ID
         run: |
           AKS_MI_CLIENT_ID=$(az aks show \
@@ -667,6 +673,12 @@ jobs:
             --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
             --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
             --overwrite-existing
+
+      - name: Preflight ingress dependencies (App Gateway + AGIC)
+        run: |
+          bash .infra/azd/hooks/preflight-ingress-deps.sh \
+            "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
+            "${{ inputs.projectName }}-${{ inputs.environment }}-appgw"
 
       - name: Sync APIM agent APIs
         run: |

@@ -13,6 +13,38 @@ if ($ServiceName -eq "crud-service") {
   $readinessPath = "/health"
 }
 
+if ($ServiceName -ne "crud-service") {
+  $requiredAgentVars = @(
+    'REDIS_URL',
+    'COSMOS_ACCOUNT_URI',
+    'COSMOS_DATABASE',
+    'COSMOS_CONTAINER',
+    'BLOB_ACCOUNT_URL',
+    'BLOB_CONTAINER',
+    'CRUD_SERVICE_URL'
+  )
+  $missingAgentVars = @($requiredAgentVars | Where-Object { -not [Environment]::GetEnvironmentVariable($_) })
+  if ($missingAgentVars.Count -gt 0) {
+    throw "Missing required environment variables for APIM/private-memory standard ($ServiceName): $($missingAgentVars -join ', ')"
+  }
+}
+
+if ($ServiceName -eq "crud-service" -and -not [Environment]::GetEnvironmentVariable('AGENT_APIM_BASE_URL')) {
+  throw "Missing required environment variable for APIM-only standard (crud-service): AGENT_APIM_BASE_URL"
+}
+
+if ($ServiceName -eq "crud-service") {
+  $postgresUser = [Environment]::GetEnvironmentVariable('POSTGRES_USER')
+  $postgresAuthMode = [Environment]::GetEnvironmentVariable('POSTGRES_AUTH_MODE')
+  if (-not $postgresAuthMode) {
+    $postgresAuthMode = 'password'
+  }
+
+  if ($postgresAuthMode -ne 'entra' -and $postgresUser -match '-aks-agentpool$') {
+    throw "Invalid POSTGRES_USER '$postgresUser' for POSTGRES_AUTH_MODE '$postgresAuthMode'. Use the PostgreSQL admin user (for example: crud_admin) for password auth mode."
+  }
+}
+
 $serviceImageVarName = "SERVICE_$($ServiceName.ToUpper().Replace('-', '_'))_IMAGE_NAME"
 $serviceImage = [Environment]::GetEnvironmentVariable($serviceImageVarName)
 
@@ -53,6 +85,15 @@ $helmArgs = @(
   "probes.readiness.path=$readinessPath"
 )
 
+if ($ServiceName -eq "crud-service") {
+  $helmArgs += @(
+    '--set',
+    'service.type=LoadBalancer',
+    '--set-string',
+    'service.annotations.service\.beta\.kubernetes\.io/azure-load-balancer-internal=true'
+  )
+}
+
 $envMappings = @{
   # Database
   POSTGRES_HOST = $env:POSTGRES_HOST
@@ -66,6 +107,8 @@ $envMappings = @{
   EVENT_HUB_NAMESPACE = $env:EVENT_HUB_NAMESPACE
   KEY_VAULT_URI = $env:KEY_VAULT_URI
   REDIS_HOST = $env:REDIS_HOST
+  CRUD_SERVICE_URL = $env:CRUD_SERVICE_URL
+  AGENT_APIM_BASE_URL = $env:AGENT_APIM_BASE_URL
   AZURE_CLIENT_ID = $env:AZURE_CLIENT_ID
   AZURE_TENANT_ID = $env:AZURE_TENANT_ID
 

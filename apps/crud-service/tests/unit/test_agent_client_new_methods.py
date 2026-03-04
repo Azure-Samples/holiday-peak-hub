@@ -292,7 +292,7 @@ class TestGetPersonalization:
 class TestResolveAgentUrl:
     """Tests for AgentClient._resolve_agent_url with APIM fallback."""
 
-    def test_explicit_url_takes_precedence(self, monkeypatch):
+    def test_explicit_apim_url_takes_precedence(self, monkeypatch):
         monkeypatch.setattr(
             agent_client_module.settings,
             "agent_apim_base_url",
@@ -300,13 +300,23 @@ class TestResolveAgentUrl:
         )
 
         client = AgentClient()
-        assert client._resolve_agent_url("http://explicit", "svc") == "http://explicit"
+        assert (
+            client._resolve_agent_url("https://apim.example.com/agents/svc", "svc")
+            == "https://apim.example.com/agents/svc"
+        )
 
-    def test_strips_trailing_slash_from_explicit(self, monkeypatch):
-        monkeypatch.setattr(agent_client_module.settings, "agent_apim_base_url", None)
+    def test_non_apim_explicit_url_is_ignored(self, monkeypatch):
+        monkeypatch.setattr(
+            agent_client_module.settings,
+            "agent_apim_base_url",
+            "https://apim.example.com",
+        )
 
         client = AgentClient()
-        assert client._resolve_agent_url("http://explicit/", "svc") == "http://explicit"
+        assert (
+            client._resolve_agent_url("http://explicit/", "svc")
+            == "https://apim.example.com/agents/svc"
+        )
 
     def test_apim_fallback_when_explicit_is_none(self, monkeypatch):
         monkeypatch.setattr(
