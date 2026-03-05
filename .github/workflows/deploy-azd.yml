@@ -76,44 +76,44 @@ jobs:
           CHANGED_FILES=$(git diff --name-only "origin/$DEFAULT_BRANCH...HEAD")
 
           mapfile -t AGENT_SERVICES < <(python3 - <<'PY'
-import re
+          import re
 
-with open('azure.yaml', encoding='utf-8') as f:
-  lines = f.readlines()
+          with open('azure.yaml', encoding='utf-8') as f:
+            lines = f.readlines()
 
-in_services = False
-current_service = None
-current_host = None
-services = []
+          in_services = False
+          current_service = None
+          current_host = None
+          services = []
 
-for raw in lines:
-  line = raw.rstrip('\n')
-  if not in_services:
-    if re.match(r'^services:\s*$', line):
-      in_services = True
-    continue
+          for raw in lines:
+            line = raw.rstrip('\n')
+            if not in_services:
+              if re.match(r'^services:\s*$', line):
+                in_services = True
+              continue
 
-  if re.match(r'^[^\s]', line):
-    break
+            if re.match(r'^[^\s]', line):
+              break
 
-  service_match = re.match(r'^  ([a-z0-9\-]+):\s*$', line)
-  if service_match:
-    if current_service and current_host == 'aks' and current_service != 'crud-service':
-      services.append(current_service)
-    current_service = service_match.group(1)
-    current_host = None
-    continue
+            service_match = re.match(r'^  ([a-z0-9\-]+):\s*$', line)
+            if service_match:
+              if current_service and current_host == 'aks' and current_service != 'crud-service':
+                services.append(current_service)
+              current_service = service_match.group(1)
+              current_host = None
+              continue
 
-  host_match = re.match(r'^    host:\s*(\S+)\s*$', line)
-  if host_match:
-    current_host = host_match.group(1)
+            host_match = re.match(r'^    host:\s*(\S+)\s*$', line)
+            if host_match:
+              current_host = host_match.group(1)
 
-if current_service and current_host == 'aks' and current_service != 'crud-service':
-  services.append(current_service)
+          if current_service and current_host == 'aks' and current_service != 'crud-service':
+            services.append(current_service)
 
-for service in services:
-  print(service)
-PY
+          for service in services:
+            print(service)
+          PY
           )
 
           CRUD_CHANGED=false
