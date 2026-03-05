@@ -446,7 +446,7 @@ These implement the ABCs defined in `integrations/contracts.py`. They are not CR
 | Issue | Description |
 |-------|------------|
 | #79 — Connector Registry Pattern | Runtime discovery + DI for adapters (partially exists as `ConnectorRegistry`) |
-| #80 — Event-Driven Connector Sync | CDC-based sync between connectors and CRUD data |
+| #80 — Event-Driven Connector Sync | CDC-based sync between connectors and CRUD data; implemented with typed connector events, webhook ingress, consumer idempotency, dead-letter, and replay endpoints |
 | #81 — Multi-Tenant Connector Config | Per-tenant adapter configuration |
 | #82 — Protocol Interface Evolution | Versioning strategy for connector contracts |
 | #83 — Internal Data Enrichment Guardrails | Quality gates for agent-produced enrichments |
