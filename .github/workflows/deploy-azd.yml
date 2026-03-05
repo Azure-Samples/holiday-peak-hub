@@ -297,30 +297,33 @@ jobs:
           set -euo pipefail
 
           AKS_RG="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
-          AKS_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-aks"
-
-          if ! az aks show --resource-group "$AKS_RG" --name "$AKS_NAME" >/dev/null 2>&1; then
-            echo "AKS cluster $AKS_NAME not found yet; skipping deploy principal RBAC assignment."
-            exit 0
-          fi
-
-          AKS_ID=$(az aks show --resource-group "$AKS_RG" --name "$AKS_NAME" --query id -o tsv)
           DEPLOY_SP_OBJECT_ID=$(az ad sp show --id "${AZURE_CLIENT_ID}" --query id -o tsv)
+          RG_ID=$(az group show --name "$AKS_RG" --query id -o tsv)
 
           EXISTING=$(az role assignment list \
-            --scope "$AKS_ID" \
+            --scope "$RG_ID" \
             --assignee-object-id "$DEPLOY_SP_OBJECT_ID" \
             --query "[?roleDefinitionName=='Azure Kubernetes Service RBAC Cluster Admin'] | length(@)" -o tsv)
 
           if [ "$EXISTING" = "0" ]; then
-            echo "Assigning Azure Kubernetes Service RBAC Cluster Admin to deploy principal on $AKS_NAME."
+            echo "Assigning Azure Kubernetes Service RBAC Cluster Admin to deploy principal at RG scope $AKS_RG."
             az role assignment create \
               --assignee-object-id "$DEPLOY_SP_OBJECT_ID" \
               --assignee-principal-type ServicePrincipal \
               --role "Azure Kubernetes Service RBAC Cluster Admin" \
-              --scope "$AKS_ID"
+              --scope "$RG_ID"
           else
-            echo "Deploy principal already has Azure Kubernetes Service RBAC Cluster Admin on $AKS_NAME."
+            echo "Deploy principal already has Azure Kubernetes Service RBAC Cluster Admin at RG scope $AKS_RG."
+          fi
+
+          VERIFIED=$(az role assignment list \
+            --scope "$RG_ID" \
+            --assignee-object-id "$DEPLOY_SP_OBJECT_ID" \
+            --query "[?roleDefinitionName=='Azure Kubernetes Service RBAC Cluster Admin'] | length(@)" -o tsv)
+
+          if [ "$VERIFIED" = "0" ]; then
+            echo "Failed to verify Azure Kubernetes Service RBAC Cluster Admin assignment for deploy principal at scope $AKS_RG."
+            exit 1
           fi
 
       - name: Preflight drift remediation (non-prod)
