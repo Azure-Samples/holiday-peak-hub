@@ -2,21 +2,28 @@
 
 from crud_service.routes import (
     acp_products,
+    audit_trail,
     auth,
     cart,
     categories,
     checkout,
+    completeness,
     health,
     orders,
     payments,
     products,
+    proposed_attributes,
     reviews,
+    schemas_registry,
+    truth_attributes,
+    ucp_products,
     users,
     webhooks,
 )
 
 __all__ = [
     "acp_products",
+    "audit_trail",
     "health",
     "auth",
     "users",
@@ -27,5 +34,10 @@ __all__ = [
     "checkout",
     "payments",
     "reviews",
+    "completeness",
+    "proposed_attributes",
+    "schemas_registry",
+    "truth_attributes",
+    "ucp_products",
     "webhooks",
 ]
