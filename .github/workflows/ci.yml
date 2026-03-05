@@ -22,8 +22,9 @@ jobs:
           registry=$(echo "$REGISTRY" | tr '[:upper:]' '[:lower:]')
           for d in apps/*; do
             [ -d "$d" ] || continue
+            [ -f "$d/src/Dockerfile" ] || continue
             image_name=$(basename "$d")
-            docker build -t "$registry/$image_name:latest" -f "$d/src/Dockerfile" "$d"
+            docker build -t "$registry/$image_name:latest" -f "$d/src/Dockerfile" "$d/src"
           done
 
   push:
@@ -46,7 +47,8 @@ jobs:
           registry=$(echo "$REGISTRY" | tr '[:upper:]' '[:lower:]')
           for d in apps/*; do
             [ -d "$d" ] || continue
+            [ -f "$d/src/Dockerfile" ] || continue
             image_name=$(basename "$d")
-            docker build -t "$registry/$image_name:latest" -f "$d/src/Dockerfile" "$d"
+            docker build -t "$registry/$image_name:latest" -f "$d/src/Dockerfile" "$d/src"
             docker push "$registry/$image_name:latest"
           done
