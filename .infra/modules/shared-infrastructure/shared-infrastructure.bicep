@@ -35,7 +35,6 @@ var keyVaultName = empty(keyVaultNameOverride)
   ? take('${projectName}${envSuffix}-kv', 24)
   : toLower(keyVaultNameOverride)
 var apimName = '${projectName}${envSuffix}-apim'
-var appGwName = '${projectName}${envSuffix}-appgw'
 var appInsightsName = '${projectName}${envSuffix}-insights'
 var logAnalyticsName = '${projectName}${envSuffix}-logs'
 var vnetName = '${projectName}${envSuffix}-vnet'
@@ -95,69 +94,7 @@ module aksCrudNsg 'br/public:avm/res/network/network-security-group:0.5.2' = {
   }
 }
 
-// Application Gateway NSG for AGIC (required for ingress traffic)
-module appGwNsg 'br/public:avm/res/network/network-security-group:0.5.2' = {
-  name: 'nsg-appgw'
-  params: {
-    name: 'appgw-nsg'
-    location: location
-    securityRules: [
-      {
-        name: 'AllowGatewayManager'
-        properties: {
-          protocol: 'Tcp'
-          sourcePortRange: '*'
-          destinationPortRange: '65200-65535'
-          sourceAddressPrefix: 'GatewayManager'
-          destinationAddressPrefix: '*'
-          access: 'Allow'
-          priority: 100
-          direction: 'Inbound'
-        }
-      }
-      {
-        name: 'AllowHTTP'
-        properties: {
-          protocol: 'Tcp'
-          sourcePortRange: '*'
-          destinationPortRange: '80'
-          sourceAddressPrefix: 'Internet'
-          destinationAddressPrefix: '*'
-          access: 'Allow'
-          priority: 110
-          direction: 'Inbound'
-        }
-      }
-      {
-        name: 'AllowHTTPS'
-        properties: {
-          protocol: 'Tcp'
-          sourcePortRange: '*'
-          destinationPortRange: '443'
-          sourceAddressPrefix: 'Internet'
-          destinationAddressPrefix: '*'
-          access: 'Allow'
-          priority: 120
-          direction: 'Inbound'
-        }
-      }
-      {
-        name: 'AllowAzureLoadBalancer'
-        properties: {
-          protocol: '*'
-          sourcePortRange: '*'
-          destinationPortRange: '*'
-          sourceAddressPrefix: 'AzureLoadBalancer'
-          destinationAddressPrefix: '*'
-          access: 'Allow'
-          priority: 130
-          direction: 'Inbound'
-        }
-      }
-    ]
-    tags: tags
-  }
-}
+
 
 module apimNsg 'br/public:avm/res/network/network-security-group:0.5.2' = {
   name: 'nsg-apim'
@@ -237,12 +174,6 @@ module vnet 'br/public:avm/res/network/virtual-network:0.7.2' = {
         networkSecurityGroupResourceId: apimNsg.outputs.resourceId
       }
       {
-        name: 'appgw'
-        addressPrefix: '10.0.11.0/24'
-        delegation: 'Microsoft.Network/applicationGateways'
-        networkSecurityGroupResourceId: appGwNsg.outputs.resourceId
-      }
-      {
         name: 'private-endpoints'
         addressPrefix: '10.0.10.0/24'
         networkSecurityGroupResourceId: privateEndpointsNsg.outputs.resourceId
@@ -258,8 +189,7 @@ var aksSystemSubnetId = subnetResourceIds[0]
 var aksAgentsSubnetId = subnetResourceIds[1]
 var aksCrudSubnetId = subnetResourceIds[2]
 var apimSubnetId = subnetResourceIds[3]
-var appGwSubnetId = subnetResourceIds[4]
-var peSubnetId = subnetResourceIds[5]
+var peSubnetId = subnetResourceIds[4]
 
 // Private DNS Zones (AVM) — required for private endpoints
 module acrPrivateDnsZone 'br/public:avm/res/network/private-dns-zone:0.8.0' = {
@@ -738,141 +668,6 @@ module aiFoundry 'br/public:avm/ptn/ai-ml/ai-foundry:0.6.0' = {
   }
 }
 
-// Application Gateway for AGIC (Ingress Controller)
-var appGwSkuName = environment == 'prod' ? 'WAF_v2' : 'Standard_v2'
-var appGwCapacity = environment == 'prod' ? 2 : 1
-var appGwPublicIpName = '${appGwName}-pip'
-
-resource appGwPublicIp 'Microsoft.Network/publicIPAddresses@2023-09-01' = {
-  name: appGwPublicIpName
-  location: location
-  sku: {
-    name: 'Standard'
-    tier: 'Regional'
-  }
-  properties: {
-    publicIPAllocationMethod: 'Static'
-    publicIPAddressVersion: 'IPv4'
-  }
-  tags: tags
-}
-
-resource appGateway 'Microsoft.Network/applicationGateways@2023-09-01' = {
-  name: appGwName
-  location: location
-  properties: {
-    sku: {
-      name: appGwSkuName
-      tier: appGwSkuName
-      capacity: appGwCapacity
-    }
-    gatewayIPConfigurations: [
-      {
-        name: 'appGatewayIpConfig'
-        properties: {
-          subnet: {
-            id: appGwSubnetId
-          }
-        }
-      }
-    ]
-    frontendIPConfigurations: [
-      {
-        name: 'appGwPublicFrontendIp'
-        properties: {
-          publicIPAddress: {
-            id: appGwPublicIp.id
-          }
-        }
-      }
-    ]
-    frontendPorts: [
-      {
-        name: 'port_80'
-        properties: {
-          port: 80
-        }
-      }
-      {
-        name: 'port_443'
-        properties: {
-          port: 443
-        }
-      }
-    ]
-    backendAddressPools: [
-      {
-        name: 'defaultAddressPool'
-        properties: {
-          backendAddresses: []
-        }
-      }
-    ]
-    backendHttpSettingsCollection: [
-      {
-        name: 'defaultHttpSettings'
-        properties: {
-          port: 80
-          protocol: 'Http'
-          cookieBasedAffinity: 'Disabled'
-          requestTimeout: 30
-          pickHostNameFromBackendAddress: true
-          probe: {
-            id: resourceId('Microsoft.Network/applicationGateways/probes', appGwName, 'defaultProbe')
-          }
-        }
-      }
-    ]
-    probes: [
-      {
-        name: 'defaultProbe'
-        properties: {
-          protocol: 'Http'
-          path: '/health'
-          interval: 30
-          timeout: 30
-          unhealthyThreshold: 3
-          pickHostNameFromBackendHttpSettings: true
-          minServers: 0
-        }
-      }
-    ]
-    httpListeners: [
-      {
-        name: 'httpListener'
-        properties: {
-          frontendIPConfiguration: {
-            id: resourceId('Microsoft.Network/applicationGateways/frontendIPConfigurations', appGwName, 'appGwPublicFrontendIp')
-          }
-          frontendPort: {
-            id: resourceId('Microsoft.Network/applicationGateways/frontendPorts', appGwName, 'port_80')
-          }
-          protocol: 'Http'
-        }
-      }
-    ]
-    requestRoutingRules: [
-      {
-        name: 'defaultRule'
-        properties: {
-          ruleType: 'Basic'
-          priority: 100
-          httpListener: {
-            id: resourceId('Microsoft.Network/applicationGateways/httpListeners', appGwName, 'httpListener')
-          }
-          backendAddressPool: {
-            id: resourceId('Microsoft.Network/applicationGateways/backendAddressPools', appGwName, 'defaultAddressPool')
-          }
-          backendHttpSettings: {
-            id: resourceId('Microsoft.Network/applicationGateways/backendHttpSettingsCollection', appGwName, 'defaultHttpSettings')
-          }
-        }
-      }
-    ]
-  }
-  tags: tags
-}
-
 // Azure Kubernetes Service (AVM)
 module aks 'br/public:avm/res/container-service/managed-cluster:0.12.0' = {
   name: 'aks'
@@ -898,8 +693,7 @@ module aks 'br/public:avm/res/container-service/managed-cluster:0.12.0' = {
     omsAgentEnabled: true
     enableKeyvaultSecretsProvider: true
     enableOidcIssuerProfile: true
-    ingressApplicationGatewayEnabled: true
-    appGatewayResourceId: appGateway.id
+    webApplicationRoutingEnabled: true
     primaryAgentPoolProfiles: [
       {
         name: 'system'
@@ -1111,6 +905,3 @@ output appInsightsConnectionString string = appInsights.outputs.connectionString
 output appInsightsInstrumentationKey string = appInsights.outputs.instrumentationKey
 output vnetId string = vnet.outputs.resourceId
 output vnetName string = vnet.outputs.name
-output appGwName string = appGateway.name
-output appGwPublicIp string = appGwPublicIp.properties.ipAddress
-output appGwResourceId string = appGateway.id
