@@ -7,13 +7,11 @@ from contextvars import ContextVar, Token
 from typing import Awaitable, Callable
 
 from fastapi import Request
-from pydantic import BaseModel
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import JSONResponse
-from starlette.responses import Response
-
 from holiday_peak_lib.connectors.registry import ConnectorRegistry
 from holiday_peak_lib.connectors.tenant_config import TenantConfigStore, normalize_tenant_id
+from pydantic import BaseModel
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse, Response
 
 
 class TenantContext(BaseModel):
@@ -24,7 +22,9 @@ class TenantContext(BaseModel):
     request_id: str | None = None
 
 
-TenantContextResolver = Callable[[Request], Awaitable[TenantContext | str | None] | TenantContext | str | None]
+TenantContextResolver = Callable[
+    [Request], Awaitable[TenantContext | str | None] | TenantContext | str | None
+]
 
 
 _tenant_context_var: ContextVar[TenantContext | None] = ContextVar(

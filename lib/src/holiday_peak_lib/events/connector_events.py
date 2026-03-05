@@ -6,8 +6,7 @@ from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, Field
-from pydantic import TypeAdapter
+from pydantic import BaseModel, Field, TypeAdapter
 
 
 class ConnectorEvent(BaseModel):

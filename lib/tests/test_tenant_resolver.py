@@ -7,7 +7,6 @@ import json
 import pytest
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
-
 from holiday_peak_lib.connectors.registry import ConnectorRegistry
 from holiday_peak_lib.connectors.tenant_config import TenantConfigStore
 from holiday_peak_lib.connectors.tenant_resolver import (

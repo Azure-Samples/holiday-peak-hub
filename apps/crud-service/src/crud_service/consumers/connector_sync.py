@@ -174,7 +174,9 @@ class ConnectorSyncConsumer:
             await partition_context.update_checkpoint(event)
 
         async def on_error(partition_context, error):  # noqa: ANN001
-            logger.error("connector_sync_consumer_error partition=%s error=%s", partition_context, error)
+            logger.error(
+                "connector_sync_consumer_error partition=%s error=%s", partition_context, error
+            )
 
         try:
             async with self._consumer:

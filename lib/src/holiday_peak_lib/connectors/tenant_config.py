@@ -12,7 +12,6 @@ from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field
 
-
 _KEY_VAULT_REFERENCE_PATTERN = re.compile(
     r"^@Microsoft\.KeyVault\(SecretUri=(?P<secret_uri>[^)]+)\)$"
 )
@@ -73,12 +72,18 @@ class KeyVaultSecretResolver:
 
     async def resolve_secret(self, reference: str, *, vault_url: str | None = None) -> str:
         parsed = _parse_secret_reference(reference, vault_url=vault_url)
-        return await asyncio.to_thread(self._read_secret, parsed["vault_url"], parsed["secret_name"])
+        return await asyncio.to_thread(
+            self._read_secret, parsed["vault_url"], parsed["secret_name"]
+        )
 
     def _read_secret(self, vault_url: str, secret_name: str) -> str:
         try:
-            from azure.identity import DefaultAzureCredential  # pylint: disable=import-outside-toplevel
-            from azure.keyvault.secrets import SecretClient  # pylint: disable=import-outside-toplevel
+            from azure.identity import (
+                DefaultAzureCredential,  # pylint: disable=import-outside-toplevel
+            )
+            from azure.keyvault.secrets import (
+                SecretClient,  # pylint: disable=import-outside-toplevel
+            )
         except ImportError as exc:  # pragma: no cover - depends on optional env
             raise RuntimeError(
                 "Azure Key Vault support requires 'azure-identity' and "
@@ -142,7 +147,9 @@ class TenantConfigStore:
         if connector is None:
             raise KeyError(f"No connector config for tenant '{tenant_id}' and domain '{domain}'")
         if not connector.enabled:
-            raise ValueError(f"Connector '{normalized_domain}' is disabled for tenant '{tenant_id}'")
+            raise ValueError(
+                f"Connector '{normalized_domain}' is disabled for tenant '{tenant_id}'"
+            )
 
         settings = await self._resolve_settings(
             tenant_id=tenant_id,

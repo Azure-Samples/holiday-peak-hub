@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 
 import pytest
-
 from holiday_peak_lib.connectors.tenant_config import TenantConfigStore, normalize_tenant_id
 
 
