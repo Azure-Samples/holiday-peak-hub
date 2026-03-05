@@ -15,7 +15,7 @@
 - **PIM Writeback Module**: Opt-in writeback with conflict detection and audit trail
 - **HITL Staff Review UI**: Review queue, evidence panel, bulk approval
 - **Frontend API Integration**: Enhanced checkout, order tracking, inventory pages
-- **Test Coverage**: 508 tests passing (up from 386)
+- **Test Coverage**: 635 tests passing (up from 386)
 
 ### Merged PRs (v1.1.0)
 | # | Title | Category |
@@ -47,7 +47,7 @@
 ### Build Status
 | Workflow | Run | Status | Notes |
 |---|---|---|---|
-| `ci.yml` | Latest | ✅ Passing | 508 tests passing, all lint checks green |
+| `ci.yml` | Latest | ✅ Passing | 635 tests passing, all lint checks green |
 | `build-push` | Latest | ✅ Passing | Docker images published to GHCR |
 | `deploy-azd` | Latest | ✅ Passing | Azure deployment successful |
 
@@ -73,6 +73,11 @@
 | [#103](https://github.com/Azure-Samples/holiday-peak-hub/issues/103) | Phase 3: HITL Staff Review UI pages | High | Truth Layer | ✅ Closed (PR #127) |
 | [#107](https://github.com/Azure-Samples/holiday-peak-hub/issues/107) | Phase 5: PIM writeback module | Low | Truth Layer | ✅ Closed (PR #116) |
 | [#110](https://github.com/Azure-Samples/holiday-peak-hub/issues/110) | Phase 5: Enterprise hardening | Low | Hardening | ✅ Closed (PR #119) |
+| [#79](https://github.com/Azure-Samples/holiday-peak-hub/issues/79) | Connector Registry Pattern | Medium | Architecture | ✅ Closed |
+| [#80](https://github.com/Azure-Samples/holiday-peak-hub/issues/80) | Event-Driven Connector Sync | Medium | Architecture | ✅ Closed |
+| [#81](https://github.com/Azure-Samples/holiday-peak-hub/issues/81) | Multi-Tenant Connector Config | Medium | Architecture | ✅ Closed |
+| [#82](https://github.com/Azure-Samples/holiday-peak-hub/issues/82) | Protocol Interface Evolution | Medium | Architecture | ✅ Closed |
+| [#83](https://github.com/Azure-Samples/holiday-peak-hub/issues/83) | Internal Data Enrichment Guardrails | Medium | Architecture | ✅ Closed |
 
 ---
 
@@ -92,7 +97,7 @@
 | [#128](https://github.com/Azure-Samples/holiday-peak-hub/pull/128) | Truth Export service | 4 | 🔄 Draft |
 | [#129](https://github.com/Azure-Samples/holiday-peak-hub/pull/129) | Truth-layer CRUD routes | 4 | 🔄 Draft |
 | [#117](https://github.com/Azure-Samples/holiday-peak-hub/pull/117) | Evidence extraction module | 5 | 🔄 Draft |
-| [#135](https://github.com/Azure-Samples/holiday-peak-hub/pull/135) | Data guardrails for AI agents | Architecture | 🔄 Draft |
+
 
 ---
 
@@ -146,11 +151,11 @@ Marked `priority: medium`. Can proceed in parallel with Truth Layer work.
 
 | # | Title | Status |
 |---|---|---|
-| [#79](https://github.com/Azure-Samples/holiday-peak-hub/issues/79) | Architecture: Connector Registry Pattern | Open |
-| [#80](https://github.com/Azure-Samples/holiday-peak-hub/issues/80) | Architecture: Event-Driven Sync Pattern | PR #132 (Ready) |
-| [#81](https://github.com/Azure-Samples/holiday-peak-hub/issues/81) | Architecture: Multi-Tenant Configuration | Open |
-| [#82](https://github.com/Azure-Samples/holiday-peak-hub/issues/82) | Architecture: Protocol Evolution | Open |
-| [#83](https://github.com/Azure-Samples/holiday-peak-hub/issues/83) | Architecture: Data Guardrails | PR #135 (Draft) |
+| [#79](https://github.com/Azure-Samples/holiday-peak-hub/issues/79) | Architecture: Connector Registry Pattern | ✅ Closed |
+| [#80](https://github.com/Azure-Samples/holiday-peak-hub/issues/80) | Architecture: Event-Driven Sync Pattern | ✅ Closed |
+| [#81](https://github.com/Azure-Samples/holiday-peak-hub/issues/81) | Architecture: Multi-Tenant Configuration | ✅ Closed |
+| [#82](https://github.com/Azure-Samples/holiday-peak-hub/issues/82) | Architecture: Protocol Evolution | ✅ Closed |
+| [#83](https://github.com/Azure-Samples/holiday-peak-hub/issues/83) | Architecture: Data Guardrails | ✅ Closed |
 | [#84](https://github.com/Azure-Samples/holiday-peak-hub/issues/84) | Architecture: Reference Architecture Patterns | Open |
 
 ---
@@ -270,7 +275,7 @@ These issues are superseded by the Truth Layer epic or are long-running backgrou
 ### Completed
 - **20 PRs merged** (19 feature PRs + 1 CI fix)
 - **16 issues closed** (12 Truth Layer, 3 Connectors, 1 Payment)
-- **508 tests** passing (122 new tests)
+- **635 tests** passing (249 new tests)
 - **4 Enterprise Connectors** production-ready
 - **Enterprise Hardening** complete
 
@@ -285,6 +290,6 @@ These issues are superseded by the Truth Layer epic or are long-running backgrou
 |---|---|---|---|
 | `Platform_Quality` | 1 (#31) | 6 (#28-#30, #32-#33, #112) | 🔴 Review First |
 | `Truth_Layer_Pipeline` | 12 | 8 (PRs #144-#151, #125-#129) | 🟠 High |
-| `Architecture_Patterns` | 0 | 6 (#79-#84) | 🟡 Medium |
+| `Architecture_Patterns` | 5 (#79-#83) | 1 (#84) | 🟡 Medium |
 | `Enterprise_Connectors` | 5 | ~35 remaining | 🟡 Low |
 | `Truth_Layer_Hardening` | 2 (#107, #110) | 2 (#108, #109) | 🟢 Low / Optional |
