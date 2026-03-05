@@ -88,6 +88,21 @@ def test_tenant_context_middleware_propagates_state():
     assert payload["current_tenant"] == "acme"
 
 
+def test_tenant_context_middleware_returns_400_for_missing_tenant():
+    app = FastAPI()
+    app.add_middleware(TenantContextMiddleware, tenant_resolver=TenantResolver())
+
+    @app.get("/check")
+    async def check(_: Request):
+        return {"ok": True}
+
+    with TestClient(app) as client:
+        response = client.get("/check")
+
+    assert response.status_code == 400
+    assert "Unable to resolve tenant context" in response.json()["detail"]
+
+
 @pytest.mark.asyncio
 async def test_tenant_connector_resolver_caches_connectors(tmp_path):
     config = {

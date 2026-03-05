@@ -13,6 +13,7 @@ from holiday_peak_lib.connectors.tenant_config import (
     TenantConfig,
     TenantConfigStore,
     TenantConnectorConfig,
+    normalize_tenant_id,
 )
 from holiday_peak_lib.connectors.tenant_resolver import (
     TenantConnectorResolver,
@@ -32,6 +33,7 @@ __all__ = [
     "TenantConfig",
     "TenantConfigStore",
     "TenantConnectorConfig",
+    "normalize_tenant_id",
     "TenantConnectorResolver",
     "TenantContext",
     "TenantContextMiddleware",

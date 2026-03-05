@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from holiday_peak_lib.connectors.tenant_config import TenantConfigStore
+from holiday_peak_lib.connectors.tenant_config import TenantConfigStore, normalize_tenant_id
 
 
 class _FakeSecretResolver:
@@ -120,3 +120,13 @@ async def test_missing_tenant_file_raises(tmp_path):
 
     with pytest.raises(FileNotFoundError):
         await store.load_tenant_config("unknown")
+
+
+def test_normalize_tenant_id_rejects_invalid_patterns():
+    with pytest.raises(ValueError):
+        normalize_tenant_id("../escape")
+
+    with pytest.raises(ValueError):
+        normalize_tenant_id("A")
+
+    assert normalize_tenant_id("Acme_US") == "acme_us"

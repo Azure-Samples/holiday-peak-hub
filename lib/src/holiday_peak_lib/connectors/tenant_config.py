@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 _KEY_VAULT_REFERENCE_PATTERN = re.compile(
     r"^@Microsoft\.KeyVault\(SecretUri=(?P<secret_uri>[^)]+)\)$"
 )
+_TENANT_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]{1,63}$")
 
 
 class SecretResolver(Protocol):
@@ -52,6 +53,16 @@ class ConnectorRuntimeConfig(BaseModel):
     vendor: str
     init_kwargs: dict[str, Any] = Field(default_factory=dict)
     cache_key: str
+
+
+def normalize_tenant_id(tenant_id: str) -> str:
+    """Validate and normalize tenant identifiers used in config paths and cache keys."""
+    normalized = tenant_id.strip().lower()
+    if not _TENANT_ID_PATTERN.fullmatch(normalized):
+        raise ValueError(
+            "Invalid tenant_id format. Use 2-64 chars from [a-z0-9_-], starting with a-z/0-9."
+        )
+    return normalized
 
 
 class KeyVaultSecretResolver:
@@ -104,7 +115,7 @@ class TenantConfigStore:
 
     async def load_tenant_config(self, tenant_id: str, *, refresh: bool = False) -> TenantConfig:
         """Load tenant configuration from ``tenant-{tenant_id}.yaml``."""
-        normalized_tenant = tenant_id.strip()
+        normalized_tenant = normalize_tenant_id(tenant_id)
         async with self._lock:
             if not refresh and normalized_tenant in self._cache:
                 return self._cache[normalized_tenant]

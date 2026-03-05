@@ -9,10 +9,11 @@ from typing import Awaitable, Callable
 from fastapi import Request
 from pydantic import BaseModel
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse
 from starlette.responses import Response
 
 from holiday_peak_lib.connectors.registry import ConnectorRegistry
-from holiday_peak_lib.connectors.tenant_config import TenantConfigStore
+from holiday_peak_lib.connectors.tenant_config import TenantConfigStore, normalize_tenant_id
 
 
 class TenantContext(BaseModel):
@@ -69,10 +70,11 @@ class TenantResolver:
             custom = self._custom_resolver(request)
             resolved = await custom if asyncio.iscoroutine(custom) else custom
             if isinstance(resolved, TenantContext):
+                resolved.tenant_id = normalize_tenant_id(resolved.tenant_id)
                 return resolved
             if isinstance(resolved, str) and resolved.strip():
                 return TenantContext(
-                    tenant_id=resolved.strip(),
+                    tenant_id=normalize_tenant_id(resolved),
                     source="custom",
                     request_id=request.headers.get("x-request-id"),
                 )
@@ -80,7 +82,7 @@ class TenantResolver:
         header_value = request.headers.get(self._header_name)
         if header_value and header_value.strip():
             return TenantContext(
-                tenant_id=header_value.strip(),
+                tenant_id=normalize_tenant_id(header_value),
                 source="header",
                 request_id=request.headers.get("x-request-id"),
             )
@@ -88,14 +90,14 @@ class TenantResolver:
         query_value = request.query_params.get(self._query_param)
         if query_value and query_value.strip():
             return TenantContext(
-                tenant_id=query_value.strip(),
+                tenant_id=normalize_tenant_id(query_value),
                 source="query",
                 request_id=request.headers.get("x-request-id"),
             )
 
         if self._default_tenant and self._default_tenant.strip():
             return TenantContext(
-                tenant_id=self._default_tenant.strip(),
+                tenant_id=normalize_tenant_id(self._default_tenant),
                 source="default",
                 request_id=request.headers.get("x-request-id"),
             )
@@ -114,7 +116,10 @@ class TenantContextMiddleware(BaseHTTPMiddleware):
         self._tenant_resolver = tenant_resolver
 
     async def dispatch(self, request: Request, call_next) -> Response:  # type: ignore[no-untyped-def]
-        context = await self._tenant_resolver.resolve(request)
+        try:
+            context = await self._tenant_resolver.resolve(request)
+        except ValueError as exc:
+            return JSONResponse(status_code=400, content={"detail": str(exc)})
         request.state.tenant_context = context
 
         token = set_current_tenant_context(context)
