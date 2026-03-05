@@ -1,0 +1,165 @@
+# holiday-peak-hub — Platform Quality & CI/CD Context
+# Consumed by: The Quartermaster (platform-quality.agent.md)
+# Repository: holiday-peak-hub
+
+project: holiday-peak-hub
+domain: platform-quality
+
+repository_structure:
+  apps_ui:
+    path: apps/ui/
+    stack: "Next.js 15 + TypeScript + Tailwind CSS"
+    details:
+      - "Uses App Router, MSAL for auth, React Query hooks, Tailwind"
+      - "API services in apps/ui/src/services/ (6 service files)"
+      - "React Query hooks in apps/ui/src/hooks/ (5 hook files)"
+      - "Pages in apps/ui/src/app/ (13 pages)"
+  apps_crud_service:
+    path: apps/crud-service/
+    stack: "FastAPI REST API"
+    details:
+      - "36 endpoints"
+      - "Entra ID JWT + RBAC"
+  lib:
+    path: lib/
+    stack: "Shared Python library"
+    details:
+      - "lib/src/holiday_peak_lib/config/ — Pydantic BaseSettings models"
+      - "lib/tests/test_config.py — 10 failing tests due to schema drift (#29)"
+  workflows:
+    path: .github/workflows/
+    details:
+      - "deploy-azd.yml — main deployment workflow"
+      - "Agent tests use || true which masks failures (#30)"
+  infra:
+    path: .infra/
+    stack: "Bicep IaC modules"
+    details:
+      - "Missing Azure AI Search resource (#32)"
+  agents:
+    path: apps/ecommerce-catalog-search/
+    details:
+      - "Agent that depends on Azure AI Search"
+
+tech_stack:
+  frontend: "Next.js 15, TypeScript, Tailwind CSS, MSAL, React Query, ESLint 7, yarn"
+  backend: "FastAPI, Pydantic v2, pytest + pytest-asyncio, uv"
+  infrastructure: "Azure Bicep, GitHub Actions, Azure AI Search, Entra ID, Key Vault"
+
+delegation_rules:
+  python_specialist:
+    - "Python code (FastAPI, Pydantic, pytest, agents, adapters)"
+  typescript_specialist:
+    - "TypeScript/JavaScript code (React, Next.js, hooks, components)"
+  rust_specialist:
+    - "Rust code (services, CLI tools, performance-critical modules)"
+
+branch_naming:
+  bug: "bug/<issue-number>-<short-description>"
+  feature: "feature/<issue-number>-<short-description>"
+  docs: "docs/<issue-number>-<short-description>"
+
+# ──────────────────────────────────────────────────────────────
+# Target Issues
+# ──────────────────────────────────────────────────────────────
+
+issues:
+  platform_owned:
+    - issue: 30
+      title: "CI agent tests silently swallowed with || true"
+      priority: Medium
+      category: Bug/CI
+      spec: |
+        Root cause: Agent test steps in CI workflow use `|| true` which swallows all failures.
+        Action:
+        1. Find all `|| true` in `.github/workflows/deploy-azd.yml` (and any other workflow files)
+        2. Replace with proper error handling:
+           - Use `continue-on-error: false` (default)
+           - If some tests are expected to fail, use conditional skipping with env var checks
+           - For flaky tests, use `pytest --retry` or mark as `@pytest.mark.xfail`
+        3. Ensure CI correctly reports agent test failures
+
+    - issue: 32
+      title: "Azure AI Search not provisioned — catalog-search agent non-functional"
+      priority: Medium
+      category: Infrastructure
+      spec: |
+        Action:
+        1. Add Azure AI Search resource to `.infra/modules/shared-infrastructure/shared-infrastructure.bicep`
+        2. Configure: SKU (basic for dev), replicas, partitions
+        3. Create search index for product catalog
+        4. Output connection string and admin key to app settings
+        5. Wire `ecommerce-catalog-search` agent to use the provisioned resource
+
+    - issue: 112
+      title: "Document Entra ID configuration for local and deployed environments"
+      category: Documentation
+      spec: |
+        Action:
+        1. Create `docs/authentication/entra-id-setup.md`
+        2. Document:
+           - App registration steps (client app, API app)
+           - Required API permissions and scopes
+           - Local development configuration (.env files)
+           - Deployed environment configuration (Azure Key Vault, App Settings)
+           - MSAL configuration for frontend
+           - JWT validation in CRUD service
+           - RBAC role definitions (4 roles)
+           - Troubleshooting common auth issues
+
+  delegated:
+    - issue: 29
+      title: "10 lib config tests fail due to schema drift"
+      priority: Medium
+      category: Bug/Testing
+      delegate_to: python-specialist
+      context: |
+        Root cause: Settings models updated in PR #24, test assertions in lib/tests/test_config.py not updated.
+        Files: lib/src/holiday_peak_lib/config/settings.py, lib/tests/test_config.py
+        Acceptance: All 10 tests pass, no regressions, Pydantic v2 best practices followed
+
+    - issue: 28
+      title: "Frontend pages use hardcoded mock data instead of API hooks"
+      priority: Medium
+      category: Frontend
+      delegate_to: typescript-specialist
+      context: |
+        10 of 11 pages use hardcoded mock data instead of already-implemented React Query hooks.
+        Hooks: apps/ui/src/hooks/ (5 hook files)
+        Services: apps/ui/src/services/ (6 service files)
+        Pages: apps/ui/src/app/ (13 pages)
+        Acceptance: Pages wired to API hooks, loading/error/empty states, mock data behind env var for dev
+
+    - issue: 33
+      title: "No middleware.ts for server-side route protection"
+      priority: Medium
+      category: Frontend
+      delegate_to: typescript-specialist
+      context: |
+        Create apps/ui/src/middleware.ts for server-side route protection.
+        Use MSAL token from cookies/session.
+        Protect staff/admin pages with role checks, allow public routes.
+        Acceptance: Unauthenticated users redirected, role-based access enforced
+
+    - issue: 31
+      title: "Payment processing fully stubbed (backend + frontend)"
+      priority: Low
+      category: Feature
+      delegate_to: "python-specialist (backend) + typescript-specialist (frontend)"
+      context: |
+        Backend (python-specialist): Replace fake payment endpoints in CRUD service with Stripe SDK,
+        implement payment intents, confirmations, webhooks.
+        Frontend (typescript-specialist): Checkout flow with real Stripe Elements.
+        Acceptance: Stripe test mode works end-to-end, sandbox is default
+
+implementation_rules:
+  - "Bicep changes must not break existing infrastructure — test with `az bicep build`"
+  - "CI changes must be backward compatible — existing passing tests must continue to pass"
+  - "All changes require tests (delegate test writing to the specialist for their language)"
+  - "Update relevant documentation in docs/"
+  - "Always invoke specialist agents for language-specific code — do not write Python, TypeScript, or Rust yourself"
+
+testing:
+  ci: "Verify workflow syntax with actionlint or manual review"
+  bicep: "Validate with `az bicep build`"
+  code: "Delegate language-specific testing to the relevant specialist agent"

@@ -1,0 +1,93 @@
+# Holiday Peak Hub — Architecture Patterns Instructions
+# Consumed by The Architect agent when working on the holiday-peak-hub repository.
+
+repository: holiday-peak-hub
+
+target_issues:
+  - number: 79
+    title: Connector Registry Pattern
+    priority: Medium
+  - number: 80
+    title: Event-Driven Connector Sync
+    priority: Medium
+  - number: 81
+    title: Multi-Tenant Connector Config
+    priority: Medium
+  - number: 82
+    title: Protocol Interface Evolution
+    priority: Medium
+  - number: 83
+    title: Internal Data Enrichment Guardrails
+    priority: Medium
+  - number: 84
+    title: Reference Architecture Patterns
+    priority: Medium
+
+structure:
+  shared_framework: lib/src/holiday_peak_lib/
+  directories:
+    adapters: lib/src/holiday_peak_lib/adapters/
+    agents: lib/src/holiday_peak_lib/agents/
+    connectors: lib/src/holiday_peak_lib/connectors/
+    config: lib/src/holiday_peak_lib/config/
+    utils: lib/src/holiday_peak_lib/utils/
+  crud_service: apps/crud-service/
+  agent_services_count: 21
+
+adrs:
+  - id: ADR-003
+    rule: All retail integrations via adapters — agents NEVER call retailer APIs directly
+  - id: ADR-005
+    rule: FastAPI + MCP for dual exposition
+  - id: ADR-008
+    rule: Three-tier memory (Redis/Cosmos/Blob)
+  - id: ADR-010
+    rule: Dual exposition (REST + MCP)
+  - id: ADR-012
+    rule: Domain-driven adapter boundaries, composition over inheritance
+  - id: ADR-013
+    rule: SLM-first routing
+
+existing_connectors:
+  base_classes:
+    - PIMConnectorBase
+    - DAMConnectorBase
+    - CRMConnectorBase
+    - InventoryConnectorBase
+    - CommerceConnectorBase
+    - AnalyticsConnectorBase
+    - WorkforceConnectorBase
+    - IdentityConnectorBase
+    - IntegrationConnectorBase
+  registry_path: lib/src/holiday_peak_lib/connectors/registry.py
+  protocols_path: lib/src/holiday_peak_lib/connectors/common/protocols.py
+
+adapter_components:
+  - BaseAdapter
+  - BaseRetailAgent
+  - AgentBuilder
+  - FoundryAgentConfig
+  - FastAPIMCPServer
+
+implementation_rules:
+  - Follow existing BaseAdapter patterns for all connector infrastructure
+  - Use pydantic.BaseSettings for all configuration models
+  - Event schemas must be backward compatible — use optional fields for additions
+  - Multi-tenant resolution must be plug-in friendly — support custom resolvers
+  - Guardrails are non-optional for enrichment agents — enforce at framework level
+  - All code follows PEP 8 strictly
+  - Tests required for all components — unit tests with mocks, target 75%+ coverage
+  - Update docs/architecture/adrs/ when making architectural decisions
+  - Reference architectures use Mermaid diagrams in Markdown
+
+testing:
+  - Test registry with multiple connectors, health checks, failover
+  - Test event schemas serialize/deserialize correctly
+  - Test tenant resolution with multiple tenants
+  - Test protocol version negotiation
+  - Test guardrail enforcement (reject missing sources, audit logging)
+  - Test event idempotency with duplicate events
+  - Integration tests for webhook → Event Hub → consumer flow
+
+branch_naming: "feature/<issue-number>-<short-description>"
+branch_example: "feature/79-connector-registry"
