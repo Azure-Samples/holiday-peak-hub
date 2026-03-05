@@ -51,10 +51,7 @@ async def get_truth_attributes(entity_id: str):
 async def get_truth_attribute(entity_id: str, field_name: str):
     """Get a single official attribute for a product by field name."""
     items = await truth_attr_repo.query(
-        query=(
-            "SELECT * FROM c WHERE c.entity_id = @entity_id"
-            " AND c.field_name = @field_name"
-        ),
+        query=("SELECT * FROM c WHERE c.entity_id = @entity_id" " AND c.field_name = @field_name"),
         parameters=[
             {"name": "@entity_id", "value": entity_id},
             {"name": "@field_name", "value": field_name},

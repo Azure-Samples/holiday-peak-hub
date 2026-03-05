@@ -16,6 +16,7 @@ def client():
 # truth_attributes
 # ---------------------------------------------------------------------------
 
+
 class TestTruthAttributesRoutes:
     """Tests for GET /api/truth/attributes/{entity_id}[/{field_name}]."""
 
@@ -81,6 +82,7 @@ class TestTruthAttributesRoutes:
 # proposed_attributes
 # ---------------------------------------------------------------------------
 
+
 class TestProposedAttributesRoutes:
     """Tests for GET /api/proposed/attributes/{entity_id}."""
 
@@ -105,8 +107,20 @@ class TestProposedAttributesRoutes:
 
     def test_filter_proposed_attributes_by_status(self, client):
         items = [
-            {"id": "pa-1", "entity_id": "prod-2", "field_name": "x", "proposed_value": 1, "status": "pending"},
-            {"id": "pa-2", "entity_id": "prod-2", "field_name": "y", "proposed_value": 2, "status": "approved"},
+            {
+                "id": "pa-1",
+                "entity_id": "prod-2",
+                "field_name": "x",
+                "proposed_value": 1,
+                "status": "pending",
+            },
+            {
+                "id": "pa-2",
+                "entity_id": "prod-2",
+                "field_name": "y",
+                "proposed_value": 2,
+                "status": "approved",
+            },
         ]
         with patch(
             "crud_service.routes.proposed_attributes.proposed_attr_repo.query",
@@ -131,6 +145,7 @@ class TestProposedAttributesRoutes:
 # schemas_registry
 # ---------------------------------------------------------------------------
 
+
 class TestSchemasRegistryRoutes:
     """Tests for /api/schemas endpoints."""
 
@@ -152,7 +167,9 @@ class TestSchemasRegistryRoutes:
         assert resp.json()[0]["category_id"] == "cat-1"
 
     def test_get_schema_by_category(self, client):
-        items = [{"id": "cat-2", "category_id": "cat-2", "category_name": "Electronics", "fields": []}]
+        items = [
+            {"id": "cat-2", "category_id": "cat-2", "category_name": "Electronics", "fields": []}
+        ]
         with patch(
             "crud_service.routes.schemas_registry.schema_repo.query",
             new=AsyncMock(return_value=items),
@@ -191,7 +208,12 @@ class TestSchemasRegistryRoutes:
         ):
             resp = client.post(
                 "/api/schemas",
-                json={"category_id": "cat-3", "category_name": "Toys", "version": "1.0", "fields": []},
+                json={
+                    "category_id": "cat-3",
+                    "category_name": "Toys",
+                    "version": "1.0",
+                    "fields": [],
+                },
             )
         assert resp.status_code == 201
         assert resp.json()["category_id"] == "cat-3"
@@ -200,6 +222,7 @@ class TestSchemasRegistryRoutes:
 # ---------------------------------------------------------------------------
 # completeness
 # ---------------------------------------------------------------------------
+
 
 class TestCompletenessRoutes:
     """Tests for /api/completeness endpoints."""
@@ -231,9 +254,30 @@ class TestCompletenessRoutes:
 
     def test_get_completeness_summary(self, client):
         reports = [
-            {"id": "r1", "entity_id": "p1", "score": 1.0, "required_fields": 5, "completed_fields": 5, "gaps": []},
-            {"id": "r2", "entity_id": "p2", "score": 0.8, "required_fields": 5, "completed_fields": 4, "gaps": []},
-            {"id": "r3", "entity_id": "p3", "score": 0.5, "required_fields": 5, "completed_fields": 2, "gaps": []},
+            {
+                "id": "r1",
+                "entity_id": "p1",
+                "score": 1.0,
+                "required_fields": 5,
+                "completed_fields": 5,
+                "gaps": [],
+            },
+            {
+                "id": "r2",
+                "entity_id": "p2",
+                "score": 0.8,
+                "required_fields": 5,
+                "completed_fields": 4,
+                "gaps": [],
+            },
+            {
+                "id": "r3",
+                "entity_id": "p3",
+                "score": 0.5,
+                "required_fields": 5,
+                "completed_fields": 2,
+                "gaps": [],
+            },
         ]
         with patch(
             "crud_service.routes.completeness.completeness_repo.query",
@@ -260,6 +304,7 @@ class TestCompletenessRoutes:
 # ---------------------------------------------------------------------------
 # audit_trail
 # ---------------------------------------------------------------------------
+
 
 class TestAuditTrailRoutes:
     """Tests for /api/audit endpoints."""
@@ -316,6 +361,7 @@ class TestAuditTrailRoutes:
 # ---------------------------------------------------------------------------
 # ucp_products
 # ---------------------------------------------------------------------------
+
 
 class TestUCPProductsRoutes:
     """Tests for /api/ucp/products endpoints."""

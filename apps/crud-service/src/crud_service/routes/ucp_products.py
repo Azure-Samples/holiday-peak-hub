@@ -43,9 +43,7 @@ class UCPProductResponse(BaseModel):
 def _to_ucp(product: dict) -> UCPProductResponse:
     """Convert a truth-layer product document to UCP format."""
     raw_attrs = product.get("attributes") or {}
-    attributes = [
-        UCPAttribute(name=k, value=v) for k, v in raw_attrs.items()
-    ]
+    attributes = [UCPAttribute(name=k, value=v) for k, v in raw_attrs.items()]
     return UCPProductResponse(
         entity_id=product.get("id", ""),
         sku=product.get("sku"),
