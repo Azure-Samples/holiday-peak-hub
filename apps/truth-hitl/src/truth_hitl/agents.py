@@ -43,9 +43,7 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
         entity_id = payload.get("entity_id")
         skip = int(payload.get("skip", 0))
         limit = int(payload.get("limit", 50))
-        items = adapters.review_manager.list_pending(
-            entity_id=entity_id, skip=skip, limit=limit
-        )
+        items = adapters.review_manager.list_pending(entity_id=entity_id, skip=skip, limit=limit)
         return {"items": [i.model_dump() for i in items], "count": len(items)}
 
     async def get_review_stats(payload: dict[str, Any]) -> dict[str, Any]:  # noqa: ARG001

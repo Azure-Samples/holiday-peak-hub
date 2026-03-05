@@ -1,7 +1,6 @@
 """Unit tests for the Truth HITL service app."""
 
 from fastapi.testclient import TestClient
-
 from truth_hitl.main import app
 
 

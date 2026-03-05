@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 
 import pytest
-
 from truth_hitl.event_handlers import build_event_handlers
 
 

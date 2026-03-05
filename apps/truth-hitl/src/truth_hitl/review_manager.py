@@ -79,16 +79,21 @@ class ReviewManager:
     ) -> list[ReviewItem]:
         """Return pending review items, optionally filtered."""
         items = [
-            i for i in self._queue.values()
+            i
+            for i in self._queue.values()
             if i.status == "pending_review"
             and (entity_id is None or i.entity_id == entity_id)
             and (field_name is None or i.field_name == field_name)
         ]
-        return items[skip: skip + limit]
+        return items[skip : skip + limit]
 
     def get_by_entity(self, entity_id: str) -> list[ReviewItem]:
         """Return all pending proposals for a product."""
-        return [i for i in self._queue.values() if i.entity_id == entity_id and i.status == "pending_review"]
+        return [
+            i
+            for i in self._queue.values()
+            if i.entity_id == entity_id and i.status == "pending_review"
+        ]
 
     def stats(self) -> dict[str, int]:
         """Return counts by status."""
@@ -202,6 +207,7 @@ class ReviewManager:
         reviewed_by: str | None,
     ) -> None:
         import uuid
+
         self._audit_log.append(
             AuditEvent(
                 event_id=str(uuid.uuid4()),

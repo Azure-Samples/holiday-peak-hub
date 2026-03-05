@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
-
 from truth_hitl.adapters import HITLAdapters
 from truth_hitl.review_manager import ReviewDecision, ReviewItem
 

@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 import pytest
-
 from truth_hitl.review_manager import ReviewItem
 
 
