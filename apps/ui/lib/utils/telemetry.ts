@@ -23,7 +23,7 @@ export function trackDebug(message: string, properties?: Record<string, string>)
     }
   }
 
-  console.debug(message, properties || {});
+  console.warn(message, properties || {});
 }
 
 export function trackWarning(message: string, properties?: Record<string, string>) {

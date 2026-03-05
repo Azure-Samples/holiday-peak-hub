@@ -1,6 +1,7 @@
 """Factory to create FastAPI + MCP service instances."""
 
 import os
+from contextlib import asynccontextmanager
 from typing import AsyncIterator, Callable, Optional
 
 from fastapi import FastAPI, HTTPException
@@ -56,7 +57,7 @@ def build_service_app(
 ) -> FastAPI:
     """Return a FastAPI app pre-wired with MCP and required memory tiers."""
     logger = configure_logging(app_name=service_name)
-    app = FastAPI(title=service_name, lifespan=lifespan)
+    app = FastAPI(title=service_name)
     registry = connector_registry or ConnectorRegistry()
     app.state.connector_registry = registry
 
@@ -122,33 +123,38 @@ def build_service_app(
 
         return ensure_result
 
-    @app.on_event("startup")
-    async def _auto_ensure_agents_on_startup() -> None:
+    @asynccontextmanager
+    async def _service_lifespan(wrapped_app: FastAPI) -> AsyncIterator[None]:
         nonlocal foundry_ready
-        if not auto_ensure_on_startup:
-            return
+        if auto_ensure_on_startup:
+            results: dict[str, dict] = {}
+            role_to_config: dict[str, FoundryAgentConfig | None] = {
+                "fast": slm_config,
+                "rich": llm_config,
+            }
+            for selected_role, config in role_to_config.items():
+                if config is None:
+                    continue
+                results[selected_role] = await _ensure_role(selected_role, config, service_name)
 
-        results: dict[str, dict] = {}
-        role_to_config: dict[str, FoundryAgentConfig | None] = {
-            "fast": slm_config,
-            "rich": llm_config,
-        }
-        for selected_role, config in role_to_config.items():
-            if config is None:
-                continue
-            results[selected_role] = await _ensure_role(selected_role, config, service_name)
-
-        foundry_ready = all(
-            result.get("status") in {"exists", "found_by_name", "created"}
-            and bool(result.get("agent_id") or result.get("agent_name"))
-            for result in results.values()
-        )
-
-        if strict_foundry_mode and not foundry_ready:
-            raise RuntimeError(
-                f"Foundry auto-ensure failed for service '{service_name}': {results}"
+            foundry_ready = all(
+                result.get("status") in {"exists", "found_by_name", "created"}
+                and bool(result.get("agent_id") or result.get("agent_name"))
+                for result in results.values()
             )
 
+            if strict_foundry_mode and not foundry_ready:
+                raise RuntimeError(
+                    f"Foundry auto-ensure failed for service '{service_name}': {results}"
+                )
+
+        if lifespan is not None:
+            async with lifespan(wrapped_app):
+                yield
+        else:
+            yield
+
+    app.router.lifespan_context = _service_lifespan
     router.register("default", agent.handle)
 
     @app.get("/health")

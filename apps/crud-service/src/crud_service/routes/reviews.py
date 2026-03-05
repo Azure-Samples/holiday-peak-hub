@@ -1,7 +1,7 @@
 """Review routes."""
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from crud_service.auth import User, get_current_user
 from crud_service.repositories.base import BaseRepository
@@ -78,7 +78,7 @@ async def create_review(
         "rating": request.rating,
         "title": request.title,
         "comment": request.comment,
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
 
     await review_repo.create(review)

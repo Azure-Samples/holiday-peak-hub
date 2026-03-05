@@ -184,7 +184,6 @@ export interface Shipment {
   created_at: string;
 }
 
-<<<<<<< HEAD
 // Truth Layer Admin types
 
 export interface SchemaField {

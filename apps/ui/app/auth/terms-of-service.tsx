@@ -43,7 +43,7 @@ const Index: React.FC = () => (
                 non-commercial); attempt to decompile or reverse engineer any
                 software contained on this website; remove any copyright or
                 other proprietary notations from the materials; or transfer the
-                materials to another person or "mirror" the materials on any
+                materials to another person or &quot;mirror&quot; the materials on any
                 other server.
               </li>
             </ol>
@@ -60,7 +60,7 @@ const Index: React.FC = () => (
         <h6 className="font-bold">3. Disclaimer</h6>
         <ol type="a">
           <li>
-            The materials on this website are provided on an 'as is' basis.
+            The materials on this website are provided on an &apos;as is&apos; basis.
             Dashboard makes no warranties, expressed or implied, and hereby
             disclaims and negates all other warranties including, without
             limitation, implied warranties or conditions of merchantability,
@@ -100,7 +100,7 @@ const Index: React.FC = () => (
           Dashboard has not reviewed all of the sites linked to its website and
           is not responsible for the contents of any such linked site. The
           inclusion of any link does not imply endorsement by Dashboard of the
-          site. Use of any such linked website is at the user's own risk.
+          site. Use of any such linked website is at the user&apos;s own risk.
         </p>
         <h6 className="font-bold">7. Modifications</h6>
         <p>

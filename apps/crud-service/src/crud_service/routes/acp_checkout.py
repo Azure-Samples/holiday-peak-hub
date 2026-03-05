@@ -1,7 +1,7 @@
 """ACP checkout session routes."""
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from crud_service.auth import User, get_current_user
@@ -203,7 +203,7 @@ async def create_checkout_session(
     selected_fulfillment_id = fulfillment_options[0]["id"] if fulfillment_options else None
     selected_fulfillment = fulfillment_options[0] if fulfillment_options else None
     totals = _calculate_totals(items, selected_fulfillment, currency)
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
 
     session = {
         "id": str(uuid.uuid4()),
@@ -278,7 +278,7 @@ async def update_checkout_session(
     items = [ACPCheckoutItem(**item) for item in session.get("items", [])]
     session["totals"] = _calculate_totals(items, selected_option, currency)
     session["status"] = "updated"
-    session["updated_at"] = datetime.utcnow().isoformat()
+    session["updated_at"] = datetime.now(timezone.utc).isoformat()
 
     stored = await session_repo.update(session)
     return CheckoutSessionResponse(**stored)
@@ -322,9 +322,9 @@ async def complete_checkout_session(
     expires_at = allowance.get("expires_at")
     if expires_at:
         try:
-            if datetime.fromisoformat(expires_at) < datetime.utcnow():
+            if datetime.fromisoformat(expires_at) < datetime.now(timezone.utc):
                 token["status"] = "expired"
-                token["expired_at"] = datetime.utcnow().isoformat()
+                token["expired_at"] = datetime.now(timezone.utc).isoformat()
                 await payment_token_repo.update(token)
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -354,12 +354,12 @@ async def complete_checkout_session(
         )
 
     token["status"] = "used"
-    token["used_at"] = datetime.utcnow().isoformat()
+    token["used_at"] = datetime.now(timezone.utc).isoformat()
     await payment_token_repo.update(token)
 
     session["status"] = "completed"
     session["payment_token"] = request.payment_token
-    session["updated_at"] = datetime.utcnow().isoformat()
+    session["updated_at"] = datetime.now(timezone.utc).isoformat()
 
     stored = await session_repo.update(session)
 
@@ -379,7 +379,7 @@ async def complete_checkout_session(
         "total": totals.get("total", 0.0),
         "status": "paid",
         "shipping_address": session.get("shipping_address"),
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "source": "acp",
     }
     await order_repo.create(order)
@@ -390,7 +390,7 @@ async def complete_checkout_session(
         "user_id": current_user.user_id,
         "amount": totals.get("total", 0.0),
         "status": "completed",
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "token_id": request.payment_token,
     }
     await event_publisher.publish_order_created(order)
@@ -415,7 +415,7 @@ async def cancel_checkout_session(
         )
 
     session["status"] = "cancelled"
-    session["updated_at"] = datetime.utcnow().isoformat()
+    session["updated_at"] = datetime.now(timezone.utc).isoformat()
 
     stored = await session_repo.update(session)
     return CheckoutSessionResponse(**stored)
