@@ -435,6 +435,24 @@ services:
           shell: sh
           run: ../../../.infra/azd/hooks/render-helm.sh truth-ingestion
           interactive: false
+  truth-enrichment:
+    project: apps/truth-enrichment/src
+    dist: .
+    language: python
+    host: aks
+    k8s:
+      namespace: holiday-peak
+      deploymentPath: ../../../.kubernetes/rendered/truth-enrichment
+    hooks:
+      predeploy:
+        windows:
+          shell: pwsh
+          run: ../../../.infra/azd/hooks/render-helm.ps1 -ServiceName truth-enrichment
+          interactive: false
+        posix:
+          shell: sh
+          run: ../../../.infra/azd/hooks/render-helm.sh truth-enrichment
+          interactive: false
 
 hooks:
   postprovision:

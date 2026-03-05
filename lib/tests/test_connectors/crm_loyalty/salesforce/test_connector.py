@@ -7,7 +7,6 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from holiday_peak_lib.adapters.base import AdapterError
 from holiday_peak_lib.connectors.crm_loyalty.salesforce.auth import (
     SalesforceAuth,
@@ -16,7 +15,6 @@ from holiday_peak_lib.connectors.crm_loyalty.salesforce.auth import (
 from holiday_peak_lib.connectors.crm_loyalty.salesforce.connector import (
     SalesforceCRMConnector,
 )
-
 
 _INSTANCE_URL = "https://myorg.salesforce.com"
 _ACCESS_TOKEN = "test_access_token"
@@ -111,9 +109,7 @@ class TestSalesforceCRMConnectorGetCustomer:
     @pytest.mark.asyncio
     async def test_returns_customer_data(self):
         mock_client = AsyncMock()
-        mock_client.get = AsyncMock(
-            return_value=_mock_response(_soql_response([_CONTACT_RECORD]))
-        )
+        mock_client.get = AsyncMock(return_value=_mock_response(_soql_response([_CONTACT_RECORD])))
         connector = _make_connector(http_client=mock_client)
         result = await connector.get_customer("003xx000004TmiKAAS")
 
@@ -125,9 +121,7 @@ class TestSalesforceCRMConnectorGetCustomer:
     @pytest.mark.asyncio
     async def test_returns_none_when_not_found(self):
         mock_client = AsyncMock()
-        mock_client.get = AsyncMock(
-            return_value=_mock_response(_soql_response([]))
-        )
+        mock_client.get = AsyncMock(return_value=_mock_response(_soql_response([])))
         connector = _make_connector(http_client=mock_client)
         result = await connector.get_customer("nonexistent")
         assert result is None
@@ -165,9 +159,7 @@ class TestSalesforceCRMConnectorGetCustomerByEmail:
     @pytest.mark.asyncio
     async def test_returns_customer_by_email(self):
         mock_client = AsyncMock()
-        mock_client.get = AsyncMock(
-            return_value=_mock_response(_soql_response([_CONTACT_RECORD]))
-        )
+        mock_client.get = AsyncMock(return_value=_mock_response(_soql_response([_CONTACT_RECORD])))
         connector = _make_connector(http_client=mock_client)
         result = await connector.get_customer_by_email("jane@example.com")
 
@@ -177,9 +169,7 @@ class TestSalesforceCRMConnectorGetCustomerByEmail:
     @pytest.mark.asyncio
     async def test_returns_none_when_not_found(self):
         mock_client = AsyncMock()
-        mock_client.get = AsyncMock(
-            return_value=_mock_response(_soql_response([]))
-        )
+        mock_client.get = AsyncMock(return_value=_mock_response(_soql_response([])))
         connector = _make_connector(http_client=mock_client)
         result = await connector.get_customer_by_email("unknown@example.com")
         assert result is None
@@ -206,9 +196,7 @@ class TestSalesforceCRMConnectorGetCustomerSegments:
     @pytest.mark.asyncio
     async def test_returns_empty_list_when_no_campaigns(self):
         mock_client = AsyncMock()
-        mock_client.get = AsyncMock(
-            return_value=_mock_response(_soql_response([]))
-        )
+        mock_client.get = AsyncMock(return_value=_mock_response(_soql_response([])))
         connector = _make_connector(http_client=mock_client)
         segments = await connector.get_customer_segments("003xx")
         assert segments == []
@@ -229,9 +217,7 @@ class TestSalesforceCRMConnectorGetPurchaseHistory:
     @pytest.mark.asyncio
     async def test_returns_order_list(self):
         mock_client = AsyncMock()
-        mock_client.get = AsyncMock(
-            return_value=_mock_response(_soql_response([_ORDER_RECORD]))
-        )
+        mock_client.get = AsyncMock(return_value=_mock_response(_soql_response([_ORDER_RECORD])))
         connector = _make_connector(http_client=mock_client)
         orders = await connector.get_purchase_history("003xx000004TmiKAAS")
 
@@ -242,9 +228,7 @@ class TestSalesforceCRMConnectorGetPurchaseHistory:
     @pytest.mark.asyncio
     async def test_includes_since_filter_in_query(self):
         mock_client = AsyncMock()
-        mock_client.get = AsyncMock(
-            return_value=_mock_response(_soql_response([]))
-        )
+        mock_client.get = AsyncMock(return_value=_mock_response(_soql_response([])))
         connector = _make_connector(http_client=mock_client)
         since = datetime(2024, 10, 1, tzinfo=timezone.utc)
         await connector.get_purchase_history("003xx", since=since)
@@ -263,9 +247,7 @@ class TestSalesforceCRMConnectorUpdateCustomer:
         mock_patch_resp.status_code = 204
         mock_patch_resp.raise_for_status = MagicMock()
         mock_client.patch = AsyncMock(return_value=mock_patch_resp)
-        mock_client.get = AsyncMock(
-            return_value=_mock_response(_soql_response([patched_record]))
-        )
+        mock_client.get = AsyncMock(return_value=_mock_response(_soql_response([patched_record])))
         connector = _make_connector(http_client=mock_client)
         updated = await connector.update_customer(
             "003xx000004TmiKAAS", {"loyalty_tier__c": "Platinum"}
@@ -279,9 +261,7 @@ class TestSalesforceCRMConnectorUpdateCustomer:
         mock_patch_resp.status_code = 204
         mock_patch_resp.raise_for_status = MagicMock()
         mock_client.patch = AsyncMock(return_value=mock_patch_resp)
-        mock_client.get = AsyncMock(
-            return_value=_mock_response(_soql_response([]))
-        )
+        mock_client.get = AsyncMock(return_value=_mock_response(_soql_response([])))
         connector = _make_connector(http_client=mock_client)
 
         with pytest.raises(AdapterError, match="not found after update"):
@@ -359,15 +339,15 @@ class TestSalesforceCRMConnectorPagination:
         second_page = {
             "totalSize": 2,
             "done": True,
-            "records": [
-                {**_CONTACT_RECORD, "Id": "003xx000004SecondAAA"}
-            ],
+            "records": [{**_CONTACT_RECORD, "Id": "003xx000004SecondAAA"}],
         }
         mock_client = AsyncMock()
-        mock_client.get = AsyncMock(side_effect=[
-            _mock_response(first_page),
-            _mock_response(second_page),
-        ])
+        mock_client.get = AsyncMock(
+            side_effect=[
+                _mock_response(first_page),
+                _mock_response(second_page),
+            ]
+        )
         connector = _make_connector(http_client=mock_client)
         result = await connector.get_customer("003xx000004TmiKAAS")
 

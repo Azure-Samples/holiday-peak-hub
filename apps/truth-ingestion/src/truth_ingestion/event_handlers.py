@@ -19,9 +19,7 @@ def build_event_handlers() -> dict[str, EventHandler]:
         """Process an ingest-job event from Event Hub."""
         payload = json.loads(event.body_as_str())
         data = payload.get("data", {}) if isinstance(payload, dict) else {}
-        entity_id = (
-            data.get("entity_id") or data.get("id") or payload.get("entity_id")
-        )
+        entity_id = data.get("entity_id") or data.get("id") or payload.get("entity_id")
 
         if not data:
             logger.info(

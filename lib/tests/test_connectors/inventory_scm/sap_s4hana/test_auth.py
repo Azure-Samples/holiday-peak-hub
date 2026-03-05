@@ -8,9 +8,7 @@ from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
-
 from holiday_peak_lib.connectors.inventory_scm.sap_s4hana.auth import SAPS4HANAAuth
-
 
 # ---------------------------------------------------------------------------
 # Helpers

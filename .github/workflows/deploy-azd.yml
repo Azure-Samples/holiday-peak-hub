@@ -10,7 +10,7 @@ on:
       location:
         description: Azure location
         required: true
-        default: eastus2
+        default: centralus
       projectName:
         description: Project prefix used by naming convention
         required: true
@@ -95,6 +95,7 @@ jobs:
           product-management-assortment-optimization
           product-management-consistency-validation
           product-management-normalization-classification
+          truth-ingestion
           EOF
 
           SHARED_CHANGED=false
@@ -172,11 +173,88 @@ jobs:
       - name: Setup azd
         uses: Azure/setup-azd@v2
 
+      - name: Authenticate azd (OIDC)
+        run: |
+          azd auth login \
+            --client-id "${AZURE_CLIENT_ID}" \
+            --tenant-id "${AZURE_TENANT_ID}" \
+            --federated-credential-provider github \
+            --no-prompt
+
+      - name: Configure azd environment context
+        run: |
+          azd env set AZURE_SUBSCRIPTION_ID "${AZURE_SUBSCRIPTION_ID}" -e "${{ inputs.environment }}"
+          azd env set AZURE_LOCATION "${{ inputs.location }}" -e "${{ inputs.environment }}"
+          azd env set AZURE_ENV_NAME "${{ inputs.environment }}" -e "${{ inputs.environment }}"
+          azd env set AZURE_RESOURCE_GROUP "${{ inputs.projectName }}-${{ inputs.environment }}-rg" -e "${{ inputs.environment }}"
+          azd env set resourceGroupName "${{ inputs.projectName }}-${{ inputs.environment }}-rg" -e "${{ inputs.environment }}"
+          azd env set AZURE_AKS_CLUSTER_NAME "${{ inputs.projectName }}-${{ inputs.environment }}-aks" -e "${{ inputs.environment }}"
+          azd env set AKS_CLUSTER_NAME "${{ inputs.projectName }}-${{ inputs.environment }}-aks" -e "${{ inputs.environment }}"
+          azd env set AZURE_CONTAINER_REGISTRY_ENDPOINT "${{ inputs.projectName }}${{ inputs.environment }}acr.azurecr.io" -e "${{ inputs.environment }}"
+
+      - name: Install kubelogin
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if az aks install-cli --kubelogin-version latest; then
+              exit 0
+            fi
+            echo "kubelogin install failed on attempt ${attempt}; retrying..."
+            sleep 15
+          done
+          echo "kubelogin install failed after retries"
+          exit 1
+
+      - name: Ensure hook scripts executable
+        run: chmod +x ./.infra/azd/hooks/*.sh
+
+      - name: Ensure AKS cluster is running
+        run: |
+          AKS_RG="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+          AKS_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-aks"
+
+          if az aks show --resource-group "$AKS_RG" --name "$AKS_NAME" >/dev/null 2>&1; then
+            POWER_STATE=$(az aks show --resource-group "$AKS_RG" --name "$AKS_NAME" --query "powerState.code" -o tsv 2>/dev/null || true)
+            if [ "$POWER_STATE" = "Stopped" ]; then
+              echo "AKS cluster is stopped. Starting $AKS_NAME..."
+              az aks start --resource-group "$AKS_RG" --name "$AKS_NAME"
+              for _ in $(seq 1 40); do
+                CURRENT_STATE=$(az aks show --resource-group "$AKS_RG" --name "$AKS_NAME" --query "powerState.code" -o tsv 2>/dev/null || true)
+                if [ "$CURRENT_STATE" = "Running" ]; then
+                  echo "AKS cluster is running."
+                  break
+                fi
+                sleep 30
+              done
+            fi
+          else
+            echo "AKS cluster does not exist yet. Continuing."
+          fi
+
+      - name: Install kubelogin
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if az aks install-cli --kubelogin-version latest; then
+              exit 0
+            fi
+            echo "kubelogin install failed on attempt ${attempt}; retrying..."
+            sleep 15
+          done
+          echo "kubelogin install failed after retries"
+          exit 1
+
+      - name: Ensure hook scripts executable
+        run: chmod +x ./.infra/azd/hooks/*.sh
+
       - name: Configure azd environment
         run: |
           azd env set AZURE_SUBSCRIPTION_ID "${AZURE_SUBSCRIPTION_ID}" -e "${{ inputs.environment }}"
           azd env set AZURE_LOCATION "${{ inputs.location }}" -e "${{ inputs.environment }}"
           azd env set AZURE_ENV_NAME "${{ inputs.environment }}" -e "${{ inputs.environment }}"
+          azd env set AZURE_RESOURCE_GROUP "${{ inputs.projectName }}-${{ inputs.environment }}-rg" -e "${{ inputs.environment }}"
+          azd env set resourceGroupName "${{ inputs.projectName }}-${{ inputs.environment }}-rg" -e "${{ inputs.environment }}"
+          azd env set AZURE_AKS_CLUSTER_NAME "${{ inputs.projectName }}-${{ inputs.environment }}-aks" -e "${{ inputs.environment }}"
+          azd env set AKS_CLUSTER_NAME "${{ inputs.projectName }}-${{ inputs.environment }}-aks" -e "${{ inputs.environment }}"
+          azd env set AZURE_CONTAINER_REGISTRY_ENDPOINT "${{ inputs.projectName }}${{ inputs.environment }}acr.azurecr.io" -e "${{ inputs.environment }}"
 
           azd env set deployShared true -e "${{ inputs.environment }}"
           azd env set deployStatic "${{ inputs.deployStatic }}" -e "${{ inputs.environment }}"
@@ -191,6 +269,35 @@ jobs:
 
       - name: Provision infrastructure
         run: azd provision --no-prompt -e "${{ inputs.environment }}"
+
+      - name: Ensure AKS identity can read Key Vault secrets
+        run: |
+          AKS_RG="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+          AKS_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-aks"
+          KEY_VAULT_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-kv"
+
+          KUBELET_OBJECT_ID=$(az aks show \
+            --resource-group "$AKS_RG" \
+            --name "$AKS_NAME" \
+            --query "identityProfile.kubeletidentity.objectId" -o tsv)
+
+          KEY_VAULT_ID=$(az keyvault show \
+            --resource-group "$AKS_RG" \
+            --name "$KEY_VAULT_NAME" \
+            --query id -o tsv)
+
+          EXISTING=$(az role assignment list \
+            --assignee-object-id "$KUBELET_OBJECT_ID" \
+            --scope "$KEY_VAULT_ID" \
+            --query "[?roleDefinitionName=='Key Vault Secrets User'] | length(@)" -o tsv)
+
+          if [ "$EXISTING" = "0" ]; then
+            az role assignment create \
+              --assignee-object-id "$KUBELET_OBJECT_ID" \
+              --assignee-principal-type ServicePrincipal \
+              --role "Key Vault Secrets User" \
+              --scope "$KEY_VAULT_ID"
+          fi
 
       - name: Export provisioned outputs
         id: outputs
@@ -260,6 +367,51 @@ jobs:
       - name: Setup azd
         uses: Azure/setup-azd@v2
 
+      - name: Authenticate azd (OIDC)
+        run: |
+          azd auth login \
+            --client-id "${AZURE_CLIENT_ID}" \
+            --tenant-id "${AZURE_TENANT_ID}" \
+            --federated-credential-provider github \
+            --no-prompt
+
+      - name: Configure azd environment context
+        run: |
+          azd env set AZURE_SUBSCRIPTION_ID "${AZURE_SUBSCRIPTION_ID}" -e "${{ inputs.environment }}"
+          azd env set AZURE_LOCATION "${{ inputs.location }}" -e "${{ inputs.environment }}"
+          azd env set AZURE_ENV_NAME "${{ inputs.environment }}" -e "${{ inputs.environment }}"
+          azd env set AZURE_RESOURCE_GROUP "${{ inputs.projectName }}-${{ inputs.environment }}-rg" -e "${{ inputs.environment }}"
+          azd env set resourceGroupName "${{ inputs.projectName }}-${{ inputs.environment }}-rg" -e "${{ inputs.environment }}"
+          azd env set AZURE_AKS_CLUSTER_NAME "${{ inputs.projectName }}-${{ inputs.environment }}-aks" -e "${{ inputs.environment }}"
+          azd env set AKS_CLUSTER_NAME "${{ inputs.projectName }}-${{ inputs.environment }}-aks" -e "${{ inputs.environment }}"
+          azd env set AZURE_CONTAINER_REGISTRY_ENDPOINT "${{ inputs.projectName }}${{ inputs.environment }}acr.azurecr.io" -e "${{ inputs.environment }}"
+
+      - name: Install kubelogin
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if az aks install-cli --kubelogin-version latest; then
+              exit 0
+            fi
+            echo "kubelogin install failed on attempt ${attempt}; retrying..."
+            sleep 15
+          done
+          echo "kubelogin install failed after retries"
+          exit 1
+
+      - name: Ensure hook scripts executable
+        run: chmod +x ./.infra/azd/hooks/*.sh
+
+      - name: Configure azd environment context
+        run: |
+          azd env set AZURE_SUBSCRIPTION_ID "${AZURE_SUBSCRIPTION_ID}" -e "${{ inputs.environment }}"
+          azd env set AZURE_LOCATION "${{ inputs.location }}" -e "${{ inputs.environment }}"
+          azd env set AZURE_ENV_NAME "${{ inputs.environment }}" -e "${{ inputs.environment }}"
+          azd env set AZURE_RESOURCE_GROUP "${{ inputs.projectName }}-${{ inputs.environment }}-rg" -e "${{ inputs.environment }}"
+          azd env set resourceGroupName "${{ inputs.projectName }}-${{ inputs.environment }}-rg" -e "${{ inputs.environment }}"
+          azd env set AZURE_AKS_CLUSTER_NAME "${{ inputs.projectName }}-${{ inputs.environment }}-aks" -e "${{ inputs.environment }}"
+          azd env set AKS_CLUSTER_NAME "${{ inputs.projectName }}-${{ inputs.environment }}-aks" -e "${{ inputs.environment }}"
+          azd env set AZURE_CONTAINER_REGISTRY_ENDPOINT "${{ inputs.projectName }}${{ inputs.environment }}acr.azurecr.io" -e "${{ inputs.environment }}"
+
       - name: Get AKS credentials
         run: |
           az aks get-credentials \
@@ -267,8 +419,37 @@ jobs:
             --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
             --overwrite-existing
 
+      - name: Resolve AKS managed identity client ID
+        run: |
+          AKS_MI_CLIENT_ID=$(az aks show \
+            --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
+            --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
+            --query "identityProfile.kubeletidentity.clientId" -o tsv)
+          echo "WORKLOAD_AZURE_CLIENT_ID=${AKS_MI_CLIENT_ID}" >> "$GITHUB_ENV"
+
       - name: Deploy CRUD service
-        run: azd deploy --service crud-service --no-prompt -e "${{ inputs.environment }}"
+        run: |
+          if ! azd deploy --service crud-service --no-prompt -e "${{ inputs.environment }}"; then
+            echo "Initial CRUD deploy failed; retrying once after short wait..."
+            sleep 60
+            azd deploy --service crud-service --no-prompt -e "${{ inputs.environment }}"
+          fi
+        env:
+          AZURE_CLIENT_ID: ${{ env.WORKLOAD_AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ env.AZURE_TENANT_ID }}
+          PROJECT_ENDPOINT: ${{ needs.provision.outputs.PROJECT_ENDPOINT }}
+          PROJECT_NAME: ${{ needs.provision.outputs.PROJECT_NAME }}
+          MODEL_DEPLOYMENT_NAME_FAST: gpt-5-nano
+          MODEL_DEPLOYMENT_NAME_RICH: gpt-5-nano
+          COSMOS_ACCOUNT_URI: ${{ needs.provision.outputs.COSMOS_ACCOUNT_URI }}
+          COSMOS_DATABASE: ${{ needs.provision.outputs.COSMOS_DATABASE }}
+          REDIS_HOST: ${{ needs.provision.outputs.REDIS_HOST }}
+          EVENT_HUB_NAMESPACE: ${{ needs.provision.outputs.EVENT_HUB_NAMESPACE }}
+          KEY_VAULT_URI: ${{ needs.provision.outputs.KEY_VAULT_URI }}
+          APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ needs.provision.outputs.APPLICATIONINSIGHTS_CONNECTION_STRING }}
+          POSTGRES_HOST: ${{ needs.provision.outputs.POSTGRES_HOST }}
+          POSTGRES_USER: ${{ needs.provision.outputs.POSTGRES_USER }}
+          POSTGRES_DATABASE: ${{ needs.provision.outputs.POSTGRES_DATABASE }}
 
   deploy-ui:
     runs-on: ubuntu-latest
@@ -400,7 +581,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ inputs.deployChangedOnly && fromJSON(needs.detect-changes.outputs.changed_agents_matrix) || fromJSON('[{"service":"crm-campaign-intelligence"},{"service":"crm-profile-aggregation"},{"service":"crm-segmentation-personalization"},{"service":"crm-support-assistance"},{"service":"ecommerce-cart-intelligence"},{"service":"ecommerce-catalog-search"},{"service":"ecommerce-checkout-support"},{"service":"ecommerce-order-status"},{"service":"ecommerce-product-detail-enrichment"},{"service":"inventory-alerts-triggers"},{"service":"inventory-health-check"},{"service":"inventory-jit-replenishment"},{"service":"inventory-reservation-validation"},{"service":"logistics-carrier-selection"},{"service":"logistics-eta-computation"},{"service":"logistics-returns-support"},{"service":"logistics-route-issue-detection"},{"service":"product-management-acp-transformation"},{"service":"product-management-assortment-optimization"},{"service":"product-management-consistency-validation"},{"service":"product-management-normalization-classification"}]') }}
+        include: ${{ inputs.deployChangedOnly && fromJSON(needs.detect-changes.outputs.changed_agents_matrix) || fromJSON('[{"service":"crm-campaign-intelligence"},{"service":"crm-profile-aggregation"},{"service":"crm-segmentation-personalization"},{"service":"crm-support-assistance"},{"service":"ecommerce-cart-intelligence"},{"service":"ecommerce-catalog-search"},{"service":"ecommerce-checkout-support"},{"service":"ecommerce-order-status"},{"service":"ecommerce-product-detail-enrichment"},{"service":"inventory-alerts-triggers"},{"service":"inventory-health-check"},{"service":"inventory-jit-replenishment"},{"service":"inventory-reservation-validation"},{"service":"logistics-carrier-selection"},{"service":"logistics-eta-computation"},{"service":"logistics-returns-support"},{"service":"logistics-route-issue-detection"},{"service":"product-management-acp-transformation"},{"service":"product-management-assortment-optimization"},{"service":"product-management-consistency-validation"},{"service":"product-management-normalization-classification"},{"service":"truth-ingestion"}]') }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -418,6 +599,14 @@ jobs:
       - name: Setup azd
         uses: Azure/setup-azd@v2
 
+      - name: Authenticate azd (OIDC)
+        run: |
+          azd auth login \
+            --client-id "${AZURE_CLIENT_ID}" \
+            --tenant-id "${AZURE_TENANT_ID}" \
+            --federated-credential-provider github \
+            --no-prompt
+
       - name: Get AKS credentials
         run: |
           az aks get-credentials \
@@ -425,15 +614,25 @@ jobs:
             --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
             --overwrite-existing
 
+      - name: Resolve AKS managed identity client ID
+        run: |
+          AKS_MI_CLIENT_ID=$(az aks show \
+            --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
+            --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
+            --query "identityProfile.kubeletidentity.clientId" -o tsv)
+          echo "WORKLOAD_AZURE_CLIENT_ID=${AKS_MI_CLIENT_ID}" >> "$GITHUB_ENV"
+
       - name: Deploy service
         run: azd deploy --service "${{ matrix.service }}" --no-prompt -e "${{ inputs.environment }}"
         env:
+          AZURE_CLIENT_ID: ${{ env.WORKLOAD_AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ env.AZURE_TENANT_ID }}
           PROJECT_ENDPOINT: ${{ needs.provision.outputs.PROJECT_ENDPOINT }}
           PROJECT_NAME: ${{ needs.provision.outputs.PROJECT_NAME }}
           FOUNDRY_AUTO_ENSURE_ON_STARTUP: "true"
           FOUNDRY_STRICT_ENFORCEMENT: "true"
           MODEL_DEPLOYMENT_NAME_FAST: gpt-5-nano
-          MODEL_DEPLOYMENT_NAME_RICH: gpt-5.2
+          MODEL_DEPLOYMENT_NAME_RICH: gpt-5-nano
           COSMOS_ACCOUNT_URI: ${{ needs.provision.outputs.COSMOS_ACCOUNT_URI }}
           COSMOS_DATABASE: ${{ needs.provision.outputs.COSMOS_DATABASE }}
           REDIS_HOST: ${{ needs.provision.outputs.REDIS_HOST }}
@@ -462,9 +661,17 @@ jobs:
           tenant-id: ${{ env.AZURE_TENANT_ID }}
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
+            --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
+            --overwrite-existing
+
       - name: Sync APIM agent APIs
         run: |
-          bash .infra/azd/hooks/sync-apim-agents.sh
+          bash .infra/azd/hooks/sync-apim-agents.sh --use-ingress \
+            --app-gw-name "${{ inputs.projectName }}-${{ inputs.environment }}-appgw"
         env:
           AZURE_RESOURCE_GROUP: ${{ inputs.projectName }}-${{ inputs.environment }}-rg
 

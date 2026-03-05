@@ -42,6 +42,15 @@ This directory contains comprehensive implementation plans and compliance analys
 - Integration and load tests
 - C4 Component Diagram (Level 3)
 
+### [Truth Layer API Reference](./truth-layer-api.md)
+**Purpose**: Reference and usage guidance for truth-layer ingestion, completeness, enrichment, review, and export APIs  
+**Includes**:
+- Endpoint catalog by service
+- Auth and error handling guidance
+- Rate limiting notes
+- End-to-end workflow sequence
+- Postman collection and sample script links
+
 ---
 
 ## Architecture Patterns Summary

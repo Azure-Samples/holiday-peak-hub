@@ -1,0 +1,37 @@
+{
+  "category_id": "electronics",
+  "label": "Electronics",
+  "version": "1.0",
+  "fields": [
+    {
+      "name": "voltage",
+      "type": "string",
+      "required": false,
+      "enrichable": true,
+      "weight": 0.8
+    },
+    {
+      "name": "connectivity",
+      "type": "list",
+      "required": false,
+      "enrichable": true,
+      "weight": 0.7
+    },
+    {
+      "name": "warranty_months",
+      "type": "number",
+      "required": true,
+      "enrichable": false,
+      "weight": 1.2
+    },
+    {
+      "name": "energy_class",
+      "type": "enum",
+      "required": false,
+      "enrichable": true,
+      "weight": 0.6,
+      "allowed_values": ["A", "B", "C", "D", "E", "F", "G"]
+    }
+  ],
+  "parent_category_id": "general"
+}

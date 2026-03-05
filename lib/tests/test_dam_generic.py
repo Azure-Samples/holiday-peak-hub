@@ -4,17 +4,16 @@ from __future__ import annotations
 
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
+from urllib.parse import urlparse
 
 import httpx
 import pytest
-
+from holiday_peak_lib.integrations.contracts import AssetData
 from holiday_peak_lib.integrations.dam_generic import (
     DAMConnectionConfig,
     GenericDAMConnector,
     _classify_role,
 )
-from holiday_peak_lib.integrations.contracts import AssetData
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -197,7 +196,9 @@ class TestMapToInternal:
         assert asset.id == "b2"
         assert asset.content_type == "image/png"
         # Relative URL with cdn_base_url should be resolved
-        assert asset.url.startswith("https://cdn.example.com")
+        parsed = urlparse(asset.url)
+        assert parsed.scheme == "https"
+        assert parsed.netloc == "cdn.example.com"
 
     def test_tags_as_string(self, connector):
         raw = {"id": "c3", "url": "https://cdn.example.com/c3.jpg", "tags": "swatch,color"}
@@ -231,7 +232,9 @@ class TestGetAsset:
             404,
             request=httpx.Request("GET", "https://dam.example.com/api/assets/missing"),
         )
-        error = httpx.HTTPStatusError("not found", request=response_404.request, response=response_404)
+        error = httpx.HTTPStatusError(
+            "not found", request=response_404.request, response=response_404
+        )
         client = AsyncMock(spec=httpx.AsyncClient)
         client.get = AsyncMock(side_effect=error)
         connector = GenericDAMConnector(bearer_config, http_client=client)
@@ -292,7 +295,9 @@ class TestSearchAssets:
         }
         client = _mock_client(_make_response(results_payload))
         connector = GenericDAMConnector(bearer_config, http_client=client)
-        assets = await connector.search_assets("jacket", tags=["outdoor"], content_type="image/jpeg")
+        assets = await connector.search_assets(
+            "jacket", tags=["outdoor"], content_type="image/jpeg"
+        )
         assert len(assets) == 1
 
     @pytest.mark.asyncio
@@ -382,7 +387,11 @@ class TestRetryLogic:
             return httpx.Response(
                 200,
                 content=json.dumps(
-                    {"id": "ok", "url": "https://dam.example.com/ok.jpg", "content_type": "image/jpeg"}
+                    {
+                        "id": "ok",
+                        "url": "https://dam.example.com/ok.jpg",
+                        "content_type": "image/jpeg",
+                    }
                 ).encode(),
                 request=req,
             )

@@ -23,7 +23,6 @@ from datetime import datetime
 from typing import Any, Iterable, Optional
 
 import httpx
-
 from holiday_peak_lib.adapters.base import AdapterError, BaseAdapter
 from holiday_peak_lib.integrations.contracts import (
     CRMConnectorBase,
@@ -80,7 +79,9 @@ class Dynamics365CEConnector(BaseAdapter, CRMConnectorBase):
                 "or the D365_CE_BASE_URL environment variable."
             )
         self._base_url = resolved_url
-        self._api_version = api_version or os.environ.get("D365_CE_API_VERSION", _DEFAULT_API_VERSION)
+        self._api_version = api_version or os.environ.get(
+            "D365_CE_API_VERSION", _DEFAULT_API_VERSION
+        )
         self._api_base = f"{self._base_url}/api/data/v{self._api_version}/"
         self._token_provider = AzureADTokenProvider(
             resource_url=self._base_url,

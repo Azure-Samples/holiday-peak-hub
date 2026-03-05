@@ -23,7 +23,6 @@ from datetime import datetime
 from typing import Any, Optional
 
 import httpx
-
 from holiday_peak_lib.adapters.base import AdapterError
 from holiday_peak_lib.integrations.contracts import (
     CRMConnectorBase,
@@ -67,9 +66,8 @@ class SalesforceCRMConnector(CRMConnectorBase):
         http_client: Optional[httpx.AsyncClient] = None,
     ) -> None:
         self._auth = auth or SalesforceAuth()
-        self._api_version = (
-            api_version
-            or os.environ.get("SALESFORCE_API_VERSION", _DEFAULT_API_VERSION)
+        self._api_version = api_version or os.environ.get(
+            "SALESFORCE_API_VERSION", _DEFAULT_API_VERSION
         )
         self._http_client = http_client
         self._owns_client = http_client is None
@@ -238,9 +236,7 @@ class SalesforceCRMConnector(CRMConnectorBase):
             raise AdapterError(f"Contact '{customer_id}' not found after update")
         return result
 
-    async def track_event(
-        self, customer_id: str, event_type: str, properties: dict
-    ) -> None:
+    async def track_event(self, customer_id: str, event_type: str, properties: dict) -> None:
         """Publish a Platform Event for Marketing Cloud journey activation.
 
         Salesforce Platform Event object: ``Retail_Engagement__e``

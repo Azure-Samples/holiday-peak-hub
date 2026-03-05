@@ -21,9 +21,7 @@ class CircuitBreakerOpenError(Exception):
     """Raised when a call is attempted while the circuit is open."""
 
     def __init__(self, name: str, recovery_timeout: float) -> None:
-        super().__init__(
-            f"Circuit '{name}' is OPEN. Retry after {recovery_timeout:.1f}s."
-        )
+        super().__init__(f"Circuit '{name}' is OPEN. Retry after {recovery_timeout:.1f}s.")
         self.name = name
         self.recovery_timeout = recovery_timeout
 

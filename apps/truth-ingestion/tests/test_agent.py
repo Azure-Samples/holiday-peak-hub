@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from holiday_peak_lib.agents.base_agent import AgentDependencies
 from truth_ingestion.agent import TruthIngestionAgent
 
@@ -29,9 +28,7 @@ def agent(agent_config, mock_adapters):
 class TestTruthIngestionAgent:
     @pytest.mark.asyncio
     async def test_ingest_single_action(self, agent, sample_pim_product):
-        result = await agent.handle(
-            {"action": "ingest_single", "product": sample_pim_product}
-        )
+        result = await agent.handle({"action": "ingest_single", "product": sample_pim_product})
         assert result["action"] == "ingest_single"
         assert result["result"]["entity_id"] == "PROD-001"
 
@@ -60,13 +57,12 @@ class TestTruthIngestionAgent:
 
     @pytest.mark.asyncio
     async def test_get_status_found(self, agent, mock_adapters):
-        from truth_ingestion.adapters import ProductStyle
         from unittest.mock import AsyncMock
 
+        from truth_ingestion.adapters import ProductStyle
+
         style = ProductStyle(entity_id="PROD-001", name="Hat", category="c", brand="b")
-        mock_adapters.truth_store.get_product_style = AsyncMock(
-            return_value=style.to_dict()
-        )
+        mock_adapters.truth_store.get_product_style = AsyncMock(return_value=style.to_dict())
         result = await agent.handle({"action": "get_status", "entity_id": "PROD-001"})
         assert result["found"] is True
         assert result["entity_id"] == "PROD-001"

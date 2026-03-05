@@ -2,20 +2,28 @@
 
 **Path**: `apps/product-management-consistency-validation/`  
 **Domain**: Product Management  
-**Purpose**: Validate catalog completeness and consistency
+**Purpose**: Evaluate schema-driven catalog completeness and publish enrichment triggers for missing enrichable attributes
 
 ## Overview
 
-Checks product data for missing fields, invalid pricing, and incomplete media.
+Implements a schema-driven Completeness Engine that:
+- evaluates products against category field definitions,
+- computes weighted completeness scores,
+- stores gap reports,
+- triggers enrichment workflows for enrichable gaps below threshold.
 
 ## Architecture
 
 ```mermaid
 graph LR
     Client[Validation Request] -->|POST /invoke| API[FastAPI App]
-    API --> Agent[Consistency Agent]
+    API --> Agent[Completeness Agent]
     Agent --> Products[Product Adapter]
-    Agent --> Validator[Consistency Rules]
+    Agent --> Engine[Completeness Engine]
+    EH[Event Hub completeness-jobs] --> Consumer[Completeness Event Consumer]
+    Consumer --> Engine[Completeness Engine]
+    Engine --> Cosmos[Completeness Storage]
+    Engine --> EH2[Event Hub enrichment-jobs]
 ```
 
 ## Components
@@ -27,35 +35,55 @@ graph LR
 - `GET /health`
 
 **MCP Tools**:
-- `/product/consistency/check`
-- `/product/consistency/product`
+- `/product/completeness/evaluate`
 
-### 2. Consistency Agent (`agents.py`)
+### 2. Completeness Agent (`agents.py`)
 
 Orchestrates:
 - Product retrieval
-- Consistency validation
+- Schema-driven completeness evaluation (`/invoke` flow)
 
-**Current Status**: ✅ **IMPLEMENTED (mock adapters)**
+### 3. Completeness Engine (`completeness_engine.py`)
 
-### 3. Adapters
+Provides:
+- `CategorySchema`, `FieldDefinition`, `FieldGap`, `GapReport`
+- weighted completeness score computation
+- nested dot-path field evaluation
+- enrichable gap extraction
+
+### 4. Completeness Event Consumer (`event_consumer.py`)
+
+Consumes `completeness-jobs` and executes:
+- load product
+- load category schema
+- evaluate completeness
+- persist gap report
+- publish `enrichment_requested` to `enrichment-jobs` when score is below `COMPLETENESS_THRESHOLD`
+
+**Current Status**: ✅ **IMPLEMENTED**
+
+### 5. Adapters
 
 **Product Adapter**: Catalog product retrieval  
-**Validator**: Completeness rules
+**Completeness Storage**: Cosmos-backed schema/gap-report adapter with in-memory fallback
 
-**Current Status**: ⚠️ **PARTIAL** — Mock adapters return deterministic data
+**Current Status**: ✅ **IMPLEMENTED** — Completeness engine pipeline is active; storage supports local in-memory fallback for tests/dev
 
 ## What's Implemented
 
 ✅ MCP tool registration  
-✅ Consistency validation agent orchestration  
+✅ Single-path completeness evaluation orchestration  
+✅ Schema-driven completeness scoring pipeline  
+✅ Completeness Event Hub consumer (`completeness-jobs`)  
+✅ Enrichment trigger publishing (`enrichment-jobs`)  
+✅ Cosmos/in-memory completeness storage adapter  
+✅ Unit + integration tests for completeness engine and event flow  
 ✅ Dockerfile + Bicep module
 
 ## What's NOT Implemented
 
-❌ Real product integrations  
-❌ Foundry model integration for remediation guidance  
-❌ Observability dashboards for data quality
+❌ Dedicated remediation model orchestration (currently only trigger publication)  
+❌ Dedicated observability dashboards for completeness quality trends
 
 ## Operational Playbooks
 

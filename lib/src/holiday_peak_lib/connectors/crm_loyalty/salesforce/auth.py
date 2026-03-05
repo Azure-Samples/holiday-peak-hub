@@ -68,8 +68,7 @@ class SalesforceAuth:
         self._username = username or os.environ.get("SALESFORCE_USERNAME", "")
         self._password = password or os.environ.get("SALESFORCE_PASSWORD", "")
         self._login_url = (
-            login_url
-            or os.environ.get("SALESFORCE_LOGIN_URL", self._DEFAULT_LOGIN_URL)
+            login_url or os.environ.get("SALESFORCE_LOGIN_URL", self._DEFAULT_LOGIN_URL)
         ).rstrip("/")
         self._http_client = http_client
         self._token_entry: Optional[_TokenEntry] = None

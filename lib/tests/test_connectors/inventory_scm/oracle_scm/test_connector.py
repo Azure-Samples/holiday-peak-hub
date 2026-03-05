@@ -5,14 +5,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
-
 from holiday_peak_lib.adapters.base import AdapterError
 from holiday_peak_lib.connectors.inventory_scm.oracle_scm.auth import (
     OracleSCMAuth,
     OracleSCMAuthError,
 )
 from holiday_peak_lib.connectors.inventory_scm.oracle_scm.connector import OracleSCMConnector
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -193,9 +191,7 @@ class TestErrorHandling:
         auth_error_resp = MagicMock(spec=httpx.Response)
         auth_error_resp.status_code = 401
         auth_error_resp.raise_for_status = MagicMock(
-            side_effect=httpx.HTTPStatusError(
-                "401", request=MagicMock(), response=auth_error_resp
-            )
+            side_effect=httpx.HTTPStatusError("401", request=MagicMock(), response=auth_error_resp)
         )
 
         success_resp = _oracle_response([sample_item])

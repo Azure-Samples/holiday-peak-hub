@@ -204,7 +204,7 @@ def test_stripe_webhook_bad_signature(monkeypatch, client):
 
     response = client.post(
         "/webhooks/stripe",
-        content=b'{}',
+        content=b"{}",
         headers={"stripe-signature": "t=1,v1=bad"},
     )
     assert response.status_code == 400
@@ -246,7 +246,7 @@ async def test_stripe_webhook_payment_succeeded(monkeypatch, client):
 
     response = client.post(
         "/webhooks/stripe",
-        content=b'{}',
+        content=b"{}",
         headers={"stripe-signature": "t=1,v1=ok"},
     )
     assert response.status_code == 200

@@ -26,8 +26,6 @@ logger = logging.getLogger(__name__)
 _OTEL_AVAILABLE = False
 try:
     from opentelemetry import metrics, trace  # type: ignore[import]
-    from opentelemetry.metrics import Meter  # type: ignore[import]
-    from opentelemetry.trace import Tracer  # type: ignore[import]
 
     _OTEL_AVAILABLE = True
 except ImportError:  # pragma: no cover
