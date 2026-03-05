@@ -197,6 +197,19 @@ class BaseAdapter(ABC):
             if self._failure_count >= self._circuit_breaker_threshold:
                 self._opened_until = time.monotonic() + self._circuit_reset_seconds
 
+    def resilience_status(self) -> dict[str, Any]:
+        """Return current resilience/circuit-breaker state for observability."""
+        now = time.monotonic()
+        circuit_open = bool(self._opened_until and now < self._opened_until)
+        opened_for_seconds = max(0.0, self._opened_until - now) if circuit_open else 0.0
+        return {
+            "failure_count": self._failure_count,
+            "circuit_open": circuit_open,
+            "opened_for_seconds": opened_for_seconds,
+            "threshold": self._circuit_breaker_threshold,
+            "reset_seconds": self._circuit_reset_seconds,
+        }
+
     async def _get_cached(self, key: tuple) -> Optional[list[dict[str, Any]]]:
         if self._cache_ttl <= 0:
             return None
