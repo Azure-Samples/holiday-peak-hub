@@ -300,12 +300,28 @@ jobs:
           RG_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
           KEY_VAULT_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-kv"
           POSTGRES_SERVER_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-postgres"
+          DESIRED_LOCATION="$(echo "${{ inputs.location }}" | tr '[:upper:]' '[:lower:]')"
 
           echo "Running non-prod preflight drift remediation for environment '${{ inputs.environment }}'."
 
           # Remediate soft-deleted Key Vault name conflicts that can block azd provision.
           if az keyvault show --name "$KEY_VAULT_NAME" --resource-group "$RG_NAME" >/dev/null 2>&1; then
-            echo "Key Vault $KEY_VAULT_NAME already exists in $RG_NAME. No purge needed."
+            CURRENT_KV_LOCATION=$(az keyvault show \
+              --name "$KEY_VAULT_NAME" \
+              --resource-group "$RG_NAME" \
+              --query location -o tsv | tr '[:upper:]' '[:lower:]')
+
+            if [ "$CURRENT_KV_LOCATION" != "$DESIRED_LOCATION" ]; then
+              LOCATION_SUFFIX=$(echo "$DESIRED_LOCATION" | tr -cd '[:alnum:]' | cut -c1-4)
+              KEY_VAULT_OVERRIDE=$(echo "${{ inputs.projectName }}-${{ inputs.environment }}-kv-${LOCATION_SUFFIX}" | tr '[:upper:]' '[:lower:]' | cut -c1-24)
+              KEY_VAULT_OVERRIDE="${KEY_VAULT_OVERRIDE%-}"
+
+              echo "Key Vault location mismatch detected for $KEY_VAULT_NAME ($CURRENT_KV_LOCATION vs $DESIRED_LOCATION)."
+              echo "Setting keyVaultNameOverride to $KEY_VAULT_OVERRIDE for this deployment."
+              azd env set keyVaultNameOverride "$KEY_VAULT_OVERRIDE" -e "${{ inputs.environment }}"
+            else
+              echo "Key Vault $KEY_VAULT_NAME already exists in $RG_NAME with matching location $CURRENT_KV_LOCATION."
+            fi
           else
             DELETED_KV_LOCATION=$(az keyvault list-deleted \
               --query "[?name=='$KEY_VAULT_NAME'] | [0].properties.location" \
