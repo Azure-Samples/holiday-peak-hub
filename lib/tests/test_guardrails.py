@@ -369,7 +369,11 @@ class TestGuardrailMiddleware:
     async def test_audit_enrichment_logs_info(self, middleware, caplog):
         sources = [SourceRef(source_system="pim", source_id="SKU-001")]
         request = {"sku": "SKU-001"}
-        output = {"long_description": "Good product.", "_confidence": 0.9, "_sources": ["pim:SKU-001"]}
+        output = {
+            "long_description": "Good product.",
+            "_confidence": 0.9,
+            "_sources": ["pim:SKU-001"],
+        }
         with caplog.at_level(
             logging.INFO, logger="holiday_peak_lib.agents.guardrails.enrichment_guardrail"
         ):
