@@ -1,0 +1,175 @@
+# holiday-peak-hub — Enterprise Connector Implementation Context
+# Consumed by: The Patchbay (enterprise-connectors.agent.md)
+# Repository: holiday-peak-hub
+
+project: holiday-peak-hub
+domain: enterprise-connectors
+
+connector_structure:
+  root: lib/src/holiday_peak_lib/connectors/
+  layout: |
+    connectors/
+    ├── common/
+    │   ├── protocols.py          # Domain data models (ProductData, InventoryData, etc.)
+    │   └── versioning.py         # Protocol version negotiation
+    ├── registry.py               # ConnectorRegistry
+    ├── inventory_scm/
+    │   ├── sap_s4hana/
+    │   │   ├── __init__.py
+    │   │   ├── connector.py      # SAPS4HANAConnector(InventoryConnectorBase)
+    │   │   ├── auth.py           # OAuth2 handler
+    │   │   └── mappings.py       # OData → InventoryData mapping
+    │   ├── oracle_scm/
+    │   └── ...
+    ├── pim/
+    │   ├── salsify/
+    │   ├── akeneo/
+    │   └── ...
+    ├── dam/
+    │   ├── cloudinary/
+    │   └── ...
+    ├── crm_loyalty/
+    │   ├── salesforce/
+    │   └── ...
+    ├── commerce_order/
+    │   ├── shopify/
+    │   └── ...
+    ├── data_analytics/
+    ├── integration/
+    ├── workforce/
+    └── identity/
+
+base_classes:
+  parent: BaseAdapter (from holiday_peak_lib.adapters.base)
+  capabilities:
+    - "Circuit breaker: automatic failure isolation"
+    - "Retry logic: configurable retries with exponential backoff"
+    - "Timeout management: per-request and global timeouts"
+    - "Health checks: async health() -> HealthStatus"
+    - "Metrics: request count, latency, error rate"
+  domain_abcs:
+    - PIMConnectorBase
+    - DAMConnectorBase
+    - CRMConnectorBase
+    - InventoryConnectorBase
+    - CommerceConnectorBase
+    - AnalyticsConnectorBase
+    - IntegrationConnectorBase
+    - WorkforceConnectorBase
+    - IdentityConnectorBase
+
+protocol_data_models:
+  - name: ProductData
+    domain: PIM connectors
+  - name: AssetData
+    domain: DAM connectors
+  - name: InventoryData
+    domain: SCM/WMS connectors
+  - name: CustomerData
+    domain: CRM/CDP connectors
+  - name: OrderData
+    domain: Commerce/OMS connectors
+  - name: SegmentData
+    domain: Analytics connectors
+
+authentication_patterns:
+  - type: "OAuth 2.0"
+    variants: ["Client Credentials", "JWT Bearer", "Authorization Code"]
+  - type: "API Key"
+    variants: ["Header-based", "Query parameter"]
+  - type: "Basic Auth"
+    note: "Username/password (rarely needed)"
+  - type: "Azure AD"
+    note: "DefaultAzureCredential for Microsoft services"
+  - type: "Adobe IMS"
+    note: "JWT-based service account auth"
+
+implementation_rules:
+  - "One connector = one package (e.g., connectors/pim/salsify/ with __init__.py, connector.py, auth.py, mappings.py)"
+  - "Extend domain-specific ABC — never implement BaseAdapter directly"
+  - "Map to canonical models — connectors MUST map vendor data to protocol models"
+  - "Async-first — use httpx.AsyncClient for all HTTP calls"
+  - "Token caching — cache OAuth tokens with TTL, auto-refresh"
+  - "Pagination — support cursor/offset pagination for all list endpoints"
+  - "Rate limiting — respect vendor rate limits, implement backoff"
+  - "Error mapping — map vendor HTTP errors to domain exceptions"
+  - "Config via env vars — {VENDOR}_BASE_URL, {VENDOR}_API_KEY, {VENDOR}_CLIENT_ID, etc."
+  - "Follow PEP 8 strictly"
+  - "Tests with mocked responses — use httpx mock transport or responses library"
+  - "Never store credentials in code — reference Azure Key Vault"
+
+testing:
+  location: lib/tests/test_connectors/{domain}/{vendor}/
+  required:
+    - "Unit tests with mocked HTTP responses for all API endpoints"
+    - "Auth tests (token acquisition, refresh, error handling)"
+    - "Data mapping tests (vendor response → canonical model)"
+    - "Pagination tests"
+    - "Error handling tests (rate limit, auth failure, network error)"
+    - "Health check tests"
+
+branch_naming: "feature/<issue-number>-<short-description>"
+
+# ──────────────────────────────────────────────────────────────
+# Target Issues (43 connectors across 9 domains)
+# ──────────────────────────────────────────────────────────────
+
+issues:
+  inventory_scm:
+    - { issue: 36, title: "SAP S/4HANA (Inventory & SCM)", protocol: "OData v4", auth: "OAuth 2.0" }
+    - { issue: 37, title: "Oracle Fusion Cloud SCM", protocol: "REST JSON", auth: "OAuth 2.0 JWT" }
+    - { issue: 38, title: "Manhattan Active Omni", protocol: "REST JSON", auth: "OAuth 2.0" }
+    - { issue: 39, title: "Blue Yonder Luminate", protocol: "REST JSON", auth: "API Key/OAuth" }
+    - { issue: 40, title: "Microsoft Dynamics 365 SCM", protocol: "OData v4", auth: "Azure AD" }
+    - { issue: 77, title: "Infor CloudSuite WMS", protocol: "REST JSON", auth: "ION OAuth" }
+
+  crm_loyalty:
+    - { issue: 41, title: "Salesforce CRM & Marketing Cloud", protocol: "REST/GraphQL", auth: "OAuth 2.0 JWT" }
+    - { issue: 42, title: "Microsoft Dynamics 365 CE", protocol: "OData v4", auth: "Azure AD" }
+    - { issue: 43, title: "Adobe Experience Platform (AEP)", protocol: "REST JSON", auth: "OAuth 2.0 JWT" }
+    - { issue: 44, title: "Braze Customer Engagement", protocol: "REST JSON", auth: "API Key" }
+    - { issue: 45, title: "Twilio Segment CDP", protocol: "REST JSON", auth: "Write Key" }
+    - { issue: 78, title: "Oracle CX (CRM)", protocol: "REST JSON", auth: "OAuth/Basic" }
+
+  pim:
+    - { issue: 46, title: "Salsify PXM", protocol: "REST JSON", auth: "API Key" }
+    - { issue: 47, title: "inRiver PIM", protocol: "REST JSON", auth: "API Key" }
+    - { issue: 48, title: "Akeneo PIM", protocol: "REST JSON", auth: "OAuth 2.0" }
+    - { issue: 49, title: "Pimcore (Open-Source PIM/DAM)", protocol: "GraphQL/REST", auth: "API Key" }
+    - { issue: 74, title: "SAP Hybris PIM", protocol: "OData (OCC)", auth: "OAuth 2.0" }
+    - { issue: 75, title: "Informatica Product 360", protocol: "REST JSON", auth: "Basic/OAuth" }
+
+  dam:
+    - { issue: 50, title: "Cloudinary", protocol: "REST JSON", auth: "API Key+Secret" }
+    - { issue: 51, title: "Adobe AEM Assets", protocol: "REST/Sling", auth: "Adobe IMS" }
+    - { issue: 52, title: "Bynder", protocol: "REST JSON", auth: "OAuth 2.0" }
+    - { issue: 76, title: "Sitecore Content Hub", protocol: "REST JSON", auth: "OAuth/API Key" }
+
+  commerce_order:
+    - { issue: 53, title: "Shopify Plus", protocol: "GraphQL/REST", auth: "OAuth" }
+    - { issue: 54, title: "commercetools", protocol: "REST JSON", auth: "OAuth 2.0 CC" }
+    - { issue: 55, title: "Salesforce Commerce Cloud", protocol: "REST/OCAPI", auth: "OAuth/JWT" }
+    - { issue: 56, title: "Adobe Commerce/Magento", protocol: "REST/GraphQL", auth: "Bearer Token" }
+    - { issue: 57, title: "SAP Commerce Cloud", protocol: "OData (OCC)", auth: "OAuth 2.0" }
+    - { issue: 58, title: "Manhattan Active OMS", protocol: "REST JSON", auth: "OAuth/API Key" }
+    - { issue: 59, title: "VTEX", protocol: "REST JSON", auth: "App Key+Token" }
+
+  data_analytics:
+    - { issue: 60, title: "Azure Synapse Analytics", protocol: "REST/SQL", auth: "Azure AD" }
+    - { issue: 61, title: "Snowflake", protocol: "SQL API", auth: "Key Pair/OAuth" }
+    - { issue: 62, title: "Databricks", protocol: "REST JSON", auth: "Azure AD/PAT" }
+    - { issue: 63, title: "Google Analytics 4", protocol: "REST JSON", auth: "Service Account" }
+    - { issue: 64, title: "Adobe Analytics", protocol: "REST JSON", auth: "Adobe IMS JWT" }
+
+  integration:
+    - { issue: 65, title: "MuleSoft Anypoint", protocol: "REST JSON", auth: "Connected App" }
+    - { issue: 66, title: "Confluent Kafka", protocol: "REST Proxy", auth: "API Key/OAuth" }
+    - { issue: 67, title: "Boomi AtomSphere", protocol: "REST JSON/XML", auth: "Basic/OAuth" }
+    - { issue: 68, title: "IBM Sterling B2B", protocol: "REST JSON/XML", auth: "Basic Auth" }
+
+  identity_privacy_workforce:
+    - { issue: 69, title: "Okta/Auth0", protocol: "REST JSON", auth: "API Token/OAuth" }
+    - { issue: 70, title: "OneTrust", protocol: "REST JSON", auth: "OAuth 2.0 CC" }
+    - { issue: 71, title: "UKG/Kronos", protocol: "REST JSON", auth: "OAuth/API Key" }
+    - { issue: 72, title: "Zebra Reflexis", protocol: "REST JSON", auth: "OAuth/API Key" }
+    - { issue: 73, title: "WorkJam/Yoobic", protocol: "REST JSON", auth: "OAuth 2.0" }
