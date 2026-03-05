@@ -312,8 +312,21 @@ jobs:
               -o tsv)
 
             if [ -n "$DELETED_KV_LOCATION" ]; then
-              echo "Purging soft-deleted Key Vault $KEY_VAULT_NAME from $DELETED_KV_LOCATION."
-              az keyvault purge --name "$KEY_VAULT_NAME" --location "$DELETED_KV_LOCATION"
+              echo "Recovering soft-deleted Key Vault $KEY_VAULT_NAME."
+              if az keyvault recover --name "$KEY_VAULT_NAME" >/dev/null 2>&1; then
+                echo "Recovery initiated for $KEY_VAULT_NAME."
+              else
+                echo "Recovery failed for $KEY_VAULT_NAME. Attempting purge fallback from $DELETED_KV_LOCATION."
+                az keyvault purge --name "$KEY_VAULT_NAME" --location "$DELETED_KV_LOCATION"
+              fi
+
+              for _ in $(seq 1 20); do
+                if az keyvault show --name "$KEY_VAULT_NAME" --resource-group "$RG_NAME" >/dev/null 2>&1; then
+                  echo "Key Vault $KEY_VAULT_NAME is now available in $RG_NAME."
+                  break
+                fi
+                sleep 10
+              done
             else
               echo "No soft-deleted Key Vault conflict found for $KEY_VAULT_NAME."
             fi
