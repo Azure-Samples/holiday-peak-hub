@@ -5,22 +5,12 @@ metadata:
   name: {{ include "holiday-peak-service.fullname" . }}
   labels:
     app: {{ .Values.serviceName }}
+  {{- with .Values.ingress.annotations }}
   annotations:
-    kubernetes.io/ingress.class: azure/application-gateway
-    {{- if .Values.ingress.ssl.enabled }}
-    appgw.ingress.kubernetes.io/ssl-redirect: "true"
-    {{- end }}
-    {{- if .Values.ingress.healthProbe.path }}
-    appgw.ingress.kubernetes.io/health-probe-path: "{{ .Values.ingress.healthProbe.path }}"
-    {{- end }}
-    appgw.ingress.kubernetes.io/backend-protocol: "http"
-    appgw.ingress.kubernetes.io/request-timeout: "{{ .Values.ingress.requestTimeout | default 30 }}"
-    appgw.ingress.kubernetes.io/connection-draining: "true"
-    appgw.ingress.kubernetes.io/connection-draining-timeout: "30"
-    {{- with .Values.ingress.annotations }}
     {{- toYaml . | nindent 4 }}
-    {{- end }}
+  {{- end }}
 spec:
+  ingressClassName: webapprouting.kubernetes.azure.com
   {{- if .Values.ingress.tls }}
   tls:
     {{- range .Values.ingress.tls }}
@@ -58,18 +48,12 @@ metadata:
   labels:
     app: {{ .Values.serviceName }}
     canary: "true"
+  {{- with .Values.canary.ingress.annotations }}
   annotations:
-    kubernetes.io/ingress.class: azure/application-gateway
-    # AGIC doesn't support weight-based canary natively, but we can use header-based routing
-    # For true weight-based canary, use Azure Front Door or Traffic Manager in front of App Gateway
-    appgw.ingress.kubernetes.io/backend-path-prefix: "/"
-    {{- if .Values.canary.headerRouting.enabled }}
-    appgw.ingress.kubernetes.io/rewrite-rule-set: "canary-{{ .Values.serviceName }}"
-    {{- end }}
-    {{- with .Values.canary.ingress.annotations }}
     {{- toYaml . | nindent 4 }}
-    {{- end }}
+  {{- end }}
 spec:
+  ingressClassName: webapprouting.kubernetes.azure.com
   rules:
     {{- if .Values.ingress.host }}
     - host: {{ .Values.ingress.host | quote }}

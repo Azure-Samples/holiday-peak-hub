@@ -7,17 +7,13 @@ service:
   targetPort: 8000
   annotations: {}
 
-# Ingress configuration for AGIC (Application Gateway Ingress Controller)
+# Ingress configuration for AKS Web Application Routing (NGINX-based add-on)
 ingress:
   enabled: true
   host: ""  # Leave empty for path-based routing, or set hostname for host-based
   path: ""  # Defaults to /{serviceName}
   pathType: "Prefix"
   requestTimeout: 30
-  ssl:
-    enabled: false
-  healthProbe:
-    path: "/health"
   tls: []
   annotations: {}
 
