@@ -22,7 +22,7 @@ The accelerator must support pluggable integrations without modifying agent or a
 ### Structure
 ```python
 # lib/src/holiday_peak_lib/adapters/base.py
-class RetailAdapter(ABC):
+class BaseAdapter(ABC):
     @abstractmethod
     async def fetch_inventory(self, sku: str) -> InventoryStatus:
         pass
@@ -32,7 +32,7 @@ class RetailAdapter(ABC):
         pass
 
 # Retailer implements adapter
-class LevisInventoryAdapter(RetailAdapter):
+class LevisInventoryAdapter(BaseAdapter):
     async def fetch_inventory(self, sku: str) -> InventoryStatus:
         # Call Levis API
         ...

@@ -29,7 +29,7 @@ Key questions addressed:
 Prevents repeated calls to failing services, allowing them time to recover.
 
 ```python
-from holiday_peak_lib.resilience import CircuitBreaker, CircuitState
+from holiday_peak_lib.utils.circuit_breaker import CircuitBreaker, CircuitState
 
 class OracleFusionConnector:
     def __init__(self, config: OracleFusionConfig):
@@ -66,7 +66,7 @@ HALF_OPEN → (failure) → OPEN
 Isolates resources to prevent a single slow dependency from consuming all capacity.
 
 ```python
-from holiday_peak_lib.resilience import Bulkhead
+from holiday_peak_lib.utils.bulkhead import Bulkhead
 
 class SAPConnector:
     def __init__(self, config: SAPConfig):
@@ -96,7 +96,7 @@ class SAPConnector:
 Enforces API rate limits to prevent throttling errors.
 
 ```python
-from holiday_peak_lib.resilience import RateLimiter
+from holiday_peak_lib.utils.rate_limiter import RateLimiter
 
 class SalesforceConnector:
     def __init__(self, config: SalesforceConfig):
