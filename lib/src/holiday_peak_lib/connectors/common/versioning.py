@@ -207,7 +207,7 @@ class BaseConnectorProtocol(ABC, metaclass=_ProtocolMeta):
 # ---------------------------------------------------------------------------
 
 
-class PIMConnectorProtocol_v1(BaseConnectorProtocol):
+class PIMConnectorProtocol_v1(BaseConnectorProtocol):  # pylint: disable=invalid-name
     """PIM connector protocol v1 — baseline product data operations.
 
     Provides fundamental read operations against any product information
@@ -248,7 +248,7 @@ class PIMConnectorProtocol_v1(BaseConnectorProtocol):
 # ---------------------------------------------------------------------------
 
 
-class PIMConnectorProtocol_v2(PIMConnectorProtocol_v1):
+class PIMConnectorProtocol_v2(PIMConnectorProtocol_v1):  # pylint: disable=invalid-name
     """PIM connector protocol v2 — adds lifecycle, variants, and keyword search.
 
     v2 is backward-compatible with v1 (same major version).  All v1 methods
@@ -480,11 +480,7 @@ class VersionedAdapter:
 
         known_at_client = self._fields_for_version(self._client_version)
         all_protocol = self._all_protocol_fields()
-        return {
-            k: v
-            for k, v in data.items()
-            if k in known_at_client or k not in all_protocol
-        }
+        return {k: v for k, v in data.items() if k in known_at_client or k not in all_protocol}
 
     # ------------------------------------------------------------------
     # Core PIM method delegates with version masking
@@ -540,19 +536,13 @@ def diff_protocols(
     """
     for arg, label in ((from_version, "from_version"), (to_version, "to_version")):
         if not (isinstance(arg, type) and issubclass(arg, BaseConnectorProtocol)):
-            raise TypeError(
-                f"{label} must be a BaseConnectorProtocol subclass, got {arg!r}"
-            )
+            raise TypeError(f"{label} must be a BaseConnectorProtocol subclass, got {arg!r}")
 
     from_fields = {f.name: f for f in getattr(from_version, "FIELDS", [])}
     to_fields = {f.name: f for f in getattr(to_version, "FIELDS", [])}
 
     added = [name for name in to_fields if name not in from_fields]
     removed = [name for name in from_fields if name not in to_fields]
-    deprecated = [
-        name
-        for name, f in to_fields.items()
-        if f.deprecated and name not in removed
-    ]
+    deprecated = [name for name, f in to_fields.items() if f.deprecated and name not in removed]
 
     return ProtocolDiff(added=added, removed=removed, deprecated=deprecated)

@@ -18,7 +18,6 @@ from holiday_peak_lib.connectors.common.versioning import (
     register_protocol,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers / fixtures
 # ---------------------------------------------------------------------------
@@ -300,6 +299,7 @@ class TestVersionedAdapter:
             protocol_class=PIMConnectorProtocol_v2,
             client_version=ProtocolVersion(1, 0),
         )
+
         # Monkey-patch connector to return an internal key
         async def patched_get(product_id: str) -> dict[str, Any]:
             data = await ConcretePIMv2().get_product(product_id)

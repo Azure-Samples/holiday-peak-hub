@@ -190,9 +190,7 @@ class SourceRef:
     source_system: str
     source_id: str
     confidence: float = 1.0
-    retrieved_at: str = field(
-        default_factory=lambda: datetime.now(tz=timezone.utc).isoformat()
-    )
+    retrieved_at: str = field(default_factory=lambda: datetime.now(tz=timezone.utc).isoformat())
 
     def as_tag(self) -> str:
         """Return a compact string tag suitable for embedding in content metadata."""
@@ -256,7 +254,7 @@ class SourceValidator:
 
         return refs if refs else None
 
-    async def _validate_external(self, sku: str) -> list[SourceRef]:  # noqa: ARG002
+    async def _validate_external(self, _sku: str) -> list[SourceRef]:
         """Hook for subclasses to add cross-service source validation.
 
         Default implementation returns an empty list (no external check).
