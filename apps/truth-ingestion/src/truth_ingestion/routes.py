@@ -18,11 +18,11 @@ from .adapters import (
 router = APIRouter(prefix="/ingest", tags=["ingestion"])
 
 # Module-level adapter instance (replaced in tests via dependency injection)
-_adapters: Optional[IngestionAdapters] = None
+_adapters: Optional[IngestionAdapters] = None  # pylint: disable=invalid-name
 
 
 def get_adapters() -> IngestionAdapters:
-    global _adapters  # noqa: PLW0603
+    global _adapters  # noqa: PLW0603  # pylint: disable=global-statement
     if _adapters is None:
         _adapters = build_ingestion_adapters()
     return _adapters
@@ -30,7 +30,7 @@ def get_adapters() -> IngestionAdapters:
 
 def set_adapters(adapters: IngestionAdapters) -> None:
     """Allow test fixtures to inject mock adapters."""
-    global _adapters  # noqa: PLW0603
+    global _adapters  # noqa: PLW0603  # pylint: disable=global-statement
     _adapters = adapters
 
 

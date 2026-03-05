@@ -1,6 +1,6 @@
 """Unit tests for ACP checkout routes."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pytest
 from crud_service.auth import User, get_current_user
@@ -95,8 +95,8 @@ async def test_update_checkout_session(monkeypatch, client, override_auth):
             "total": 16.79,
             "currency": "USD",
         },
-        "created_at": datetime.utcnow().isoformat(),
-        "updated_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
     }
 
     async def fake_get_by_id(session_id, partition_key=None):
@@ -143,8 +143,8 @@ async def test_complete_checkout_session(monkeypatch, client, override_auth):
             "total": 21.6,
             "currency": "USD",
         },
-        "created_at": datetime.utcnow().isoformat(),
-        "updated_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
     }
     token = {
         "id": "token-1",

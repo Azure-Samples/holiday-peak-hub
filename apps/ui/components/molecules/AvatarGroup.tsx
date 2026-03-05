@@ -1,7 +1,6 @@
 "use client";
 
 import React from 'react';
-import { Avatar } from '../atoms/Avatar';
 
 export interface AvatarGroupProps {
   /** Array of avatar image URLs */

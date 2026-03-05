@@ -1,7 +1,7 @@
 """ACP delegate payment routes."""
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from crud_service.auth import User, get_current_user
@@ -53,7 +53,7 @@ async def delegate_payment(
     This is a demo PSP implementation for ACP flows.
     """
     token = str(uuid.uuid4())
-    created_at = datetime.utcnow().isoformat()
+    created_at = datetime.now(timezone.utc).isoformat()
     allowance = request.allowance
     currency = allowance.currency.upper()
     merchant_id = allowance.merchant_id or settings.merchant_id

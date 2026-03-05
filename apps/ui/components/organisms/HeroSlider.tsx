@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/atoms/Button';
-import { FiArrowRight, FiShoppingCart } from 'react-icons/fi';
+import { FiArrowRight } from 'react-icons/fi';
 
 const SLIDES = [
   {
@@ -48,8 +48,6 @@ export const HeroSlider: React.FC = () => {
     }, 5000);
     return () => clearInterval(timer);
   }, []);
-
-  const slide = SLIDES[currentSlide];
 
   return (
     <div className="relative h-[500px] w-full overflow-hidden rounded-3xl shadow-xl transition-all duration-700">

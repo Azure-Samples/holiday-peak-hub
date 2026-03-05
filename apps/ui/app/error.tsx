@@ -9,7 +9,7 @@ import Layout from "@/layouts/centered";
  
 export default function Error({
   error,
-  reset,
+  reset: _reset,
 }: {
   error: Error & { digest?: string }
   reset: () => void

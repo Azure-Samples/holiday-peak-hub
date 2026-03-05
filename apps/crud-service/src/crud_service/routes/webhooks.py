@@ -2,7 +2,7 @@
 
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 import stripe
 from crud_service.config import get_settings
@@ -61,7 +61,7 @@ async def stripe_webhook(
             order = await order_repo.get_by_id(order_id, partition_key=user_id)
             if order and order.get("status") != "paid":
                 payment_id = str(uuid.uuid4())
-                now = datetime.utcnow().isoformat()
+                now = datetime.now(timezone.utc).isoformat()
 
                 order["status"] = "paid"
                 order["payment_id"] = payment_id

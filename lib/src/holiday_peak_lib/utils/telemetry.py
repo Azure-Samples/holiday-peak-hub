@@ -23,7 +23,7 @@ from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
-_OTEL_AVAILABLE = False
+_OTEL_AVAILABLE = False  # pylint: disable=invalid-name
 try:
     from opentelemetry import metrics, trace  # type: ignore[import]
 

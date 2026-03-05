@@ -7,11 +7,9 @@ import React from 'react';
 import { FiCheck, FiLock, FiTruck, FiCreditCard } from 'react-icons/fi';
 import { cn, formatCurrency } from '../utils';
 import { Button } from '../atoms/Button';
-import { Badge } from '../atoms/Badge';
 import { Divider } from '../atoms/Divider';
 import { Text } from '../atoms/Text';
 import { Input } from '../atoms/Input';
-import { Select } from '../atoms/Select';
 import { Checkbox } from '../atoms/Checkbox';
 import { FormField } from '../molecules/FormField';
 import { Alert } from '../molecules/Alert';
@@ -70,8 +68,8 @@ export const CheckoutForm: React.FC<CheckoutFormProps> = ({
   currentStep = 0,
   steps = defaultSteps,
   shippingAddress,
-  billingAddress,
-  paymentMethod,
+  billingAddress: _billingAddress,
+  paymentMethod: _paymentMethod,
   orderSummary,
   onStepChange,
   onShippingSubmit,

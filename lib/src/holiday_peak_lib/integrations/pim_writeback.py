@@ -248,7 +248,7 @@ class PIMWritebackManager:
         results: list[WritebackResult] = await asyncio.gather(*tasks)
 
         for r in results:
-            summary.results.append(r)
+            summary.results.append(r)  # pylint: disable=no-member
             if r.status == WritebackStatus.SUCCESS:
                 summary.succeeded += 1
             elif r.status in (WritebackStatus.SKIPPED, WritebackStatus.DRY_RUN):

@@ -58,7 +58,7 @@ export const Modal: React.FC<ModalProps> = ({
   centered = true,
   className,
   testId,
-  ariaLabel,
+  ariaLabel: _ariaLabel,
 }) => {
   const handleOverlayClick = () => {
     if (closeOnOverlayClick) {
