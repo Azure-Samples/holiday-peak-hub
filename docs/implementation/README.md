@@ -149,6 +149,14 @@ Target: **100%**
 
 ---
 
+## Deployment Optimization
+
+- `deploy-azd` changed-service detection now publishes changed agent and AKS service lists.
+- Post-deploy hooks (`sync-apim-agents` and `ensure-foundry-agents`) consume these lists through `CHANGED_SERVICES` and run only for changed services when `deployChangedOnly=true`.
+- Foundry readiness verification in deployment workflow is scoped to changed agent services under changed-only mode.
+
+---
+
 ## Related Documentation
 
 - [Architecture Overview](../architecture/architecture.md)

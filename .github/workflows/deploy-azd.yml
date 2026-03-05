@@ -57,6 +57,8 @@ jobs:
       ui_changed: ${{ steps.detect.outputs.ui_changed }}
       agents_changed: ${{ steps.detect.outputs.agents_changed }}
       changed_agents_matrix: ${{ steps.detect.outputs.changed_agents_matrix }}
+      changed_agent_services_csv: ${{ steps.detect.outputs.changed_agent_services_csv }}
+      changed_aks_services_csv: ${{ steps.detect.outputs.changed_aks_services_csv }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -115,12 +117,13 @@ jobs:
 
           AGENTS_CHANGED=false
           MATRIX='[]'
+          CHANGED_AGENTS=()
 
           if [ "$SHARED_CHANGED" = true ]; then
             AGENTS_CHANGED=true
+            CHANGED_AGENTS=("${AGENT_SERVICES[@]}")
             MATRIX=$(printf '%s\n' "${AGENT_SERVICES[@]}" | jq -R . | jq -s 'map({service: .})')
           else
-            CHANGED_AGENTS=()
             for service in "${AGENT_SERVICES[@]}"; do
               if echo "$CHANGED_FILES" | grep -Eq "^apps/$service/"; then
                 CHANGED_AGENTS+=("$service")
@@ -133,10 +136,26 @@ jobs:
             fi
           fi
 
+          CHANGED_AGENT_SERVICES_CSV=""
+          if [ ${#CHANGED_AGENTS[@]} -gt 0 ]; then
+            CHANGED_AGENT_SERVICES_CSV=$(IFS=,; echo "${CHANGED_AGENTS[*]}")
+          fi
+
+          CHANGED_AKS_SERVICES_CSV="$CHANGED_AGENT_SERVICES_CSV"
+          if [ "$CRUD_CHANGED" = true ]; then
+            if [ -n "$CHANGED_AKS_SERVICES_CSV" ]; then
+              CHANGED_AKS_SERVICES_CSV="crud-service,$CHANGED_AKS_SERVICES_CSV"
+            else
+              CHANGED_AKS_SERVICES_CSV="crud-service"
+            fi
+          fi
+
           echo "crud_changed=$CRUD_CHANGED" >> "$GITHUB_OUTPUT"
           echo "ui_changed=$UI_CHANGED" >> "$GITHUB_OUTPUT"
           echo "agents_changed=$AGENTS_CHANGED" >> "$GITHUB_OUTPUT"
           echo "changed_agents_matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+          echo "changed_agent_services_csv=$CHANGED_AGENT_SERVICES_CSV" >> "$GITHUB_OUTPUT"
+          echo "changed_aks_services_csv=$CHANGED_AKS_SERVICES_CSV" >> "$GITHUB_OUTPUT"
 
   provision:
     if: ${{ !inputs.uiOnly }}
@@ -347,7 +366,9 @@ jobs:
 
   deploy-crud:
     runs-on: ubuntu-latest
-    needs: provision
+    needs:
+      - provision
+      - detect-changes
     if: ${{ !inputs.uiOnly && (!inputs.deployChangedOnly || needs.detect-changes.outputs.crud_changed == 'true') }}
     environment: ${{ inputs.environment }}
     env:
@@ -454,7 +475,9 @@ jobs:
   deploy-ui:
     runs-on: ubuntu-latest
     if: ${{ inputs.deployStatic && !inputs.uiOnly && (!inputs.deployChangedOnly || needs.detect-changes.outputs.ui_changed == 'true') }}
-    needs: provision
+    needs:
+      - provision
+      - detect-changes
     environment: ${{ inputs.environment }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -574,6 +597,7 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ !inputs.uiOnly && (!inputs.deployChangedOnly || needs.detect-changes.outputs.agents_changed == 'true') }}
     needs:
+      - provision
       - deploy-crud
       - deploy-foundry-models
       - detect-changes
@@ -645,12 +669,17 @@ jobs:
 
   sync-apim:
     runs-on: ubuntu-latest
-    needs: deploy-agents
+    if: ${{ !inputs.uiOnly && (!inputs.deployChangedOnly || needs.detect-changes.outputs.agents_changed == 'true' || needs.detect-changes.outputs.crud_changed == 'true') && (needs.deploy-crud.result == 'success' || needs.deploy-crud.result == 'skipped') && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') }}
+    needs:
+      - deploy-crud
+      - deploy-agents
+      - detect-changes
     environment: ${{ inputs.environment }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      CHANGED_SERVICES: ${{ inputs.deployChangedOnly && needs.detect-changes.outputs.changed_aks_services_csv || '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -677,12 +706,16 @@ jobs:
 
   ensure-foundry-agents:
     runs-on: ubuntu-latest
-    needs: deploy-agents
+    if: ${{ !inputs.uiOnly && (!inputs.deployChangedOnly || needs.detect-changes.outputs.agents_changed == 'true') && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') }}
+    needs:
+      - deploy-agents
+      - detect-changes
     environment: ${{ inputs.environment }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      CHANGED_SERVICES: ${{ inputs.deployChangedOnly && needs.detect-changes.outputs.changed_agent_services_csv || '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -713,27 +746,31 @@ jobs:
 
       - name: Verify Foundry readiness across services
         run: |
-          SERVICES=$(python3 -c "
-          import re
-          with open('azure.yaml') as f: lines = f.readlines()
-          s, cs, ch = False, None, None
-          svcs = []
-          for l in lines:
-            l = l.rstrip()
-            if not s:
-              if re.match(r'^services:\s*$', l): s = True
-              continue
-            if re.match(r'^[^\s]', l): break
-            m = re.match(r'^  ([a-z0-9\-]+):\s*$', l)
-            if m:
-              if cs and ch == 'aks' and cs != 'crud-service': svcs.append(cs)
-              cs, ch = m.group(1), None
-              continue
-            h = re.match(r'^    host:\s*(\S+)', l)
-            if h: ch = h.group(1)
-          if cs and ch == 'aks' and cs != 'crud-service': svcs.append(cs)
-          print('\n'.join(svcs))
-          ")
+          if [ -n "${CHANGED_SERVICES}" ]; then
+            SERVICES=$(printf '%s' "${CHANGED_SERVICES}" | tr ',' '\n' | sed '/^crud-service$/d' | sed '/^$/d')
+          else
+            SERVICES=$(python3 -c "
+            import re
+            with open('azure.yaml') as f: lines = f.readlines()
+            s, cs, ch = False, None, None
+            svcs = []
+            for l in lines:
+              l = l.rstrip()
+              if not s:
+                if re.match(r'^services:\s*$', l): s = True
+                continue
+              if re.match(r'^[^\s]', l): break
+              m = re.match(r'^  ([a-z0-9\-]+):\s*$', l)
+              if m:
+                if cs and ch == 'aks' and cs != 'crud-service': svcs.append(cs)
+                cs, ch = m.group(1), None
+                continue
+              h = re.match(r'^    host:\s*(\S+)', l)
+              if h: ch = h.group(1)
+            if cs and ch == 'aks' and cs != 'crud-service': svcs.append(cs)
+            print('\\n'.join(svcs))
+            ")
+          fi
 
           FAILED=0
           echo "$SERVICES" | while IFS= read -r SVC; do
