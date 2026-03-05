@@ -45,9 +45,7 @@ def test_readiness_with_connector_registry():
         payload = response.json()
         assert payload["status"] == "degraded"
         assert payload["checks"]["connectors"]["detail"]["registered"] == 2
-        assert payload["checks"]["connectors"]["detail"]["unhealthy"] == [
-            "crm_loyalty:salesforce"
-        ]
+        assert payload["checks"]["connectors"]["detail"]["unhealthy"] == ["crm_loyalty:salesforce"]
     finally:
         if original_registry is None:
             delattr(app.state, "connector_registry")

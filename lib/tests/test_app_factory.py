@@ -5,7 +5,6 @@ from unittest.mock import patch
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-
 from holiday_peak_lib.agents.base_agent import BaseRetailAgent
 from holiday_peak_lib.agents.memory.cold import ColdMemory
 from holiday_peak_lib.agents.memory.hot import HotMemory

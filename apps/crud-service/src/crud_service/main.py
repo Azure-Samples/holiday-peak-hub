@@ -39,9 +39,8 @@ from crud_service.routes.staff import analytics, returns, shipments, tickets
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from opentelemetry import trace
-
 from holiday_peak_lib.connectors.registry import ConnectorRegistry
+from opentelemetry import trace
 
 # Configure structured logging
 logging.basicConfig(
