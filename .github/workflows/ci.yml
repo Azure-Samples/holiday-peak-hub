@@ -19,10 +19,11 @@ jobs:
         uses: docker/setup-buildx-action@v3
       - name: Build images
         run: |
+          registry=$(echo "$REGISTRY" | tr '[:upper:]' '[:lower:]')
           for d in apps/*; do
             [ -d "$d" ] || continue
             image_name=$(basename "$d")
-            docker build -t "$REGISTRY/$image_name:latest" -f "$d/src/Dockerfile" "$d"
+            docker build -t "$registry/$image_name:latest" -f "$d/src/Dockerfile" "$d"
           done
 
   push:
@@ -42,9 +43,10 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and push images
         run: |
+          registry=$(echo "$REGISTRY" | tr '[:upper:]' '[:lower:]')
           for d in apps/*; do
             [ -d "$d" ] || continue
             image_name=$(basename "$d")
-            docker build -t "$REGISTRY/$image_name:latest" -f "$d/src/Dockerfile" "$d"
-            docker push "$REGISTRY/$image_name:latest"
+            docker build -t "$registry/$image_name:latest" -f "$d/src/Dockerfile" "$d"
+            docker push "$registry/$image_name:latest"
           done
