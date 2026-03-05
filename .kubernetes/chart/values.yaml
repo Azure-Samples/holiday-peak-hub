@@ -10,6 +10,7 @@ service:
 # Ingress configuration for AKS Web Application Routing (NGINX-based add-on)
 ingress:
   enabled: true
+  className: "webapprouting.kubernetes.azure.com"
   host: ""  # Leave empty for path-based routing, or set hostname for host-based
   path: ""  # Defaults to /{serviceName}
   pathType: "Prefix"

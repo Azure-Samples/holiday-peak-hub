@@ -75,46 +75,46 @@ jobs:
 
           CHANGED_FILES=$(git diff --name-only "origin/$DEFAULT_BRANCH...HEAD")
 
-            mapfile -t AGENT_SERVICES < <(python3 - <<'PY'
-            import re
+          mapfile -t AGENT_SERVICES < <(python3 - <<'PY'
+import re
 
-            with open('azure.yaml', encoding='utf-8') as f:
-              lines = f.readlines()
+with open('azure.yaml', encoding='utf-8') as f:
+  lines = f.readlines()
 
-            in_services = False
-            current_service = None
-            current_host = None
-            services = []
+in_services = False
+current_service = None
+current_host = None
+services = []
 
-            for raw in lines:
-              line = raw.rstrip('\n')
-              if not in_services:
-                if re.match(r'^services:\s*$', line):
-                  in_services = True
-                continue
+for raw in lines:
+  line = raw.rstrip('\n')
+  if not in_services:
+    if re.match(r'^services:\s*$', line):
+      in_services = True
+    continue
 
-              if re.match(r'^[^\s]', line):
-                break
+  if re.match(r'^[^\s]', line):
+    break
 
-              service_match = re.match(r'^  ([a-z0-9\-]+):\s*$', line)
-              if service_match:
-                if current_service and current_host == 'aks' and current_service != 'crud-service':
-                  services.append(current_service)
-                current_service = service_match.group(1)
-                current_host = None
-                continue
+  service_match = re.match(r'^  ([a-z0-9\-]+):\s*$', line)
+  if service_match:
+    if current_service and current_host == 'aks' and current_service != 'crud-service':
+      services.append(current_service)
+    current_service = service_match.group(1)
+    current_host = None
+    continue
 
-              host_match = re.match(r'^    host:\s*(\S+)\s*$', line)
-              if host_match:
-                current_host = host_match.group(1)
+  host_match = re.match(r'^    host:\s*(\S+)\s*$', line)
+  if host_match:
+    current_host = host_match.group(1)
 
-            if current_service and current_host == 'aks' and current_service != 'crud-service':
-              services.append(current_service)
+if current_service and current_host == 'aks' and current_service != 'crud-service':
+  services.append(current_service)
 
-            for service in services:
-              print(service)
-            PY
-            )
+for service in services:
+  print(service)
+PY
+          )
 
           CRUD_CHANGED=false
           if echo "$CHANGED_FILES" | grep -Eq '^apps/crud-service/'; then
@@ -453,14 +453,60 @@ jobs:
             --query "identityProfile.kubeletidentity.clientId" -o tsv)
           echo "WORKLOAD_AZURE_CLIENT_ID=${AKS_MI_CLIENT_ID}" >> "$GITHUB_ENV"
 
-      - name: Deploy CRUD service
+      - name: Resolve ingress class
+        shell: bash
         run: |
-          if ! azd deploy --service crud-service --no-prompt -e "${{ inputs.environment }}"; then
-            echo "Initial CRUD deploy failed; retrying once after short wait..."
-            sleep 60
-            azd deploy --service crud-service --no-prompt -e "${{ inputs.environment }}"
+          set -euo pipefail
+          kubectl get ingressclass -o wide || true
+
+          if [ -n "${INGRESS_CLASS_NAME:-}" ] && kubectl get ingressclass "${INGRESS_CLASS_NAME}" >/dev/null 2>&1; then
+            echo "Using preconfigured ingress class: ${INGRESS_CLASS_NAME}"
+            echo "INGRESS_CLASS_NAME=${INGRESS_CLASS_NAME}" >> "$GITHUB_ENV"
+            exit 0
           fi
+
+          for cls in webapprouting.kubernetes.azure.com nginx azure-application-gateway; do
+            if kubectl get ingressclass "$cls" >/dev/null 2>&1; then
+              echo "Using detected ingress class: $cls"
+              echo "INGRESS_CLASS_NAME=$cls" >> "$GITHUB_ENV"
+              exit 0
+            fi
+          done
+
+          echo "No supported IngressClass found. Enable AKS Web App Routing or provide INGRESS_CLASS_NAME." >&2
+          exit 1
+
+      - name: Deploy CRUD service
+        timeout-minutes: 25
+        shell: bash
+        run: |
+          set -euo pipefail
+          max_attempts=4
+
+          for attempt in $(seq 1 "$max_attempts"); do
+            echo "Deploy attempt ${attempt}/${max_attempts}"
+            if azd deploy --service crud-service --no-prompt -e "${{ inputs.environment }}"; then
+              echo "CRUD deploy succeeded."
+              exit 0
+            fi
+
+            echo "Attempt ${attempt} failed; collecting ingress diagnostics..."
+            kubectl get ingressclass -o wide || true
+            kubectl get ingress -n holiday-peak -o wide || true
+            kubectl get pods -n app-routing-system -o wide || true
+            kubectl get pods -n ingress-nginx -o wide || true
+
+            if [ "$attempt" -eq "$max_attempts" ]; then
+              echo "CRUD deploy failed after ${max_attempts} attempts." >&2
+              exit 1
+            fi
+
+            backoff=$((attempt * 45))
+            echo "Retrying after ${backoff}s..."
+            sleep "$backoff"
+          done
         env:
+          INGRESS_CLASS_NAME: ${{ env.INGRESS_CLASS_NAME }}
           AZURE_CLIENT_ID: ${{ env.WORKLOAD_AZURE_CLIENT_ID }}
           AZURE_TENANT_ID: ${{ env.AZURE_TENANT_ID }}
           PROJECT_ENDPOINT: ${{ needs.provision.outputs.PROJECT_ENDPOINT }}
