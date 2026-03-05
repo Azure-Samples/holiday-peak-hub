@@ -75,46 +75,46 @@ jobs:
 
           CHANGED_FILES=$(git diff --name-only "origin/$DEFAULT_BRANCH...HEAD")
 
-            mapfile -t AGENT_SERVICES < <(python3 - <<'PY'
-            import re
+          mapfile -t AGENT_SERVICES < <(python3 - <<'PY'
+          import re
 
-            with open('azure.yaml', encoding='utf-8') as f:
-              lines = f.readlines()
+          with open('azure.yaml', encoding='utf-8') as f:
+            lines = f.readlines()
 
-            in_services = False
-            current_service = None
-            current_host = None
-            services = []
+          in_services = False
+          current_service = None
+          current_host = None
+          services = []
 
-            for raw in lines:
-              line = raw.rstrip('\n')
-              if not in_services:
-                if re.match(r'^services:\s*$', line):
-                  in_services = True
-                continue
+          for raw in lines:
+            line = raw.rstrip('\n')
+            if not in_services:
+              if re.match(r'^services:\s*$', line):
+                in_services = True
+              continue
 
-              if re.match(r'^[^\s]', line):
-                break
+            if re.match(r'^[^\s]', line):
+              break
 
-              service_match = re.match(r'^  ([a-z0-9\-]+):\s*$', line)
-              if service_match:
-                if current_service and current_host == 'aks' and current_service != 'crud-service':
-                  services.append(current_service)
-                current_service = service_match.group(1)
-                current_host = None
-                continue
+            service_match = re.match(r'^  ([a-z0-9\-]+):\s*$', line)
+            if service_match:
+              if current_service and current_host == 'aks' and current_service != 'crud-service':
+                services.append(current_service)
+              current_service = service_match.group(1)
+              current_host = None
+              continue
 
-              host_match = re.match(r'^    host:\s*(\S+)\s*$', line)
-              if host_match:
-                current_host = host_match.group(1)
+            host_match = re.match(r'^    host:\s*(\S+)\s*$', line)
+            if host_match:
+              current_host = host_match.group(1)
 
-            if current_service and current_host == 'aks' and current_service != 'crud-service':
-              services.append(current_service)
+          if current_service and current_host == 'aks' and current_service != 'crud-service':
+            services.append(current_service)
 
-            for service in services:
-              print(service)
-            PY
-            )
+          for service in services:
+            print(service)
+          PY
+          )
 
           CRUD_CHANGED=false
           if echo "$CHANGED_FILES" | grep -Eq '^apps/crud-service/'; then
@@ -291,6 +291,134 @@ jobs:
           azd env set K8S_NAMESPACE holiday-peak -e "${{ inputs.environment }}"
           azd env set KEDA_ENABLED false -e "${{ inputs.environment }}"
 
+      - name: Ensure deploy principal has AKS RBAC Cluster Admin
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          AKS_RG="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+          DEPLOY_SP_OBJECT_ID=$(az ad sp show --id "${AZURE_CLIENT_ID}" --query id -o tsv)
+          RG_ID=$(az group show --name "$AKS_RG" --query id -o tsv)
+
+          EXISTING=$(az role assignment list \
+            --scope "$RG_ID" \
+            --assignee-object-id "$DEPLOY_SP_OBJECT_ID" \
+            --query "[?roleDefinitionName=='Azure Kubernetes Service RBAC Cluster Admin'] | length(@)" -o tsv)
+
+          if [ "$EXISTING" = "0" ]; then
+            echo "Assigning Azure Kubernetes Service RBAC Cluster Admin to deploy principal at RG scope $AKS_RG."
+            az role assignment create \
+              --assignee-object-id "$DEPLOY_SP_OBJECT_ID" \
+              --assignee-principal-type ServicePrincipal \
+              --role "Azure Kubernetes Service RBAC Cluster Admin" \
+              --scope "$RG_ID"
+          else
+            echo "Deploy principal already has Azure Kubernetes Service RBAC Cluster Admin at RG scope $AKS_RG."
+          fi
+
+          VERIFIED=$(az role assignment list \
+            --scope "$RG_ID" \
+            --assignee-object-id "$DEPLOY_SP_OBJECT_ID" \
+            --query "[?roleDefinitionName=='Azure Kubernetes Service RBAC Cluster Admin'] | length(@)" -o tsv)
+
+          if [ "$VERIFIED" = "0" ]; then
+            echo "Failed to verify Azure Kubernetes Service RBAC Cluster Admin assignment for deploy principal at scope $AKS_RG."
+            exit 1
+          fi
+
+      - name: Preflight drift remediation (non-prod)
+        if: ${{ inputs.environment != 'prod' && inputs.environment != 'production' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          RG_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+          KEY_VAULT_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-kv"
+          POSTGRES_SERVER_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-postgres"
+          DESIRED_LOCATION="$(echo "${{ inputs.location }}" | tr '[:upper:]' '[:lower:]')"
+
+          echo "Running non-prod preflight drift remediation for environment '${{ inputs.environment }}'."
+
+          # Remediate soft-deleted Key Vault name conflicts that can block azd provision.
+          if az keyvault show --name "$KEY_VAULT_NAME" --resource-group "$RG_NAME" >/dev/null 2>&1; then
+            CURRENT_KV_LOCATION=$(az keyvault show \
+              --name "$KEY_VAULT_NAME" \
+              --resource-group "$RG_NAME" \
+              --query location -o tsv | tr '[:upper:]' '[:lower:]')
+
+            if [ "$CURRENT_KV_LOCATION" != "$DESIRED_LOCATION" ]; then
+              LOCATION_SUFFIX=$(echo "$DESIRED_LOCATION" | tr -cd '[:alnum:]' | cut -c1-4)
+              KEY_VAULT_OVERRIDE=$(echo "${{ inputs.projectName }}-${{ inputs.environment }}-kv-${LOCATION_SUFFIX}" | tr '[:upper:]' '[:lower:]' | cut -c1-24)
+              KEY_VAULT_OVERRIDE="${KEY_VAULT_OVERRIDE%-}"
+
+              echo "Key Vault location mismatch detected for $KEY_VAULT_NAME ($CURRENT_KV_LOCATION vs $DESIRED_LOCATION)."
+              echo "Setting keyVaultNameOverride to $KEY_VAULT_OVERRIDE for this deployment."
+              azd env set keyVaultNameOverride "$KEY_VAULT_OVERRIDE" -e "${{ inputs.environment }}"
+            else
+              echo "Key Vault $KEY_VAULT_NAME already exists in $RG_NAME with matching location $CURRENT_KV_LOCATION."
+            fi
+          else
+            DELETED_KV_LOCATION=$(az keyvault list-deleted \
+              --query "[?name=='$KEY_VAULT_NAME'] | [0].properties.location" \
+              -o tsv)
+
+            if [ -n "$DELETED_KV_LOCATION" ]; then
+              echo "Recovering soft-deleted Key Vault $KEY_VAULT_NAME."
+              if az keyvault recover --name "$KEY_VAULT_NAME" >/dev/null 2>&1; then
+                echo "Recovery initiated for $KEY_VAULT_NAME."
+              else
+                echo "Recovery failed for $KEY_VAULT_NAME. Attempting purge fallback from $DELETED_KV_LOCATION."
+                az keyvault purge --name "$KEY_VAULT_NAME" --location "$DELETED_KV_LOCATION"
+              fi
+
+              for _ in $(seq 1 20); do
+                if az keyvault show --name "$KEY_VAULT_NAME" --resource-group "$RG_NAME" >/dev/null 2>&1; then
+                  echo "Key Vault $KEY_VAULT_NAME is now available in $RG_NAME."
+                  break
+                fi
+                sleep 10
+              done
+            else
+              echo "No soft-deleted Key Vault conflict found for $KEY_VAULT_NAME."
+            fi
+          fi
+
+          # Start stopped PostgreSQL Flexible Server so provisioning can reconcile state.
+          if az postgres flexible-server show --resource-group "$RG_NAME" --name "$POSTGRES_SERVER_NAME" >/dev/null 2>&1; then
+            POSTGRES_STATE=$(az postgres flexible-server show \
+              --resource-group "$RG_NAME" \
+              --name "$POSTGRES_SERVER_NAME" \
+              --query state -o tsv)
+
+            if [ "$POSTGRES_STATE" = "Stopped" ]; then
+              echo "PostgreSQL server $POSTGRES_SERVER_NAME is stopped. Starting..."
+              az postgres flexible-server start --resource-group "$RG_NAME" --name "$POSTGRES_SERVER_NAME"
+
+              POSTGRES_READY=false
+              for _ in $(seq 1 40); do
+                CURRENT_STATE=$(az postgres flexible-server show \
+                  --resource-group "$RG_NAME" \
+                  --name "$POSTGRES_SERVER_NAME" \
+                  --query state -o tsv)
+                if [ "$CURRENT_STATE" = "Ready" ]; then
+                  echo "PostgreSQL server is ready."
+                  POSTGRES_READY=true
+                  break
+                fi
+                sleep 15
+              done
+
+              if [ "$POSTGRES_READY" != "true" ]; then
+                echo "PostgreSQL server $POSTGRES_SERVER_NAME did not reach Ready state in time."
+                exit 1
+              fi
+            else
+              echo "PostgreSQL server $POSTGRES_SERVER_NAME state is $POSTGRES_STATE. No start needed."
+            fi
+          else
+            echo "PostgreSQL server $POSTGRES_SERVER_NAME does not exist yet. Continuing."
+          fi
+
       - name: Provision infrastructure
         run: azd provision --no-prompt -e "${{ inputs.environment }}"
 
@@ -453,14 +581,60 @@ jobs:
             --query "identityProfile.kubeletidentity.clientId" -o tsv)
           echo "WORKLOAD_AZURE_CLIENT_ID=${AKS_MI_CLIENT_ID}" >> "$GITHUB_ENV"
 
-      - name: Deploy CRUD service
+      - name: Resolve ingress class
+        shell: bash
         run: |
-          if ! azd deploy --service crud-service --no-prompt -e "${{ inputs.environment }}"; then
-            echo "Initial CRUD deploy failed; retrying once after short wait..."
-            sleep 60
-            azd deploy --service crud-service --no-prompt -e "${{ inputs.environment }}"
+          set -euo pipefail
+          kubectl get ingressclass -o wide || true
+
+          if [ -n "${INGRESS_CLASS_NAME:-}" ] && kubectl get ingressclass "${INGRESS_CLASS_NAME}" >/dev/null 2>&1; then
+            echo "Using preconfigured ingress class: ${INGRESS_CLASS_NAME}"
+            echo "INGRESS_CLASS_NAME=${INGRESS_CLASS_NAME}" >> "$GITHUB_ENV"
+            exit 0
           fi
+
+          for cls in webapprouting.kubernetes.azure.com nginx azure-application-gateway; do
+            if kubectl get ingressclass "$cls" >/dev/null 2>&1; then
+              echo "Using detected ingress class: $cls"
+              echo "INGRESS_CLASS_NAME=$cls" >> "$GITHUB_ENV"
+              exit 0
+            fi
+          done
+
+          echo "No supported IngressClass found. Enable AKS Web App Routing or provide INGRESS_CLASS_NAME." >&2
+          exit 1
+
+      - name: Deploy CRUD service
+        timeout-minutes: 25
+        shell: bash
+        run: |
+          set -euo pipefail
+          max_attempts=4
+
+          for attempt in $(seq 1 "$max_attempts"); do
+            echo "Deploy attempt ${attempt}/${max_attempts}"
+            if azd deploy --service crud-service --no-prompt -e "${{ inputs.environment }}"; then
+              echo "CRUD deploy succeeded."
+              exit 0
+            fi
+
+            echo "Attempt ${attempt} failed; collecting ingress diagnostics..."
+            kubectl get ingressclass -o wide || true
+            kubectl get ingress -n holiday-peak -o wide || true
+            kubectl get pods -n app-routing-system -o wide || true
+            kubectl get pods -n ingress-nginx -o wide || true
+
+            if [ "$attempt" -eq "$max_attempts" ]; then
+              echo "CRUD deploy failed after ${max_attempts} attempts." >&2
+              exit 1
+            fi
+
+            backoff=$((attempt * 45))
+            echo "Retrying after ${backoff}s..."
+            sleep "$backoff"
+          done
         env:
+          INGRESS_CLASS_NAME: ${{ env.INGRESS_CLASS_NAME }}
           AZURE_CLIENT_ID: ${{ env.WORKLOAD_AZURE_CLIENT_ID }}
           AZURE_TENANT_ID: ${{ env.AZURE_TENANT_ID }}
           PROJECT_ENDPOINT: ${{ needs.provision.outputs.PROJECT_ENDPOINT }}

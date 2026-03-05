@@ -7,6 +7,9 @@ $namespace = if ($env:K8S_NAMESPACE) { $env:K8S_NAMESPACE } else { "holiday-peak
 $imagePrefix = if ($env:IMAGE_PREFIX) { $env:IMAGE_PREFIX } else { "ghcr.io/azure-samples" }
 $imageTag = if ($env:IMAGE_TAG) { $env:IMAGE_TAG } else { "latest" }
 $kedaEnabled = if ($env:KEDA_ENABLED) { $env:KEDA_ENABLED } else { "false" }
+$ingressEnabled = if ($env:INGRESS_ENABLED) { $env:INGRESS_ENABLED } else { "true" }
+$ingressClassName = if ($env:INGRESS_CLASS_NAME) { $env:INGRESS_CLASS_NAME } else { "webapprouting.kubernetes.azure.com" }
+$canaryEnabled = if ($env:CANARY_ENABLED) { $env:CANARY_ENABLED } else { "false" }
 $readinessPath = "/ready"
 
 if ($ServiceName -eq "crud-service") {
@@ -48,7 +51,13 @@ $helmArgs = @(
   '--set',
   "image.tag=$imageTag",
   '--set',
-  "keda.enabled=$kedaEnabled"
+  "keda.enabled=$kedaEnabled",
+  '--set',
+  "ingress.enabled=$ingressEnabled",
+  '--set-string',
+  "ingress.className=$ingressClassName",
+  '--set',
+  "canary.enabled=$canaryEnabled",
   '--set',
   "probes.readiness.path=$readinessPath"
 )

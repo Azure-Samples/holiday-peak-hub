@@ -155,6 +155,8 @@ Target: **100%**
 - App deployments in `deploy-azd` are now strictly changed-only (CRUD, UI, and agent matrix entries are deployed only when their app paths change).
 - Post-deploy hooks (`sync-apim-agents` and `ensure-foundry-agents`) consume these lists through `CHANGED_SERVICES` and run only for changed services.
 - Foundry readiness verification in deployment workflow is scoped to changed agent services under changed-only mode.
+- CRUD deployment now preflights `IngressClass` availability and passes `INGRESS_CLASS_NAME` into Helm rendering to avoid class/controller drift.
+- CRUD deployment retries are now bounded with diagnostics (`kubectl get ingressclass`, ingress, and controller pods) to improve root-cause visibility for endpoint readiness delays.
 
 ---
 
