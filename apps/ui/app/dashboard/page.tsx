@@ -43,7 +43,7 @@ export default function DashboardPage() {
             My Dashboard
           </h1>
           <p className="text-gray-600 dark:text-gray-400">
-            Welcome back! Here's what's happening with your account.
+            Welcome back! Here&apos;s what&apos;s happening with your account.
           </p>
         </div>
 
@@ -174,7 +174,7 @@ export default function DashboardPage() {
                   </p>                </div>
               </div>
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                You're 750 points away from your next reward!
+                You&apos;re 750 points away from your next reward!
               </p>
               <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-4">
                 <div className="bg-lime-500 h-2 rounded-full" style={{ width: '62%' }} />

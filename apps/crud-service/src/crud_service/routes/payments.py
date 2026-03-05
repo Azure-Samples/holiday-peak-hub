@@ -2,7 +2,7 @@
 
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 import stripe
 from crud_service.auth import User, get_current_user
@@ -172,7 +172,7 @@ async def process_payment(
         )
 
     payment_id = str(uuid.uuid4())
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
 
     payment = {
         "id": payment_id,

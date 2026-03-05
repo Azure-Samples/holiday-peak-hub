@@ -1,7 +1,7 @@
 """Order routes."""
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from crud_service.auth import User, get_current_user
 from crud_service.integrations import get_agent_client, get_event_publisher
@@ -149,7 +149,7 @@ async def create_order(
         "status": "pending",
         "shipping_address_id": request.shipping_address_id,
         "payment_method_id": request.payment_method_id,
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
 
     # Save order

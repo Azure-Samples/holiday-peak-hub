@@ -2,9 +2,8 @@
  * React Query Hooks for Products
  */
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { productService } from '../services/productService';
-import type { Product } from '../types/api';
 
 /**
  * Hook to fetch list of products

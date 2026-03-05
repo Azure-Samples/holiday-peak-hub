@@ -170,6 +170,7 @@ function AuthProviderInner({ children }: { children: ReactNode }) {
     };
 
     loadUser();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, account, inProgress]);
 
   const value: AuthContextType = {
@@ -272,6 +273,7 @@ export function withAuth<P extends object>(
       if (!isLoading && !isAuthenticated) {
         login();
       }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isAuthenticated, isLoading]);
 
     if (isLoading) {

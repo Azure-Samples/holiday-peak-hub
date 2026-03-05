@@ -78,7 +78,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     ref
   ) => {
     // React Hook Form integration
-    const formContext = useRHF ? useFormContext() : null;
+    const rawCtx = useFormContext();  // Always call hook unconditionally
+    const formContext = useRHF ? rawCtx : null;
     const registration = formContext && name ? formContext.register(name, rules) : null;
 
     const hasError = error || (formContext?.formState.errors[name] && true);

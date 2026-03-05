@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Button } from '@/components/atoms/Button';
-import { FiMessageSquare, FiX, FiSend, FiMinimize2 } from 'react-icons/fi';
+import { FiMessageSquare, FiSend, FiMinimize2 } from 'react-icons/fi';
 import { Card } from '@/components/molecules/Card';
 
 export const ChatWidget: React.FC = () => {

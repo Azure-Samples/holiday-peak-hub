@@ -44,7 +44,7 @@ export const getMsalConfig = () => {
       loggerOptions: {
         loggerCallback: (_level: number, message: string, containsPii: boolean) => {
           if (containsPii) return;
-          console.debug(message);
+          console.warn(message);
         },
       },
     },

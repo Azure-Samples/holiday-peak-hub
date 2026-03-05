@@ -133,7 +133,7 @@ class MockLogisticsAdapter(BaseAdapter):
                 }
             ]
         if query.get("entity") == "events":
-            now = _dt.datetime.utcnow()
+            now = _dt.datetime.now(_dt.timezone.utc)
             return [
                 {"code": "PU", "occurred_at": now},
                 {"code": "IT", "occurred_at": now},
@@ -173,7 +173,7 @@ class MockCRMAdapter(BaseAdapter):
                     "interaction_id": "i1",
                     "contact_id": cid,
                     "channel": "email",
-                    "occurred_at": _dt.datetime.utcnow(),
+                    "occurred_at": _dt.datetime.now(_dt.timezone.utc),
                 }
             ]
         return []

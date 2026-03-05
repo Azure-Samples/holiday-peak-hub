@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from holiday_peak_lib.adapters import BaseExternalAPIAdapter
@@ -34,7 +34,7 @@ class EtaEstimator:
                 "eta": base_eta.isoformat(),
                 "source": "carrier",
             }
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         inferred_eta = now + timedelta(days=2)
         return {
             "tracking_id": shipment.tracking_id,

@@ -55,7 +55,8 @@ export const Radio = forwardRef<HTMLInputElement, RadioProps>(
     ref
   ) => {
     // React Hook Form integration
-    const formContext = useRHF ? useFormContext() : null;
+    const rawCtx = useFormContext();  // Always call hook unconditionally
+    const formContext = useRHF ? rawCtx : null;
     const registration = formContext && name ? formContext.register(name, rules) : null;
 
     return (
@@ -73,7 +74,6 @@ export const Radio = forwardRef<HTMLInputElement, RadioProps>(
             required={required}
             data-testid={testId}
             aria-label={ariaLabel || label}
-            aria-required={required}
             aria-describedby={hint ? `${name}-${value}-hint` : undefined}
             className={cn(
               'w-4 h-4',

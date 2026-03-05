@@ -139,7 +139,7 @@ export default function CheckoutPage() {
 
   const handlePlaceOrder = () => {
     // Will be replaced with real order-placement call
-    console.log('Order placed');
+    console.warn('Order placed');
   };
 
   // Re-create intent if shipping method changes while on step 2
@@ -486,7 +486,7 @@ export default function CheckoutPage() {
   );
 }
 
-function ShippingOption({ id, title, description, price, selected, onSelect, badge }: {
+function ShippingOption({ id: _id, title, description, price, selected, onSelect, badge }: {
   id: string;
   title: string;
   description: string;

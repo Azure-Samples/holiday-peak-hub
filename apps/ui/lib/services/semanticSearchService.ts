@@ -43,6 +43,7 @@ export const semanticSearchService = {
         const results = (payload.results || payload.items || []) as AcpProduct[];
         return { items: mapAcpProductsToUi(results), source: 'agent' };
       } catch (error) {
+        console.error('Semantic search failed:', error);
         // Fall back to CRUD search
       }
     }

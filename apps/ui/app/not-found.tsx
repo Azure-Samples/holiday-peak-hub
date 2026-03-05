@@ -6,7 +6,7 @@ import Image from "next/image";
 import Layout from "@/layouts/centered";
 
 
-const NotFound = ({ params }: { params: { error: string } }) => {
+const NotFound = ({ params: _params }: { params: { error: string } }) => {
   return (
     <Layout>
       <div className="flex flex-col w-full max-w-xl text-center">

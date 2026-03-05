@@ -4,7 +4,7 @@
  */
 
 import clsx from 'clsx';
-import type { Size, Variant, ColorScheme, Rounded, Spacing } from '../types';
+import type { Rounded, Spacing } from '../types';
 
 // ===== CLASS NAME UTILITIES =====
 
@@ -189,7 +189,7 @@ export const calculateSavingsPercent = (msrp: number, salePrice: number): number
 /**
  * Format date using date-fns
  */
-export const formatDate = (date: string | Date, formatStr: string = 'MMM dd, yyyy'): string => {
+export const formatDate = (date: string | Date, _formatStr: string = 'MMM dd, yyyy'): string => {
   // This will use date-fns when implemented
   const dateObj = typeof date === 'string' ? new Date(date) : date;
   return dateObj.toLocaleDateString('en-US');
