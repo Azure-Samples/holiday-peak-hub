@@ -4,14 +4,14 @@
  */
 
 import clsx from 'clsx';
-import type { Rounded, Spacing } from '../types';
+import type { Rounded, Spacing } from './types';
 
 // ===== CLASS NAME UTILITIES =====
 
 /**
  * Merges multiple class names, filtering out falsy values
  */
-export const cn = (...classes: (string | undefined | null | boolean)[]): string => {
+export const cn = (...classes: clsx.ClassValue[]): string => {
   return clsx(classes);
 };
 
@@ -64,8 +64,11 @@ export const variantClasses = {
     success: 'bg-green-600 text-white hover:bg-green-700 focus:ring-green-500',
     warning: 'bg-yellow-500 text-white hover:bg-yellow-600 focus:ring-yellow-500',
     error: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
+    danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
     info: 'bg-blue-500 text-white hover:bg-blue-600 focus:ring-blue-400',
     ghost: 'bg-transparent text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800',
+    light: 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 focus:ring-gray-300',
+    outline: 'bg-transparent text-gray-700 border border-gray-300 hover:bg-gray-50 focus:ring-gray-300',
   },
   badge: {
     primary: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
@@ -73,8 +76,11 @@ export const variantClasses = {
     success: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
     warning: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
     error: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
+    danger: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
     info: 'bg-blue-50 text-blue-700 dark:bg-blue-800 dark:text-blue-200',
     ghost: 'bg-transparent text-gray-700 dark:text-gray-300',
+    light: 'bg-white text-gray-700 border border-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600',
+    outline: 'bg-transparent text-gray-700 border border-gray-300 dark:text-gray-200 dark:border-gray-600',
   },
   alert: {
     primary: 'bg-blue-50 text-blue-900 border-blue-200 dark:bg-blue-900 dark:text-blue-100',
@@ -82,8 +88,11 @@ export const variantClasses = {
     success: 'bg-green-50 text-green-900 border-green-200 dark:bg-green-900 dark:text-green-100',
     warning: 'bg-yellow-50 text-yellow-900 border-yellow-200 dark:bg-yellow-900 dark:text-yellow-100',
     error: 'bg-red-50 text-red-900 border-red-200 dark:bg-red-900 dark:text-red-100',
+    danger: 'bg-red-50 text-red-900 border-red-200 dark:bg-red-900 dark:text-red-100',
     info: 'bg-blue-50 text-blue-900 border-blue-200 dark:bg-blue-800 dark:text-blue-100',
     ghost: 'bg-transparent text-gray-900 dark:text-gray-100',
+    light: 'bg-white text-gray-900 border-gray-200 dark:bg-gray-800 dark:text-gray-100',
+    outline: 'bg-transparent text-gray-900 border-gray-300 dark:text-gray-100 dark:border-gray-600',
   },
 };
 

@@ -3,8 +3,7 @@
  * Complete export of all UI components
  */
 
-// Types
-export * from './types';
+// Types are exported via components/types to avoid star-export name collisions.
 
 // Utilities
 export { cn, formatCurrency } from './utils';

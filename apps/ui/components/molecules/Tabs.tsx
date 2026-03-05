@@ -93,29 +93,23 @@ export const Tabs: React.FC<TabsProps> = ({
                 'dark:focus:ring-offset-gray-900',
                 
                 // Line variant
-                variant === 'line' && [
-                  isActive
-                    ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400'
-                    : 'text-gray-600 dark:text-gray-400 border-b-2 border-transparent hover:text-gray-900 dark:hover:text-gray-200',
-                  !isHorizontal && 'border-b-0 border-l-2',
-                ],
+                variant === 'line' && (isActive
+                  ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400'
+                  : 'text-gray-600 dark:text-gray-400 border-b-2 border-transparent hover:text-gray-900 dark:hover:text-gray-200'),
+                variant === 'line' && !isHorizontal && 'border-b-0 border-l-2',
                 
                 // Pills variant
-                variant === 'pills' && [
-                  'rounded-lg',
-                  isActive
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800',
-                ],
+                variant === 'pills' && 'rounded-lg',
+                variant === 'pills' && (isActive
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'),
                 
                 // Enclosed variant
-                variant === 'enclosed' && [
-                  'border border-gray-200 dark:border-gray-700',
-                  isActive
-                    ? 'bg-white dark:bg-gray-800 border-b-white dark:border-b-gray-800 -mb-px'
-                    : 'bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800',
-                  isHorizontal ? 'rounded-t-lg' : 'rounded-l-lg',
-                ],
+                variant === 'enclosed' && 'border border-gray-200 dark:border-gray-700',
+                variant === 'enclosed' && (isActive
+                  ? 'bg-white dark:bg-gray-800 border-b-white dark:border-b-gray-800 -mb-px'
+                  : 'bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800'),
+                variant === 'enclosed' && (isHorizontal ? 'rounded-t-lg' : 'rounded-l-lg'),
                 
                 tab.disabled && 'opacity-50 cursor-not-allowed',
                 !tab.disabled && 'cursor-pointer'

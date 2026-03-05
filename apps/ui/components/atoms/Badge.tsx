@@ -94,7 +94,7 @@ export const Badge: React.FC<BadgeProps> = ({
         className
       )}
     >
-      {icon && <span className={cn(children && 'mr-1')}>{icon}</span>}
+      {icon && <span className={cn(!!children && 'mr-1')}>{icon}</span>}
       {children}
     </span>
   );

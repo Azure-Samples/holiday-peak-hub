@@ -13,7 +13,7 @@ import type { BaseComponentProps } from '../types';
 
 export interface DropdownItem {
   key: string;
-  label: React.ReactNode;
+  label?: React.ReactNode;
   icon?: React.ReactNode;
   onClick?: () => void;
   href?: string;

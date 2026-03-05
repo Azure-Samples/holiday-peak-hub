@@ -7,6 +7,3 @@ import { redirect } from 'next/navigation';
 export default function CreateAccountPage() {
   redirect('/auth/login');
 }
-
-
-export default Index;

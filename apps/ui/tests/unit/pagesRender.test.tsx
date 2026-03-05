@@ -75,6 +75,26 @@ jest.mock('../../lib/hooks/useProducts', () => ({
 }));
 
 jest.mock('../../lib/hooks/useOrders', () => ({
+  useOrders: () => ({
+    data: [
+      {
+        id: 'ORD-2026-0123',
+        user_id: 'user-1',
+        items: [
+          {
+            product_id: 'seed-product-0001',
+            quantity: 1,
+            price: 199.99,
+          },
+        ],
+        total: 199.99,
+        status: 'processing',
+        created_at: '2026-01-27T10:00:00Z',
+      },
+    ],
+    isLoading: false,
+    isError: false,
+  }),
   useOrder: () => ({
     data: {
       id: 'ORD-2026-0123',
@@ -95,6 +115,23 @@ jest.mock('../../lib/hooks/useOrders', () => ({
     },
     isLoading: false,
     isError: false,
+  }),
+}));
+
+jest.mock('../../lib/hooks/useUser', () => ({
+  useUserProfile: () => ({
+    data: {
+      name: 'Demo User',
+      email: 'demo@example.com',
+      phone: '555-0101',
+      created_at: '2026-01-01T00:00:00Z',
+    },
+    isLoading: false,
+    isError: false,
+  }),
+  useUpdateProfile: () => ({
+    mutate: jest.fn(),
+    isPending: false,
   }),
 }));
 
@@ -290,7 +327,7 @@ describe('Page rendering smoke tests', () => {
   it('renders the home page hero', () => {
     render(<HomePage />);
     expect(
-      screen.getByText('Discover Amazing Products for Your Lifestyle')
+      screen.getByText('Plan Your Peak Weekend Cart')
     ).toBeInTheDocument();
   });
 

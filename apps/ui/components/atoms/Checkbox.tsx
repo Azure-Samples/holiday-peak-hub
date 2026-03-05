@@ -10,9 +10,9 @@ import type { BaseComponentProps } from '../types';
 
 export interface CheckboxProps extends BaseComponentProps {
   /** Checkbox name */
-  name: string;
+  name?: string;
   /** Checkbox label */
-  label: string;
+  label?: React.ReactNode;
   /** Whether checkbox is checked (controlled) */
   checked?: boolean;
   /** Default checked state */
@@ -57,7 +57,9 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
     // React Hook Form integration
     const rawCtx = useFormContext();  // Always call hook unconditionally
     const formContext = useRHF ? rawCtx : null;
-    const registration = formContext && name ? formContext.register(name, rules) : null;
+    const resolvedName = name || `checkbox-${testId || 'field'}`;
+    const registration = formContext && resolvedName ? formContext.register(resolvedName, rules) : null;
+    const inputId = resolvedName;
 
     // Handle indeterminate state
     const checkboxRef = React.useRef<HTMLInputElement>(null);
@@ -75,20 +77,24 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
               // Handle both forwarded ref and internal ref for indeterminate
               if (typeof ref === 'function') ref(e);
               else if (ref) ref.current = e;
-              (checkboxRef as any).current = e;
+              checkboxRef.current = e;
               if (registration) registration.ref(e);
             }}
             type="checkbox"
-            name={name}
+            name={resolvedName}
+            id={inputId}
             checked={checked}
             defaultChecked={defaultChecked}
-            onChange={onChange}
+            onChange={(event) => {
+              registration?.onChange(event);
+              onChange?.(event);
+            }}
             disabled={disabled}
             required={required}
             data-testid={testId}
-            aria-label={ariaLabel || label}
+            aria-label={ariaLabel || (typeof label === 'string' ? label : undefined)}
             aria-required={required}
-            aria-describedby={hint ? `${name}-hint` : undefined}
+            aria-describedby={hint ? `${resolvedName}-hint` : undefined}
             className={cn(
               'w-4 h-4 rounded',
               'text-blue-600 bg-white dark:bg-gray-800',
@@ -98,14 +104,13 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
               'cursor-pointer',
               disabled && 'opacity-50 cursor-not-allowed'
             )}
-            {...(registration ? { ...registration, ref: registration.ref } : {})}
             {...props}
           />
         </div>
         
         <div className="text-sm space-y-1">
           <label
-            htmlFor={name}
+            htmlFor={resolvedName}
             className={cn(
               'block font-medium select-none',
               'text-gray-700 dark:text-white',
@@ -122,7 +127,7 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
           
           {hint && (
             <p
-              id={`${name}-hint`}
+              id={`${resolvedName}-hint`}
               className="text-xs text-gray-500 dark:text-gray-400"
             >
               {hint}

@@ -63,17 +63,23 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
     const rawCtx = useFormContext();  // Always call hook unconditionally
     const formContext = useRHF ? rawCtx : null;
     const registration = formContext && name ? formContext.register(name, rules) : null;
-
-    const hasError = error || (formContext?.formState.errors[name] && true);
+    const selectName = name ?? '';
+    const hasError = !!error || !!(selectName && formContext?.formState.errors[selectName]);
 
     return (
       <select
         ref={registration ? registration.ref : ref}
-        name={name}
+        name={selectName}
         defaultValue={defaultValue}
         value={value}
-        onChange={onChange}
-        onBlur={onBlur}
+        onChange={(event) => {
+          registration?.onChange(event);
+          onChange?.(event);
+        }}
+        onBlur={(event) => {
+          registration?.onBlur(event);
+          onBlur?.(event);
+        }}
         disabled={disabled}
         required={required}
         multiple={multiple}
@@ -105,7 +111,6 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
           // Custom classes
           className
         )}
-        {...(registration ? { ...registration, ref: registration.ref } : {})}
         {...props}
       >
         {placeholder && !multiple && (

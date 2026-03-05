@@ -37,8 +37,12 @@ const variantClasses = {
   secondary: 'bg-gray-600',
   success: 'bg-green-600',
   error: 'bg-red-600',
+  danger: 'bg-red-600',
   warning: 'bg-yellow-600',
   info: 'bg-cyan-600',
+  ghost: 'bg-gray-400',
+  light: 'bg-gray-300',
+  outline: 'bg-gray-500',
   default: 'bg-blue-600',
 };
 
