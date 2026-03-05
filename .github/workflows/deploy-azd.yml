@@ -39,7 +39,7 @@ on:
         type: boolean
         default: true
       deployChangedOnly:
-        description: Deploy only services changed vs default branch
+        description: Legacy flag (changed-app-only deployment is always enforced)
         required: true
         type: boolean
         default: true
@@ -75,43 +75,54 @@ jobs:
 
           CHANGED_FILES=$(git diff --name-only "origin/$DEFAULT_BRANCH...HEAD")
 
-          mapfile -t AGENT_SERVICES <<'EOF'
-          crm-campaign-intelligence
-          crm-profile-aggregation
-          crm-segmentation-personalization
-          crm-support-assistance
-          ecommerce-cart-intelligence
-          ecommerce-catalog-search
-          ecommerce-checkout-support
-          ecommerce-order-status
-          ecommerce-product-detail-enrichment
-          inventory-alerts-triggers
-          inventory-health-check
-          inventory-jit-replenishment
-          inventory-reservation-validation
-          logistics-carrier-selection
-          logistics-eta-computation
-          logistics-returns-support
-          logistics-route-issue-detection
-          product-management-acp-transformation
-          product-management-assortment-optimization
-          product-management-consistency-validation
-          product-management-normalization-classification
-          truth-ingestion
-          EOF
+            mapfile -t AGENT_SERVICES < <(python3 - <<'PY'
+            import re
 
-          SHARED_CHANGED=false
-          if echo "$CHANGED_FILES" | grep -Eq '^(lib/|pyproject.toml|azure.yaml|\.infra/|\.kubernetes/)'; then
-            SHARED_CHANGED=true
-          fi
+            with open('azure.yaml', encoding='utf-8') as f:
+              lines = f.readlines()
+
+            in_services = False
+            current_service = None
+            current_host = None
+            services = []
+
+            for raw in lines:
+              line = raw.rstrip('\n')
+              if not in_services:
+                if re.match(r'^services:\s*$', line):
+                  in_services = True
+                continue
+
+              if re.match(r'^[^\s]', line):
+                break
+
+              service_match = re.match(r'^  ([a-z0-9\-]+):\s*$', line)
+              if service_match:
+                if current_service and current_host == 'aks' and current_service != 'crud-service':
+                  services.append(current_service)
+                current_service = service_match.group(1)
+                current_host = None
+                continue
+
+              host_match = re.match(r'^    host:\s*(\S+)\s*$', line)
+              if host_match:
+                current_host = host_match.group(1)
+
+            if current_service and current_host == 'aks' and current_service != 'crud-service':
+              services.append(current_service)
+
+            for service in services:
+              print(service)
+            PY
+            )
 
           CRUD_CHANGED=false
-          if [ "$SHARED_CHANGED" = true ] || echo "$CHANGED_FILES" | grep -Eq '^apps/crud-service/'; then
+          if echo "$CHANGED_FILES" | grep -Eq '^apps/crud-service/'; then
             CRUD_CHANGED=true
           fi
 
           UI_CHANGED=false
-          if [ "$SHARED_CHANGED" = true ] || echo "$CHANGED_FILES" | grep -Eq '^apps/ui/'; then
+          if echo "$CHANGED_FILES" | grep -Eq '^apps/ui/'; then
             UI_CHANGED=true
           fi
 
@@ -119,21 +130,15 @@ jobs:
           MATRIX='[]'
           CHANGED_AGENTS=()
 
-          if [ "$SHARED_CHANGED" = true ]; then
-            AGENTS_CHANGED=true
-            CHANGED_AGENTS=("${AGENT_SERVICES[@]}")
-            MATRIX=$(printf '%s\n' "${AGENT_SERVICES[@]}" | jq -R . | jq -s 'map({service: .})')
-          else
-            for service in "${AGENT_SERVICES[@]}"; do
-              if echo "$CHANGED_FILES" | grep -Eq "^apps/$service/"; then
-                CHANGED_AGENTS+=("$service")
-              fi
-            done
-
-            if [ ${#CHANGED_AGENTS[@]} -gt 0 ]; then
-              AGENTS_CHANGED=true
-              MATRIX=$(printf '%s\n' "${CHANGED_AGENTS[@]}" | jq -R . | jq -s 'map({service: .})')
+          for service in "${AGENT_SERVICES[@]}"; do
+            if echo "$CHANGED_FILES" | grep -Eq "^apps/$service/"; then
+              CHANGED_AGENTS+=("$service")
             fi
+          done
+
+          if [ ${#CHANGED_AGENTS[@]} -gt 0 ]; then
+            AGENTS_CHANGED=true
+            MATRIX=$(printf '%s\n' "${CHANGED_AGENTS[@]}" | jq -R . | jq -s 'map({service: .})')
           fi
 
           CHANGED_AGENT_SERVICES_CSV=""
@@ -369,7 +374,7 @@ jobs:
     needs:
       - provision
       - detect-changes
-    if: ${{ !inputs.uiOnly && (!inputs.deployChangedOnly || needs.detect-changes.outputs.crud_changed == 'true') }}
+    if: ${{ !inputs.uiOnly && needs.detect-changes.outputs.crud_changed == 'true' }}
     environment: ${{ inputs.environment }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -474,7 +479,7 @@ jobs:
 
   deploy-ui:
     runs-on: ubuntu-latest
-    if: ${{ inputs.deployStatic && !inputs.uiOnly && (!inputs.deployChangedOnly || needs.detect-changes.outputs.ui_changed == 'true') }}
+    if: ${{ inputs.deployStatic && !inputs.uiOnly && needs.detect-changes.outputs.ui_changed == 'true' }}
     needs:
       - provision
       - detect-changes
@@ -595,7 +600,7 @@ jobs:
 
   deploy-agents:
     runs-on: ubuntu-latest
-    if: ${{ !inputs.uiOnly && (!inputs.deployChangedOnly || needs.detect-changes.outputs.agents_changed == 'true') }}
+    if: ${{ !inputs.uiOnly && needs.detect-changes.outputs.agents_changed == 'true' }}
     needs:
       - provision
       - deploy-crud
@@ -605,7 +610,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ inputs.deployChangedOnly && fromJSON(needs.detect-changes.outputs.changed_agents_matrix) || fromJSON('[{"service":"crm-campaign-intelligence"},{"service":"crm-profile-aggregation"},{"service":"crm-segmentation-personalization"},{"service":"crm-support-assistance"},{"service":"ecommerce-cart-intelligence"},{"service":"ecommerce-catalog-search"},{"service":"ecommerce-checkout-support"},{"service":"ecommerce-order-status"},{"service":"ecommerce-product-detail-enrichment"},{"service":"inventory-alerts-triggers"},{"service":"inventory-health-check"},{"service":"inventory-jit-replenishment"},{"service":"inventory-reservation-validation"},{"service":"logistics-carrier-selection"},{"service":"logistics-eta-computation"},{"service":"logistics-returns-support"},{"service":"logistics-route-issue-detection"},{"service":"product-management-acp-transformation"},{"service":"product-management-assortment-optimization"},{"service":"product-management-consistency-validation"},{"service":"product-management-normalization-classification"},{"service":"truth-ingestion"}]') }}
+        include: ${{ fromJSON(needs.detect-changes.outputs.changed_agents_matrix) }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -669,7 +674,7 @@ jobs:
 
   sync-apim:
     runs-on: ubuntu-latest
-    if: ${{ !inputs.uiOnly && (!inputs.deployChangedOnly || needs.detect-changes.outputs.agents_changed == 'true' || needs.detect-changes.outputs.crud_changed == 'true') && (needs.deploy-crud.result == 'success' || needs.deploy-crud.result == 'skipped') && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') }}
+    if: ${{ !inputs.uiOnly && (needs.detect-changes.outputs.agents_changed == 'true' || needs.detect-changes.outputs.crud_changed == 'true') && (needs.deploy-crud.result == 'success' || needs.deploy-crud.result == 'skipped') && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') }}
     needs:
       - deploy-crud
       - deploy-agents
@@ -679,7 +684,7 @@ jobs:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      CHANGED_SERVICES: ${{ inputs.deployChangedOnly && needs.detect-changes.outputs.changed_aks_services_csv || '' }}
+      CHANGED_SERVICES: ${{ needs.detect-changes.outputs.changed_aks_services_csv }}
     steps:
       - uses: actions/checkout@v4
 
@@ -706,7 +711,7 @@ jobs:
 
   ensure-foundry-agents:
     runs-on: ubuntu-latest
-    if: ${{ !inputs.uiOnly && (!inputs.deployChangedOnly || needs.detect-changes.outputs.agents_changed == 'true') && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') }}
+    if: ${{ !inputs.uiOnly && needs.detect-changes.outputs.agents_changed == 'true' && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') }}
     needs:
       - deploy-agents
       - detect-changes
@@ -715,7 +720,7 @@ jobs:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      CHANGED_SERVICES: ${{ inputs.deployChangedOnly && needs.detect-changes.outputs.changed_agent_services_csv || '' }}
+      CHANGED_SERVICES: ${{ needs.detect-changes.outputs.changed_agent_services_csv }}
     steps:
       - uses: actions/checkout@v4
 

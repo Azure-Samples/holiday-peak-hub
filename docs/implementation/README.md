@@ -152,7 +152,8 @@ Target: **100%**
 ## Deployment Optimization
 
 - `deploy-azd` changed-service detection now publishes changed agent and AKS service lists.
-- Post-deploy hooks (`sync-apim-agents` and `ensure-foundry-agents`) consume these lists through `CHANGED_SERVICES` and run only for changed services when `deployChangedOnly=true`.
+- App deployments in `deploy-azd` are now strictly changed-only (CRUD, UI, and agent matrix entries are deployed only when their app paths change).
+- Post-deploy hooks (`sync-apim-agents` and `ensure-foundry-agents`) consume these lists through `CHANGED_SERVICES` and run only for changed services.
 - Foundry readiness verification in deployment workflow is scoped to changed agent services under changed-only mode.
 
 ---
