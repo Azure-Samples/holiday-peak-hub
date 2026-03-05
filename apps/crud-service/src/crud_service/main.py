@@ -11,6 +11,7 @@ from contextlib import asynccontextmanager
 from azure.monitor.opentelemetry import configure_azure_monitor
 from crud_service.auth.dependencies import get_key_vault_secret
 from crud_service.config.settings import get_settings
+from crud_service.consumers import get_connector_sync_consumer
 from crud_service.integrations.event_publisher import get_event_publisher
 from crud_service.repositories.base import BaseRepository
 from crud_service.routes import (
@@ -23,6 +24,7 @@ from crud_service.routes import (
     categories,
     checkout,
     completeness,
+    connector_webhooks,
     health,
     orders,
     payments,
@@ -74,6 +76,11 @@ async def lifespan(_app: FastAPI):
     await event_publisher.start()
     logger.info("Event publisher started")
 
+    connector_sync_consumer = get_connector_sync_consumer()
+    await connector_sync_consumer.start()
+    _app.state.connector_sync_consumer = connector_sync_consumer
+    logger.info("Connector sync consumer initialized")
+
     connector_registry = ConnectorRegistry()
     discovered = await connector_registry.discover()
     logger.info("Connector classes discovered: %s", discovered)
@@ -122,6 +129,10 @@ async def lifespan(_app: FastAPI):
         logger.info("Connector health monitor stopped")
     await event_publisher.stop()
     logger.info("Event publisher stopped")
+    connector_sync_consumer = getattr(_app.state, "connector_sync_consumer", None)
+    if connector_sync_consumer:
+        await connector_sync_consumer.stop()
+        logger.info("Connector sync consumer stopped")
     await BaseRepository.close_pool()
     logger.info("PostgreSQL pool closed")
     logger.info("CRUD Service shutdown complete")
@@ -176,6 +187,7 @@ app.include_router(orders.router, prefix="/api", tags=["Orders"])
 app.include_router(checkout.router, prefix="/api", tags=["Checkout"])
 app.include_router(payments.router, prefix="/api", tags=["Payments"])
 app.include_router(webhooks.router, tags=["Webhooks"])
+app.include_router(connector_webhooks.router, tags=["Connector Webhooks"])
 app.include_router(reviews.router, prefix="/api", tags=["Reviews"])
 app.include_router(acp_products.router, prefix="/acp", tags=["ACP Products"])
 app.include_router(acp_checkout.router, prefix="/acp", tags=["ACP Checkout"])

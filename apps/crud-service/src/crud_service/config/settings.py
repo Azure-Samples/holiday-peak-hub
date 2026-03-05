@@ -50,6 +50,30 @@ class Settings(BaseSettings):
     event_hub_namespace: str = Field(
         ..., description="Event Hubs namespace (e.g., xxx.servicebus.windows.net)"
     )
+    connector_sync_enabled: bool = Field(
+        default=False,
+        description="Enable connector synchronization consumer and webhook ingestion",
+    )
+    connector_sync_ingress_eventhub: str = Field(
+        default="connector-sync-events",
+        description="Ingress Event Hub for connector webhook events",
+    )
+    connector_sync_domain_eventhub: str = Field(
+        default="connector-domain-events",
+        description="Domain Event Hub for processed connector events",
+    )
+    connector_sync_deadletter_eventhub: str = Field(
+        default="connector-sync-dead-letter",
+        description="Dead-letter Event Hub for connector processing failures",
+    )
+    connector_sync_consumer_group: str = Field(
+        default="$Default",
+        description="Consumer group for connector synchronization consumer",
+    )
+    connector_sync_starting_position: str = Field(
+        default="-1",
+        description="Event Hub starting position for connector consumer replay controls",
+    )
 
     # Azure Key Vault (use Managed Identity)
     key_vault_uri: str = Field(..., description="Key Vault URI")

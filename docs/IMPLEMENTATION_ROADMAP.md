@@ -502,11 +502,11 @@ This document tracks the implementation progress of the Holiday Peak Hub platfor
 **Issue**: [#80](https://github.com/Azure-Samples/holiday-peak-hub/issues/80)
 
 **Tasks**:
-- [ ] Define event schemas for each domain (ProductChanged, InventoryUpdated, etc.)
-- [ ] Implement webhook receivers in CRUD service
-- [ ] Create Event Hub consumers for connector events
-- [ ] Add idempotency and dead-letter handling
-- [ ] Test end-to-end event flow
+- [x] Define event schemas for each domain (ProductChanged, InventoryUpdated, etc.)
+- [x] Implement webhook receivers in CRUD service
+- [x] Create Event Hub consumers for connector events
+- [x] Add idempotency and dead-letter handling
+- [x] Test end-to-end event flow
 
 #### 8.4 Multi-Tenant Connector Configuration
 **Priority**: MEDIUM  
