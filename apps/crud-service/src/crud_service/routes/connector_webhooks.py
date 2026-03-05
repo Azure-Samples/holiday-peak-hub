@@ -34,7 +34,9 @@ async def replay_dead_letter(dead_letter_id: str):
 
     replayed = await connector_sync_consumer.replay_dead_letter(dead_letter_id)
     if not replayed:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dead-letter event not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Dead-letter event not found"
+        )
 
     return {"status": "replayed", "dead_letter_id": dead_letter_id}
 

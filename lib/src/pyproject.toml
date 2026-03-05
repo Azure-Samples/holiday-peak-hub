@@ -16,6 +16,7 @@ dependencies = [
     "httpx",
     "azure-ai-projects>=2.0.0b4",
     "azure-identity",
+    "azure-keyvault-secrets",
     "azure-search-documents",
     "azure-cosmos",
     "azure-storage-blob",
@@ -23,6 +24,7 @@ dependencies = [
     "redis",
     "asyncpg",
     "aiohttp",
+    "pyyaml",
     "typing-extensions",
     "python-dotenv"
 ]

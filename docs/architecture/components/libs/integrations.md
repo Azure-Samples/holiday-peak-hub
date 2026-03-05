@@ -51,3 +51,22 @@ When adding any new connector under `lib/src/holiday_peak_lib/integrations/`:
   - Auth: bearer, basic, api_key, oauth2 (pre-fetched token).
   - Operations: get/list/search products, fetch categories, fetch product assets, push enrichment.
   - Resilience: token-bucket rate limit + exponential retry for 429/5xx and transport errors.
+
+## Multi-Tenant Connector Configuration
+
+`holiday_peak_lib.connectors` provides tenant-aware connector configuration and resolution:
+
+- `tenant_config.py`
+  - `TenantConfigStore` loads per-tenant files from `connectors/config/tenant-{tenantId}.yaml`.
+  - Supports environment variable overrides per connector/domain.
+  - Resolves Azure Key Vault references for tenant-isolated secrets.
+
+- `tenant_resolver.py`
+  - `TenantResolver` resolves tenant context from request headers/query/default.
+  - `TenantContextMiddleware` propagates tenant context through request state and async context.
+  - `TenantConnectorResolver` caches connector instances by tenant/domain/vendor pool key.
+
+Recommended env override format:
+
+- `TENANT_<TENANT_ID>_CONNECTOR_<DOMAIN>_<SETTING>=value`
+- `CONNECTOR_<DOMAIN>_<SETTING>=value`

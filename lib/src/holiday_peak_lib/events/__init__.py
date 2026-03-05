@@ -1,8 +1,8 @@
 """Event models for cross-service integrations."""
 
 from holiday_peak_lib.events.connector_events import (
-    ConnectorEventUnion,
     ConnectorEvent,
+    ConnectorEventUnion,
     CustomerUpdated,
     InventoryUpdated,
     OrderStatusChanged,
