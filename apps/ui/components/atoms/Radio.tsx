@@ -10,11 +10,11 @@ import type { BaseComponentProps } from '../types';
 
 export interface RadioProps extends BaseComponentProps {
   /** Radio name (group identifier) */
-  name: string;
+  name?: string;
   /** Radio value */
-  value: string | number;
+  value?: string | number;
   /** Radio label */
-  label: string;
+  label?: React.ReactNode;
   /** Whether radio is checked (controlled) */
   checked?: boolean;
   /** Default checked state */
@@ -57,7 +57,10 @@ export const Radio = forwardRef<HTMLInputElement, RadioProps>(
     // React Hook Form integration
     const rawCtx = useFormContext();  // Always call hook unconditionally
     const formContext = useRHF ? rawCtx : null;
-    const registration = formContext && name ? formContext.register(name, rules) : null;
+    const resolvedName = name || `radio-${testId || 'group'}`;
+    const resolvedValue = value ?? '';
+    const registration = formContext && resolvedName ? formContext.register(resolvedName, rules) : null;
+    const inputId = `${resolvedName}-${String(resolvedValue)}`;
 
     return (
       <div className={cn('flex items-start space-x-2', className)}>
@@ -65,16 +68,23 @@ export const Radio = forwardRef<HTMLInputElement, RadioProps>(
           <input
             ref={registration ? registration.ref : ref}
             type="radio"
-            name={name}
-            value={value}
+            name={resolvedName}
+            id={inputId}
+            value={resolvedValue}
             checked={checked}
             defaultChecked={defaultChecked}
-            onChange={onChange}
+            onChange={(event) => {
+              registration?.onChange(event);
+              onChange?.(event);
+            }}
+            onBlur={(event) => {
+              registration?.onBlur(event);
+            }}
             disabled={disabled}
             required={required}
             data-testid={testId}
-            aria-label={ariaLabel || label}
-            aria-describedby={hint ? `${name}-${value}-hint` : undefined}
+            aria-label={ariaLabel || (typeof label === 'string' ? label : undefined)}
+            aria-describedby={hint ? `${resolvedName}-${String(resolvedValue)}-hint` : undefined}
             className={cn(
               'w-4 h-4',
               'text-blue-600 bg-white dark:bg-gray-800',
@@ -84,14 +94,13 @@ export const Radio = forwardRef<HTMLInputElement, RadioProps>(
               'cursor-pointer',
               disabled && 'opacity-50 cursor-not-allowed'
             )}
-            {...(registration ? { ...registration, ref: registration.ref } : {})}
             {...props}
           />
         </div>
         
         <div className="text-sm space-y-1">
           <label
-            htmlFor={`${name}-${value}`}
+            htmlFor={inputId}
             className={cn(
               'block font-medium select-none',
               'text-gray-700 dark:text-white',
@@ -108,7 +117,7 @@ export const Radio = forwardRef<HTMLInputElement, RadioProps>(
           
           {hint && (
             <p
-              id={`${name}-${value}-hint`}
+              id={`${resolvedName}-${String(resolvedValue)}-hint`}
               className="text-xs text-gray-500 dark:text-gray-400"
             >
               {hint}

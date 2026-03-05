@@ -9,7 +9,8 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import { cn } from '../utils';
 import { Navigation } from '../organisms/Navigation';
-import type { NavigationProps, BaseComponentProps } from '../types';
+import type { BaseComponentProps } from '../types';
+import type { NavigationProps } from '../organisms/Navigation';
 
 export interface MainLayoutProps extends BaseComponentProps {
   /** Navigation props */
@@ -57,27 +58,24 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
       aria-label={ariaLabel || 'Main layout'}
       className={cn(
         'min-h-screen flex flex-col',
-        backgroundColor || 'bg-gray-50 dark:bg-gray-900',
+        backgroundColor || 'bg-transparent',
         className
       )}
     >
-      {/* Navigation */}
       {showNavigation && <Navigation {...mergedNavigationProps} />}
 
-      {/* Main Content */}
-      <main className="flex-1">
+      <main id="main-content" className="flex-1" role="main">
         {fullWidth ? (
           children
         ) : (
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
             {children}
           </div>
         )}
       </main>
 
-      {/* Footer */}
       {showFooter && footer && (
-        <footer className="border-t border-gray-200 dark:border-gray-800">
+        <footer className="border-t border-[var(--hp-border)] bg-[var(--hp-surface)]/80">
           {footer}
         </footer>
       )}

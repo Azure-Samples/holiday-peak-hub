@@ -76,18 +76,17 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       <div
         data-testid={testId}
         aria-label={ariaLabel || title}
+        role="listitem"
         className={cn(
-          'flex items-center gap-4 p-4',
-          'bg-white dark:bg-gray-800',
-          'border border-gray-200 dark:border-gray-700',
-          'rounded-lg hover:shadow-md transition-shadow duration-200',
+          'showcase-rise flex items-center gap-4 p-4',
+          'bg-[var(--hp-surface)] border border-[var(--hp-border)]',
+          'rounded-2xl hover:shadow-md transition-shadow duration-200',
           className
         )}
       >
-        {/* Image */}
         <Link
           href={`/product?id=${encodeURIComponent(sku)}`}
-          className="shrink-0 w-24 h-24 relative overflow-hidden rounded-md"
+          className="shrink-0 w-24 h-24 relative overflow-hidden rounded-xl"
         >
           <Image
             src={thumbnail}
@@ -108,27 +107,26 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
               {brand && (
-                <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">
+                <p className="text-xs uppercase text-[var(--hp-text-muted)]">
                   {brand}
                 </p>
               )}
               <Link
                 href={`/product?id=${encodeURIComponent(sku)}`}
-                className="block font-semibold text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 truncate"
+                className="block truncate font-semibold text-[var(--hp-text)] hover:text-[var(--hp-primary)]"
               >
                 {title}
               </Link>
               {category && (
-                <p className="text-sm text-gray-500 dark:text-gray-400">
+                <p className="text-sm text-[var(--hp-text-muted)]">
                   {category}
                 </p>
               )}
-              <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2 mt-1">
+              <p className="mt-1 line-clamp-2 text-sm text-[var(--hp-text-muted)]">
                 {description}
               </p>
             </div>
 
-            {/* Price */}
             <PriceDisplay
               price={finalPrice}
               msrp={msrp}
@@ -137,12 +135,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             />
           </div>
 
-          {/* Rating & Actions */}
           <div className="flex items-center gap-2 mt-2">
             {rating && (
               <div className="flex items-center gap-1">
                 <span className="text-yellow-500">★</span>
-                <span className="text-sm text-gray-600 dark:text-gray-400">
+                <span className="text-sm text-[var(--hp-text-muted)]">
                   {rating.toFixed(1)}
                   {reviewCount && ` (${reviewCount})`}
                 </span>
@@ -174,6 +171,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                   onClick={() => onAddToCart?.(product)}
                   disabled={!inStock}
                   iconLeft={<FiShoppingCart className="w-4 h-4" />}
+                  className="bg-[var(--hp-primary)] hover:bg-[var(--hp-primary-hover)]"
                 >
                   Add to Cart
                 </Button>
@@ -190,16 +188,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     <div
       data-testid={testId}
       aria-label={ariaLabel || title}
+      role="listitem"
       className={cn(
-        'group relative flex flex-col',
-        'bg-white dark:bg-gray-800',
-        'border border-gray-200 dark:border-gray-700',
-        'rounded-lg overflow-hidden',
+        'group relative flex flex-col showcase-rise',
+        'bg-[var(--hp-surface)] border border-[var(--hp-border)]',
+        'rounded-2xl overflow-hidden',
         'hover:shadow-lg transition-shadow duration-200',
         className
       )}
     >
-      {/* Badges */}
       <div className="absolute top-2 left-2 z-10 flex flex-col gap-1">
         {isOnSale && <Badge variant="error" size="sm">Sale</Badge>}
         {!inStock && <Badge variant="secondary" size="sm">Out of Stock</Badge>}
@@ -210,15 +207,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         ))}
       </div>
 
-      {/* Wishlist Button */}
       {showWishlist && (
         <button
           type="button"
           onClick={() => onWishlist?.(product)}
           className={cn(
             'absolute top-2 right-2 z-10',
-            'p-2 rounded-full bg-white/90 dark:bg-gray-800/90',
-            'hover:bg-white dark:hover:bg-gray-800',
+            'p-2 rounded-full bg-[var(--hp-surface)]/90',
+            'hover:bg-[var(--hp-surface)]',
             'transition-colors duration-200',
             'opacity-0 group-hover:opacity-100'
           )}
@@ -227,53 +223,49 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           <FiHeart
             className={cn(
               'w-5 h-5',
-              inWishlist ? 'fill-current text-red-500' : 'text-gray-600 dark:text-gray-400'
+              inWishlist ? 'fill-current text-red-500' : 'text-[var(--hp-text-muted)]'
             )}
           />
         </button>
       )}
 
-      {/* Image */}
       <Link
         href={`/product?id=${encodeURIComponent(sku)}`}
-        className="relative aspect-square overflow-hidden bg-gray-100 dark:bg-gray-900"
+        className="relative aspect-square overflow-hidden bg-[var(--hp-surface-strong)]"
       >
         <Image
           src={thumbnail}
           alt={title}
           fill
-          className="object-cover group-hover:scale-105 transition-transform duration-300"
+          className="object-cover group-hover:scale-105 transition-transform duration-500"
           priority={imagePriority}
         />
       </Link>
 
-      {/* Content */}
       <div className="flex-1 flex flex-col p-4">
         {brand && (
-          <p className="text-xs text-gray-500 dark:text-gray-400 uppercase mb-1">
+          <p className="text-xs text-[var(--hp-text-muted)] uppercase mb-1">
             {brand}
           </p>
         )}
-        
+
         <Link
           href={`/product?id=${encodeURIComponent(sku)}`}
-          className="font-semibold text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 line-clamp-2 mb-2"
+          className="font-semibold text-[var(--hp-text)] hover:text-[var(--hp-primary)] line-clamp-2 mb-2"
         >
           {title}
         </Link>
 
-        {/* Rating */}
         {rating && (
           <div className="flex items-center gap-1 mb-2">
             <span className="text-yellow-500 text-sm">★</span>
-            <span className="text-sm text-gray-600 dark:text-gray-400">
+            <span className="text-sm text-[var(--hp-text-muted)]">
               {rating.toFixed(1)}
               {reviewCount && ` (${reviewCount})`}
             </span>
           </div>
         )}
 
-        {/* Price */}
         <PriceDisplay
           price={finalPrice}
           msrp={msrp}
@@ -282,7 +274,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           className="mb-3"
         />
 
-        {/* Actions */}
         <div className="mt-auto flex gap-2">
           {showAddToCart && (
             <Button
@@ -292,6 +283,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               onClick={() => onAddToCart?.(product)}
               disabled={!inStock}
               iconLeft={<FiShoppingCart className="w-4 h-4" />}
+              className="bg-[var(--hp-primary)] hover:bg-[var(--hp-primary-hover)]"
             >
               {inStock ? 'Add to Cart' : 'Out of Stock'}
             </Button>

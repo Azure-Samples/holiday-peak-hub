@@ -6,16 +6,18 @@
 import React from 'react';
 import { cn } from '../utils';
 import { CheckoutForm } from '../organisms/CheckoutForm';
+import type { CheckoutFormProps } from '../organisms/CheckoutForm';
 import type {
-  CheckoutFormProps,
   BaseComponentProps,
 } from '../types';
 
-export interface CheckoutLayoutProps extends Omit<CheckoutFormProps, 'className'>, BaseComponentProps {
+export interface CheckoutLayoutProps extends Omit<CheckoutFormProps, 'className' | 'children'>, BaseComponentProps {
   /** Header content (optional) */
   header?: React.ReactNode;
   /** Show secure checkout badge */
   showSecureBadge?: boolean;
+  /** Optional children — if provided, renders instead of CheckoutForm */
+  children?: React.ReactNode;
 }
 
 export const CheckoutLayout: React.FC<CheckoutLayoutProps> = ({
@@ -24,6 +26,7 @@ export const CheckoutLayout: React.FC<CheckoutLayoutProps> = ({
   className,
   testId,
   ariaLabel,
+  children,
   ...checkoutFormProps
 }) => {
   return (
@@ -63,8 +66,8 @@ export const CheckoutLayout: React.FC<CheckoutLayoutProps> = ({
           </div>
         )}
 
-        {/* Checkout Form */}
-        <CheckoutForm {...checkoutFormProps} />
+        {/* Checkout Content */}
+        {children ?? <CheckoutForm {...checkoutFormProps} />}
       </div>
     </div>
   );

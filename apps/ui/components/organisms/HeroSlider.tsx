@@ -4,107 +4,133 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/atoms/Button';
-import { FiArrowRight } from 'react-icons/fi';
+import { FiArrowRight, FiMessageSquare } from 'react-icons/fi';
 
 const SLIDES = [
   {
     id: 1,
-    title: 'Experience Pure Power',
-    subtitle: 'New UltraSlate Pro 11" with M2 Chip',
-    description: 'Perfect for digital artists and professionals. The ultimate tablet experience is here.',
+    title: 'Plan Your Peak Weekend Cart',
+    subtitle: 'Catalog Signal: New electronics in stock',
+    description: 'Explore high-demand items in the live catalog and move directly to product details.',
     image: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?auto=format&fit=crop&w=1600&q=80',
-    ctaLink: '/shop?category=electronics',
-    ctaText: 'Shop Tablets',
-    bgClass: 'bg-gradient-to-r from-gray-900 via-gray-800 to-black',
+    ctaLink: '/category?slug=electronics',
+    ctaText: 'Open Catalog',
   },
   {
     id: 2,
-    title: 'Cinematic Experience at Home',
-    subtitle: 'CinemaView OLED 65"',
-    description: 'Perfect blacks, infinite contrast. Transform your living room today.',
+    title: 'Move From Discovery To Decision',
+    subtitle: 'Catalog + Agent workflow',
+    description: 'Compare options in the catalog, then use the Product Enrichment Agent for deeper guidance.',
     image: 'https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?auto=format&fit=crop&w=1600&q=80',
-    ctaLink: '/shop?category=electronics',
-    ctaText: 'View TVs',
-    bgClass: 'bg-gradient-to-r from-blue-900 via-indigo-900 to-black',
+    ctaLink: '/agents/product-enrichment-chat',
+    ctaText: 'Ask Product Agent',
   },
   {
     id: 3,
-    title: 'Style Meets Comfort',
-    subtitle: 'Urban Explorer Collection',
-    description: 'Discover the new season essentials designed for modern city living.',
+    title: 'Trace Product Context Fast',
+    subtitle: 'Data interpretation ready',
+    description: 'Go from category view to product insights with a route-safe demo flow for stakeholders.',
     image: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1600&q=80',
-    ctaLink: '/shop?category=fashion',
-    ctaText: 'Explore Fashion',
-    bgClass: 'bg-gradient-to-r from-rose-900 via-purple-900 to-black',
-  }
+    ctaLink: '/category?slug=fashion',
+    ctaText: 'View Category',
+  },
 ];
 
 export const HeroSlider: React.FC = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [reducedMotion, setReducedMotion] = useState(false);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % SLIDES.length);
-    }, 5000);
-    return () => clearInterval(timer);
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => setReducedMotion(media.matches);
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
   }, []);
 
+  useEffect(() => {
+    if (reducedMotion) {
+      return undefined;
+    }
+
+    const timer = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % SLIDES.length);
+    }, 5500);
+
+    return () => clearInterval(timer);
+  }, [reducedMotion]);
+
+  const active = SLIDES[currentSlide];
+
   return (
-    <div className="relative h-[500px] w-full overflow-hidden rounded-3xl shadow-xl transition-all duration-700">
+    <section
+      aria-label="Holiday Peak showcase"
+      className="showcase-shell relative isolate w-full overflow-hidden"
+    >
+      <div className="absolute inset-0 bg-gradient-to-br from-[var(--hp-primary)]/15 via-transparent to-[var(--hp-accent)]/20" aria-hidden="true" />
+
       {SLIDES.map((s, index) => (
-         <div 
-           key={s.id}
-           className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${index === currentSlide ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
-         >
-            <div className="absolute inset-0 bg-black/40 z-10" /> 
-            {/* Background Image */}
-            <div className="absolute inset-0">
-               <Image 
-                 src={s.image} 
-                 alt={s.title}
-                 fill
-                 className="object-cover"
-                 priority={index === 0}
-               />
-            </div>
-            
-            {/* Content Overlay */}
-            <div className={`absolute inset-0 z-20 flex flex-col justify-center px-8 md:px-16 lg:px-24 bg-gradient-to-r from-black/80 via-black/40 to-transparent`}>
-              <div className="max-w-2xl text-white transform transition-transform duration-700 translate-y-0 opacity-100">
-                <span className="inline-block py-1 px-3 rounded-full bg-prime-500/90 text-white text-sm font-semibold mb-4 backdrop-blur-sm">
-                  {s.subtitle}
-                </span>
-                <h2 className="text-4xl md:text-6xl font-extrabold mb-4 leading-tight">
-                  {s.title}
-                </h2>
-                <p className="text-lg md:text-xl text-gray-200 mb-8 max-w-lg">
-                  {s.description}
-                </p>
-                <div className="flex gap-4">
-                  <Link href={s.ctaLink}>
-                    <Button size="lg" className="bg-white text-black hover:bg-gray-100 border-none font-bold px-8">
-                       {s.ctaText} <FiArrowRight className="ml-2" />
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-            </div>
-         </div>
+        <div
+          key={s.id}
+          className={`absolute inset-0 transition-opacity duration-700 ease-out ${index === currentSlide ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
+          aria-hidden={index !== currentSlide}
+        >
+          <div className="absolute inset-0">
+            <Image
+              src={s.image}
+              alt={s.title}
+              fill
+              className="object-cover"
+              priority={index === 0}
+            />
+          </div>
+          <div className="absolute inset-0 bg-gradient-to-r from-[#0f0a06]/85 via-[#0f0a06]/55 to-[#0f0a06]/20" />
+        </div>
       ))}
 
-      {/* Dots */}
-      <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-30 flex gap-2">
-        {SLIDES.map((_, index) => (
-          <button
-            key={index}
-            onClick={() => setCurrentSlide(index)}
-            className={`w-3 h-3 rounded-full transition-all duration-300 ${
-              index === currentSlide ? 'bg-white w-8' : 'bg-white/50 hover:bg-white/80'
-            }`}
-             aria-label={`Go to slide ${index + 1}`}
-          />
-        ))}
+      <div className="relative z-20 flex min-h-[22rem] flex-col justify-end p-5 sm:min-h-[26rem] sm:p-7 lg:min-h-[29rem] lg:p-10">
+        <div className="max-w-2xl text-white showcase-enter">
+          <span className="mb-3 inline-flex rounded-full border border-white/25 bg-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em]">
+            {active.subtitle}
+          </span>
+          <h1 className="text-balance text-3xl font-black leading-tight sm:text-4xl lg:text-5xl">{active.title}</h1>
+          <p className="mt-3 max-w-xl text-sm text-white/85 sm:text-base">{active.description}</p>
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+            <Link href={active.ctaLink}>
+              <Button size="lg" className="bg-[var(--hp-primary)] px-6 py-3 text-sm hover:bg-[var(--hp-primary-hover)]">
+                {active.ctaText}
+                <FiArrowRight className="ml-1" />
+              </Button>
+            </Link>
+
+            <Link href="/agents/product-enrichment-chat">
+              <Button size="lg" variant="secondary" className="border border-white/20 bg-white/10 px-6 py-3 text-sm text-white hover:bg-white/20">
+                <FiMessageSquare className="mr-1" />
+                Agent Product Enrichment Chat
+              </Button>
+            </Link>
+          </div>
+        </div>
+
+        <div className="mt-5 flex items-center gap-2" role="tablist" aria-label="Showcase slides">
+          {SLIDES.map((slide, index) => (
+            <button
+              key={slide.id}
+              onClick={() => setCurrentSlide(index)}
+              className={`h-2.5 rounded-full transition-all ${index === currentSlide ? 'w-9 bg-white' : 'w-3 bg-white/50 hover:bg-white/80'}`}
+              aria-label={`Go to slide ${index + 1}`}
+              aria-selected={index === currentSlide}
+              role="tab"
+            />
+          ))}
+        </div>
       </div>
-    </div>
+
+      {reducedMotion && (
+        <p className="absolute right-4 top-4 z-30 rounded-full bg-black/45 px-3 py-1 text-xs text-white">
+          Reduced motion enabled
+        </p>
+      )}
+    </section>
   );
 };

@@ -110,7 +110,7 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({
                   Order #{order.orderNumber}
                 </Text>
                 <Text variant="caption" className="text-gray-500">
-                  Placed on {new Date(order.createdAt).toLocaleDateString()}
+                  Placed on {new Date(order.createdAt ?? order.date).toLocaleDateString()}
                 </Text>
               </div>
               <Badge

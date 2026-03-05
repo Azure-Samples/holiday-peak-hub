@@ -82,7 +82,7 @@ export const Button: React.FC<ButtonProps> = ({
         <svg
           className={cn(
             'animate-spin',
-            !iconOnly && children && 'mr-2',
+            !iconOnly && !!children && 'mr-2',
             size === 'xs' ? 'h-3 w-3' : size === 'sm' ? 'h-4 w-4' : 'h-5 w-5'
           )}
           xmlns="http://www.w3.org/2000/svg"
@@ -106,7 +106,7 @@ export const Button: React.FC<ButtonProps> = ({
       )}
       
       {!loading && iconLeft && (
-        <span className={cn(!iconOnly && children && 'mr-2')}>
+        <span className={cn(!iconOnly && !!children && 'mr-2')}>
           {iconLeft}
         </span>
       )}
@@ -114,7 +114,7 @@ export const Button: React.FC<ButtonProps> = ({
       {!iconOnly && children}
       
       {!loading && iconRight && (
-        <span className={cn(!iconOnly && children && 'ml-2')}>
+        <span className={cn(!iconOnly && !!children && 'ml-2')}>
           {iconRight}
         </span>
       )}

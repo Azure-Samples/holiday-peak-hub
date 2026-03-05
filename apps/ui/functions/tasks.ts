@@ -1,6 +1,19 @@
 import { faker } from "@faker-js/faker";
 import { format } from "date-fns";
-import {Task, randomElement} from "@/components/tasks";
+
+interface Task {
+  id: number;
+  title: string;
+  done: boolean;
+  category: string;
+  date: string;
+  img: string;
+  badge: { title: string; color: string };
+}
+
+function randomElement<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
 
 export const generateTasks = (n: number): Task[] => {
   return Array.from(Array(n).keys()).map((i) => {

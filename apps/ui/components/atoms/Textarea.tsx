@@ -63,8 +63,8 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
     const rawCtx = useFormContext();  // Always call hook unconditionally
     const formContext = useRHF ? rawCtx : null;
     const registration = formContext && name ? formContext.register(name, rules) : null;
-
-    const hasError = error || (formContext?.formState.errors[name] && true);
+    const textareaName = name ?? '';
+    const hasError = !!error || !!(textareaName && formContext?.formState.errors[textareaName]);
 
     const resizeClasses = {
       none: 'resize-none',
@@ -76,13 +76,19 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
     return (
       <textarea
         ref={registration ? registration.ref : ref}
-        name={name}
+        name={textareaName}
         rows={rows}
         placeholder={placeholder}
         defaultValue={defaultValue}
         value={value}
-        onChange={onChange}
-        onBlur={onBlur}
+        onChange={(event) => {
+          registration?.onChange(event);
+          onChange?.(event);
+        }}
+        onBlur={(event) => {
+          registration?.onBlur(event);
+          onBlur?.(event);
+        }}
         disabled={disabled}
         required={required}
         maxLength={maxLength}
@@ -126,7 +132,6 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           // Custom classes
           className
         )}
-        {...(registration ? { ...registration, ref: registration.ref } : {})}
         {...props}
       />
     );

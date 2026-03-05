@@ -13,6 +13,8 @@ import { Textarea, TextareaProps } from '../atoms/Textarea';
 import type { FormFieldBaseProps } from '../types';
 
 export interface FormFieldProps extends FormFieldBaseProps {
+  /** Optional custom field content */
+  children?: React.ReactNode;
   /** Field type */
   fieldType?: 'input' | 'select' | 'textarea';
   /** Props to pass to the input/select/textarea */
@@ -36,6 +38,7 @@ export const FormField: React.FC<FormFieldProps> = ({
   fieldProps = {},
   showCharCount = false,
   maxLength,
+  children,
   className,
   testId,
   ariaLabel,
@@ -102,7 +105,7 @@ export const FormField: React.FC<FormFieldProps> = ({
         </Label>
       )}
 
-      {renderField()}
+      {children || renderField()}
 
       <div className="flex items-center justify-between">
         <div className="flex-1">

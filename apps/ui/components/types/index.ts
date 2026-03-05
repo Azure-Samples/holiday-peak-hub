@@ -3,10 +3,22 @@
  * Defines common types, variants, and interfaces used across all atomic components
  */
 
+import type React from 'react';
+
 // ===== COMMON VARIANTS =====
 
 export type Size = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
-export type Variant = 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'info' | 'ghost';
+export type Variant =
+  | 'primary'
+  | 'secondary'
+  | 'success'
+  | 'warning'
+  | 'error'
+  | 'danger'
+  | 'info'
+  | 'ghost'
+  | 'light'
+  | 'outline';
 export type ColorScheme = 'blue' | 'green' | 'red' | 'yellow' | 'gray' | 'purple' | 'pink' | 'indigo';
 export type Rounded = 'none' | 'sm' | 'md' | 'lg' | 'full';
 export type Spacing = 'none' | 'xs' | 'sm' | 'md' | 'lg' | 'xl';
@@ -39,7 +51,7 @@ export interface InteractiveProps extends BaseComponentProps {
 
 export interface FormFieldBaseProps extends BaseComponentProps {
   /** Field name (for form submission) */
-  name: string;
+  name?: string;
   /** Field label */
   label?: string;
   /** Field placeholder */
@@ -96,7 +108,9 @@ export interface Product {
 export interface CartItem {
   sku: string;
   title: string;
+  name?: string;
   thumbnail: string;
+  image?: string;
   quantity: number;
   price: number;
   size?: string;
@@ -108,7 +122,9 @@ export interface CartItem {
 export interface ShippingAddress {
   firstName: string;
   lastName: string;
-  addressLine1: string;
+  email?: string;
+  address?: string;
+  addressLine1?: string;
   addressLine2?: string;
   city: string;
   state: string;
@@ -139,12 +155,15 @@ export interface Order {
   orderId: string;
   orderNumber: string;
   date: string;
+  createdAt?: string;
   status: OrderStatus;
   items: CartItem[];
   summary: OrderSummary;
   shippingAddress: ShippingAddress;
   trackingNumber?: string;
 }
+
+export type PaymentMethod = 'credit_card' | 'debit_card' | 'paypal' | 'apple_pay' | 'google_pay';
 
 export type OrderStatus =
   | 'pending'

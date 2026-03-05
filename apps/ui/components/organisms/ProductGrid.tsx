@@ -34,6 +34,8 @@ export interface ProductGridProps extends BaseComponentProps {
   loading?: boolean;
   /** Number of columns in grid view */
   gridColumns?: 2 | 3 | 4;
+  /** @deprecated Use gridColumns instead */
+  columns?: 2 | 3 | 4;
   /** Add to cart handler */
   onAddToCart?: (product: Product) => void;
   /** Wishlist handler */
@@ -59,6 +61,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
   showSort = true,
   loading = false,
   gridColumns = 4,
+  columns,
   onAddToCart,
   onWishlist,
   emptyMessage = 'No products found',
@@ -67,6 +70,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
   ariaLabel,
 }) => {
   const [view, setView] = useState<'grid' | 'list'>(defaultView);
+  const resolvedGridColumns = columns ?? gridColumns;
 
   const handleViewChange = (newView: 'grid' | 'list') => {
     setView(newView);
@@ -87,16 +91,15 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
     <div
       data-testid={testId}
       aria-label={ariaLabel || 'Product listing'}
-      className={cn('w-full', className)}
+      className={cn('showcase-shell w-full p-3 sm:p-4', className)}
     >
-      {/* Header - Mobile */}
-      <div className="mb-4 grid grid-cols-2 gap-2 lg:hidden">
+      <div className="mb-4 grid grid-cols-2 gap-2 lg:hidden" role="region" aria-label="Catalog controls">
         <div className="col-span-1">
           <div className="flex flex-col items-start space-y-2">
-            <div className="font-semibold text-gray-900 dark:text-white">
+            <div className="font-semibold text-[var(--hp-text)]">
               {products.length} products
             </div>
-            
+
             {showViewToggle && (
               <div className="flex items-center space-x-1">
                 <Button
@@ -106,7 +109,8 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
                   onClick={() => handleViewChange('grid')}
                   ariaLabel="Grid view"
                   className={cn(
-                    view === 'grid' && 'bg-gray-100 dark:bg-gray-700'
+                    'border border-[var(--hp-border)]',
+                    view === 'grid' && 'bg-[var(--hp-surface-strong)]'
                   )}
                 >
                   <FiGrid className="w-5 h-5" />
@@ -118,7 +122,8 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
                   onClick={() => handleViewChange('list')}
                   ariaLabel="List view"
                   className={cn(
-                    view === 'list' && 'bg-gray-100 dark:bg-gray-700'
+                    'border border-[var(--hp-border)]',
+                    view === 'list' && 'bg-[var(--hp-surface-strong)]'
                   )}
                 >
                   <FiMenu className="w-5 h-5" />
@@ -144,10 +149,9 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
         )}
       </div>
 
-      {/* Header - Desktop */}
       <div className="hidden mb-4 lg:flex lg:items-center lg:justify-between">
         <div className="flex items-center gap-4">
-          <div className="font-semibold text-gray-900 dark:text-white">
+          <div className="font-semibold text-[var(--hp-text)]">
             {products.length} products
           </div>
 
@@ -160,7 +164,8 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
                 onClick={() => handleViewChange('grid')}
                 ariaLabel="Grid view"
                 className={cn(
-                  view === 'grid' && 'bg-gray-100 dark:bg-gray-700'
+                  'border border-[var(--hp-border)]',
+                  view === 'grid' && 'bg-[var(--hp-surface-strong)]'
                 )}
               >
                 <FiGrid className="w-5 h-5" />
@@ -172,7 +177,8 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
                 onClick={() => handleViewChange('list')}
                 ariaLabel="List view"
                 className={cn(
-                  view === 'list' && 'bg-gray-100 dark:bg-gray-700'
+                  'border border-[var(--hp-border)]',
+                  view === 'list' && 'bg-[var(--hp-surface-strong)]'
                 )}
               >
                 <FiMenu className="w-5 h-5" />
@@ -183,7 +189,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
 
         {showSort && (
           <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-200 whitespace-nowrap">
+            <label className="text-sm font-medium text-[var(--hp-text-muted)] whitespace-nowrap">
               Sort by
             </label>
             <Select
@@ -201,12 +207,11 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
         )}
       </div>
 
-      {/* Products */}
       {loading ? (
         <div
           className={cn(
             view === 'grid'
-              ? `grid grid-cols-1 gap-4 ${gridColsClass[gridColumns]}`
+              ? `grid grid-cols-1 gap-4 ${gridColsClass[resolvedGridColumns]}`
               : 'space-y-4'
           )}
         >
@@ -216,7 +221,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
         </div>
       ) : products.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12">
-          <p className="text-gray-500 dark:text-gray-400 text-lg">
+          <p className="text-lg text-[var(--hp-text-muted)]">
             {emptyMessage}
           </p>
         </div>
@@ -224,9 +229,11 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
         <div
           className={cn(
             view === 'grid'
-              ? `grid grid-cols-1 gap-4 ${gridColsClass[gridColumns]}`
+              ? `grid grid-cols-1 gap-4 ${gridColsClass[resolvedGridColumns]}`
               : 'space-y-4'
           )}
+          role="list"
+          aria-label="Catalog products"
         >
           {products.map((product) => (
             <ProductCard

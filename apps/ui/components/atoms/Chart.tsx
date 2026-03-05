@@ -195,7 +195,7 @@ export const Chart: React.FC<ChartProps> = ({
                 dataKey={s.dataKey}
                 name={s.name || s.dataKey}
                 stroke={type === 'line' ? s.color : undefined}
-                fill={type !== 'line' ? s.color : type === 'area' ? s.color : undefined}
+                fill={type === 'line' ? undefined : s.color}
                 strokeWidth={type === 'line' ? 2 : undefined}
                 fillOpacity={type === 'area' ? 0.6 : 1}
               />

@@ -6,8 +6,8 @@
 import React from 'react';
 import { cn } from '../utils';
 import { OrderTracker } from '../organisms/OrderTracker';
+import type { OrderTrackerProps } from '../organisms/OrderTracker';
 import type {
-  OrderTrackerProps,
   BaseComponentProps,
 } from '../types';
 

@@ -5,7 +5,14 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { FiShoppingCart, FiHeart, FiUser, FiMenu, FiSearch } from 'react-icons/fi';
+import {
+  FiShoppingCart,
+  FiHeart,
+  FiUser,
+  FiMenu,
+  FiSearch,
+  FiMessageSquare,
+} from 'react-icons/fi';
 import { cn } from '../utils';
 import { Button } from '../atoms/Button';
 import { Badge } from '../atoms/Badge';
@@ -52,10 +59,9 @@ export const Navigation: React.FC<NavigationProps> = ({
   userName,
   userAvatar,
   navLinks = [
+    { label: 'Catalog', href: '/category?slug=all' },
+    { label: 'Season Picks', href: '/category?slug=all' },
     { label: 'Shop', href: '/shop' },
-    { label: 'Categories', href: '/categories' },
-    { label: 'Deals', href: '/deals' },
-    { label: 'Agent Chat', href: '/agents/product-enrichment-chat' },
   ],
   userMenuItems = [
     { key: 'profile', label: 'My Profile', href: '/profile' },
@@ -73,6 +79,10 @@ export const Navigation: React.FC<NavigationProps> = ({
   testId,
   ariaLabel,
 }) => {
+  const navBackground = transparent
+    ? 'bg-transparent'
+    : 'bg-[var(--hp-surface)]/95 backdrop-blur border-b border-[var(--hp-border)]';
+
   return (
     <nav
       data-testid={testId}
@@ -80,36 +90,37 @@ export const Navigation: React.FC<NavigationProps> = ({
       className={cn(
         'w-full z-50 transition-colors duration-200',
         sticky && 'sticky top-0',
-        transparent
-          ? 'bg-transparent'
-          : 'bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800',
+        navBackground,
         className
       )}
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          {/* Mobile Menu Button */}
-          <div className="flex lg:hidden">
+      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+        <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-[60] focus:bg-[var(--hp-surface)] focus:px-3 focus:py-2">
+          Skip to content
+        </a>
+
+        <div className="flex min-h-16 items-center justify-between gap-3 py-2">
+          <div className="flex items-center gap-2 lg:hidden">
             <Button
               variant="ghost"
               size="sm"
               iconOnly
               onClick={onMobileMenuToggle}
-              ariaLabel="Open menu"
+              ariaLabel={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+              className="text-[var(--hp-text)]"
             >
               <FiMenu className="w-6 h-6" />
             </Button>
           </div>
 
-          {/* Logo */}
-          <div className="flex-shrink-0">
-            <Link href="/" className="flex items-center space-x-2">
+          <div className="flex flex-1 items-center gap-3 lg:flex-none">
+            <Link href="/" className="flex items-center space-x-2" aria-label="Holiday Peak home">
               {logo || (
                 <>
-                  <div className="w-8 h-8 bg-ocean-500 dark:bg-ocean-300 rounded-lg flex items-center justify-center">
-                    <FiShoppingCart className="w-5 h-5 text-white dark:text-gray-900" />
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--hp-primary)] text-white shadow-sm">
+                    <FiShoppingCart className="h-5 w-5" />
                   </div>
-                  <span className="text-xl font-bold text-ocean-500 dark:text-ocean-300">
+                  <span className="text-lg font-black tracking-tight text-[var(--hp-text)] sm:text-xl">
                     Holiday Peak
                   </span>
                 </>
@@ -117,46 +128,51 @@ export const Navigation: React.FC<NavigationProps> = ({
             </Link>
           </div>
 
-          {/* Desktop Navigation Links */}
-          <div className="hidden lg:flex lg:items-center lg:space-x-8">
+          <div className="hidden lg:flex lg:items-center lg:space-x-5" aria-label="Catalog sections">
             {navLinks.map((link) => (
               <Link
-                key={link.href}
+                key={`${link.href}-${link.label}`}
                 href={link.href}
-                className="text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-ocean-500 dark:hover:text-ocean-300 transition-colors"
+                className="rounded-md px-2 py-1 text-sm font-semibold text-[var(--hp-text-muted)] transition-colors hover:text-[var(--hp-primary)]"
               >
                 {link.label}
               </Link>
             ))}
           </div>
 
-          {/* Search Bar (Desktop) */}
-          <div className="hidden lg:flex flex-1 max-w-md mx-8">
+          <div className="hidden lg:flex lg:flex-1 lg:max-w-md lg:mx-4">
             <SearchInput
-              placeholder="Search products..."
+              placeholder="Search catalog products"
               onSearch={onSearch}
               size="sm"
+              className="w-full"
             />
           </div>
 
-          {/* Right Actions */}
-          <div className="flex items-center space-x-2">
-            {/* Theme Toggle */}
+          <div className="flex items-center gap-1 sm:gap-2">
+            <Link
+              href="/agents/product-enrichment-chat"
+              className="hidden rounded-full border border-[var(--hp-border)] bg-[var(--hp-surface-strong)] px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-[var(--hp-primary)] md:inline-flex"
+              aria-label="Open product enrichment agent chat"
+            >
+              <FiMessageSquare className="mr-1 h-4 w-4" />
+              Agent
+            </Link>
+
             <ThemeToggle size="sm" />
 
-            {/* Search Icon (Mobile) */}
             <div className="lg:hidden">
               <Button
                 variant="ghost"
                 size="sm"
                 iconOnly
-                ariaLabel="Search"
+                ariaLabel="Search catalog"
+                onClick={() => onSearch?.('')}
               >
                 <FiSearch className="w-5 h-5" />
               </Button>
             </div>
 
-            {/* Wishlist */}
             <Link href="/wishlist">
               <Button
                 variant="ghost"
@@ -176,7 +192,6 @@ export const Navigation: React.FC<NavigationProps> = ({
               </Button>
             </Link>
 
-            {/* Cart */}
             <Link href="/cart">
               <Button
                 variant="ghost"
@@ -188,7 +203,7 @@ export const Navigation: React.FC<NavigationProps> = ({
                 <FiShoppingCart className="w-5 h-5" />
                 {cartCount > 0 && (
                   <span className="absolute -top-1 -right-1">
-                    <Badge size="sm" className="bg-lime-500 text-white">
+                    <Badge size="sm" className="bg-[var(--hp-accent)] text-white">
                       {cartCount}
                     </Badge>
                   </span>
@@ -196,7 +211,6 @@ export const Navigation: React.FC<NavigationProps> = ({
               </Button>
             </Link>
 
-            {/* User Menu */}
             {isLoggedIn ? (
               <Dropdown
                 trigger={
@@ -207,7 +221,7 @@ export const Navigation: React.FC<NavigationProps> = ({
                       className="w-8 h-8 rounded-full"
                     />
                   ) : (
-                    <div className="w-8 h-8 rounded-full bg-ocean-500 dark:bg-ocean-300 flex items-center justify-center text-white dark:text-gray-900 text-sm font-semibold">
+                    <div className="w-8 h-8 rounded-full bg-[var(--hp-primary)] flex items-center justify-center text-white text-sm font-semibold">
                       {userName?.charAt(0)?.toUpperCase() || 'U'}
                     </div>
                   )
@@ -222,7 +236,7 @@ export const Navigation: React.FC<NavigationProps> = ({
                   variant="primary"
                   size="sm"
                   iconLeft={<FiUser className="w-4 h-4" />}
-                  className="bg-ocean-500 hover:bg-ocean-600 dark:bg-ocean-300 dark:hover:bg-ocean-400"
+                  className="bg-[var(--hp-primary)] hover:bg-[var(--hp-primary-hover)]"
                 >
                   Sign In
                 </Button>
@@ -234,23 +248,30 @@ export const Navigation: React.FC<NavigationProps> = ({
 
       {/* Mobile Menu */}
       {mobileMenuOpen && (
-        <div className="lg:hidden border-t border-gray-200 dark:border-gray-800">
-          <div className="px-4 py-3 space-y-1">
-            {/* Mobile Search */}
+        <div className="lg:hidden border-t border-[var(--hp-border)] bg-[var(--hp-surface)] showcase-rise">
+          <div className="space-y-2 px-4 py-3">
             <div className="pb-3">
               <SearchInput
-                placeholder="Search products..."
+                placeholder="Search catalog products"
                 onSearch={onSearch}
                 size="sm"
+                className="w-full"
               />
             </div>
 
-            {/* Mobile Nav Links */}
+            <Link
+              href="/agents/product-enrichment-chat"
+              className="flex items-center rounded-xl border border-[var(--hp-border)] bg-[var(--hp-surface-strong)] px-3 py-2 text-sm font-semibold text-[var(--hp-primary)]"
+            >
+              <FiMessageSquare className="mr-2 h-4 w-4" />
+              Agent Product Enrichment Chat
+            </Link>
+
             {navLinks.map((link) => (
               <Link
-                key={link.href}
+                key={`${link.href}-${link.label}`}
                 href={link.href}
-                className="block px-3 py-2 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md"
+                className="block rounded-md px-3 py-2 text-sm font-semibold text-[var(--hp-text)] hover:bg-[var(--hp-surface-strong)]"
               >
                 {link.label}
               </Link>

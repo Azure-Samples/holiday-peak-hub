@@ -17,6 +17,10 @@
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "isolatedModules": true,
+    "types": [
+      "jest",
+      "node"
+    ],
     "jsx": "react-jsx",
     "plugins": [
       {
@@ -32,6 +36,7 @@
   "exclude": [
     "node_modules",
     "src/.next",
+    ".next",
     "out"
   ],
   "include": [
@@ -39,9 +44,6 @@
     "**/*.jsx",
     "**/*.ts",
     "**/*.tsx",
-    "next-env.d.ts",
-    "src/.next/types/**/*.ts",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts"
+    "next-env.d.ts"
   ]
 }

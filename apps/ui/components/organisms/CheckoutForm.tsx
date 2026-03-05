@@ -39,7 +39,7 @@ export interface CheckoutFormProps extends BaseComponentProps {
   /** Payment method */
   paymentMethod?: PaymentMethod;
   /** Order summary */
-  orderSummary: OrderSummary;
+  orderSummary?: OrderSummary;
   /** Step navigation handler */
   onStepChange?: (step: number) => void;
   /** Shipping address submit handler */
@@ -122,14 +122,7 @@ export const CheckoutForm: React.FC<CheckoutFormProps> = ({
   };
 
   const handlePaymentNext = () => {
-    const payment: PaymentMethod = {
-      type: 'card',
-      cardNumber: formData.cardNumber,
-      cardName: formData.cardName,
-      cardExpiry: formData.cardExpiry,
-      cardCvc: formData.cardCvc,
-    };
-    onPaymentSubmit?.(payment);
+    onPaymentSubmit?.('credit_card');
     onStepChange?.(currentStep + 1);
   };
 
@@ -395,6 +388,7 @@ export const CheckoutForm: React.FC<CheckoutFormProps> = ({
         </div>
 
         {/* Order Summary Sidebar */}
+        {orderSummary && (
         <div className="lg:col-span-1">
           <div className="sticky top-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 space-y-4">
             <Text variant="h4">Order Summary</Text>
@@ -439,6 +433,7 @@ export const CheckoutForm: React.FC<CheckoutFormProps> = ({
             </div>
           </div>
         </div>
+        )}
       </div>
     </div>
   );
