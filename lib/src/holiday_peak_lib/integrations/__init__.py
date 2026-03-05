@@ -31,7 +31,6 @@ from holiday_peak_lib.integrations.pim_writeback import (
     WritebackResult,
     WritebackStatus,
 )
-from holiday_peak_lib.integrations.registry import ConnectorRegistration, ConnectorRegistry
 
 __all__ = [
     "AssetData",
@@ -49,8 +48,6 @@ __all__ = [
     "IntegrationConnectorBase",
     "IdentityConnectorBase",
     "WorkforceConnectorBase",
-    "ConnectorRegistration",
-    "ConnectorRegistry",
     "GenericRestPIMConnector",
     "PIMConnectionConfig",
     "DAMConnectionConfig",
