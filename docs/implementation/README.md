@@ -42,6 +42,15 @@ This directory contains comprehensive implementation plans and compliance analys
 - Integration and load tests
 - C4 Component Diagram (Level 3)
 
+### [Truth Layer API Reference](./truth-layer-api.md)
+**Purpose**: Reference and usage guidance for truth-layer ingestion, completeness, enrichment, review, and export APIs  
+**Includes**:
+- Endpoint catalog by service
+- Auth and error handling guidance
+- Rate limiting notes
+- End-to-end workflow sequence
+- Postman collection and sample script links
+
 ---
 
 ## Architecture Patterns Summary
@@ -137,6 +146,15 @@ Target: **100%**
 3. **Allocate Resources**: Assign teams to each domain (E-commerce, CRM, Inventory, Logistics, Product Mgmt)
 4. **Set Milestones**: Weekly check-ins to track progress
 5. **Monitor Deployment**: Use Azure Monitor dashboards to validate implementation
+
+---
+
+## Deployment Optimization
+
+- `deploy-azd` changed-service detection now publishes changed agent and AKS service lists.
+- App deployments in `deploy-azd` are now strictly changed-only (CRUD, UI, and agent matrix entries are deployed only when their app paths change).
+- Post-deploy hooks (`sync-apim-agents` and `ensure-foundry-agents`) consume these lists through `CHANGED_SERVICES` and run only for changed services.
+- Foundry readiness verification in deployment workflow is scoped to changed agent services under changed-only mode.
 
 ---
 

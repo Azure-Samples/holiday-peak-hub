@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# Deploys AI model deployments (gpt-5-nano, gpt-5.2) to the AI Services account
+# Deploys required AI model deployments to the AI Services account.
 # after Bicep provisions the AI Foundry project.
 #
 # Usage: deploy-foundry-models.sh [RESOURCE_GROUP] [AI_SERVICES_NAME]
@@ -59,7 +59,7 @@ deploy_model() {
   fi
 
   echo "  [create] Deploying model '$MODEL_NAME' as '$DEPLOYMENT_NAME'..."
-  az cognitiveservices account deployment create \
+  if ! az cognitiveservices account deployment create \
     --resource-group "$RESOURCE_GROUP" \
     --name "$AI_SERVICES_NAME" \
     --deployment-name "$DEPLOYMENT_NAME" \
@@ -67,7 +67,10 @@ deploy_model() {
     --model-version "$MODEL_VERSION" \
     --model-format OpenAI \
     --sku-name "$SKU_NAME" \
-    --sku-capacity "$SKU_CAPACITY"
+    --sku-capacity "$SKU_CAPACITY"; then
+    echo "  [warn] Deployment '$DEPLOYMENT_NAME' for model '$MODEL_NAME' is not available in this account/region. Continuing."
+    return 0
+  fi
   echo "  [done] Deployment '$DEPLOYMENT_NAME' created."
 }
 

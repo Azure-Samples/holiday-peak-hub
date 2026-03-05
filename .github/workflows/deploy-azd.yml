@@ -10,7 +10,7 @@ on:
       location:
         description: Azure location
         required: true
-        default: eastus2
+        default: centralus
       projectName:
         description: Project prefix used by naming convention
         required: true
@@ -39,7 +39,7 @@ on:
         type: boolean
         default: true
       deployChangedOnly:
-        description: Deploy only services changed vs default branch
+        description: Legacy flag (changed-app-only deployment is always enforced)
         required: true
         type: boolean
         default: true
@@ -57,6 +57,8 @@ jobs:
       ui_changed: ${{ steps.detect.outputs.ui_changed }}
       agents_changed: ${{ steps.detect.outputs.agents_changed }}
       changed_agents_matrix: ${{ steps.detect.outputs.changed_agents_matrix }}
+      changed_agent_services_csv: ${{ steps.detect.outputs.changed_agent_services_csv }}
+      changed_aks_services_csv: ${{ steps.detect.outputs.changed_aks_services_csv }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -73,62 +75,83 @@ jobs:
 
           CHANGED_FILES=$(git diff --name-only "origin/$DEFAULT_BRANCH...HEAD")
 
-          mapfile -t AGENT_SERVICES <<'EOF'
-          crm-campaign-intelligence
-          crm-profile-aggregation
-          crm-segmentation-personalization
-          crm-support-assistance
-          ecommerce-cart-intelligence
-          ecommerce-catalog-search
-          ecommerce-checkout-support
-          ecommerce-order-status
-          ecommerce-product-detail-enrichment
-          inventory-alerts-triggers
-          inventory-health-check
-          inventory-jit-replenishment
-          inventory-reservation-validation
-          logistics-carrier-selection
-          logistics-eta-computation
-          logistics-returns-support
-          logistics-route-issue-detection
-          product-management-acp-transformation
-          product-management-assortment-optimization
-          product-management-consistency-validation
-          product-management-normalization-classification
-          EOF
+            mapfile -t AGENT_SERVICES < <(python3 - <<'PY'
+            import re
 
-          SHARED_CHANGED=false
-          if echo "$CHANGED_FILES" | grep -Eq '^(lib/|pyproject.toml|azure.yaml|\.infra/|\.kubernetes/)'; then
-            SHARED_CHANGED=true
-          fi
+            with open('azure.yaml', encoding='utf-8') as f:
+              lines = f.readlines()
+
+            in_services = False
+            current_service = None
+            current_host = None
+            services = []
+
+            for raw in lines:
+              line = raw.rstrip('\n')
+              if not in_services:
+                if re.match(r'^services:\s*$', line):
+                  in_services = True
+                continue
+
+              if re.match(r'^[^\s]', line):
+                break
+
+              service_match = re.match(r'^  ([a-z0-9\-]+):\s*$', line)
+              if service_match:
+                if current_service and current_host == 'aks' and current_service != 'crud-service':
+                  services.append(current_service)
+                current_service = service_match.group(1)
+                current_host = None
+                continue
+
+              host_match = re.match(r'^    host:\s*(\S+)\s*$', line)
+              if host_match:
+                current_host = host_match.group(1)
+
+            if current_service and current_host == 'aks' and current_service != 'crud-service':
+              services.append(current_service)
+
+            for service in services:
+              print(service)
+            PY
+            )
 
           CRUD_CHANGED=false
-          if [ "$SHARED_CHANGED" = true ] || echo "$CHANGED_FILES" | grep -Eq '^apps/crud-service/'; then
+          if echo "$CHANGED_FILES" | grep -Eq '^apps/crud-service/'; then
             CRUD_CHANGED=true
           fi
 
           UI_CHANGED=false
-          if [ "$SHARED_CHANGED" = true ] || echo "$CHANGED_FILES" | grep -Eq '^apps/ui/'; then
+          if echo "$CHANGED_FILES" | grep -Eq '^apps/ui/'; then
             UI_CHANGED=true
           fi
 
           AGENTS_CHANGED=false
           MATRIX='[]'
+          CHANGED_AGENTS=()
 
-          if [ "$SHARED_CHANGED" = true ]; then
+          for service in "${AGENT_SERVICES[@]}"; do
+            if echo "$CHANGED_FILES" | grep -Eq "^apps/$service/"; then
+              CHANGED_AGENTS+=("$service")
+            fi
+          done
+
+          if [ ${#CHANGED_AGENTS[@]} -gt 0 ]; then
             AGENTS_CHANGED=true
-            MATRIX=$(printf '%s\n' "${AGENT_SERVICES[@]}" | jq -R . | jq -s 'map({service: .})')
-          else
-            CHANGED_AGENTS=()
-            for service in "${AGENT_SERVICES[@]}"; do
-              if echo "$CHANGED_FILES" | grep -Eq "^apps/$service/"; then
-                CHANGED_AGENTS+=("$service")
-              fi
-            done
+            MATRIX=$(printf '%s\n' "${CHANGED_AGENTS[@]}" | jq -R . | jq -s 'map({service: .})')
+          fi
 
-            if [ ${#CHANGED_AGENTS[@]} -gt 0 ]; then
-              AGENTS_CHANGED=true
-              MATRIX=$(printf '%s\n' "${CHANGED_AGENTS[@]}" | jq -R . | jq -s 'map({service: .})')
+          CHANGED_AGENT_SERVICES_CSV=""
+          if [ ${#CHANGED_AGENTS[@]} -gt 0 ]; then
+            CHANGED_AGENT_SERVICES_CSV=$(IFS=,; echo "${CHANGED_AGENTS[*]}")
+          fi
+
+          CHANGED_AKS_SERVICES_CSV="$CHANGED_AGENT_SERVICES_CSV"
+          if [ "$CRUD_CHANGED" = true ]; then
+            if [ -n "$CHANGED_AKS_SERVICES_CSV" ]; then
+              CHANGED_AKS_SERVICES_CSV="crud-service,$CHANGED_AKS_SERVICES_CSV"
+            else
+              CHANGED_AKS_SERVICES_CSV="crud-service"
             fi
           fi
 
@@ -136,6 +159,8 @@ jobs:
           echo "ui_changed=$UI_CHANGED" >> "$GITHUB_OUTPUT"
           echo "agents_changed=$AGENTS_CHANGED" >> "$GITHUB_OUTPUT"
           echo "changed_agents_matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+          echo "changed_agent_services_csv=$CHANGED_AGENT_SERVICES_CSV" >> "$GITHUB_OUTPUT"
+          echo "changed_aks_services_csv=$CHANGED_AKS_SERVICES_CSV" >> "$GITHUB_OUTPUT"
 
   provision:
     if: ${{ !inputs.uiOnly }}
@@ -172,11 +197,88 @@ jobs:
       - name: Setup azd
         uses: Azure/setup-azd@v2
 
+      - name: Authenticate azd (OIDC)
+        run: |
+          azd auth login \
+            --client-id "${AZURE_CLIENT_ID}" \
+            --tenant-id "${AZURE_TENANT_ID}" \
+            --federated-credential-provider github \
+            --no-prompt
+
+      - name: Configure azd environment context
+        run: |
+          azd env set AZURE_SUBSCRIPTION_ID "${AZURE_SUBSCRIPTION_ID}" -e "${{ inputs.environment }}"
+          azd env set AZURE_LOCATION "${{ inputs.location }}" -e "${{ inputs.environment }}"
+          azd env set AZURE_ENV_NAME "${{ inputs.environment }}" -e "${{ inputs.environment }}"
+          azd env set AZURE_RESOURCE_GROUP "${{ inputs.projectName }}-${{ inputs.environment }}-rg" -e "${{ inputs.environment }}"
+          azd env set resourceGroupName "${{ inputs.projectName }}-${{ inputs.environment }}-rg" -e "${{ inputs.environment }}"
+          azd env set AZURE_AKS_CLUSTER_NAME "${{ inputs.projectName }}-${{ inputs.environment }}-aks" -e "${{ inputs.environment }}"
+          azd env set AKS_CLUSTER_NAME "${{ inputs.projectName }}-${{ inputs.environment }}-aks" -e "${{ inputs.environment }}"
+          azd env set AZURE_CONTAINER_REGISTRY_ENDPOINT "${{ inputs.projectName }}${{ inputs.environment }}acr.azurecr.io" -e "${{ inputs.environment }}"
+
+      - name: Install kubelogin
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if az aks install-cli --kubelogin-version latest; then
+              exit 0
+            fi
+            echo "kubelogin install failed on attempt ${attempt}; retrying..."
+            sleep 15
+          done
+          echo "kubelogin install failed after retries"
+          exit 1
+
+      - name: Ensure hook scripts executable
+        run: chmod +x ./.infra/azd/hooks/*.sh
+
+      - name: Ensure AKS cluster is running
+        run: |
+          AKS_RG="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+          AKS_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-aks"
+
+          if az aks show --resource-group "$AKS_RG" --name "$AKS_NAME" >/dev/null 2>&1; then
+            POWER_STATE=$(az aks show --resource-group "$AKS_RG" --name "$AKS_NAME" --query "powerState.code" -o tsv 2>/dev/null || true)
+            if [ "$POWER_STATE" = "Stopped" ]; then
+              echo "AKS cluster is stopped. Starting $AKS_NAME..."
+              az aks start --resource-group "$AKS_RG" --name "$AKS_NAME"
+              for _ in $(seq 1 40); do
+                CURRENT_STATE=$(az aks show --resource-group "$AKS_RG" --name "$AKS_NAME" --query "powerState.code" -o tsv 2>/dev/null || true)
+                if [ "$CURRENT_STATE" = "Running" ]; then
+                  echo "AKS cluster is running."
+                  break
+                fi
+                sleep 30
+              done
+            fi
+          else
+            echo "AKS cluster does not exist yet. Continuing."
+          fi
+
+      - name: Install kubelogin
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if az aks install-cli --kubelogin-version latest; then
+              exit 0
+            fi
+            echo "kubelogin install failed on attempt ${attempt}; retrying..."
+            sleep 15
+          done
+          echo "kubelogin install failed after retries"
+          exit 1
+
+      - name: Ensure hook scripts executable
+        run: chmod +x ./.infra/azd/hooks/*.sh
+
       - name: Configure azd environment
         run: |
           azd env set AZURE_SUBSCRIPTION_ID "${AZURE_SUBSCRIPTION_ID}" -e "${{ inputs.environment }}"
           azd env set AZURE_LOCATION "${{ inputs.location }}" -e "${{ inputs.environment }}"
           azd env set AZURE_ENV_NAME "${{ inputs.environment }}" -e "${{ inputs.environment }}"
+          azd env set AZURE_RESOURCE_GROUP "${{ inputs.projectName }}-${{ inputs.environment }}-rg" -e "${{ inputs.environment }}"
+          azd env set resourceGroupName "${{ inputs.projectName }}-${{ inputs.environment }}-rg" -e "${{ inputs.environment }}"
+          azd env set AZURE_AKS_CLUSTER_NAME "${{ inputs.projectName }}-${{ inputs.environment }}-aks" -e "${{ inputs.environment }}"
+          azd env set AKS_CLUSTER_NAME "${{ inputs.projectName }}-${{ inputs.environment }}-aks" -e "${{ inputs.environment }}"
+          azd env set AZURE_CONTAINER_REGISTRY_ENDPOINT "${{ inputs.projectName }}${{ inputs.environment }}acr.azurecr.io" -e "${{ inputs.environment }}"
 
           azd env set deployShared true -e "${{ inputs.environment }}"
           azd env set deployStatic "${{ inputs.deployStatic }}" -e "${{ inputs.environment }}"
@@ -191,6 +293,35 @@ jobs:
 
       - name: Provision infrastructure
         run: azd provision --no-prompt -e "${{ inputs.environment }}"
+
+      - name: Ensure AKS identity can read Key Vault secrets
+        run: |
+          AKS_RG="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+          AKS_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-aks"
+          KEY_VAULT_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-kv"
+
+          KUBELET_OBJECT_ID=$(az aks show \
+            --resource-group "$AKS_RG" \
+            --name "$AKS_NAME" \
+            --query "identityProfile.kubeletidentity.objectId" -o tsv)
+
+          KEY_VAULT_ID=$(az keyvault show \
+            --resource-group "$AKS_RG" \
+            --name "$KEY_VAULT_NAME" \
+            --query id -o tsv)
+
+          EXISTING=$(az role assignment list \
+            --assignee-object-id "$KUBELET_OBJECT_ID" \
+            --scope "$KEY_VAULT_ID" \
+            --query "[?roleDefinitionName=='Key Vault Secrets User'] | length(@)" -o tsv)
+
+          if [ "$EXISTING" = "0" ]; then
+            az role assignment create \
+              --assignee-object-id "$KUBELET_OBJECT_ID" \
+              --assignee-principal-type ServicePrincipal \
+              --role "Key Vault Secrets User" \
+              --scope "$KEY_VAULT_ID"
+          fi
 
       - name: Export provisioned outputs
         id: outputs
@@ -240,8 +371,10 @@ jobs:
 
   deploy-crud:
     runs-on: ubuntu-latest
-    needs: provision
-    if: ${{ !inputs.uiOnly && (!inputs.deployChangedOnly || needs.detect-changes.outputs.crud_changed == 'true') }}
+    needs:
+      - provision
+      - detect-changes
+    if: ${{ !inputs.uiOnly && needs.detect-changes.outputs.crud_changed == 'true' }}
     environment: ${{ inputs.environment }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -260,6 +393,51 @@ jobs:
       - name: Setup azd
         uses: Azure/setup-azd@v2
 
+      - name: Authenticate azd (OIDC)
+        run: |
+          azd auth login \
+            --client-id "${AZURE_CLIENT_ID}" \
+            --tenant-id "${AZURE_TENANT_ID}" \
+            --federated-credential-provider github \
+            --no-prompt
+
+      - name: Configure azd environment context
+        run: |
+          azd env set AZURE_SUBSCRIPTION_ID "${AZURE_SUBSCRIPTION_ID}" -e "${{ inputs.environment }}"
+          azd env set AZURE_LOCATION "${{ inputs.location }}" -e "${{ inputs.environment }}"
+          azd env set AZURE_ENV_NAME "${{ inputs.environment }}" -e "${{ inputs.environment }}"
+          azd env set AZURE_RESOURCE_GROUP "${{ inputs.projectName }}-${{ inputs.environment }}-rg" -e "${{ inputs.environment }}"
+          azd env set resourceGroupName "${{ inputs.projectName }}-${{ inputs.environment }}-rg" -e "${{ inputs.environment }}"
+          azd env set AZURE_AKS_CLUSTER_NAME "${{ inputs.projectName }}-${{ inputs.environment }}-aks" -e "${{ inputs.environment }}"
+          azd env set AKS_CLUSTER_NAME "${{ inputs.projectName }}-${{ inputs.environment }}-aks" -e "${{ inputs.environment }}"
+          azd env set AZURE_CONTAINER_REGISTRY_ENDPOINT "${{ inputs.projectName }}${{ inputs.environment }}acr.azurecr.io" -e "${{ inputs.environment }}"
+
+      - name: Install kubelogin
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if az aks install-cli --kubelogin-version latest; then
+              exit 0
+            fi
+            echo "kubelogin install failed on attempt ${attempt}; retrying..."
+            sleep 15
+          done
+          echo "kubelogin install failed after retries"
+          exit 1
+
+      - name: Ensure hook scripts executable
+        run: chmod +x ./.infra/azd/hooks/*.sh
+
+      - name: Configure azd environment context
+        run: |
+          azd env set AZURE_SUBSCRIPTION_ID "${AZURE_SUBSCRIPTION_ID}" -e "${{ inputs.environment }}"
+          azd env set AZURE_LOCATION "${{ inputs.location }}" -e "${{ inputs.environment }}"
+          azd env set AZURE_ENV_NAME "${{ inputs.environment }}" -e "${{ inputs.environment }}"
+          azd env set AZURE_RESOURCE_GROUP "${{ inputs.projectName }}-${{ inputs.environment }}-rg" -e "${{ inputs.environment }}"
+          azd env set resourceGroupName "${{ inputs.projectName }}-${{ inputs.environment }}-rg" -e "${{ inputs.environment }}"
+          azd env set AZURE_AKS_CLUSTER_NAME "${{ inputs.projectName }}-${{ inputs.environment }}-aks" -e "${{ inputs.environment }}"
+          azd env set AKS_CLUSTER_NAME "${{ inputs.projectName }}-${{ inputs.environment }}-aks" -e "${{ inputs.environment }}"
+          azd env set AZURE_CONTAINER_REGISTRY_ENDPOINT "${{ inputs.projectName }}${{ inputs.environment }}acr.azurecr.io" -e "${{ inputs.environment }}"
+
       - name: Get AKS credentials
         run: |
           az aks get-credentials \
@@ -267,13 +445,44 @@ jobs:
             --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
             --overwrite-existing
 
+      - name: Resolve AKS managed identity client ID
+        run: |
+          AKS_MI_CLIENT_ID=$(az aks show \
+            --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
+            --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
+            --query "identityProfile.kubeletidentity.clientId" -o tsv)
+          echo "WORKLOAD_AZURE_CLIENT_ID=${AKS_MI_CLIENT_ID}" >> "$GITHUB_ENV"
+
       - name: Deploy CRUD service
-        run: azd deploy --service crud-service --no-prompt -e "${{ inputs.environment }}"
+        run: |
+          if ! azd deploy --service crud-service --no-prompt -e "${{ inputs.environment }}"; then
+            echo "Initial CRUD deploy failed; retrying once after short wait..."
+            sleep 60
+            azd deploy --service crud-service --no-prompt -e "${{ inputs.environment }}"
+          fi
+        env:
+          AZURE_CLIENT_ID: ${{ env.WORKLOAD_AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ env.AZURE_TENANT_ID }}
+          PROJECT_ENDPOINT: ${{ needs.provision.outputs.PROJECT_ENDPOINT }}
+          PROJECT_NAME: ${{ needs.provision.outputs.PROJECT_NAME }}
+          MODEL_DEPLOYMENT_NAME_FAST: gpt-5-nano
+          MODEL_DEPLOYMENT_NAME_RICH: gpt-5-nano
+          COSMOS_ACCOUNT_URI: ${{ needs.provision.outputs.COSMOS_ACCOUNT_URI }}
+          COSMOS_DATABASE: ${{ needs.provision.outputs.COSMOS_DATABASE }}
+          REDIS_HOST: ${{ needs.provision.outputs.REDIS_HOST }}
+          EVENT_HUB_NAMESPACE: ${{ needs.provision.outputs.EVENT_HUB_NAMESPACE }}
+          KEY_VAULT_URI: ${{ needs.provision.outputs.KEY_VAULT_URI }}
+          APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ needs.provision.outputs.APPLICATIONINSIGHTS_CONNECTION_STRING }}
+          POSTGRES_HOST: ${{ needs.provision.outputs.POSTGRES_HOST }}
+          POSTGRES_USER: ${{ needs.provision.outputs.POSTGRES_USER }}
+          POSTGRES_DATABASE: ${{ needs.provision.outputs.POSTGRES_DATABASE }}
 
   deploy-ui:
     runs-on: ubuntu-latest
-    if: ${{ inputs.deployStatic && !inputs.uiOnly && (!inputs.deployChangedOnly || needs.detect-changes.outputs.ui_changed == 'true') }}
-    needs: provision
+    if: ${{ inputs.deployStatic && !inputs.uiOnly && needs.detect-changes.outputs.ui_changed == 'true' }}
+    needs:
+      - provision
+      - detect-changes
     environment: ${{ inputs.environment }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -391,8 +600,9 @@ jobs:
 
   deploy-agents:
     runs-on: ubuntu-latest
-    if: ${{ !inputs.uiOnly && (!inputs.deployChangedOnly || needs.detect-changes.outputs.agents_changed == 'true') }}
+    if: ${{ !inputs.uiOnly && needs.detect-changes.outputs.agents_changed == 'true' }}
     needs:
+      - provision
       - deploy-crud
       - deploy-foundry-models
       - detect-changes
@@ -400,7 +610,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ inputs.deployChangedOnly && fromJSON(needs.detect-changes.outputs.changed_agents_matrix) || fromJSON('[{"service":"crm-campaign-intelligence"},{"service":"crm-profile-aggregation"},{"service":"crm-segmentation-personalization"},{"service":"crm-support-assistance"},{"service":"ecommerce-cart-intelligence"},{"service":"ecommerce-catalog-search"},{"service":"ecommerce-checkout-support"},{"service":"ecommerce-order-status"},{"service":"ecommerce-product-detail-enrichment"},{"service":"inventory-alerts-triggers"},{"service":"inventory-health-check"},{"service":"inventory-jit-replenishment"},{"service":"inventory-reservation-validation"},{"service":"logistics-carrier-selection"},{"service":"logistics-eta-computation"},{"service":"logistics-returns-support"},{"service":"logistics-route-issue-detection"},{"service":"product-management-acp-transformation"},{"service":"product-management-assortment-optimization"},{"service":"product-management-consistency-validation"},{"service":"product-management-normalization-classification"}]') }}
+        include: ${{ fromJSON(needs.detect-changes.outputs.changed_agents_matrix) }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -418,6 +628,14 @@ jobs:
       - name: Setup azd
         uses: Azure/setup-azd@v2
 
+      - name: Authenticate azd (OIDC)
+        run: |
+          azd auth login \
+            --client-id "${AZURE_CLIENT_ID}" \
+            --tenant-id "${AZURE_TENANT_ID}" \
+            --federated-credential-provider github \
+            --no-prompt
+
       - name: Get AKS credentials
         run: |
           az aks get-credentials \
@@ -425,15 +643,25 @@ jobs:
             --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
             --overwrite-existing
 
+      - name: Resolve AKS managed identity client ID
+        run: |
+          AKS_MI_CLIENT_ID=$(az aks show \
+            --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
+            --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
+            --query "identityProfile.kubeletidentity.clientId" -o tsv)
+          echo "WORKLOAD_AZURE_CLIENT_ID=${AKS_MI_CLIENT_ID}" >> "$GITHUB_ENV"
+
       - name: Deploy service
         run: azd deploy --service "${{ matrix.service }}" --no-prompt -e "${{ inputs.environment }}"
         env:
+          AZURE_CLIENT_ID: ${{ env.WORKLOAD_AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ env.AZURE_TENANT_ID }}
           PROJECT_ENDPOINT: ${{ needs.provision.outputs.PROJECT_ENDPOINT }}
           PROJECT_NAME: ${{ needs.provision.outputs.PROJECT_NAME }}
           FOUNDRY_AUTO_ENSURE_ON_STARTUP: "true"
           FOUNDRY_STRICT_ENFORCEMENT: "true"
           MODEL_DEPLOYMENT_NAME_FAST: gpt-5-nano
-          MODEL_DEPLOYMENT_NAME_RICH: gpt-5.2
+          MODEL_DEPLOYMENT_NAME_RICH: gpt-5-nano
           COSMOS_ACCOUNT_URI: ${{ needs.provision.outputs.COSMOS_ACCOUNT_URI }}
           COSMOS_DATABASE: ${{ needs.provision.outputs.COSMOS_DATABASE }}
           REDIS_HOST: ${{ needs.provision.outputs.REDIS_HOST }}
@@ -446,12 +674,17 @@ jobs:
 
   sync-apim:
     runs-on: ubuntu-latest
-    needs: deploy-agents
+    if: ${{ !inputs.uiOnly && (needs.detect-changes.outputs.agents_changed == 'true' || needs.detect-changes.outputs.crud_changed == 'true') && (needs.deploy-crud.result == 'success' || needs.deploy-crud.result == 'skipped') && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') }}
+    needs:
+      - deploy-crud
+      - deploy-agents
+      - detect-changes
     environment: ${{ inputs.environment }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      CHANGED_SERVICES: ${{ needs.detect-changes.outputs.changed_aks_services_csv }}
     steps:
       - uses: actions/checkout@v4
 
@@ -462,20 +695,32 @@ jobs:
           tenant-id: ${{ env.AZURE_TENANT_ID }}
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
+            --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
+            --overwrite-existing
+
       - name: Sync APIM agent APIs
         run: |
-          bash .infra/azd/hooks/sync-apim-agents.sh
+          bash .infra/azd/hooks/sync-apim-agents.sh --use-ingress \
+            --app-gw-name "${{ inputs.projectName }}-${{ inputs.environment }}-appgw"
         env:
           AZURE_RESOURCE_GROUP: ${{ inputs.projectName }}-${{ inputs.environment }}-rg
 
   ensure-foundry-agents:
     runs-on: ubuntu-latest
-    needs: deploy-agents
+    if: ${{ !inputs.uiOnly && needs.detect-changes.outputs.agents_changed == 'true' && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') }}
+    needs:
+      - deploy-agents
+      - detect-changes
     environment: ${{ inputs.environment }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      CHANGED_SERVICES: ${{ needs.detect-changes.outputs.changed_agent_services_csv }}
     steps:
       - uses: actions/checkout@v4
 
@@ -506,27 +751,31 @@ jobs:
 
       - name: Verify Foundry readiness across services
         run: |
-          SERVICES=$(python3 -c "
-          import re
-          with open('azure.yaml') as f: lines = f.readlines()
-          s, cs, ch = False, None, None
-          svcs = []
-          for l in lines:
-            l = l.rstrip()
-            if not s:
-              if re.match(r'^services:\s*$', l): s = True
-              continue
-            if re.match(r'^[^\s]', l): break
-            m = re.match(r'^  ([a-z0-9\-]+):\s*$', l)
-            if m:
-              if cs and ch == 'aks' and cs != 'crud-service': svcs.append(cs)
-              cs, ch = m.group(1), None
-              continue
-            h = re.match(r'^    host:\s*(\S+)', l)
-            if h: ch = h.group(1)
-          if cs and ch == 'aks' and cs != 'crud-service': svcs.append(cs)
-          print('\n'.join(svcs))
-          ")
+          if [ -n "${CHANGED_SERVICES}" ]; then
+            SERVICES=$(printf '%s' "${CHANGED_SERVICES}" | tr ',' '\n' | sed '/^crud-service$/d' | sed '/^$/d')
+          else
+            SERVICES=$(python3 -c "
+            import re
+            with open('azure.yaml') as f: lines = f.readlines()
+            s, cs, ch = False, None, None
+            svcs = []
+            for l in lines:
+              l = l.rstrip()
+              if not s:
+                if re.match(r'^services:\s*$', l): s = True
+                continue
+              if re.match(r'^[^\s]', l): break
+              m = re.match(r'^  ([a-z0-9\-]+):\s*$', l)
+              if m:
+                if cs and ch == 'aks' and cs != 'crud-service': svcs.append(cs)
+                cs, ch = m.group(1), None
+                continue
+              h = re.match(r'^    host:\s*(\S+)', l)
+              if h: ch = h.group(1)
+            if cs and ch == 'aks' and cs != 'crud-service': svcs.append(cs)
+            print('\\n'.join(svcs))
+            ")
+          fi
 
           FAILED=0
           echo "$SERVICES" | while IFS= read -r SVC; do

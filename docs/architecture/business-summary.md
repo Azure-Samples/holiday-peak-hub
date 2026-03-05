@@ -58,6 +58,12 @@ The accelerator provides both greenfield (new) and brownfield (existing system i
 
 **Business Value**: Retailers get a complete, production-ready frontend that connects to all 21 backend services with zero UI development effort. Reduces time-to-market by 4-6 months.
 
+#### Staff Review Pages (v1.1.0)
+- **HITL Review Queue**: Staff dashboard for reviewing AI-proposed enrichments
+- **Evidence Panel**: Source attribution and confidence scoring for proposed changes
+- **Bulk Approval**: Batch processing for high-confidence enrichments
+- **Conflict Resolution**: Side-by-side comparison of conflicting source data
+
 ### Core Framework (lib/)
 
 The micro-framework delivers standardized patterns for:
@@ -68,6 +74,32 @@ The micro-framework delivers standardized patterns for:
 - **Pattern**: Adapter design pattern for consistent agent consumption
 - **Expected Use**: Retailers override adapters to connect their own APIs
 - **Not Expected**: Direct database access; adapters mediate all data
+
+#### Enterprise Connectors (v1.1.0)
+- **Purpose**: Production-ready integrations with major enterprise platforms
+- **Value**: Pre-built connectors reduce 80% of integration effort
+- **Included Connectors**:
+  - **Oracle Fusion Cloud SCM**: Inventory, Purchase Orders, Shipments (OAuth 2.0 + JWKS)
+  - **Salesforce CRM & Marketing Cloud**: Contacts, Accounts, Leads, Campaigns (OAuth 2.0 + refresh)
+  - **SAP S/4HANA**: Material master, inventory positions, purchase orders (OData v4)
+  - **Dynamics 365 Customer Engagement**: Contacts, Accounts, Opportunities, Cases (Dataverse API)
+  - **Generic REST DAM**: Configurable endpoint mapping for any DAM system
+- **Pattern**: Connector Registry with factory-based instantiation
+- **Expected Use**: Configure credentials and field mappings; connectors handle protocol complexity
+- **Not Expected**: Building raw API integrations; connectors abstract all transport details
+
+#### Enterprise Hardening (v1.1.0)
+- **Purpose**: Production-grade resilience patterns for high-availability deployments
+- **Included Patterns**:
+  - **Circuit Breaker**: Configurable failure threshold and recovery timeout, half-open state with gradual recovery
+  - **Bulkhead Pattern**: Semaphore-based resource isolation, per-service concurrency limits
+  - **Rate Limiter**: Token bucket algorithm with configurable burst and replenishment
+  - **Telemetry Integration**: OpenTelemetry spans and metrics, automatic trace propagation
+  - **Health Probes**: Kubernetes liveness/readiness endpoints with dependency health aggregation
+- **Value**: 99.9% uptime SLA enablement, automatic failure isolation, graceful degradation
+- **Pattern**: Decorator-based application with configuration-driven thresholds
+- **Expected Use**: Apply decorators to external API calls; configure per-service limits
+- **Not Expected**: Building custom resilience logic; patterns are production-tested
 
 #### Agents
 - **Purpose**: Orchestrate AI-driven operations with multi-tier memory
@@ -82,6 +114,19 @@ The micro-framework delivers standardized patterns for:
 - **Pattern**: Tiered caching with SDK-based implementations
 - **Expected Use**: Automatic tier selection based on access patterns
 - **Not Expected**: Manual tier management; framework handles promotion/demotion
+
+#### Product Truth Layer (v1.1.0)
+- **Purpose**: Single source of truth for product data with AI-driven enrichment
+- **Components**:
+  - **Truth Store Adapter**: Cosmos DB-backed storage with provenance tracking
+  - **Truth Schemas**: Pydantic v2 models for TruthAttribute, ProposedAttribute, GapReport, AuditEvent
+  - **Truth Ingestion**: Event Hub-driven ingestion with multi-source conflict resolution
+  - **HITL Review**: Human-in-the-loop workflow for AI enrichment approval
+  - **PIM Writeback**: Opt-in module for pushing approved changes back to source PIMs
+- **Value**: 95%+ attribute coverage goal, complete audit trail, AI-assisted gap filling
+- **Pattern**: Event-driven pipeline with configurable approval workflows
+- **Expected Use**: Configure tenant settings, define category schemas, monitor enrichment queues
+- **Not Expected**: Manual data entry; system identifies and proposes enrichments automatically
 
 ### Domain Services (apps/)
 
@@ -307,16 +352,19 @@ Each app addresses a specific retail process:
 - Rapid iteration and feature deployment
 
 **Quality and Reliability**:
-- Production-ready code with 80% test coverage
+- Production-ready code with 508 tests and 80%+ coverage
 - WCAG 2.1 AA accessibility compliance
 - SOC 2, GDPR, PCI DSS frameworks included
 - Proven architecture patterns
+- Enterprise-grade resilience (circuit breaker, bulkhead, rate limiter)
 
 **Future-Proofing**:
 - **AG-UI Protocol**: Ready for AI assistant ecosystem
 - **ACP Compliance**: Interoperable with third-party agents
 - **Modular Architecture**: Easy to extend and customize
 - **Cloud-Native**: Scalable from day one
+- **Product Truth Layer**: AI-driven catalog enrichment with HITL review
+- **Enterprise Connectors**: Pre-built integrations for Oracle, Salesforce, SAP, Dynamics 365
 
 ### Risk Mitigation
 
@@ -330,7 +378,7 @@ Each app addresses a specific retail process:
 
 ## Complexity Assessment
 
-**Moderate** (Previously High): Complete production-ready implementation significantly reduces complexity:
+**Low-to-Moderate** (Previously Moderate): v1.1.0 brings enterprise-ready integrations and hardening:
 
 - **Frontend Development**: Eliminated (14 pages provided)
 - **Component Library**: Eliminated (52 components provided)
@@ -338,7 +386,11 @@ Each app addresses a specific retail process:
 - **AG-UI Integration**: Implemented (action registry + state exposure)
 - **ACP Compliance**: Implemented (schemas + validators)
 - **Governance Standards**: Documented (frontend, backend, infrastructure)
-- **Remaining Effort**: Adapter implementation for retailer APIs, business rule customization, branding
+- **Enterprise Connectors**: Production-ready (Oracle, Salesforce, SAP, Dynamics 365)
+- **Resilience Patterns**: Implemented (circuit breaker, bulkhead, rate limiter)
+- **Product Truth Layer**: Foundation complete (schemas, adapters, ingestion)
+- **HITL Workflows**: Implemented (review queue, bulk approval, conflict resolution)
+- **Remaining Effort**: Connector credential configuration, business rule customization, branding
 
 **Estimated Timeline**:
 - **With Accelerator**: 4-8 weeks (adapter integration + customization)

@@ -1,4 +1,4 @@
-"""Connector contracts and registry exports."""
+"""Connector contracts, registry, and writeback exports."""
 
 from holiday_peak_lib.integrations.contracts import (
     AnalyticsConnectorBase,
@@ -17,7 +17,20 @@ from holiday_peak_lib.integrations.contracts import (
     SegmentData,
     WorkforceConnectorBase,
 )
-from holiday_peak_lib.integrations.registry import ConnectorRegistration, ConnectorRegistry
+from holiday_peak_lib.integrations.dam_generic import DAMConnectionConfig, GenericDAMConnector
+from holiday_peak_lib.integrations.pim_generic_rest import (
+    GenericRestPIMConnector,
+    PIMConnectionConfig,
+)
+from holiday_peak_lib.integrations.pim_writeback import (
+    CircuitBreaker,
+    CircuitBreakerState,
+    PIMWritebackManager,
+    ProductWritebackResult,
+    TenantConfig,
+    WritebackResult,
+    WritebackStatus,
+)
 
 __all__ = [
     "AssetData",
@@ -35,6 +48,15 @@ __all__ = [
     "IntegrationConnectorBase",
     "IdentityConnectorBase",
     "WorkforceConnectorBase",
-    "ConnectorRegistration",
-    "ConnectorRegistry",
+    "GenericRestPIMConnector",
+    "PIMConnectionConfig",
+    "DAMConnectionConfig",
+    "GenericDAMConnector",
+    "CircuitBreaker",
+    "CircuitBreakerState",
+    "PIMWritebackManager",
+    "ProductWritebackResult",
+    "TenantConfig",
+    "WritebackResult",
+    "WritebackStatus",
 ]

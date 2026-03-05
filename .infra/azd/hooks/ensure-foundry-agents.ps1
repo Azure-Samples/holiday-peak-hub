@@ -33,6 +33,7 @@ param(
     [switch]$UsePortForward,
     [string]$BaseUrl,
     [string]$AzureYamlPath,
+    [string]$ChangedServices = $env:CHANGED_SERVICES,
     [int]$MaxRetries = 3,
     [bool]$FailOnError = $false
 )
@@ -140,6 +141,17 @@ function Resolve-K8sServiceEndpoint {
 
 # ---- Main ----
 $services = Get-AgentServices -Path $AzureYamlPath
+
+if ($ChangedServices) {
+    $changedServiceSet = $ChangedServices.Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+    $services = @($services | Where-Object { $changedServiceSet -contains $_ })
+}
+
+if (-not $services -or $services.Count -eq 0) {
+    Write-Host 'No matching changed agent services to ensure.'
+    exit 0
+}
+
 Write-Host "Found $($services.Count) agent services to ensure."
 
 $failed = @()

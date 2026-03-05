@@ -6,51 +6,31 @@ import { MainLayout } from '@/components/templates/MainLayout';
 import { Card } from '@/components/molecules/Card';
 import { Button } from '@/components/atoms/Button';
 import { Badge } from '@/components/atoms/Badge';
+import { useOrders } from '@/lib/hooks/useOrders';
 import { 
   FiPackage, FiHeart, FiMapPin, FiUser,
   FiShoppingBag, FiArrowRight
 } from 'react-icons/fi';
 
 export default function DashboardPage() {
-  // Mock data
-  const stats = [
-    { label: 'Total Orders', value: '24', icon: FiPackage, color: 'ocean' },
-    { label: 'Wishlist Items', value: '12', icon: FiHeart, color: 'lime' },
-    { label: 'Saved Addresses', value: '3', icon: FiMapPin, color: 'cyan' },
-    { label: 'Rewards Points', value: '1,250', icon: FiShoppingBag, color: 'ocean' },
-  ];
+  const { data: orders = [], isLoading: ordersLoading } = useOrders();
 
-  const recentOrders = [
-    {
-      id: 'ORD-2026-0123',
-      date: 'Jan 27, 2026',
-      status: 'delivered',
-      items: 2,
-      total: 259.98,
-    },
-    {
-      id: 'ORD-2026-0122',
-      date: 'Jan 25, 2026',
-      status: 'in_transit',
-      items: 1,
-      total: 89.99,
-    },
-    {
-      id: 'ORD-2026-0121',
-      date: 'Jan 20, 2026',
-      status: 'processing',
-      items: 3,
-      total: 449.97,
-    },
+  const recentOrders = orders.slice(0, 3);
+
+  const stats = [
+    { label: 'Total Orders', value: ordersLoading ? '…' : String(orders.length), icon: FiPackage, color: 'ocean' as const },
+    { label: 'Wishlist Items', value: '12', icon: FiHeart, color: 'lime' as const },
+    { label: 'Saved Addresses', value: '3', icon: FiMapPin, color: 'cyan' as const },
+    { label: 'Rewards Points', value: '1,250', icon: FiShoppingBag, color: 'ocean' as const },
   ];
 
   const getStatusBadge = (status: string) => {
-    const configs = {
+    const configs: Record<string, { label: string; className: string }> = {
       delivered: { label: 'Delivered', className: 'bg-lime-100 text-lime-700 dark:bg-lime-900 dark:text-lime-300' },
       in_transit: { label: 'In Transit', className: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900 dark:text-cyan-300' },
       processing: { label: 'Processing', className: 'bg-ocean-100 text-ocean-700 dark:bg-ocean-900 dark:text-ocean-300' },
     };
-    const config = configs[status as keyof typeof configs];
+    const config = configs[status] ?? { label: status, className: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300' };
     return <Badge className={config.className}>{config.label}</Badge>;
   };
 
@@ -91,7 +71,12 @@ export default function DashboardPage() {
               </div>
 
               <div className="space-y-4">
-                {recentOrders.map((order) => (
+                {ordersLoading && (
+                  Array(3).fill(0).map((_, i) => (
+                    <div key={i} className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg animate-pulse h-20" />
+                  ))
+                )}
+                {!ordersLoading && recentOrders.map((order) => (
                   <div
                     key={order.id}
                     className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg hover:shadow-md transition-shadow"
@@ -105,14 +90,14 @@ export default function DashboardPage() {
                           {order.id}
                         </Link>
                         <p className="text-sm text-gray-600 dark:text-gray-400">
-                          {order.date}
+                          {new Date(order.created_at).toLocaleDateString()}
                         </p>
                       </div>
                       {getStatusBadge(order.status)}
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-600 dark:text-gray-400">
-                        {order.items} item{order.items > 1 ? 's' : ''}
+                        {order.items.length} item{order.items.length !== 1 ? 's' : ''}
                       </span>
                       <span className="font-bold text-gray-900 dark:text-white">
                         ${order.total.toFixed(2)}
@@ -120,6 +105,9 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 ))}
+                {!ordersLoading && recentOrders.length === 0 && (
+                  <p className="text-sm text-gray-600 dark:text-gray-400">No orders yet.</p>
+                )}
               </div>
             </Card>
 
@@ -183,8 +171,7 @@ export default function DashboardPage() {
                   </h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     1,250 points
-                  </p>
-                </div>
+                  </p>                </div>
               </div>
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                 You're 750 points away from your next reward!

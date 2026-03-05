@@ -15,6 +15,7 @@ MAX_RETRIES="${MAX_RETRIES:-3}"
 USE_PORT_FORWARD=false
 BASE_URL=""
 FAIL_ON_ERROR="${FAIL_ON_ERROR:-false}"
+CHANGED_SERVICES="${CHANGED_SERVICES:-}"
 
 # ---- Parse arguments ----
 while [ $# -gt 0 ]; do
@@ -65,6 +66,23 @@ PY
 
 if [ -z "$SERVICES" ]; then
   echo "No agent services found in azure.yaml."
+  exit 0
+fi
+
+if [ -n "$CHANGED_SERVICES" ]; then
+  FILTER_FILE="$(mktemp)"
+  printf '%s' "$CHANGED_SERVICES" | tr ',' '\n' | sed '/^[[:space:]]*$/d' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' > "$FILTER_FILE"
+  SERVICES="$(printf '%s\n' "$SERVICES" | while IFS= read -r SVC; do
+    [ -z "$SVC" ] && continue
+    if grep -Fxq "$SVC" "$FILTER_FILE"; then
+      printf '%s\n' "$SVC"
+    fi
+  done)"
+  rm -f "$FILTER_FILE"
+fi
+
+if [ -z "$SERVICES" ]; then
+  echo "No matching changed agent services to ensure."
   exit 0
 fi
 

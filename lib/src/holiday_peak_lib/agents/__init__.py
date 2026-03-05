@@ -1,11 +1,5 @@
 """Agent builders and runtime primitives."""
 
-# Patch missing LLM_* attrs on SpanAttributes before agent_framework loads.
-from ._otel_compat import patch_span_attributes as _patch_span_attributes
-
-_patch_span_attributes()
-del _patch_span_attributes
-
 from .base_agent import AgentDependencies, BaseRetailAgent, ModelTarget
 from .builder import AgentBuilder
 from .foundry import (
@@ -13,6 +7,7 @@ from .foundry import (
     build_foundry_model_target,
     ensure_foundry_agent,
 )
+from .guardrails import EnrichmentGuardrail, SourceValidationResult
 
 __all__ = [
     "AgentBuilder",
@@ -22,4 +17,6 @@ __all__ = [
     "FoundryAgentConfig",
     "build_foundry_model_target",
     "ensure_foundry_agent",
+    "EnrichmentGuardrail",
+    "SourceValidationResult",
 ]

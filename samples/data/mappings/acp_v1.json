@@ -1,0 +1,37 @@
+{
+  "protocol": "acp",
+  "version": "1.0",
+  "description": "Agentic Commerce Protocol v1 field mapping",
+  "field_mappings": {
+    "item_id": {"source": "style_id", "required": true},
+    "title": {"source": "name", "required": true},
+    "description": {"source": "description", "required": true, "fallback": ""},
+    "url": {"source": null, "template": "https://example.com/products/{style_id}", "required": true},
+    "image_url": {"source": "image_url", "required": true, "fallback": "https://example.com/images/placeholder.png"},
+    "brand": {"source": "brand", "required": true, "fallback": ""},
+    "price": {"source": "price", "required": true, "transform": "format_price", "args": {"currency_field": "currency"}},
+    "availability": {"source": "variants", "required": true, "transform": "compute_availability"},
+    "is_eligible_search": {"source": null, "default": true},
+    "is_eligible_checkout": {"source": null, "default": true},
+    "store_name": {"source": null, "default": "Holiday Peak Hub"},
+    "seller_url": {"source": null, "default": "https://example.com/store"},
+    "seller_privacy_policy": {"source": null, "default": "https://example.com/privacy"},
+    "seller_tos": {"source": null, "default": "https://example.com/terms"},
+    "return_policy": {"source": null, "default": "https://example.com/returns"},
+    "return_window": {"source": null, "default": 30},
+    "target_countries": {"source": null, "default": ["US"]},
+    "store_country": {"source": null, "default": "US"}
+  },
+  "transforms": {
+    "format_price": "Format as '<amount> <currency_lower>' (e.g. '79.99 usd')",
+    "compute_availability": "Return 'in stock' if any variant has stock_quantity > 0 else 'out of stock'"
+  },
+  "category_overrides": {
+    "electronics": {
+      "return_window": 15
+    },
+    "apparel": {
+      "return_window": 60
+    }
+  }
+}

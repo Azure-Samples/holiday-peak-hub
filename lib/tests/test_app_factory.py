@@ -10,7 +10,7 @@ from holiday_peak_lib.agents.memory.cold import ColdMemory
 from holiday_peak_lib.agents.memory.hot import HotMemory
 from holiday_peak_lib.agents.memory.warm import WarmMemory
 from holiday_peak_lib.app_factory import build_service_app
-from holiday_peak_lib.integrations import ConnectorRegistry
+from holiday_peak_lib.connectors.registry import ConnectorRegistry
 
 
 class SampleServiceAgent(BaseRetailAgent):
@@ -207,7 +207,7 @@ class TestBuildServiceApp:
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-123")
 
         registry = ConnectorRegistry()
-        await registry.register("mock-pim", object(), domain="pim")
+        await registry.register_runtime("mock-pim", object(), domain="pim")
 
         app = build_service_app(
             service_name="test-service",

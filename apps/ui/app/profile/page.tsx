@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { MainLayout } from '@/components/templates/MainLayout';
 import { Card } from '@/components/molecules/Card';
 import { Button } from '@/components/atoms/Button';
 import { Input } from '@/components/atoms/Input';
 import { Tabs } from '@/components/molecules/Tabs';
 import { Badge } from '@/components/atoms/Badge';
+import { useUserProfile, useUpdateProfile } from '@/lib/hooks/useUser';
 import { 
   FiMapPin, FiCreditCard,
   FiLock, FiBell, FiShield, FiEdit2, FiTrash2, FiPlus
@@ -14,19 +15,30 @@ import {
 
 export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
+  const { data: userProfile, isLoading: profileLoading } = useUserProfile();
+  const updateProfile = useUpdateProfile();
+
   const [profileData, setProfileData] = useState({
-    firstName: 'John',
-    lastName: 'Doe',
-    email: 'john.doe@example.com',
-    phone: '+1 (555) 123-4567',
-    dateOfBirth: '1990-01-15',
+    name: '',
+    phone: '',
   });
+
+  const hasInitialized = React.useRef(false);
+  useEffect(() => {
+    if (userProfile && !hasInitialized.current) {
+      hasInitialized.current = true;
+      setProfileData({
+        name: userProfile.name ?? '',
+        phone: userProfile.phone ?? '',
+      });
+    }
+  }, [userProfile]);
 
   const savedAddresses = [
     {
       id: 1,
       type: 'Home',
-      name: 'John Doe',
+      name: userProfile?.name ?? 'User',
       address: '123 Main St',
       city: 'New York',
       state: 'NY',
@@ -36,7 +48,7 @@ export default function ProfilePage() {
     {
       id: 2,
       type: 'Work',
-      name: 'John Doe',
+      name: userProfile?.name ?? 'User',
       address: '456 Office Plaza',
       city: 'New York',
       state: 'NY',
@@ -64,10 +76,16 @@ export default function ProfilePage() {
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsEditing(false);
-    // Will be replaced with API call
-    console.log('Profile saved:', profileData);
+    updateProfile.mutate(
+      { name: profileData.name, phone: profileData.phone || undefined },
+      { onSuccess: () => setIsEditing(false) }
+    );
   };
+
+  const displayName = userProfile?.name ?? profileData.name;
+  const initials = displayName
+    ? displayName.split(' ').map((n) => n.charAt(0)).slice(0, 2).join('')
+    : '?';
 
   return (
     <MainLayout>
@@ -92,14 +110,17 @@ export default function ProfilePage() {
                   <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-4">
                       <div className="w-20 h-20 bg-ocean-500 dark:bg-ocean-300 rounded-full flex items-center justify-center text-white dark:text-gray-900 text-2xl font-bold">
-                        {profileData.firstName.charAt(0)}{profileData.lastName.charAt(0)}
+                        {initials}
                       </div>
                       <div>
                         <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                          {profileData.firstName} {profileData.lastName}
+                          {profileLoading ? '…' : displayName}
                         </h2>
                         <p className="text-gray-600 dark:text-gray-400">
-                          Member since Jan 2024
+                          {userProfile?.email ?? ''}
+                        </p>
+                        <p className="text-gray-500 dark:text-gray-500 text-sm">
+                          Member since {userProfile ? new Date(userProfile.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '…'}
                         </p>
                       </div>
                     </div>
@@ -116,29 +137,16 @@ export default function ProfilePage() {
                   </div>
 
                   <form onSubmit={handleSaveProfile} className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">
-                          First Name
-                        </label>
-                        <Input
-                          type="text"
-                          value={profileData.firstName}
-                          onChange={(e) => setProfileData({...profileData, firstName: e.target.value})}
-                          disabled={!isEditing}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">
-                          Last Name
-                        </label>
-                        <Input
-                          type="text"
-                          value={profileData.lastName}
-                          onChange={(e) => setProfileData({...profileData, lastName: e.target.value})}
-                          disabled={!isEditing}
-                        />
-                      </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">
+                        Full Name
+                      </label>
+                      <Input
+                        type="text"
+                        value={profileData.name}
+                        onChange={(e) => setProfileData({...profileData, name: e.target.value})}
+                        disabled={!isEditing}
+                      />
                     </div>
 
                     <div>
@@ -147,9 +155,8 @@ export default function ProfilePage() {
                       </label>
                       <Input
                         type="email"
-                        value={profileData.email}
-                        onChange={(e) => setProfileData({...profileData, email: e.target.value})}
-                        disabled={!isEditing}
+                        value={userProfile?.email ?? ''}
+                        disabled
                       />
                     </div>
 
@@ -161,18 +168,6 @@ export default function ProfilePage() {
                         type="tel"
                         value={profileData.phone}
                         onChange={(e) => setProfileData({...profileData, phone: e.target.value})}
-                        disabled={!isEditing}
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">
-                        Date of Birth
-                      </label>
-                      <Input
-                        type="date"
-                        value={profileData.dateOfBirth}
-                        onChange={(e) => setProfileData({...profileData, dateOfBirth: e.target.value})}
                         disabled={!isEditing}
                       />
                     </div>
@@ -190,8 +185,9 @@ export default function ProfilePage() {
                         <Button
                           type="submit"
                           className="flex-1 bg-ocean-500 hover:bg-ocean-600 dark:bg-ocean-300 dark:hover:bg-ocean-400 text-white dark:text-gray-900"
+                          disabled={updateProfile.isPending}
                         >
-                          Save Changes
+                          {updateProfile.isPending ? 'Saving…' : 'Save Changes'}
                         </Button>
                       </div>
                     )}
