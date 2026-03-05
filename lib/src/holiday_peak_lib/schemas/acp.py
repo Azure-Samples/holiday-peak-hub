@@ -1,6 +1,16 @@
 """Agentic Commerce Protocol (ACP) schemas used across services."""
 
+from typing import Any, Optional
+
 from pydantic import BaseModel, Field
+
+
+class AcpPartnerProfile(BaseModel):
+    """Partner-specific profile used for field filtering in ACP exports."""
+
+    partner_id: str
+    share_policy: list[str] = Field(default_factory=list)
+    restricted_fields: list[str] = Field(default_factory=list)
 
 
 class AcpProduct(BaseModel):
@@ -24,3 +34,6 @@ class AcpProduct(BaseModel):
     return_window: int = 30
     target_countries: list[str] = Field(default_factory=lambda: ["US"])
     store_country: str = "US"
+    protocol_version: str = "1.0"
+    partner_profile: Optional[AcpPartnerProfile] = None
+    extended_attributes: dict[str, Any] = Field(default_factory=dict)

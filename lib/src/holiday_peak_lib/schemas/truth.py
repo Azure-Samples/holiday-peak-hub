@@ -353,3 +353,49 @@ class CategorySchema(BaseModel):
         default_factory=lambda: datetime.now(timezone.utc),
         alias="updatedAt",
     )
+
+
+# ---------------------------------------------------------------------------
+# Export models
+# ---------------------------------------------------------------------------
+
+
+class ExportJob(BaseModel):
+    """An export job request consumed from the export-jobs Event Hub topic.
+
+    >>> ej = ExportJob(jobId="j1", entityId="S1", protocol="UCP")
+    >>> ej.protocol
+    'UCP'
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    job_id: str = Field(alias="jobId")
+    entity_id: str = Field(alias="entityId")
+    protocol: str
+    partner_id: Optional[str] = Field(None, alias="partnerId")
+    requested_by: Optional[str] = Field(None, alias="requestedBy")
+    requested_at: Optional[datetime] = Field(None, alias="requestedAt")
+    options: dict[str, Any] = Field(default_factory=dict)
+
+
+class ExportResult(BaseModel):
+    """Result of a completed export job.
+
+    >>> er = ExportResult(jobId="j1", entityId="S1", protocol="UCP", payload={})
+    >>> er.status
+    'completed'
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    job_id: str = Field(alias="jobId")
+    entity_id: str = Field(alias="entityId")
+    protocol: str
+    status: str = "completed"
+    payload: dict[str, Any] = Field(default_factory=dict)
+    exported_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        alias="exportedAt",
+    )
+    errors: list[str] = Field(default_factory=list)

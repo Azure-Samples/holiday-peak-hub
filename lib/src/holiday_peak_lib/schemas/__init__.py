@@ -1,6 +1,6 @@
 """Pydantic schemas for agents and adapters."""
 
-from .acp import AcpProduct
+from .acp import AcpPartnerProfile, AcpProduct
 from .canonical import CategorySchema as CanonicalCategorySchema
 from .canonical import FieldDef as CanonicalFieldDef
 from .core import Product, RecommendationRequest, RecommendationResponse, UserContext
@@ -18,6 +18,8 @@ from .truth import (
     AuditEvent,
     CategorySchema,
     EntityType,
+    ExportJob,
+    ExportResult,
     GapReport,
     GapReportTarget,
     ProductStyle,
@@ -30,6 +32,7 @@ from .truth import (
 from .ucp import UcpCompliance, UcpImage, UcpMetadata, UcpPricing, UcpProduct
 
 __all__ = [
+    "AcpPartnerProfile",
     "AcpProduct",
     "UserContext",
     "Product",
@@ -66,6 +69,8 @@ __all__ = [
     "AttributeStatus",
     "CategorySchema",
     "EntityType",
+    "ExportJob",
+    "ExportResult",
     "GapReport",
     "GapReportTarget",
     "ProductStyle",
