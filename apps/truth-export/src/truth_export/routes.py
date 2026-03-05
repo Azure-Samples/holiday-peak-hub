@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -123,8 +122,7 @@ async def _run_export(
     attributes = await adapters.truth_store.get_truth_attributes(entity_id)
     mapping = await adapters.truth_store.get_protocol_mapping(protocol)
 
-    job_id = str(uuid.uuid4())
-    adapters.job_tracker.create(entity_id, protocol, partner_id)
+    job_id = adapters.job_tracker.create(entity_id, protocol, partner_id)
 
     result = engine.export(
         job_id=job_id,

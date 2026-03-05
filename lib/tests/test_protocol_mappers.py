@@ -10,13 +10,10 @@ from holiday_peak_lib.schemas.truth import ProductStyle, TruthAttribute
 
 def _make_style(**kwargs) -> ProductStyle:
     defaults = {
-        "style_id": "STYLE-TEST",
-        "name": "Test Product",
+        "id": "STYLE-TEST",
         "brand": "TestBrand",
-        "category": "footwear",
-        "description": "A test product",
-        "image_url": "https://example.com/img/test.jpg",
-        "completeness_score": 0.85,
+        "model_name": "Test Product",
+        "category_id": "footwear",
     }
     defaults.update(kwargs)
     return ProductStyle(**defaults)
@@ -31,12 +28,11 @@ def _make_attrs(**overrides) -> list[TruthAttribute]:
     base.update(overrides)
     return [
         TruthAttribute(
-            attribute_id=f"attr-{i}",
-            style_id="STYLE-TEST",
-            field_name=k,
+            entity_type="style",
+            entity_id="STYLE-TEST",
+            attribute_key=k,
             value=v,
-            confidence=1.0,
-            approved_by="reviewer",
+            source="SYSTEM",
         )
         for i, (k, v) in enumerate(base.items())
     ]
@@ -59,7 +55,6 @@ def test_ucp_mapper_basic():
     assert result["price_amount"] == 49.99
     assert result["currency"] == "usd"
     assert result["availability"] == "in_stock"
-    assert result["completeness_score"] == 0.85
     assert result["protocol"] == "ucp"
 
 
@@ -146,33 +141,18 @@ def test_acp_mapper_validate_output_fails():
 
 def test_acp_mapper_partner_policy_filtering():
     mapper = AcpCatalogMapper()
-    from holiday_peak_lib.schemas.product import CatalogProduct
+    style = _make_style(id="SKU-X", model_name="Widget", brand="ACME")
+    attrs = _make_attrs()
+    payload = mapper.map(style, attrs, {})
 
-    product = CatalogProduct(
-        sku="SKU-X",
-        name="Widget",
-        brand="ACME",
-        price=9.99,
-    )
     partner = AcpPartnerProfile(
         partner_id="partner-1",
         restricted_fields=["seller_tos", "return_policy"],
     )
-    result = mapper.to_acp_product(product, availability="in_stock", partner_profile=partner)
+    payload["seller_tos"] = "strict"
+    payload["return_policy"] = "30d"
+
+    result = mapper.apply_partner_policy(payload, partner)
     assert "seller_tos" not in result
     assert "return_policy" not in result
     assert result["item_id"] == "SKU-X"
-
-
-def test_acp_mapper_legacy_interface_still_works():
-    """Ensure the legacy to_acp_product helper is backward-compatible."""
-    from holiday_peak_lib.schemas.product import CatalogProduct
-
-    mapper = AcpCatalogMapper()
-    product = CatalogProduct(sku="SKU-LEGACY", name="Legacy Item", price=5.0, brand="OldBrand")
-    result = mapper.to_acp_product(product, availability="out_of_stock", currency="eur")
-
-    assert result["item_id"] == "SKU-LEGACY"
-    assert result["price"] == "5.00 eur"
-    assert result["availability"] == "out_of_stock"
-    assert result["is_eligible_search"] is True

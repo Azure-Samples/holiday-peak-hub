@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pytest
 from fastapi.testclient import TestClient
-
 from truth_export.adapters import MockTruthStoreAdapter, build_truth_export_adapters
 from truth_export.export_engine import ExportEngine
 from truth_export.main import app
@@ -26,13 +25,10 @@ def sample_style():
     from holiday_peak_lib.schemas.truth import ProductStyle
 
     return ProductStyle(
-        style_id="STYLE-001",
-        name="Trail Runner Pro",
+        id="STYLE-001",
         brand="Contoso",
-        category="footwear",
-        description="Lightweight trail running shoe",
-        image_url="https://example.com/img/trail.jpg",
-        completeness_score=0.9,
+        model_name="Trail Runner Pro",
+        category_id="footwear",
     )
 
 
@@ -42,28 +38,25 @@ def sample_attributes():
 
     return [
         TruthAttribute(
-            attribute_id="attr-1",
-            style_id="STYLE-001",
-            field_name="price",
+            entity_type="style",
+            entity_id="STYLE-001",
+            attribute_key="price",
             value=89.99,
-            confidence=1.0,
-            approved_by="reviewer@example.com",
+            source="SYSTEM",
         ),
         TruthAttribute(
-            attribute_id="attr-2",
-            style_id="STYLE-001",
-            field_name="currency",
+            entity_type="style",
+            entity_id="STYLE-001",
+            attribute_key="currency",
             value="usd",
-            confidence=1.0,
-            approved_by="reviewer@example.com",
+            source="SYSTEM",
         ),
         TruthAttribute(
-            attribute_id="attr-3",
-            style_id="STYLE-001",
-            field_name="availability",
+            entity_type="style",
+            entity_id="STYLE-001",
+            attribute_key="availability",
             value="in_stock",
-            confidence=1.0,
-            approved_by="reviewer@example.com",
+            source="SYSTEM",
         ),
     ]
 
@@ -82,7 +75,6 @@ def test_engine_ucp_export(engine, sample_style, sample_attributes):
     assert result.payload["price_amount"] == 89.99
     assert result.payload["currency"] == "usd"
     assert result.payload["protocol"] == "ucp"
-    assert result.payload["completeness_score"] == 0.9
 
 
 def test_engine_acp_export(engine, sample_style, sample_attributes):
@@ -108,8 +100,8 @@ def test_engine_supported_protocols(engine):
 def test_engine_audit_event(engine, sample_style):
     event = engine.build_audit_event("job-4", sample_style, "ucp")
     assert event.entity_id == "STYLE-001"
-    assert event.action == "export:ucp"
-    assert event.metadata["job_id"] == "job-4"
+    assert event.action.value == "exported"
+    assert event.details["job_id"] == "job-4"
 
 
 # ---------------------------------------------------------------------------

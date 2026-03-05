@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from holiday_peak_lib.schemas.truth import ProductStyle, TruthAttribute
@@ -42,7 +42,7 @@ class MockTruthStoreAdapter:
     # ------------------------------------------------------------------
 
     def seed_style(self, style: ProductStyle) -> None:
-        self._styles[style.style_id] = style
+        self._styles[style.id] = style
 
     def seed_attributes(self, style_id: str, attributes: list[TruthAttribute]) -> None:
         self._attributes[style_id] = attributes
@@ -62,7 +62,7 @@ class ExportJobTracker:
             "protocol": protocol,
             "partner_id": partner_id,
             "status": "pending",
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
         }
         return job_id
 

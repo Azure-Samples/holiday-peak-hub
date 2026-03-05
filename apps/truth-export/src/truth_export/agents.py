@@ -43,7 +43,11 @@ class TruthExportAgent(BaseRetailAgent):
         attributes = await self._adapters.truth_store.get_truth_attributes(str(entity_id))
         mapping = await self._adapters.truth_store.get_protocol_mapping(str(protocol))
 
-        job_id = str(uuid.uuid4())
+        job_id = self._adapters.job_tracker.create(
+            str(entity_id),
+            str(protocol),
+            request.get("partner_id"),
+        )
         result = self._engine.export(
             job_id=job_id,
             product=product,

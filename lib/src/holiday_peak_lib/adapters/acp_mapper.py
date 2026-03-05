@@ -6,9 +6,9 @@ from typing import TYPE_CHECKING, Any
 
 from holiday_peak_lib.adapters.protocol_mapper import ProtocolMapper
 from holiday_peak_lib.schemas.acp import AcpPartnerProfile, AcpProduct
-from holiday_peak_lib.schemas.product import CatalogProduct
 
 if TYPE_CHECKING:
+    from holiday_peak_lib.schemas.product import CatalogProduct
     from holiday_peak_lib.schemas.truth import ProductStyle, TruthAttribute
 
 _REQUIRED_ACP_FIELDS = {"item_id", "title", "description", "url", "image_url", "brand", "price"}
@@ -33,7 +33,7 @@ class AcpCatalogMapper(ProtocolMapper):
         extended fields.  Partner policy filtering is delegated to
         :meth:`apply_partner_policy`.
         """
-        attr_lookup: dict[str, Any] = {a.field_name: a.value for a in attributes}
+        attr_lookup: dict[str, Any] = {a.attribute_key: a.value for a in attributes}
         price_raw = attr_lookup.get("price", mapping.get("price", 0.0))
         try:
             price_val = float(price_raw)
@@ -41,15 +41,15 @@ class AcpCatalogMapper(ProtocolMapper):
             price_val = 0.0
         currency = str(attr_lookup.get("currency", mapping.get("currency", "usd")))
         availability = str(attr_lookup.get("availability", mapping.get("availability", "in_stock")))
-        sku = mapping.get("item_id_field", "style_id")
-        item_id = getattr(product, sku, product.style_id)
+        sku = mapping.get("item_id_field", "id")
+        item_id = getattr(product, sku, product.id)
 
         acp = AcpProduct(
             item_id=str(item_id),
-            title=product.name,
-            description=product.description or "",
+            title=product.model_name,
+            description=product.model_name,
             url=f"https://example.com/products/{item_id}",
-            image_url=product.image_url or "https://example.com/images/placeholder.png",
+            image_url="https://example.com/images/placeholder.png",
             brand=product.brand or "",
             price=f"{price_val:.2f} {currency}",
             availability=availability,
@@ -67,39 +67,6 @@ class AcpCatalogMapper(ProtocolMapper):
         return all(output.get(field) for field in _REQUIRED_ACP_FIELDS)
 
     # ------------------------------------------------------------------
-    # Legacy helper (used by existing catalog services)
-    # ------------------------------------------------------------------
-
-    def to_acp_product(
-        self,
-        product: CatalogProduct,
-        *,
-        availability: str,
-        currency: str = "usd",
-        partner_profile: AcpPartnerProfile | None = None,
-    ) -> dict[str, Any]:
-        """Map a :class:`CatalogProduct` to an ACP payload dict."""
-        sku = product.sku
-        price = product.price if product.price is not None else 0.0
-        image_url = product.image_url or "https://example.com/images/placeholder.png"
-        product_url = f"https://example.com/products/{sku}"
-        acp = AcpProduct(
-            item_id=sku,
-            title=product.name,
-            description=product.description or "",
-            url=product_url,
-            image_url=image_url,
-            brand=product.brand or "",
-            price=f"{price:.2f} {currency}",
-            availability=availability,
-            partner_profile=partner_profile,
-        )
-        result = acp.model_dump()
-        if partner_profile:
-            result = self.apply_partner_policy(result, partner_profile)
-        return result
-
-    # ------------------------------------------------------------------
     # Partner policy filtering
     # ------------------------------------------------------------------
 
@@ -111,3 +78,31 @@ class AcpCatalogMapper(ProtocolMapper):
         for field in partner_profile.restricted_fields:
             filtered.pop(field, None)
         return filtered
+
+    def to_acp_product(
+        self,
+        product: "CatalogProduct",
+        *,
+        availability: str,
+        currency: str = "usd",
+        partner_profile: AcpPartnerProfile | None = None,
+    ) -> dict[str, Any]:
+        """Convert a catalog product into ACP feed format."""
+        price = float(product.price or 0.0)
+        payload = AcpProduct(
+            item_id=product.sku,
+            title=product.name,
+            description=product.description or "",
+            url=f"https://example.com/products/{product.sku}",
+            image_url=product.image_url or "https://example.com/images/placeholder.png",
+            brand=product.brand or "",
+            price=f"{price:.2f} {currency}",
+            availability=availability,
+            protocol_version="1.0",
+            partner_profile=partner_profile,
+            extended_attributes=dict(product.attributes or {}),
+        ).model_dump()
+
+        if partner_profile:
+            return self.apply_partner_policy(payload, partner_profile)
+        return payload

@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from holiday_peak_lib.adapters.acp_mapper import AcpCatalogMapper
 from holiday_peak_lib.adapters.ucp_mapper import UcpProtocolMapper
 from holiday_peak_lib.schemas.truth import (
+    AuditAction,
     AuditEvent,
     ExportResult,
     ProductStyle,
@@ -59,7 +59,7 @@ class ExportEngine:
         if mapper is None:
             return ExportResult(
                 job_id=job_id,
-                entity_id=product.style_id,
+                entity_id=product.id,
                 protocol=protocol,
                 status="failed",
                 errors=[f"Unsupported protocol: {protocol!r}"],
@@ -73,7 +73,7 @@ class ExportEngine:
 
         return ExportResult(
             job_id=job_id,
-            entity_id=product.style_id,
+            entity_id=product.id,
             protocol=protocol_lower,
             status="completed" if valid else "invalid",
             payload=payload,
@@ -89,13 +89,11 @@ class ExportEngine:
     ) -> AuditEvent:
         """Create an :class:`AuditEvent` for a completed export."""
         return AuditEvent(
-            event_id=str(uuid.uuid4()),
-            entity_id=product.style_id,
-            entity_type="ProductStyle",
-            action=f"export:{protocol}",
+            entity_id=product.id,
+            action=AuditAction.EXPORTED,
             actor=actor,
-            timestamp=datetime.utcnow(),
-            metadata={"job_id": job_id, "protocol": protocol},
+            timestamp=datetime.now(timezone.utc),
+            details={"job_id": job_id, "protocol": protocol},
         )
 
     def supported_protocols(self) -> list[str]:

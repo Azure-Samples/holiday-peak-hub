@@ -8,7 +8,6 @@ from holiday_peak_lib.agents.memory import ColdMemory, HotMemory, WarmMemory
 from holiday_peak_lib.app_factory import build_service_app
 from holiday_peak_lib.config import MemorySettings
 from holiday_peak_lib.utils import EventHubSubscription, create_eventhub_lifespan
-
 from truth_export.agents import TruthExportAgent, register_mcp_tools
 from truth_export.event_handlers import build_event_handlers
 from truth_export.routes import router as export_router

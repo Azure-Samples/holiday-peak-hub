@@ -36,7 +36,7 @@ class UcpProtocolMapper(ProtocolMapper):
         Returns:
             Flat UCP-formatted dict ready for delivery.
         """
-        attr_lookup: dict[str, Any] = {a.field_name: a.value for a in attributes}
+        attr_lookup: dict[str, Any] = {a.attribute_key: a.value for a in attributes}
 
         price_raw = attr_lookup.get("price", mapping.get("price", 0.0))
         try:
@@ -45,37 +45,30 @@ class UcpProtocolMapper(ProtocolMapper):
             price_amount = 0.0
 
         currency = str(attr_lookup.get("currency", mapping.get("currency", "usd")))
-        availability = str(
-            attr_lookup.get("availability", mapping.get("availability", "in_stock"))
-        )
+        availability = str(attr_lookup.get("availability", mapping.get("availability", "in_stock")))
 
         payload: dict[str, Any] = {
-            "product_id": product.style_id,
-            "title": product.name,
+            "product_id": product.id,
+            "title": product.model_name,
             "brand": product.brand or "",
-            "category": product.category or "",
-            "description": product.description or "",
-            "image_url": product.image_url or "",
+            "category": product.category_id,
+            "description": "",
+            "image_url": "",
             "price_amount": price_amount,
             "currency": currency,
             "availability": availability,
-            "completeness_score": product.completeness_score,
             "protocol": "ucp",
             "protocol_version": mapping.get("protocol_version", "1.0"),
             "compliance": {
                 "source": "truth-store",
                 "attribute_count": len(attributes),
-                "approved_attributes": sum(
-                    1 for a in attributes if a.approved_by is not None
-                ),
+                "approved_attributes": len(attributes),
             },
         }
 
         # Merge remaining truth attributes as extended fields
         extended = {
-            k: v
-            for k, v in attr_lookup.items()
-            if k not in {"price", "currency", "availability"}
+            k: v for k, v in attr_lookup.items() if k not in {"price", "currency", "availability"}
         }
         if extended:
             payload["extended_attributes"] = extended
@@ -88,9 +81,5 @@ class UcpProtocolMapper(ProtocolMapper):
         return payload
 
     def validate_output(self, output: dict, protocol_version: str) -> bool:
-        """Return ``True`` when all required UCP fields are present and non-empty.
-
-        The *protocol_version* parameter is accepted for interface compatibility
-        but is not currently enforced beyond basic field presence checks.
-        """
+        """Return ``True`` when all required UCP fields are present and non-empty."""
         return all(output.get(field) is not None for field in _REQUIRED_UCP_FIELDS)
