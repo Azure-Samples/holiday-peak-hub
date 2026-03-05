@@ -3,7 +3,7 @@
 import logging
 import os
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 router = APIRouter()
@@ -54,7 +54,7 @@ async def health_check():
 
 
 @router.get("/ready")
-async def readiness_check():
+async def readiness_check(request: Request):
     """Readiness probe: checks Redis and Cosmos DB connectivity."""
     checks: dict[str, dict] = {}
     overall = "ready"
@@ -68,6 +68,26 @@ async def readiness_check():
     checks["cosmos"] = {"status": cosmos_status, "detail": cosmos_detail}
     if cosmos_status == "unhealthy":
         overall = "degraded"
+
+    connector_registry = getattr(request.app.state, "connector_registry", None)
+    if connector_registry is not None:
+        connector_health = await connector_registry.health()
+        if not connector_health:
+            checks["connectors"] = {
+                "status": "unconfigured",
+                "detail": "No runtime connectors registered",
+            }
+        else:
+            unhealthy = [name for name, ok in connector_health.items() if not ok]
+            checks["connectors"] = {
+                "status": "healthy" if not unhealthy else "unhealthy",
+                "detail": {
+                    "registered": len(connector_health),
+                    "unhealthy": unhealthy,
+                },
+            }
+            if unhealthy:
+                overall = "degraded"
 
     status_code = 200 if overall == "ready" else 503
     return JSONResponse(

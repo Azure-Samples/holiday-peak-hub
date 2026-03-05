@@ -5,6 +5,7 @@ for transactional data operations and user-facing endpoints.
 """
 
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from azure.monitor.opentelemetry import configure_azure_monitor
@@ -40,6 +41,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from opentelemetry import trace
 
+from holiday_peak_lib.connectors.registry import ConnectorRegistry
+
 # Configure structured logging
 logging.basicConfig(
     level=logging.INFO,
@@ -72,6 +75,27 @@ async def lifespan(_app: FastAPI):
     await event_publisher.start()
     logger.info("Event publisher started")
 
+    connector_registry = ConnectorRegistry()
+    discovered = await connector_registry.discover()
+    logger.info("Connector classes discovered: %s", discovered)
+
+    configured_domains = [
+        item.strip().lower()
+        for item in (os.getenv("CONNECTOR_ENABLED_DOMAINS", "").split(","))
+        if item.strip()
+    ]
+    for domain in configured_domains:
+        try:
+            await connector_registry.create(domain)
+            logger.info("Connector created for domain '%s'", domain)
+        except ValueError as exc:
+            logger.warning("Connector bootstrap skipped for domain '%s': %s", domain, exc)
+
+    health_interval = float(os.getenv("CONNECTOR_HEALTH_INTERVAL_SECONDS", "60"))
+    await connector_registry.start_health_monitor(interval_seconds=health_interval)
+    _app.state.connector_registry = connector_registry
+    logger.info("Connector health monitor started")
+
     # Resolve DB credentials from Key Vault only for password mode
     if settings.postgres_auth_mode == "password" and not settings.postgres_password:
         settings.postgres_password = await get_key_vault_secret(
@@ -93,6 +117,10 @@ async def lifespan(_app: FastAPI):
 
     # Shutdown
     logger.info("Shutting down CRUD Service...")
+    connector_registry: ConnectorRegistry | None = getattr(_app.state, "connector_registry", None)
+    if connector_registry:
+        await connector_registry.stop_health_monitor()
+        logger.info("Connector health monitor stopped")
     await event_publisher.stop()
     logger.info("Event publisher stopped")
     await BaseRepository.close_pool()
