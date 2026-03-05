@@ -8,7 +8,8 @@ import { useFormContext } from 'react-hook-form';
 import { cn, sizeClasses } from '../utils';
 import type { Size, FormFieldBaseProps, InputType } from '../types';
 
-export interface InputProps extends Omit<FormFieldBaseProps, 'label' | 'hint'> {
+export interface InputProps extends Omit<FormFieldBaseProps, 'label' | 'hint'>,
+  Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size' | 'name' | 'onChange' | 'onBlur' | 'type' | 'value' | 'defaultValue' | 'prefix'> {
   /** Input type */
   type?: InputType;
   /** Input size */
@@ -82,20 +83,29 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     const formContext = useRHF ? rawCtx : null;
     const registration = formContext && name ? formContext.register(name, rules) : null;
 
-    const hasError = error || (formContext?.formState.errors[name] && true);
+    const hasError = !!error;
     const hasPrefix = !!prefix;
     const hasSuffix = !!suffix;
+    const inputName = name ?? '';
+    const fieldError = inputName ? formContext?.formState.errors[inputName] : undefined;
+    const effectiveError = hasError || !!fieldError;
 
     const inputElement = (
       <input
         ref={registration ? registration.ref : ref}
         type={type}
-        name={name}
+        name={inputName}
         placeholder={placeholder}
         defaultValue={defaultValue}
         value={value}
-        onChange={onChange}
-        onBlur={onBlur}
+        onChange={(event) => {
+          registration?.onChange(event);
+          onChange?.(event);
+        }}
+        onBlur={(event) => {
+          registration?.onBlur(event);
+          onBlur?.(event);
+        }}
         disabled={disabled}
         required={required}
         min={min}
@@ -107,7 +117,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         autoComplete={autoComplete}
         data-testid={testId}
         aria-label={ariaLabel}
-        aria-invalid={hasError}
+        aria-invalid={effectiveError}
         aria-required={required}
         className={cn(
           // Base styles
@@ -119,7 +129,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           'transition-colors duration-200',
           
           // Border and focus states
-          hasError
+          effectiveError
             ? 'border-red-300 dark:border-red-700 focus:border-red-500 focus:ring-red-500'
             : 'border-gray-300 dark:border-gray-700 focus:border-blue-500 focus:ring-blue-500',
           
@@ -141,7 +151,6 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           // Custom classes
           className
         )}
-        {...(registration ? { ...registration, ref: registration.ref } : {})}
         {...props}
       />
     );

@@ -12,7 +12,7 @@ import { ChatWidget } from '@/components/organisms/ChatWidget';
 import { useCategories } from '@/lib/hooks/useCategories';
 import { useProducts } from '@/lib/hooks/useProducts';
 import { mapApiProductsToUi } from '@/lib/utils/productMappers';
-import { FiTrendingUp, FiArrowRight } from 'react-icons/fi';
+import { FiTrendingUp, FiArrowRight, FiList, FiMessageSquare } from 'react-icons/fi';
 
 export default function HomePage() {
   const { data: categories = [] } = useCategories();
@@ -23,29 +23,35 @@ export default function HomePage() {
 
   return (
     <MainLayout>
-      {/* Hero Section with Slider */}
-      <section className="mb-12">
+      <section className="mb-8 sm:mb-10">
         <HeroSlider />
       </section>
 
-      {/* Categories Grid - Google Shopping Style */}
-      <section className="mb-16">
-        <div className="flex items-center justify-between mb-8">
-          <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300">
-            Shop by Department
+      <section className="showcase-shell mb-8 p-4 sm:mb-10 sm:p-5">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-2xl font-black showcase-gradient-text sm:text-3xl">
+            Explore Catalog Departments
           </h2>
-          <Link href="/category?slug=all" className="text-prime-600 hover:text-prime-700 font-medium flex items-center transition-colors">
-            View All <FiArrowRight className="ml-1 w-4 h-4" />
+          <Link
+            href="/category?slug=all"
+            className="inline-flex items-center text-sm font-semibold text-[var(--hp-primary)] transition-colors hover:text-[var(--hp-primary-hover)]"
+          >
+            Open full catalog
+            <FiArrowRight className="ml-1 h-4 w-4" />
           </Link>
         </div>
-        
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+
+        <p className="mb-4 text-sm text-[var(--hp-text-muted)]">
+          Catalog path: start by category, then open product detail pages for exact attributes and pricing.
+        </p>
+
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {featuredCategories.length > 0 ? (
             featuredCategories.map((category) => (
-              <Link 
-                key={category.id} 
+              <Link
+                key={category.id}
                 href={`/category?slug=${encodeURIComponent(category.id)}`}
-                className="group relative overflow-hidden rounded-2xl aspect-[4/3] shadow-md hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 block"
+                className="group relative block aspect-[4/3] overflow-hidden rounded-2xl border border-[var(--hp-border)] shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
               >
                 {category.image_url ? (
                   <Image
@@ -55,83 +61,97 @@ export default function HomePage() {
                     className="object-cover transition-transform duration-500 group-hover:scale-110"
                   />
                 ) : (
-                  <div className="absolute inset-0 bg-gray-200 dark:bg-gray-800 animate-pulse" />
+                  <div className="absolute inset-0 animate-pulse bg-[var(--hp-surface-strong)]" />
                 )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                 <div className="absolute bottom-4 left-4 text-white z-10">
-                  <h3 className="text-xl font-bold mb-1">{category.name}</h3>
-                  <p className="text-sm text-gray-200 opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform translate-y-2 group-hover:translate-y-0">
-                    {category.description || 'Shop Now'}
+                  <h3 className="mb-1 text-lg font-bold sm:text-xl">{category.name}</h3>
+                  <p className="translate-y-2 text-xs text-gray-200 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100 sm:text-sm">
+                    {category.description || 'Browse products'}
                   </p>
                 </div>
               </Link>
             ))
           ) : (
-             Array(4).fill(0).map((_, i) => (
-               <div key={i} className="rounded-2xl aspect-[4/3] bg-gray-100 dark:bg-gray-800 animate-pulse" />
-             ))
+            Array(4).fill(0).map((_, i) => (
+              <div key={i} className="aspect-[4/3] animate-pulse rounded-2xl bg-[var(--hp-surface-strong)]" />
+            ))
           )}
         </div>
       </section>
 
-      {/* Featured Products - Innovative Grid */}
-      <section className="mb-16">
-        <div className="flex items-center gap-3 mb-8">
-          <Badge className="bg-prime-100 text-prime-700 dark:bg-prime-900/30 dark:text-prime-300 px-3 py-1">
-             <FiTrendingUp className="mr-1 inline" /> Trending Now
+      <section className="mb-8 sm:mb-10">
+        <div className="mb-5 flex flex-wrap items-center gap-3">
+          <Badge className="bg-[var(--hp-surface-strong)] px-3 py-1 text-[var(--hp-primary)]">
+            <FiTrendingUp className="mr-1 inline" /> Trending Now
           </Badge>
-          <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
-            Daily Discoveries
+          <h2 className="text-2xl font-black text-[var(--hp-text)] sm:text-3xl">
+            Product Discovery Grid
           </h2>
         </div>
-        
-        <ProductGrid 
-          products={featuredProducts} 
-          loading={isLoading} 
-          columns={4}
+
+        <ProductGrid
+          products={featuredProducts}
+          loading={isLoading}
+          gridColumns={4}
+          ariaLabel="Featured product catalog"
         />
 
-        <div className="mt-12 text-center">
-           <Link href="/shop">
-             <Button size="lg" variant="outline" className="rounded-full px-8 border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800">
-               Load More Products
-             </Button>
-           </Link>
+        <div className="mt-6 text-center">
+          <Link href="/category?slug=all">
+            <Button
+              size="lg"
+              variant="secondary"
+              className="rounded-full border border-[var(--hp-border)] px-8 text-[var(--hp-text)]"
+            >
+              Browse All Catalog Products
+            </Button>
+          </Link>
         </div>
       </section>
 
-      {/* Innovative CTA Section */}
-      <section className="relative rounded-3xl overflow-hidden bg-gray-900 text-white mb-16 shadow-2xl">
-         <div className="absolute inset-0">
-            <Image 
-              src="https://images.unsplash.com/photo-1556742049-0cfed4f7a07d?auto=format&fit=crop&w=1600&q=80" 
-              alt="Customer Support" 
-              fill
-              className="object-cover opacity-20"
-            />
-         </div>
-         <div className="relative z-10 p-12 md:p-16 text-center max-w-2xl mx-auto">
-            <h2 className="text-3xl md:text-5xl font-bold mb-6">Need Help Choosing?</h2>
-            <p className="text-xl text-gray-300 mb-8 font-light">
-              Our AI-powered agents are ready to help you compare products, check stock, and find exactly what you need in seconds.
-            </p>
-            <div className="flex justify-center gap-4">
-               {/* Trigger Chat Widget via event or context would be better, but this visual CTA directs user to the widget */}
-               <Button 
-                 size="lg" 
-                 className="bg-white text-gray-900 hover:bg-gray-100 font-bold px-8 py-4 h-auto text-lg rounded-full shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all"
-                 onClick={() => {
-                    const chatBtn = document.querySelector('button[aria-label="Open chat"]') as HTMLButtonElement;
-                    if(chatBtn) chatBtn.click();
-                 }}
-               >
-                 Start Chatting
-               </Button>
+      <section className="showcase-shell relative mb-10 overflow-hidden p-5 sm:p-8">
+        <div className="absolute inset-0">
+          <Image
+            src="https://images.unsplash.com/photo-1556742049-0cfed4f7a07d?auto=format&fit=crop&w=1600&q=80"
+            alt="Data and AI support"
+            fill
+            className="object-cover opacity-10"
+          />
+        </div>
+
+        <div className="relative z-10 grid gap-4 md:grid-cols-2">
+          <article className="rounded-2xl border border-[var(--hp-border)] bg-[var(--hp-surface)]/90 p-4">
+            <div className="mb-2 inline-flex items-center text-sm font-semibold text-[var(--hp-accent)]">
+              <FiList className="mr-2 h-4 w-4" />
+              Catalog Interpretation Layer
             </div>
-         </div>
+            <h3 className="text-xl font-black text-[var(--hp-text)]">Use Product Cards For Facts</h3>
+            <p className="mt-2 text-sm text-[var(--hp-text-muted)]">
+              Price, stock, and category details come from catalog data shown in the grid and product pages.
+            </p>
+          </article>
+
+          <article className="rounded-2xl border border-[var(--hp-border)] bg-[var(--hp-surface)]/90 p-4">
+            <div className="mb-2 inline-flex items-center text-sm font-semibold text-[var(--hp-primary)]">
+              <FiMessageSquare className="mr-2 h-4 w-4" />
+              Agent Interaction Layer
+            </div>
+            <h3 className="text-xl font-black text-[var(--hp-text)]">Use Agent For Enrichment</h3>
+            <p className="mt-2 text-sm text-[var(--hp-text-muted)]">
+              Ask the Product Enrichment Agent for comparisons and interpretation beyond raw catalog fields.
+            </p>
+            <div className="mt-4">
+              <Link href="/agents/product-enrichment-chat">
+                <Button className="bg-[var(--hp-primary)] hover:bg-[var(--hp-primary-hover)]">
+                  Open Agent Chat
+                </Button>
+              </Link>
+            </div>
+          </article>
+        </div>
       </section>
 
-      {/* Floating Chat Widget */}
       <ChatWidget />
     </MainLayout>
   );

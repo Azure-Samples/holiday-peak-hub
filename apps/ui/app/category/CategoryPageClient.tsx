@@ -10,6 +10,7 @@ import { useCategories } from '@/lib/hooks/useCategories';
 import { useProducts } from '@/lib/hooks/useProducts';
 import { mapApiProductsToUi } from '@/lib/utils/productMappers';
 import type { Product as UiProduct } from '@/components/types';
+import { FiList, FiMessageSquare } from 'react-icons/fi';
 
 type SortKey = 'popular' | 'price-low' | 'price-high' | 'rating' | 'name';
 
@@ -43,7 +44,7 @@ export function CategoryPageClient({ slug }: { slug: string }) {
       case 'rating':
         return copy.sort((left, right) => (right.rating || 0) - (left.rating || 0));
       case 'name':
-        return copy.sort((left, right) => left.name.localeCompare(right.name));
+        return copy.sort((left, right) => left.title.localeCompare(right.title));
       default:
         return copy;
     }
@@ -53,26 +54,52 @@ export function CategoryPageClient({ slug }: { slug: string }) {
 
   return (
     <MainLayout>
-      <div className="mb-6 flex flex-wrap items-center gap-2">
+      <div className="mb-5 flex flex-wrap items-center gap-2">
         <Link
-          href="/categories"
-          className="text-sm text-ocean-500 dark:text-ocean-300 hover:underline"
+          href="/"
+          className="text-sm text-[var(--hp-primary)] hover:underline"
         >
-          Categories
+          Home
         </Link>
-        <span className="text-gray-400">/</span>
-        <span className="text-sm text-gray-700 dark:text-gray-300">{activeCategoryName}</span>
+        <span className="text-[var(--hp-text-muted)]">/</span>
+        <span className="text-sm text-[var(--hp-text-muted)]">{activeCategoryName}</span>
       </div>
 
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <section className="showcase-shell mb-6 p-4 sm:p-5">
+        <div className="grid gap-3 md:grid-cols-2">
+          <article className="rounded-2xl border border-[var(--hp-border)] bg-[var(--hp-surface-strong)]/70 p-3">
+            <div className="mb-1 inline-flex items-center text-xs font-semibold uppercase tracking-wide text-[var(--hp-accent)]">
+              <FiList className="mr-1 h-4 w-4" />
+              Catalog Layer
+            </div>
+            <p className="text-sm text-[var(--hp-text-muted)]">Use filters and sort below to inspect raw catalog data in this category.</p>
+          </article>
+          <article className="rounded-2xl border border-[var(--hp-border)] bg-[var(--hp-surface-strong)]/70 p-3">
+            <div className="mb-1 inline-flex items-center text-xs font-semibold uppercase tracking-wide text-[var(--hp-primary)]">
+              <FiMessageSquare className="mr-1 h-4 w-4" />
+              Agent Layer
+            </div>
+            <p className="text-sm text-[var(--hp-text-muted)]">
+              Need interpretation? Open
+              {' '}
+              <Link href="/agents/product-enrichment-chat" className="font-semibold text-[var(--hp-primary)] underline-offset-2 hover:underline">
+                Product Enrichment Chat
+              </Link>
+              .
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{activeCategoryName}</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">
+          <h1 className="text-3xl font-black text-[var(--hp-text)]">{activeCategoryName}</h1>
+          <p className="mt-2 text-[var(--hp-text-muted)]">
             {uiProducts.length} products
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Badge className="bg-ocean-500 text-white">Live Catalog</Badge>
+          <Badge className="bg-[var(--hp-surface-strong)] text-[var(--hp-primary)]">Live Catalog</Badge>
           <Select
             name="category-sort"
             value={sortBy}
@@ -90,13 +117,13 @@ export function CategoryPageClient({ slug }: { slug: string }) {
         </div>
       </div>
 
-      <div className="mb-8 flex flex-wrap gap-2">
+      <nav className="mb-6 flex flex-wrap gap-2" aria-label="Category filters">
         <Link
           href="/category?slug=all"
           className={`px-3 py-1 rounded-full text-sm border ${
             slug === 'all'
-              ? 'bg-ocean-500 text-white border-ocean-500'
-              : 'border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300'
+              ? 'bg-[var(--hp-primary)] text-white border-[var(--hp-primary)]'
+              : 'border-[var(--hp-border)] text-[var(--hp-text)]'
           }`}
         >
           All
@@ -107,17 +134,17 @@ export function CategoryPageClient({ slug }: { slug: string }) {
             href={`/category?slug=${encodeURIComponent(category.id)}`}
             className={`px-3 py-1 rounded-full text-sm border ${
               category.id === slug
-                ? 'bg-ocean-500 text-white border-ocean-500'
-                : 'border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300'
+                ? 'bg-[var(--hp-primary)] text-white border-[var(--hp-primary)]'
+                : 'border-[var(--hp-border)] text-[var(--hp-text)]'
             }`}
           >
             {category.name}
           </Link>
         ))}
-      </div>
+      </nav>
 
       {isError ? (
-        <div className="rounded-lg border border-red-200 dark:border-red-900 p-4 text-red-600 dark:text-red-400">
+        <div className="rounded-lg border border-red-300 p-4 text-red-700">
           Products could not be loaded for this category.
         </div>
       ) : (

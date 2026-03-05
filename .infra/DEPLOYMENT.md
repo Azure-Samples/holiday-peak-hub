@@ -333,11 +333,20 @@ az staticwebapp show \
 | AKS timeout (> 30 min) | Region capacity | Retry; try `eastus2` |
 | `QuotaExceeded` | Insufficient vCPU quota | Request quota increase for Ddsv5 family |
 | `NameNotAvailable` | Resource name conflict | Use `keyVaultNameOverride` parameter |
+| Key Vault soft-delete name conflict (non-prod) | Previously deleted vault reserves name | `deploy-azd.yml` provision preflight auto-purges matching soft-deleted vault before `azd provision` |
+| PostgreSQL Flexible Server is stopped (non-prod) | Cost-saving stop leaves control plane drift | `deploy-azd.yml` provision preflight starts the existing server and waits for `Ready` before `azd provision` |
 | RBAC not propagated | Azure AD timing | Wait 5-10 minutes, retry |
 | PE DNS resolution fails | DNS zone not linked | Verify Private DNS Zone VNet links |
 | ACR pull fails | Missing role | Verify `AcrPull` role on kubelet identity |
 | Bicep validation error | AVM version mismatch | Run `az bicep upgrade` |
 | Cosmos Serverless limit | 1 GB partition limit | For prod, use provisioned throughput |
+
+Preflight remediation guardrails:
+
+- Applies only to non-production environments (`prod` and `production` are excluded).
+- Performs only targeted reconciliation for known drift cases; infrastructure provisioning remains `azd provision` as source of truth.
+- Never deletes active resources; only purges matching soft-deleted Key Vault tombstones.
+- Fails fast if PostgreSQL cannot reach `Ready` to prevent unsafe partial deployments.
 
 ### Useful Debug Commands
 

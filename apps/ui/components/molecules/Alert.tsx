@@ -42,8 +42,11 @@ const variantIcons = {
   success: FiCheckCircle,
   warning: FiAlertTriangle,
   error: FiAlertCircle,
+  danger: FiAlertCircle,
   info: FiInfo,
   ghost: FiInfo,
+  light: FiInfo,
+  outline: FiInfo,
 };
 
 export const Alert: React.FC<AlertProps> = ({

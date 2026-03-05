@@ -10,9 +10,8 @@ import { ProductGrid } from '../organisms/ProductGrid';
 import type {
   FilterGroup,
   Product,
+  SortOption,
   BaseComponentProps,
-  ProductGridLayout,
-  ProductGridSortOption,
 } from '../types';
 
 export interface ShopLayoutProps extends BaseComponentProps {
@@ -22,26 +21,26 @@ export interface ShopLayoutProps extends BaseComponentProps {
   products: Product[];
   /** Active filter values */
   activeFilters?: Record<string, string[]>;
-  /** Filter change handler */
-  onFilterChange?: (filterId: string, values: string[]) => void;
   /** Clear all filters handler */
   onClearFilters?: () => void;
   /** Grid layout (grid or list) */
-  layout?: ProductGridLayout;
+  layout?: 'grid' | 'list';
   /** Layout change handler */
-  onLayoutChange?: (layout: ProductGridLayout) => void;
+  onLayoutChange?: (layout: 'grid' | 'list') => void;
   /** Sort option */
   sortBy?: string;
   /** Sort change handler */
   onSortChange?: (value: string) => void;
   /** Sort options */
-  sortOptions?: ProductGridSortOption[];
+  sortOptions?: SortOption[];
   /** Add to cart handler */
-  onAddToCart?: (sku: string) => void;
+  onAddToCart?: (product: Product) => void;
   /** Add to wishlist handler */
-  onAddToWishlist?: (sku: string) => void;
+  onAddToWishlist?: (product: Product) => void;
   /** Product click handler */
-  onProductClick?: (sku: string) => void;
+  onProductClick?: (product: Product) => void;
+  /** Filter change handler */
+  onFilterChange?: (filterId: string, optionId: string, checked: boolean) => void;
   /** Loading state */
   loading?: boolean;
   /** Whether filters are open on mobile */
@@ -63,7 +62,6 @@ export const ShopLayout: React.FC<ShopLayoutProps> = ({
   sortOptions,
   onAddToCart,
   onAddToWishlist,
-  onProductClick,
   loading = false,
   filtersOpen = false,
   onToggleFilters,
@@ -83,7 +81,7 @@ export const ShopLayout: React.FC<ShopLayoutProps> = ({
           <div className="sticky top-20">
             <FilterPanel
               filterGroups={filterGroups}
-              activeFilters={activeFilters}
+              selectedFilters={activeFilters}
               onFilterChange={onFilterChange}
               onClearAll={onClearFilters}
             />
@@ -99,7 +97,7 @@ export const ShopLayout: React.FC<ShopLayoutProps> = ({
             >
               <FilterPanel
                 filterGroups={filterGroups}
-                activeFilters={activeFilters}
+                selectedFilters={activeFilters}
                 onFilterChange={onFilterChange}
                 onClearAll={onClearFilters}
               />
@@ -111,14 +109,13 @@ export const ShopLayout: React.FC<ShopLayoutProps> = ({
         <div className="lg:col-span-3">
           <ProductGrid
             products={products}
-            layout={layout}
-            onLayoutChange={onLayoutChange}
-            sortBy={sortBy}
+            defaultView={layout}
+            onViewChange={onLayoutChange}
+            currentSort={sortBy}
             onSortChange={onSortChange}
             sortOptions={sortOptions}
             onAddToCart={onAddToCart}
-            onAddToWishlist={onAddToWishlist}
-            onProductClick={onProductClick}
+            onWishlist={onAddToWishlist}
             loading={loading}
           />
         </div>

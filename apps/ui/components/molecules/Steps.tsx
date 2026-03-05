@@ -73,17 +73,11 @@ export const Steps: React.FC<StepsProps> = ({
                   'w-10 h-10 rounded-full border-2 transition-all',
                   'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2',
                   'dark:focus:ring-offset-gray-900',
-                  isCompleted && [
-                    'bg-blue-600 border-blue-600 text-white',
-                    isClickable && 'hover:bg-blue-700 hover:border-blue-700',
-                  ],
-                  isActive && [
-                    'bg-white dark:bg-gray-900 border-blue-600 text-blue-600',
-                    'shadow-lg',
-                  ],
-                  !isActive && !isCompleted && [
-                    'bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-700 text-gray-500',
-                  ],
+                  isCompleted && 'bg-blue-600 border-blue-600 text-white',
+                  isCompleted && isClickable && 'hover:bg-blue-700 hover:border-blue-700',
+                  isActive && 'bg-white dark:bg-gray-900 border-blue-600 text-blue-600',
+                  isActive && 'shadow-lg',
+                  !isActive && !isCompleted && 'bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-700 text-gray-500',
                   isClickable ? 'cursor-pointer' : 'cursor-default'
                 )}
               >

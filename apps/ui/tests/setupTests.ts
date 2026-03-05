@@ -23,3 +23,36 @@ jest.mock('next/link', () => ({
 	default: ({ href, children, ...rest }: any) =>
 		React.createElement('a', { href, ...rest }, children),
 }));
+
+if (!window.matchMedia) {
+	Object.defineProperty(window, 'matchMedia', {
+		writable: true,
+		value: (query: string) => ({
+			matches: false,
+			media: query,
+			onchange: null,
+			addListener: jest.fn(),
+			removeListener: jest.fn(),
+			addEventListener: jest.fn(),
+			removeEventListener: jest.fn(),
+			dispatchEvent: jest.fn(),
+		}),
+	});
+}
+
+jest.mock('@stripe/stripe-js', () => ({
+	__esModule: true,
+	loadStripe: jest.fn(async () => ({
+		confirmPayment: jest.fn(async () => ({ error: null })),
+	})),
+}), { virtual: true });
+
+jest.mock('@stripe/react-stripe-js', () => ({
+	__esModule: true,
+	Elements: ({ children }: any) => React.createElement('div', { 'data-testid': 'stripe-elements' }, children),
+	PaymentElement: () => React.createElement('div', { 'data-testid': 'payment-element' }),
+	useStripe: () => ({
+		confirmPayment: jest.fn(async () => ({ error: null })),
+	}),
+	useElements: () => ({}),
+}), { virtual: true });

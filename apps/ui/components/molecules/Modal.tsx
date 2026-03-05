@@ -134,7 +134,7 @@ export const Modal: React.FC<ModalProps> = ({
                         className={cn(
                           'text-lg font-semibold leading-6',
                           'text-gray-900 dark:text-white',
-                          icon && 'text-center'
+                          !!icon && 'text-center'
                         )}
                       >
                         {title}

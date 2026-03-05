@@ -42,7 +42,7 @@ export const Tooltip: React.FC<TooltipProps> = ({
   ariaLabel,
 }) => {
   const [visible, setVisible] = React.useState(false);
-  const timeoutRef = React.useRef<NodeJS.Timeout>();
+  const timeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
   const showTooltip = () => {
     timeoutRef.current = setTimeout(() => {
