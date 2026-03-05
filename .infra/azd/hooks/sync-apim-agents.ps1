@@ -3,6 +3,7 @@ param(
     [string]$ApimName = $env:APIM_NAME,
     [string]$Namespace = $(if ($env:K8S_NAMESPACE) { $env:K8S_NAMESPACE } else { 'holiday-peak' }),
     [string]$AzureYamlPath,
+    [string]$ChangedServices = $env:CHANGED_SERVICES,
     [string]$ApiPathPrefix = 'agents',
     [bool]$IncludeCrudService = $true,
     [bool]$RequireLoadBalancer = $true,
@@ -522,8 +523,14 @@ $script:resolvedAksClusterName = Get-AksClusterName -Rg $resolvedResourceGroup -
 Ensure-AksCredentials -Rg $resolvedResourceGroup -RepoRoot $repoRoot -SkipForPreview:$Preview
 
 $agentServices = Get-AksServicesFromAzureYaml -Path $AzureYamlPath -IncludeCrud:$IncludeCrudService
+
+if ($ChangedServices) {
+    $changedServiceSet = $ChangedServices.Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+    $agentServices = @($agentServices | Where-Object { $changedServiceSet -contains $_ })
+}
+
 if (-not $agentServices -or $agentServices.Count -eq 0) {
-    Write-Host 'No AKS agent services were found in azure.yaml. Nothing to sync.'
+    Write-Host 'No matching changed AKS services to sync.'
     exit 0
 }
 
