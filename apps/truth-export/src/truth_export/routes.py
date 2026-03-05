@@ -1,0 +1,142 @@
+"""REST routes for the truth-export service."""
+
+from __future__ import annotations
+
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+
+from .adapters import TruthExportAdapters, build_truth_export_adapters
+from .export_engine import ExportEngine
+
+router = APIRouter(prefix="/export", tags=["export"])
+
+# Module-level singletons (overridden in tests via dependency injection)
+_engine = ExportEngine()
+_adapters: TruthExportAdapters = build_truth_export_adapters()
+
+
+def get_engine() -> ExportEngine:
+    return _engine
+
+
+def get_adapters() -> TruthExportAdapters:
+    return _adapters
+
+
+# ---------------------------------------------------------------------------
+# Request / Response models
+# ---------------------------------------------------------------------------
+
+
+class BulkExportRequest(BaseModel):
+    entity_ids: list[str]
+    protocol: str = "ucp"
+    partner_id: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# Routes
+# ---------------------------------------------------------------------------
+
+
+@router.post("/acp/{entity_id}")
+async def export_acp(
+    entity_id: str,
+    partner_id: str | None = None,
+    engine: ExportEngine = Depends(get_engine),
+    adapters: TruthExportAdapters = Depends(get_adapters),
+) -> dict[str, Any]:
+    """Export a product as ACP format."""
+    return await _run_export(entity_id, "acp", engine, adapters, partner_id=partner_id)
+
+
+@router.post("/ucp/{entity_id}")
+async def export_ucp(
+    entity_id: str,
+    engine: ExportEngine = Depends(get_engine),
+    adapters: TruthExportAdapters = Depends(get_adapters),
+) -> dict[str, Any]:
+    """Export a product as UCP format."""
+    return await _run_export(entity_id, "ucp", engine, adapters)
+
+
+@router.post("/bulk")
+async def export_bulk(
+    request: BulkExportRequest,
+    engine: ExportEngine = Depends(get_engine),
+    adapters: TruthExportAdapters = Depends(get_adapters),
+) -> dict[str, Any]:
+    """Bulk-export a list of products in the requested protocol."""
+    results = []
+    for entity_id in request.entity_ids:
+        result = await _run_export(
+            entity_id,
+            request.protocol,
+            engine,
+            adapters,
+            partner_id=request.partner_id,
+        )
+        results.append(result)
+    return {"protocol": request.protocol, "count": len(results), "results": results}
+
+
+@router.get("/status/{job_id}")
+async def export_status(
+    job_id: str,
+    adapters: TruthExportAdapters = Depends(get_adapters),
+) -> dict[str, Any]:
+    """Check the status of an export job."""
+    job = adapters.job_tracker.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Export job {job_id!r} not found")
+    return job
+
+
+@router.get("/protocols")
+async def list_protocols(
+    engine: ExportEngine = Depends(get_engine),
+) -> dict[str, Any]:
+    """List supported export protocols."""
+    return {"protocols": engine.supported_protocols()}
+
+
+# ---------------------------------------------------------------------------
+# Internal helper
+# ---------------------------------------------------------------------------
+
+
+async def _run_export(
+    entity_id: str,
+    protocol: str,
+    engine: ExportEngine,
+    adapters: TruthExportAdapters,
+    *,
+    partner_id: str | None = None,
+) -> dict[str, Any]:
+    product = await adapters.truth_store.get_product_style(entity_id)
+    if product is None:
+        raise HTTPException(status_code=404, detail=f"Product {entity_id!r} not found")
+
+    attributes = await adapters.truth_store.get_truth_attributes(entity_id)
+    mapping = await adapters.truth_store.get_protocol_mapping(protocol)
+
+    job_id = adapters.job_tracker.create(entity_id, protocol, partner_id)
+
+    result = engine.export(
+        job_id=job_id,
+        product=product,
+        attributes=attributes,
+        protocol=protocol,
+        mapping=mapping,
+        partner_id=partner_id,
+    )
+
+    await adapters.truth_store.save_export_result(result.model_dump())
+
+    audit = engine.build_audit_event(job_id, product, protocol)
+    await adapters.truth_store.save_audit_event(audit.model_dump())
+
+    adapters.job_tracker.update(job_id, result.status)
+    return result.model_dump()
