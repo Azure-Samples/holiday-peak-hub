@@ -6,6 +6,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 AZURE_YAML_PATH="${AZURE_YAML_PATH:-$REPO_ROOT/azure.yaml}"
 NAMESPACE="${K8S_NAMESPACE:-holiday-peak}"
 API_PATH_PREFIX="${API_PATH_PREFIX:-agents}"
+CHANGED_SERVICES="${CHANGED_SERVICES:-}"
 RESOURCE_GROUP="${AZURE_RESOURCE_GROUP:-${RESOURCE_GROUP:-}}"
 APIM_NAME="${APIM_NAME:-}"
 AKS_CLUSTER_NAME="${AKS_CLUSTER_NAME:-}"
@@ -166,6 +167,23 @@ PY
 
 if [ -z "$SERVICES" ]; then
   echo "No AKS agent services were found in azure.yaml. Nothing to sync."
+  exit 0
+fi
+
+if [ -n "$CHANGED_SERVICES" ]; then
+  FILTER_FILE="$(mktemp)"
+  printf '%s' "$CHANGED_SERVICES" | tr ',' '\n' | sed '/^[[:space:]]*$/d' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' > "$FILTER_FILE"
+  SERVICES="$(printf '%s\n' "$SERVICES" | while IFS= read -r SERVICE; do
+    [ -z "$SERVICE" ] && continue
+    if grep -Fxq "$SERVICE" "$FILTER_FILE"; then
+      printf '%s\n' "$SERVICE"
+    fi
+  done)"
+  rm -f "$FILTER_FILE"
+fi
+
+if [ -z "$SERVICES" ]; then
+  echo "No matching changed AKS services to sync."
   exit 0
 fi
 
