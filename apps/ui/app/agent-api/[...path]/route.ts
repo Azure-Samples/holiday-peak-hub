@@ -71,11 +71,16 @@ async function proxyRequest(
       cache: 'no-store',
     });
   } catch (error) {
-    const detail = error instanceof Error ? error.message : 'Unknown upstream fetch error';
+    if (error instanceof Error) {
+      console.error('Agent API proxy upstream fetch failed', {
+        attemptedPath: upstreamPath,
+        sourceKey,
+        message: error.message,
+      });
+    }
     return NextResponse.json(
       {
         error: 'Agent API proxy could not reach upstream service.',
-        detail,
         proxy: {
           sourceKey,
           baseUrl,

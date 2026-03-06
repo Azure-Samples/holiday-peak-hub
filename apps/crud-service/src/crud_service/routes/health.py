@@ -51,9 +51,20 @@ async def _check_cosmos() -> tuple[str, str]:
 async def _check_postgres(request: Request) -> tuple[str, str]:
     """Return (status, detail) for PostgreSQL pool readiness."""
     init_error = getattr(request.app.state, "db_pool_init_error", None)
+    pool_status, pool_detail = await BaseRepository.check_pool_health()
+
+    # A startup init error can be transient (for example, during dependency warm-up).
+    # If the current health check succeeds, clear stale state so readiness can recover.
+    if pool_status == "healthy":
+        if init_error:
+            logger.info("PostgreSQL pool recovered after startup init error: %s", init_error)
+            request.app.state.db_pool_init_error = None
+        return pool_status, pool_detail
+
     if init_error:
-        return "unhealthy", init_error
-    return await BaseRepository.check_pool_health()
+        return "unhealthy", f"{init_error}; latest: {pool_detail}"
+
+    return pool_status, pool_detail
 
 
 @router.get("/health")

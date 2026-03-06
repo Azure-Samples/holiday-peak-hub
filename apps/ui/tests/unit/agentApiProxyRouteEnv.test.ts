@@ -51,7 +51,7 @@ describe('/agent-api proxy route env handling', () => {
     } as unknown as NextRequest;
   }
 
-  it('returns 502 with diagnostics when upstream agent fetch throws', async () => {
+  it('returns 502 with sanitized diagnostics when upstream agent fetch throws', async () => {
     process.env.NEXT_PUBLIC_AGENT_API_URL = 'https://apim.example.azure-api.net/agents';
     (global.fetch as jest.Mock).mockRejectedValue(new Error('connect ETIMEDOUT'));
 
@@ -64,7 +64,6 @@ describe('/agent-api proxy route env handling', () => {
     await expect(response.json()).resolves.toEqual(
       expect.objectContaining({
         error: 'Agent API proxy could not reach upstream service.',
-        detail: expect.stringContaining('ETIMEDOUT'),
         proxy: expect.objectContaining({
           sourceKey: 'NEXT_PUBLIC_AGENT_API_URL',
           attemptedPath: '/agents/ecommerce-product-detail-enrichment/invoke',

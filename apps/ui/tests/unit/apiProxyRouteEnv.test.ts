@@ -115,7 +115,7 @@ describe('/api proxy route env handling', () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  it('returns 502 with proxy diagnostics when upstream fetch throws', async () => {
+  it('returns 502 with sanitized diagnostics when upstream fetch throws', async () => {
     process.env.NEXT_PUBLIC_CRUD_API_URL = 'https://apim.example.azure-api.net';
     (global.fetch as jest.Mock).mockRejectedValue(new Error('connect ETIMEDOUT'));
 
@@ -128,7 +128,6 @@ describe('/api proxy route env handling', () => {
     await expect(response.json()).resolves.toEqual(
       expect.objectContaining({
         error: 'API proxy could not reach upstream service.',
-        detail: expect.stringContaining('ETIMEDOUT'),
         proxy: expect.objectContaining({
           sourceKey: 'NEXT_PUBLIC_CRUD_API_URL',
           attemptedPath: '/api/products',
