@@ -73,6 +73,22 @@ These controls reduce the chance that frontend `/api/products` or `/api/categori
   - Ambiguous routing candidates now fail fast.
 - Before any APIM update in ingress mode, hooks probe `http://<resolved-ingress-host>/crud-service/health` and abort on unhealthy/invalid resolution.
 
+## Closure Status Update (2026-03-06, PR #198)
+
+- Routing hardening for this incident is now implemented and merged on the hotfix branch.
+- Deployment control gates now enforce fail-fast behavior before user traffic is exposed:
+  - ACR preflight check before CRUD deploy.
+  - CRUD readiness gate (`/ready`) after CRUD rollout.
+  - Deterministic SWA resolution and APIM drift validation in UI deploy.
+  - Mandatory APIM smoke checks for health/products/categories around UI release.
+- Follow-up runtime fix removed a readiness false-negative mode by allowing `/ready` to recover from stale startup DB init errors once live pool health succeeds.
+
+### Residual Roadmap Items
+
+- Add periodic non-deploy drift scans (scheduled) for APIM backend URL and smoke endpoint health.
+- Add alerting hooks on repeated readiness degradation and APIM smoke failures.
+- Continue environment policy convergence for PostgreSQL auth mode with explicit per-environment contract.
+
 ### When to use `forceApimSync`
 
 - Use `forceApimSync=true` for incident closure or drift verification after infra/runtime remediation when no app files changed in the current diff.

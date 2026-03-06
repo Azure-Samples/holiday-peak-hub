@@ -1,5 +1,49 @@
 # Incident Infra Hardening Plan (2026-03-06)
 
+## Implementation Closure Update (2026-03-06, PR #198)
+
+### Implemented controls
+
+- Deployment guardrails are now enforced in workflows:
+  - ACR data-plane preflight before CRUD deploy.
+  - CRUD readiness gate using `/ready` checks through APIM and direct service path.
+  - Deterministic Static Web App resolution (`<project>-ui-<env>`) before fallback lookup.
+  - APIM URL drift validation and mandatory smoke probes for `/api/health`, `/api/products?limit=1`, and `/api/categories`.
+- Workload availability controls are now implemented for AKS-hosted services:
+  - CRUD-safe rollout defaults (zero unavailable during rolling updates).
+  - Pod disruption budget support and topology spread controls in chart templates/values.
+  - PowerShell and shell Helm render hooks now align on node scheduling behavior.
+- PostgreSQL auth-mode wiring is now deterministic across IaC/workflow/runtime:
+  - Explicit auth mode outputs are propagated into deploy/runtime environment generation.
+  - Runtime/env baseline is consistent (`password` default, explicit `entra` opt-in).
+- UI and agent proxy failure behavior is now safer:
+  - Legacy API URL alias fallback chain is supported.
+  - Upstream fetch failures return structured but sanitized `502` responses.
+  - Raw upstream exception detail is logged server-side only.
+- Follow-up runtime fix is implemented:
+  - CRUD `/ready` now recovers from stale startup DB init errors when live pool health is restored.
+
+### Architecture rationale
+
+- Deployment now uses explicit fail-fast control points (ACR/APIM/readiness) to prevent partial rollouts from becoming user-visible incidents.
+- Deterministic resource selection reduces routing ambiguity during IaC churn.
+- Readiness semantics now reflect current dependency state instead of stale startup state, reducing false-negative health outcomes.
+
+### Operational guardrails (do not bypass)
+
+- Do not deploy UI when APIM smoke checks fail.
+- Do not override UI API URL to a value that does not match live APIM gateway URL.
+- Treat ACR preflight failures as hard-stop conditions.
+- Keep rollout gating on `/ready` and do not downgrade to liveness-only checks.
+
+## Reviewer Checklist
+
+- [ ] Workflow guardrails and stop conditions are documented and verifiable.
+- [ ] CRUD `/ready` recovery semantics are documented and test-backed.
+- [ ] UI proxy `502` diagnostics are documented as sanitized client payloads.
+- [ ] PostgreSQL auth-mode contract is consistent across IaC/workflow/runtime/env generation.
+- [ ] Remaining roadmap work is separated from implemented controls.
+
 ## Current State
 
 - User-facing SWA API routes are currently healthy:

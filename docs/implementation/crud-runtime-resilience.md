@@ -10,10 +10,10 @@ Hardened `apps/crud-service` list endpoints and readiness checks to prevent recu
 ## Changes
 
 - Auth convergence groundwork (Phase 2):
-  - CRUD runtime settings now default `POSTGRES_AUTH_MODE` to `entra`.
-  - Password auth remains supported but is now explicit opt-in (`POSTGRES_AUTH_MODE=password`).
-  - AZD CRUD env generators (`generate-crud-env.sh` and `generate-crud-env.ps1`) now emit `POSTGRES_AUTH_MODE=entra` and `POSTGRES_ENTRA_SCOPE` by default.
-  - Deployment env generation no longer falls back to `crud_admin`; when `POSTGRES_USER` is not present in azd values, generators derive a deterministic workload-identity-style fallback (AKS cluster-based `*-agentpool` principal).
+  - CRUD runtime settings now default `POSTGRES_AUTH_MODE` to `password` for deterministic baseline behavior.
+  - Entra auth remains supported as explicit opt-in (`POSTGRES_AUTH_MODE=entra`).
+  - AZD CRUD env generators (`generate-crud-env.sh` and `generate-crud-env.ps1`) now resolve auth mode from azd outputs with `password` as default fallback.
+  - In `password` mode, `POSTGRES_USER` resolves to explicit admin user output; in `entra` mode, generators preserve workload-user resolution fallback.
 
 - Added PostgreSQL pool health tracking in `BaseRepository`:
   - Captures pool initialization errors in `_pool_init_error`.
@@ -33,6 +33,7 @@ Hardened `apps/crud-service` list endpoints and readiness checks to prevent recu
 - Improved readiness signaling:
   - Startup records DB pool init failure on app state (`db_pool_init_error`).
   - `GET /ready` now includes a `postgres` check and returns `503` when DB runtime state is unhealthy.
+  - Follow-up fix: readiness now probes current pool health first and clears stale startup init errors when the pool recovers, preventing permanent degraded state from transient bootstrap failures.
 
 ## Regression Tests Added
 
@@ -53,5 +54,12 @@ Hardened `apps/crud-service` list endpoints and readiness checks to prevent recu
   - `test_optional_auth_runtime_failure_returns_none`
 
 - `apps/crud-service/tests/unit/test_health.py`
-  - `test_readiness_degraded_when_postgres_init_failed`
+  - `test_readiness_degraded_when_postgres_pool_unhealthy_and_init_failed`
+  - `test_readiness_recovers_when_postgres_pool_is_healthy`
   - readiness shape assertion now includes `postgres`
+
+## Post-Review Fixes (2026-03-06)
+
+- Addressed focused review finding where stale startup DB init errors could keep `/ready` degraded after transient failures.
+- Added explicit test coverage for recovery path.
+- Preserved existing degraded behavior for true dependency failures.

@@ -38,7 +38,7 @@
 - Added a Next.js server route proxy at `/api/*` (`apps/ui/app/api/[...path]/route.ts`) so SWA calls forward to `${NEXT_PUBLIC_CRUD_API_URL}/api/*` consistently in production.
 - Browser-side API clients now use same-origin routes (`/api/*` and `/agent-api/*`) to avoid APIM CORS failures from the SWA origin.
 - API proxy base URL resolution now uses fallback aliases for backward compatibility:
-  - `/api/*` route: `NEXT_PUBLIC_CRUD_API_URL` -> `NEXT_PUBLIC_API_URL` -> `CRUD_API_URL`.
+  - `/api/*` route: `NEXT_PUBLIC_CRUD_API_URL` -> `NEXT_PUBLIC_API_URL` -> `NEXT_PUBLIC_API_BASE_URL` -> `CRUD_API_URL`.
   - `/agent-api/*` route: `NEXT_PUBLIC_AGENT_API_URL` -> `AGENT_API_URL` -> `${NEXT_PUBLIC_CRUD_API_URL}/agents` -> `${NEXT_PUBLIC_API_URL}/agents`.
   - Missing config now returns explicit HTTP 500 messages describing which env keys to set.
 - UI deployment workflows now fail fast if API URL resolution is empty and set both `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_CRUD_API_URL` from the same validated source.
@@ -96,9 +96,11 @@
   - `sourceKey` used for base URL resolution.
   - `attemptedPath` requested upstream.
   - `baseUrl` used by the proxy.
+- Client payload is sanitized and no longer includes raw upstream exception messages; details are logged server-side.
 - `/agent-api/*` proxy route (`apps/ui/app/agent-api/[...path]/route.ts`) now has the same upstream exception handling behavior and returns structured `502` diagnostics with matching proxy metadata fields.
+- Agent proxy `502` payload is likewise sanitized while preserving structured proxy context for diagnosis.
 - Upstream HTTP responses are still passed through without status rewriting, so backend `4xx/5xx` failures remain visible to callers.
-- Server-side API base URL resolution in `apps/ui/lib/api/client.ts` now follows the same fallback alias precedence as the `/api/*` proxy: `NEXT_PUBLIC_CRUD_API_URL` -> `NEXT_PUBLIC_API_URL` -> `CRUD_API_URL`.
+- Server-side API base URL resolution in `apps/ui/lib/api/client.ts` now follows the same fallback alias precedence as the `/api/*` proxy: `NEXT_PUBLIC_CRUD_API_URL` -> `NEXT_PUBLIC_API_URL` -> `NEXT_PUBLIC_API_BASE_URL` -> `CRUD_API_URL`.
 - Client-side API error extraction (`apps/ui/lib/api/client.ts`) now recursively maps `detail`, `error`, `message`, `title`, and `msg` payload fields (including object-array patterns such as `detail: [{ msg: ... }]`) before falling back to Axios defaults.
 - Category/product UI error states now render parsed error text plus backend status code when available:
   - `apps/ui/app/categories/page.tsx`
