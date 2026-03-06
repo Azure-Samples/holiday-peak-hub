@@ -63,6 +63,29 @@ nodeSelector: {}
 # For crud: { key: "workload", operator: "Equal", value: "crud", effect: "NoSchedule" }
 tolerations: []
 
+# Availability controls
+availability:
+  strategy:
+    type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 25%
+    maxSurge: 25%
+  topologySpreadConstraints:
+    enabled: false
+    constraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: ScheduleAnyway
+  podAntiAffinity:
+    enabled: false
+    topologyKey: kubernetes.io/hostname
+
+# PodDisruptionBudget
+pdb:
+  enabled: false
+  minAvailable: null
+  maxUnavailable: 1
+
 # KEDA autoscaling configuration
 keda:
   enabled: true

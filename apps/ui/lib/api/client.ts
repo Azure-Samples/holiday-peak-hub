@@ -8,7 +8,12 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 
 const IS_TEST_ENV = process.env.NODE_ENV === 'test';
-const SERVER_BASE_URL_ENV_KEYS = ['NEXT_PUBLIC_CRUD_API_URL', 'NEXT_PUBLIC_API_URL', 'CRUD_API_URL'] as const;
+const SERVER_BASE_URL_ENV_KEYS = [
+  'NEXT_PUBLIC_CRUD_API_URL',
+  'NEXT_PUBLIC_API_URL',
+  'NEXT_PUBLIC_API_BASE_URL',
+  'CRUD_API_URL',
+] as const;
 
 type ServerApiBaseUrlResolution = {
   baseUrl: string | null;
@@ -55,7 +60,7 @@ const CRUD_API_BASE_URL = IS_TEST_ENV
 
 if (!CRUD_API_BASE_URL && typeof window === 'undefined') {
   throw new Error(
-    'CRUD API base URL is not configured. Set one of NEXT_PUBLIC_CRUD_API_URL, NEXT_PUBLIC_API_URL, or CRUD_API_URL.',
+    'CRUD API base URL is not configured. Set one of NEXT_PUBLIC_CRUD_API_URL, NEXT_PUBLIC_API_URL, NEXT_PUBLIC_API_BASE_URL, or CRUD_API_URL.',
   );
 }
 

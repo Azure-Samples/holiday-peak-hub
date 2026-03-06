@@ -29,6 +29,7 @@ describe('/api proxy route env handling', () => {
     process.env = { ...originalEnv };
     delete process.env.NEXT_PUBLIC_CRUD_API_URL;
     delete process.env.NEXT_PUBLIC_API_URL;
+    delete process.env.NEXT_PUBLIC_API_BASE_URL;
     delete process.env.CRUD_API_URL;
     global.fetch = jest.fn();
   });
@@ -70,6 +71,31 @@ describe('/api proxy route env handling', () => {
 
     expect(global.fetch).toHaveBeenCalledWith(
       'https://apim.example.azure-api.net/api/products?category=shoes',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  it('builds upstream URL from NEXT_PUBLIC_API_BASE_URL fallback', async () => {
+    process.env.NEXT_PUBLIC_API_BASE_URL = 'https://apim-base.example.azure-api.net/';
+
+    (global.fetch as jest.Mock).mockResolvedValue(
+      {
+        body: null,
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers({
+          'content-type': 'application/json',
+        }),
+      },
+    );
+
+    const route = await import('../../app/api/[...path]/route');
+    await route.GET(makeRequest('http://localhost/api/categories'), {
+      params: Promise.resolve({ path: ['categories'] }),
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://apim-base.example.azure-api.net/api/categories',
       expect.objectContaining({ method: 'GET' }),
     );
   });

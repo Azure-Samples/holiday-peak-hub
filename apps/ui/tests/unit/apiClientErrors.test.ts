@@ -86,6 +86,15 @@ describe('resolveServerCrudApiBaseUrl', () => {
       sourceKey: 'NEXT_PUBLIC_API_URL',
     });
 
+    const fallbackToBase = resolveServerCrudApiBaseUrl({
+      NEXT_PUBLIC_API_BASE_URL: 'https://fallback-base.example.net/',
+    } as NodeJS.ProcessEnv);
+
+    expect(fallbackToBase).toEqual({
+      baseUrl: 'https://fallback-base.example.net',
+      sourceKey: 'NEXT_PUBLIC_API_BASE_URL',
+    });
+
     const fallbackToServerOnly = resolveServerCrudApiBaseUrl({
       CRUD_API_URL: 'https://fallback-server.example.net/',
     } as NodeJS.ProcessEnv);

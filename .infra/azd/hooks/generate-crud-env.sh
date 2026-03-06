@@ -54,9 +54,39 @@ POSTGRES_DATABASE="$(get_val POSTGRES_DATABASE)"
 [ -z "$POSTGRES_DATABASE" ] && POSTGRES_DATABASE="$(get_val postgresDatabaseName)"
 [ -z "$POSTGRES_DATABASE" ] && POSTGRES_DATABASE="holiday_peak_crud"
 
+POSTGRES_AUTH_MODE="$(get_val POSTGRES_AUTH_MODE)"
+[ -z "$POSTGRES_AUTH_MODE" ] && POSTGRES_AUTH_MODE="$(get_val postgresAuthMode)"
+[ -z "$POSTGRES_AUTH_MODE" ] && POSTGRES_AUTH_MODE="password"
+
+POSTGRES_ADMIN_USER="$(get_val POSTGRES_ADMIN_USER)"
+[ -z "$POSTGRES_ADMIN_USER" ] && POSTGRES_ADMIN_USER="$(get_val postgresAdminUser)"
+[ -z "$POSTGRES_ADMIN_USER" ] && POSTGRES_ADMIN_USER="crud_admin"
+
 POSTGRES_USER="$(get_val POSTGRES_USER)"
-[ -z "$POSTGRES_USER" ] && POSTGRES_USER="$(get_val postgresAdminUser)"
-[ -z "$POSTGRES_USER" ] && POSTGRES_USER="crud_admin"
+if [ "$POSTGRES_AUTH_MODE" = "password" ]; then
+  POSTGRES_USER="$POSTGRES_ADMIN_USER"
+elif [ -z "$POSTGRES_USER" ]; then
+  AKS_CLUSTER_NAME="$(get_val AZURE_AKS_CLUSTER_NAME)"
+  [ -z "$AKS_CLUSTER_NAME" ] && AKS_CLUSTER_NAME="$(get_val AKS_CLUSTER_NAME)"
+  [ -z "$AKS_CLUSTER_NAME" ] && AKS_CLUSTER_NAME="$(get_val aksClusterName)"
+
+  if [ -n "$AKS_CLUSTER_NAME" ]; then
+    POSTGRES_USER="${AKS_CLUSTER_NAME}-agentpool"
+  else
+    PROJECT_NAME="$(get_val projectName)"
+    [ -z "$PROJECT_NAME" ] && PROJECT_NAME="$(get_val PROJECT_NAME)"
+
+    if [ -n "$PROJECT_NAME" ]; then
+      if [ "$ENVIRONMENT_VALUE" = "prod" ]; then
+        POSTGRES_USER="${PROJECT_NAME}-aks-agentpool"
+      else
+        POSTGRES_USER="${PROJECT_NAME}-${ENVIRONMENT_VALUE}-aks-agentpool"
+      fi
+    else
+      POSTGRES_USER="crud-${ENVIRONMENT_VALUE}-aks-agentpool"
+    fi
+  fi
+fi
 
 EVENT_HUB_NAMESPACE="$(get_val EVENT_HUB_NAMESPACE)"
 [ -z "$EVENT_HUB_NAMESPACE" ] && EVENT_HUB_NAMESPACE="$(get_val eventHubsNamespaceName)"
@@ -103,9 +133,11 @@ LOG_LEVEL=INFO
 POSTGRES_HOST=$POSTGRES_HOST
 POSTGRES_PORT=5432
 POSTGRES_DATABASE=$POSTGRES_DATABASE
+POSTGRES_AUTH_MODE=$POSTGRES_AUTH_MODE
 POSTGRES_USER=$POSTGRES_USER
 POSTGRES_PASSWORD=
 POSTGRES_PASSWORD_SECRET_NAME=postgres-admin-password
+POSTGRES_ENTRA_SCOPE=https://ossrdbms-aad.database.windows.net/.default
 POSTGRES_SSL=true
 
 EVENT_HUB_NAMESPACE=$EVENT_HUB_NAMESPACE

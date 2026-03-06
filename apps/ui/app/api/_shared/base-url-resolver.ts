@@ -51,6 +51,10 @@ const CRUD_BASE_URL_STRATEGIES: ResolutionStrategy[] = [
     resolve: (env) => env.NEXT_PUBLIC_API_URL,
   },
   {
+    key: 'NEXT_PUBLIC_API_BASE_URL',
+    resolve: (env) => env.NEXT_PUBLIC_API_BASE_URL,
+  },
+  {
     key: 'CRUD_API_URL',
     resolve: (env) => env.CRUD_API_URL,
   },
@@ -76,6 +80,13 @@ const AGENT_BASE_URL_STRATEGIES: ResolutionStrategy[] = [
     key: 'NEXT_PUBLIC_API_URL',
     resolve: (env) => {
       const apiBase = normalizeBaseUrl(env.NEXT_PUBLIC_API_URL);
+      return apiBase ? `${apiBase}/agents` : undefined;
+    },
+  },
+  {
+    key: 'NEXT_PUBLIC_API_BASE_URL',
+    resolve: (env) => {
+      const apiBase = normalizeBaseUrl(env.NEXT_PUBLIC_API_BASE_URL);
       return apiBase ? `${apiBase}/agents` : undefined;
     },
   },

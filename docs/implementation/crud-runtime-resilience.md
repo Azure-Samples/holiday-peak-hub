@@ -9,6 +9,12 @@ Hardened `apps/crud-service` list endpoints and readiness checks to prevent recu
 
 ## Changes
 
+- Auth convergence groundwork (Phase 2):
+  - CRUD runtime settings now default `POSTGRES_AUTH_MODE` to `entra`.
+  - Password auth remains supported but is now explicit opt-in (`POSTGRES_AUTH_MODE=password`).
+  - AZD CRUD env generators (`generate-crud-env.sh` and `generate-crud-env.ps1`) now emit `POSTGRES_AUTH_MODE=entra` and `POSTGRES_ENTRA_SCOPE` by default.
+  - Deployment env generation no longer falls back to `crud_admin`; when `POSTGRES_USER` is not present in azd values, generators derive a deterministic workload-identity-style fallback (AKS cluster-based `*-agentpool` principal).
+
 - Added PostgreSQL pool health tracking in `BaseRepository`:
   - Captures pool initialization errors in `_pool_init_error`.
   - Provides `check_pool_health()` with a live `SELECT 1` probe.

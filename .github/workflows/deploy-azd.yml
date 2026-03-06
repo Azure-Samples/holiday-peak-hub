@@ -189,6 +189,8 @@ jobs:
       APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ steps.outputs.outputs.APPLICATIONINSIGHTS_CONNECTION_STRING }}
       POSTGRES_HOST: ${{ steps.outputs.outputs.POSTGRES_HOST }}
       POSTGRES_USER: ${{ steps.outputs.outputs.POSTGRES_USER }}
+      POSTGRES_ADMIN_USER: ${{ steps.outputs.outputs.POSTGRES_ADMIN_USER }}
+      POSTGRES_AUTH_MODE: ${{ steps.outputs.outputs.POSTGRES_AUTH_MODE }}
       POSTGRES_DATABASE: ${{ steps.outputs.outputs.POSTGRES_DATABASE }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -479,6 +481,8 @@ jobs:
             echo "APPLICATIONINSIGHTS_CONNECTION_STRING=${APPLICATIONINSIGHTS_CONNECTION_STRING}"
             echo "POSTGRES_HOST=${POSTGRES_HOST}"
             echo "POSTGRES_USER=${POSTGRES_USER}"
+            echo "POSTGRES_ADMIN_USER=${POSTGRES_ADMIN_USER}"
+            echo "POSTGRES_AUTH_MODE=${POSTGRES_AUTH_MODE}"
             echo "POSTGRES_DATABASE=${POSTGRES_DATABASE}"
           } >> "$GITHUB_OUTPUT"
 
@@ -616,6 +620,46 @@ jobs:
           echo "No supported IngressClass found. Enable AKS Web App Routing or provide INGRESS_CLASS_NAME." >&2
           exit 1
 
+      - name: Preflight ACR data-plane accessibility
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          RG_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+          ACR_NAME=$(echo "${{ inputs.projectName }}${{ inputs.environment }}acr" | tr -cd '[:alnum:]' | tr '[:upper:]' '[:lower:]')
+
+          if ! az acr show --resource-group "$RG_NAME" --name "$ACR_NAME" >/dev/null 2>&1; then
+            echo "ACR preflight could not find registry '$ACR_NAME' in resource group '$RG_NAME'." >&2
+            echo "Verify naming convention or set AZURE_CONTAINER_REGISTRY_ENDPOINT in azd env before deploy." >&2
+            exit 1
+          fi
+
+          ACR_LOGIN_SERVER=$(az acr show \
+            --resource-group "$RG_NAME" \
+            --name "$ACR_NAME" \
+            --query "loginServer" -o tsv)
+
+          STATUS_CODE=$(curl -sS -o /tmp/acr-v2-probe.txt -w "%{http_code}" --max-time 25 "https://${ACR_LOGIN_SERVER}/v2/" || true)
+
+          if [ "$STATUS_CODE" = "200" ] || [ "$STATUS_CODE" = "401" ]; then
+            echo "ACR preflight passed: ${ACR_LOGIN_SERVER} is reachable from this runner (HTTP $STATUS_CODE)."
+            exit 0
+          fi
+
+          RUNNER_IP=$(curl -sS --max-time 10 https://api.ipify.org || true)
+          echo "ACR preflight failed: ${ACR_LOGIN_SERVER}/v2/ returned HTTP ${STATUS_CODE}." >&2
+          if [ "$STATUS_CODE" = "403" ]; then
+            echo "Likely cause: ACR firewall/network rules are blocking this GitHub-hosted runner." >&2
+          fi
+          if [ -n "$RUNNER_IP" ]; then
+            echo "Runner egress IP detected: $RUNNER_IP" >&2
+            echo "Action: allow this IP (or CIDR) on ACR '$ACR_NAME' or use a self-hosted runner in an allowed network." >&2
+            echo "Example: az acr network-rule add --name '$ACR_NAME' --resource-group '$RG_NAME' --ip-address '$RUNNER_IP'" >&2
+          else
+            echo "Action: check ACR firewall/network rules for GitHub runner egress and retry." >&2
+          fi
+          exit 1
+
       - name: Deploy CRUD service
         timeout-minutes: 25
         shell: bash
@@ -653,6 +697,7 @@ jobs:
           PROJECT_NAME: ${{ needs.provision.outputs.PROJECT_NAME }}
           MODEL_DEPLOYMENT_NAME_FAST: gpt-5-nano
           MODEL_DEPLOYMENT_NAME_RICH: gpt-5-nano
+          POSTGRES_AUTH_MODE: ${{ needs.provision.outputs.POSTGRES_AUTH_MODE }}
           COSMOS_ACCOUNT_URI: ${{ needs.provision.outputs.COSMOS_ACCOUNT_URI }}
           COSMOS_DATABASE: ${{ needs.provision.outputs.COSMOS_DATABASE }}
           REDIS_HOST: ${{ needs.provision.outputs.REDIS_HOST }}
@@ -660,8 +705,63 @@ jobs:
           KEY_VAULT_URI: ${{ needs.provision.outputs.KEY_VAULT_URI }}
           APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ needs.provision.outputs.APPLICATIONINSIGHTS_CONNECTION_STRING }}
           POSTGRES_HOST: ${{ needs.provision.outputs.POSTGRES_HOST }}
-          POSTGRES_USER: ${{ needs.provision.outputs.POSTGRES_USER }}
+          POSTGRES_USER: ${{ needs.provision.outputs.POSTGRES_AUTH_MODE == 'password' && needs.provision.outputs.POSTGRES_ADMIN_USER || needs.provision.outputs.POSTGRES_USER }}
           POSTGRES_DATABASE: ${{ needs.provision.outputs.POSTGRES_DATABASE }}
+
+      - name: Gate CRUD readiness (/ready)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APIM_BASE="${{ needs.provision.outputs.APIM_GATEWAY_URL }}"
+          APIM_BASE="${APIM_BASE%/}"
+          APIM_READY_URL="${APIM_BASE}/api/ready"
+          SERVICE_READY_URL="http://127.0.0.1:18080/ready"
+
+          check_ready() {
+            local url="$1"
+            local label="$2"
+
+            for attempt in $(seq 1 24); do
+              STATUS_CODE=$(curl -sS -o /tmp/crud-ready.json -w "%{http_code}" "$url" || true)
+              if [ "$STATUS_CODE" = "200" ]; then
+                echo "[OK] ${label} ready on attempt ${attempt}: ${url}"
+                return 0
+              fi
+              echo "Attempt ${attempt}/24: ${label} returned HTTP ${STATUS_CODE}"
+              sleep 10
+            done
+
+            echo "[FAIL] ${label} readiness did not return HTTP 200: ${url}" >&2
+            cat /tmp/crud-ready.json 2>/dev/null || true
+            return 1
+          }
+
+          APIM_READY=false
+          if [ -n "$APIM_BASE" ]; then
+            if check_ready "$APIM_READY_URL" "APIM /api/ready"; then
+              APIM_READY=true
+            fi
+          else
+            echo "APIM gateway URL not provided by provision outputs; skipping APIM /api/ready check."
+          fi
+
+          kubectl port-forward svc/crud-service 18080:8000 -n holiday-peak >/tmp/crud-port-forward.log 2>&1 &
+          PF_PID=$!
+          trap 'kill "$PF_PID" >/dev/null 2>&1 || true' EXIT
+          sleep 3
+
+          SERVICE_READY=false
+          if check_ready "$SERVICE_READY_URL" "service /ready"; then
+            SERVICE_READY=true
+          fi
+
+          if [ "$APIM_READY" != "true" ] && [ "$SERVICE_READY" != "true" ]; then
+            echo "CRUD readiness gate failed: both APIM and direct service /ready checks are unhealthy." >&2
+            echo "Port-forward log:" >&2
+            cat /tmp/crud-port-forward.log 2>/dev/null || true
+            exit 1
+          fi
 
   deploy-ui:
     runs-on: ubuntu-latest
@@ -770,16 +870,33 @@ jobs:
 
       - name: Resolve SWA deployment token
         id: swa
+        shell: bash
         run: |
-          RESOURCE_GROUP="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+          set -euo pipefail
 
-          SWA_NAME=$(az resource list \
-            --resource-group "$RESOURCE_GROUP" \
-            --resource-type "Microsoft.Web/staticSites" \
-            --query "[0].name" -o tsv)
+          RESOURCE_GROUP="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+          EXPECTED_SWA_NAME="${{ inputs.projectName }}-ui-${{ inputs.environment }}"
+
+          SWA_NAME=""
+          if az staticwebapp show --name "$EXPECTED_SWA_NAME" --resource-group "$RESOURCE_GROUP" >/dev/null 2>&1; then
+            SWA_NAME="$EXPECTED_SWA_NAME"
+          else
+            SWA_NAME=$(az staticwebapp list \
+              --resource-group "$RESOURCE_GROUP" \
+              --query "[?starts_with(defaultHostname, '${EXPECTED_SWA_NAME}.')].name | [0]" -o tsv)
+
+            if [ -z "$SWA_NAME" ]; then
+              COUNT=$(az staticwebapp list --resource-group "$RESOURCE_GROUP" --query "length(@)" -o tsv)
+              if [ "$COUNT" = "1" ]; then
+                SWA_NAME=$(az staticwebapp list --resource-group "$RESOURCE_GROUP" --query "[0].name" -o tsv)
+              fi
+            fi
+          fi
 
           if [ -z "$SWA_NAME" ]; then
-            echo "No Static Web App found in resource group $RESOURCE_GROUP"
+            echo "Could not deterministically resolve Static Web App in $RESOURCE_GROUP." >&2
+            echo "Expected name: $EXPECTED_SWA_NAME" >&2
+            echo "Action: align SWA naming with IaC convention or keep exactly one SWA in the resource group." >&2
             exit 1
           fi
 
@@ -1064,6 +1181,7 @@ jobs:
           FOUNDRY_STRICT_ENFORCEMENT: "true"
           MODEL_DEPLOYMENT_NAME_FAST: gpt-5-nano
           MODEL_DEPLOYMENT_NAME_RICH: gpt-5-nano
+          POSTGRES_AUTH_MODE: ${{ needs.provision.outputs.POSTGRES_AUTH_MODE }}
           COSMOS_ACCOUNT_URI: ${{ needs.provision.outputs.COSMOS_ACCOUNT_URI }}
           COSMOS_DATABASE: ${{ needs.provision.outputs.COSMOS_DATABASE }}
           REDIS_HOST: ${{ needs.provision.outputs.REDIS_HOST }}
@@ -1071,7 +1189,7 @@ jobs:
           KEY_VAULT_URI: ${{ needs.provision.outputs.KEY_VAULT_URI }}
           APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ needs.provision.outputs.APPLICATIONINSIGHTS_CONNECTION_STRING }}
           POSTGRES_HOST: ${{ needs.provision.outputs.POSTGRES_HOST }}
-          POSTGRES_USER: ${{ needs.provision.outputs.POSTGRES_USER }}
+          POSTGRES_USER: ${{ needs.provision.outputs.POSTGRES_AUTH_MODE == 'password' && needs.provision.outputs.POSTGRES_ADMIN_USER || needs.provision.outputs.POSTGRES_USER }}
           POSTGRES_DATABASE: ${{ needs.provision.outputs.POSTGRES_DATABASE }}
 
   sync-apim:

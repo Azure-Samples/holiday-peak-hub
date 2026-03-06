@@ -16,10 +16,17 @@ READINESS_PATH="/ready"
 if [ "$SERVICE_NAME" = "crud-service" ]; then
   NODE_POOL="crud"
   WORKLOAD_TYPE="crud"
-  READINESS_PATH="/health"
+  PDB_ENABLED="true"
+  PDB_MIN_AVAILABLE="1"
+  ROLLING_MAX_UNAVAILABLE="0"
+  ROLLING_MAX_SURGE="1"
 else
   NODE_POOL="agents"
   WORKLOAD_TYPE="agents"
+  PDB_ENABLED="false"
+  PDB_MIN_AVAILABLE=""
+  ROLLING_MAX_UNAVAILABLE=""
+  ROLLING_MAX_SURGE=""
 fi
 
 SERVICE_IMAGE_VAR_NAME="SERVICE_$(printf '%s' "$SERVICE_NAME" | tr '[:lower:]-' '[:upper:]_')_IMAGE_NAME"
@@ -59,6 +66,19 @@ HELM_ARGS="$HELM_ARGS --set tolerations[0].key=workload"
 HELM_ARGS="$HELM_ARGS --set tolerations[0].operator=Equal"
 HELM_ARGS="$HELM_ARGS --set tolerations[0].value=$WORKLOAD_TYPE"
 HELM_ARGS="$HELM_ARGS --set tolerations[0].effect=NoSchedule"
+
+if [ -n "$ROLLING_MAX_UNAVAILABLE" ]; then
+  HELM_ARGS="$HELM_ARGS --set-string availability.rollingUpdate.maxUnavailable=$ROLLING_MAX_UNAVAILABLE"
+fi
+
+if [ -n "$ROLLING_MAX_SURGE" ]; then
+  HELM_ARGS="$HELM_ARGS --set-string availability.rollingUpdate.maxSurge=$ROLLING_MAX_SURGE"
+fi
+
+if [ "$PDB_ENABLED" = "true" ]; then
+  HELM_ARGS="$HELM_ARGS --set pdb.enabled=true"
+  HELM_ARGS="$HELM_ARGS --set-string pdb.minAvailable=$PDB_MIN_AVAILABLE"
+fi
 
 add_env_arg() {
   key="$1"

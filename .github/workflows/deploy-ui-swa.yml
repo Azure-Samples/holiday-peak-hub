@@ -134,14 +134,28 @@ jobs:
           set -euo pipefail
 
           RESOURCE_GROUP="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
-          SWA_NAME=$(az resource list \
-            --resource-group "$RESOURCE_GROUP" \
-            --resource-type "Microsoft.Web/staticSites" \
-            --query "[0].name" -o tsv)
+          EXPECTED_SWA_NAME="${{ inputs.projectName }}-ui-${{ inputs.environment }}"
+          SWA_NAME=""
+
+          if az staticwebapp show --name "$EXPECTED_SWA_NAME" --resource-group "$RESOURCE_GROUP" >/dev/null 2>&1; then
+            SWA_NAME="$EXPECTED_SWA_NAME"
+          else
+            SWA_NAME=$(az staticwebapp list \
+              --resource-group "$RESOURCE_GROUP" \
+              --query "[?starts_with(defaultHostname, '${EXPECTED_SWA_NAME}.')].name | [0]" -o tsv)
+
+            if [ -z "$SWA_NAME" ]; then
+              COUNT=$(az staticwebapp list --resource-group "$RESOURCE_GROUP" --query "length(@)" -o tsv)
+              if [ "$COUNT" = "1" ]; then
+                SWA_NAME=$(az staticwebapp list --resource-group "$RESOURCE_GROUP" --query "[0].name" -o tsv)
+              fi
+            fi
+          fi
 
           SWA_NAME="$(echo "$SWA_NAME" | xargs)"
           if [ -z "$SWA_NAME" ]; then
-            echo "No Static Web App found in resource group $RESOURCE_GROUP." >&2
+            echo "Could not deterministically resolve Static Web App in resource group $RESOURCE_GROUP." >&2
+            echo "Expected name: $EXPECTED_SWA_NAME" >&2
             exit 1
           fi
 
