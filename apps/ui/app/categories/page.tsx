@@ -5,9 +5,15 @@ import { MainLayout } from '@/components/templates/MainLayout';
 import { Card } from '@/components/molecules/Card';
 import { Badge } from '@/components/atoms/Badge';
 import { useCategories } from '@/lib/hooks/useCategories';
+import { getApiErrorMessage, getApiStatusCode } from '@/lib/api/errorPresentation';
 
 export default function CategoriesPage() {
-  const { data: categories = [], isLoading, isError } = useCategories();
+  const { data: categories = [], isLoading, isError, error } = useCategories();
+  const errorStatus = getApiStatusCode(error);
+  const errorMessage = getApiErrorMessage(
+    error,
+    'Categories could not be loaded. Please verify the cloud API configuration and try again.',
+  );
 
   return (
     <MainLayout>
@@ -39,9 +45,10 @@ export default function CategoriesPage() {
 
       {!isLoading && isError && (
         <Card className="p-6 border border-red-200 dark:border-red-900">
-          <p className="text-red-600 dark:text-red-400">
-            Categories could not be loaded. Please verify the cloud API configuration and try again.
-          </p>
+          <p className="text-red-600 dark:text-red-400">{errorMessage}</p>
+          {errorStatus ? (
+            <p className="mt-2 text-xs text-red-500 dark:text-red-300">Backend status: {errorStatus}</p>
+          ) : null}
         </Card>
       )}
 

@@ -11,6 +11,7 @@ from jose import jwt as jose_jwt
 
 JWTConfig = deps_module.JWTConfig
 get_current_user = deps_module.get_current_user
+get_current_user_optional = deps_module.get_current_user_optional
 User = deps_module.User
 
 
@@ -268,3 +269,25 @@ class TestGetCurrentUser:
             await get_current_user(creds)
         assert exc_info.value.status_code == 401
         assert "user identifier" in exc_info.value.detail.lower()
+
+
+class TestGetCurrentUserOptional:
+    """Tests for optional auth dependency behavior."""
+
+    @pytest.mark.asyncio
+    async def test_optional_auth_runtime_failure_returns_none(self, monkeypatch, caplog):
+        """Unexpected runtime errors in optional auth should degrade to anonymous."""
+
+        async def _boom(_credentials):
+            raise RuntimeError("jwks runtime failure")
+
+        monkeypatch.setattr(deps_module, "get_current_user", _boom)
+
+        creds = MagicMock()
+        creds.credentials = "fake.jwt.token"
+
+        with caplog.at_level("WARNING"):
+            user = await get_current_user_optional(creds)
+
+        assert user is None
+        assert "Optional auth runtime failure" in caplog.text

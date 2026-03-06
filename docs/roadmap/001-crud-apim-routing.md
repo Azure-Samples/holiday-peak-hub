@@ -50,6 +50,34 @@ The `sync-apim-agents` deployment job was designed for agent services only. The 
 - `GET https://holidaypeakhub405-dev-apim.azure-api.net/api/products?limit=1` reaches CRUD auth flow (returns `401` when unauthenticated), confirming APIM route-to-backend correctness.
 - CRUD remains included in strict postdeploy APIM sync (`-IncludeCrudService:$true -RequireLoadBalancer:$true`) and stays healthy in full 22-service sweep.
 
+## Recurrence Hardening (Mar 2026)
+
+- APIM sync ingress endpoint discovery now supports both AGIC/App Gateway and AKS Web App Routing or ingress-nginx (`nginx` in `app-routing-system`, `ingress-nginx-controller` in `ingress-nginx`, and `app.kubernetes.io/name=nginx` service labels).
+- When ingress endpoint resolution fails, APIM sync now fails fast instead of falling back to cluster-local service addresses (`*.svc.cluster.local` or `ClusterIP`) that APIM cannot reach.
+- CRUD APIM policy now includes:
+  - Guarded rewrite conditions for `/api`, `/api/*`, and `/api/health`
+  - Explicit backend forward timeout (`60` seconds)
+  - Structured error responses for invalid path (`400`) and upstream APIM routing failures (`502`)
+
+These controls reduce the chance that frontend `/api/products` or `/api/categories` requests surface opaque APIM 500 responses caused by unreachable backend URLs or policy expression edge cases.
+
+## Incident-Closure Safeguards (Mar 2026)
+
+- `deploy-azd.yml` now exposes `workflow_dispatch` input `forceApimSync` (default `false`).
+- `sync-apim` and `smoke-apim` jobs now run when either:
+  - changed service detection reports CRUD/agent changes, or
+  - `forceApimSync` is set to `true` for manual incident closure verification.
+- In ingress mode, APIM sync hooks now require deterministic backend ingress host selection:
+  - Prefer explicit `ingress host` or explicit `app gateway name/ip` when provided.
+  - Auto-resolution is allowed only when a single unambiguous candidate exists.
+  - Ambiguous routing candidates now fail fast.
+- Before any APIM update in ingress mode, hooks probe `http://<resolved-ingress-host>/crud-service/health` and abort on unhealthy/invalid resolution.
+
+### When to use `forceApimSync`
+
+- Use `forceApimSync=true` for incident closure or drift verification after infra/runtime remediation when no app files changed in the current diff.
+- Keep `forceApimSync=false` for normal incremental deploys driven by changed-service detection.
+
 ## Files to Modify
 
 - `.github/workflows/deploy-azd.yml` — Add CRUD APIM sync job

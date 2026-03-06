@@ -90,3 +90,65 @@ def test_list_products_with_search(client):
     data = response.json()
     assert isinstance(data, list)
     assert len(data) >= 1
+
+
+def test_list_products_skips_malformed_records(client):
+    """Malformed product rows should be skipped instead of raising 500."""
+    malformed_record = {
+        "id": "prod-bad",
+        "name": "Broken Product",
+        "description": "Invalid data",
+        "price": "not-a-number",
+        "category_id": "electronics",
+    }
+
+    with patch(
+        "crud_service.routes.products.product_repo.query",
+        new_callable=AsyncMock,
+        return_value=[malformed_record, _SAMPLE_PRODUCT],
+    ):
+        response = client.get("/api/products")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert len(payload) == 1
+    assert payload[0]["id"] == _SAMPLE_PRODUCT["id"]
+
+
+def test_list_products_repo_failure_returns_503(client):
+    """Repository/runtime failures should return 503 rather than unhandled 500."""
+    with patch(
+        "crud_service.routes.products.product_repo.query",
+        new_callable=AsyncMock,
+        side_effect=RuntimeError("db unavailable"),
+    ):
+        response = client.get("/api/products")
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Product catalog is temporarily unavailable"
+
+
+def test_list_products_none_repo_result_returns_503(client):
+    """Non-iterable None result should degrade to stable 503."""
+    with patch(
+        "crud_service.routes.products.product_repo.query",
+        new_callable=AsyncMock,
+        return_value=None,
+    ):
+        response = client.get("/api/products")
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Product catalog is temporarily unavailable"
+
+
+def test_list_products_non_iterable_repo_result_returns_503(client):
+    """Non-iterable result shape should degrade to stable 503."""
+    with patch(
+        "crud_service.routes.products.product_repo.query",
+        new_callable=AsyncMock,
+        return_value=42,
+    ):
+        response = client.get("/api/products")
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Product catalog is temporarily unavailable"

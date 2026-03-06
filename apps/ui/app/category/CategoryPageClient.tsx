@@ -8,6 +8,7 @@ import { Badge } from '@/components/atoms/Badge';
 import { Select } from '@/components/atoms/Select';
 import { useCategories } from '@/lib/hooks/useCategories';
 import { useProducts } from '@/lib/hooks/useProducts';
+import { getApiErrorMessage, getApiStatusCode } from '@/lib/api/errorPresentation';
 import { mapApiProductsToUi } from '@/lib/utils/productMappers';
 import type { Product as UiProduct } from '@/components/types';
 import { FiList, FiMessageSquare } from 'react-icons/fi';
@@ -27,10 +28,17 @@ export function CategoryPageClient({ slug }: { slug: string }) {
     data: categoryProducts,
     isLoading,
     isError,
+    error,
   } = useProducts({
     category: slug === 'all' ? undefined : slug,
     limit: 60,
   });
+
+  const productsErrorStatus = getApiStatusCode(error);
+  const productsErrorMessage = getApiErrorMessage(
+    error,
+    'Products could not be loaded for this category.',
+  );
 
   const products = mapApiProductsToUi(categoryProducts || []);
 
@@ -145,7 +153,8 @@ export function CategoryPageClient({ slug }: { slug: string }) {
 
       {isError ? (
         <div className="rounded-lg border border-red-300 p-4 text-red-700">
-          Products could not be loaded for this category.
+          <p>{productsErrorMessage}</p>
+          {productsErrorStatus ? <p className="mt-2 text-xs">Backend status: {productsErrorStatus}</p> : null}
         </div>
       ) : (
         <ProductGrid

@@ -11,11 +11,15 @@ RESOURCE_GROUP="${AZURE_RESOURCE_GROUP:-${RESOURCE_GROUP:-}}"
 APIM_NAME="${APIM_NAME:-}"
 AKS_CLUSTER_NAME="${AKS_CLUSTER_NAME:-}"
 APP_GW_NAME="${APP_GW_NAME:-}"
+APP_GW_IP="${APP_GW_IP:-}"
+INGRESS_HOST="${INGRESS_HOST:-}"
 USE_INGRESS="${USE_INGRESS:-false}"
 REQUIRE_LOAD_BALANCER=true
 BACKEND_RESOLVE_RETRIES="${BACKEND_RESOLVE_RETRIES:-24}"
 BACKEND_RESOLVE_DELAY_SECONDS="${BACKEND_RESOLVE_DELAY_SECONDS:-5}"
 PREVIEW=false
+RESOLVED_INGRESS_HOST=""
+INGRESS_VALIDATED=false
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -52,6 +56,14 @@ while [ "$#" -gt 0 ]; do
     --app-gw-name)
       shift
       APP_GW_NAME="$1"
+      ;;
+    --app-gw-ip)
+      shift
+      APP_GW_IP="$1"
+      ;;
+    --ingress-host)
+      shift
+      INGRESS_HOST="$1"
       ;;
     --azure-yaml)
       shift
@@ -189,6 +201,163 @@ fi
 
 echo "Syncing APIM APIs for AKS agent services into $APIM_NAME (RG: $RESOURCE_GROUP)..."
 
+resolve_ingress_gateway_ip() {
+  if [ -n "$RESOLVED_INGRESS_HOST" ]; then
+    printf '%s' "$RESOLVED_INGRESS_HOST"
+    return 0
+  fi
+
+  resolve_app_gw_public_host() {
+    gateway_name="$1"
+    pip_id=""
+    host=""
+
+    pip_id="$(az network application-gateway show \
+      --resource-group "$RESOURCE_GROUP" \
+      --name "$gateway_name" \
+      --query 'frontendIPConfigurations[0].publicIPAddress.id' -o tsv 2>/dev/null || true)"
+
+    if [ -n "$pip_id" ]; then
+      host="$(az network public-ip show --ids "$pip_id" --query ipAddress -o tsv 2>/dev/null || true)"
+      if [ -z "$host" ]; then
+        host="$(az network public-ip show --ids "$pip_id" --query dnsSettings.fqdn -o tsv 2>/dev/null || true)"
+      fi
+      if [ -n "$host" ]; then
+        printf '%s' "$host"
+        return 0
+      fi
+    fi
+
+    return 1
+  }
+
+  append_unique_candidate() {
+    candidate="$1"
+    candidate="$(printf '%s' "$candidate" | xargs)"
+    [ -z "$candidate" ] && return 0
+
+    if [ -z "$INGRESS_CANDIDATES" ]; then
+      INGRESS_CANDIDATES="$candidate"
+      return 0
+    fi
+
+    if ! printf '%s\n' "$INGRESS_CANDIDATES" | grep -Fxq "$candidate"; then
+      INGRESS_CANDIDATES="$INGRESS_CANDIDATES
+$candidate"
+    fi
+  }
+
+  count_candidates() {
+    if [ -z "$1" ]; then
+      printf '0'
+      return
+    fi
+    printf '%s\n' "$1" | sed '/^[[:space:]]*$/d' | wc -l | tr -d '[:space:]'
+  }
+
+  if [ -n "$INGRESS_HOST" ]; then
+    RESOLVED_INGRESS_HOST="$INGRESS_HOST"
+    printf '%s' "$RESOLVED_INGRESS_HOST"
+    return 0
+  fi
+
+  if [ -n "$APP_GW_IP" ]; then
+    RESOLVED_INGRESS_HOST="$APP_GW_IP"
+    printf '%s' "$RESOLVED_INGRESS_HOST"
+    return 0
+  fi
+
+  if [ -n "$APP_GW_NAME" ]; then
+    RESOLVED_INGRESS_HOST="$(resolve_app_gw_public_host "$APP_GW_NAME" || true)"
+    if [ -z "$RESOLVED_INGRESS_HOST" ]; then
+      echo "Failed to resolve ingress host from explicit application gateway '$APP_GW_NAME'." >&2
+      return 1
+    fi
+    printf '%s' "$RESOLVED_INGRESS_HOST"
+    return 0
+  fi
+
+  APP_GW_NAMES="$(az network application-gateway list --resource-group "$RESOURCE_GROUP" --query '[].name' -o tsv 2>/dev/null || true)"
+  APP_GW_COUNT="$(count_candidates "$APP_GW_NAMES")"
+
+  if [ "$APP_GW_COUNT" -gt 1 ]; then
+    echo "Multiple application gateways detected in '$RESOURCE_GROUP'. Provide --app-gw-name, --app-gw-ip, or --ingress-host." >&2
+    return 1
+  fi
+
+  if [ "$APP_GW_COUNT" -eq 1 ]; then
+    AUTO_GW_NAME="$(printf '%s\n' "$APP_GW_NAMES" | sed '/^[[:space:]]*$/d' | head -n 1)"
+    RESOLVED_INGRESS_HOST="$(resolve_app_gw_public_host "$AUTO_GW_NAME" || true)"
+    if [ -n "$RESOLVED_INGRESS_HOST" ]; then
+      printf '%s' "$RESOLVED_INGRESS_HOST"
+      return 0
+    fi
+    echo "Failed to resolve ingress host from detected application gateway '$AUTO_GW_NAME'." >&2
+    return 1
+  fi
+
+  INGRESS_CANDIDATES=""
+  append_unique_candidate "$(kubectl get svc -A -l app.kubernetes.io/name=nginx -o jsonpath='{.items[0].status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)"
+  append_unique_candidate "$(kubectl get svc -A -l app.kubernetes.io/name=nginx -o jsonpath='{.items[0].status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)"
+  append_unique_candidate "$(kubectl get svc nginx -n app-routing-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)"
+  append_unique_candidate "$(kubectl get svc nginx -n app-routing-system -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)"
+  append_unique_candidate "$(kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)"
+  append_unique_candidate "$(kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)"
+
+  INGRESS_CANDIDATE_COUNT="$(count_candidates "$INGRESS_CANDIDATES")"
+  if [ "$INGRESS_CANDIDATE_COUNT" -gt 1 ]; then
+    echo "Ambiguous ingress host candidates detected. Provide --app-gw-name, --app-gw-ip, or --ingress-host." >&2
+    return 1
+  fi
+
+  if [ "$INGRESS_CANDIDATE_COUNT" -eq 1 ]; then
+    RESOLVED_INGRESS_HOST="$(printf '%s\n' "$INGRESS_CANDIDATES" | sed '/^[[:space:]]*$/d' | head -n 1)"
+    printf '%s' "$RESOLVED_INGRESS_HOST"
+    return 0
+  fi
+
+  return 1
+}
+
+validate_ingress_health() {
+  host="$1"
+  probe_url="http://$host/crud-service/health"
+  probe_body="/tmp/apim-ingress-health.json"
+  status_code=""
+
+  for attempt in $(seq 1 8); do
+    status_code="$(curl -sS -o "$probe_body" -w '%{http_code}' --max-time 10 "$probe_url" || true)"
+    if [ "$status_code" = "200" ]; then
+      echo "Validated ingress host '$host' via $probe_url"
+      return 0
+    fi
+    sleep 5
+  done
+
+  echo "Ingress validation failed for '$host' (last status: ${status_code:-n/a}) using $probe_url" >&2
+  cat "$probe_body" 2>/dev/null >&2 || true
+  return 1
+}
+
+ensure_ingress_ready() {
+  if [ "$INGRESS_VALIDATED" = true ]; then
+    return 0
+  fi
+
+  RESOLVED_INGRESS_HOST="$(resolve_ingress_gateway_ip || true)"
+  if [ -z "$RESOLVED_INGRESS_HOST" ]; then
+    echo "Ingress endpoint could not be resolved for APIM backend sync. Refusing to fall back to cluster-local addresses that APIM cannot reach." >&2
+    return 1
+  fi
+
+  if [ "$PREVIEW" = false ]; then
+    validate_ingress_health "$RESOLVED_INGRESS_HOST"
+  fi
+
+  INGRESS_VALIDATED=true
+  return 0
+}
+
 resolve_backend_url() {
   svc="$1"
   resolved_name=""
@@ -198,27 +367,10 @@ resolve_backend_url() {
 
   # If using Ingress (AGIC), resolve via App Gateway public IP
   if [ "$USE_INGRESS" = true ]; then
-    if [ -z "$APP_GW_IP" ]; then
-      if [ -n "$APP_GW_NAME" ]; then
-        APP_GW_IP="$(az network public-ip show \
-          --resource-group "$RESOURCE_GROUP" \
-          --name "${APP_GW_NAME}-pip" \
-          --query ipAddress -o tsv 2>/dev/null || true)"
-      fi
-      if [ -z "$APP_GW_IP" ]; then
-        # Try to find App Gateway public IP from VNet
-        APP_GW_IP="$(az network application-gateway list \
-          --resource-group "$RESOURCE_GROUP" \
-          --query "[0].frontendIPConfigurations[0].publicIPAddress.id" -o tsv 2>/dev/null | \
-          xargs -I{} az network public-ip show --ids {} --query ipAddress -o tsv 2>/dev/null || true)"
-      fi
-    fi
-    if [ -n "$APP_GW_IP" ]; then
-      # Route through App Gateway with path-based routing
-      printf 'http://%s/%s' "$APP_GW_IP" "$svc"
-      return
-    fi
-    echo "App Gateway IP could not be resolved. Falling back to cluster DNS." >&2
+    ensure_ingress_ready
+    # Route through ingress controller with path-based routing.
+    printf 'http://%s/%s' "$RESOLVED_INGRESS_HOST" "$svc"
+    return
   fi
 
   if command -v kubectl >/dev/null 2>&1; then
@@ -371,7 +523,7 @@ ensure_crud_api() {
 {
   "properties": {
     "format": "rawxml",
-    "value": "<policies><inbound><base /><choose><when condition=\"@(context.Request.OriginalUrl.Path == &quot;/api/health&quot;)\"><rewrite-uri template=\"/health\" copy-unmatched-params=\"true\" /></when><otherwise><rewrite-uri template=\"@(string.Concat(&quot;/api&quot;, context.Request.OriginalUrl.Path.Substring(4)))\" copy-unmatched-params=\"true\" /></otherwise></choose></inbound><backend><base /></backend><outbound><base /></outbound><on-error><base /></on-error></policies>"
+    "value": "<policies><inbound><base /><choose><when condition=\"@(context.Request.OriginalUrl.Path.Equals(&quot;/api/health&quot;, System.StringComparison.OrdinalIgnoreCase))\"><rewrite-uri template=\"/health\" copy-unmatched-params=\"true\" /></when><when condition=\"@(context.Request.OriginalUrl.Path.Equals(&quot;/api&quot;, System.StringComparison.OrdinalIgnoreCase) || context.Request.OriginalUrl.Path.StartsWith(&quot;/api/&quot;, System.StringComparison.OrdinalIgnoreCase))\"><set-variable name=\"crudBackendPath\" value=\"@(context.Request.OriginalUrl.Path.Length > 4 ? context.Request.OriginalUrl.Path.Substring(4) : string.Empty)\" /><rewrite-uri template=\"@(string.Concat(&quot;/api&quot;, (string)context.Variables[&quot;crudBackendPath&quot;]))\" copy-unmatched-params=\"true\" /></when><otherwise><return-response><set-status code=\"400\" reason=\"Bad Request\" /><set-header name=\"Content-Type\" exists-action=\"override\"><value>application/json</value></set-header><set-body>{\"detail\":\"Invalid CRUD API path.\"}</set-body></return-response></otherwise></choose></inbound><backend><base /><forward-request timeout=\"60\" /></backend><outbound><base /></outbound><on-error><base /><return-response><set-status code=\"502\" reason=\"Bad Gateway\" /><set-header name=\"Content-Type\" exists-action=\"override\"><value>application/json</value></set-header><set-body>{\"detail\":\"APIM upstream error while routing to CRUD backend.\"}</set-body></return-response></on-error></policies>"
   }
 }
 JSON

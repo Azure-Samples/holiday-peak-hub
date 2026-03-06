@@ -111,11 +111,13 @@ async def lifespan(_app: FastAPI):
         logger.info("PostgreSQL auth mode: Entra token")
 
     # Initialize PostgreSQL connection pool
+    _app.state.db_pool_init_error = None
     try:
         await BaseRepository.initialize_pool()
         logger.info("PostgreSQL pool initialized")
     except Exception as exc:
-        logger.warning("PostgreSQL pool initialization skipped: %s", exc)
+        _app.state.db_pool_init_error = f"{type(exc).__name__}: {exc}"
+        logger.warning("PostgreSQL pool initialization failed: %s", exc)
 
     logger.info("CRUD Service started successfully")
 

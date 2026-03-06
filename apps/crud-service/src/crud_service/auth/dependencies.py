@@ -192,6 +192,9 @@ async def get_current_user_optional(
         return await get_current_user(credentials)
     except HTTPException:
         return None
+    except Exception as exc:
+        logger.warning("Optional auth runtime failure; continuing anonymously: %s", exc)
+        return None
 
 
 async def get_key_vault_secret(secret_name: str) -> str:
