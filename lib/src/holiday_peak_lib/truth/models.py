@@ -1,260 +1,311 @@
-"""Pydantic data models for the Product Truth Layer.
+"""Product Truth Layer — data models.
 
-All models track ``source_system`` and ``source_id`` to satisfy the requirement
-that no product data is generated without source references.  Documents are
-kept lean (well under the 2 MB Cosmos DB item limit) by using references for
-large data rather than embedding.
+Defines Pydantic v2 models for the Product Graph (Issue #90, #92).
+All models track ``source_system`` and ``source_id`` to satisfy the
+"never generate data without source references" rule.
 """
 
+from __future__ import annotations
+
+import uuid
 from datetime import datetime, timezone
+from enum import Enum
 from typing import Any, Optional
-from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
 def _utcnow() -> datetime:
-    return datetime.now(tz=timezone.utc)
+    return datetime.now(timezone.utc)
 
 
 def _new_id() -> str:
-    return str(uuid4())
+    return str(uuid.uuid4())
 
 
-class ProductVariant(BaseModel):
-    """A single size/colour/SKU variant linked to a :class:`ProductStyle`.
+# ---------------------------------------------------------------------------
+# Enumerations
+# ---------------------------------------------------------------------------
 
-    >>> v = ProductVariant(id="v1", style_id="s1", sku="SKU-001",
-    ...                    source_system="pim", source_id="ext-001")
-    >>> v.sku
-    'SKU-001'
-    """
 
-    model_config = ConfigDict(populate_by_name=True)
+class AttributeStatus(str, Enum):
+    """Lifecycle status of a TruthAttribute or ProposedAttribute."""
 
-    id: str = Field(default_factory=_new_id)
-    style_id: str
-    sku: str
-    size: Optional[str] = None
-    color: Optional[str] = None
-    attributes: dict[str, Any] = Field(default_factory=dict)
-    source_system: str
-    source_id: str
-    created_at: datetime = Field(default_factory=_utcnow)
-    updated_at: datetime = Field(default_factory=_utcnow)
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    SUPERSEDED = "superseded"
+
+
+class AuditEventType(str, Enum):
+    """Types of events in the audit trail."""
+
+    PROPOSED = "proposed"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    EXPORTED = "exported"
+    INGESTED = "ingested"
+    UPDATED = "updated"
+
+
+# ---------------------------------------------------------------------------
+# ProductStyle (Issue #90)
+# ---------------------------------------------------------------------------
 
 
 class ProductStyle(BaseModel):
     """Top-level product concept partitioned by ``categoryId``.
 
-    Cosmos DB partition key: ``/categoryId``
-
-    >>> ps = ProductStyle(id="s1", category_id="CAT-1", name="Blue Jacket",
-    ...                   source_system="pim", source_id="ext-s1")
-    >>> ps.name
-    'Blue Jacket'
-    >>> ps.category_id
-    'CAT-1'
+    A *style* groups all variants (sizes, colours, SKUs) under a single
+    canonical product identity. Documents are stored in the ``products``
+    Cosmos DB container.
     """
 
     model_config = ConfigDict(populate_by_name=True)
 
     id: str = Field(default_factory=_new_id)
-    category_id: str = Field(alias="categoryId", serialization_alias="categoryId")
+    style_id: str = Field(default_factory=_new_id)
+    category_id: str = Field(..., alias="categoryId")
     name: str
     brand: Optional[str] = None
     description: Optional[str] = None
-    attributes: dict[str, Any] = Field(default_factory=dict)
-    variants: list[ProductVariant] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
     source_system: str
     source_id: str
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
-class TruthAttribute(BaseModel):
-    """Official approved attribute stored in ``attributes_truth``.
+# ---------------------------------------------------------------------------
+# ProductVariant (Issue #90)
+# ---------------------------------------------------------------------------
 
-    Cosmos DB partition key: ``/entityId``
 
-    >>> ta = TruthAttribute(id="a1", entity_id="s1", name="color",
-    ...                     value="blue", confidence=0.99,
-    ...                     source_system="enrichment", source_id="job-1")
-    >>> ta.confidence
-    0.99
+class ProductVariant(BaseModel):
+    """Size/colour/SKU variant linked to a :class:`ProductStyle`.
+
+    Stored in the same ``products`` container, partitioned by
+    ``categoryId`` (inherited from the parent style).
     """
 
     model_config = ConfigDict(populate_by_name=True)
 
     id: str = Field(default_factory=_new_id)
-    entity_id: str = Field(alias="entityId", serialization_alias="entityId")
-    name: str
-    value: Any
+    variant_id: str = Field(default_factory=_new_id)
+    style_id: str
+    category_id: str = Field(..., alias="categoryId")
+    sku: str
+    size: Optional[str] = None
+    color: Optional[str] = None
+    price: Optional[float] = None
+    currency: str = "USD"
+    inventory_count: int = 0
+    source_system: str
+    source_id: str
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
+    attributes: dict[str, Any] = Field(default_factory=dict)
+
+
+# ---------------------------------------------------------------------------
+# TruthAttribute (Issue #90)
+# ---------------------------------------------------------------------------
+
+
+class TruthAttribute(BaseModel):
+    """Approved, canonical attribute stored in ``attributes_truth``.
+
+    Partitioned by ``entityId`` (the product style or variant ID).
+    Tracks ``confidence``, ``source_system``, and ``source_id`` to
+    satisfy traceability requirements.
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str = Field(default_factory=_new_id)
+    entity_id: str = Field(..., alias="entityId")
+    attribute_name: str
+    attribute_value: Any
     confidence: float = Field(ge=0.0, le=1.0)
     source_system: str
     source_id: str
+    status: AttributeStatus = AttributeStatus.APPROVED
     approved_by: Optional[str] = None
     approved_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)
 
 
+# ---------------------------------------------------------------------------
+# ProposedAttribute (Issue #90)
+# ---------------------------------------------------------------------------
+
+
 class ProposedAttribute(BaseModel):
-    """Candidate attribute pending HITL review, stored in ``attributes_proposed``.
+    """Candidate attribute pending human-in-the-loop review.
 
-    Cosmos DB partition key: ``/entityId``
-
-    >>> pa = ProposedAttribute(id="p1", entity_id="s1", name="material",
-    ...                        value="cotton", confidence=0.8,
-    ...                        source_system="ai", source_id="run-42")
-    >>> pa.status
-    'pending'
+    Stored in ``attributes_proposed``, partitioned by ``entityId``.
     """
 
     model_config = ConfigDict(populate_by_name=True)
 
     id: str = Field(default_factory=_new_id)
-    entity_id: str = Field(alias="entityId", serialization_alias="entityId")
-    name: str
-    value: Any
+    entity_id: str = Field(..., alias="entityId")
+    attribute_name: str
+    attribute_value: Any
     confidence: float = Field(ge=0.0, le=1.0)
     source_system: str
     source_id: str
-    status: str = "pending"
-    proposed_at: datetime = Field(default_factory=_utcnow)
-    reviewed_by: Optional[str] = None
+    status: AttributeStatus = AttributeStatus.PENDING
+    reviewer: Optional[str] = None
+    review_note: Optional[str] = None
     reviewed_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
+    evidence_ids: list[str] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# GapReport (Issue #90)
+# ---------------------------------------------------------------------------
 
 
 class GapReport(BaseModel):
-    """Completeness scoring output per product.
-
-    >>> gr = GapReport(id="g1", entity_id="s1", score=0.75,
-    ...                missing_required=["weight"], missing_optional=["color"])
-    >>> gr.score
-    0.75
-    """
+    """Completeness scoring output per product style."""
 
     model_config = ConfigDict(populate_by_name=True)
 
     id: str = Field(default_factory=_new_id)
-    entity_id: str = Field(alias="entityId", serialization_alias="entityId")
-    score: float = Field(ge=0.0, le=1.0)
-    missing_required: list[str] = Field(default_factory=list)
-    missing_optional: list[str] = Field(default_factory=list)
-    generated_at: datetime = Field(default_factory=_utcnow)
+    entity_id: str = Field(..., alias="entityId")
+    category_id: str = Field(..., alias="categoryId")
+    completeness_score: float = Field(ge=0.0, le=1.0)
+    required_missing: list[str] = Field(default_factory=list)
+    optional_missing: list[str] = Field(default_factory=list)
+    computed_at: datetime = Field(default_factory=_utcnow)
+
+
+# ---------------------------------------------------------------------------
+# AuditEvent (Issue #90)
+# ---------------------------------------------------------------------------
 
 
 class AuditEvent(BaseModel):
-    """Immutable change log entry stored in ``audit``.
+    """Immutable audit-trail entry stored in the ``audit`` container.
 
-    Cosmos DB partition key: ``/entityId``
-
-    >>> ae = AuditEvent(id="e1", entity_id="s1", action="approve",
-    ...                 actor="user@example.com", changes={"status": "approved"})
-    >>> ae.action
-    'approve'
+    Partitioned by ``entityId``.
     """
 
     model_config = ConfigDict(populate_by_name=True)
 
     id: str = Field(default_factory=_new_id)
-    entity_id: str = Field(alias="entityId", serialization_alias="entityId")
-    action: str
+    entity_id: str = Field(..., alias="entityId")
+    event_type: AuditEventType
     actor: str
-    changes: dict[str, Any] = Field(default_factory=dict)
-    timestamp: datetime = Field(default_factory=_utcnow)
+    attribute_name: Optional[str] = None
+    old_value: Optional[Any] = None
+    new_value: Optional[Any] = None
+    source_system: str
+    source_id: str
+    occurred_at: datetime = Field(default_factory=_utcnow)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+# ---------------------------------------------------------------------------
+# AssetMetadata (Issue #90)
+# ---------------------------------------------------------------------------
 
 
 class AssetMetadata(BaseModel):
-    """Digital asset reference stored in ``assets``.
+    """Digital asset reference stored in the ``assets`` container.
 
-    Cosmos DB partition key: ``/productId``
-
-    >>> am = AssetMetadata(id="as1", product_id="s1", url="https://cdn/img.jpg",
-    ...                    asset_type="image", source_system="dam",
-    ...                    source_id="dam-001")
-    >>> am.asset_type
-    'image'
+    Partitioned by ``productId``.
     """
 
     model_config = ConfigDict(populate_by_name=True)
 
     id: str = Field(default_factory=_new_id)
-    product_id: str = Field(alias="productId", serialization_alias="productId")
-    url: str
+    product_id: str = Field(..., alias="productId")
     asset_type: str
+    url: str
+    alt_text: Optional[str] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    file_size_bytes: Optional[int] = None
     source_system: str
     source_id: str
     created_at: datetime = Field(default_factory=_utcnow)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+# ---------------------------------------------------------------------------
+# CategorySchema (Issue #90)
+# ---------------------------------------------------------------------------
 
 
 class CategorySchema(BaseModel):
-    """Defines required and optional attributes per category, stored in ``schemas``.
+    """Category schema defining required/optional attributes per category.
 
-    Cosmos DB partition key: ``/categoryId``
-
-    >>> cs = CategorySchema(id="sc1", category_id="CAT-1",
-    ...                     required_attributes=["color", "size"],
-    ...                     optional_attributes=["material"])
-    >>> "color" in cs.required_attributes
-    True
+    Stored in the ``schemas`` Cosmos DB container, partitioned by
+    ``categoryId``.
     """
 
     model_config = ConfigDict(populate_by_name=True)
 
     id: str = Field(default_factory=_new_id)
-    category_id: str = Field(alias="categoryId", serialization_alias="categoryId")
+    category_id: str = Field(..., alias="categoryId")
+    category_name: str
+    version: str = "1.0.0"
     required_attributes: list[str] = Field(default_factory=list)
     optional_attributes: list[str] = Field(default_factory=list)
-    attribute_definitions: dict[str, Any] = Field(default_factory=dict)
+    attribute_types: dict[str, str] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)
+
+
+# ---------------------------------------------------------------------------
+# TenantConfig (Issue #92)
+# ---------------------------------------------------------------------------
+
+
+class TenantConfig(BaseModel):
+    """Tenant configuration document stored in the ``config`` container.
+
+    Partitioned by ``tenantId``.
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str = Field(default_factory=_new_id)
+    tenant_id: str = Field(..., alias="tenantId")
+    tenant_name: str
+    auto_approve_threshold: float = Field(default=0.95, ge=0.0, le=1.0)
+    human_review_threshold: float = Field(default=0.70, ge=0.0, le=1.0)
+    enabled_categories: list[str] = Field(default_factory=list)
+    source_systems: list[str] = Field(default_factory=list)
+    export_protocols: list[str] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
+    settings: dict[str, Any] = Field(default_factory=dict)
+
+
+# ---------------------------------------------------------------------------
+# MappingDocument (Issue #91)
+# ---------------------------------------------------------------------------
 
 
 class MappingDocument(BaseModel):
     """Canonical-to-protocol field mappings stored in ``mappings``.
 
-    Cosmos DB partition key: ``/protocolVersion``
-
+    Cosmos DB partition key: ``/protocolVersion``.
     ``id`` is formatted as ``"{protocol}:{version}"`` for deterministic reads.
-
-    >>> md = MappingDocument(id="gs1:2024.1", protocol="gs1",
-    ...                      protocol_version="2024.1",
-    ...                      mappings={"color": "ColourCode"})
-    >>> md.protocol
-    'gs1'
     """
 
     model_config = ConfigDict(populate_by_name=True)
 
     id: str = Field(default_factory=_new_id)
     protocol: str
-    protocol_version: str = Field(
-        alias="protocolVersion", serialization_alias="protocolVersion"
-    )
+    protocol_version: str = Field(..., alias="protocolVersion")
     mappings: dict[str, str] = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=_utcnow)
-    updated_at: datetime = Field(default_factory=_utcnow)
-
-
-class TenantConfig(BaseModel):
-    """Tenant configuration stored in ``config``.
-
-    Cosmos DB partition key: ``/tenantId``
-
-    ``id`` is equal to ``tenantId`` for deterministic reads.
-
-    >>> tc = TenantConfig(id="tenant-1", tenant_id="tenant-1",
-    ...                   settings={"locale": "en-US"})
-    >>> tc.tenant_id
-    'tenant-1'
-    """
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    id: str = Field(default_factory=_new_id)
-    tenant_id: str = Field(alias="tenantId", serialization_alias="tenantId")
-    settings: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)

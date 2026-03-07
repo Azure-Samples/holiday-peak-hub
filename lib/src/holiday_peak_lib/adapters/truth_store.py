@@ -23,10 +23,15 @@ from azure.identity import DefaultAzureCredential
 
 from holiday_peak_lib.adapters.base import AdapterError, BaseAdapter
 from holiday_peak_lib.truth.models import (
+    AssetMetadata,
+    AttributeStatus,
     AuditEvent,
+    AuditEventType,
     CategorySchema,
+    GapReport,
     MappingDocument,
     ProductStyle,
+    ProductVariant,
     ProposedAttribute,
     TenantConfig,
     TruthAttribute,
@@ -136,9 +141,7 @@ class TruthStoreAdapter(BaseAdapter):
     async def _delete_impl(self, identifier: str) -> bool:
         parts = identifier.split(":", 2)
         if len(parts) != 3:
-            raise AdapterError(
-                "identifier must be formatted as 'container:item_id:partition_key'"
-            )
+            raise AdapterError("identifier must be formatted as 'container:item_id:partition_key'")
         container_name, item_id, partition_key = parts
         container = self._get_container(container_name)
         try:
@@ -179,9 +182,7 @@ class TruthStoreAdapter(BaseAdapter):
                     retry_after_ms = 1000.0
                     try:
                         headers = getattr(exc, "headers", None) or {}
-                        retry_after_ms = float(
-                            headers.get("x-ms-retry-after-ms", 1000)
-                        )
+                        retry_after_ms = float(headers.get("x-ms-retry-after-ms", 1000))
                     except (TypeError, ValueError):
                         pass
                     logger.warning(
@@ -208,15 +209,11 @@ class TruthStoreAdapter(BaseAdapter):
         result = await self._cosmos_call(container.upsert_item, item)
         return ProductStyle.model_validate(result)
 
-    async def get_product(
-        self, entity_id: str, category_id: str
-    ) -> Optional[ProductStyle]:
+    async def get_product(self, entity_id: str, category_id: str) -> Optional[ProductStyle]:
         """Retrieve a product style by ID and partition key."""
         await self._ensure_connected()
         container = self._get_container("products")
-        result = await self._cosmos_call(
-            container.read_item, entity_id, partition_key=category_id
-        )
+        result = await self._cosmos_call(container.read_item, entity_id, partition_key=category_id)
         if result is None:
             return None
         return ProductStyle.model_validate(result)
@@ -230,10 +227,7 @@ class TruthStoreAdapter(BaseAdapter):
         """Paginated listing of product styles within a category."""
         await self._ensure_connected()
         container = self._get_container("products")
-        sql = (
-            "SELECT * FROM c WHERE c.categoryId = @categoryId"
-            " OFFSET @offset LIMIT @limit"
-        )
+        sql = "SELECT * FROM c WHERE c.categoryId = @categoryId" " OFFSET @offset LIMIT @limit"
         params = [
             {"name": "@categoryId", "value": category_id},
             {"name": "@offset", "value": offset},
@@ -275,9 +269,7 @@ class TruthStoreAdapter(BaseAdapter):
     # Proposed Attributes
     # ------------------------------------------------------------------
 
-    async def upsert_proposed_attribute(
-        self, attr: ProposedAttribute
-    ) -> ProposedAttribute:
+    async def upsert_proposed_attribute(self, attr: ProposedAttribute) -> ProposedAttribute:
         """Write or update an AI-proposed attribute."""
         await self._ensure_connected()
         item = attr.model_dump(mode="json", by_alias=True)
@@ -294,10 +286,7 @@ class TruthStoreAdapter(BaseAdapter):
         await self._ensure_connected()
         container = self._get_container("attributes_proposed")
         if status:
-            sql = (
-                "SELECT * FROM c"
-                " WHERE c.entityId = @entityId AND c.status = @status"
-            )
+            sql = "SELECT * FROM c" " WHERE c.entityId = @entityId AND c.status = @status"
             params = [
                 {"name": "@entityId", "value": entity_id},
                 {"name": "@status", "value": status},
@@ -318,9 +307,7 @@ class TruthStoreAdapter(BaseAdapter):
         """Approve or reject a proposed attribute by updating its status."""
         await self._ensure_connected()
         container = self._get_container("attributes_proposed")
-        existing = await self._cosmos_call(
-            container.read_item, attr_id, partition_key=entity_id
-        )
+        existing = await self._cosmos_call(container.read_item, attr_id, partition_key=entity_id)
         if existing is None:
             return None
         existing["status"] = status
@@ -354,16 +341,12 @@ class TruthStoreAdapter(BaseAdapter):
     # Mappings
     # ------------------------------------------------------------------
 
-    async def get_mapping(
-        self, protocol: str, version: str
-    ) -> Optional[MappingDocument]:
+    async def get_mapping(self, protocol: str, version: str) -> Optional[MappingDocument]:
         """Load a canonical-to-protocol field mapping document."""
         await self._ensure_connected()
         container = self._get_container("mappings")
         item_id = f"{protocol}:{version}"
-        result = await self._cosmos_call(
-            container.read_item, item_id, partition_key=version
-        )
+        result = await self._cosmos_call(container.read_item, item_id, partition_key=version)
         if result is None:
             return None
         return MappingDocument.model_validate(result)
@@ -383,21 +366,21 @@ class TruthStoreAdapter(BaseAdapter):
     async def query_audit(
         self,
         entity_id: str,
-        action: Optional[str] = None,
+        event_type: Optional[str] = None,
         limit: int = 50,
     ) -> list[AuditEvent]:
-        """Return audit events for an entity, optionally filtered by action."""
+        """Return audit events for an entity, optionally filtered by event_type."""
         await self._ensure_connected()
         container = self._get_container("audit")
-        if action:
+        if event_type:
             sql = (
                 "SELECT * FROM c"
-                " WHERE c.entityId = @entityId AND c.action = @action"
+                " WHERE c.entityId = @entityId AND c.event_type = @event_type"
                 " ORDER BY c._ts DESC OFFSET 0 LIMIT @limit"
             )
             params = [
                 {"name": "@entityId", "value": entity_id},
-                {"name": "@action", "value": action},
+                {"name": "@event_type", "value": event_type},
                 {"name": "@limit", "value": limit},
             ]
         else:
@@ -432,9 +415,7 @@ class TruthStoreAdapter(BaseAdapter):
         """Load tenant configuration by tenant ID."""
         await self._ensure_connected()
         container = self._get_container("config")
-        result = await self._cosmos_call(
-            container.read_item, tenant_id, partition_key=tenant_id
-        )
+        result = await self._cosmos_call(container.read_item, tenant_id, partition_key=tenant_id)
         if result is None:
             return None
         return TenantConfig.model_validate(result)

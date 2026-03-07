@@ -5,10 +5,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from azure.cosmos.exceptions import CosmosHttpResponseError, CosmosResourceNotFoundError
+
 from holiday_peak_lib.adapters.base import AdapterError
 from holiday_peak_lib.adapters.truth_store import TruthStoreAdapter
 from holiday_peak_lib.truth.models import (
+    AttributeStatus,
     AuditEvent,
+    AuditEventType,
     CategorySchema,
     MappingDocument,
     ProductStyle,
@@ -47,7 +50,7 @@ def _mock_cosmos_client(return_item=None, items=None):
 
     # Async generator for query_items
     async def _query_items(*args, **kwargs):
-        for item in (items or []):
+        for item in items or []:
             yield item
 
     container.query_items = _query_items
@@ -61,11 +64,10 @@ class TestTruthStoreAdapterConnect:
     @pytest.mark.asyncio
     async def test_connect_creates_client(self):
         adapter = _make_adapter()
-        with patch(
-            "holiday_peak_lib.adapters.truth_store.DefaultAzureCredential"
-        ) as mock_cred, patch(
-            "holiday_peak_lib.adapters.truth_store.CosmosClient"
-        ) as mock_cls:
+        with (
+            patch("holiday_peak_lib.adapters.truth_store.DefaultAzureCredential") as mock_cred,
+            patch("holiday_peak_lib.adapters.truth_store.CosmosClient") as mock_cls,
+        ):
             mock_cls.return_value = MagicMock()
             await adapter.connect()
             mock_cls.assert_called_once()
@@ -74,9 +76,10 @@ class TestTruthStoreAdapterConnect:
     @pytest.mark.asyncio
     async def test_ensure_connected_auto_connects(self):
         adapter = _make_adapter()
-        with patch(
-            "holiday_peak_lib.adapters.truth_store.DefaultAzureCredential"
-        ), patch("holiday_peak_lib.adapters.truth_store.CosmosClient") as mock_cls:
+        with (
+            patch("holiday_peak_lib.adapters.truth_store.DefaultAzureCredential"),
+            patch("holiday_peak_lib.adapters.truth_store.CosmosClient") as mock_cls,
+        ):
             mock_cls.return_value = MagicMock()
             await adapter._ensure_connected()
             assert adapter.client is not None
@@ -100,7 +103,7 @@ class TestUpsertProduct:
     async def test_upsert_product_returns_style(self):
         style = ProductStyle(
             id="s1",
-            category_id="CAT-1",
+            categoryId="CAT-1",
             name="Blue Jacket",
             source_system="pim",
             source_id="ext-s1",
@@ -121,7 +124,7 @@ class TestGetProduct:
     async def test_get_product_returns_style(self):
         style = ProductStyle(
             id="s1",
-            category_id="CAT-1",
+            categoryId="CAT-1",
             name="Jacket",
             source_system="pim",
             source_id="ext-s1",
@@ -153,7 +156,7 @@ class TestListProducts:
     async def test_list_products_returns_list(self):
         style = ProductStyle(
             id="s1",
-            category_id="CAT-1",
+            categoryId="CAT-1",
             name="Jacket",
             source_system="pim",
             source_id="ext-s1",
@@ -172,9 +175,9 @@ class TestTruthAttributes:
     @pytest.mark.asyncio
     async def test_upsert_truth_attribute(self):
         attr = TruthAttribute(
-            entity_id="s1",
-            name="color",
-            value="blue",
+            entityId="s1",
+            attribute_name="color",
+            attribute_value="blue",
             confidence=0.99,
             source_system="enrichment",
             source_id="job-1",
@@ -192,9 +195,9 @@ class TestTruthAttributes:
     @pytest.mark.asyncio
     async def test_get_truth_attributes_returns_list(self):
         attr = TruthAttribute(
-            entity_id="s1",
-            name="color",
-            value="blue",
+            entityId="s1",
+            attribute_name="color",
+            attribute_value="blue",
             confidence=0.9,
             source_system="enrichment",
             source_id="job-1",
@@ -213,9 +216,9 @@ class TestProposedAttributes:
     @pytest.mark.asyncio
     async def test_upsert_proposed_attribute(self):
         attr = ProposedAttribute(
-            entity_id="s1",
-            name="material",
-            value="cotton",
+            entityId="s1",
+            attribute_name="material",
+            attribute_value="cotton",
             confidence=0.8,
             source_system="ai",
             source_id="run-42",
@@ -227,14 +230,14 @@ class TestProposedAttributes:
         result = await adapter.upsert_proposed_attribute(attr)
 
         assert isinstance(result, ProposedAttribute)
-        assert result.status == "pending"
+        assert result.status == AttributeStatus.PENDING
 
     @pytest.mark.asyncio
     async def test_get_proposed_attributes_no_filter(self):
         attr = ProposedAttribute(
-            entity_id="s1",
-            name="material",
-            value="cotton",
+            entityId="s1",
+            attribute_name="material",
+            attribute_value="cotton",
             confidence=0.8,
             source_system="ai",
             source_id="run-42",
@@ -250,13 +253,13 @@ class TestProposedAttributes:
     @pytest.mark.asyncio
     async def test_get_proposed_attributes_with_status_filter(self):
         attr = ProposedAttribute(
-            entity_id="s1",
-            name="material",
-            value="cotton",
+            entityId="s1",
+            attribute_name="material",
+            attribute_value="cotton",
             confidence=0.8,
             source_system="ai",
             source_id="run-42",
-            status="approved",
+            status=AttributeStatus.APPROVED,
         )
         item = attr.model_dump(mode="json", by_alias=True)
         client, _ = _mock_cosmos_client(items=[item])
@@ -265,19 +268,19 @@ class TestProposedAttributes:
         results = await adapter.get_proposed_attributes("s1", status="approved")
 
         assert len(results) == 1
-        assert results[0].status == "approved"
+        assert results[0].status == AttributeStatus.APPROVED
 
     @pytest.mark.asyncio
     async def test_update_proposed_status(self):
         attr = ProposedAttribute(
             id="p1",
-            entity_id="s1",
-            name="material",
-            value="cotton",
+            entityId="s1",
+            attribute_name="material",
+            attribute_value="cotton",
             confidence=0.8,
             source_system="ai",
             source_id="run-42",
-            status="pending",
+            status=AttributeStatus.PENDING,
         )
         item = attr.model_dump(mode="json", by_alias=True)
         # read_item returns pending, upsert_item returns approved version
@@ -289,7 +292,7 @@ class TestProposedAttributes:
         result = await adapter.update_proposed_status("p1", "s1", "approved")
 
         assert result is not None
-        assert result.status == "approved"
+        assert result.status == AttributeStatus.APPROVED
 
     @pytest.mark.asyncio
     async def test_update_proposed_status_returns_none_if_not_found(self):
@@ -309,7 +312,8 @@ class TestSchemas:
     async def test_get_schema_returns_category_schema(self):
         schema = CategorySchema(
             id="CAT-1",
-            category_id="CAT-1",
+            categoryId="CAT-1",
+            category_name="Category 1",
             required_attributes=["color"],
         )
         item = schema.model_dump(mode="json", by_alias=True)
@@ -335,7 +339,7 @@ class TestSchemas:
 
     @pytest.mark.asyncio
     async def test_upsert_schema(self):
-        schema = CategorySchema(id="CAT-1", category_id="CAT-1")
+        schema = CategorySchema(id="CAT-1", categoryId="CAT-1", category_name="Cat 1")
         item = schema.model_dump(mode="json", by_alias=True)
         client, container = _mock_cosmos_client(return_item=item)
         adapter = _make_adapter(mock_client=client)
@@ -363,9 +367,7 @@ class TestMappings:
 
         assert isinstance(result, MappingDocument)
         assert result.protocol == "gs1"
-        container.read_item.assert_called_once_with(
-            "gs1:2024.1", partition_key="2024.1"
-        )
+        container.read_item.assert_called_once_with("gs1:2024.1", partition_key="2024.1")
 
     @pytest.mark.asyncio
     async def test_get_mapping_returns_none_on_404(self):
@@ -384,9 +386,11 @@ class TestAudit:
     @pytest.mark.asyncio
     async def test_write_audit(self):
         event = AuditEvent(
-            entity_id="s1",
-            action="approve",
+            entityId="s1",
+            event_type=AuditEventType.APPROVED,
             actor="user@example.com",
+            source_system="hitl",
+            source_id="review-001",
         )
         item = event.model_dump(mode="json", by_alias=True)
         client, container = _mock_cosmos_client(return_item=item)
@@ -400,9 +404,11 @@ class TestAudit:
     @pytest.mark.asyncio
     async def test_query_audit_no_action_filter(self):
         event = AuditEvent(
-            entity_id="s1",
-            action="approve",
+            entityId="s1",
+            event_type=AuditEventType.APPROVED,
             actor="user@example.com",
+            source_system="hitl",
+            source_id="review-001",
         )
         item = event.model_dump(mode="json", by_alias=True)
         client, _ = _mock_cosmos_client(items=[item])
@@ -416,15 +422,17 @@ class TestAudit:
     @pytest.mark.asyncio
     async def test_query_audit_with_action_filter(self):
         event = AuditEvent(
-            entity_id="s1",
-            action="approve",
+            entityId="s1",
+            event_type=AuditEventType.APPROVED,
             actor="user@example.com",
+            source_system="hitl",
+            source_id="review-001",
         )
         item = event.model_dump(mode="json", by_alias=True)
         client, _ = _mock_cosmos_client(items=[item])
         adapter = _make_adapter(mock_client=client)
 
-        results = await adapter.query_audit("s1", action="approve")
+        results = await adapter.query_audit("s1", event_type="approved")
 
         assert len(results) == 1
 
@@ -434,7 +442,8 @@ class TestConfig:
     async def test_upsert_config(self):
         config = TenantConfig(
             id="tenant-1",
-            tenant_id="tenant-1",
+            tenantId="tenant-1",
+            tenant_name="Test Tenant",
             settings={"locale": "en-US"},
         )
         item = config.model_dump(mode="json", by_alias=True)
@@ -451,7 +460,8 @@ class TestConfig:
     async def test_get_config_returns_config(self):
         config = TenantConfig(
             id="tenant-1",
-            tenant_id="tenant-1",
+            tenantId="tenant-1",
+            tenant_name="Test Tenant",
             settings={"locale": "en-US"},
         )
         item = config.model_dump(mode="json", by_alias=True)
@@ -461,9 +471,7 @@ class TestConfig:
         result = await adapter.get_config("tenant-1")
 
         assert isinstance(result, TenantConfig)
-        container.read_item.assert_called_once_with(
-            "tenant-1", partition_key="tenant-1"
-        )
+        container.read_item.assert_called_once_with("tenant-1", partition_key="tenant-1")
 
     @pytest.mark.asyncio
     async def test_get_config_returns_none_on_404(self):
@@ -484,7 +492,7 @@ class TestErrorHandling:
         """Adapter should retry on 429 and eventually succeed."""
         style = ProductStyle(
             id="s1",
-            category_id="CAT-1",
+            categoryId="CAT-1",
             name="Jacket",
             source_system="pim",
             source_id="ext-s1",
@@ -500,9 +508,7 @@ class TestErrorHandling:
             if call_count < 2:
                 mock_response = MagicMock()
                 mock_response.status_code = 429
-                exc = CosmosHttpResponseError(
-                    message="Too many requests", response=mock_response
-                )
+                exc = CosmosHttpResponseError(message="Too many requests", response=mock_response)
                 exc.status_code = 429
                 exc.headers = {"x-ms-retry-after-ms": "10"}
                 raise exc
@@ -522,9 +528,7 @@ class TestErrorHandling:
         client, container = _mock_cosmos_client()
         mock_response = MagicMock()
         mock_response.status_code = 500
-        exc = CosmosHttpResponseError(
-            message="Internal Server Error", response=mock_response
-        )
+        exc = CosmosHttpResponseError(message="Internal Server Error", response=mock_response)
         exc.status_code = 500
         container.read_item = AsyncMock(side_effect=exc)
         adapter = _make_adapter(mock_client=client)
