@@ -603,32 +603,6 @@ module eventHubs 'br/public:avm/res/event-hub/namespace:0.14.0' = {
         messageRetentionInDays: 7
         partitionCount: 2
       }
-      // Truth-layer job queues (Issue #89)
-      {
-        name: 'ingest-jobs'
-        messageRetentionInDays: 7
-        partitionCount: 4
-      }
-      {
-        name: 'gap-jobs'
-        messageRetentionInDays: 7
-        partitionCount: 4
-      }
-      {
-        name: 'enrichment-jobs'
-        messageRetentionInDays: 7
-        partitionCount: 4
-      }
-      {
-        name: 'writeback-jobs'
-        messageRetentionInDays: 7
-        partitionCount: 4
-      }
-      {
-        name: 'export-jobs'
-        messageRetentionInDays: 7
-        partitionCount: 4
-      }
     ]
     tags: tags
   }

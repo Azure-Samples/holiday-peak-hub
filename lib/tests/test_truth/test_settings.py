@@ -1,4 +1,10 @@
-"""Tests for TruthLayerSettings (Issue #95)."""
+"""Tests for TruthLayerSettings (Issue #95).
+
+Validates that the Pydantic ``TruthLayerSettings`` class exposes the
+expected Cosmos DB container names, Event Hub topic names, feature
+toggles, and supports environment-variable overrides via the
+``TRUTH_`` prefix.
+"""
 
 import pytest
 from holiday_peak_lib.config.settings import TruthLayerSettings
@@ -6,42 +12,67 @@ from holiday_peak_lib.config.settings import TruthLayerSettings
 
 class TestTruthLayerSettings:
     def test_defaults(self, monkeypatch):
+        """Default values are sensible when no env vars are set."""
+        # Clear any env vars that could leak into the test
         for key in [
-            "COSMOS_TRUTH_DATABASE",
-            "EVENTHUB_TRUTH_NAMESPACE",
+            "TRUTH_AUTO_APPROVE_THRESHOLD",
+            "TRUTH_ENRICHMENT_ENABLED",
         ]:
             monkeypatch.delenv(key, raising=False)
 
         settings = TruthLayerSettings()
-        assert settings.cosmos_truth_database is None
-        assert settings.eventhub_truth_namespace is None
-        assert settings.auto_approve_threshold == 0.95
-        assert settings.human_review_threshold == 0.70
+        assert settings.auto_approve_threshold == 0.85
+        assert settings.enrichment_enabled is True
+        assert settings.writeback_enabled is False
 
-    def test_all_containers_present(self, monkeypatch):
+    def test_all_containers_present(self):
+        """All expected Cosmos DB container fields exist with defaults."""
         settings = TruthLayerSettings()
         expected = {
-            "products", "attributes_truth", "attributes_proposed",
-            "assets", "evidence", "schemas", "mappings", "audit", "config",
+            "products",
+            "attributes_truth",
+            "attributes_proposed",
+            "schemas",
+            "mappings",
+            "audit",
+            "config",
+            "relationships",
+            "completeness",
         }
-        assert expected == set(settings.cosmos_truth_containers.values())
+        container_fields = {
+            k: v
+            for k, v in settings.model_dump().items()
+            if k.startswith("cosmos_") and k.endswith("_container")
+        }
+        assert expected == set(container_fields.values())
 
-    def test_all_topics_present(self, monkeypatch):
+    def test_all_topics_present(self):
+        """All expected Event Hub topic fields exist with defaults."""
         settings = TruthLayerSettings()
         expected = {
-            "ingest-jobs", "gap-jobs", "enrichment-jobs",
-            "writeback-jobs", "export-jobs",
+            "enrichment-jobs",
+            "completeness-jobs",
+            "export-jobs",
+            "hitl-jobs",
+            "ingestion-notifications",
         }
-        assert expected == set(settings.eventhub_truth_topics.values())
+        topic_fields = {
+            k: v
+            for k, v in settings.model_dump().items()
+            if k.startswith("eventhub_")
+            and k.endswith("_jobs")
+            or k.startswith("eventhub_")
+            and k.endswith("_notifications")
+        }
+        assert expected == set(topic_fields.values())
 
     def test_from_env(self, monkeypatch):
-        monkeypatch.setenv("COSMOS_TRUTH_DATABASE", "truth-db")
-        monkeypatch.setenv("EVENTHUB_TRUTH_NAMESPACE", "ns-truth")
-        monkeypatch.setenv("AUTO_APPROVE_THRESHOLD", "0.90")
-        monkeypatch.setenv("HUMAN_REVIEW_THRESHOLD", "0.65")
+        """Environment variables with TRUTH_ prefix override defaults."""
+        monkeypatch.setenv("TRUTH_AUTO_APPROVE_THRESHOLD", "0.90")
+        monkeypatch.setenv("TRUTH_ENRICHMENT_ENABLED", "false")
+        monkeypatch.setenv("TRUTH_MAX_ENRICHMENT_RETRIES", "5")
 
         settings = TruthLayerSettings()
-        assert settings.cosmos_truth_database == "truth-db"
-        assert settings.eventhub_truth_namespace == "ns-truth"
         assert settings.auto_approve_threshold == 0.90
-        assert settings.human_review_threshold == 0.65
+        assert settings.enrichment_enabled is False
+        assert settings.max_enrichment_retries == 5

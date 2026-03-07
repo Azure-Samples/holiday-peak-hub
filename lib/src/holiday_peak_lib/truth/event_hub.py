@@ -16,6 +16,7 @@ from typing import Any, Iterable
 
 from azure.eventhub import EventData
 from azure.eventhub.aio import EventHubProducerClient
+from azure.identity.aio import DefaultAzureCredential
 
 from holiday_peak_lib.utils.event_hub import EventHubSubscription
 
@@ -42,37 +43,28 @@ class TruthJobPublisher:
 
     Parameters
     ----------
-    connection_string:
-        Azure Event Hubs namespace connection string.
+    namespace:
+        Fully qualified Event Hub namespace
+        (e.g. ``mynamespace.servicebus.windows.net``).
     eventhub_name:
         Target Event Hub topic (one of :data:`TRUTH_LAYER_TOPICS` values).
+    credential:
+        Azure credential to use. Defaults to ``DefaultAzureCredential``.
     producer_factory:
-        Optional factory override for testing — receives ``connection_string``
-        and ``eventhub_name`` and must return an
-        :class:`azure.eventhub.aio.EventHubProducerClient`.
-
-    Example
-    -------
-    >>> from unittest.mock import AsyncMock, MagicMock
-    >>> producer = MagicMock()
-    >>> pub = TruthJobPublisher(
-    ...     connection_string="Endpoint=sb://t/;SharedAccessKeyName=k;SharedAccessKey=v",
-    ...     eventhub_name="ingest-jobs",
-    ...     producer_factory=lambda cs, eh: producer,
-    ... )
-    >>> pub._eventhub_name
-    'ingest-jobs'
+        Optional factory override for testing.
     """
 
     def __init__(
         self,
         *,
-        connection_string: str,
+        namespace: str,
         eventhub_name: str,
+        credential: Any = None,
         producer_factory: Any = None,
     ) -> None:
-        self._connection_string = connection_string
+        self._namespace = namespace
         self._eventhub_name = eventhub_name
+        self._credential = credential
         self._producer_factory = producer_factory or self._default_producer_factory
 
     async def publish(self, event_type: str, data: dict[str, Any]) -> None:
@@ -87,19 +79,21 @@ class TruthJobPublisher:
         """
         payload = json.dumps({"event_type": event_type, "data": data})
         producer: EventHubProducerClient = self._producer_factory(
-            self._connection_string, self._eventhub_name
+            self._namespace, self._eventhub_name
         )
         async with producer:
             batch = await producer.create_batch()
             batch.add(EventData(payload))
             await producer.send_batch(batch)
 
-    @staticmethod
     def _default_producer_factory(
-        connection_string: str, eventhub_name: str
+        self, namespace: str, eventhub_name: str
     ) -> EventHubProducerClient:
-        return EventHubProducerClient.from_connection_string(
-            conn_str=connection_string, eventhub_name=eventhub_name
+        credential = self._credential or DefaultAzureCredential()
+        return EventHubProducerClient(
+            fully_qualified_namespace=namespace,
+            eventhub_name=eventhub_name,
+            credential=credential,
         )
 
 
@@ -127,9 +121,7 @@ def build_truth_layer_subscriptions(
     if topics is None:
         selected_names = list(TRUTH_LAYER_TOPICS.values())
     else:
-        selected_names = [
-            TRUTH_LAYER_TOPICS.get(t, t) for t in topics
-        ]
+        selected_names = [TRUTH_LAYER_TOPICS.get(t, t) for t in topics]
 
     return [
         EventHubSubscription(eventhub_name=name, consumer_group=consumer_group)

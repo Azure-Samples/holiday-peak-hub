@@ -10,7 +10,6 @@ from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
 # ---------------------------------------------------------------------------
 # UCP attribute descriptor
 # ---------------------------------------------------------------------------
@@ -64,8 +63,12 @@ CANONICAL_CATEGORY_SCHEMAS: dict[str, UcpSchema] = {
         version="1.0.0",
         attributes=[
             UcpAttribute(name="brand", label="Brand", required=True),
-            UcpAttribute(name="gender", label="Gender", required=True,
-                         allowed_values=["men", "women", "unisex", "kids"]),
+            UcpAttribute(
+                name="gender",
+                label="Gender",
+                required=True,
+                allowed_values=["men", "women", "unisex", "kids"],
+            ),
             UcpAttribute(name="material", label="Material", required=True),
             UcpAttribute(name="size", label="Size", required=True),
             UcpAttribute(name="color", label="Color", required=True),
@@ -87,10 +90,10 @@ CANONICAL_CATEGORY_SCHEMAS: dict[str, UcpSchema] = {
             UcpAttribute(name="material_sole", label="Sole Material"),
             UcpAttribute(name="color", label="Color", required=True),
             UcpAttribute(name="closure_type", label="Closure Type"),
-            UcpAttribute(name="heel_height_cm", label="Heel Height (cm)",
-                         data_type="number"),
-            UcpAttribute(name="gender", label="Gender",
-                         allowed_values=["men", "women", "unisex", "kids"]),
+            UcpAttribute(name="heel_height_cm", label="Heel Height (cm)", data_type="number"),
+            UcpAttribute(
+                name="gender", label="Gender", allowed_values=["men", "women", "unisex", "kids"]
+            ),
         ],
     ),
     "electronics": UcpSchema(
@@ -102,14 +105,11 @@ CANONICAL_CATEGORY_SCHEMAS: dict[str, UcpSchema] = {
             UcpAttribute(name="model_number", label="Model Number", required=True),
             UcpAttribute(name="voltage", label="Voltage", data_type="number"),
             UcpAttribute(name="wattage", label="Wattage", data_type="number"),
-            UcpAttribute(name="connectivity", label="Connectivity",
-                         data_type="list"),
-            UcpAttribute(name="warranty_months", label="Warranty (months)",
-                         data_type="number"),
+            UcpAttribute(name="connectivity", label="Connectivity", data_type="list"),
+            UcpAttribute(name="warranty_months", label="Warranty (months)", data_type="number"),
             UcpAttribute(name="color", label="Color"),
             UcpAttribute(name="weight_kg", label="Weight (kg)", data_type="number"),
-            UcpAttribute(name="dimensions_cm", label="Dimensions (cm)",
-                         data_type="object"),
+            UcpAttribute(name="dimensions_cm", label="Dimensions (cm)", data_type="object"),
         ],
     ),
     "home_furniture": UcpSchema(
@@ -120,13 +120,12 @@ CANONICAL_CATEGORY_SCHEMAS: dict[str, UcpSchema] = {
             UcpAttribute(name="brand", label="Brand", required=True),
             UcpAttribute(name="material", label="Material", required=True),
             UcpAttribute(name="color", label="Color", required=True),
-            UcpAttribute(name="dimensions_cm", label="Dimensions (cm)",
-                         data_type="object", required=True),
+            UcpAttribute(
+                name="dimensions_cm", label="Dimensions (cm)", data_type="object", required=True
+            ),
             UcpAttribute(name="weight_kg", label="Weight (kg)", data_type="number"),
-            UcpAttribute(name="assembly_required", label="Assembly Required",
-                         data_type="boolean"),
-            UcpAttribute(name="max_load_kg", label="Max Load (kg)",
-                         data_type="number"),
+            UcpAttribute(name="assembly_required", label="Assembly Required", data_type="boolean"),
+            UcpAttribute(name="max_load_kg", label="Max Load (kg)", data_type="number"),
             UcpAttribute(name="country_of_origin", label="Country of Origin"),
         ],
     ),
@@ -136,16 +135,12 @@ CANONICAL_CATEGORY_SCHEMAS: dict[str, UcpSchema] = {
         version="1.0.0",
         attributes=[
             UcpAttribute(name="brand", label="Brand", required=True),
-            UcpAttribute(name="volume_ml", label="Volume (ml)", data_type="number",
-                         required=True),
+            UcpAttribute(name="volume_ml", label="Volume (ml)", data_type="number", required=True),
             UcpAttribute(name="ingredients", label="Ingredients", data_type="list"),
-            UcpAttribute(name="skin_type", label="Skin Type",
-                         data_type="list"),
+            UcpAttribute(name="skin_type", label="Skin Type", data_type="list"),
             UcpAttribute(name="fragrance", label="Fragrance"),
-            UcpAttribute(name="cruelty_free", label="Cruelty Free",
-                         data_type="boolean"),
-            UcpAttribute(name="expiry_months", label="Shelf Life (months)",
-                         data_type="number"),
+            UcpAttribute(name="cruelty_free", label="Cruelty Free", data_type="boolean"),
+            UcpAttribute(name="expiry_months", label="Shelf Life (months)", data_type="number"),
         ],
     ),
 }

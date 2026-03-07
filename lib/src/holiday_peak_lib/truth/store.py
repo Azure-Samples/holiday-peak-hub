@@ -82,19 +82,13 @@ class TruthStoreAdapter(BaseAdapter):
 
         if item_id and partition_key:
             try:
-                item = await container.read_item(
-                    item=item_id, partition_key=partition_key
-                )
+                item = await container.read_item(item=item_id, partition_key=partition_key)
                 return [item]
             except Exception:  # noqa: BLE001
                 return []
 
         # Build a simple equality filter from remaining keys.
-        conditions = [
-            f"c.{k} = @{k}"
-            for k in query
-            if k not in ("id", "partition_key")
-        ]
+        conditions = [f"c.{k} = @{k}" for k in query if k not in ("id", "partition_key")]
         where_clause = " AND ".join(conditions) if conditions else "1=1"
         sql = f"SELECT * FROM c WHERE {where_clause}"  # noqa: S608
         parameters = [
@@ -111,9 +105,7 @@ class TruthStoreAdapter(BaseAdapter):
             items.append(item)
         return items
 
-    async def _upsert_impl(
-        self, payload: dict[str, Any]
-    ) -> Optional[dict[str, Any]]:
+    async def _upsert_impl(self, payload: dict[str, Any]) -> Optional[dict[str, Any]]:
         """Idempotent upsert of a document into the target container."""
         self._assert_connected()
         return await self._container_proxy.upsert_item(body=payload)
@@ -127,26 +119,20 @@ class TruthStoreAdapter(BaseAdapter):
         parts = identifier.split(":", 1)
         item_id = parts[0]
         partition_key = parts[1] if len(parts) > 1 else parts[0]
-        await self._container_proxy.delete_item(
-            item=item_id, partition_key=partition_key
-        )
+        await self._container_proxy.delete_item(item=item_id, partition_key=partition_key)
         return True
 
     # ------------------------------------------------------------------
     # Convenience helpers
     # ------------------------------------------------------------------
 
-    async def get_by_id(
-        self, item_id: str, partition_key: str
-    ) -> Optional[dict[str, Any]]:
+    async def get_by_id(self, item_id: str, partition_key: str) -> Optional[dict[str, Any]]:
         """Return a single document by id and partition key, or ``None``."""
         results = await self.fetch({"id": item_id, "partition_key": partition_key})
         items = list(results)
         return items[0] if items else None
 
-    async def upsert_document(
-        self, document: dict[str, Any]
-    ) -> Optional[dict[str, Any]]:
+    async def upsert_document(self, document: dict[str, Any]) -> Optional[dict[str, Any]]:
         """Convenience wrapper around :meth:`upsert`."""
         return await self.upsert(document)
 

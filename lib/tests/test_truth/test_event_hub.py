@@ -1,8 +1,9 @@
 """Tests for truth-layer Event Hub helpers (Issue #94)."""
 
 import json
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from holiday_peak_lib.truth.event_hub import (
     TRUTH_LAYER_TOPICS,
@@ -25,9 +26,9 @@ class TestTruthLayerTopics:
 class TestTruthJobPublisher:
     def _make_publisher(self, producer_mock):
         return TruthJobPublisher(
-            connection_string="Endpoint=sb://t/;SharedAccessKeyName=k;SharedAccessKey=v",
+            namespace="mynamespace.servicebus.windows.net",
             eventhub_name="ingest-jobs",
-            producer_factory=lambda cs, eh: producer_mock,
+            producer_factory=lambda ns, eh: producer_mock,
         )
 
     @pytest.mark.asyncio
@@ -56,7 +57,7 @@ class TestTruthJobPublisher:
 
     def test_eventhub_name_set(self):
         pub = TruthJobPublisher(
-            connection_string="Endpoint=sb://t/;SharedAccessKeyName=k;SharedAccessKey=v",
+            namespace="mynamespace.servicebus.windows.net",
             eventhub_name="gap-jobs",
         )
         assert pub._eventhub_name == "gap-jobs"

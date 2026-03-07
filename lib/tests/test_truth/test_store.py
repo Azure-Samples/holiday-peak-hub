@@ -1,7 +1,8 @@
 """Tests for TruthStoreAdapter (Issue #91)."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from holiday_peak_lib.truth.store import TruthStoreAdapter
 
