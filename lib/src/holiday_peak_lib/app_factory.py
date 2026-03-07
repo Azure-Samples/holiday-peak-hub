@@ -78,6 +78,7 @@ def build_service_app(
     agent = builder.build()
     if hasattr(agent, "connector_registry"):
         agent.connector_registry = registry
+    app.state.agent = agent
     strict_foundry_mode = (os.getenv("FOUNDRY_STRICT_ENFORCEMENT") or "").lower() in {
         "1",
         "true",

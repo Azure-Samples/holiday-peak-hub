@@ -444,6 +444,29 @@ jobs:
             echo "PostgreSQL server $POSTGRES_SERVER_NAME does not exist yet. Continuing."
           fi
 
+      - name: Validate truth Event Hubs IaC declarations
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BICEP_FILE=".infra/modules/shared-infrastructure/shared-infrastructure.bicep"
+
+          for hub in ingest-jobs enrichment-jobs export-jobs hitl-jobs; do
+            if ! grep -q "'$hub'" "$BICEP_FILE"; then
+              echo "Missing required truth Event Hub declaration in $BICEP_FILE: $hub" >&2
+              exit 1
+            fi
+          done
+
+          for group in ingestion-group enrichment-engine export-engine hitl-service; do
+            if ! grep -q "'$group'" "$BICEP_FILE"; then
+              echo "Missing required truth consumer group declaration in $BICEP_FILE: $group" >&2
+              exit 1
+            fi
+          done
+
+          echo "Truth Event Hub and consumer group declarations are present in IaC."
+
       - name: Provision infrastructure
         run: azd provision --no-prompt -e "${{ inputs.environment }}"
 

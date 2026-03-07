@@ -198,6 +198,23 @@ class TestBuildServiceApp:
         assert "/integrations" in routes
         assert "/foundry/agents/ensure" in routes
 
+    def test_app_exposes_built_agent_on_state(
+        self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
+    ):
+        """Test route handlers can reuse the exact built agent instance via app.state."""
+        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-123")
+
+        app = build_service_app(
+            service_name="test-service",
+            agent_class=SampleServiceAgent,
+            hot_memory=mock_hot_memory,
+            warm_memory=mock_warm_memory,
+            cold_memory=mock_cold_memory,
+        )
+
+        assert isinstance(app.state.agent, SampleServiceAgent)
+
     @pytest.mark.asyncio
     async def test_app_wires_connector_registry(
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
