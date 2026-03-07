@@ -5,22 +5,22 @@ from __future__ import annotations
 import asyncio
 import json
 from datetime import datetime, timezone
-from typing import Any, Callable, Awaitable
+from typing import Any, Awaitable, Callable
 from uuid import uuid4
 
 from azure.eventhub import EventData
-from azure.eventhub.aio import EventHubProducerClient, EventHubConsumerClient
+from azure.eventhub.aio import EventHubConsumerClient, EventHubProducerClient
 from azure.identity.aio import DefaultAzureCredential
 from pydantic import BaseModel, Field
 
 from holiday_peak_lib.utils.logging import configure_logging
 
-# Topic names for truth-layer job events
+# Canonical topic names — must match Bicep-provisioned Event Hub instances
+INGEST_JOBS_TOPIC = "ingest-jobs"
+GAP_JOBS_TOPIC = "gap-jobs"
 ENRICHMENT_JOBS_TOPIC = "enrichment-jobs"
-COMPLETENESS_JOBS_TOPIC = "completeness-jobs"
+WRITEBACK_JOBS_TOPIC = "writeback-jobs"
 EXPORT_JOBS_TOPIC = "export-jobs"
-HITL_JOBS_TOPIC = "hitl-jobs"
-INGESTION_NOTIFICATIONS_TOPIC = "ingestion-notifications"
 
 EventHandler = Callable[[Any, Any], Awaitable[None]]
 
@@ -30,7 +30,7 @@ class TruthJobMessage(BaseModel):
 
     job_id: str = Field(default_factory=lambda: str(uuid4()))
     entity_id: str
-    job_type: str  # 'enrichment', 'completeness', 'export', 'hitl', 'ingestion'
+    job_type: str  # 'enrichment', 'gap', 'export', 'writeback', 'ingest'
     payload: dict
     priority: int = 5
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -130,20 +130,20 @@ class TruthEventPublisher:
         await self._publish(ENRICHMENT_JOBS_TOPIC, message)
         return message
 
-    async def publish_completeness_job(
+    async def publish_gap_job(
         self,
         entity_id: str,
         *,
         tenant_id: str = "default",
     ) -> TruthJobMessage:
-        """Publish a completeness job to the ``completeness-jobs`` topic."""
+        """Publish a gap-analysis job to the ``gap-jobs`` topic."""
         message = TruthJobMessage(
             entity_id=entity_id,
-            job_type="completeness",
+            job_type="gap",
             payload={},
             tenant_id=tenant_id,
         )
-        await self._publish(COMPLETENESS_JOBS_TOPIC, message)
+        await self._publish(GAP_JOBS_TOPIC, message)
         return message
 
     async def publish_export_job(
@@ -164,7 +164,7 @@ class TruthEventPublisher:
         await self._publish(EXPORT_JOBS_TOPIC, message)
         return message
 
-    async def publish_hitl_job(
+    async def publish_writeback_job(
         self,
         entity_id: str,
         attr_id: str,
@@ -173,10 +173,10 @@ class TruthEventPublisher:
         *,
         tenant_id: str = "default",
     ) -> TruthJobMessage:
-        """Publish a human-in-the-loop job to the ``hitl-jobs`` topic."""
+        """Publish a writeback job to the ``writeback-jobs`` topic."""
         message = TruthJobMessage(
             entity_id=entity_id,
-            job_type="hitl",
+            job_type="writeback",
             payload={
                 "attr_id": attr_id,
                 "proposed_value": proposed_value,
@@ -184,10 +184,10 @@ class TruthEventPublisher:
             },
             tenant_id=tenant_id,
         )
-        await self._publish(HITL_JOBS_TOPIC, message)
+        await self._publish(WRITEBACK_JOBS_TOPIC, message)
         return message
 
-    async def publish_ingestion_notification(
+    async def publish_ingest_job(
         self,
         entity_id: str,
         source: str,
@@ -195,14 +195,14 @@ class TruthEventPublisher:
         *,
         tenant_id: str = "default",
     ) -> TruthJobMessage:
-        """Publish an ingestion notification to the ``ingestion-notifications`` topic."""
+        """Publish an ingest job to the ``ingest-jobs`` topic."""
         message = TruthJobMessage(
             entity_id=entity_id,
-            job_type="ingestion",
+            job_type="ingest",
             payload={"source": source, "status": status},
             tenant_id=tenant_id,
         )
-        await self._publish(INGESTION_NOTIFICATIONS_TOPIC, message)
+        await self._publish(INGEST_JOBS_TOPIC, message)
         return message
 
     async def publish_enrichment_jobs_batch(
