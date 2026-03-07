@@ -8,7 +8,50 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 
 const IS_TEST_ENV = process.env.NODE_ENV === 'test';
-const SERVER_CRUD_API_BASE_URL = process.env.NEXT_PUBLIC_CRUD_API_URL;
+const SERVER_BASE_URL_ENV_KEYS = [
+  'NEXT_PUBLIC_CRUD_API_URL',
+  'NEXT_PUBLIC_API_URL',
+  'NEXT_PUBLIC_API_BASE_URL',
+  'CRUD_API_URL',
+] as const;
+
+type ServerApiBaseUrlResolution = {
+  baseUrl: string | null;
+  sourceKey: (typeof SERVER_BASE_URL_ENV_KEYS)[number] | null;
+};
+
+function normalizeServerApiBaseUrl(candidate: string | undefined): string | null {
+  if (!candidate) {
+    return null;
+  }
+
+  const trimmed = candidate.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  return trimmed.replace(/\/+$/, '');
+}
+
+// Strategy pattern: resolve first configured API base URL alias in documented priority order.
+export function resolveServerCrudApiBaseUrl(env: NodeJS.ProcessEnv = process.env): ServerApiBaseUrlResolution {
+  for (const key of SERVER_BASE_URL_ENV_KEYS) {
+    const resolved = normalizeServerApiBaseUrl(env[key]);
+    if (resolved) {
+      return {
+        baseUrl: resolved,
+        sourceKey: key,
+      };
+    }
+  }
+
+  return {
+    baseUrl: null,
+    sourceKey: null,
+  };
+}
+
+const SERVER_CRUD_API_BASE_URL = resolveServerCrudApiBaseUrl().baseUrl;
 const CRUD_API_BASE_URL = IS_TEST_ENV
   ? 'http://localhost:8000'
   : typeof window !== 'undefined'
@@ -16,7 +59,9 @@ const CRUD_API_BASE_URL = IS_TEST_ENV
     : SERVER_CRUD_API_BASE_URL;
 
 if (!CRUD_API_BASE_URL && typeof window === 'undefined') {
-  throw new Error('NEXT_PUBLIC_CRUD_API_URL must be set to the cloud CRUD gateway URL.');
+  throw new Error(
+    'CRUD API base URL is not configured. Set one of NEXT_PUBLIC_CRUD_API_URL, NEXT_PUBLIC_API_URL, NEXT_PUBLIC_API_BASE_URL, or CRUD_API_URL.',
+  );
 }
 
 /**
@@ -88,14 +133,53 @@ export class ApiError extends Error {
   }
 }
 
+function extractErrorMessage(details: unknown): string | null {
+  const extractString = (value: unknown, depth = 0): string | null => {
+    if (depth > 4 || value === null || value === undefined) {
+      return null;
+    }
+
+    if (typeof value === 'string') {
+      const normalized = value.trim();
+      return normalized.length > 0 ? normalized : null;
+    }
+
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        const extracted = extractString(entry, depth + 1);
+        if (extracted) {
+          return extracted;
+        }
+      }
+      return null;
+    }
+
+    if (typeof value === 'object') {
+      const record = value as Record<string, unknown>;
+      const preferredKeys = ['detail', 'error', 'message', 'title', 'msg'];
+
+      for (const key of preferredKeys) {
+        const extracted = extractString(record[key], depth + 1);
+        if (extracted) {
+          return extracted;
+        }
+      }
+    }
+
+    return null;
+  };
+
+  return extractString(details);
+}
+
 /**
  * Handle API errors and convert to ApiError
  */
 export const handleApiError = (error: unknown): ApiError => {
   if (axios.isAxiosError(error)) {
     const status = error.response?.status || 500;
-    const message = error.response?.data?.detail || error.message;
     const details = error.response?.data;
+    const message = extractErrorMessage(details) || error.message || 'Request failed';
     
     return new ApiError(status, message, details);
   }

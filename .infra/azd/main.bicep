@@ -20,6 +20,10 @@ param appName string = 'holidaypeakhub-ui'
 param repositoryUrl string = 'https://github.com/Azure-Samples/holiday-peak-hub'
 param branch string = 'main'
 
+// Keep deployment-facing auth/user outputs explicit and deterministic.
+var postgresAuthMode = 'password'
+var postgresWorkloadUser = 'crud_workload'
+
 module sharedInfra '../modules/shared-infrastructure/shared-infrastructure-main.bicep' = if (deployShared) {
   name: 'shared-infrastructure-azd'
   params: {
@@ -61,5 +65,7 @@ output REDIS_HOST string = deployShared ? sharedInfra!.outputs.redisName : ''
 output EVENT_HUB_NAMESPACE string = deployShared ? sharedInfra!.outputs.eventHubsNamespaceName : ''
 output APPLICATIONINSIGHTS_CONNECTION_STRING string = deployShared ? sharedInfra!.outputs.appInsightsConnectionString : ''
 output POSTGRES_HOST string = deployShared ? sharedInfra!.outputs.postgresFqdn : ''
-output POSTGRES_USER string = deployShared ? sharedInfra!.outputs.postgresAdminUser : ''
+output POSTGRES_USER string = deployShared ? postgresWorkloadUser : ''
+output POSTGRES_ADMIN_USER string = deployShared ? sharedInfra!.outputs.postgresAdminUser : ''
+output POSTGRES_AUTH_MODE string = deployShared ? postgresAuthMode : ''
 output POSTGRES_DATABASE string = deployShared ? sharedInfra!.outputs.postgresDatabaseName : ''

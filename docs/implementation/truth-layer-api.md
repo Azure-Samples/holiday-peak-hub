@@ -2,6 +2,114 @@
 
 This document describes currently available truth-layer endpoints and planned service contracts for the ingestion → completeness → enrichment → review → export workflow.
 
+It also documents the grounded showcase flow used by `samples/notebooks/product-truth-layer-end-to-end-demo.ipynb`, aligned to the agentic architecture patterns in `docs/architecture/architecture.md`.
+
+## Grounded Notebook Stage Map
+
+The notebook executes a live APIM-backed flow using these stage labels:
+
+1. `Stage 0 - Runtime Contract`
+2. `Stage 1 - Strict HTTP Client`
+3. `Stage 2 - Health Gate`
+4. `Stage 3 - Gateway Exposure Matrix`
+5. `Stage 4 - Select Product and Category Context`
+6. `Stage 4.5 - Build Mock Non-Compliant Candidate`
+7. `Stage 5 - Deterministic Consistency Validation`
+8. `Stage 6 - Product Detail Enrichment Agent`
+9. `Stage 7 - Review Context from CRUD`
+10. `Stage 8 - HITL Queue Observation`
+11. `Stage 8.5 - HITL Validation Decision (Approve/Reject/Edit)`
+12. `Stage 9 - ACP Transformation`
+13. `Stage 10 - Product Evidence Graph and Summary`
+
+Business purpose: the flow demonstrates deterministic quality controls (validation + HITL governance) composed with agentic enrichment and transformation over live service boundaries.
+
+## Overall Business-to-Execution Flow
+
+```mermaid
+flowchart LR
+  B1[Catalog accuracy with airtight coverage]
+  B2[Single source of truth for product data enrichment]
+  B3[Agent interoperability via ACP compliance]
+  B4[Event-driven choreography with governance checkpoints]
+
+  E0[Stage 0-4\nRuntime, client, health, exposure, context]
+  E1[Stage 4.5-6\nNon-compliant candidate, deterministic validation, enrichment]
+  E2[Stage 7-8.5\nReview context, HITL queue, decision gate]
+  E3[Stage 9-10\nACP transformation, evidence graph and summary]
+
+  B1 --> E0
+  B1 --> E1
+  B2 --> E1
+  B2 --> E2
+  B3 --> E3
+  B4 --> E0
+  B4 --> E2
+  B4 --> E3
+```
+
+## Each Step Execution
+
+```mermaid
+flowchart TB
+  subgraph X[Execution Lane]
+    S0[Stage 0\nRuntime Contract]
+    S1[Stage 1\nStrict HTTP Client]
+    S2[Stage 2\nHealth Gate]
+    S3[Stage 3\nGateway Exposure Matrix]
+    S4[Stage 4\nSelect Product and Category Context]
+    S45[Stage 4.5\nBuild Mock Non-Compliant Candidate]
+    S5[Stage 5\nDeterministic Consistency Validation]
+    S6[Stage 6\nProduct Detail Enrichment Agent]
+    S7[Stage 7\nReview Context from CRUD]
+    S8[Stage 8\nHITL Queue Observation]
+    S85{Stage 8.5\nHITL Validation Decision}
+    D1[approve]
+    D2[reject]
+    D3[edit_and_approve]
+    D4[observe_only]
+    S9[Stage 9\nACP Transformation]
+    S10[Stage 10\nProduct Evidence Graph and Summary]
+
+    S0 --> S1 --> S2 --> S3 --> S4 --> S45 --> S5 --> S6 --> S7 --> S8 --> S85
+    S85 --> D1 --> S9
+    S85 --> D3 --> S9
+    S85 --> D2 --> S10
+    S85 --> D4 --> S10
+    S9 --> S10
+  end
+
+  subgraph Y[Evidence Lane]
+    ET[Event Timeline Capture\n(event_id, event_type, timestamp,\ncorrelation_id, causation_id,\nstage, actor, decision, quality)]
+  end
+
+  S0 -.-> ET
+  S2 -.-> ET
+  S5 -.-> ET
+  S8 -.-> ET
+  S85 -.-> ET
+  S9 -.-> ET
+  S10 -.-> ET
+```
+
+## Stage Objective and Signal Map
+
+| Stage | Business objective | Measurable signal |
+| --- | --- | --- |
+| `0` | Enforce safe runtime boundaries before live calls | Contract flags loaded (`STRICT_REMOTE_ONLY`, mutation guard state) |
+| `1` | Ensure stable execution under strict HTTP behavior | Client retries/timeouts policy active |
+| `2` | Gate on service health before business operations | Health/readiness pass rate (`2xx`) |
+| `3` | Confirm required API surfaces are reachable | Gateway exposure matrix coverage by route |
+| `4` | Select valid product/category context for governance flow | Selected SKU + category resolved |
+| `4.5` | Inject controlled non-compliance for repeatable governance checks | Synthetic violation count by rule type |
+| `5` | Detect deterministic quality gaps before agentic actions | `completeness_score`, gap count, enrichable gap count |
+| `6` | Propose richer product detail context | Enrichment fields proposed/applied count |
+| `7` | Ground review decisions in transactional context | CRUD review context retrieval success |
+| `8` | Observe pending HITL workload and queue state | Pending attribute IDs and queue stats |
+| `8.5` | Apply human governance decision (`approve/reject/edit_and_approve/observe_only`) | Decision outcome distribution by type |
+| `9` | Produce ACP-aligned export payload for interoperability | ACP transformation success + payload completeness |
+| `10` | Preserve auditable end-to-end execution evidence | Timeline event count and stage coverage |
+
 ## Scope and Current Status
 
 - Implemented services in the current repo/deployment topology:
@@ -142,6 +250,16 @@ Base URL: `http://<crud-host>`
 | POST | `/api/reviews` | Create review (auth required) |
 | DELETE | `/api/reviews/{review_id}` | Delete review (author/admin) |
 
+### HITL Decision Gate in the Notebook
+
+- Queue observation occurs in `Stage 8 - HITL Queue Observation` using Truth HITL `stats` and `list` actions.
+- Decisioning occurs in `Stage 8.5 - HITL Validation Decision (Approve/Reject/Edit)`.
+- Decision outcomes are: `approve`, `reject`, `edit_and_approve`, `observe_only`.
+- Default behavior is safe: if there are no pending attribute IDs, the decision is `observe_only` and no mutation attempt is made.
+- Review execution is conditional and only attempted when:
+  - a review-target attribute exists, and
+  - demo mutation mode is explicitly enabled.
+
 ## 5) Export Service
 
 Base URL: `http://<acp-transformation-host>`
@@ -187,6 +305,53 @@ Base URL: `http://<crud-host>`
    - Use CRUD review endpoints (current) or dedicated HITL service (planned)
 5. Export:
    - `POST <acp-transformation>/invoke`
+
+## Governance Demonstration: Intentional Non-Compliant Candidate
+
+`Stage 4.5 - Build Mock Non-Compliant Candidate` intentionally injects deterministic violations (for example missing brand, invalid price, weak naming, and malformed attribute types).
+
+Why this is intentional:
+
+- Validates that policy and quality controls detect known bad input.
+- Demonstrates business governance behavior without requiring production data corruption.
+- Creates a repeatable test vector for HITL decision logic and operational reviews.
+
+This supports architecture goals for explicit governance checkpoints across deterministic and agentic steps.
+
+## Event Metadata Timeline and Observability
+
+The notebook emits per-stage events into an in-notebook timeline used for operational evidence.
+
+### Event metadata schema (core fields)
+
+- `event_id`: unique event identifier.
+- `event_type`: stage transition/event category.
+- `timestamp`: UTC event timestamp.
+- `correlation_id`: flow-wide trace key.
+- `causation_id`: parent event pointer.
+- `entity_id`: product/entity under processing.
+- `stage`: stage identifier (for example `stage_8_5_hitl_decision`).
+- `actor`: service or component responsible.
+- `decision`: outcome at this step.
+- `reason`: short human-readable rationale.
+- `quality`: structured metrics (counts/confidence/status values).
+
+Operational value:
+
+- Provides end-to-end traceability across validation, enrichment, HITL, and transformation.
+- Improves incident triage by preserving decision rationale next to service outcomes.
+- Produces demo evidence that maps directly to live APIM call boundaries.
+
+## Demo Safety Controls and Mutation Guardrails
+
+The showcase is safe-by-default and designed to prevent accidental live mutations:
+
+- `DEMO_MUTATION_MODE` defaults to `false`.
+- `STRICT_REMOTE_ONLY` enforces live APIM/AKS boundaries and blocks local fallback execution.
+- Sandbox metadata tags (`tenant_id=demo-notebook`, `environment=sandbox`, `is_demo=true`) are attached to mutation-shaped payloads.
+- HITL review writes are skipped unless explicit mutation mode is enabled and a valid review target exists.
+
+Together these controls preserve production integrity while still demonstrating full governance flow and decision outcomes.
 
 ## Sample Automation Scripts
 

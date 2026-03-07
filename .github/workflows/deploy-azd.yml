@@ -43,10 +43,19 @@ on:
         required: true
         type: boolean
         default: true
+      forceApimSync:
+        description: Force APIM sync and smoke checks even when no changed services are detected
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   id-token: write
   contents: read
+
+concurrency:
+  group: deploy-azd-${{ inputs.environment }}
+  cancel-in-progress: false
 
 jobs:
   detect-changes:
@@ -171,6 +180,7 @@ jobs:
       AI_SERVICES_NAME: ${{ steps.outputs.outputs.AI_SERVICES_NAME }}
       PROJECT_ENDPOINT: ${{ steps.outputs.outputs.PROJECT_ENDPOINT }}
       PROJECT_NAME: ${{ steps.outputs.outputs.PROJECT_NAME }}
+      APIM_GATEWAY_URL: ${{ steps.outputs.outputs.APIM_GATEWAY_URL }}
       COSMOS_ACCOUNT_URI: ${{ steps.outputs.outputs.COSMOS_ACCOUNT_URI }}
       COSMOS_DATABASE: ${{ steps.outputs.outputs.COSMOS_DATABASE }}
       KEY_VAULT_URI: ${{ steps.outputs.outputs.KEY_VAULT_URI }}
@@ -179,6 +189,8 @@ jobs:
       APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ steps.outputs.outputs.APPLICATIONINSIGHTS_CONNECTION_STRING }}
       POSTGRES_HOST: ${{ steps.outputs.outputs.POSTGRES_HOST }}
       POSTGRES_USER: ${{ steps.outputs.outputs.POSTGRES_USER }}
+      POSTGRES_ADMIN_USER: ${{ steps.outputs.outputs.POSTGRES_ADMIN_USER }}
+      POSTGRES_AUTH_MODE: ${{ steps.outputs.outputs.POSTGRES_AUTH_MODE }}
       POSTGRES_DATABASE: ${{ steps.outputs.outputs.POSTGRES_DATABASE }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -455,10 +467,12 @@ jobs:
         id: outputs
         run: |
           eval "$(azd env get-values -e '${{ inputs.environment }}' | sed 's/^/export /')"
+          APIM_GATEWAY_URL_VALUE="${APIM_GATEWAY_URL:-${apimGatewayUrl:-}}"
           {
             echo "AI_SERVICES_NAME=${AI_SERVICES_NAME}"
             echo "PROJECT_ENDPOINT=${PROJECT_ENDPOINT}"
             echo "PROJECT_NAME=${PROJECT_NAME}"
+            echo "APIM_GATEWAY_URL=${APIM_GATEWAY_URL_VALUE}"
             echo "COSMOS_ACCOUNT_URI=${COSMOS_ACCOUNT_URI}"
             echo "COSMOS_DATABASE=${COSMOS_DATABASE}"
             echo "KEY_VAULT_URI=${KEY_VAULT_URI}"
@@ -467,6 +481,8 @@ jobs:
             echo "APPLICATIONINSIGHTS_CONNECTION_STRING=${APPLICATIONINSIGHTS_CONNECTION_STRING}"
             echo "POSTGRES_HOST=${POSTGRES_HOST}"
             echo "POSTGRES_USER=${POSTGRES_USER}"
+            echo "POSTGRES_ADMIN_USER=${POSTGRES_ADMIN_USER}"
+            echo "POSTGRES_AUTH_MODE=${POSTGRES_AUTH_MODE}"
             echo "POSTGRES_DATABASE=${POSTGRES_DATABASE}"
           } >> "$GITHUB_OUTPUT"
 
@@ -604,6 +620,46 @@ jobs:
           echo "No supported IngressClass found. Enable AKS Web App Routing or provide INGRESS_CLASS_NAME." >&2
           exit 1
 
+      - name: Preflight ACR data-plane accessibility
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          RG_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+          ACR_NAME=$(echo "${{ inputs.projectName }}${{ inputs.environment }}acr" | tr -cd '[:alnum:]' | tr '[:upper:]' '[:lower:]')
+
+          if ! az acr show --resource-group "$RG_NAME" --name "$ACR_NAME" >/dev/null 2>&1; then
+            echo "ACR preflight could not find registry '$ACR_NAME' in resource group '$RG_NAME'." >&2
+            echo "Verify naming convention or set AZURE_CONTAINER_REGISTRY_ENDPOINT in azd env before deploy." >&2
+            exit 1
+          fi
+
+          ACR_LOGIN_SERVER=$(az acr show \
+            --resource-group "$RG_NAME" \
+            --name "$ACR_NAME" \
+            --query "loginServer" -o tsv)
+
+          STATUS_CODE=$(curl -sS -o /tmp/acr-v2-probe.txt -w "%{http_code}" --max-time 25 "https://${ACR_LOGIN_SERVER}/v2/" || true)
+
+          if [ "$STATUS_CODE" = "200" ] || [ "$STATUS_CODE" = "401" ]; then
+            echo "ACR preflight passed: ${ACR_LOGIN_SERVER} is reachable from this runner (HTTP $STATUS_CODE)."
+            exit 0
+          fi
+
+          RUNNER_IP=$(curl -sS --max-time 10 https://api.ipify.org || true)
+          echo "ACR preflight failed: ${ACR_LOGIN_SERVER}/v2/ returned HTTP ${STATUS_CODE}." >&2
+          if [ "$STATUS_CODE" = "403" ]; then
+            echo "Likely cause: ACR firewall/network rules are blocking this GitHub-hosted runner." >&2
+          fi
+          if [ -n "$RUNNER_IP" ]; then
+            echo "Runner egress IP detected: $RUNNER_IP" >&2
+            echo "Action: allow this IP (or CIDR) on ACR '$ACR_NAME' or use a self-hosted runner in an allowed network." >&2
+            echo "Example: az acr network-rule add --name '$ACR_NAME' --resource-group '$RG_NAME' --ip-address '$RUNNER_IP'" >&2
+          else
+            echo "Action: check ACR firewall/network rules for GitHub runner egress and retry." >&2
+          fi
+          exit 1
+
       - name: Deploy CRUD service
         timeout-minutes: 25
         shell: bash
@@ -641,6 +697,7 @@ jobs:
           PROJECT_NAME: ${{ needs.provision.outputs.PROJECT_NAME }}
           MODEL_DEPLOYMENT_NAME_FAST: gpt-5-nano
           MODEL_DEPLOYMENT_NAME_RICH: gpt-5-nano
+          POSTGRES_AUTH_MODE: ${{ needs.provision.outputs.POSTGRES_AUTH_MODE }}
           COSMOS_ACCOUNT_URI: ${{ needs.provision.outputs.COSMOS_ACCOUNT_URI }}
           COSMOS_DATABASE: ${{ needs.provision.outputs.COSMOS_DATABASE }}
           REDIS_HOST: ${{ needs.provision.outputs.REDIS_HOST }}
@@ -648,15 +705,75 @@ jobs:
           KEY_VAULT_URI: ${{ needs.provision.outputs.KEY_VAULT_URI }}
           APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ needs.provision.outputs.APPLICATIONINSIGHTS_CONNECTION_STRING }}
           POSTGRES_HOST: ${{ needs.provision.outputs.POSTGRES_HOST }}
-          POSTGRES_USER: ${{ needs.provision.outputs.POSTGRES_USER }}
+          POSTGRES_USER: ${{ needs.provision.outputs.POSTGRES_AUTH_MODE == 'password' && needs.provision.outputs.POSTGRES_ADMIN_USER || needs.provision.outputs.POSTGRES_USER }}
           POSTGRES_DATABASE: ${{ needs.provision.outputs.POSTGRES_DATABASE }}
+
+      - name: Gate CRUD readiness (/ready)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APIM_BASE="${{ needs.provision.outputs.APIM_GATEWAY_URL }}"
+          APIM_BASE="${APIM_BASE%/}"
+          APIM_READY_URL="${APIM_BASE}/api/ready"
+          SERVICE_READY_URL="http://127.0.0.1:18080/ready"
+
+          check_ready() {
+            local url="$1"
+            local label="$2"
+
+            for attempt in $(seq 1 24); do
+              STATUS_CODE=$(curl -sS -o /tmp/crud-ready.json -w "%{http_code}" "$url" || true)
+              if [ "$STATUS_CODE" = "200" ]; then
+                echo "[OK] ${label} ready on attempt ${attempt}: ${url}"
+                return 0
+              fi
+              echo "Attempt ${attempt}/24: ${label} returned HTTP ${STATUS_CODE}"
+              sleep 10
+            done
+
+            echo "[FAIL] ${label} readiness did not return HTTP 200: ${url}" >&2
+            cat /tmp/crud-ready.json 2>/dev/null || true
+            return 1
+          }
+
+          APIM_READY=false
+          if [ -n "$APIM_BASE" ]; then
+            if check_ready "$APIM_READY_URL" "APIM /api/ready"; then
+              APIM_READY=true
+            fi
+          else
+            echo "APIM gateway URL not provided by provision outputs; skipping APIM /api/ready check."
+          fi
+
+          kubectl port-forward svc/crud-service 18080:8000 -n holiday-peak >/tmp/crud-port-forward.log 2>&1 &
+          PF_PID=$!
+          trap 'kill "$PF_PID" >/dev/null 2>&1 || true' EXIT
+          sleep 3
+
+          SERVICE_READY=false
+          if check_ready "$SERVICE_READY_URL" "service /ready"; then
+            SERVICE_READY=true
+          fi
+
+          if [ "$APIM_READY" != "true" ] && [ "$SERVICE_READY" != "true" ]; then
+            echo "CRUD readiness gate failed: both APIM and direct service /ready checks are unhealthy." >&2
+            echo "Port-forward log:" >&2
+            cat /tmp/crud-port-forward.log 2>/dev/null || true
+            exit 1
+          fi
 
   deploy-ui:
     runs-on: ubuntu-latest
-    if: ${{ inputs.deployStatic && !inputs.uiOnly && needs.detect-changes.outputs.ui_changed == 'true' }}
+    if: ${{ always() && inputs.deployStatic && !inputs.uiOnly && needs.detect-changes.outputs.ui_changed == 'true' && (needs.deploy-crud.result == 'success' || needs.deploy-crud.result == 'skipped') && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') && (needs.sync-apim.result == 'success' || needs.sync-apim.result == 'skipped') && (needs.ensure-foundry-agents.result == 'success' || needs.ensure-foundry-agents.result == 'skipped') && (needs.smoke-apim.result == 'success' || needs.smoke-apim.result == 'skipped') }}
     needs:
       - provision
       - detect-changes
+      - deploy-crud
+      - deploy-agents
+      - sync-apim
+      - ensure-foundry-agents
+      - smoke-apim
     environment: ${{ inputs.environment }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -682,28 +799,104 @@ jobs:
 
       - name: Resolve API URL
         id: api
+        shell: bash
         run: |
+          set -euo pipefail
+
           RESOURCE_GROUP="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+          EXPECTED_APIM_URL="${{ needs.provision.outputs.APIM_GATEWAY_URL }}"
+
+          if [ -z "$EXPECTED_APIM_URL" ]; then
+            echo "Provision output APIM_GATEWAY_URL is empty. Cannot safely propagate API URL to UI build." >&2
+            exit 1
+          fi
 
           APIM_URL=$(az apim show \
             --name "${{ inputs.projectName }}-${{ inputs.environment }}-apim" \
             --resource-group "$RESOURCE_GROUP" \
             --query "gatewayUrl" -o tsv)
 
-          echo "api_url=$APIM_URL" >> "$GITHUB_OUTPUT"
+          APIM_URL="$(echo "$APIM_URL" | xargs)"
+          EXPECTED_APIM_URL="$(echo "$EXPECTED_APIM_URL" | xargs)"
+
+          APIM_URL="${APIM_URL%/}"
+          EXPECTED_APIM_URL="${EXPECTED_APIM_URL%/}"
+
+          if [ -z "$APIM_URL" ]; then
+            echo "Failed to resolve APIM gatewayUrl for resource group $RESOURCE_GROUP. Ensure APIM exists and is provisioned before deploying UI." >&2
+            exit 1
+          fi
+
+          if [ "$APIM_URL" != "$EXPECTED_APIM_URL" ]; then
+            echo "APIM URL drift detected between provision output and live APIM gateway URL." >&2
+            echo "Expected: $EXPECTED_APIM_URL" >&2
+            echo "Actual:   $APIM_URL" >&2
+            exit 1
+          fi
+
+          echo "api_url=$EXPECTED_APIM_URL" >> "$GITHUB_OUTPUT"
+          echo "crud_api_url=$EXPECTED_APIM_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test APIM API health before UI deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          API_BASE_URL="${{ steps.api.outputs.api_url }}"
+          API_BASE_URL="${API_BASE_URL%/}"
+
+          smoke_endpoint() {
+            local url="$1"
+            local label="$2"
+
+            for attempt in $(seq 1 20); do
+              STATUS_CODE=$(curl -sS -o /tmp/api-health.json -w "%{http_code}" "$url" || true)
+              if [ "$STATUS_CODE" = "200" ]; then
+                echo "[OK] $label: $url"
+                return 0
+              fi
+              echo "Attempt $attempt/20: $label returned HTTP $STATUS_CODE"
+              sleep 10
+            done
+
+            echo "[FAIL] $label: $url" >&2
+            cat /tmp/api-health.json 2>/dev/null || true
+            return 1
+          }
+
+          smoke_endpoint "${API_BASE_URL}/api/health" "crud-health"
+          smoke_endpoint "${API_BASE_URL}/api/products?limit=1" "crud-products"
+          smoke_endpoint "${API_BASE_URL}/api/categories" "crud-categories"
 
       - name: Resolve SWA deployment token
         id: swa
+        shell: bash
         run: |
-          RESOURCE_GROUP="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+          set -euo pipefail
 
-          SWA_NAME=$(az resource list \
-            --resource-group "$RESOURCE_GROUP" \
-            --resource-type "Microsoft.Web/staticSites" \
-            --query "[0].name" -o tsv)
+          RESOURCE_GROUP="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+          EXPECTED_SWA_NAME="${{ inputs.projectName }}-ui-${{ inputs.environment }}"
+
+          SWA_NAME=""
+          if az staticwebapp show --name "$EXPECTED_SWA_NAME" --resource-group "$RESOURCE_GROUP" >/dev/null 2>&1; then
+            SWA_NAME="$EXPECTED_SWA_NAME"
+          else
+            SWA_NAME=$(az staticwebapp list \
+              --resource-group "$RESOURCE_GROUP" \
+              --query "[?starts_with(defaultHostname, '${EXPECTED_SWA_NAME}.')].name | [0]" -o tsv)
+
+            if [ -z "$SWA_NAME" ]; then
+              COUNT=$(az staticwebapp list --resource-group "$RESOURCE_GROUP" --query "length(@)" -o tsv)
+              if [ "$COUNT" = "1" ]; then
+                SWA_NAME=$(az staticwebapp list --resource-group "$RESOURCE_GROUP" --query "[0].name" -o tsv)
+              fi
+            fi
+          fi
 
           if [ -z "$SWA_NAME" ]; then
-            echo "No Static Web App found in resource group $RESOURCE_GROUP"
+            echo "Could not deterministically resolve Static Web App in $RESOURCE_GROUP." >&2
+            echo "Expected name: $EXPECTED_SWA_NAME" >&2
+            echo "Action: align SWA naming with IaC convention or keep exactly one SWA in the resource group." >&2
             exit 1
           fi
 
@@ -732,16 +925,86 @@ jobs:
           app_build_command: yarn install --frozen-lockfile && yarn build
         env:
           NEXT_PUBLIC_API_URL: ${{ steps.api.outputs.api_url }}
-          NEXT_PUBLIC_CRUD_API_URL: ${{ steps.api.outputs.api_url }}
+          NEXT_PUBLIC_CRUD_API_URL: ${{ steps.api.outputs.crud_api_url }}
           NEXT_PUBLIC_ENTRA_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_ENTRA_CLIENT_ID }}
           NEXT_PUBLIC_ENTRA_TENANT_ID: ${{ secrets.NEXT_PUBLIC_ENTRA_TENANT_ID }}
+
+      - name: Smoke test UI host and API health after deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          RESOURCE_GROUP="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+          SWA_NAME="${{ steps.swa.outputs.swa_name }}"
+          API_BASE_URL="${{ steps.api.outputs.api_url }}"
+
+          SWA_HOSTNAME=$(az staticwebapp show \
+            --name "$SWA_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query "defaultHostname" -o tsv)
+
+          SWA_HOSTNAME="$(echo "$SWA_HOSTNAME" | xargs)"
+          if [ -z "$SWA_HOSTNAME" ]; then
+            echo "Could not resolve Static Web App hostname for $SWA_NAME" >&2
+            exit 1
+          fi
+
+          UI_URL="https://$SWA_HOSTNAME"
+          for attempt in $(seq 1 20); do
+            STATUS_CODE=$(curl -sS -o /tmp/ui-homepage.html -w "%{http_code}" "$UI_URL" || true)
+            if [ "$STATUS_CODE" = "200" ]; then
+              echo "UI homepage is reachable: $UI_URL"
+              break
+            fi
+
+            if [ "$attempt" -eq 20 ]; then
+              echo "UI smoke test failed with HTTP $STATUS_CODE at $UI_URL" >&2
+              exit 1
+            fi
+            sleep 10
+          done
+
+          API_HEALTH_URL="${API_BASE_URL%/}/api/health"
+          STATUS_CODE=$(curl -sS -o /tmp/ui-api-health.json -w "%{http_code}" "$API_HEALTH_URL" || true)
+          if [ "$STATUS_CODE" != "200" ]; then
+            echo "API health check failed after UI deploy with HTTP $STATUS_CODE at $API_HEALTH_URL" >&2
+            cat /tmp/ui-api-health.json 2>/dev/null || true
+            exit 1
+          fi
+
+          PRODUCTS_URL="${API_BASE_URL%/}/api/products?limit=1"
+          STATUS_CODE=$(curl -sS -o /tmp/ui-api-products.json -w "%{http_code}" "$PRODUCTS_URL" || true)
+          if [ "$STATUS_CODE" != "200" ]; then
+            echo "Products smoke check failed after UI deploy with HTTP $STATUS_CODE at $PRODUCTS_URL" >&2
+            cat /tmp/ui-api-products.json 2>/dev/null || true
+            exit 1
+          fi
+
+          CATEGORIES_URL="${API_BASE_URL%/}/api/categories"
+          STATUS_CODE=$(curl -sS -o /tmp/ui-api-categories.json -w "%{http_code}" "$CATEGORIES_URL" || true)
+          if [ "$STATUS_CODE" != "200" ]; then
+            echo "Categories smoke check failed after UI deploy with HTTP $STATUS_CODE at $CATEGORIES_URL" >&2
+            cat /tmp/ui-api-categories.json 2>/dev/null || true
+            exit 1
+          fi
 
   deploy-ui-token:
     runs-on: ubuntu-latest
     if: ${{ inputs.deployStatic && inputs.uiOnly }}
     environment: ${{ inputs.environment }}
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -750,12 +1013,71 @@ jobs:
 
       - name: Resolve API URL
         id: api
+        shell: bash
         run: |
-          if [ -n "${{ inputs.apiBaseUrl }}" ]; then
-            echo "api_url=${{ inputs.apiBaseUrl }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "api_url=https://apim-${{ inputs.projectName }}-${{ inputs.environment }}.azure-api.net" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+
+          RESOURCE_GROUP="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+
+          APIM_URL=$(az apim show \
+            --name "${{ inputs.projectName }}-${{ inputs.environment }}-apim" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query "gatewayUrl" -o tsv)
+
+          APIM_URL="$(echo "$APIM_URL" | xargs)"
+          APIM_URL="${APIM_URL%/}"
+
+          if [ -z "$APIM_URL" ]; then
+            echo "Could not resolve APIM gateway URL for UI-only deployment." >&2
+            exit 1
           fi
+
+          RESOLVED_API_URL="$APIM_URL"
+
+          if [ -n "${{ inputs.apiBaseUrl }}" ]; then
+            OVERRIDE_API_URL="$(echo "${{ inputs.apiBaseUrl }}" | xargs)"
+            OVERRIDE_API_URL="${OVERRIDE_API_URL%/}"
+
+            if [ "$OVERRIDE_API_URL" != "$APIM_URL" ]; then
+              echo "apiBaseUrl override drift detected. Provided URL does not match live APIM gateway URL." >&2
+              echo "Provided: $OVERRIDE_API_URL" >&2
+              echo "Expected: $APIM_URL" >&2
+              exit 1
+            fi
+
+            RESOLVED_API_URL="$OVERRIDE_API_URL"
+          fi
+
+          if [ -z "$RESOLVED_API_URL" ]; then
+            echo "UI-only deployment could not resolve API base URL. Provide 'apiBaseUrl' input or ensure the default APIM host is valid." >&2
+            exit 1
+          fi
+
+          echo "api_url=$RESOLVED_API_URL" >> "$GITHUB_OUTPUT"
+          echo "crud_api_url=$RESOLVED_API_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test APIM API health before UI deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          API_BASE_URL="${{ steps.api.outputs.api_url }}"
+          API_BASE_URL="${API_BASE_URL%/}"
+
+          smoke_endpoint() {
+            local url="$1"
+            local label="$2"
+            STATUS_CODE=$(curl -sS -o /tmp/ui-token-health-pre.json -w "%{http_code}" "$url" || true)
+            if [ "$STATUS_CODE" != "200" ]; then
+              echo "$label check failed before UI-only deployment with HTTP $STATUS_CODE at $url" >&2
+              cat /tmp/ui-token-health-pre.json 2>/dev/null || true
+              exit 1
+            fi
+          }
+
+          smoke_endpoint "${API_BASE_URL}/api/health" "APIM health"
+          smoke_endpoint "${API_BASE_URL}/api/products?limit=1" "Products"
+          smoke_endpoint "${API_BASE_URL}/api/categories" "Categories"
 
       - name: Deploy UI via Static Web Apps action (token mode)
         uses: Azure/static-web-apps-deploy@v1
@@ -768,9 +1090,32 @@ jobs:
           app_build_command: yarn install --frozen-lockfile && yarn build
         env:
           NEXT_PUBLIC_API_URL: ${{ steps.api.outputs.api_url }}
-          NEXT_PUBLIC_CRUD_API_URL: ${{ steps.api.outputs.api_url }}
+          NEXT_PUBLIC_CRUD_API_URL: ${{ steps.api.outputs.crud_api_url }}
           NEXT_PUBLIC_ENTRA_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_ENTRA_CLIENT_ID }}
           NEXT_PUBLIC_ENTRA_TENANT_ID: ${{ secrets.NEXT_PUBLIC_ENTRA_TENANT_ID }}
+
+      - name: Smoke test API health after UI-only deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          API_BASE_URL="${{ steps.api.outputs.api_url }}"
+          API_BASE_URL="${API_BASE_URL%/}"
+
+          smoke_endpoint() {
+            local url="$1"
+            local label="$2"
+            STATUS_CODE=$(curl -sS -o /tmp/ui-token-health-post.json -w "%{http_code}" "$url" || true)
+            if [ "$STATUS_CODE" != "200" ]; then
+              echo "$label check failed after UI-only deployment with HTTP $STATUS_CODE at $url" >&2
+              cat /tmp/ui-token-health-post.json 2>/dev/null || true
+              exit 1
+            fi
+          }
+
+          smoke_endpoint "${API_BASE_URL}/api/health" "APIM health"
+          smoke_endpoint "${API_BASE_URL}/api/products?limit=1" "Products"
+          smoke_endpoint "${API_BASE_URL}/api/categories" "Categories"
 
   deploy-agents:
     runs-on: ubuntu-latest
@@ -836,6 +1181,7 @@ jobs:
           FOUNDRY_STRICT_ENFORCEMENT: "true"
           MODEL_DEPLOYMENT_NAME_FAST: gpt-5-nano
           MODEL_DEPLOYMENT_NAME_RICH: gpt-5-nano
+          POSTGRES_AUTH_MODE: ${{ needs.provision.outputs.POSTGRES_AUTH_MODE }}
           COSMOS_ACCOUNT_URI: ${{ needs.provision.outputs.COSMOS_ACCOUNT_URI }}
           COSMOS_DATABASE: ${{ needs.provision.outputs.COSMOS_DATABASE }}
           REDIS_HOST: ${{ needs.provision.outputs.REDIS_HOST }}
@@ -843,12 +1189,12 @@ jobs:
           KEY_VAULT_URI: ${{ needs.provision.outputs.KEY_VAULT_URI }}
           APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ needs.provision.outputs.APPLICATIONINSIGHTS_CONNECTION_STRING }}
           POSTGRES_HOST: ${{ needs.provision.outputs.POSTGRES_HOST }}
-          POSTGRES_USER: ${{ needs.provision.outputs.POSTGRES_USER }}
+          POSTGRES_USER: ${{ needs.provision.outputs.POSTGRES_AUTH_MODE == 'password' && needs.provision.outputs.POSTGRES_ADMIN_USER || needs.provision.outputs.POSTGRES_USER }}
           POSTGRES_DATABASE: ${{ needs.provision.outputs.POSTGRES_DATABASE }}
 
   sync-apim:
     runs-on: ubuntu-latest
-    if: ${{ !inputs.uiOnly && (needs.detect-changes.outputs.agents_changed == 'true' || needs.detect-changes.outputs.crud_changed == 'true') && (needs.deploy-crud.result == 'success' || needs.deploy-crud.result == 'skipped') && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') }}
+    if: ${{ !inputs.uiOnly && (inputs.forceApimSync || needs.detect-changes.outputs.agents_changed == 'true' || needs.detect-changes.outputs.crud_changed == 'true') && (needs.deploy-crud.result == 'success' || needs.deploy-crud.result == 'skipped') && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') }}
     needs:
       - deploy-crud
       - deploy-agents
@@ -882,6 +1228,88 @@ jobs:
             --app-gw-name "${{ inputs.projectName }}-${{ inputs.environment }}-appgw"
         env:
           AZURE_RESOURCE_GROUP: ${{ inputs.projectName }}-${{ inputs.environment }}-rg
+
+  smoke-apim:
+    runs-on: ubuntu-latest
+    if: ${{ !inputs.uiOnly && (inputs.forceApimSync || needs.detect-changes.outputs.agents_changed == 'true' || needs.detect-changes.outputs.crud_changed == 'true') && (needs.sync-apim.result == 'success' || needs.sync-apim.result == 'skipped') && (needs.ensure-foundry-agents.result == 'success' || needs.ensure-foundry-agents.result == 'skipped') }}
+    needs:
+      - detect-changes
+      - sync-apim
+      - ensure-foundry-agents
+    environment: ${{ inputs.environment }}
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      CHANGED_AGENT_SERVICES: ${{ needs.detect-changes.outputs.changed_agent_services_csv }}
+    steps:
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Resolve APIM gateway URL
+        id: apim
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APIM_URL=$(az apim show \
+            --name "${{ inputs.projectName }}-${{ inputs.environment }}-apim" \
+            --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
+            --query "gatewayUrl" -o tsv)
+
+          APIM_URL="$(echo "$APIM_URL" | xargs)"
+          APIM_URL="${APIM_URL%/}"
+
+          if [ -z "$APIM_URL" ]; then
+            echo "Failed to resolve APIM gateway URL for smoke tests." >&2
+            exit 1
+          fi
+
+          echo "gateway_url=$APIM_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test CRUD and changed agent health through APIM
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          API_BASE="${{ steps.apim.outputs.gateway_url }}"
+
+          smoke_health() {
+            local url="$1"
+            local label="$2"
+
+            for attempt in $(seq 1 20); do
+              STATUS_CODE=$(curl -sS -o /tmp/smoke-response.json -w "%{http_code}" "$url" || true)
+              if [ "$STATUS_CODE" = "200" ]; then
+                echo "[OK] $label: $url"
+                return 0
+              fi
+              echo "Attempt $attempt/20 failed for $label with HTTP $STATUS_CODE"
+              sleep 10
+            done
+
+            echo "[FAIL] $label: $url" >&2
+            cat /tmp/smoke-response.json 2>/dev/null || true
+            return 1
+          }
+
+          smoke_health "${API_BASE}/api/health" "crud-health"
+          smoke_health "${API_BASE}/api/products?limit=1" "crud-products"
+          smoke_health "${API_BASE}/api/categories" "crud-categories"
+
+          if [ -n "${CHANGED_AGENT_SERVICES}" ]; then
+            IFS=',' read -r -a agent_services <<< "${CHANGED_AGENT_SERVICES}"
+            for svc in "${agent_services[@]}"; do
+              [ -z "$svc" ] && continue
+              smoke_health "${API_BASE}/agents/${svc}/health" "agent-health-$svc"
+            done
+          else
+            echo "No changed agent services detected; skipping agent health smoke checks."
+          fi
 
   ensure-foundry-agents:
     runs-on: ubuntu-latest
@@ -925,6 +1353,8 @@ jobs:
 
       - name: Verify Foundry readiness across services
         run: |
+          set -euo pipefail
+
           if [ -n "${CHANGED_SERVICES}" ]; then
             SERVICES=$(printf '%s' "${CHANGED_SERVICES}" | tr ',' '\n' | sed '/^crud-service$/d' | sed '/^$/d')
           else
@@ -952,7 +1382,7 @@ jobs:
           fi
 
           FAILED=0
-          echo "$SERVICES" | while IFS= read -r SVC; do
+          while IFS= read -r SVC; do
             [ -z "$SVC" ] && continue
             LOCAL_PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("",0)); print(s.getsockname()[1]); s.close()')
             kubectl port-forward "svc/$SVC" "$LOCAL_PORT:8000" -n holiday-peak &
@@ -968,19 +1398,21 @@ jobs:
               echo "  [WARN] $SVC: status=$STATUS"
               FAILED=$((FAILED + 1))
             fi
-          done
+          done <<< "$SERVICES"
 
           if [ "$FAILED" -gt 0 ]; then
-            echo "WARNING: $FAILED service(s) not fully ready."
+            echo "$FAILED service(s) did not report status=ok during Foundry readiness checks." >&2
+            exit 1
           fi
 
   seed-demo-data:
     runs-on: ubuntu-latest
     needs:
       - sync-apim
+      - smoke-apim
       - ensure-foundry-agents
       - deploy-ui
-    if: ${{ always() && inputs.seedDemoData && needs.ensure-foundry-agents.result == 'success' && (needs.deploy-ui.result == 'success' || needs.deploy-ui.result == 'skipped') && inputs.environment != 'prod' && inputs.environment != 'production' }}
+    if: ${{ always() && inputs.seedDemoData && needs.ensure-foundry-agents.result == 'success' && (needs.smoke-apim.result == 'success' || needs.smoke-apim.result == 'skipped') && (needs.deploy-ui.result == 'success' || needs.deploy-ui.result == 'skipped') && inputs.environment != 'prod' && inputs.environment != 'production' }}
     environment: ${{ inputs.environment }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}

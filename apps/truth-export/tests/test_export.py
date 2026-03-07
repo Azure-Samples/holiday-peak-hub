@@ -1,10 +1,12 @@
 """Unit tests for the truth-export service."""
 
+# pylint: disable=redefined-outer-name
+
 from __future__ import annotations
 
 import pytest
 from fastapi.testclient import TestClient
-from truth_export.adapters import MockTruthStoreAdapter, build_truth_export_adapters
+from truth_export.adapters import build_truth_export_adapters
 from truth_export.export_engine import ExportEngine
 from truth_export.main import app
 from truth_export.routes import get_adapters, get_engine
@@ -22,39 +24,39 @@ def adapters():
 
 @pytest.fixture()
 def sample_style():
-    from holiday_peak_lib.schemas.truth import ProductStyle
+    from truth_export.schemas_compat import ProductStyle
 
     return ProductStyle(
         id="STYLE-001",
         brand="Contoso",
-        model_name="Trail Runner Pro",
-        category_id="footwear",
+        modelName="Trail Runner Pro",
+        categoryId="footwear",
     )
 
 
 @pytest.fixture()
 def sample_attributes():
-    from holiday_peak_lib.schemas.truth import TruthAttribute
+    from truth_export.schemas_compat import TruthAttribute
 
     return [
         TruthAttribute(
-            entity_type="style",
-            entity_id="STYLE-001",
-            attribute_key="price",
+            entityType="style",
+            entityId="STYLE-001",
+            attributeKey="price",
             value=89.99,
             source="SYSTEM",
         ),
         TruthAttribute(
-            entity_type="style",
-            entity_id="STYLE-001",
-            attribute_key="currency",
+            entityType="style",
+            entityId="STYLE-001",
+            attributeKey="currency",
             value="usd",
             source="SYSTEM",
         ),
         TruthAttribute(
-            entity_type="style",
-            entity_id="STYLE-001",
-            attribute_key="availability",
+            entityType="style",
+            entityId="STYLE-001",
+            attributeKey="availability",
             value="in_stock",
             source="SYSTEM",
         ),
@@ -118,8 +120,15 @@ def seeded_adapters(adapters, sample_style, sample_attributes):
 
 @pytest.fixture()
 def client(seeded_adapters):
-    app.dependency_overrides[get_adapters] = lambda: seeded_adapters
-    app.dependency_overrides[get_engine] = lambda: ExportEngine()
+    def _adapters_factory():
+        return seeded_adapters
+
+    app.dependency_overrides[get_adapters] = _adapters_factory
+
+    def _engine_factory() -> ExportEngine:
+        return ExportEngine()
+
+    app.dependency_overrides[get_engine] = _engine_factory
     yield TestClient(app)
     app.dependency_overrides.clear()
 

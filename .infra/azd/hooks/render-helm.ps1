@@ -12,8 +12,21 @@ $ingressClassName = if ($env:INGRESS_CLASS_NAME) { $env:INGRESS_CLASS_NAME } els
 $canaryEnabled = if ($env:CANARY_ENABLED) { $env:CANARY_ENABLED } else { "false" }
 $readinessPath = "/ready"
 
+$nodePool = "agents"
+$workloadType = "agents"
+$pdbEnabled = "false"
+$pdbMinAvailable = ""
+$maxUnavailable = ""
+$maxSurge = ""
+
 if ($ServiceName -eq "crud-service") {
-  $readinessPath = "/health"
+  $nodePool = "crud"
+  $workloadType = "crud"
+  # Safer defaults for CRUD without changing global chart defaults.
+  $pdbEnabled = "true"
+  $pdbMinAvailable = "1"
+  $maxUnavailable = "0"
+  $maxSurge = "1"
 }
 
 $serviceImageVarName = "SERVICE_$($ServiceName.ToUpper().Replace('-', '_'))_IMAGE_NAME"
@@ -59,8 +72,33 @@ $helmArgs = @(
   '--set',
   "canary.enabled=$canaryEnabled",
   '--set',
-  "probes.readiness.path=$readinessPath"
+  "probes.readiness.path=$readinessPath",
+  '--set',
+  "nodeSelector.agentpool=$nodePool",
+  '--set',
+  "tolerations[0].key=workload",
+  '--set',
+  "tolerations[0].operator=Equal",
+  '--set',
+  "tolerations[0].value=$workloadType",
+  '--set',
+  "tolerations[0].effect=NoSchedule"
 )
+
+if ($maxUnavailable) {
+  $helmArgs += @('--set-string', "availability.rollingUpdate.maxUnavailable=$maxUnavailable")
+}
+
+if ($maxSurge) {
+  $helmArgs += @('--set-string', "availability.rollingUpdate.maxSurge=$maxSurge")
+}
+
+if ($pdbEnabled -eq "true") {
+  $helmArgs += @('--set', "pdb.enabled=true")
+  if ($pdbMinAvailable) {
+    $helmArgs += @('--set-string', "pdb.minAvailable=$pdbMinAvailable")
+  }
+}
 
 $envMappings = @{
   # Database

@@ -26,6 +26,7 @@ class BaseRepository(Generic[T]):
     _pool: asyncpg.Pool | None = None
     _credential: DefaultAzureCredential | None = None
     _initialized_tables: set[str] = set()
+    _pool_init_error: str | None = None
 
     def __init__(self, container_name: str):
         """
@@ -41,23 +42,47 @@ class BaseRepository(Generic[T]):
     async def initialize_pool(cls):
         """Initialize shared PostgreSQL connection pool."""
         if cls._pool is None:
-            if settings.postgres_auth_mode == "entra":
-                cls._pool = await asyncpg.create_pool(
-                    host=settings.postgres_host,
-                    port=settings.postgres_port,
-                    user=settings.postgres_user,
-                    database=settings.postgres_database,
-                    ssl="require" if settings.postgres_ssl else None,
-                    min_size=settings.postgres_min_pool_size,
-                    max_size=settings.postgres_max_pool_size,
-                    connect=cls._connect_with_entra_token,
-                )
-            else:
-                cls._pool = await asyncpg.create_pool(
-                    dsn=settings.postgres_dsn,
-                    min_size=settings.postgres_min_pool_size,
-                    max_size=settings.postgres_max_pool_size,
-                )
+            try:
+                if settings.postgres_auth_mode == "entra":
+                    cls._pool = await asyncpg.create_pool(
+                        host=settings.postgres_host,
+                        port=settings.postgres_port,
+                        user=settings.postgres_user,
+                        database=settings.postgres_database,
+                        ssl="require" if settings.postgres_ssl else None,
+                        min_size=settings.postgres_min_pool_size,
+                        max_size=settings.postgres_max_pool_size,
+                        connect=cls._connect_with_entra_token,
+                    )
+                else:
+                    cls._pool = await asyncpg.create_pool(
+                        dsn=settings.postgres_dsn,
+                        min_size=settings.postgres_min_pool_size,
+                        max_size=settings.postgres_max_pool_size,
+                    )
+                cls._pool_init_error = None
+            except Exception as exc:
+                cls._pool_init_error = f"{type(exc).__name__}: {exc}"
+                cls._pool = None
+                raise
+
+    @classmethod
+    async def check_pool_health(cls) -> tuple[str, str]:
+        """Return (status, detail) for PostgreSQL pool readiness."""
+        if cls._pool_init_error and cls._pool is None:
+            return "unhealthy", cls._pool_init_error
+
+        try:
+            if cls._pool is None:
+                await cls.initialize_pool()
+            if cls._pool is None:
+                return "unhealthy", "Pool unavailable"
+            async with cls._pool.acquire() as conn:
+                await conn.fetchval("SELECT 1")
+            return "healthy", "query ok"
+        except Exception as exc:
+            cls._pool_init_error = f"{type(exc).__name__}: {exc}"
+            return "unhealthy", cls._pool_init_error
 
     @classmethod
     def _get_credential(cls) -> DefaultAzureCredential:
@@ -78,15 +103,36 @@ class BaseRepository(Generic[T]):
             await cls._pool.close()
             cls._pool = None
             cls._initialized_tables = set()
+        cls._pool_init_error = None
         if cls._credential is not None:
             await cls._credential.close()
             cls._credential = None
 
     async def _get_pool(self) -> asyncpg.Pool:
         """Get initialized PostgreSQL pool."""
-        await self.initialize_pool()
-        assert self._pool is not None
+        try:
+            await self.initialize_pool()
+        except Exception as exc:
+            raise RuntimeError("PostgreSQL connection pool is unavailable") from exc
+        if self._pool is None:
+            raise RuntimeError("PostgreSQL connection pool is unavailable")
         return self._pool
+
+    @staticmethod
+    def _decode_row_data(raw_data: Any) -> dict[str, Any] | None:
+        """Decode a row payload into a dict; malformed rows are skipped."""
+        try:
+            if isinstance(raw_data, str):
+                decoded = json.loads(raw_data)
+                if isinstance(decoded, dict):
+                    return decoded
+                return None
+            if isinstance(raw_data, dict):
+                return dict(raw_data)
+            return dict(raw_data)
+        except Exception as exc:
+            logger.warning("Skipping malformed row payload: %s", exc)
+            return None
 
     @staticmethod
     def _extract_partition_key(item: dict[str, Any]) -> str:
@@ -185,8 +231,7 @@ class BaseRepository(Generic[T]):
                 )
 
         if row:
-            data = row["data"]
-            return json.loads(data) if isinstance(data, str) else dict(data)
+            return self._decode_row_data(row["data"])
 
         logger.warning("Item not found: %s", item_id)
         return None
@@ -278,10 +323,11 @@ class BaseRepository(Generic[T]):
             else:
                 rows = await conn.fetch(f"SELECT data FROM {self.table_name}")
 
-        items = [
-            (json.loads(row["data"]) if isinstance(row["data"], str) else dict(row["data"]))
-            for row in rows
-        ]
+        items: list[dict[str, Any]] = []
+        for row in rows:
+            decoded = self._decode_row_data(row["data"])
+            if decoded is not None:
+                items.append(decoded)
 
         where_clause = ""
         where_match = re.search(r"WHERE\s+(.*?)\s*(ORDER BY|OFFSET|LIMIT|$)", query, re.IGNORECASE)

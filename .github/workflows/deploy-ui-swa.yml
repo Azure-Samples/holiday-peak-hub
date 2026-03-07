@@ -7,25 +7,113 @@ on:
         description: Target GitHub environment
         required: true
         default: dev
-      apiUrl:
-        description: Public API base URL used by the UI build
+      projectName:
+        description: Project prefix used by naming convention
         required: true
-        default: https://apim-holidaypeakhub405-dev.azure-api.net
+        default: holidaypeakhub
+      apiUrl:
+        description: Optional API base URL override (must match APIM gateway URL for drift safety)
+        required: false
+        default: ''
 
 permissions:
+  id-token: write
   contents: read
+
+concurrency:
+  group: deploy-ui-swa-${{ inputs.environment }}
+  cancel-in-progress: false
 
 jobs:
   deploy-ui:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+
+      - name: Resolve and validate API URL
+        id: api
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          RESOURCE_GROUP="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+
+          APIM_URL=$(az apim show \
+            --name "${{ inputs.projectName }}-${{ inputs.environment }}-apim" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query "gatewayUrl" -o tsv)
+
+          APIM_URL="$(echo "$APIM_URL" | xargs)"
+          APIM_URL="${APIM_URL%/}"
+
+          if [ -z "$APIM_URL" ]; then
+            echo "Failed to resolve APIM gateway URL for environment '${{ inputs.environment }}'." >&2
+            exit 1
+          fi
+
+          RESOLVED_API_URL="$APIM_URL"
+
+          if [ -n "${{ inputs.apiUrl }}" ]; then
+            OVERRIDE_API_URL="$(echo "${{ inputs.apiUrl }}" | xargs)"
+            OVERRIDE_API_URL="${OVERRIDE_API_URL%/}"
+
+            if [ "$OVERRIDE_API_URL" != "$APIM_URL" ]; then
+              echo "apiUrl override drift detected. Provided URL does not match live APIM gateway URL." >&2
+              echo "Provided: $OVERRIDE_API_URL" >&2
+              echo "Expected: $APIM_URL" >&2
+              exit 1
+            fi
+
+            RESOLVED_API_URL="$OVERRIDE_API_URL"
+          fi
+
+          if [ -z "$RESOLVED_API_URL" ]; then
+            echo "Could not resolve API URL from APIM." >&2
+            exit 1
+          fi
+
+          echo "api_url=$RESOLVED_API_URL" >> "$GITHUB_OUTPUT"
+          echo "crud_api_url=$RESOLVED_API_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test APIM health before UI deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          API_BASE_URL="${{ steps.api.outputs.api_url }}"
+          API_BASE_URL="${API_BASE_URL%/}"
+
+          smoke_endpoint() {
+            local url="$1"
+            local label="$2"
+            STATUS_CODE=$(curl -sS -o /tmp/ui-only-api-health.json -w "%{http_code}" "$url" || true)
+            if [ "$STATUS_CODE" != "200" ]; then
+              echo "$label check failed before UI deployment with HTTP $STATUS_CODE at $url" >&2
+              cat /tmp/ui-only-api-health.json 2>/dev/null || true
+              exit 1
+            fi
+          }
+
+          smoke_endpoint "${API_BASE_URL}/api/health" "APIM health"
+          smoke_endpoint "${API_BASE_URL}/api/products?limit=1" "Products"
+          smoke_endpoint "${API_BASE_URL}/api/categories" "Categories"
 
       - name: Deploy UI to Azure Static Web Apps
         uses: Azure/static-web-apps-deploy@v1
@@ -37,5 +125,78 @@ jobs:
           skip_api_build: true
           app_build_command: yarn install --frozen-lockfile && yarn build
         env:
-          NEXT_PUBLIC_API_URL: ${{ inputs.apiUrl }}
-          NEXT_PUBLIC_CRUD_API_URL: ${{ inputs.apiUrl }}
+          NEXT_PUBLIC_API_URL: ${{ steps.api.outputs.api_url }}
+          NEXT_PUBLIC_CRUD_API_URL: ${{ steps.api.outputs.crud_api_url }}
+
+      - name: Smoke test UI host and API health after deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          RESOURCE_GROUP="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+          EXPECTED_SWA_NAME="${{ inputs.projectName }}-ui-${{ inputs.environment }}"
+          SWA_NAME=""
+
+          if az staticwebapp show --name "$EXPECTED_SWA_NAME" --resource-group "$RESOURCE_GROUP" >/dev/null 2>&1; then
+            SWA_NAME="$EXPECTED_SWA_NAME"
+          else
+            SWA_NAME=$(az staticwebapp list \
+              --resource-group "$RESOURCE_GROUP" \
+              --query "[?starts_with(defaultHostname, '${EXPECTED_SWA_NAME}.')].name | [0]" -o tsv)
+
+            if [ -z "$SWA_NAME" ]; then
+              COUNT=$(az staticwebapp list --resource-group "$RESOURCE_GROUP" --query "length(@)" -o tsv)
+              if [ "$COUNT" = "1" ]; then
+                SWA_NAME=$(az staticwebapp list --resource-group "$RESOURCE_GROUP" --query "[0].name" -o tsv)
+              fi
+            fi
+          fi
+
+          SWA_NAME="$(echo "$SWA_NAME" | xargs)"
+          if [ -z "$SWA_NAME" ]; then
+            echo "Could not deterministically resolve Static Web App in resource group $RESOURCE_GROUP." >&2
+            echo "Expected name: $EXPECTED_SWA_NAME" >&2
+            exit 1
+          fi
+
+          SWA_HOSTNAME=$(az staticwebapp show \
+            --name "$SWA_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query "defaultHostname" -o tsv)
+
+          SWA_HOSTNAME="$(echo "$SWA_HOSTNAME" | xargs)"
+          if [ -z "$SWA_HOSTNAME" ]; then
+            echo "Could not resolve Static Web App hostname for $SWA_NAME." >&2
+            exit 1
+          fi
+
+          UI_URL="https://$SWA_HOSTNAME"
+          STATUS_CODE=$(curl -sS -o /tmp/ui-only-homepage.html -w "%{http_code}" "$UI_URL" || true)
+          if [ "$STATUS_CODE" != "200" ]; then
+            echo "UI smoke test failed with HTTP $STATUS_CODE at $UI_URL" >&2
+            exit 1
+          fi
+
+          HEALTH_URL="${{ steps.api.outputs.api_url }}/api/health"
+          STATUS_CODE=$(curl -sS -o /tmp/ui-only-api-health-post.json -w "%{http_code}" "$HEALTH_URL" || true)
+          if [ "$STATUS_CODE" != "200" ]; then
+            echo "API health check failed after UI deployment with HTTP $STATUS_CODE at $HEALTH_URL" >&2
+            cat /tmp/ui-only-api-health-post.json 2>/dev/null || true
+            exit 1
+          fi
+
+          PRODUCTS_URL="${{ steps.api.outputs.api_url }}/api/products?limit=1"
+          STATUS_CODE=$(curl -sS -o /tmp/ui-only-api-products-post.json -w "%{http_code}" "$PRODUCTS_URL" || true)
+          if [ "$STATUS_CODE" != "200" ]; then
+            echo "Products smoke check failed after UI deployment with HTTP $STATUS_CODE at $PRODUCTS_URL" >&2
+            cat /tmp/ui-only-api-products-post.json 2>/dev/null || true
+            exit 1
+          fi
+
+          CATEGORIES_URL="${{ steps.api.outputs.api_url }}/api/categories"
+          STATUS_CODE=$(curl -sS -o /tmp/ui-only-api-categories-post.json -w "%{http_code}" "$CATEGORIES_URL" || true)
+          if [ "$STATUS_CODE" != "200" ]; then
+            echo "Categories smoke check failed after UI deployment with HTTP $STATUS_CODE at $CATEGORIES_URL" >&2
+            cat /tmp/ui-only-api-categories-post.json 2>/dev/null || true
+            exit 1
+          fi

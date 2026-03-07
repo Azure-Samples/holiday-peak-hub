@@ -5,6 +5,10 @@ param(
     [string]$AzureYamlPath,
     [string]$ChangedServices = $env:CHANGED_SERVICES,
     [string]$ApiPathPrefix = 'agents',
+    [switch]$UseIngress,
+    [string]$IngressHost,
+    [string]$AppGatewayName,
+    [string]$AppGatewayIp,
     [bool]$IncludeCrudService = $true,
     [bool]$RequireLoadBalancer = $true,
     [int]$BackendResolveRetries = 24,
@@ -17,6 +21,17 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Resolve-Path "$PSScriptRoot\..\..\.."
 if (-not $AzureYamlPath) {
     $AzureYamlPath = Join-Path $repoRoot 'azure.yaml'
+}
+
+$script:resolvedIngressGatewayHost = ''
+$script:useIngressMode = $UseIngress.IsPresent -or $env:USE_INGRESS -eq 'true'
+$script:resolvedAppGatewayName = if ($AppGatewayName) { $AppGatewayName } elseif ($env:APP_GW_NAME) { $env:APP_GW_NAME } else { '' }
+$script:resolvedAppGatewayIp = if ($AppGatewayIp) { $AppGatewayIp } elseif ($env:APP_GW_IP) { $env:APP_GW_IP } else { '' }
+$script:resolvedIngressHostOverride = if ($IngressHost) { $IngressHost } elseif ($env:INGRESS_HOST) { $env:INGRESS_HOST } else { '' }
+$script:ingressValidated = $false
+
+if ($script:useIngressMode) {
+    $RequireLoadBalancer = $false
 }
 
 function Get-EnvValueFromFile {
@@ -218,6 +233,169 @@ function Get-AksServicesFromAzureYaml {
     return $services
 }
 
+function Resolve-IngressGatewayHost {
+    param(
+        [Parameter(Mandatory = $true)][string]$Rg,
+        [string]$GatewayName
+    )
+
+    if ($script:resolvedIngressGatewayHost) {
+        return $script:resolvedIngressGatewayHost
+    }
+
+    if ($script:resolvedIngressHostOverride) {
+        $script:resolvedIngressGatewayHost = $script:resolvedIngressHostOverride
+        return $script:resolvedIngressGatewayHost
+    }
+
+    if ($script:resolvedAppGatewayIp) {
+        $script:resolvedIngressGatewayHost = $script:resolvedAppGatewayIp
+        return $script:resolvedIngressGatewayHost
+    }
+
+    function Resolve-PublicHostFromGateway {
+        param([Parameter(Mandatory = $true)][string]$Gateway)
+
+        $pipId = az network application-gateway show --resource-group $Rg --name $Gateway --query 'frontendIPConfigurations[0].publicIPAddress.id' -o tsv 2>$null
+        if (-not $pipId) {
+            return ''
+        }
+
+        $host = az network public-ip show --ids $pipId --query ipAddress -o tsv 2>$null
+        if ($host) {
+            return $host
+        }
+
+        $host = az network public-ip show --ids $pipId --query dnsSettings.fqdn -o tsv 2>$null
+        if ($host) {
+            return $host
+        }
+
+        return ''
+    }
+
+    function Add-UniqueHostCandidate {
+        param(
+            [System.Collections.Generic.List[string]]$Collection,
+            [string]$Candidate
+        )
+
+        if (-not $Candidate) {
+            return
+        }
+
+        $trimmed = $Candidate.Trim()
+        if (-not $trimmed) {
+            return
+        }
+
+        if (-not $Collection.Contains($trimmed)) {
+            $Collection.Add($trimmed)
+        }
+    }
+
+    $host = ''
+
+    $effectiveGatewayName = if ($GatewayName) { $GatewayName } else { $script:resolvedAppGatewayName }
+    if ($effectiveGatewayName) {
+        $host = Resolve-PublicHostFromGateway -Gateway $effectiveGatewayName
+        if (-not $host) {
+            throw "Failed to resolve ingress host from explicit application gateway '$effectiveGatewayName'."
+        }
+
+        $script:resolvedIngressGatewayHost = $host
+        return $script:resolvedIngressGatewayHost
+    }
+
+    $autoGateways = @(az network application-gateway list --resource-group $Rg --query '[].name' -o tsv 2>$null | Where-Object { $_.Trim() })
+    if ($autoGateways.Count -gt 1) {
+        throw "Multiple application gateways detected in '$Rg'. Provide -AppGatewayName, -AppGatewayIp, or -IngressHost."
+    }
+
+    if ($autoGateways.Count -eq 1) {
+        $host = Resolve-PublicHostFromGateway -Gateway $autoGateways[0]
+        if (-not $host) {
+            throw "Failed to resolve ingress host from detected application gateway '$($autoGateways[0])'."
+        }
+
+        $script:resolvedIngressGatewayHost = $host
+        return $script:resolvedIngressGatewayHost
+    }
+
+    $ingressCandidates = [System.Collections.Generic.List[string]]::new()
+    Add-UniqueHostCandidate -Collection $ingressCandidates -Candidate (kubectl get svc -A -l 'app.kubernetes.io/name=nginx' -o jsonpath="{.items[0].status.loadBalancer.ingress[0].ip}" 2>$null)
+    Add-UniqueHostCandidate -Collection $ingressCandidates -Candidate (kubectl get svc -A -l 'app.kubernetes.io/name=nginx' -o jsonpath="{.items[0].status.loadBalancer.ingress[0].hostname}" 2>$null)
+    Add-UniqueHostCandidate -Collection $ingressCandidates -Candidate (kubectl get svc nginx -n app-routing-system -o jsonpath="{.status.loadBalancer.ingress[0].ip}" 2>$null)
+    Add-UniqueHostCandidate -Collection $ingressCandidates -Candidate (kubectl get svc nginx -n app-routing-system -o jsonpath="{.status.loadBalancer.ingress[0].hostname}" 2>$null)
+    Add-UniqueHostCandidate -Collection $ingressCandidates -Candidate (kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath="{.status.loadBalancer.ingress[0].ip}" 2>$null)
+    Add-UniqueHostCandidate -Collection $ingressCandidates -Candidate (kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath="{.status.loadBalancer.ingress[0].hostname}" 2>$null)
+
+    if ($ingressCandidates.Count -gt 1) {
+        throw 'Ambiguous ingress host candidates detected. Provide -AppGatewayName, -AppGatewayIp, or -IngressHost.'
+    }
+
+    if ($ingressCandidates.Count -eq 1) {
+        $host = $ingressCandidates[0]
+    }
+
+    if ($host) {
+        $script:resolvedIngressGatewayHost = $host
+    }
+
+    return $script:resolvedIngressGatewayHost
+}
+
+function Test-IngressCrudHealth {
+    param(
+        [Parameter(Mandatory = $true)][string]$Host
+    )
+
+    $probeUrl = "http://$Host/crud-service/health"
+    $lastStatus = ''
+    $lastBody = ''
+
+    for ($attempt = 1; $attempt -le 8; $attempt++) {
+        try {
+            $response = Invoke-WebRequest -Uri $probeUrl -Method GET -TimeoutSec 10 -UseBasicParsing
+            if ($response.StatusCode -eq 200) {
+                Write-Host "Validated ingress host '$Host' via $probeUrl"
+                return
+            }
+
+            $lastStatus = [string]$response.StatusCode
+            $lastBody = [string]$response.Content
+        }
+        catch {
+            $statusCode = $_.Exception.Response.StatusCode.value__
+            if ($statusCode) {
+                $lastStatus = [string]$statusCode
+            }
+            $lastBody = $_.Exception.Message
+        }
+
+        Start-Sleep -Seconds 5
+    }
+
+    throw "Ingress validation failed for '$Host' (last status: $lastStatus) using $probeUrl. Last response: $lastBody"
+}
+
+function Ensure-IngressReady {
+    if ($script:ingressValidated) {
+        return
+    }
+
+    $resolvedHost = Resolve-IngressGatewayHost -Rg $script:resolvedResourceGroup -GatewayName $script:resolvedAppGatewayName
+    if (-not $resolvedHost) {
+        throw 'Ingress endpoint could not be resolved for APIM backend sync. Refusing to fall back to cluster-local addresses that APIM cannot reach.'
+    }
+
+    if (-not $Preview) {
+        Test-IngressCrudHealth -Host $resolvedHost
+    }
+
+    $script:ingressValidated = $true
+}
+
 function Resolve-ServiceBackendUrl {
     param(
         [Parameter(Mandatory = $true)][string]$Service,
@@ -230,6 +408,11 @@ function Resolve-ServiceBackendUrl {
     $serviceName = ''
     $servicePort = '80'
     $lbHost = ''
+
+    if ($script:useIngressMode) {
+        Ensure-IngressReady
+        return "http://$($script:resolvedIngressGatewayHost)/$Service"
+    }
 
     if (Get-Command kubectl -ErrorAction SilentlyContinue) {
         $serviceName = kubectl get svc -n $Namespace -l "app=$Service" -o jsonpath="{.items[0].metadata.name}" 2>$null
@@ -479,22 +662,40 @@ function Update-CrudApi {
     <inbound>
         <base />
         <choose>
-            <when condition="@(context.Request.OriginalUrl.Path == &quot;/api/health&quot;)">
+            <when condition="@(context.Request.OriginalUrl.Path.Equals(&quot;/api/health&quot;, System.StringComparison.OrdinalIgnoreCase))">
                 <rewrite-uri template="/health" copy-unmatched-params="true" />
             </when>
+            <when condition="@(context.Request.OriginalUrl.Path.Equals(&quot;/api&quot;, System.StringComparison.OrdinalIgnoreCase) || context.Request.OriginalUrl.Path.StartsWith(&quot;/api/&quot;, System.StringComparison.OrdinalIgnoreCase))">
+                <set-variable name="crudBackendPath" value="@(context.Request.OriginalUrl.Path.Length > 4 ? context.Request.OriginalUrl.Path.Substring(4) : string.Empty)" />
+                <rewrite-uri template="@(string.Concat(&quot;/api&quot;, (string)context.Variables[&quot;crudBackendPath&quot;]))" copy-unmatched-params="true" />
+            </when>
             <otherwise>
-                <rewrite-uri template="@(string.Concat(&quot;/api&quot;, context.Request.OriginalUrl.Path.Substring(4)))" copy-unmatched-params="true" />
+                <return-response>
+                    <set-status code="400" reason="Bad Request" />
+                    <set-header name="Content-Type" exists-action="override">
+                        <value>application/json</value>
+                    </set-header>
+                    <set-body>{"detail":"Invalid CRUD API path."}</set-body>
+                </return-response>
             </otherwise>
         </choose>
     </inbound>
     <backend>
         <base />
+        <forward-request timeout="60" />
     </backend>
     <outbound>
         <base />
     </outbound>
     <on-error>
         <base />
+        <return-response>
+            <set-status code="502" reason="Bad Gateway" />
+            <set-header name="Content-Type" exists-action="override">
+                <value>application/json</value>
+            </set-header>
+            <set-body>{"detail":"APIM upstream error while routing to CRUD backend."}</set-body>
+        </return-response>
     </on-error>
 </policies>
 '@

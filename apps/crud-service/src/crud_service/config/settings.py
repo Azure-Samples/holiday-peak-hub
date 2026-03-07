@@ -30,7 +30,11 @@ class Settings(BaseSettings):
     )
     postgres_auth_mode: Literal["password", "entra"] = Field(
         default="password",
-        description="PostgreSQL auth mode: password or Entra token",
+        description=(
+            "PostgreSQL auth mode. Default is 'password' for deterministic "
+            "deployments; set 'entra' explicitly when workload identity and "
+            "database role bindings are configured."
+        ),
     )
     postgres_user: str = Field(..., description="PostgreSQL username")
     postgres_password: str | None = Field(default=None, description="PostgreSQL password")

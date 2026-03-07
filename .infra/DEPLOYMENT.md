@@ -72,7 +72,14 @@ az account set --subscription <SUBSCRIPTION_ID>
 
 Deploy a single shared resource stack, then deploy all services as AKS workloads.
 
-**Deployment order**: Shared Infrastructure → Static Web App → CRUD Service → Agent Services
+**Deployment order**: Shared Infrastructure → CRUD Service + Agent Services → APIM Sync + APIM Smoke Gate → Static Web App
+
+Release gate notes:
+
+- UI deployment is blocked unless backend deployment jobs are `success` or `skipped`.
+- APIM gateway URL is propagated from `azd` outputs and checked against live APIM to catch config drift.
+- APIM smoke checks validate `GET /api/health`, `GET /api/products?limit=1`, and `GET /api/categories` plus changed agent `GET /agents/<service>/health` before UI publish.
+- UI deployment runs pre/post smoke checks to ensure API health and SWA hostname reachability.
 
 ### Step 1: Deploy Shared Infrastructure
 
@@ -378,6 +385,13 @@ az deployment sub delete --name shared-infra-dev
 ---
 
 ## CI/CD Integration
+
+Current workflow gate behavior:
+
+- `.github/workflows/deploy-azd.yml` enforces backend and APIM readiness before `deploy-ui`.
+- `.github/workflows/deploy-azd.yml` fails on Foundry readiness check failures instead of warning-only.
+- `.github/workflows/deploy-ui-swa.yml` resolves APIM gateway URL from Azure and rejects mismatched manual `apiUrl` overrides.
+- `.github/workflows/deploy-ui-swa.yml` includes pre/post deployment smoke checks (`/api/health`, `/api/products?limit=1`, `/api/categories`, and SWA home page).
 
 ### GitHub Actions Workflow (recommended)
 

@@ -90,7 +90,32 @@ $environment = First-Value -Map $values -Keys @('ENVIRONMENT', 'environment') -D
 
 $postgresHost = First-Value -Map $values -Keys @('POSTGRES_HOST', 'postgresFqdn', 'POSTGRES_FQDN')
 $postgresDatabase = First-Value -Map $values -Keys @('POSTGRES_DATABASE', 'postgresDatabaseName') -DefaultValue 'holiday_peak_crud'
-$postgresUser = First-Value -Map $values -Keys @('POSTGRES_USER', 'postgresAdminUser') -DefaultValue 'crud_admin'
+$postgresAuthMode = First-Value -Map $values -Keys @('POSTGRES_AUTH_MODE', 'postgresAuthMode') -DefaultValue 'password'
+$postgresAdminUser = First-Value -Map $values -Keys @('POSTGRES_ADMIN_USER', 'postgresAdminUser') -DefaultValue 'crud_admin'
+$postgresUser = First-Value -Map $values -Keys @('POSTGRES_USER')
+if ($postgresAuthMode -eq 'password') {
+    $postgresUser = $postgresAdminUser
+}
+elseif (-not $postgresUser) {
+    $aksClusterName = First-Value -Map $values -Keys @('AZURE_AKS_CLUSTER_NAME', 'AKS_CLUSTER_NAME', 'aksClusterName')
+    if ($aksClusterName) {
+        $postgresUser = "$aksClusterName-agentpool"
+    }
+    else {
+        $projectName = First-Value -Map $values -Keys @('projectName', 'PROJECT_NAME')
+        if ($projectName) {
+            if ($environment -eq 'prod') {
+                $postgresUser = "$projectName-aks-agentpool"
+            }
+            else {
+                $postgresUser = "$projectName-$environment-aks-agentpool"
+            }
+        }
+        else {
+            $postgresUser = "crud-$environment-aks-agentpool"
+        }
+    }
+}
 
 $eventHubNamespace = Ensure-Suffix -Value (First-Value -Map $values -Keys @('EVENT_HUB_NAMESPACE', 'eventHubsNamespaceName')) -Suffix '.servicebus.windows.net'
 $keyVaultUri = First-Value -Map $values -Keys @('KEY_VAULT_URI', 'keyVaultUri')
@@ -119,9 +144,11 @@ LOG_LEVEL=INFO
 POSTGRES_HOST=$postgresHost
 POSTGRES_PORT=5432
 POSTGRES_DATABASE=$postgresDatabase
+POSTGRES_AUTH_MODE=$postgresAuthMode
 POSTGRES_USER=$postgresUser
 POSTGRES_PASSWORD=
 POSTGRES_PASSWORD_SECRET_NAME=postgres-admin-password
+POSTGRES_ENTRA_SCOPE=https://ossrdbms-aad.database.windows.net/.default
 POSTGRES_SSL=true
 
 EVENT_HUB_NAMESPACE=$eventHubNamespace

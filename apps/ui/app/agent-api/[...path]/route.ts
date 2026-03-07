@@ -1,29 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const AGENT_API_BASE_URL = process.env.NEXT_PUBLIC_AGENT_API_URL;
-const CRUD_API_BASE_URL = process.env.NEXT_PUBLIC_CRUD_API_URL;
+import { resolveAgentApiBaseUrl } from '../../api/_shared/base-url-resolver';
 
-function getAgentBaseUrl(): string | null {
-  if (AGENT_API_BASE_URL) {
-    return AGENT_API_BASE_URL.replace(/\/+$/, '');
-  }
+type TargetResolution = {
+  targetUrl: string | null;
+  baseUrl: string | null;
+  sourceKey: string | null;
+  upstreamPath: string;
+};
 
-  if (CRUD_API_BASE_URL) {
-    return `${CRUD_API_BASE_URL.replace(/\/+$/, '')}/agents`;
-  }
-
-  return null;
-}
-
-function buildTargetUrl(request: NextRequest, pathSegments: string[]): string | null {
-  const baseUrl = getAgentBaseUrl();
+function buildTargetUrl(request: NextRequest, pathSegments: string[]): TargetResolution {
+  const { baseUrl, sourceKey } = resolveAgentApiBaseUrl();
   if (!baseUrl) {
-    return null;
+    return {
+      targetUrl: null,
+      baseUrl: null,
+      sourceKey,
+      upstreamPath: '/agents',
+    };
   }
 
   const joinedPath = pathSegments.filter(Boolean).join('/');
+  const upstreamPath = joinedPath ? `/agents/${joinedPath}` : '/agents';
   const query = request.nextUrl.search;
-  return `${baseUrl}/${joinedPath}${query}`;
+
+  return {
+    targetUrl: joinedPath ? `${baseUrl}/${joinedPath}${query}` : `${baseUrl}${query}`,
+    baseUrl,
+    sourceKey,
+    upstreamPath,
+  };
 }
 
 async function proxyRequest(
@@ -31,11 +37,18 @@ async function proxyRequest(
   context: { params: Promise<{ path: string[] }> },
 ): Promise<NextResponse> {
   const params = await context.params;
-  const targetUrl = buildTargetUrl(request, params.path);
+  const { targetUrl, baseUrl, sourceKey, upstreamPath } = buildTargetUrl(request, params.path);
 
   if (!targetUrl) {
     return NextResponse.json(
-      { error: 'NEXT_PUBLIC_AGENT_API_URL or NEXT_PUBLIC_CRUD_API_URL is not configured.' },
+      {
+        error:
+          'Agent API proxy is not configured. Set NEXT_PUBLIC_AGENT_API_URL or AGENT_API_URL (fallbacks: NEXT_PUBLIC_CRUD_API_URL, NEXT_PUBLIC_API_URL, CRUD_API_URL).',
+        proxy: {
+          sourceKey,
+          attemptedPath: upstreamPath,
+        },
+      },
       { status: 500 },
     );
   }
@@ -47,16 +60,43 @@ async function proxyRequest(
   const method = request.method.toUpperCase();
   const body = method === 'GET' || method === 'HEAD' ? undefined : await request.arrayBuffer();
 
-  const upstream = await fetch(targetUrl, {
-    method,
-    headers: requestHeaders,
-    body,
-    redirect: 'manual',
-    cache: 'no-store',
-  });
+  let upstream: Response;
+
+  try {
+    upstream = await fetch(targetUrl, {
+      method,
+      headers: requestHeaders,
+      body,
+      redirect: 'manual',
+      cache: 'no-store',
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error('Agent API proxy upstream fetch failed', {
+        attemptedPath: upstreamPath,
+        sourceKey,
+        message: error.message,
+      });
+    }
+    return NextResponse.json(
+      {
+        error: 'Agent API proxy could not reach upstream service.',
+        proxy: {
+          sourceKey,
+          baseUrl,
+          attemptedPath: upstreamPath,
+        },
+      },
+      { status: 502 },
+    );
+  }
 
   const responseHeaders = new Headers(upstream.headers);
   responseHeaders.delete('transfer-encoding');
+  responseHeaders.set('x-holiday-peak-proxy', 'next-app-agent-api');
+  if (sourceKey) {
+    responseHeaders.set('x-holiday-peak-proxy-source', sourceKey);
+  }
 
   return new NextResponse(upstream.body, {
     status: upstream.status,

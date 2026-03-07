@@ -3,6 +3,7 @@
 import logging
 import os
 
+from crud_service.repositories.base import BaseRepository
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
@@ -47,6 +48,25 @@ async def _check_cosmos() -> tuple[str, str]:
         return "unhealthy", str(exc)
 
 
+async def _check_postgres(request: Request) -> tuple[str, str]:
+    """Return (status, detail) for PostgreSQL pool readiness."""
+    init_error = getattr(request.app.state, "db_pool_init_error", None)
+    pool_status, pool_detail = await BaseRepository.check_pool_health()
+
+    # A startup init error can be transient (for example, during dependency warm-up).
+    # If the current health check succeeds, clear stale state so readiness can recover.
+    if pool_status == "healthy":
+        if init_error:
+            logger.info("PostgreSQL pool recovered after startup init error: %s", init_error)
+            request.app.state.db_pool_init_error = None
+        return pool_status, pool_detail
+
+    if init_error:
+        return "unhealthy", f"{init_error}; latest: {pool_detail}"
+
+    return pool_status, pool_detail
+
+
 @router.get("/health")
 async def health_check():
     """Basic liveness endpoint — always returns 200 when the process is up."""
@@ -55,9 +75,14 @@ async def health_check():
 
 @router.get("/ready")
 async def readiness_check(request: Request):
-    """Readiness probe: checks Redis and Cosmos DB connectivity."""
+    """Readiness probe: checks Redis, Cosmos DB, and PostgreSQL connectivity."""
     checks: dict[str, dict] = {}
     overall = "ready"
+
+    postgres_status, postgres_detail = await _check_postgres(request)
+    checks["postgres"] = {"status": postgres_status, "detail": postgres_detail}
+    if postgres_status == "unhealthy":
+        overall = "degraded"
 
     redis_status, redis_detail = await _check_redis()
     checks["redis"] = {"status": redis_status, "detail": redis_detail}

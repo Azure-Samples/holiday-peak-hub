@@ -6,6 +6,15 @@ metadata:
     app: {{ .Values.serviceName }}
 spec:
   replicas: {{ .Values.replicaCount }}
+  {{- if .Values.availability.strategy }}
+  strategy:
+    type: {{ .Values.availability.strategy.type | default "RollingUpdate" }}
+    {{- if and (eq (.Values.availability.strategy.type | default "RollingUpdate") "RollingUpdate") .Values.availability.rollingUpdate }}
+    rollingUpdate:
+      maxUnavailable: {{ .Values.availability.rollingUpdate.maxUnavailable | default "25%" | quote }}
+      maxSurge: {{ .Values.availability.rollingUpdate.maxSurge | default "25%" | quote }}
+    {{- end }}
+  {{- end }}
   selector:
     matchLabels:
       app: {{ .Values.serviceName }}
@@ -22,6 +31,26 @@ spec:
       {{- if .Values.tolerations }}
       tolerations:
         {{- toYaml .Values.tolerations | nindent 8 }}
+      {{- end }}
+      {{- if .Values.availability.topologySpreadConstraints.enabled }}
+      topologySpreadConstraints:
+        {{- range .Values.availability.topologySpreadConstraints.constraints }}
+        - maxSkew: {{ .maxSkew | default 1 }}
+          topologyKey: {{ .topologyKey | default "topology.kubernetes.io/zone" | quote }}
+          whenUnsatisfiable: {{ .whenUnsatisfiable | default "ScheduleAnyway" | quote }}
+          labelSelector:
+            matchLabels:
+              app: {{ $.Values.serviceName }}
+        {{- end }}
+      {{- end }}
+      {{- if .Values.availability.podAntiAffinity.enabled }}
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: {{ .Values.serviceName }}
+              topologyKey: {{ .Values.availability.podAntiAffinity.topologyKey | default "kubernetes.io/hostname" | quote }}
       {{- end }}
       containers:
         - name: {{ .Values.serviceName }}
@@ -74,6 +103,15 @@ metadata:
     canary: "true"
 spec:
   replicas: {{ .Values.canary.replicaCount | default 1 }}
+  {{- if .Values.availability.strategy }}
+  strategy:
+    type: {{ .Values.availability.strategy.type | default "RollingUpdate" }}
+    {{- if and (eq (.Values.availability.strategy.type | default "RollingUpdate") "RollingUpdate") .Values.availability.rollingUpdate }}
+    rollingUpdate:
+      maxUnavailable: {{ .Values.availability.rollingUpdate.maxUnavailable | default "25%" | quote }}
+      maxSurge: {{ .Values.availability.rollingUpdate.maxSurge | default "25%" | quote }}
+    {{- end }}
+  {{- end }}
   selector:
     matchLabels:
       app: {{ .Values.serviceName }}
@@ -91,6 +129,28 @@ spec:
       {{- if .Values.tolerations }}
       tolerations:
         {{- toYaml .Values.tolerations | nindent 8 }}
+      {{- end }}
+      {{- if .Values.availability.topologySpreadConstraints.enabled }}
+      topologySpreadConstraints:
+        {{- range .Values.availability.topologySpreadConstraints.constraints }}
+        - maxSkew: {{ .maxSkew | default 1 }}
+          topologyKey: {{ .topologyKey | default "topology.kubernetes.io/zone" | quote }}
+          whenUnsatisfiable: {{ .whenUnsatisfiable | default "ScheduleAnyway" | quote }}
+          labelSelector:
+            matchLabels:
+              app: {{ $.Values.serviceName }}
+              canary: "true"
+        {{- end }}
+      {{- end }}
+      {{- if .Values.availability.podAntiAffinity.enabled }}
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: {{ .Values.serviceName }}
+                  canary: "true"
+              topologyKey: {{ .Values.availability.podAntiAffinity.topologyKey | default "kubernetes.io/hostname" | quote }}
       {{- end }}
       containers:
         - name: {{ .Values.serviceName }}

@@ -1,14 +1,19 @@
 """Product routes."""
 
+from collections.abc import Iterable
+import logging
+
 from crud_service.auth import User, get_current_user_optional
 from crud_service.integrations import get_agent_client
 from crud_service.repositories import ProductRepository
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
+from pydantic import ValidationError
 
 router = APIRouter()
 product_repo = ProductRepository()
 agent_client = get_agent_client()
+logger = logging.getLogger(__name__)
 
 
 class ProductResponse(BaseModel):
@@ -88,14 +93,36 @@ async def list_products(
     the CRUD keyword search is used as fallback.
     Authenticated users may get personalized ordering (via agent).
     """
-    products = await _fetch_products(
-        search=search,
-        category=category,
-        limit=limit,
-        current_user=current_user,
-    )
+    try:
+        products = await _fetch_products(
+            search=search,
+            category=category,
+            limit=limit,
+            current_user=current_user,
+        )
+    except Exception as exc:
+        logger.warning("Product list fetch failed: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Product catalog is temporarily unavailable",
+        ) from exc
 
-    return [ProductResponse(**p) for p in products]
+    if products is None or isinstance(products, (str, bytes)) or not isinstance(products, Iterable):
+        logger.warning("Product list returned invalid result type: %s", type(products).__name__)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Product catalog is temporarily unavailable",
+        )
+
+    # No GoF pattern applies - straightforward record validation and filtering.
+    validated_products: list[ProductResponse] = []
+    for product in products:
+        try:
+            validated_products.append(ProductResponse.model_validate(product))
+        except ValidationError as exc:
+            logger.warning("Skipping malformed product record: %s", exc)
+
+    return validated_products
 
 
 @router.get("/products/{product_id}", response_model=ProductResponse)
