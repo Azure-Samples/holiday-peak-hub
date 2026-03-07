@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
-
 from truth_export.main import app
 
 

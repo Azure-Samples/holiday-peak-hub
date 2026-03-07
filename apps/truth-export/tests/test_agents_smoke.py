@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import pytest
 from holiday_peak_lib.agents.base_agent import AgentDependencies
-
 from truth_export.adapters import build_truth_export_adapters
 from truth_export.agents import TruthExportAgent
 from truth_export.schemas_compat import ProductStyle
