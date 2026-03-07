@@ -1,7 +1,7 @@
 """Category routes."""
 
-from collections.abc import Iterable
 import logging
+from collections.abc import Iterable
 
 from crud_service.repositories.base import BaseRepository
 from fastapi import APIRouter, HTTPException, Query, status

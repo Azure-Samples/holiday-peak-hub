@@ -2,7 +2,6 @@
 
 from crud_service.config.settings import Settings
 
-
 REQUIRED_ENV = {
     "POSTGRES_HOST": "localhost",
     "POSTGRES_USER": "test-user",

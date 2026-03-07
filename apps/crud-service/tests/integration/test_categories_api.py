@@ -11,6 +11,7 @@ _SAMPLE_CATEGORY = {
     "description": "Devices and accessories",
 }
 
+
 def test_list_categories_anonymous_returns_data():
     """List categories should return valid rows."""
     with patch(
