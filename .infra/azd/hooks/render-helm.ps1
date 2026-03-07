@@ -139,6 +139,33 @@ $envMappings = @{
   APPLICATIONINSIGHTS_CONNECTION_STRING = $env:APPLICATIONINSIGHTS_CONNECTION_STRING
 }
 
+$truthServiceEventHubMappings = @{
+  "truth-ingestion" = @{ TRUTH_EVENT_HUB_NAME = "ingest-jobs"; TRUTH_EVENT_HUB_CONSUMER_GROUP = "ingestion-group" }
+  "truth-enrichment" = @{ TRUTH_EVENT_HUB_NAME = "enrichment-jobs"; TRUTH_EVENT_HUB_CONSUMER_GROUP = "enrichment-engine" }
+  "truth-export" = @{ TRUTH_EVENT_HUB_NAME = "export-jobs"; TRUTH_EVENT_HUB_CONSUMER_GROUP = "export-engine" }
+  "truth-hitl" = @{ TRUTH_EVENT_HUB_NAME = "hitl-jobs"; TRUTH_EVENT_HUB_CONSUMER_GROUP = "hitl-service" }
+}
+
+$isTruthService = $truthServiceEventHubMappings.ContainsKey($ServiceName)
+if ($isTruthService) {
+  $truthServiceVars = $truthServiceEventHubMappings[$ServiceName]
+  foreach ($truthKey in $truthServiceVars.Keys) {
+    $envMappings[$truthKey] = $truthServiceVars[$truthKey]
+  }
+
+  $requiredTruthEnv = @("EVENT_HUB_NAMESPACE", "PROJECT_ENDPOINT", "COSMOS_ACCOUNT_URI", "COSMOS_DATABASE")
+  $missingTruthEnv = @()
+  foreach ($requiredKey in $requiredTruthEnv) {
+    $requiredValue = $envMappings[$requiredKey]
+    if ([string]::IsNullOrWhiteSpace($requiredValue)) {
+      $missingTruthEnv += $requiredKey
+    }
+  }
+  if ($missingTruthEnv.Count -gt 0) {
+    throw "Missing required environment variables for ${ServiceName}: $($missingTruthEnv -join ', ')"
+  }
+}
+
 foreach ($key in $envMappings.Keys) {
   $value = $envMappings[$key]
   if ($value) {
@@ -147,5 +174,22 @@ foreach ($key in $envMappings.Keys) {
 }
 
 & helm @helmArgs | Out-File -FilePath $rendered -Encoding utf8
+
+if ($isTruthService) {
+  $requiredRenderedKeys = @(
+    "EVENT_HUB_NAMESPACE",
+    "PROJECT_ENDPOINT",
+    "COSMOS_ACCOUNT_URI",
+    "COSMOS_DATABASE",
+    "TRUTH_EVENT_HUB_NAME",
+    "TRUTH_EVENT_HUB_CONSUMER_GROUP"
+  )
+  foreach ($renderedKey in $requiredRenderedKeys) {
+    $present = Select-String -Path $rendered -SimpleMatch "name: $renderedKey" -Quiet
+    if (-not $present) {
+      throw "Rendered manifest missing env key '$renderedKey' for $ServiceName"
+    }
+  }
+}
 
 Write-Host "Rendered Helm manifests to $rendered"

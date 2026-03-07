@@ -88,6 +88,17 @@ add_env_arg() {
   fi
 }
 
+is_truth_service() {
+  case "$SERVICE_NAME" in
+    truth-ingestion|truth-enrichment|truth-export|truth-hitl)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 # Database
 add_env_arg "POSTGRES_HOST" "${POSTGRES_HOST:-}"
 add_env_arg "POSTGRES_USER" "${POSTGRES_USER:-}"
@@ -125,7 +136,50 @@ add_env_arg "BLOB_CONTAINER" "${BLOB_CONTAINER:-}"
 # Observability
 add_env_arg "APPLICATIONINSIGHTS_CONNECTION_STRING" "${APPLICATIONINSIGHTS_CONNECTION_STRING:-}"
 
+if is_truth_service; then
+  case "$SERVICE_NAME" in
+    truth-ingestion)
+      add_env_arg "TRUTH_EVENT_HUB_NAME" "${TRUTH_EVENT_HUB_NAME:-ingest-jobs}"
+      add_env_arg "TRUTH_EVENT_HUB_CONSUMER_GROUP" "${TRUTH_EVENT_HUB_CONSUMER_GROUP:-ingestion-group}"
+      ;;
+    truth-enrichment)
+      add_env_arg "TRUTH_EVENT_HUB_NAME" "${TRUTH_EVENT_HUB_NAME:-enrichment-jobs}"
+      add_env_arg "TRUTH_EVENT_HUB_CONSUMER_GROUP" "${TRUTH_EVENT_HUB_CONSUMER_GROUP:-enrichment-engine}"
+      ;;
+    truth-export)
+      add_env_arg "TRUTH_EVENT_HUB_NAME" "${TRUTH_EVENT_HUB_NAME:-export-jobs}"
+      add_env_arg "TRUTH_EVENT_HUB_CONSUMER_GROUP" "${TRUTH_EVENT_HUB_CONSUMER_GROUP:-export-engine}"
+      ;;
+    truth-hitl)
+      add_env_arg "TRUTH_EVENT_HUB_NAME" "${TRUTH_EVENT_HUB_NAME:-hitl-jobs}"
+      add_env_arg "TRUTH_EVENT_HUB_CONSUMER_GROUP" "${TRUTH_EVENT_HUB_CONSUMER_GROUP:-hitl-service}"
+      ;;
+  esac
+
+  MISSING_REQUIRED=""
+  for required in EVENT_HUB_NAMESPACE PROJECT_ENDPOINT COSMOS_ACCOUNT_URI COSMOS_DATABASE; do
+    eval "value=\${$required:-}"
+    if [ -z "$value" ]; then
+      MISSING_REQUIRED="$MISSING_REQUIRED $required"
+    fi
+  done
+
+  if [ -n "$MISSING_REQUIRED" ]; then
+    echo "Missing required environment variables for $SERVICE_NAME:$MISSING_REQUIRED" >&2
+    exit 1
+  fi
+fi
+
 # shellcheck disable=SC2086
 helm template "$SERVICE_NAME" "$CHART_PATH" $HELM_ARGS > "$OUT_DIR/all.yaml"
+
+if is_truth_service; then
+  for key in EVENT_HUB_NAMESPACE PROJECT_ENDPOINT COSMOS_ACCOUNT_URI COSMOS_DATABASE TRUTH_EVENT_HUB_NAME TRUTH_EVENT_HUB_CONSUMER_GROUP; do
+    if ! grep -q "name: $key" "$OUT_DIR/all.yaml"; then
+      echo "Rendered manifest missing env key '$key' for $SERVICE_NAME" >&2
+      exit 1
+    fi
+  done
+fi
 
 echo "Rendered Helm manifests to $OUT_DIR/all.yaml"
