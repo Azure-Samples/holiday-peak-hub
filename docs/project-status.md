@@ -51,7 +51,7 @@
 ### Build Status
 | Workflow | Run | Status | Notes |
 |---|---|---|---|
-| `ci.yml` | Latest | ✅ Passing | 635 tests passing, all lint checks green |
+| `ci.yml` | Latest | ✅ Passing | 712 tests passing on main, all lint checks green |
 | `build-push` | Latest | ✅ Passing | Docker images published to GHCR |
 | `deploy-azd` | Latest | ✅ Passing | Azure deployment successful |
 
@@ -87,20 +87,26 @@
 
 ## Active Pull Requests (In Progress)
 
-### Truth Layer PRs (Assigned to Copilot Agents)
-| # | Title | Phase | Status |
-|---|-------|-------|--------|
-| [#144](https://github.com/Azure-Samples/holiday-peak-hub/pull/144) | Truth Layer Phase 1 Foundation | 1 | 🔄 Draft |
-| [#147](https://github.com/Azure-Samples/holiday-peak-hub/pull/147) | TruthStoreAdapter implementation | 1 | 🔄 Draft |
-| [#145](https://github.com/Azure-Samples/holiday-peak-hub/pull/145) | Tenant Configuration model | 1 | 🔄 Draft |
-| [#148](https://github.com/Azure-Samples/holiday-peak-hub/pull/148) | UCP schema and category schemas | 1 | 🔄 Draft |
-| [#150](https://github.com/Azure-Samples/holiday-peak-hub/pull/150) | Event Hub helpers | 1 | 🔄 Draft |
-| [#151](https://github.com/Azure-Samples/holiday-peak-hub/pull/151) | Generic REST PIM connector | 2 | 🔄 Draft |
-| [#125](https://github.com/Azure-Samples/holiday-peak-hub/pull/125) | Truth Enrichment service | 3 | 🔄 Draft |
-| [#126](https://github.com/Azure-Samples/holiday-peak-hub/pull/126) | Truth HITL service | 3 | 🔄 Draft |
-| [#128](https://github.com/Azure-Samples/holiday-peak-hub/pull/128) | Truth Export service | 4 | 🔄 Draft |
-| [#129](https://github.com/Azure-Samples/holiday-peak-hub/pull/129) | Truth-layer CRUD routes | 4 | 🔄 Draft |
-| [#117](https://github.com/Azure-Samples/holiday-peak-hub/pull/117) | Evidence extraction module | 5 | 🔄 Draft |
+### Code-Ready PRs (rebased, tests passing, ready for review)
+| # | Title | Category | Tests | Status |
+|---|-------|----------|-------|--------|
+| [#144](https://github.com/Azure-Samples/holiday-peak-hub/pull/144) | Truth Layer Phase 1 Foundation | Truth Layer | 67 ✅ | ✅ Ready |
+| [#147](https://github.com/Azure-Samples/holiday-peak-hub/pull/147) | TruthStoreAdapter + Product Graph models | Truth Layer | 49 ✅ | ✅ Ready |
+| [#145](https://github.com/Azure-Samples/holiday-peak-hub/pull/145) | Event Hub Bicep topics | Infrastructure | N/A (Bicep) | ✅ Ready |
+| [#148](https://github.com/Azure-Samples/holiday-peak-hub/pull/148) | Tenant Configuration model | Truth Layer | 44 ✅ | ✅ Ready |
+| [#150](https://github.com/Azure-Samples/holiday-peak-hub/pull/150) | Event Hub helpers | Truth Layer | 14 ✅ | ✅ Ready |
+| [#152](https://github.com/Azure-Samples/holiday-peak-hub/pull/152) | PIM/DAM connectors (Akeneo, Cloudinary, Salsify) | Connectors | 65 ✅ | ✅ Ready |
+| [#158](https://github.com/Azure-Samples/holiday-peak-hub/pull/158) | Adobe AEP CRM connector | Connectors | 38 ✅ | ✅ Ready |
+| [#159](https://github.com/Azure-Samples/holiday-peak-hub/pull/159) | Braze Customer Engagement connector | Connectors | 35 ✅ | ✅ Ready |
+
+### Planning-Only PRs (rebased, no code yet)
+| # | Title | Category | Status |
+|---|-------|----------|--------|
+| [#134](https://github.com/Azure-Samples/holiday-peak-hub/pull/134) | Protocol interface evolution strategy | Architecture | 📋 Planning |
+| [#136](https://github.com/Azure-Samples/holiday-peak-hub/pull/136) | Reference architectures | Architecture | 📋 Planning |
+| [#141](https://github.com/Azure-Samples/holiday-peak-hub/pull/141) | Azure AI Search provisioning | Infrastructure | 📋 Planning |
+| [#155](https://github.com/Azure-Samples/holiday-peak-hub/pull/155) | Blue Yonder Luminate connector | Connectors | 📋 Planning |
+| [#160](https://github.com/Azure-Samples/holiday-peak-hub/pull/160) | Salsify PXM connector | Connectors | 📋 Planning |
 
 
 ---
