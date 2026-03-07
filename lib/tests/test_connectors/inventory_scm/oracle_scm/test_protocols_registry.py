@@ -1,6 +1,7 @@
 """Tests for common connector protocols and ConnectorRegistry."""
 
 import pytest
+
 from holiday_peak_lib.connectors.common.protocols import (
     AssetData,
     CustomerData,

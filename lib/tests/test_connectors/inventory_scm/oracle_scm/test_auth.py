@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
+
 from holiday_peak_lib.connectors.inventory_scm.oracle_scm.auth import (
     OracleSCMAuth,
     OracleSCMAuthError,

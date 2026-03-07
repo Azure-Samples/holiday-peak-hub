@@ -216,9 +216,7 @@ class AdobeAEPConnector(CRMConnectorBase):
             "mergePolicy": {"id": "timestampOrdered"},
             "filter": {
                 "segments": [],
-                "fromIngestTimestamp": (
-                    since.isoformat() if since else "1970-01-01T00:00:00Z"
-                ),
+                "fromIngestTimestamp": (since.isoformat() if since else "1970-01-01T00:00:00Z"),
             },
             "destinationDatasetId": f"export_{customer_id}",
         }
@@ -259,9 +257,7 @@ class AdobeAEPConnector(CRMConnectorBase):
             raise AdapterError(f"Profile '{customer_id}' not found after update")
         return updated
 
-    async def track_event(
-        self, customer_id: str, event_type: str, properties: dict
-    ) -> None:
+    async def track_event(self, customer_id: str, event_type: str, properties: dict) -> None:
         """Ingest an XDM ExperienceEvent via the Streaming Ingestion API."""
         inlet_path = f"/collection/{self._inlet_id}"
         payload: dict[str, Any] = {
@@ -295,9 +291,7 @@ class AdobeAEPConnector(CRMConnectorBase):
     # AEP-specific methods
     # ------------------------------------------------------------------
 
-    async def list_audiences(
-        self, *, limit: int = 100, start: int = 0
-    ) -> list[SegmentData]:
+    async def list_audiences(self, *, limit: int = 100, start: int = 0) -> list[SegmentData]:
         """Return a page of AEP audiences."""
         try:
             results = await self._http.fetch(

@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 """Enterprise connector registry and connector packages."""
 
 from holiday_peak_lib.connectors.registry import (
@@ -42,6 +41,3 @@ __all__ = [
     "get_current_tenant_context",
     "default_registry",
 ]
-=======
-"""Enterprise connectors for retail platform integrations."""
->>>>>>> 885a2dd (feat: implement Adobe Experience Platform (AEP) CRM connector (#43))

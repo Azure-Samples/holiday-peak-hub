@@ -14,7 +14,6 @@ from typing import Optional
 
 import httpx
 
-
 _TOKEN_EXPIRY_BUFFER_SECONDS = 60
 
 

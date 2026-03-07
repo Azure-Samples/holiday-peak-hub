@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
+
 from holiday_peak_lib.connectors.crm_loyalty.dynamics365_ce.auth import (
     AzureADTokenProvider,
     _TokenCache,

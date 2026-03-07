@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 
 import pytest
+
 from holiday_peak_lib.adapters.base import BaseAdapter
 from holiday_peak_lib.connectors.registry import ConnectorRegistry
 

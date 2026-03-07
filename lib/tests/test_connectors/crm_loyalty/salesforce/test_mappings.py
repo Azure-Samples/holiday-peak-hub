@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+
 from holiday_peak_lib.connectors.crm_loyalty.salesforce.mappings import (
     map_campaign_to_segment,
     map_contact_to_customer,

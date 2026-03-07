@@ -38,7 +38,6 @@ from holiday_peak_lib.integrations.contracts import (
     SegmentData,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures / helpers
 # ---------------------------------------------------------------------------
@@ -100,22 +99,16 @@ EXPORT_RECORD: dict[str, Any] = {
 
 class TestAdobeImsToken:
     def test_valid_token_not_yet_expired(self):
-        token = AdobeImsToken(
-            access_token="tok", expires_at=time.monotonic() + 300
-        )
+        token = AdobeImsToken(access_token="tok", expires_at=time.monotonic() + 300)
         assert token.is_valid() is True
 
     def test_expired_token_returns_false(self):
-        token = AdobeImsToken(
-            access_token="tok", expires_at=time.monotonic() - 1
-        )
+        token = AdobeImsToken(access_token="tok", expires_at=time.monotonic() - 1)
         assert token.is_valid() is False
 
     def test_token_within_buffer_returns_false(self):
         # expires in 30 seconds – within the 60-second safety buffer
-        token = AdobeImsToken(
-            access_token="tok", expires_at=time.monotonic() + 30
-        )
+        token = AdobeImsToken(access_token="tok", expires_at=time.monotonic() + 30)
         assert token.is_valid() is False
 
 
@@ -175,9 +168,7 @@ class TestAdobeImsAuth:
             mock_client_cls.return_value = mock_client
 
             auth = AdobeImsAuth(client_id="cid", client_secret="csec", org_id="org")
-            auth._cached = AdobeImsToken(
-                access_token="old", expires_at=time.monotonic() - 1
-            )
+            auth._cached = AdobeImsToken(access_token="old", expires_at=time.monotonic() - 1)
             token = await auth.get_token()
 
         assert token == "refreshed"
@@ -189,9 +180,7 @@ class TestAdobeImsAuth:
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock(return_value=False)
             mock_client.post = AsyncMock(
-                side_effect=httpx.HTTPStatusError(
-                    "401", request=MagicMock(), response=MagicMock()
-                )
+                side_effect=httpx.HTTPStatusError("401", request=MagicMock(), response=MagicMock())
             )
             mock_client_cls.return_value = mock_client
 
@@ -201,9 +190,7 @@ class TestAdobeImsAuth:
 
     def test_invalidate_clears_cache(self):
         auth = AdobeImsAuth(client_id="cid", client_secret="csec", org_id="org")
-        auth._cached = AdobeImsToken(
-            access_token="tok", expires_at=time.monotonic() + 3600
-        )
+        auth._cached = AdobeImsToken(access_token="tok", expires_at=time.monotonic() + 3600)
         auth.invalidate()
         assert auth._cached is None
 
@@ -307,9 +294,7 @@ def _make_connector(fetch_return: Any = None, upsert_return: Any = None) -> Adob
 class TestAdobeAEPConnectorGetCustomer:
     @pytest.mark.asyncio
     async def test_returns_customer_data(self):
-        connector = _make_connector(
-            fetch_return={"entities": [XDM_PROFILE["entity"]]}
-        )
+        connector = _make_connector(fetch_return={"entities": [XDM_PROFILE["entity"]]})
         result = await connector.get_customer("ecid-abc")
         assert isinstance(result, CustomerData)
         assert result.email == "jane.doe@example.com"
@@ -333,9 +318,7 @@ class TestAdobeAEPConnectorGetCustomer:
 class TestAdobeAEPConnectorGetCustomerByEmail:
     @pytest.mark.asyncio
     async def test_returns_customer_by_email(self):
-        connector = _make_connector(
-            fetch_return={"entities": [XDM_PROFILE["entity"]]}
-        )
+        connector = _make_connector(fetch_return={"entities": [XDM_PROFILE["entity"]]})
         result = await connector.get_customer_by_email("jane.doe@example.com")
         assert result is not None
         assert result.email == "jane.doe@example.com"
@@ -345,9 +328,7 @@ class TestAdobeAEPConnectorGetCustomerSegments:
     @pytest.mark.asyncio
     async def test_returns_matched_segments(self):
         # Profile has seg-1 as realized
-        connector = _make_connector(
-            fetch_return={"entities": [XDM_PROFILE["entity"]]}
-        )
+        connector = _make_connector(fetch_return={"entities": [XDM_PROFILE["entity"]]})
         # list_audiences returns both segments
         connector._http.fetch = AsyncMock(
             side_effect=[
@@ -383,9 +364,7 @@ class TestAdobeAEPConnectorGetCustomerSegments:
 class TestAdobeAEPConnectorGetPurchaseHistory:
     @pytest.mark.asyncio
     async def test_returns_orders(self):
-        connector = _make_connector(
-            upsert_return={"records": [EXPORT_RECORD]}
-        )
+        connector = _make_connector(upsert_return={"records": [EXPORT_RECORD]})
         orders = await connector.get_purchase_history("cust-456")
         assert len(orders) == 1
         assert orders[0].order_id == "order-789"
@@ -403,9 +382,7 @@ class TestAdobeAEPConnectorGetPurchaseHistory:
 class TestAdobeAEPConnectorListAudiences:
     @pytest.mark.asyncio
     async def test_returns_segments(self):
-        connector = _make_connector(
-            fetch_return={"children": [AEP_AUDIENCE]}
-        )
+        connector = _make_connector(fetch_return={"children": [AEP_AUDIENCE]})
         segments = await connector.list_audiences()
         assert len(segments) == 1
         assert segments[0].segment_id == "aud-001"
@@ -432,9 +409,7 @@ class TestAdobeAEPConnectorListAudiences:
 class TestAdobeAEPConnectorGetProfilePreview:
     @pytest.mark.asyncio
     async def test_returns_customers(self):
-        connector = _make_connector(
-            fetch_return={"entities": [XDM_PROFILE["entity"]]}
-        )
+        connector = _make_connector(fetch_return={"entities": [XDM_PROFILE["entity"]]})
         profiles = await connector.get_profile_preview()
         assert len(profiles) == 1
         assert isinstance(profiles[0], CustomerData)

@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
 from holiday_peak_lib.adapters.base import AdapterError
 from holiday_peak_lib.connectors.crm_loyalty.salesforce.auth import (
     SalesforceAuth,

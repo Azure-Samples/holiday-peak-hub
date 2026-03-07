@@ -32,9 +32,7 @@ def _extract_realized_segments(attrs: dict[str, Any]) -> list[str]:
     if not isinstance(ups, dict):
         return []
     return [
-        m.get("segmentID", {}).get("_id", "")
-        for m in ups.values()
-        if m.get("status") == "realized"
+        m.get("segmentID", {}).get("_id", "") for m in ups.values() if m.get("status") == "realized"
     ]
 
 
@@ -56,9 +54,7 @@ def xdm_to_customer(entity: dict[str, Any]) -> CustomerData:
     attrs: dict[str, Any] = entity.get("entity", entity)
 
     # Identity
-    customer_id: str = str(
-        attrs.get("identities", [{}])[0].get("id", "") or attrs.get("_id", "")
-    )
+    customer_id: str = str(attrs.get("identities", [{}])[0].get("id", "") or attrs.get("_id", ""))
 
     # Person name
     person: dict[str, Any] = attrs.get("person", {})
@@ -69,15 +65,11 @@ def xdm_to_customer(entity: dict[str, Any]) -> CustomerData:
     # Contact details
     work_email: dict[str, Any] = attrs.get("workEmail", {})
     personal_email: dict[str, Any] = attrs.get("personalEmail", {})
-    email: str | None = (
-        work_email.get("address") or personal_email.get("address") or None
-    )
+    email: str | None = work_email.get("address") or personal_email.get("address") or None
 
     home_phone: dict[str, Any] = attrs.get("homePhone", {})
     mobile_phone: dict[str, Any] = attrs.get("mobilePhone", {})
-    phone: str | None = (
-        home_phone.get("number") or mobile_phone.get("number") or None
-    )
+    phone: str | None = home_phone.get("number") or mobile_phone.get("number") or None
 
     # Segments / audiences from AEP memberships
     segments: list[str] = _extract_realized_segments(attrs)
@@ -147,9 +139,7 @@ def export_record_to_order(record: dict[str, Any]) -> OrderData:
     items_raw: list[dict[str, Any]] = record.get("productListItems", [])
     return OrderData(
         order_id=order.get("purchaseID", record.get("_id", "")),
-        customer_id=record.get("endUserIDs", {}).get("_experience", {}).get(
-            "aaid", {}
-        ).get("id"),
+        customer_id=record.get("endUserIDs", {}).get("_experience", {}).get("aaid", {}).get("id"),
         status=commerce.get("purchases", {}).get("value", "unknown"),
         total=float(order.get("priceTotal", 0.0)),
         currency=order.get("currencyCode", "USD"),
