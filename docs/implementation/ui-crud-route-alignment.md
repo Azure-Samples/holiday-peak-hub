@@ -100,7 +100,7 @@
 - `/agent-api/*` proxy route (`apps/ui/app/agent-api/[...path]/route.ts`) now has the same upstream exception handling behavior and returns structured `502` diagnostics with matching proxy metadata fields.
 - Agent proxy `502` payload is likewise sanitized while preserving structured proxy context for diagnosis.
 - Upstream HTTP responses are still passed through without status rewriting, so backend `4xx/5xx` failures remain visible to callers.
-- Server-side API base URL resolution in `apps/ui/lib/api/client.ts` now follows the same fallback alias precedence as the `/api/*` proxy: `NEXT_PUBLIC_CRUD_API_URL` -> `NEXT_PUBLIC_API_URL` -> `NEXT_PUBLIC_API_BASE_URL` -> `CRUD_API_URL`.
+- Server-side API base URL resolution in `apps/ui/lib/api/client.ts` now follows the same fallback alias precedence as the `/api/*` proxy: `NEXT_PUBLIC_CRUD_API_URL` -> `NEXT_PUBLIC_API_URL` -> `CRUD_API_URL`.
 - Client-side API error extraction (`apps/ui/lib/api/client.ts`) now recursively maps `detail`, `error`, `message`, `title`, and `msg` payload fields (including object-array patterns such as `detail: [{ msg: ... }]`) before falling back to Axios defaults.
 - Category/product UI error states now render parsed error text plus backend status code when available:
   - `apps/ui/app/categories/page.tsx`

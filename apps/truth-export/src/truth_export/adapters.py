@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from holiday_peak_lib.schemas.truth import ProductStyle, TruthAttribute
+from .schemas_compat import ProductStyle, TruthAttribute
 
 
 @dataclass
@@ -27,7 +27,7 @@ class MockTruthStoreAdapter:
     async def get_truth_attributes(self, style_id: str) -> list[TruthAttribute]:
         return self._attributes.get(style_id, [])
 
-    async def get_protocol_mapping(self, protocol: str) -> dict[str, Any]:
+    async def get_protocol_mapping(self, _protocol: str) -> dict[str, Any]:
         """Return a stub field-mapping config for *protocol*."""
         return {"protocol_version": "1.0"}
 

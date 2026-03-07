@@ -49,7 +49,14 @@ This directory contains comprehensive implementation plans and compliance analys
 - Auth and error handling guidance
 - Rate limiting notes
 - End-to-end workflow sequence
+- Grounded notebook stage map (`product-truth-layer-end-to-end-demo.ipynb`)
+- Governance rationale for intentional non-compliant candidate
+- HITL decision gate outcomes (`approve`, `reject`, `edit_and_approve`, `observe_only`)
+- Event metadata timeline schema for operational observability
+- Demo safety controls (`STRICT_REMOTE_ONLY`, `DEMO_MUTATION_MODE`, sandbox tags)
 - Postman collection and sample script links
+
+This reference is aligned with architecture intent in [Architecture Overview](../architecture/architecture.md) and [Business Summary](../architecture/business-summary.md) for deterministic governance + agentic enrichment flows.
 
 ---
 

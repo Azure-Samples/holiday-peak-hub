@@ -7,7 +7,6 @@ from typing import Any
 
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
-from holiday_peak_lib.schemas.truth import ProductStyle, TruthAttribute
 
 from .adapters import TruthExportAdapters, build_truth_export_adapters
 from .export_engine import ExportEngine
@@ -101,7 +100,7 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
         job = adapters.job_tracker.get(str(job_id))
         return job or {"error": "job not found", "job_id": job_id}
 
-    async def list_sources(payload: dict[str, Any]) -> dict[str, Any]:  # noqa: ARG001
+    async def list_sources(_payload: dict[str, Any]) -> dict[str, Any]:
         return {"protocols": engine.supported_protocols()}
 
     mcp.add_tool("/export/product", export_product)

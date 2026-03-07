@@ -54,7 +54,7 @@ Hardened `apps/crud-service` list endpoints and readiness checks to prevent recu
   - `test_optional_auth_runtime_failure_returns_none`
 
 - `apps/crud-service/tests/unit/test_health.py`
-  - `test_readiness_degraded_when_postgres_pool_unhealthy_and_init_failed`
+  - `test_readiness_degraded_when_postgres_init_failed`
   - `test_readiness_recovers_when_postgres_pool_is_healthy`
   - readiness shape assertion now includes `postgres`
 

@@ -17,6 +17,10 @@
 - **Frontend API Integration**: Enhanced checkout, order tracking, inventory pages
 - **Test Coverage**: 635 tests passing (up from 386)
 
+### Runtime Hotfix Notes (2026-03-06)
+- **Truth Export Compatibility**: Added a `truth_export.schemas_compat` fallback to keep `truth-export` functional when runtime images resolve an older `holiday-peak-lib` package that does not expose `holiday_peak_lib.schemas.truth`.
+- **Notebook Live Checks**: Updated the Product Truth Layer notebook live integration cell to support Cosmos SDK query compatibility differences and improved PostgreSQL sample payload parsing.
+
 ### Merged PRs (v1.1.0)
 | # | Title | Category |
 |---|-------|----------|

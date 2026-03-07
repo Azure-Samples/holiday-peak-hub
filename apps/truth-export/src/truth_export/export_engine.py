@@ -7,13 +7,8 @@ from typing import Any
 
 from holiday_peak_lib.adapters.acp_mapper import AcpCatalogMapper
 from holiday_peak_lib.adapters.ucp_mapper import UcpProtocolMapper
-from holiday_peak_lib.schemas.truth import (
-    AuditAction,
-    AuditEvent,
-    ExportResult,
-    ProductStyle,
-    TruthAttribute,
-)
+
+from .schemas_compat import AuditAction, AuditEvent, ExportResult
 
 
 class ExportEngine:
@@ -33,13 +28,13 @@ class ExportEngine:
     def export(
         self,
         job_id: str,
-        product: ProductStyle,
-        attributes: list[TruthAttribute],
+        product: Any,
+        attributes: list[Any],
         protocol: str,
         mapping: dict[str, Any] | None = None,
         *,
         partner_id: str | None = None,
-    ) -> ExportResult:
+    ) -> Any:
         """Run the export pipeline for a single product.
 
         Args:
@@ -54,12 +49,13 @@ class ExportEngine:
         Returns:
             An :class:`ExportResult` with the serialised payload.
         """
+        _ = partner_id
         protocol_lower = protocol.lower()
         mapper = self._MAPPERS.get(protocol_lower)
         if mapper is None:
             return ExportResult(
-                job_id=job_id,
-                entity_id=product.id,
+                jobId=job_id,
+                entityId=product.id,
                 protocol=protocol,
                 status="failed",
                 errors=[f"Unsupported protocol: {protocol!r}"],
@@ -72,8 +68,8 @@ class ExportEngine:
         valid = mapper.validate_output(payload, protocol_version)
 
         return ExportResult(
-            job_id=job_id,
-            entity_id=product.id,
+            jobId=job_id,
+            entityId=product.id,
             protocol=protocol_lower,
             status="completed" if valid else "invalid",
             payload=payload,
@@ -83,13 +79,13 @@ class ExportEngine:
     def build_audit_event(
         self,
         job_id: str,
-        product: ProductStyle,
+        product: Any,
         protocol: str,
         actor: str = "truth-export",
-    ) -> AuditEvent:
+    ) -> Any:
         """Create an :class:`AuditEvent` for a completed export."""
         return AuditEvent(
-            entity_id=product.id,
+            entityId=product.id,
             action=AuditAction.EXPORTED,
             actor=actor,
             timestamp=datetime.now(timezone.utc),
