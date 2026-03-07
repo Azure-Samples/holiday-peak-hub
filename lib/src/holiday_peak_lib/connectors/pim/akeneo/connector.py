@@ -53,9 +53,9 @@ class AkeneoConnector(PIMConnectorBase):
         locale: str = "en_US",
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
-        resolved_url = (
-            base_url or os.environ.get("AKENEO_BASE_URL", _DEFAULT_BASE_URL)
-        ).rstrip("/")
+        resolved_url = (base_url or os.environ.get("AKENEO_BASE_URL", _DEFAULT_BASE_URL)).rstrip(
+            "/"
+        )
         self._base_url = resolved_url
         self._auth = AkeneoAuth(
             base_url=resolved_url,
@@ -87,9 +87,7 @@ class AkeneoConnector(PIMConnectorBase):
             if response.status_code == 404:
                 return None
             if response.status_code != 200:
-                raise AdapterError(
-                    f"Akeneo get_product failed: HTTP {response.status_code}"
-                )
+                raise AdapterError(f"Akeneo get_product failed: HTTP {response.status_code}")
             return map_product(response.json(), locale=self._locale)
 
     async def list_products(
@@ -110,9 +108,7 @@ class AkeneoConnector(PIMConnectorBase):
         if category:
             search_filters["categories"] = [{"operator": "IN", "value": [category]}]
         if modified_since:
-            search_filters["updated"] = [
-                {"operator": ">", "value": modified_since.isoformat()}
-            ]
+            search_filters["updated"] = [{"operator": ">", "value": modified_since.isoformat()}]
         if search_filters:
             params["search"] = json.dumps(search_filters)
 
@@ -120,26 +116,26 @@ class AkeneoConnector(PIMConnectorBase):
         async with client:
             response = await client.get("/api/rest/v1/products", params=params)
             if response.status_code != 200:
-                raise AdapterError(
-                    f"Akeneo list_products failed: HTTP {response.status_code}"
-                )
+                raise AdapterError(f"Akeneo list_products failed: HTTP {response.status_code}")
             body = response.json()
             items = body.get("_embedded", {}).get("items", [])
             return [map_product(p, locale=self._locale) for p in items]
 
     async def search_products(self, query: str, limit: int = 50) -> list[ProductData]:
         """Search products by keyword using Akeneo search filters."""
-        search = json.dumps({
-            "label_or_identifier": [{"operator": "CONTAINS", "value": query, "locale": self._locale}]
-        })
+        search = json.dumps(
+            {
+                "label_or_identifier": [
+                    {"operator": "CONTAINS", "value": query, "locale": self._locale}
+                ]
+            }
+        )
         params: dict[str, str | int] = {"search": search, "limit": limit}
         client, _ = await self._client()
         async with client:
             response = await client.get("/api/rest/v1/products", params=params)
             if response.status_code != 200:
-                raise AdapterError(
-                    f"Akeneo search_products failed: HTTP {response.status_code}"
-                )
+                raise AdapterError(f"Akeneo search_products failed: HTTP {response.status_code}")
             body = response.json()
             items = body.get("_embedded", {}).get("items", [])
             return [map_product(p, locale=self._locale) for p in items]
@@ -152,9 +148,7 @@ class AkeneoConnector(PIMConnectorBase):
             if response.status_code == 404:
                 return []
             if response.status_code != 200:
-                raise AdapterError(
-                    f"Akeneo get_product_assets failed: HTTP {response.status_code}"
-                )
+                raise AdapterError(f"Akeneo get_product_assets failed: HTTP {response.status_code}")
             body = response.json()
             items = body.get("_embedded", {}).get("items", [])
             return [map_asset(a) for a in items]
@@ -165,8 +159,6 @@ class AkeneoConnector(PIMConnectorBase):
         async with client:
             response = await client.get("/api/rest/v1/categories")
             if response.status_code != 200:
-                raise AdapterError(
-                    f"Akeneo get_categories failed: HTTP {response.status_code}"
-                )
+                raise AdapterError(f"Akeneo get_categories failed: HTTP {response.status_code}")
             body = response.json()
             return body.get("_embedded", {}).get("items", [])

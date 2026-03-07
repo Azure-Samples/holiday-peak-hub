@@ -50,9 +50,7 @@ def map_product(raw: dict) -> ProductData:
     last_modified: datetime | None = None
     if updated_raw:
         try:
-            last_modified = datetime.fromisoformat(
-                updated_raw.replace("Z", "+00:00")
-            )
+            last_modified = datetime.fromisoformat(updated_raw.replace("Z", "+00:00"))
         except ValueError:
             last_modified = None
 
@@ -63,9 +61,7 @@ def map_product(raw: dict) -> ProductData:
     ]
 
     variants = [
-        r.get("salsify:id", "")
-        for r in raw.get("salsify:relations", [])
-        if r.get("salsify:id")
+        r.get("salsify:id", "") for r in raw.get("salsify:relations", []) if r.get("salsify:id")
     ]
 
     return ProductData(
@@ -108,9 +104,5 @@ def map_asset(raw: dict) -> AssetData:
         height=raw.get("salsify:height"),
         alt_text=raw.get("salsify:name"),
         tags=raw.get("salsify:tags", []),
-        metadata={
-            k: v
-            for k, v in raw.items()
-            if not k.startswith("salsify:")
-        },
+        metadata={k: v for k, v in raw.items() if not k.startswith("salsify:")},
     )

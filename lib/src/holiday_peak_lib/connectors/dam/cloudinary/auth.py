@@ -64,12 +64,6 @@ class CloudinaryAuth:
         """
         ts = int(time.time())
         to_sign = {**params, "timestamp": ts}
-        param_str = "&".join(
-            f"{k}={v}"
-            for k, v in sorted(to_sign.items())
-            if k != "api_key"
-        )
-        signature = hashlib.sha1(
-            f"{param_str}{self._api_secret}".encode()
-        ).hexdigest()
+        param_str = "&".join(f"{k}={v}" for k, v in sorted(to_sign.items()) if k != "api_key")
+        signature = hashlib.sha1(f"{param_str}{self._api_secret}".encode()).hexdigest()
         return {**to_sign, "api_key": self.api_key, "signature": signature}

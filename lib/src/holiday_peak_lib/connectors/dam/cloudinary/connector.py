@@ -53,9 +53,9 @@ class CloudinaryConnector(DAMConnectorBase):
             api_secret=api_secret,
         )
         self._transport = transport
-        self._admin_base = (
-            os.environ.get("CLOUDINARY_ADMIN_BASE_URL", _ADMIN_API_BASE)
-        ).rstrip("/")
+        self._admin_base = (os.environ.get("CLOUDINARY_ADMIN_BASE_URL", _ADMIN_API_BASE)).rstrip(
+            "/"
+        )
 
     def _admin_client(self) -> httpx.AsyncClient:
         """Return an HTTP client targeting the Cloudinary Admin API."""
@@ -76,9 +76,7 @@ class CloudinaryConnector(DAMConnectorBase):
             if response.status_code == 404:
                 return None
             if response.status_code != 200:
-                raise AdapterError(
-                    f"Cloudinary get_asset failed: HTTP {response.status_code}"
-                )
+                raise AdapterError(f"Cloudinary get_asset failed: HTTP {response.status_code}")
             return map_resource(response.json())
 
     async def get_assets_by_product(self, sku: str) -> list[AssetData]:
@@ -109,7 +107,7 @@ class CloudinaryConnector(DAMConnectorBase):
         expressions: list[str] = []
         if query:
             expressions.append(f'"{query}"')
-        for tag in (tags or []):
+        for tag in tags or []:
             expressions.append(f"tags={tag}")
         if content_type:
             expressions.append(f"resource_type={content_type}")
@@ -122,9 +120,7 @@ class CloudinaryConnector(DAMConnectorBase):
         async with self._admin_client() as client:
             response = await client.post("/resources/search", json=payload)
             if response.status_code != 200:
-                raise AdapterError(
-                    f"Cloudinary search_assets failed: HTTP {response.status_code}"
-                )
+                raise AdapterError(f"Cloudinary search_assets failed: HTTP {response.status_code}")
             body = response.json()
             return [map_resource(r) for r in body.get("resources", [])]
 

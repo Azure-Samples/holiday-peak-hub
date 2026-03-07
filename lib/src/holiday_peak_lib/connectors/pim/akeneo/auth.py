@@ -49,9 +49,7 @@ class AkeneoAuth:  # pylint: disable=too-many-instance-attributes
         password: str | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
-        self._base_url = (
-            base_url or os.environ.get("AKENEO_BASE_URL", "")
-        ).rstrip("/")
+        self._base_url = (base_url or os.environ.get("AKENEO_BASE_URL", "")).rstrip("/")
         self._client_id = client_id or os.environ.get("AKENEO_CLIENT_ID", "")
         self._client_secret = client_secret or os.environ.get("AKENEO_CLIENT_SECRET", "")
         self._username = username or os.environ.get("AKENEO_USERNAME", "")
