@@ -68,6 +68,7 @@ jobs:
       changed_agents_matrix: ${{ steps.detect.outputs.changed_agents_matrix }}
       changed_agent_services_csv: ${{ steps.detect.outputs.changed_agent_services_csv }}
       changed_aks_services_csv: ${{ steps.detect.outputs.changed_aks_services_csv }}
+      lib_changed: ${{ steps.detect.outputs.lib_changed }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -135,6 +136,11 @@ jobs:
             UI_CHANGED=true
           fi
 
+          LIB_CHANGED=false
+          if echo "$CHANGED_FILES" | grep -Eq '^lib/'; then
+            LIB_CHANGED=true
+          fi
+
           AGENTS_CHANGED=false
           MATRIX='[]'
           CHANGED_AGENTS=()
@@ -144,6 +150,12 @@ jobs:
               CHANGED_AGENTS+=("$service")
             fi
           done
+
+          # If lib/ changed, all agent services need rebuild
+          if [ "$LIB_CHANGED" = true ]; then
+            CHANGED_AGENTS=("${AGENT_SERVICES[@]}")
+            CRUD_CHANGED=true
+          fi
 
           if [ ${#CHANGED_AGENTS[@]} -gt 0 ]; then
             AGENTS_CHANGED=true
@@ -170,6 +182,7 @@ jobs:
           echo "changed_agents_matrix=$MATRIX" >> "$GITHUB_OUTPUT"
           echo "changed_agent_services_csv=$CHANGED_AGENT_SERVICES_CSV" >> "$GITHUB_OUTPUT"
           echo "changed_aks_services_csv=$CHANGED_AKS_SERVICES_CSV" >> "$GITHUB_OUTPUT"
+          echo "lib_changed=$LIB_CHANGED" >> "$GITHUB_OUTPUT"
 
   provision:
     if: ${{ !inputs.uiOnly }}
