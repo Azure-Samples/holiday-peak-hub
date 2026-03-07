@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 from holiday_peak_lib.agents.base_agent import AgentDependencies
-from truth_ingestion.agent import TruthIngestionAgent
+from truth_ingestion.agents import TruthIngestionAgent
 
 
 @pytest.fixture

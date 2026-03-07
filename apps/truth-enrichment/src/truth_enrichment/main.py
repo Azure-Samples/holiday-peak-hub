@@ -2,12 +2,12 @@
 
 import os
 
-from holiday_peak_lib.agents import AgentDependencies, FoundryAgentConfig
+from holiday_peak_lib.agents import FoundryAgentConfig
 from holiday_peak_lib.agents.memory import ColdMemory, HotMemory, WarmMemory
 from holiday_peak_lib.app_factory import build_service_app
 from holiday_peak_lib.config import MemorySettings
 from holiday_peak_lib.utils import EventHubSubscription, create_eventhub_lifespan
-from truth_enrichment.agent import TruthEnrichmentAgent, register_mcp_tools
+from truth_enrichment.agents import TruthEnrichmentAgent, register_mcp_tools
 from truth_enrichment.event_handlers import build_event_handlers
 from truth_enrichment.routes import router
 
@@ -77,9 +77,5 @@ app = build_service_app(
         handlers=build_event_handlers(),
     ),
 )
-
-# Expose a shared agent instance for route handlers via app.state.
-_service_agent = TruthEnrichmentAgent(config=AgentDependencies())
-app.state.agent = _service_agent
 
 app.include_router(router)
