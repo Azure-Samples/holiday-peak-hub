@@ -4,7 +4,6 @@ import json
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from holiday_peak_lib.truth.event_hub import (
     TRUTH_LAYER_TOPICS,
     TruthJobPublisher,
