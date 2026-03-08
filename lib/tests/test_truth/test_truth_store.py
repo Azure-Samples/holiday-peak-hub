@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from azure.cosmos.exceptions import CosmosHttpResponseError, CosmosResourceNotFoundError
-
 from holiday_peak_lib.adapters.base import AdapterError
 from holiday_peak_lib.adapters.truth_store import TruthStoreAdapter
 from holiday_peak_lib.truth.models import (

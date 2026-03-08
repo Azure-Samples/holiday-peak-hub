@@ -1,7 +1,6 @@
 """Tests for Product Truth Layer data models (Issue #90, #92)."""
 
 import pytest
-
 from holiday_peak_lib.truth.models import (
     AssetMetadata,
     AttributeStatus,

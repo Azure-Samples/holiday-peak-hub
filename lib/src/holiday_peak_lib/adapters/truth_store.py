@@ -20,7 +20,6 @@ from typing import Any, Optional
 from azure.cosmos.aio import CosmosClient
 from azure.cosmos.exceptions import CosmosHttpResponseError, CosmosResourceNotFoundError
 from azure.identity import DefaultAzureCredential
-
 from holiday_peak_lib.adapters.base import AdapterError, BaseAdapter
 from holiday_peak_lib.truth.models import (
     AssetMetadata,
