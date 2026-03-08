@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from holiday_peak_lib.connectors.pim.salsify.mappings import map_asset, map_product
 from holiday_peak_lib.integrations.contracts import AssetData, ProductData
 

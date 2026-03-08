@@ -17,7 +17,6 @@ from __future__ import annotations
 import os
 
 import httpx
-
 from holiday_peak_lib.adapters.base import AdapterError
 from holiday_peak_lib.connectors.dam.cloudinary.auth import CloudinaryAuth
 from holiday_peak_lib.connectors.dam.cloudinary.mappings import map_resource

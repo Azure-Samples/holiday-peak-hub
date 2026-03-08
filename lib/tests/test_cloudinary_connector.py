@@ -6,7 +6,6 @@ import json
 
 import httpx
 import pytest
-
 from holiday_peak_lib.adapters.base import AdapterError
 from holiday_peak_lib.connectors.dam.cloudinary.auth import CloudinaryAuth
 from holiday_peak_lib.connectors.dam.cloudinary.connector import CloudinaryConnector

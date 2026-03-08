@@ -18,7 +18,6 @@ import os
 from datetime import datetime
 
 import httpx
-
 from holiday_peak_lib.adapters.base import AdapterError
 from holiday_peak_lib.connectors.pim.akeneo.auth import AkeneoAuth
 from holiday_peak_lib.connectors.pim.akeneo.mappings import map_asset, map_product

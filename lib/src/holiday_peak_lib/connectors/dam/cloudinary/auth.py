@@ -1,7 +1,7 @@
 """Authentication helpers for the Cloudinary REST API.
 
 Cloudinary uses an API key + API secret pair.  Signed requests include a
-SHA-1 ``signature`` computed over the request parameters.  Unsigned requests
+SHA-256 ``signature`` computed over the request parameters.  Unsigned requests
 use the API key directly.
 
 References:
@@ -54,7 +54,7 @@ class CloudinaryAuth:
     def sign_params(self, params: dict) -> dict:
         """Return *params* extended with ``api_key``, ``timestamp``, and ``signature``.
 
-        The signature is a SHA-1 hash of the sorted parameter string appended
+        The signature is a SHA-256 hash of the sorted parameter string appended
         with the API secret.
 
         >>> auth = CloudinaryAuth(cloud_name="demo", api_key="key", api_secret="secret")
@@ -65,5 +65,5 @@ class CloudinaryAuth:
         ts = int(time.time())
         to_sign = {**params, "timestamp": ts}
         param_str = "&".join(f"{k}={v}" for k, v in sorted(to_sign.items()) if k != "api_key")
-        signature = hashlib.sha1(f"{param_str}{self._api_secret}".encode()).hexdigest()
+        signature = hashlib.sha256(f"{param_str}{self._api_secret}".encode()).hexdigest()
         return {**to_sign, "api_key": self.api_key, "signature": signature}

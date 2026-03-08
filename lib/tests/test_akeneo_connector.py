@@ -6,7 +6,6 @@ import json
 
 import httpx
 import pytest
-
 from holiday_peak_lib.adapters.base import AdapterError
 from holiday_peak_lib.connectors.pim.akeneo.auth import AkeneoAuth
 from holiday_peak_lib.connectors.pim.akeneo.connector import AkeneoConnector
