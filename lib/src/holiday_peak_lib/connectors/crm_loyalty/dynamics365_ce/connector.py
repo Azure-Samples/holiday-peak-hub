@@ -23,7 +23,6 @@ from datetime import datetime
 from typing import Any, Iterable, Optional
 
 import httpx
-
 from holiday_peak_lib.adapters.base import AdapterError, BaseAdapter
 from holiday_peak_lib.integrations.contracts import (
     CRMConnectorBase,

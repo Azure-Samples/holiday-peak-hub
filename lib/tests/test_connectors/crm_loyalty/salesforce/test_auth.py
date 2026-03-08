@@ -6,7 +6,6 @@ import time
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from holiday_peak_lib.connectors.crm_loyalty.salesforce.auth import (
     SalesforceAuth,
     _TokenEntry,

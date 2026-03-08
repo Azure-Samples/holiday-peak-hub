@@ -7,12 +7,11 @@ from contextvars import ContextVar, Token
 from typing import Awaitable, Callable
 
 from fastapi import Request
+from holiday_peak_lib.connectors.registry import ConnectorRegistry
+from holiday_peak_lib.connectors.tenant_config import TenantConfigStore, normalize_tenant_id
 from pydantic import BaseModel
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse, Response
-
-from holiday_peak_lib.connectors.registry import ConnectorRegistry
-from holiday_peak_lib.connectors.tenant_config import TenantConfigStore, normalize_tenant_id
 
 
 class TenantContext(BaseModel):

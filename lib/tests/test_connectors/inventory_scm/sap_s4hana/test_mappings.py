@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import timezone
 
 import pytest
-
 from holiday_peak_lib.connectors.inventory_scm.sap_s4hana.mappings import (
     _parse_datetime,
     map_material_stock_to_inventory,

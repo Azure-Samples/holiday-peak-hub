@@ -18,7 +18,6 @@ import os
 from typing import Any, Iterable, Optional
 
 import httpx
-
 from holiday_peak_lib.adapters.base import AdapterError, BaseAdapter
 from holiday_peak_lib.connectors.inventory_scm.sap_s4hana.auth import SAPS4HANAAuth
 from holiday_peak_lib.connectors.inventory_scm.sap_s4hana.mappings import (

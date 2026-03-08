@@ -23,7 +23,6 @@ from abc import ABC, abstractmethod
 from typing import Any, Optional
 
 import httpx
-
 from holiday_peak_lib.adapters.base import AdapterError, BaseAdapter
 from holiday_peak_lib.connectors.common.protocols import InventoryData
 from holiday_peak_lib.connectors.inventory_scm.oracle_scm.auth import (

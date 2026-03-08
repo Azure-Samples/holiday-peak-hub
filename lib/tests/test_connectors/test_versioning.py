@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-
 from holiday_peak_lib.connectors.common.versioning import (
     BaseConnectorProtocol,
     FieldSpec,
