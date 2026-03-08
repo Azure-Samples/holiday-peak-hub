@@ -322,3 +322,78 @@ export interface ApiError {
   detail: string;
   status: number;
 }
+
+// Product Truth Layer — core entity types
+
+export interface ProductStyle {
+  id: string;
+  style_id: string;
+  category_id: string;
+  name: string;
+  brand?: string;
+  description?: string;
+  tags: string[];
+  source_system: string;
+  source_id: string;
+  created_at: string;
+  updated_at: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface ProductVariant {
+  id: string;
+  variant_id: string;
+  style_id: string;
+  category_id: string;
+  sku: string;
+  size?: string;
+  color?: string;
+  price?: number;
+  currency: string;
+  inventory_count: number;
+  source_system: string;
+  source_id: string;
+  created_at: string;
+  updated_at: string;
+  attributes: Record<string, unknown>;
+}
+
+export interface TruthAttribute {
+  id: string;
+  entity_id: string;
+  attribute_name: string;
+  attribute_value: unknown;
+  confidence: number;
+  source_system: string;
+  source_id: string;
+  status: 'pending' | 'approved' | 'rejected' | 'superseded';
+  approved_by?: string;
+  approved_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GapReport {
+  id: string;
+  entity_id: string;
+  category_id: string;
+  completeness_score: number;
+  required_missing: string[];
+  optional_missing: string[];
+  computed_at: string;
+}
+
+export interface AssetMetadata {
+  id: string;
+  product_id: string;
+  asset_type: string;
+  url: string;
+  alt_text?: string;
+  width?: number;
+  height?: number;
+  file_size_bytes?: number;
+  source_system: string;
+  source_id: string;
+  created_at: string;
+  metadata: Record<string, unknown>;
+}
