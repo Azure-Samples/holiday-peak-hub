@@ -11,7 +11,6 @@ from datetime import datetime, timezone
 
 import httpx
 import pytest
-
 from holiday_peak_lib.adapters.base import AdapterError
 from holiday_peak_lib.connectors.crm_loyalty.braze.auth import BrazeAuth
 from holiday_peak_lib.connectors.crm_loyalty.braze.connector import BrazeConnector
