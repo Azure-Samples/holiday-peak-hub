@@ -7,6 +7,7 @@ from holiday_peak_lib.config.settings import (
     ServiceSettings,
     TruthLayerSettings,
 )
+from holiday_peak_lib.config.tenant_config import TenantConfig
 
 
 class TestMemorySettings:
@@ -265,3 +266,72 @@ class TestTruthLayerSettings:
 
         assert settings.cosmos_products_container == "products"
         assert settings.enrichment_enabled is True
+
+
+class TestTenantConfig:
+    """Test TenantConfig model."""
+
+    def test_default_values(self):
+        """Verify all defaults match the model definition."""
+        cfg = TenantConfig(tenant_id="t-001")
+        assert cfg.tenant_id == "t-001"
+        assert cfg.auto_approve_threshold == 0.85
+        assert cfg.enrichment_enabled is True
+        assert cfg.writeback_enabled is False
+        assert cfg.default_protocol == "acp"
+        assert cfg.schema_version == "v1"
+        assert cfg.allowed_enrichment_sources == ["ai", "manual"]
+        assert cfg.completeness_weights == {}
+        assert cfg.hitl_required_fields == []
+
+    def test_custom_values(self):
+        """Verify custom construction works."""
+        cfg = TenantConfig(
+            tenant_id="t-002",
+            auto_approve_threshold=0.5,
+            enrichment_enabled=False,
+            writeback_enabled=True,
+            default_protocol="rest",
+            schema_version="v2",
+            allowed_enrichment_sources=["manual"],
+            completeness_weights={"title": 0.3, "description": 0.7},
+            hitl_required_fields=["brand"],
+        )
+        assert cfg.tenant_id == "t-002"
+        assert cfg.auto_approve_threshold == 0.5
+        assert cfg.enrichment_enabled is False
+        assert cfg.writeback_enabled is True
+        assert cfg.default_protocol == "rest"
+        assert cfg.schema_version == "v2"
+        assert cfg.allowed_enrichment_sources == ["manual"]
+        assert cfg.completeness_weights == {"title": 0.3, "description": 0.7}
+        assert cfg.hitl_required_fields == ["brand"]
+
+    def test_boundary_threshold_values(self):
+        """Boundary values 0.0 and 1.0 should be accepted."""
+        assert (
+            TenantConfig(tenant_id="t-003", auto_approve_threshold=0.0).auto_approve_threshold
+            == 0.0
+        )
+        assert (
+            TenantConfig(tenant_id="t-003", auto_approve_threshold=1.0).auto_approve_threshold
+            == 1.0
+        )
+
+    def test_invalid_threshold_rejected(self):
+        """Values outside 0-1 must raise ValidationError."""
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            TenantConfig(tenant_id="t-bad", auto_approve_threshold=-0.1)
+        with pytest.raises(ValidationError):
+            TenantConfig(tenant_id="t-bad", auto_approve_threshold=1.01)
+
+    def test_to_cosmos_document(self):
+        """Verify serialization sets id and partition_key."""
+        cfg = TenantConfig(tenant_id="t-cosmos")
+        doc = cfg.to_cosmos_document()
+        assert doc["id"] == "t-cosmos"
+        assert doc["partition_key"] == "t-cosmos"
+        assert doc["tenant_id"] == "t-cosmos"
+        assert doc["auto_approve_threshold"] == 0.85
