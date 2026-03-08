@@ -6,7 +6,6 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from holiday_peak_lib.utils.truth_event_hub import (
     ENRICHMENT_JOBS_TOPIC,
     EXPORT_JOBS_TOPIC,

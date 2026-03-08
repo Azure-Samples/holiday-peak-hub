@@ -11,9 +11,8 @@ from uuid import uuid4
 from azure.eventhub import EventData
 from azure.eventhub.aio import EventHubConsumerClient, EventHubProducerClient
 from azure.identity.aio import DefaultAzureCredential
-from pydantic import BaseModel, Field
-
 from holiday_peak_lib.utils.logging import configure_logging
+from pydantic import BaseModel, Field
 
 # Canonical topic names — must match Bicep-provisioned Event Hub instances
 INGEST_JOBS_TOPIC = "ingest-jobs"
