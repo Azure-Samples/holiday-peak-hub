@@ -25,7 +25,7 @@ The Python CLI in `.infra/cli.py` is scaffolding-only (`generate-bicep`, `genera
 Use environment-specific entry workflows:
 
 - `.github/workflows/deploy-azd-dev.yml` as the default development path (auto-runs on `main` changes and supports manual dispatch).
-- `.github/workflows/deploy-azd-prod.yml` for production deployments triggered only by stable release tags (`v*.*.*` without pre-release suffixes) that also have a published GitHub Release.
+- `.github/workflows/deploy-azd-prod.yml` for production deployments triggered only by stable release tags (`v*.*.*` without pre-release suffixes) that also have a published GitHub Release and point to a commit reachable from `main`.
 - `.github/workflows/deploy-azd.yml` remains the shared core workflow invoked by both entry workflows.
 
 > Provisioning is mandatory before frontend/backend consumption in any environment. Always run `azd provision` (and then `azd deploy`) before validating APIs or UI integration.
