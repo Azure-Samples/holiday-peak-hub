@@ -65,7 +65,7 @@ POSTGRES_ADMIN_USER="$(get_val POSTGRES_ADMIN_USER)"
 POSTGRES_USER="$(get_val POSTGRES_USER)"
 if [ "$POSTGRES_AUTH_MODE" = "password" ]; then
   POSTGRES_USER="$POSTGRES_ADMIN_USER"
-elif [ -z "$POSTGRES_USER" ]; then
+elif [ -z "$POSTGRES_USER" ] || [ "$POSTGRES_USER" = "$POSTGRES_ADMIN_USER" ] || [ "$POSTGRES_USER" = "crud_admin" ]; then
   AKS_CLUSTER_NAME="$(get_val AZURE_AKS_CLUSTER_NAME)"
   [ -z "$AKS_CLUSTER_NAME" ] && AKS_CLUSTER_NAME="$(get_val AKS_CLUSTER_NAME)"
   [ -z "$AKS_CLUSTER_NAME" ] && AKS_CLUSTER_NAME="$(get_val aksClusterName)"

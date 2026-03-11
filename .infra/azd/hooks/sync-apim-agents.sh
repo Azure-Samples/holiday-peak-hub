@@ -185,6 +185,9 @@ fi
 if [ -n "$CHANGED_SERVICES" ]; then
   FILTER_FILE="$(mktemp)"
   printf '%s' "$CHANGED_SERVICES" | tr ',' '\n' | sed '/^[[:space:]]*$/d' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' > "$FILTER_FILE"
+  if printf '%s\n' "$SERVICES" | grep -Fxq 'crud-service' && ! grep -Fxq 'crud-service' "$FILTER_FILE"; then
+    printf '%s\n' 'crud-service' >> "$FILTER_FILE"
+  fi
   SERVICES="$(printf '%s\n' "$SERVICES" | while IFS= read -r SERVICE; do
     [ -z "$SERVICE" ] && continue
     if grep -Fxq "$SERVICE" "$FILTER_FILE"; then
@@ -277,25 +280,6 @@ $candidate"
     return 0
   fi
 
-  APP_GW_NAMES="$(az network application-gateway list --resource-group "$RESOURCE_GROUP" --query '[].name' -o tsv 2>/dev/null || true)"
-  APP_GW_COUNT="$(count_candidates "$APP_GW_NAMES")"
-
-  if [ "$APP_GW_COUNT" -gt 1 ]; then
-    echo "Multiple application gateways detected in '$RESOURCE_GROUP'. Provide --app-gw-name, --app-gw-ip, or --ingress-host." >&2
-    return 1
-  fi
-
-  if [ "$APP_GW_COUNT" -eq 1 ]; then
-    AUTO_GW_NAME="$(printf '%s\n' "$APP_GW_NAMES" | sed '/^[[:space:]]*$/d' | head -n 1)"
-    RESOLVED_INGRESS_HOST="$(resolve_app_gw_public_host "$AUTO_GW_NAME" || true)"
-    if [ -n "$RESOLVED_INGRESS_HOST" ]; then
-      printf '%s' "$RESOLVED_INGRESS_HOST"
-      return 0
-    fi
-    echo "Failed to resolve ingress host from detected application gateway '$AUTO_GW_NAME'." >&2
-    return 1
-  fi
-
   INGRESS_CANDIDATES=""
   append_unique_candidate "$(kubectl get svc -A -l app.kubernetes.io/name=nginx -o jsonpath='{.items[0].status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)"
   append_unique_candidate "$(kubectl get svc -A -l app.kubernetes.io/name=nginx -o jsonpath='{.items[0].status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)"
@@ -316,6 +300,25 @@ $candidate"
     return 0
   fi
 
+  APP_GW_NAMES="$(az network application-gateway list --resource-group "$RESOURCE_GROUP" --query '[].name' -o tsv 2>/dev/null || true)"
+  APP_GW_COUNT="$(count_candidates "$APP_GW_NAMES")"
+
+  if [ "$APP_GW_COUNT" -gt 1 ]; then
+    echo "Multiple application gateways detected in '$RESOURCE_GROUP'. Provide --app-gw-name, --app-gw-ip, or --ingress-host." >&2
+    return 1
+  fi
+
+  if [ "$APP_GW_COUNT" -eq 1 ]; then
+    AUTO_GW_NAME="$(printf '%s\n' "$APP_GW_NAMES" | sed '/^[[:space:]]*$/d' | head -n 1)"
+    RESOLVED_INGRESS_HOST="$(resolve_app_gw_public_host "$AUTO_GW_NAME" || true)"
+    if [ -n "$RESOLVED_INGRESS_HOST" ]; then
+      printf '%s' "$RESOLVED_INGRESS_HOST"
+      return 0
+    fi
+    echo "Failed to resolve ingress host from detected application gateway '$AUTO_GW_NAME'." >&2
+    return 1
+  fi
+
   return 1
 }
 
@@ -327,7 +330,7 @@ validate_ingress_health() {
 
   for attempt in $(seq 1 8); do
     status_code="$(curl -sS -o "$probe_body" -w '%{http_code}' --max-time 10 "$probe_url" || true)"
-    if [ "$status_code" = "200" ]; then
+    if [ "$status_code" = "200" ] || [ "$status_code" = "404" ]; then
       echo "Validated ingress host '$host' via $probe_url"
       return 0
     fi

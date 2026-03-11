@@ -96,7 +96,7 @@ $postgresUser = First-Value -Map $values -Keys @('POSTGRES_USER')
 if ($postgresAuthMode -eq 'password') {
     $postgresUser = $postgresAdminUser
 }
-elseif (-not $postgresUser) {
+elseif (-not $postgresUser -or $postgresUser -eq $postgresAdminUser -or $postgresUser -eq 'crud_admin') {
     $aksClusterName = First-Value -Map $values -Keys @('AZURE_AKS_CLUSTER_NAME', 'AKS_CLUSTER_NAME', 'aksClusterName')
     if ($aksClusterName) {
         $postgresUser = "$aksClusterName-agentpool"
