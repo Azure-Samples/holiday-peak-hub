@@ -14,7 +14,7 @@ on:
       projectName:
         description: Project prefix used by naming convention
         required: true
-        default: holidaypeakhub405
+        default: holidaypeakhub
       imageTag:
         description: Image tag to deploy
         required: true
@@ -48,74 +48,6 @@ on:
         required: true
         type: boolean
         default: false
-      autoAllowAcrRunnerIp:
-        description: Temporarily allow this GitHub runner egress IP in ACR firewall during deploy and remove it afterward
-        required: true
-        type: boolean
-        default: true
-  workflow_call:
-    inputs:
-      environment:
-        description: Deployment environment name (for azd -e)
-        required: true
-        type: string
-      location:
-        description: Azure location
-        required: true
-        type: string
-      projectName:
-        description: Project prefix used by naming convention
-        required: true
-        type: string
-      imageTag:
-        description: Image tag to deploy
-        required: false
-        type: string
-        default: latest
-      deployStatic:
-        description: Provision static web app resources
-        required: false
-        type: boolean
-        default: true
-      uiOnly:
-        description: Deploy only the UI using SWA token (skips provision and Azure login jobs)
-        required: false
-        type: boolean
-        default: false
-      apiBaseUrl:
-        description: Optional API base URL for UI build override
-        required: false
-        type: string
-        default: ''
-      seedDemoData:
-        description: Run demo faker seed job after deployment (non-prod only)
-        required: false
-        type: boolean
-        default: true
-      deployChangedOnly:
-        description: Legacy flag (changed-app-only deployment is always enforced)
-        required: false
-        type: boolean
-        default: true
-      forceApimSync:
-        description: Force APIM sync and smoke checks even when no changed services are detected
-        required: false
-        type: boolean
-        default: false
-      autoAllowAcrRunnerIp:
-        description: Temporarily allow this GitHub runner egress IP in ACR firewall during deploy and remove it afterward
-        required: false
-        type: boolean
-        default: true
-    secrets:
-      AZURE_CLIENT_ID:
-        required: true
-      AZURE_TENANT_ID:
-        required: true
-      AZURE_SUBSCRIPTION_ID:
-        required: true
-      SWA_DEPLOYMENT_TOKEN:
-        required: false
 
 permissions:
   id-token: write
@@ -518,29 +450,20 @@ jobs:
           set -euo pipefail
 
           BICEP_FILE=".infra/modules/shared-infrastructure/shared-infrastructure.bicep"
-          MISSING=0
 
           for hub in ingest-jobs enrichment-jobs export-jobs hitl-jobs; do
             if ! grep -q "'$hub'" "$BICEP_FILE"; then
               echo "Missing required truth Event Hub declaration in $BICEP_FILE: $hub" >&2
-              MISSING=1
+              exit 1
             fi
           done
 
           for group in ingestion-group enrichment-engine export-engine hitl-service; do
             if ! grep -q "'$group'" "$BICEP_FILE"; then
               echo "Missing required truth consumer group declaration in $BICEP_FILE: $group" >&2
-              MISSING=1
-            fi
-          done
-
-          if [ "$MISSING" -ne 0 ]; then
-            if [ "${{ inputs.environment }}" = "prod" ] || [ "${{ inputs.environment }}" = "production" ]; then
-              echo "Truth Event Hub IaC validation failed in production environment." >&2
               exit 1
             fi
-            echo "Proceeding despite truth Event Hub IaC declaration warnings in non-production environment." >&2
-          fi
+          done
 
           echo "Truth Event Hub and consumer group declarations are present in IaC."
 
@@ -734,7 +657,6 @@ jobs:
           exit 1
 
       - name: Preflight ACR data-plane accessibility
-        id: acr_preflight
         shell: bash
         run: |
           set -euo pipefail
@@ -757,9 +679,6 @@ jobs:
 
           if [ "$STATUS_CODE" = "200" ] || [ "$STATUS_CODE" = "401" ]; then
             echo "ACR preflight passed: ${ACR_LOGIN_SERVER} is reachable from this runner (HTTP $STATUS_CODE)."
-            echo "runner_ip=" >> "$GITHUB_OUTPUT"
-            echo "acr_name=${ACR_NAME}" >> "$GITHUB_OUTPUT"
-            echo "rg_name=${RG_NAME}" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -770,23 +689,8 @@ jobs:
           fi
           if [ -n "$RUNNER_IP" ]; then
             echo "Runner egress IP detected: $RUNNER_IP" >&2
-            if [ "${{ inputs.autoAllowAcrRunnerIp }}" = "true" ] && [ "$STATUS_CODE" = "403" ]; then
-              echo "Temporarily allowing runner IP on ACR firewall for this deploy run..."
-              az acr network-rule add --name "$ACR_NAME" --resource-group "$RG_NAME" --ip-address "$RUNNER_IP" >/dev/null
-              echo "runner_ip=${RUNNER_IP}" >> "$GITHUB_OUTPUT"
-              echo "acr_name=${ACR_NAME}" >> "$GITHUB_OUTPUT"
-              echo "rg_name=${RG_NAME}" >> "$GITHUB_OUTPUT"
-              sleep 15
-              RETRY_CODE=$(curl -sS -o /tmp/acr-v2-probe-retry.txt -w "%{http_code}" --max-time 25 "https://${ACR_LOGIN_SERVER}/v2/" || true)
-              if [ "$RETRY_CODE" = "200" ] || [ "$RETRY_CODE" = "401" ]; then
-                echo "ACR preflight passed after temporary runner IP allowlist (HTTP $RETRY_CODE)."
-                exit 0
-              fi
-              echo "ACR preflight still failing after temporary allowlist (HTTP $RETRY_CODE)." >&2
-            else
-              echo "Action: allow this IP (or CIDR) on ACR '$ACR_NAME' or use a self-hosted runner in an allowed network." >&2
-              echo "Example: az acr network-rule add --name '$ACR_NAME' --resource-group '$RG_NAME' --ip-address '$RUNNER_IP'" >&2
-            fi
+            echo "Action: allow this IP (or CIDR) on ACR '$ACR_NAME' or use a self-hosted runner in an allowed network." >&2
+            echo "Example: az acr network-rule add --name '$ACR_NAME' --resource-group '$RG_NAME' --ip-address '$RUNNER_IP'" >&2
           else
             echo "Action: check ACR firewall/network rules for GitHub runner egress and retry." >&2
           fi
@@ -811,19 +715,6 @@ jobs:
             kubectl get ingress -n holiday-peak -o wide || true
             kubectl get pods -n app-routing-system -o wide || true
             kubectl get pods -n ingress-nginx -o wide || true
-            echo "Collecting CRUD rollout diagnostics..."
-            kubectl -n holiday-peak get deployment crud-service-crud-service -o wide || true
-            kubectl -n holiday-peak describe deployment crud-service-crud-service || true
-            kubectl -n holiday-peak get rs -l app=crud-service -o wide || true
-            kubectl -n holiday-peak get pods -l app=crud-service -o wide || true
-            kubectl -n holiday-peak get events --sort-by='.lastTimestamp' | tail -n 120 || true
-
-            NEW_POD=$(kubectl -n holiday-peak get pods -l app=crud-service --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1:].metadata.name}' 2>/dev/null || true)
-            if [ -n "$NEW_POD" ]; then
-              kubectl -n holiday-peak describe pod "$NEW_POD" || true
-              kubectl -n holiday-peak logs "$NEW_POD" --tail=200 || true
-              kubectl -n holiday-peak logs "$NEW_POD" --previous --tail=200 || true
-            fi
 
             if [ "$attempt" -eq "$max_attempts" ]; then
               echo "CRUD deploy failed after ${max_attempts} attempts." >&2
@@ -835,7 +726,6 @@ jobs:
             sleep "$backoff"
           done
         env:
-          DEPLOY_ENV: ${{ inputs.environment }}
           INGRESS_CLASS_NAME: ${{ env.INGRESS_CLASS_NAME }}
           AZURE_CLIENT_ID: ${{ env.WORKLOAD_AZURE_CLIENT_ID }}
           AZURE_TENANT_ID: ${{ env.AZURE_TENANT_ID }}
@@ -908,17 +798,6 @@ jobs:
             cat /tmp/crud-port-forward.log 2>/dev/null || true
             exit 1
           fi
-
-      - name: Cleanup temporary ACR runner IP allowlist
-        if: ${{ always() && inputs.autoAllowAcrRunnerIp && steps.acr_preflight.outputs.runner_ip != '' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          az acr network-rule remove \
-            --name "${{ steps.acr_preflight.outputs.acr_name }}" \
-            --resource-group "${{ steps.acr_preflight.outputs.rg_name }}" \
-            --ip-address "${{ steps.acr_preflight.outputs.runner_ip }}" >/dev/null || true
-          echo "Removed temporary ACR firewall rule for runner IP ${{ steps.acr_preflight.outputs.runner_ip }}."
 
   deploy-ui:
     runs-on: ubuntu-latest
@@ -1276,7 +1155,7 @@ jobs:
 
   deploy-agents:
     runs-on: ubuntu-latest
-    if: ${{ !inputs.uiOnly && needs.detect-changes.outputs.agents_changed == 'true' && (needs.deploy-crud.result == 'success' || needs.deploy-crud.result == 'skipped') }}
+    if: ${{ !inputs.uiOnly && needs.detect-changes.outputs.agents_changed == 'true' }}
     needs:
       - provision
       - deploy-crud
@@ -1327,53 +1206,9 @@ jobs:
             --query "identityProfile.kubeletidentity.clientId" -o tsv)
           echo "WORKLOAD_AZURE_CLIENT_ID=${AKS_MI_CLIENT_ID}" >> "$GITHUB_ENV"
 
-      - name: Preflight ACR data-plane accessibility
-        id: acr_preflight_agents
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          RG_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
-          ACR_NAME=$(echo "${{ inputs.projectName }}${{ inputs.environment }}acr" | tr -cd '[:alnum:]' | tr '[:upper:]' '[:lower:]')
-
-          if ! az acr show --resource-group "$RG_NAME" --name "$ACR_NAME" >/dev/null 2>&1; then
-            echo "ACR preflight could not find registry '$ACR_NAME' in resource group '$RG_NAME'." >&2
-            exit 1
-          fi
-
-          ACR_LOGIN_SERVER=$(az acr show \
-            --resource-group "$RG_NAME" \
-            --name "$ACR_NAME" \
-            --query "loginServer" -o tsv)
-
-          STATUS_CODE=$(curl -sS -o /tmp/acr-v2-probe-agents.txt -w "%{http_code}" --max-time 25 "https://${ACR_LOGIN_SERVER}/v2/" || true)
-          if [ "$STATUS_CODE" = "200" ] || [ "$STATUS_CODE" = "401" ]; then
-            echo "runner_ip=" >> "$GITHUB_OUTPUT"
-            echo "acr_name=${ACR_NAME}" >> "$GITHUB_OUTPUT"
-            echo "rg_name=${RG_NAME}" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          RUNNER_IP=$(curl -sS --max-time 10 https://api.ipify.org || true)
-          if [ -n "$RUNNER_IP" ] && [ "${{ inputs.autoAllowAcrRunnerIp }}" = "true" ] && [ "$STATUS_CODE" = "403" ]; then
-            az acr network-rule add --name "$ACR_NAME" --resource-group "$RG_NAME" --ip-address "$RUNNER_IP" >/dev/null
-            echo "runner_ip=${RUNNER_IP}" >> "$GITHUB_OUTPUT"
-            echo "acr_name=${ACR_NAME}" >> "$GITHUB_OUTPUT"
-            echo "rg_name=${RG_NAME}" >> "$GITHUB_OUTPUT"
-            sleep 15
-            RETRY_CODE=$(curl -sS -o /tmp/acr-v2-probe-agents-retry.txt -w "%{http_code}" --max-time 25 "https://${ACR_LOGIN_SERVER}/v2/" || true)
-            if [ "$RETRY_CODE" = "200" ] || [ "$RETRY_CODE" = "401" ]; then
-              exit 0
-            fi
-          fi
-
-          echo "ACR preflight failed for deploy-agents path (HTTP $STATUS_CODE)." >&2
-          exit 1
-
       - name: Deploy service
         run: azd deploy --service "${{ matrix.service }}" --no-prompt -e "${{ inputs.environment }}"
         env:
-          DEPLOY_ENV: ${{ inputs.environment }}
           AZURE_CLIENT_ID: ${{ env.WORKLOAD_AZURE_CLIENT_ID }}
           AZURE_TENANT_ID: ${{ env.AZURE_TENANT_ID }}
           PROJECT_ENDPOINT: ${{ needs.provision.outputs.PROJECT_ENDPOINT }}
@@ -1392,16 +1227,6 @@ jobs:
           POSTGRES_HOST: ${{ needs.provision.outputs.POSTGRES_HOST }}
           POSTGRES_USER: ${{ needs.provision.outputs.POSTGRES_AUTH_MODE == 'password' && needs.provision.outputs.POSTGRES_ADMIN_USER || needs.provision.outputs.POSTGRES_USER }}
           POSTGRES_DATABASE: ${{ needs.provision.outputs.POSTGRES_DATABASE }}
-
-      - name: Cleanup temporary ACR runner IP allowlist (agents)
-        if: ${{ always() && inputs.autoAllowAcrRunnerIp && steps.acr_preflight_agents.outputs.runner_ip != '' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          az acr network-rule remove \
-            --name "${{ steps.acr_preflight_agents.outputs.acr_name }}" \
-            --resource-group "${{ steps.acr_preflight_agents.outputs.rg_name }}" \
-            --ip-address "${{ steps.acr_preflight_agents.outputs.runner_ip }}" >/dev/null || true
 
   sync-apim:
     runs-on: ubuntu-latest
@@ -1706,3 +1531,4 @@ jobs:
 
           kubectl wait --for=condition=complete "job/${JOB_NAME}" -n holiday-peak --timeout=10m
           kubectl logs "job/${JOB_NAME}" -n holiday-peak
+

@@ -15,6 +15,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import asyncpg
+from azure.identity.aio import DefaultAzureCredential
 
 # ---------------------------------------------------------------------------
 # Curated retail catalog data
@@ -1529,6 +1530,29 @@ def _build_dsn() -> str:
     )
 
 
+async def _connect_with_entra() -> tuple[asyncpg.Connection, DefaultAzureCredential]:
+    postgres_host = _required_env("POSTGRES_HOST")
+    postgres_user = _required_env("POSTGRES_USER")
+    postgres_database = os.getenv("POSTGRES_DATABASE", "holiday_peak_crud")
+    postgres_port = int(os.getenv("POSTGRES_PORT", "5432"))
+    postgres_ssl = os.getenv("POSTGRES_SSL", "true").lower() == "true"
+    postgres_entra_scope = os.getenv(
+        "POSTGRES_ENTRA_SCOPE", "https://ossrdbms-aad.database.windows.net/.default"
+    )
+
+    credential = DefaultAzureCredential()
+    token = await credential.get_token(postgres_entra_scope)
+    conn = await asyncpg.connect(
+        host=postgres_host,
+        port=postgres_port,
+        user=postgres_user,
+        password=token.token,
+        database=postgres_database,
+        ssl="require" if postgres_ssl else None,
+    )
+    return conn, credential
+
+
 async def _ensure_table(conn: asyncpg.Connection, table_name: str) -> None:
     await conn.execute(f"""
         CREATE TABLE IF NOT EXISTS {table_name} (
@@ -1572,9 +1596,14 @@ async def _upsert_item(
 
 async def main() -> None:
     environment = os.getenv("DEMO_ENVIRONMENT", "dev")
+    postgres_auth_mode = os.getenv("POSTGRES_AUTH_MODE", "password").strip().lower()
 
-    dsn = _build_dsn()
-    conn = await asyncpg.connect(dsn)
+    credential: DefaultAzureCredential | None = None
+    if postgres_auth_mode == "entra":
+        conn, credential = await _connect_with_entra()
+    else:
+        dsn = _build_dsn()
+        conn = await asyncpg.connect(dsn)
     rng = random.Random(42)
 
     try:
@@ -1857,6 +1886,8 @@ async def main() -> None:
         )
     finally:
         await conn.close()
+        if credential is not None:
+            await credential.close()
 
 
 if __name__ == "__main__":

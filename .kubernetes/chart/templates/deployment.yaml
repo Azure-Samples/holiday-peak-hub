@@ -11,8 +11,8 @@ spec:
     type: {{ .Values.availability.strategy.type | default "RollingUpdate" }}
     {{- if and (eq (.Values.availability.strategy.type | default "RollingUpdate") "RollingUpdate") .Values.availability.rollingUpdate }}
     rollingUpdate:
-      maxUnavailable: {{ .Values.availability.rollingUpdate.maxUnavailable | default "25%" | quote }}
-      maxSurge: {{ .Values.availability.rollingUpdate.maxSurge | default "25%" | quote }}
+      maxUnavailable: {{ .Values.availability.rollingUpdate.maxUnavailable | default "25%" }}
+      maxSurge: {{ .Values.availability.rollingUpdate.maxSurge | default "25%" }}
     {{- end }}
   {{- end }}
   selector:
@@ -108,8 +108,8 @@ spec:
     type: {{ .Values.availability.strategy.type | default "RollingUpdate" }}
     {{- if and (eq (.Values.availability.strategy.type | default "RollingUpdate") "RollingUpdate") .Values.availability.rollingUpdate }}
     rollingUpdate:
-      maxUnavailable: {{ .Values.availability.rollingUpdate.maxUnavailable | default "25%" | quote }}
-      maxSurge: {{ .Values.availability.rollingUpdate.maxSurge | default "25%" | quote }}
+      maxUnavailable: {{ .Values.availability.rollingUpdate.maxUnavailable | default "25%" }}
+      maxSurge: {{ .Values.availability.rollingUpdate.maxSurge | default "25%" }}
     {{- end }}
   {{- end }}
   selector:

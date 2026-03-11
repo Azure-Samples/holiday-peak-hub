@@ -53,19 +53,30 @@ function Get-EnvFromDeployment {
 $postgresHost = Get-EnvFromDeployment -Deployment $deploymentName -Namespace $Namespace -Name 'POSTGRES_HOST'
 $postgresUser = Get-EnvFromDeployment -Deployment $deploymentName -Namespace $Namespace -Name 'POSTGRES_USER'
 $postgresPassword = Get-EnvFromDeployment -Deployment $deploymentName -Namespace $Namespace -Name 'POSTGRES_PASSWORD'
+$postgresAuthMode = Get-EnvFromDeployment -Deployment $deploymentName -Namespace $Namespace -Name 'POSTGRES_AUTH_MODE'
+$postgresEntraScope = Get-EnvFromDeployment -Deployment $deploymentName -Namespace $Namespace -Name 'POSTGRES_ENTRA_SCOPE'
 $postgresDatabase = Get-EnvFromDeployment -Deployment $deploymentName -Namespace $Namespace -Name 'POSTGRES_DATABASE'
 $postgresPort = Get-EnvFromDeployment -Deployment $deploymentName -Namespace $Namespace -Name 'POSTGRES_PORT'
 $postgresSsl = Get-EnvFromDeployment -Deployment $deploymentName -Namespace $Namespace -Name 'POSTGRES_SSL'
 
+if (-not $postgresAuthMode) { $postgresAuthMode = 'password' }
 if (-not $postgresDatabase) { $postgresDatabase = 'holiday_peak_crud' }
 if (-not $postgresPort) { $postgresPort = '5432' }
 if (-not $postgresSsl) { $postgresSsl = 'true' }
+if (-not $postgresEntraScope) { $postgresEntraScope = 'https://ossrdbms-aad.database.windows.net/.default' }
 
-if (-not $postgresHost -or -not $postgresUser -or -not $postgresPassword) {
-  $message = 'Missing PostgreSQL environment values from CRUD deployment (POSTGRES_HOST/POSTGRES_USER/POSTGRES_PASSWORD).'
-  if ($FailOnError) { throw $message }
-  Write-Warning $message
-  exit 0
+if ($postgresAuthMode -eq 'entra') {
+  if (-not $postgresHost -or -not $postgresUser) {
+    $message = 'Missing PostgreSQL environment values from CRUD deployment (POSTGRES_HOST/POSTGRES_USER).'
+    if ($FailOnError) { throw $message }
+    Write-Warning $message
+    exit 0
+  }
+} elseif (-not $postgresHost -or -not $postgresUser -or -not $postgresPassword) {
+    $message = 'Missing PostgreSQL environment values from CRUD deployment (POSTGRES_HOST/POSTGRES_USER/POSTGRES_PASSWORD).'
+    if ($FailOnError) { throw $message }
+    Write-Warning $message
+    exit 0
 }
 
 $crudPod = kubectl get pod -n $Namespace -l app=crud-service -o jsonpath="{.items[0].metadata.name}" 2>$null
@@ -76,7 +87,7 @@ if (-not $crudPod) {
   exit 0
 }
 
-$connectCheck = kubectl exec -n $Namespace $crudPod -- sh -lc 'python - <<"PY"
+kubectl exec -n $Namespace $crudPod -- sh -lc 'python - <<"PY"
 import os, socket, sys
 host = os.getenv("POSTGRES_HOST")
 port = int(os.getenv("POSTGRES_PORT", "5432"))
@@ -111,6 +122,15 @@ spec:
   template:
     spec:
       restartPolicy: Never
+      tolerations:
+        - key: workload
+          operator: Equal
+          value: crud
+          effect: NoSchedule
+        - key: workload
+          operator: Equal
+          value: agents
+          effect: NoSchedule
       containers:
         - name: seed
           image: $crudImage
@@ -119,6 +139,10 @@ spec:
           env:
             - name: DEMO_ENVIRONMENT
               value: "$EnvironmentName"
+            - name: POSTGRES_AUTH_MODE
+              value: "$postgresAuthMode"
+            - name: POSTGRES_ENTRA_SCOPE
+              value: "$postgresEntraScope"
             - name: POSTGRES_HOST
               value: "$postgresHost"
             - name: POSTGRES_USER

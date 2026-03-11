@@ -10,7 +10,7 @@ on:
       projectName:
         description: Project prefix used by naming convention
         required: true
-        default: holidaypeakhub
+        default: holidaypeakhub405
       apiUrl:
         description: Optional API base URL override (must match APIM gateway URL for drift safety)
         required: false

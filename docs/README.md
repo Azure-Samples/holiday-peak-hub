@@ -20,9 +20,13 @@ Per-app run and test scripts are available under [scripts](scripts). These scrip
 Provisioning and deployment use the azd project defined in `azure.yaml`.
 The Python CLI in `.infra/cli.py` is scaffolding-only (`generate-bicep`, `generate-dockerfile`).
 
-### Production Deployment Runbook (GitHub Actions + azd)
+### Deployment Runbook (GitHub Actions + azd)
 
-Use workflow `.github/workflows/deploy-azd.yml` for ordered production rollout.
+Use environment-specific entry workflows:
+
+- `.github/workflows/deploy-azd-dev.yml` for routine development deployments.
+- `.github/workflows/deploy-azd-prod.yml` for production deployments with an explicit confirmation gate.
+- `.github/workflows/deploy-azd.yml` remains the shared core workflow invoked by both entry workflows.
 
 > Provisioning is mandatory before frontend/backend consumption in any environment. Always run `azd provision` (and then `azd deploy`) before validating APIs or UI integration.
 
@@ -32,36 +36,57 @@ Use workflow `.github/workflows/deploy-azd.yml` for ordered production rollout.
 - `AZURE_TENANT_ID`
 - `AZURE_SUBSCRIPTION_ID`
 
-**Workflow inputs**:
+**Core workflow inputs**:
 
 - `environment` (azd env name, e.g. `dev`, `staging`, `prod`)
 - `location` (Azure region)
-- `projectName` (naming prefix, default `holidaypeakhub`)
+- `projectName` (naming prefix, default `holidaypeakhub405`)
 - `imageTag` (container image tag to deploy)
 - `deployStatic` (boolean to provision Static Web App resources)
 - `seedDemoData` (boolean to run or skip demo faker seeding in non-prod)
 
 **Manual trigger examples**:
 
+- Day-to-day development rollout (recommended default):
+
+```bash
+gh workflow run deploy-azd-dev.yml -f location=eastus2 -f projectName=holidaypeakhub405 -f imageTag=latest -f deployStatic=true -f seedDemoData=true -f autoAllowAcrRunnerIp=true
+```
+
+- Fast development rerun without reseeding:
+
+```bash
+gh workflow run deploy-azd-dev.yml -f location=eastus2 -f projectName=holidaypeakhub405 -f imageTag=latest -f deployStatic=true -f seedDemoData=false -f autoAllowAcrRunnerIp=true
+```
+
+- Production rollout (requires explicit confirmation token):
+
+```bash
+gh workflow run deploy-azd-prod.yml -f location=eastus2 -f projectName=holidaypeakhub405 -f imageTag=latest -f deployStatic=true -f forceApimSync=true -f confirmProduction=DEPLOY_PROD
+```
+
+- Direct core workflow invocation (advanced/legacy path):
+
 - Full non-prod demo rollout with seeding (default):
 
 ```bash
-gh workflow run deploy-azd.yml -f environment=dev -f location=eastus2 -f projectName=holidaypeakhub -f imageTag=latest -f deployStatic=true -f seedDemoData=true
+gh workflow run deploy-azd.yml -f environment=dev -f location=eastus2 -f projectName=holidaypeakhub405 -f imageTag=latest -f deployStatic=true -f seedDemoData=true
 ```
 
 - Fast non-prod rerun without reseeding:
 
 ```bash
-gh workflow run deploy-azd.yml -f environment=dev -f location=eastus2 -f projectName=holidaypeakhub -f imageTag=latest -f deployStatic=true -f seedDemoData=false
+gh workflow run deploy-azd.yml -f environment=dev -f location=eastus2 -f projectName=holidaypeakhub405 -f imageTag=latest -f deployStatic=true -f seedDemoData=false
 ```
 
 **Execution order**:
 
 1. `provision` job: sets azd env values and runs `azd provision`.
-2. `deploy-crud` job: fetches AKS credentials and deploys `crud-service` first.
-3. `deploy-ui` job (when `deployStatic=true`): resolves APIM URL with fail-fast validation, fetches the SWA deployment token from Azure, and deploys `apps/ui` via `Azure/static-web-apps-deploy@v1` (framework-aware build for dynamic Next.js routes).
-4. `deploy-agents` job: deploys 21 agent services in parallel matrix.
-5. `seed-demo-data` job (non-prod only, when `seedDemoData=true`): runs a Kubernetes Job in `holiday-peak` that executes `python -m crud_service.scripts.seed_demo_data` from the deployed CRUD image to populate demo categories/products.
+2. `deploy-crud` job: deploys `crud-service` when CRUD/lib changes are detected.
+3. `deploy-foundry-models` and `deploy-agents` jobs: run after provision; `deploy-agents` deploys changed agent services (and can proceed when `deploy-crud` is skipped for agent-only changes).
+4. `sync-apim` and `smoke-apim` jobs: run when CRUD/agent changes are present or `forceApimSync=true`.
+5. `deploy-ui` job (when `deployStatic=true`): runs after APIM sync/smoke gates, resolves APIM URL with fail-fast validation, fetches the SWA deployment token from Azure, and deploys `apps/ui` via `Azure/static-web-apps-deploy@v1` (framework-aware build for dynamic Next.js routes).
+6. `seed-demo-data` job (non-prod only, when `seedDemoData=true`): runs after deploy gates and executes a Kubernetes Job in `holiday-peak` (`python -m crud_service.scripts.seed_demo_data`) to populate demo categories/products.
 
 **Operational notes**:
 
@@ -214,6 +239,7 @@ az acr update -n <acrName> --public-network-enabled false
   - 31 REST endpoints, authentication, event publishing
   - Database schemas, deployment guides
   - Frontend integration examples
+- **[Single RG Deployment Runbook](implementation/single-rg-deployment-runbook.md)** - Fast provision/recover/deprovision operations for `holidaypeakhub405-dev-rg`
 
 ### Architecture Documentation
 
