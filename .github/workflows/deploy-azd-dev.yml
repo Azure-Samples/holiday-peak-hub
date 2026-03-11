@@ -1,4 +1,4 @@
-name: deploy-azd-dev
+name: deploy-azd-dev (entrypoint)
 
 on:
   workflow_dispatch:
@@ -24,7 +24,7 @@ on:
         description: Deploy only the UI using SWA token (skips provision and Azure login jobs)
         required: true
         type: boolean
-        default: false
+        default: true
       apiBaseUrl:
         description: Optional API base URL for UI build override
         required: false
@@ -64,4 +64,8 @@ jobs:
       deployChangedOnly: true
       forceApimSync: ${{ inputs.forceApimSync }}
       autoAllowAcrRunnerIp: ${{ inputs.autoAllowAcrRunnerIp }}
-    secrets: inherit
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      SWA_DEPLOYMENT_TOKEN: ${{ secrets.SWA_DEPLOYMENT_TOKEN }}

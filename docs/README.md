@@ -36,14 +36,10 @@ Use environment-specific entry workflows:
 - `AZURE_TENANT_ID`
 - `AZURE_SUBSCRIPTION_ID`
 
-**Core workflow inputs**:
+**Entry workflow inputs**:
 
-- `environment` (azd env name, e.g. `dev`, `staging`, `prod`)
-- `location` (Azure region)
-- `projectName` (naming prefix, default `holidaypeakhub405`)
-- `imageTag` (container image tag to deploy)
-- `deployStatic` (boolean to provision Static Web App resources)
-- `seedDemoData` (boolean to run or skip demo faker seeding in non-prod)
+- Dev entrypoint (`deploy-azd-dev.yml`): `location`, `projectName`, `imageTag`, `deployStatic`, `uiOnly`, `apiBaseUrl`, `seedDemoData`, `forceApimSync`, `autoAllowAcrRunnerIp`.
+- Prod entrypoint (`deploy-azd-prod.yml`): `location`, `projectName`, `imageTag`, `deployStatic`, `confirmProduction`.
 
 **Manual trigger examples**:
 
@@ -62,22 +58,10 @@ gh workflow run deploy-azd-dev.yml -f location=eastus2 -f projectName=holidaypea
 - Production rollout (requires explicit confirmation token):
 
 ```bash
-gh workflow run deploy-azd-prod.yml -f location=eastus2 -f projectName=holidaypeakhub405 -f imageTag=latest -f deployStatic=true -f forceApimSync=true -f confirmProduction=DEPLOY_PROD
+gh workflow run deploy-azd-prod.yml -f location=eastus2 -f projectName=holidaypeakhub405 -f imageTag=latest -f deployStatic=true -f confirmProduction=DEPLOY_PROD
 ```
 
-- Direct core workflow invocation (advanced/legacy path):
-
-- Full non-prod demo rollout with seeding (default):
-
-```bash
-gh workflow run deploy-azd.yml -f environment=dev -f location=eastus2 -f projectName=holidaypeakhub405 -f imageTag=latest -f deployStatic=true -f seedDemoData=true
-```
-
-- Fast non-prod rerun without reseeding:
-
-```bash
-gh workflow run deploy-azd.yml -f environment=dev -f location=eastus2 -f projectName=holidaypeakhub405 -f imageTag=latest -f deployStatic=true -f seedDemoData=false
-```
+Core workflow note: `.github/workflows/deploy-azd.yml` is reusable-only and not intended for direct manual dispatch.
 
 **Execution order**:
 

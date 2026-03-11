@@ -1,58 +1,6 @@
-name: deploy-azd
+name: deploy-azd-core (reusable)
 
 on:
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: Deployment environment name (for azd -e)
-        required: true
-        default: dev
-      location:
-        description: Azure location
-        required: true
-        default: centralus
-      projectName:
-        description: Project prefix used by naming convention
-        required: true
-        default: holidaypeakhub405
-      imageTag:
-        description: Image tag to deploy
-        required: true
-        default: latest
-      deployStatic:
-        description: Provision static web app resources
-        required: true
-        type: boolean
-        default: true
-      uiOnly:
-        description: Deploy only the UI using SWA token (skips provision and Azure login jobs)
-        required: true
-        type: boolean
-        default: false
-      apiBaseUrl:
-        description: Optional API base URL for UI build override
-        required: false
-        default: ''
-      seedDemoData:
-        description: Run demo faker seed job after deployment (non-prod only)
-        required: true
-        type: boolean
-        default: true
-      deployChangedOnly:
-        description: Legacy flag (changed-app-only deployment is always enforced)
-        required: true
-        type: boolean
-        default: true
-      forceApimSync:
-        description: Force APIM sync and smoke checks even when no changed services are detected
-        required: true
-        type: boolean
-        default: false
-      autoAllowAcrRunnerIp:
-        description: Temporarily allow this GitHub runner egress IP in ACR firewall during deploy and remove it afterward
-        required: true
-        type: boolean
-        default: true
   workflow_call:
     inputs:
       environment:
@@ -1083,8 +1031,8 @@ jobs:
         env:
           NEXT_PUBLIC_API_URL: ${{ steps.api.outputs.api_url }}
           NEXT_PUBLIC_CRUD_API_URL: ${{ steps.api.outputs.crud_api_url }}
-          NEXT_PUBLIC_ENTRA_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_ENTRA_CLIENT_ID }}
-          NEXT_PUBLIC_ENTRA_TENANT_ID: ${{ secrets.NEXT_PUBLIC_ENTRA_TENANT_ID }}
+          NEXT_PUBLIC_ENTRA_CLIENT_ID: ${{ vars.NEXT_PUBLIC_ENTRA_CLIENT_ID }}
+          NEXT_PUBLIC_ENTRA_TENANT_ID: ${{ vars.NEXT_PUBLIC_ENTRA_TENANT_ID }}
 
       - name: Smoke test UI host and API health after deploy
         shell: bash
@@ -1248,8 +1196,8 @@ jobs:
         env:
           NEXT_PUBLIC_API_URL: ${{ steps.api.outputs.api_url }}
           NEXT_PUBLIC_CRUD_API_URL: ${{ steps.api.outputs.crud_api_url }}
-          NEXT_PUBLIC_ENTRA_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_ENTRA_CLIENT_ID }}
-          NEXT_PUBLIC_ENTRA_TENANT_ID: ${{ secrets.NEXT_PUBLIC_ENTRA_TENANT_ID }}
+          NEXT_PUBLIC_ENTRA_CLIENT_ID: ${{ vars.NEXT_PUBLIC_ENTRA_CLIENT_ID }}
+          NEXT_PUBLIC_ENTRA_TENANT_ID: ${{ vars.NEXT_PUBLIC_ENTRA_TENANT_ID }}
 
       - name: Smoke test API health after UI-only deploy
         shell: bash
@@ -1623,7 +1571,7 @@ jobs:
       - smoke-apim
       - ensure-foundry-agents
       - deploy-ui
-    if: ${{ always() && inputs.seedDemoData && needs.ensure-foundry-agents.result == 'success' && (needs.smoke-apim.result == 'success' || needs.smoke-apim.result == 'skipped') && (needs.deploy-ui.result == 'success' || needs.deploy-ui.result == 'skipped') && inputs.environment != 'prod' && inputs.environment != 'production' }}
+    if: ${{ always() && inputs.seedDemoData && (needs.ensure-foundry-agents.result == 'success' || needs.ensure-foundry-agents.result == 'skipped') && (needs.smoke-apim.result == 'success' || needs.smoke-apim.result == 'skipped') && (needs.deploy-ui.result == 'success' || needs.deploy-ui.result == 'skipped') && inputs.environment != 'prod' && inputs.environment != 'production' }}
     environment: ${{ inputs.environment }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}

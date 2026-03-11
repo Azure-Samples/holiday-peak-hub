@@ -1,4 +1,4 @@
-name: deploy-azd-prod
+name: deploy-azd-prod (entrypoint)
 
 on:
   workflow_dispatch:
@@ -17,20 +17,6 @@ on:
         default: latest
       deployStatic:
         description: Provision static web app resources
-        required: true
-        type: boolean
-        default: true
-      uiOnly:
-        description: Deploy only the UI using SWA token (skips provision and Azure login jobs)
-        required: true
-        type: boolean
-        default: false
-      apiBaseUrl:
-        description: Optional API base URL for UI build override
-        required: false
-        default: ''
-      forceApimSync:
-        description: Force APIM sync and smoke checks even when no changed services are detected
         required: true
         type: boolean
         default: true
@@ -65,10 +51,14 @@ jobs:
       projectName: ${{ inputs.projectName }}
       imageTag: ${{ inputs.imageTag }}
       deployStatic: ${{ inputs.deployStatic }}
-      uiOnly: ${{ inputs.uiOnly }}
-      apiBaseUrl: ${{ inputs.apiBaseUrl }}
+      uiOnly: false
+      apiBaseUrl: ''
       seedDemoData: false
       deployChangedOnly: true
-      forceApimSync: ${{ inputs.forceApimSync }}
+      forceApimSync: true
       autoAllowAcrRunnerIp: false
-    secrets: inherit
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      SWA_DEPLOYMENT_TOKEN: ${{ secrets.SWA_DEPLOYMENT_TOKEN }}
