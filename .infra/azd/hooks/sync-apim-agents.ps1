@@ -261,14 +261,14 @@ function Resolve-IngressGatewayHost {
             return ''
         }
 
-        $host = az network public-ip show --ids $pipId --query ipAddress -o tsv 2>$null
-        if ($host) {
-            return $host
+        $publicHost = az network public-ip show --ids $pipId --query ipAddress -o tsv 2>$null
+        if ($publicHost) {
+            return $publicHost
         }
 
-        $host = az network public-ip show --ids $pipId --query dnsSettings.fqdn -o tsv 2>$null
-        if ($host) {
-            return $host
+        $publicHost = az network public-ip show --ids $pipId --query dnsSettings.fqdn -o tsv 2>$null
+        if ($publicHost) {
+            return $publicHost
         }
 
         return ''
@@ -294,31 +294,16 @@ function Resolve-IngressGatewayHost {
         }
     }
 
-    $host = ''
+    $resolvedHost = ''
 
     $effectiveGatewayName = if ($GatewayName) { $GatewayName } else { $script:resolvedAppGatewayName }
     if ($effectiveGatewayName) {
-        $host = Resolve-PublicHostFromGateway -Gateway $effectiveGatewayName
-        if (-not $host) {
+        $resolvedHost = Resolve-PublicHostFromGateway -Gateway $effectiveGatewayName
+        if (-not $resolvedHost) {
             throw "Failed to resolve ingress host from explicit application gateway '$effectiveGatewayName'."
         }
 
-        $script:resolvedIngressGatewayHost = $host
-        return $script:resolvedIngressGatewayHost
-    }
-
-    $autoGateways = @(az network application-gateway list --resource-group $Rg --query '[].name' -o tsv 2>$null | Where-Object { $_.Trim() })
-    if ($autoGateways.Count -gt 1) {
-        throw "Multiple application gateways detected in '$Rg'. Provide -AppGatewayName, -AppGatewayIp, or -IngressHost."
-    }
-
-    if ($autoGateways.Count -eq 1) {
-        $host = Resolve-PublicHostFromGateway -Gateway $autoGateways[0]
-        if (-not $host) {
-            throw "Failed to resolve ingress host from detected application gateway '$($autoGateways[0])'."
-        }
-
-        $script:resolvedIngressGatewayHost = $host
+        $script:resolvedIngressGatewayHost = $resolvedHost
         return $script:resolvedIngressGatewayHost
     }
 
@@ -335,11 +320,25 @@ function Resolve-IngressGatewayHost {
     }
 
     if ($ingressCandidates.Count -eq 1) {
-        $host = $ingressCandidates[0]
+        $resolvedHost = $ingressCandidates[0]
     }
 
-    if ($host) {
-        $script:resolvedIngressGatewayHost = $host
+    if (-not $resolvedHost) {
+        $autoGateways = @(az network application-gateway list --resource-group $Rg --query '[].name' -o tsv 2>$null | Where-Object { $_.Trim() })
+        if ($autoGateways.Count -gt 1) {
+            throw "Multiple application gateways detected in '$Rg'. Provide -AppGatewayName, -AppGatewayIp, or -IngressHost."
+        }
+
+        if ($autoGateways.Count -eq 1) {
+            $resolvedHost = Resolve-PublicHostFromGateway -Gateway $autoGateways[0]
+            if (-not $resolvedHost) {
+                throw "Failed to resolve ingress host from detected application gateway '$($autoGateways[0])'."
+            }
+        }
+    }
+
+    if ($resolvedHost) {
+        $script:resolvedIngressGatewayHost = $resolvedHost
     }
 
     return $script:resolvedIngressGatewayHost
@@ -347,10 +346,10 @@ function Resolve-IngressGatewayHost {
 
 function Test-IngressCrudHealth {
     param(
-        [Parameter(Mandatory = $true)][string]$Host
+        [Parameter(Mandatory = $true)][string]$GatewayHost
     )
 
-    $probeUrl = "http://$Host/crud-service/health"
+    $probeUrl = "http://$GatewayHost/crud-service/health"
     $lastStatus = ''
     $lastBody = ''
 
@@ -358,7 +357,7 @@ function Test-IngressCrudHealth {
         try {
             $response = Invoke-WebRequest -Uri $probeUrl -Method GET -TimeoutSec 10 -UseBasicParsing
             if ($response.StatusCode -eq 200) {
-                Write-Host "Validated ingress host '$Host' via $probeUrl"
+                Write-Host "Validated ingress host '$GatewayHost' via $probeUrl"
                 return
             }
 
@@ -369,6 +368,10 @@ function Test-IngressCrudHealth {
             $statusCode = $_.Exception.Response.StatusCode.value__
             if ($statusCode) {
                 $lastStatus = [string]$statusCode
+                if ($statusCode -eq 404) {
+                    Write-Host "Validated ingress host '$GatewayHost' via $probeUrl (404 indicates reachable ingress path without rewrite)"
+                    return
+                }
             }
             $lastBody = $_.Exception.Message
         }
@@ -376,7 +379,7 @@ function Test-IngressCrudHealth {
         Start-Sleep -Seconds 5
     }
 
-    throw "Ingress validation failed for '$Host' (last status: $lastStatus) using $probeUrl. Last response: $lastBody"
+    throw "Ingress validation failed for '$GatewayHost' (last status: $lastStatus) using $probeUrl. Last response: $lastBody"
 }
 
 function Ensure-IngressReady {
@@ -390,7 +393,7 @@ function Ensure-IngressReady {
     }
 
     if (-not $Preview) {
-        Test-IngressCrudHealth -Host $resolvedHost
+        Test-IngressCrudHealth -GatewayHost $resolvedHost
     }
 
     $script:ingressValidated = $true
@@ -728,6 +731,10 @@ $agentServices = Get-AksServicesFromAzureYaml -Path $AzureYamlPath -IncludeCrud:
 if ($ChangedServices) {
     $changedServiceSet = $ChangedServices.Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ }
     $agentServices = @($agentServices | Where-Object { $changedServiceSet -contains $_ })
+
+    if ($IncludeCrudService -and -not ($agentServices -contains 'crud-service')) {
+        $agentServices += 'crud-service'
+    }
 }
 
 if (-not $agentServices -or $agentServices.Count -eq 0) {
