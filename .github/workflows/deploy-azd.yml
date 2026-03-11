@@ -48,6 +48,11 @@ on:
         required: true
         type: boolean
         default: false
+      autoAllowAcrRunnerIp:
+        description: Temporarily allow this GitHub runner egress IP in ACR firewall during deploy and remove it afterward
+        required: true
+        type: boolean
+        default: true
 
 permissions:
   id-token: write
@@ -666,6 +671,7 @@ jobs:
           exit 1
 
       - name: Preflight ACR data-plane accessibility
+        id: acr_preflight
         shell: bash
         run: |
           set -euo pipefail
@@ -688,6 +694,9 @@ jobs:
 
           if [ "$STATUS_CODE" = "200" ] || [ "$STATUS_CODE" = "401" ]; then
             echo "ACR preflight passed: ${ACR_LOGIN_SERVER} is reachable from this runner (HTTP $STATUS_CODE)."
+            echo "runner_ip=" >> "$GITHUB_OUTPUT"
+            echo "acr_name=${ACR_NAME}" >> "$GITHUB_OUTPUT"
+            echo "rg_name=${RG_NAME}" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -698,8 +707,23 @@ jobs:
           fi
           if [ -n "$RUNNER_IP" ]; then
             echo "Runner egress IP detected: $RUNNER_IP" >&2
-            echo "Action: allow this IP (or CIDR) on ACR '$ACR_NAME' or use a self-hosted runner in an allowed network." >&2
-            echo "Example: az acr network-rule add --name '$ACR_NAME' --resource-group '$RG_NAME' --ip-address '$RUNNER_IP'" >&2
+            if [ "${{ inputs.autoAllowAcrRunnerIp }}" = "true" ] && [ "$STATUS_CODE" = "403" ]; then
+              echo "Temporarily allowing runner IP on ACR firewall for this deploy run..."
+              az acr network-rule add --name "$ACR_NAME" --resource-group "$RG_NAME" --ip-address "$RUNNER_IP" >/dev/null
+              echo "runner_ip=${RUNNER_IP}" >> "$GITHUB_OUTPUT"
+              echo "acr_name=${ACR_NAME}" >> "$GITHUB_OUTPUT"
+              echo "rg_name=${RG_NAME}" >> "$GITHUB_OUTPUT"
+              sleep 15
+              RETRY_CODE=$(curl -sS -o /tmp/acr-v2-probe-retry.txt -w "%{http_code}" --max-time 25 "https://${ACR_LOGIN_SERVER}/v2/" || true)
+              if [ "$RETRY_CODE" = "200" ] || [ "$RETRY_CODE" = "401" ]; then
+                echo "ACR preflight passed after temporary runner IP allowlist (HTTP $RETRY_CODE)."
+                exit 0
+              fi
+              echo "ACR preflight still failing after temporary allowlist (HTTP $RETRY_CODE)." >&2
+            else
+              echo "Action: allow this IP (or CIDR) on ACR '$ACR_NAME' or use a self-hosted runner in an allowed network." >&2
+              echo "Example: az acr network-rule add --name '$ACR_NAME' --resource-group '$RG_NAME' --ip-address '$RUNNER_IP'" >&2
+            fi
           else
             echo "Action: check ACR firewall/network rules for GitHub runner egress and retry." >&2
           fi
@@ -807,6 +831,17 @@ jobs:
             cat /tmp/crud-port-forward.log 2>/dev/null || true
             exit 1
           fi
+
+      - name: Cleanup temporary ACR runner IP allowlist
+        if: ${{ always() && inputs.autoAllowAcrRunnerIp && steps.acr_preflight.outputs.runner_ip != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          az acr network-rule remove \
+            --name "${{ steps.acr_preflight.outputs.acr_name }}" \
+            --resource-group "${{ steps.acr_preflight.outputs.rg_name }}" \
+            --ip-address "${{ steps.acr_preflight.outputs.runner_ip }}" >/dev/null || true
+          echo "Removed temporary ACR firewall rule for runner IP ${{ steps.acr_preflight.outputs.runner_ip }}."
 
   deploy-ui:
     runs-on: ubuntu-latest
