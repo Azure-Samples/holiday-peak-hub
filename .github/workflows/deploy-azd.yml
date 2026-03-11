@@ -1654,5 +1654,20 @@ jobs:
                         value: "${POSTGRES_SSL}"
           EOF
 
-          kubectl wait --for=condition=complete "job/${JOB_NAME}" -n holiday-peak --timeout=10m
+          if ! kubectl wait --for=condition=complete "job/${JOB_NAME}" -n holiday-peak --timeout=10m; then
+            echo "Seed job did not reach Complete condition. Collecting diagnostics..."
+            kubectl get job "${JOB_NAME}" -n holiday-peak -o wide || true
+            kubectl describe job "${JOB_NAME}" -n holiday-peak || true
+
+            POD_NAME=$(kubectl get pods -n holiday-peak -l "job-name=${JOB_NAME}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+            if [ -n "${POD_NAME:-}" ]; then
+              kubectl get pod "${POD_NAME}" -n holiday-peak -o wide || true
+              kubectl describe pod "${POD_NAME}" -n holiday-peak || true
+              kubectl logs "${POD_NAME}" -n holiday-peak --all-containers=true || true
+              kubectl logs "${POD_NAME}" -n holiday-peak --all-containers=true --previous || true
+            fi
+
+            exit 1
+          fi
+
           kubectl logs "job/${JOB_NAME}" -n holiday-peak
