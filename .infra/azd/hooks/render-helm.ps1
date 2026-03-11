@@ -11,6 +11,8 @@ $ingressEnabled = if ($env:INGRESS_ENABLED) { $env:INGRESS_ENABLED } else { "tru
 $ingressClassName = if ($env:INGRESS_CLASS_NAME) { $env:INGRESS_CLASS_NAME } else { "webapprouting.kubernetes.azure.com" }
 $canaryEnabled = if ($env:CANARY_ENABLED) { $env:CANARY_ENABLED } else { "false" }
 $readinessPath = "/ready"
+$replicaCount = ""
+$deployEnv = if ($env:DEPLOY_ENV) { $env:DEPLOY_ENV } elseif ($env:AZURE_ENV_NAME) { $env:AZURE_ENV_NAME } else { "" }
 
 $nodePool = "agents"
 $workloadType = "agents"
@@ -22,11 +24,20 @@ $maxSurge = ""
 if ($ServiceName -eq "crud-service") {
   $nodePool = "crud"
   $workloadType = "crud"
-  # Safer defaults for CRUD without changing global chart defaults.
-  $pdbEnabled = "true"
-  $pdbMinAvailable = "1"
-  $maxUnavailable = "0"
-  $maxSurge = "1"
+  if ($deployEnv -in @("dev", "development", "local")) {
+    # Dev profile prioritizes fast iteration over strict availability.
+    $readinessPath = "/health"
+    $replicaCount = "1"
+    $pdbEnabled = "false"
+    $pdbMinAvailable = ""
+    $maxUnavailable = "100%"
+    $maxSurge = "1"
+  } else {
+    $pdbEnabled = "true"
+    $pdbMinAvailable = "1"
+    $maxUnavailable = "0"
+    $maxSurge = "1"
+  }
 }
 
 $serviceImageVarName = "SERVICE_$($ServiceName.ToUpper().Replace('-', '_'))_IMAGE_NAME"
@@ -84,6 +95,10 @@ $helmArgs = @(
   '--set',
   "tolerations[0].effect=NoSchedule"
 )
+
+if ($replicaCount) {
+  $helmArgs += @('--set', "replicaCount=$replicaCount")
+}
 
 if ($maxUnavailable) {
   $helmArgs += @('--set-string', "availability.rollingUpdate.maxUnavailable=$maxUnavailable")

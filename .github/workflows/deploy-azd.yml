@@ -53,6 +53,69 @@ on:
         required: true
         type: boolean
         default: true
+  workflow_call:
+    inputs:
+      environment:
+        description: Deployment environment name (for azd -e)
+        required: true
+        type: string
+      location:
+        description: Azure location
+        required: true
+        type: string
+      projectName:
+        description: Project prefix used by naming convention
+        required: true
+        type: string
+      imageTag:
+        description: Image tag to deploy
+        required: false
+        type: string
+        default: latest
+      deployStatic:
+        description: Provision static web app resources
+        required: false
+        type: boolean
+        default: true
+      uiOnly:
+        description: Deploy only the UI using SWA token (skips provision and Azure login jobs)
+        required: false
+        type: boolean
+        default: false
+      apiBaseUrl:
+        description: Optional API base URL for UI build override
+        required: false
+        type: string
+        default: ''
+      seedDemoData:
+        description: Run demo faker seed job after deployment (non-prod only)
+        required: false
+        type: boolean
+        default: true
+      deployChangedOnly:
+        description: Legacy flag (changed-app-only deployment is always enforced)
+        required: false
+        type: boolean
+        default: true
+      forceApimSync:
+        description: Force APIM sync and smoke checks even when no changed services are detected
+        required: false
+        type: boolean
+        default: false
+      autoAllowAcrRunnerIp:
+        description: Temporarily allow this GitHub runner egress IP in ACR firewall during deploy and remove it afterward
+        required: false
+        type: boolean
+        default: true
+    secrets:
+      AZURE_CLIENT_ID:
+        required: true
+      AZURE_TENANT_ID:
+        required: true
+      AZURE_SUBSCRIPTION_ID:
+        required: true
+      SWA_DEPLOYMENT_TOKEN:
+        required: false
 
 permissions:
   id-token: write
@@ -748,6 +811,19 @@ jobs:
             kubectl get ingress -n holiday-peak -o wide || true
             kubectl get pods -n app-routing-system -o wide || true
             kubectl get pods -n ingress-nginx -o wide || true
+            echo "Collecting CRUD rollout diagnostics..."
+            kubectl -n holiday-peak get deployment crud-service-crud-service -o wide || true
+            kubectl -n holiday-peak describe deployment crud-service-crud-service || true
+            kubectl -n holiday-peak get rs -l app=crud-service -o wide || true
+            kubectl -n holiday-peak get pods -l app=crud-service -o wide || true
+            kubectl -n holiday-peak get events --sort-by='.lastTimestamp' | tail -n 120 || true
+
+            NEW_POD=$(kubectl -n holiday-peak get pods -l app=crud-service --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1:].metadata.name}' 2>/dev/null || true)
+            if [ -n "$NEW_POD" ]; then
+              kubectl -n holiday-peak describe pod "$NEW_POD" || true
+              kubectl -n holiday-peak logs "$NEW_POD" --tail=200 || true
+              kubectl -n holiday-peak logs "$NEW_POD" --previous --tail=200 || true
+            fi
 
             if [ "$attempt" -eq "$max_attempts" ]; then
               echo "CRUD deploy failed after ${max_attempts} attempts." >&2
@@ -759,6 +835,7 @@ jobs:
             sleep "$backoff"
           done
         env:
+          DEPLOY_ENV: ${{ inputs.environment }}
           INGRESS_CLASS_NAME: ${{ env.INGRESS_CLASS_NAME }}
           AZURE_CLIENT_ID: ${{ env.WORKLOAD_AZURE_CLIENT_ID }}
           AZURE_TENANT_ID: ${{ env.AZURE_TENANT_ID }}

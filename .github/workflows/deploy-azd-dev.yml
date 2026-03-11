@@ -1,0 +1,67 @@
+name: deploy-azd-dev
+
+on:
+  workflow_dispatch:
+    inputs:
+      location:
+        description: Azure location
+        required: true
+        default: centralus
+      projectName:
+        description: Project prefix used by naming convention
+        required: true
+        default: holidaypeakhub405
+      imageTag:
+        description: Image tag to deploy
+        required: true
+        default: latest
+      deployStatic:
+        description: Provision static web app resources
+        required: true
+        type: boolean
+        default: true
+      uiOnly:
+        description: Deploy only the UI using SWA token (skips provision and Azure login jobs)
+        required: true
+        type: boolean
+        default: false
+      apiBaseUrl:
+        description: Optional API base URL for UI build override
+        required: false
+        default: ''
+      seedDemoData:
+        description: Run demo faker seed job after deployment
+        required: true
+        type: boolean
+        default: true
+      forceApimSync:
+        description: Force APIM sync and smoke checks even when no changed services are detected
+        required: true
+        type: boolean
+        default: false
+      autoAllowAcrRunnerIp:
+        description: Temporarily allow GitHub runner egress IP in ACR firewall during deploy and remove it afterward
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/deploy-azd.yml
+    with:
+      environment: dev
+      location: ${{ inputs.location }}
+      projectName: ${{ inputs.projectName }}
+      imageTag: ${{ inputs.imageTag }}
+      deployStatic: ${{ inputs.deployStatic }}
+      uiOnly: ${{ inputs.uiOnly }}
+      apiBaseUrl: ${{ inputs.apiBaseUrl }}
+      seedDemoData: ${{ inputs.seedDemoData }}
+      deployChangedOnly: true
+      forceApimSync: ${{ inputs.forceApimSync }}
+      autoAllowAcrRunnerIp: ${{ inputs.autoAllowAcrRunnerIp }}
+    secrets: inherit

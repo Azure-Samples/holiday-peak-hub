@@ -1,0 +1,74 @@
+name: deploy-azd-prod
+
+on:
+  workflow_dispatch:
+    inputs:
+      location:
+        description: Azure location
+        required: true
+        default: centralus
+      projectName:
+        description: Project prefix used by naming convention
+        required: true
+        default: holidaypeakhub405
+      imageTag:
+        description: Image tag to deploy
+        required: true
+        default: latest
+      deployStatic:
+        description: Provision static web app resources
+        required: true
+        type: boolean
+        default: true
+      uiOnly:
+        description: Deploy only the UI using SWA token (skips provision and Azure login jobs)
+        required: true
+        type: boolean
+        default: false
+      apiBaseUrl:
+        description: Optional API base URL for UI build override
+        required: false
+        default: ''
+      forceApimSync:
+        description: Force APIM sync and smoke checks even when no changed services are detected
+        required: true
+        type: boolean
+        default: true
+      confirmProduction:
+        description: Type DEPLOY_PROD to confirm production deployment
+        required: true
+        default: ''
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  confirm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate production confirmation token
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.confirmProduction }}" != "DEPLOY_PROD" ]; then
+            echo "confirmProduction must equal DEPLOY_PROD for production deployments." >&2
+            exit 1
+          fi
+
+  deploy:
+    needs: confirm
+    uses: ./.github/workflows/deploy-azd.yml
+    with:
+      environment: prod
+      location: ${{ inputs.location }}
+      projectName: ${{ inputs.projectName }}
+      imageTag: ${{ inputs.imageTag }}
+      deployStatic: ${{ inputs.deployStatic }}
+      uiOnly: ${{ inputs.uiOnly }}
+      apiBaseUrl: ${{ inputs.apiBaseUrl }}
+      seedDemoData: false
+      deployChangedOnly: true
+      forceApimSync: ${{ inputs.forceApimSync }}
+      autoAllowAcrRunnerIp: false
+    secrets: inherit

@@ -20,9 +20,13 @@ Per-app run and test scripts are available under [scripts](scripts). These scrip
 Provisioning and deployment use the azd project defined in `azure.yaml`.
 The Python CLI in `.infra/cli.py` is scaffolding-only (`generate-bicep`, `generate-dockerfile`).
 
-### Production Deployment Runbook (GitHub Actions + azd)
+### Deployment Runbook (GitHub Actions + azd)
 
-Use workflow `.github/workflows/deploy-azd.yml` for ordered production rollout.
+Use environment-specific entry workflows:
+
+- `.github/workflows/deploy-azd-dev.yml` for routine development deployments.
+- `.github/workflows/deploy-azd-prod.yml` for production deployments with an explicit confirmation gate.
+- `.github/workflows/deploy-azd.yml` remains the shared core workflow invoked by both entry workflows.
 
 > Provisioning is mandatory before frontend/backend consumption in any environment. Always run `azd provision` (and then `azd deploy`) before validating APIs or UI integration.
 
@@ -32,7 +36,7 @@ Use workflow `.github/workflows/deploy-azd.yml` for ordered production rollout.
 - `AZURE_TENANT_ID`
 - `AZURE_SUBSCRIPTION_ID`
 
-**Workflow inputs**:
+**Core workflow inputs**:
 
 - `environment` (azd env name, e.g. `dev`, `staging`, `prod`)
 - `location` (Azure region)
@@ -42,6 +46,26 @@ Use workflow `.github/workflows/deploy-azd.yml` for ordered production rollout.
 - `seedDemoData` (boolean to run or skip demo faker seeding in non-prod)
 
 **Manual trigger examples**:
+
+- Day-to-day development rollout (recommended default):
+
+```bash
+gh workflow run deploy-azd-dev.yml -f location=eastus2 -f projectName=holidaypeakhub405 -f imageTag=latest -f deployStatic=true -f seedDemoData=true -f autoAllowAcrRunnerIp=true
+```
+
+- Fast development rerun without reseeding:
+
+```bash
+gh workflow run deploy-azd-dev.yml -f location=eastus2 -f projectName=holidaypeakhub405 -f imageTag=latest -f deployStatic=true -f seedDemoData=false -f autoAllowAcrRunnerIp=true
+```
+
+- Production rollout (requires explicit confirmation token):
+
+```bash
+gh workflow run deploy-azd-prod.yml -f location=eastus2 -f projectName=holidaypeakhub405 -f imageTag=latest -f deployStatic=true -f forceApimSync=true -f confirmProduction=DEPLOY_PROD
+```
+
+- Direct core workflow invocation (advanced/legacy path):
 
 - Full non-prod demo rollout with seeding (default):
 

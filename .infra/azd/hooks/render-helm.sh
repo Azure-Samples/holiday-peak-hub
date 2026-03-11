@@ -11,15 +11,30 @@ INGRESS_ENABLED="${INGRESS_ENABLED:-true}"
 INGRESS_CLASS_NAME="${INGRESS_CLASS_NAME:-webapprouting.kubernetes.azure.com}"
 CANARY_ENABLED="${CANARY_ENABLED:-false}"
 READINESS_PATH="/ready"
+REPLICA_COUNT=""
+DEPLOY_ENV="${DEPLOY_ENV:-${AZURE_ENV_NAME:-}}"
 
 # Determine workload type (crud-service goes to crud pool, others to agents pool)
 if [ "$SERVICE_NAME" = "crud-service" ]; then
   NODE_POOL="crud"
   WORKLOAD_TYPE="crud"
-  PDB_ENABLED="true"
-  PDB_MIN_AVAILABLE="1"
-  ROLLING_MAX_UNAVAILABLE="0"
-  ROLLING_MAX_SURGE="1"
+  case "$DEPLOY_ENV" in
+    dev|development|local)
+      # Dev profile prioritizes fast iteration over strict availability.
+      READINESS_PATH="/health"
+      REPLICA_COUNT="1"
+      PDB_ENABLED="false"
+      PDB_MIN_AVAILABLE=""
+      ROLLING_MAX_UNAVAILABLE="100%"
+      ROLLING_MAX_SURGE="1"
+      ;;
+    *)
+      PDB_ENABLED="true"
+      PDB_MIN_AVAILABLE="1"
+      ROLLING_MAX_UNAVAILABLE="0"
+      ROLLING_MAX_SURGE="1"
+      ;;
+  esac
 else
   NODE_POOL="agents"
   WORKLOAD_TYPE="agents"
@@ -59,6 +74,9 @@ HELM_ARGS="$HELM_ARGS --set ingress.enabled=$INGRESS_ENABLED"
 HELM_ARGS="$HELM_ARGS --set-string ingress.className=$INGRESS_CLASS_NAME"
 HELM_ARGS="$HELM_ARGS --set canary.enabled=$CANARY_ENABLED"
 HELM_ARGS="$HELM_ARGS --set probes.readiness.path=$READINESS_PATH"
+if [ -n "$REPLICA_COUNT" ]; then
+  HELM_ARGS="$HELM_ARGS --set replicaCount=$REPLICA_COUNT"
+fi
 
 # Node pool targeting
 HELM_ARGS="$HELM_ARGS --set nodeSelector.agentpool=$NODE_POOL"
