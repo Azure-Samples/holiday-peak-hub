@@ -33,7 +33,7 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 | Trigger model | `push` to `main` + `workflow_dispatch` | Stable tag push `v*.*.*` | Manual via reusable workflow only if explicitly configured |
 | Release gate | Not required | Required: published, non-draft, non-prerelease GitHub Release | N/A |
 | Main lineage gate | Not required | Required: tagged commit must be reachable from `main` | N/A |
-| Seed demo data default | `false` on push, configurable manual | `false` enforced | N/A |
+| Demo data seeding mode | Local/manual only (not part of CI deploy) | Local/manual only | Local/manual only |
 | Changed-only deployment | Enabled | Enabled | N/A |
 | Force APIM sync default | `false` | `true` | N/A |
 | Auto allow ACR runner IP | `true` default | `false` default | N/A |

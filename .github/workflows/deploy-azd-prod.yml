@@ -63,7 +63,6 @@ jobs:
       deployStatic: true
       uiOnly: false
       apiBaseUrl: ''
-      seedDemoData: false
       deployChangedOnly: true
       forceApimSync: true
       autoAllowAcrRunnerIp: false

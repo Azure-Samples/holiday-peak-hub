@@ -39,7 +39,7 @@ Use environment-specific entry workflows:
 
 **Entry workflow inputs**:
 
-- Dev entrypoint (`deploy-azd-dev.yml`): `location`, `projectName`, `imageTag`, `deployStatic`, `uiOnly`, `apiBaseUrl`, `seedDemoData`, `forceApimSync`, `autoAllowAcrRunnerIp`.
+- Dev entrypoint (`deploy-azd-dev.yml`): `location`, `projectName`, `imageTag`, `deployStatic`, `uiOnly`, `apiBaseUrl`, `forceApimSync`, `autoAllowAcrRunnerIp`.
 - Prod entrypoint (`deploy-azd-prod.yml`): no manual inputs; runs only from stable release tags and deploys using the tag name as `imageTag`.
 
 **Manual trigger examples**:
@@ -47,13 +47,13 @@ Use environment-specific entry workflows:
 - Day-to-day development rollout (recommended default):
 
 ```bash
-gh workflow run deploy-azd-dev.yml -f location=eastus2 -f projectName=holidaypeakhub405 -f imageTag=latest -f deployStatic=true -f seedDemoData=true -f autoAllowAcrRunnerIp=true
+gh workflow run deploy-azd-dev.yml -f location=eastus2 -f projectName=holidaypeakhub405 -f imageTag=latest -f deployStatic=true -f autoAllowAcrRunnerIp=true
 ```
 
-- Fast development rerun without reseeding:
+- Fast development rerun without APIM sync:
 
 ```bash
-gh workflow run deploy-azd-dev.yml -f location=eastus2 -f projectName=holidaypeakhub405 -f imageTag=latest -f deployStatic=true -f seedDemoData=false -f autoAllowAcrRunnerIp=true
+gh workflow run deploy-azd-dev.yml -f location=eastus2 -f projectName=holidaypeakhub405 -f imageTag=latest -f deployStatic=true -f forceApimSync=false -f autoAllowAcrRunnerIp=true
 ```
 
 - Production rollout (stable release tag + published GitHub Release):
@@ -74,7 +74,7 @@ Core workflow note: `.github/workflows/deploy-azd.yml` is reusable-only and not 
 3. `deploy-foundry-models` and `deploy-agents` jobs: run after provision; `deploy-agents` deploys changed agent services (and can proceed when `deploy-crud` is skipped for agent-only changes).
 4. `sync-apim` and `smoke-apim` jobs: run when CRUD/agent changes are present or `forceApimSync=true`.
 5. `deploy-ui` job (when `deployStatic=true`): runs after APIM sync/smoke gates, resolves APIM URL with fail-fast validation, fetches the SWA deployment token from Azure, and deploys `apps/ui` via `Azure/static-web-apps-deploy@v1` (framework-aware build for dynamic Next.js routes).
-6. `seed-demo-data` job (non-prod only, when `seedDemoData=true`): runs after deploy gates and executes a Kubernetes Job in `holiday-peak` (`python -m crud_service.scripts.seed_demo_data`) to populate demo categories/products.
+6. Demo data seeding is operator-driven and must be run locally (outside CI) when needed.
 
 **Operational notes**:
 
@@ -84,6 +84,14 @@ Core workflow note: `.github/workflows/deploy-azd.yml` is reusable-only and not 
 - Demo seeding uses a curated catalog of 10 categories and 100 products with realistic retail data. Re-runs are idempotent by item ID (`cat-*`, `prd-*`): existing seeded records are updated instead of duplicated.
 - Use environment approvals in GitHub Environments for `staging`/`prod`.
 - Keep image tags immutable for reproducible rollback.
+
+**Local demo seeding (manual)**:
+
+```bash
+python -m crud_service.scripts.seed_demo_data
+```
+
+Run this locally from the CRUD service environment with `POSTGRES_*` variables configured for your target environment.
 
 ### Governance Compliance Checklist
 
@@ -193,13 +201,11 @@ Examples:
 - `https://<apimName>.azure-api.net/agents/ecommerce-cart-intelligence/invoke`
 - `https://<apimName>.azure-api.net/agents/inventory-health-check/health`
 
-12. **Postdeploy Foundry ensure + CRUD demo seed hooks (`azd deploy` / `azd up`)**
+12. **Postdeploy Foundry ensure hook (`azd deploy` / `azd up`)**
 
 - `ensure-foundry-agents` postdeploy hook now resolves Kubernetes service names by `app=<service>` label and uses the actual Service port, avoiding false failures from chart-generated service names and non-8000 service ports.
 - Foundry ensure runs in non-blocking mode by default for `azd` hooks (`FailOnError=false` / `--non-blocking`) so transient per-service ensure failures do not fail the deployment.
-- `seed-crud-demo-data` postdeploy hook runs a Kubernetes Job with the deployed CRUD image and executes `python -m crud_service.scripts.seed_demo_data`.
-- Seeding is skipped automatically for `prod` / `production` environments and can be disabled with `DEMO_SEED_ENABLED=false`.
-- Seed hook prechecks PostgreSQL connectivity from the running CRUD pod; when DB is unreachable, it reports a warning and exits successfully by default (`--non-blocking` / `FailOnError=false`).
+- Demo data seeding is now local/manual only and is not executed by `azd` postdeploy hooks.
 
 13. **End-to-end smoke checks (APIM and SWA)**
 

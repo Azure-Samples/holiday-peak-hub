@@ -153,15 +153,14 @@ The deployment model uses environment entrypoints plus a reusable core:
 - **Prod entrypoint** (`.github/workflows/deploy-azd-prod.yml`) — runs only for stable release tags after release/lineage validation
 - **Reusable core** (`.github/workflows/deploy-azd.yml`) — invoked through `workflow_call` and not used as a direct operator entrypoint
 - **OIDC federation** — federated identity for Azure login (no client secrets)
-- **Ordered jobs**: provision → deploy-crud → deploy-ui (optional) → deploy-agents → seed-demo-data (optional, non-prod)
+- **Ordered jobs**: provision → deploy-crud → deploy-ui (optional) → deploy-agents
 - **Parallel agent matrix** — all agents deploy concurrently in the agents phase
-- **Seed control** — non-prod entrypoints can set `seedDemoData=false` for faster reruns
+- **Seed policy** — demo data seeding is run locally by operators, outside CI/CD deployment workflows
 
 Manual trigger examples:
 
 ```bash
-gh workflow run deploy-azd-dev.yml -f location=eastus2 -f projectName=holidaypeakhub -f imageTag=latest -f deployStatic=true -f seedDemoData=true
-gh workflow run deploy-azd-dev.yml -f location=eastus2 -f projectName=holidaypeakhub -f imageTag=latest -f deployStatic=true -f seedDemoData=false
+gh workflow run deploy-azd-dev.yml -f location=eastus2 -f projectName=holidaypeakhub -f imageTag=latest -f deployStatic=true
 ```
 
 Seeding behavior:

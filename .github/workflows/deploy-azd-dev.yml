@@ -39,11 +39,6 @@ on:
         description: Optional API base URL for UI build override
         required: false
         default: ''
-      seedDemoData:
-        description: Run demo faker seed job after deployment
-        required: true
-        type: boolean
-        default: true
       forceApimSync:
         description: Force APIM sync and smoke checks even when no changed services are detected
         required: true
@@ -71,7 +66,6 @@ jobs:
       deployStatic: true
       uiOnly: false
       apiBaseUrl: ''
-      seedDemoData: false
       deployChangedOnly: true
       forceApimSync: false
       autoAllowAcrRunnerIp: true
@@ -92,7 +86,6 @@ jobs:
       deployStatic: ${{ inputs.deployStatic }}
       uiOnly: ${{ inputs.uiOnly }}
       apiBaseUrl: ${{ inputs.apiBaseUrl }}
-      seedDemoData: ${{ inputs.seedDemoData }}
       deployChangedOnly: true
       forceApimSync: ${{ inputs.forceApimSync }}
       autoAllowAcrRunnerIp: ${{ inputs.autoAllowAcrRunnerIp }}
