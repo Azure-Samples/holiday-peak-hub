@@ -93,6 +93,31 @@ python -m crud_service.scripts.seed_demo_data
 
 Run this locally from the CRUD service environment with `POSTGRES_*` variables configured for your target environment.
 
+**CRUD write-path validation via API POST endpoints (recommended)**:
+
+Use this to validate CRUD liveness and write behavior through HTTP endpoints (instead of direct DB scripts):
+
+```powershell
+./scripts/ops/crud-post-write-check.ps1 -AzdEnvironment dev
+```
+
+By default this runs against APIM (`APIM_GATEWAY_URL` from the selected azd environment).
+
+To run against the live CRUD service directly using AKS port-forward (`svc/crud-service`):
+
+```powershell
+./scripts/ops/crud-post-write-check.ps1 -AzdEnvironment dev -UsePortForward
+```
+
+If you have a bearer token for authenticated endpoints, pass it via `CRUD_BEARER_TOKEN`:
+
+```powershell
+$env:CRUD_BEARER_TOKEN = "<token>"
+./scripts/ops/crud-post-write-check.ps1 -AzdEnvironment dev
+```
+
+The script exercises all CRUD `POST` routes and reports `PASS` / `SKIPPED` / `FAIL` per endpoint.
+
 ### Governance Compliance Checklist
 
 - Use environment entrypoint workflows only (`deploy-azd-dev.yml`, `deploy-azd-prod.yml`).
