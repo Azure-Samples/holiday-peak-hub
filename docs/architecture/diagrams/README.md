@@ -1,122 +1,34 @@
-# Sequence Diagrams
+# Architecture Diagrams
 
-This directory contains detailed sequence diagrams for key flows in the Holiday Peak Hub accelerator.
+Canonical diagram index for Holiday Peak Hub.
 
-## Available Diagrams
+## C4 Draw.io Diagrams
 
-### 1. [E-commerce Catalog Search](sequence-catalog-search.md)
-**Domain**: E-commerce  
-**Flow**: Product discovery with SLM-first routing, vector search, and inventory validation
+| Diagram | Viewpoint | Purpose |
+|---|---|---|
+| `c4-system-context.drawio` | C4 Context | External actors, channels, and system boundary |
+| `c4-container-azure-runtime.drawio` | C4 Container | Azure runtime composition across edge, AKS, and platform services |
+| `c4-component-summary.drawio` | C4 Component | Service grouping and high-level internal composition |
+| `c4-component-detailed.drawio` | C4 Component | Detailed component/service relationships |
 
-**Key Features**:
-- Complexity assessment and model routing
-- Azure AI Search integration (vector + hybrid)
-- Parallel inventory checks
-- Personalization and ranking
-- Performance: < 1.2s (P95)
+## Sequence Diagrams (Mermaid)
 
----
+| Diagram | Domain | Focus |
+|---|---|---|
+| `sequence-catalog-search.md` | E-commerce | Search flow with model routing and enrichment |
+| `sequence-inventory-health.md` | Inventory | Health monitoring, anomaly detection, and remediation |
+| `sequence-returns-support.md` | Logistics/CRM | Returns evaluation and resolution flow |
 
-### 2. [Inventory Health Check](sequence-inventory-health.md)
-**Domain**: Inventory  
-**Flow**: Scheduled validation of inventory consistency and anomaly detection
+## Usage Guidelines
 
-**Key Features**:
-- Parallel rule evaluation (negative stock, missing warehouses, etc.)
-- Statistical anomaly detection (Z-score)
-- Severity classification
-- Auto-remediation with SAGA choreography
-- Performance: < 6s for 10K SKUs
+- Keep C4 diagrams in `.drawio` format as the architecture source of truth.
+- Keep runtime interaction flows in Mermaid sequence files.
+- Update this index whenever diagram files are added, removed, or renamed.
+- Keep diagram naming stable to avoid broken links in architecture docs.
 
----
+## Related Docs
 
-### 3. [Logistics Returns Support](sequence-returns-support.md)
-**Domain**: Logistics  
-**Flow**: End-to-end returns processing with LLM guidance and SAGA orchestration
-
-**Key Features**:
-- Return eligibility validation
-- LLM-generated personalized instructions
-- Return label generation
-- Event-driven SAGA workflow
-- VIP fast-track path
-- Performance: < 5s (P95)
-
----
-
-## Diagram Notation
-
-All diagrams use **Mermaid** syntax and follow these conventions:
-
-### Participants
-- **Actor**: External user or system (e.g., Customer, Scheduler)
-- **API**: FastAPI application endpoint
-- **Agent**: Retail agent (orchestrator)
-- **Adapter**: Integration adapter (inventory, logistics, CRM, etc.)
-- **Memory**: Memory stack (Hot/Warm/Cold)
-- **External Systems**: Azure services, carrier APIs, etc.
-
-### Arrows
-- **Solid arrows**: Synchronous calls
-- **Dotted arrows**: Asynchronous events/responses
-- **Parallel blocks**: Concurrent operations
-
-### Notes
-- **Step annotations**: Major phases in the flow
-- **Decision points**: `alt`/`else` blocks for branching logic
-- **Error handling**: Alternative paths for failures
-
----
-
-## How to Use
-
-### Viewing Diagrams
-1. **VS Code**: Install [Markdown Preview Mermaid Support](https://marketplace.visualstudio.com/items?itemName=bierner.markdown-mermaid) extension
-2. **GitHub**: Mermaid renders natively in GitHub markdown
-3. **Online**: Copy to [Mermaid Live Editor](https://mermaid.live/)
-
-### Updating Diagrams
-When modifying flows:
-1. Update the relevant sequence diagram
-2. Update corresponding component documentation
-3. Update related ADRs if architectural decisions change
-4. Keep performance targets and metrics accurate
-
----
-
-## Related Documentation
-- [Architecture Overview](../architecture.md)
-- [ADRs Index](../ADRs.md)
-- [Components Documentation](../components/)
-- [Operational Playbooks](../playbooks/)
-
----
-
-## Diagram Standards
-
-### Performance Targets
-Always include a performance characteristics table:
-| Step | Target Latency | Optimization |
-|------|----------------|--------------|
-| ... | ... | ... |
-
-### Observability
-Document metrics tracked:
-```python
-metrics.histogram("operation.latency_ms", duration)
-metrics.counter("operation.status", {"status": "success|failure"})
-```
-
-### Error Handling
-Show alternative paths for:
-- Service unavailable
-- Timeout
-- Validation failure
-- Policy violation
-
-### Code Examples
-Include implementation snippets for:
-- Key algorithms
-- Policy rules
-- Event handlers
-- Remediation actions
+- `docs/architecture/architecture.md`
+- `docs/architecture/ADRs.md`
+- `docs/architecture/components.md`
+- `docs/architecture/playbooks/README.md`

@@ -54,16 +54,18 @@ Resilience patterns for production workloads.
 | Rate Limiter | `utils/rate_limiter.py` | Token bucket with async support |
 | Telemetry | `utils/telemetry.py` | OpenTelemetry spans and metrics |
 
-## Product Truth Layer (v1.1.0)
+## Product Truth Layer
 
 Foundation for unified product data management.
 
 | Component | Path | Purpose |
 |-----------|------|---------|
 | Truth Schemas | `schemas/truth.py` | `TruthAttribute`, `ProposedAttribute`, `GapReport`, `AuditEvent` |
-| Truth Ingestion | `apps/truth-ingestion-service/` | Event-driven product record processing |
+| Truth Ingestion | `apps/truth-ingestion/` | Event-driven product record processing |
 | HITL Review UI | `apps/ui/app/staff/review/` | Human-in-the-loop attribute validation |
 | Admin UI | `apps/ui/app/admin/` | Schema management, tenant config, analytics |
+| Truth HITL Service | `apps/truth-hitl/` | Human approval workflow and review queue orchestration |
+| Truth Export Service | `apps/truth-export/` | Approved data export and writeback pipeline |
 
 ## Apps (Domain Services)
 
@@ -122,7 +124,7 @@ Runnable services built on the framework, one per retail process.
 
 Next.js 15 application with atomic design component library connecting to all backend services.
 
-**Frontend Stack**: Next.js 16.2.0-canary.17, React 19, TypeScript 5.7.2, Tailwind CSS 3.4.0
+**Frontend Stack**: Next.js App Router, React, TypeScript, Tailwind CSS
 
 ### Component Library
 
@@ -195,14 +197,9 @@ See [Component Library Documentation](../../ui/components/COMPONENT_README.md) f
 
 ### Design System
 
-**Color Palette**:
-- Ocean Blue (#0077BE) - Primary actions
-- Lime Green (#32CD32) - Success states
-- Cyan (#00CED1) - Accents
-- White (#FFFFFF) - Backgrounds
-- Dark Grey (#2D3748) - Text
-
-**Dark Mode**: Full support with inverted color palette
+- Atomic design methodology with shared atoms, molecules, organisms, and templates
+- Role-based pages with common navigation and layout primitives
+- Dark mode support implemented in UI layer
 
 ### Related ADRs
 
@@ -218,6 +215,10 @@ See [Component Library Documentation](../../ui/components/COMPONENT_README.md) f
 Operational response guides for common incidents and runtime issues.
 
 - [Playbooks Index](playbooks/README.md)
+
+## Architecture Compliance
+
+- [Architecture Compliance Review](architecture-compliance-review.md)
 
 ## Component Interaction Matrix
 

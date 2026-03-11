@@ -1,7 +1,7 @@
 # Holiday Peak Hub - Architecture Documentation
 
-**Last Updated**: February 27, 2026  
-**Version**: [v1.0.0](https://github.com/Azure-Samples/holiday-peak-hub/releases/tag/v1.0.0)  
+**Last Updated**: March 11, 2026  
+**Version**: [v2.0.0](https://github.com/Azure-Samples/holiday-peak-hub/releases/tag/v2.0.0)  
 **Status**: Active Development
 
 ## Overview
@@ -84,6 +84,19 @@ Core workflow note: `.github/workflows/deploy-azd.yml` is reusable-only and not 
 - Demo seeding uses a curated catalog of 10 categories and 100 products with realistic retail data. Re-runs are idempotent by item ID (`cat-*`, `prd-*`): existing seeded records are updated instead of duplicated.
 - Use environment approvals in GitHub Environments for `staging`/`prod`.
 - Keep image tags immutable for reproducible rollback.
+
+### Governance Compliance Checklist
+
+- Use environment entrypoint workflows only (`deploy-azd-dev.yml`, `deploy-azd-prod.yml`).
+- Apply production gates: stable tag, published release, and commit lineage from `main`.
+- Enforce OIDC authentication and Key Vault secret management.
+- Preserve changed-service deployment and APIM sync/smoke behavior per environment defaults.
+- Run lint/test quality gates before deployment (repo minimum 75% coverage).
+- Update governance docs when workflow behavior or runtime controls change:
+  - `docs/governance/README.md`
+  - `docs/governance/backend-governance.md`
+  - `docs/governance/frontend-governance.md`
+  - `docs/governance/infrastructure-governance.md`
 
 ### Reproducible Deployment Operations (Non-Bicep)
 
@@ -244,7 +257,7 @@ az acr update -n <acrName> --public-network-enabled false
 ## 🏗️ System Architecture
 
 ### Frontend Layer
-**Technology**: Next.js 15.1.6, React 19, TypeScript 5.7.2, Tailwind CSS 4.0  
+**Technology**: Next.js 16.2.0-canary.17, React 19, TypeScript 5.7.2, Tailwind CSS 3.4.0  
 **Location**: `apps/ui/`  
 **Status**: ✅ Complete (13 pages, 52 components)
 

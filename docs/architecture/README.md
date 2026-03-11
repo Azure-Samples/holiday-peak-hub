@@ -1,70 +1,28 @@
 # Architecture Documentation
 
-This folder contains comprehensive architectural documentation for the Holiday Peak Hub retail accelerator.
+This folder contains the canonical architecture, ADRs, component references, operational playbooks, and diagrams for Holiday Peak Hub.
 
-## Index
+## Canonical Documents
 
-- [Business Summary](business-summary.md) — Business need, value proposition, and scope per lib/app
-- [Architecture Overview](architecture.md) — System context, use case diagrams, component interaction, deployment views
-- [Market Architecture](market-architecture.md) — High-level agentic shopping architecture for proposals
-- [Architecture Decision Records](ADRs.md) — Index of all ADRs
-- [Components](components.md) — Detailed component documentation for libs, apps, and frontend
-- [Frontend Implementation Plan](FRONTEND_IMPLEMENTATION_PLAN.md) — Complete frontend implementation with color system and service mappings
-- [Operational Playbooks](playbooks/README.md) — Incident response guides and runbooks
-- [Infrastructure (Bicep)](../../infrastructure/bicep/main.bicep) — Azure provisioning for core services
+- [Architecture Overview](architecture.md) — Primary technical architecture narrative (context, interactions, deployment)
+- [Architecture Decision Records](ADRs.md) — Full ADR index and status
+- [Components](components.md) — Library, app, and frontend component references
+- [Architecture Compliance Review](architecture-compliance-review.md) — Branch-level ADR and policy conformance assessment
+- [Operational Playbooks](playbooks/README.md) — Incident runbooks aligned to governance policies
+- [Diagrams](diagrams/README.md) — Draw.io C4 diagrams and sequence flow documents
+- [Business Summary](business-summary.md) — Executive architecture summary
 
-### Governance and Compliance
+## Governance Alignment
 
-- [Governance Overview](../governance/README.md) — Standards and compliance guidelines
-- [Frontend Governance](../governance/frontend-governance.md) — Next.js, React, TypeScript standards
-- [Backend Governance](../governance/backend-governance.md) — Python, FastAPI, agent development standards
-- [Infrastructure Governance](../governance/infrastructure-governance.md) — Bicep, AKS, Azure services standards
+- [Governance Overview](../governance/README.md)
+- [Frontend Governance](../governance/frontend-governance.md)
+- [Backend Governance](../governance/backend-governance.md)
+- [Infrastructure Governance](../governance/infrastructure-governance.md)
 
-### Reference Architecture Patterns
+## Source of Truth Rules
 
-- [Reference Architectures](reference/) — Connector, adapter, and multi-tenant patterns (issue #84 — in progress)
-
-## Quick Links
-
-### Core Concepts
-- **Libs**: Reusable micro-framework (adapters, agents, memory, orchestration)
-- **Apps**: Domain-specific services built on the framework
-- **Memory Tiers**: Redis (hot), Cosmos DB (warm), Blob Storage (cold)
-- **AI Foundry**: Shared Foundry resource + hub for agent projects and model deployments
-- **Integration**: Event Hubs for async choreography, MCP + REST for sync APIs
-- **Deployment**: Bicep for provisioning, Helm/KEDA for Kubernetes orchestration
-- **Frontend**: Next.js 15 + React 19 + TypeScript, 52-component atomic design library
-- **Protocols**: AG-UI for agent interoperability, ACP for product data standardization
-
-### ADRs
-See [ADRs.md](ADRs.md) for the complete list. Key decisions include:
-
-**Backend**:
-- Programming language (Python 3.13)
-- Cloud services (Azure stack)
-- Design patterns (Adapter, Builder)
-- Agent framework (Microsoft Agent Framework + Foundry)
-- Memory architecture
-- API exposition strategy (MCP + REST)
-- Deployment model (AKS with canary + KEDA)
-
-**Frontend** (ADR-015 through ADR-020):
-- Next.js 15 with App Router
-- Atomic Design System (52 components)
-- AG-UI Protocol integration
-- ACP frontend compliance
-- JWT authentication with RBAC
-- Layered API client architecture
-
-### Components
-See [components.md](components.md) for detailed component documentation organized by:
-- **Libs**: [components/libs/](components/libs/)
-- **Apps**: [components/apps/](components/apps/)
-
-## Diagrams
-
-All architectural diagrams are embedded as Mermaid in [architecture.md](architecture.md), including:
-- System context
-- Use case diagrams per retail domain
-- Component interaction
-- Deployment topology
+- Use this folder as architecture source of truth for repo-level design.
+- Use `components/apps/*.md` for service-level implementation details.
+- Use ADRs for all non-trivial architecture decisions and updates.
+- Keep deployment policy references aligned with `deploy-azd-dev.yml`, `deploy-azd-prod.yml`, and reusable `deploy-azd.yml`.
+- Prefer diagrams in `diagrams/*.drawio` for C4 views and `diagrams/sequence-*.md` for runtime flows.
