@@ -83,8 +83,8 @@ gh workflow run deploy-azd.yml -f environment=dev -f location=eastus2 -f project
 
 1. `provision` job: sets azd env values and runs `azd provision`.
 2. `deploy-crud` job: fetches AKS credentials and deploys `crud-service` first.
-3. `deploy-ui` job (when `deployStatic=true`): resolves APIM URL with fail-fast validation, fetches the SWA deployment token from Azure, and deploys `apps/ui` via `Azure/static-web-apps-deploy@v1` (framework-aware build for dynamic Next.js routes).
-4. `deploy-agents` job: deploys 21 agent services in parallel matrix.
+3. `deploy-agents` job: deploys changed agent services in parallel matrix.
+4. `deploy-ui` job (when `deployStatic=true`): resolves APIM URL with fail-fast validation, fetches the SWA deployment token from Azure, and deploys `apps/ui` via `Azure/static-web-apps-deploy@v1` (framework-aware build for dynamic Next.js routes).
 5. `seed-demo-data` job (non-prod only, when `seedDemoData=true`): runs a Kubernetes Job in `holiday-peak` that executes `python -m crud_service.scripts.seed_demo_data` from the deployed CRUD image to populate demo categories/products.
 
 **Operational notes**:

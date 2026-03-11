@@ -1327,9 +1327,53 @@ jobs:
             --query "identityProfile.kubeletidentity.clientId" -o tsv)
           echo "WORKLOAD_AZURE_CLIENT_ID=${AKS_MI_CLIENT_ID}" >> "$GITHUB_ENV"
 
+      - name: Preflight ACR data-plane accessibility
+        id: acr_preflight_agents
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          RG_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+          ACR_NAME=$(echo "${{ inputs.projectName }}${{ inputs.environment }}acr" | tr -cd '[:alnum:]' | tr '[:upper:]' '[:lower:]')
+
+          if ! az acr show --resource-group "$RG_NAME" --name "$ACR_NAME" >/dev/null 2>&1; then
+            echo "ACR preflight could not find registry '$ACR_NAME' in resource group '$RG_NAME'." >&2
+            exit 1
+          fi
+
+          ACR_LOGIN_SERVER=$(az acr show \
+            --resource-group "$RG_NAME" \
+            --name "$ACR_NAME" \
+            --query "loginServer" -o tsv)
+
+          STATUS_CODE=$(curl -sS -o /tmp/acr-v2-probe-agents.txt -w "%{http_code}" --max-time 25 "https://${ACR_LOGIN_SERVER}/v2/" || true)
+          if [ "$STATUS_CODE" = "200" ] || [ "$STATUS_CODE" = "401" ]; then
+            echo "runner_ip=" >> "$GITHUB_OUTPUT"
+            echo "acr_name=${ACR_NAME}" >> "$GITHUB_OUTPUT"
+            echo "rg_name=${RG_NAME}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          RUNNER_IP=$(curl -sS --max-time 10 https://api.ipify.org || true)
+          if [ -n "$RUNNER_IP" ] && [ "${{ inputs.autoAllowAcrRunnerIp }}" = "true" ] && [ "$STATUS_CODE" = "403" ]; then
+            az acr network-rule add --name "$ACR_NAME" --resource-group "$RG_NAME" --ip-address "$RUNNER_IP" >/dev/null
+            echo "runner_ip=${RUNNER_IP}" >> "$GITHUB_OUTPUT"
+            echo "acr_name=${ACR_NAME}" >> "$GITHUB_OUTPUT"
+            echo "rg_name=${RG_NAME}" >> "$GITHUB_OUTPUT"
+            sleep 15
+            RETRY_CODE=$(curl -sS -o /tmp/acr-v2-probe-agents-retry.txt -w "%{http_code}" --max-time 25 "https://${ACR_LOGIN_SERVER}/v2/" || true)
+            if [ "$RETRY_CODE" = "200" ] || [ "$RETRY_CODE" = "401" ]; then
+              exit 0
+            fi
+          fi
+
+          echo "ACR preflight failed for deploy-agents path (HTTP $STATUS_CODE)." >&2
+          exit 1
+
       - name: Deploy service
         run: azd deploy --service "${{ matrix.service }}" --no-prompt -e "${{ inputs.environment }}"
         env:
+          DEPLOY_ENV: ${{ inputs.environment }}
           AZURE_CLIENT_ID: ${{ env.WORKLOAD_AZURE_CLIENT_ID }}
           AZURE_TENANT_ID: ${{ env.AZURE_TENANT_ID }}
           PROJECT_ENDPOINT: ${{ needs.provision.outputs.PROJECT_ENDPOINT }}
@@ -1348,6 +1392,16 @@ jobs:
           POSTGRES_HOST: ${{ needs.provision.outputs.POSTGRES_HOST }}
           POSTGRES_USER: ${{ needs.provision.outputs.POSTGRES_AUTH_MODE == 'password' && needs.provision.outputs.POSTGRES_ADMIN_USER || needs.provision.outputs.POSTGRES_USER }}
           POSTGRES_DATABASE: ${{ needs.provision.outputs.POSTGRES_DATABASE }}
+
+      - name: Cleanup temporary ACR runner IP allowlist (agents)
+        if: ${{ always() && inputs.autoAllowAcrRunnerIp && steps.acr_preflight_agents.outputs.runner_ip != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          az acr network-rule remove \
+            --name "${{ steps.acr_preflight_agents.outputs.acr_name }}" \
+            --resource-group "${{ steps.acr_preflight_agents.outputs.rg_name }}" \
+            --ip-address "${{ steps.acr_preflight_agents.outputs.runner_ip }}" >/dev/null || true
 
   sync-apim:
     runs-on: ubuntu-latest
