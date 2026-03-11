@@ -1655,7 +1655,19 @@ jobs:
           fi
 
           if [ -z "${POSTGRES_PASSWORD:-}" ]; then
-            echo "Could not resolve POSTGRES_PASSWORD from azd env, Key Vault, or CRUD pod environment."
+            PASSWORD_SECRET_NAME=$(kubectl get deployment crud-service-crud-service -n holiday-peak -o jsonpath="{.spec.template.spec.containers[0].env[?(@.name=='POSTGRES_PASSWORD')].valueFrom.secretKeyRef.name}" 2>/dev/null || true)
+            PASSWORD_SECRET_KEY=$(kubectl get deployment crud-service-crud-service -n holiday-peak -o jsonpath="{.spec.template.spec.containers[0].env[?(@.name=='POSTGRES_PASSWORD')].valueFrom.secretKeyRef.key}" 2>/dev/null || true)
+
+            if [ -n "${PASSWORD_SECRET_NAME:-}" ] && [ -n "${PASSWORD_SECRET_KEY:-}" ]; then
+              ENCODED_PASSWORD=$(kubectl get secret "${PASSWORD_SECRET_NAME}" -n holiday-peak -o "jsonpath={.data.${PASSWORD_SECRET_KEY}}" 2>/dev/null || true)
+              if [ -n "${ENCODED_PASSWORD:-}" ]; then
+                POSTGRES_PASSWORD=$(echo "${ENCODED_PASSWORD}" | base64 -d)
+              fi
+            fi
+          fi
+
+          if [ -z "${POSTGRES_PASSWORD:-}" ]; then
+            echo "Could not resolve POSTGRES_PASSWORD from azd env, Key Vault, CRUD pod environment, or Kubernetes secret reference."
             exit 1
           fi
 
