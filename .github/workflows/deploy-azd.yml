@@ -1276,7 +1276,7 @@ jobs:
 
   deploy-agents:
     runs-on: ubuntu-latest
-    if: ${{ !inputs.uiOnly && needs.detect-changes.outputs.agents_changed == 'true' }}
+    if: ${{ !inputs.uiOnly && needs.detect-changes.outputs.agents_changed == 'true' && (needs.deploy-crud.result == 'success' || needs.deploy-crud.result == 'skipped') }}
     needs:
       - provision
       - deploy-crud

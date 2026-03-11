@@ -82,10 +82,11 @@ gh workflow run deploy-azd.yml -f environment=dev -f location=eastus2 -f project
 **Execution order**:
 
 1. `provision` job: sets azd env values and runs `azd provision`.
-2. `deploy-crud` job: fetches AKS credentials and deploys `crud-service` first.
-3. `deploy-agents` job: deploys changed agent services in parallel matrix.
-4. `deploy-ui` job (when `deployStatic=true`): resolves APIM URL with fail-fast validation, fetches the SWA deployment token from Azure, and deploys `apps/ui` via `Azure/static-web-apps-deploy@v1` (framework-aware build for dynamic Next.js routes).
-5. `seed-demo-data` job (non-prod only, when `seedDemoData=true`): runs a Kubernetes Job in `holiday-peak` that executes `python -m crud_service.scripts.seed_demo_data` from the deployed CRUD image to populate demo categories/products.
+2. `deploy-crud` job: deploys `crud-service` when CRUD/lib changes are detected.
+3. `deploy-foundry-models` and `deploy-agents` jobs: run after provision; `deploy-agents` deploys changed agent services (and can proceed when `deploy-crud` is skipped for agent-only changes).
+4. `sync-apim` and `smoke-apim` jobs: run when CRUD/agent changes are present or `forceApimSync=true`.
+5. `deploy-ui` job (when `deployStatic=true`): runs after APIM sync/smoke gates, resolves APIM URL with fail-fast validation, fetches the SWA deployment token from Azure, and deploys `apps/ui` via `Azure/static-web-apps-deploy@v1` (framework-aware build for dynamic Next.js routes).
+6. `seed-demo-data` job (non-prod only, when `seedDemoData=true`): runs after deploy gates and executes a Kubernetes Job in `holiday-peak` (`python -m crud_service.scripts.seed_demo_data`) to populate demo categories/products.
 
 **Operational notes**:
 
