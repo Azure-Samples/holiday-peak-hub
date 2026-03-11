@@ -1629,11 +1629,17 @@ jobs:
 
           echo "Executing seed script in pod: ${CRUD_POD}"
 
+          if [ -z "${POSTGRES_PASSWORD:-}" ]; then
+            POSTGRES_PASSWORD=$(kubectl exec -n holiday-peak "${CRUD_POD}" -- printenv POSTGRES_PASSWORD 2>/dev/null || true)
+          fi
+
           if [ -n "${POSTGRES_PASSWORD:-}" ]; then
             kubectl exec -n holiday-peak "${CRUD_POD}" -- env \
               POSTGRES_AUTH_MODE=password \
               POSTGRES_PASSWORD="${POSTGRES_PASSWORD}" \
               python -m crud_service.scripts.seed_demo_data
           else
-            kubectl exec -n holiday-peak "${CRUD_POD}" -- python -m crud_service.scripts.seed_demo_data
+            kubectl exec -n holiday-peak "${CRUD_POD}" -- env \
+              POSTGRES_AUTH_MODE=password \
+              python -m crud_service.scripts.seed_demo_data
           fi
