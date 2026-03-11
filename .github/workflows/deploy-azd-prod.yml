@@ -10,7 +10,28 @@ permissions:
   contents: read
 
 jobs:
+  verify-release:
+    if: ${{ startsWith(github.ref_name, 'v') && !contains(github.ref_name, '-') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify GitHub Release exists for tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          api_url="https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ github.ref_name }}"
+          status=$(curl -sS -o /tmp/release-check.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "$api_url")
+
+          if [ "$status" != "200" ]; then
+            echo "Stable production tag '${{ github.ref_name }}' must have a published GitHub Release before deployment." >&2
+            cat /tmp/release-check.json 2>/dev/null || true
+            exit 1
+          fi
+
   deploy:
+    needs: verify-release
     if: ${{ startsWith(github.ref_name, 'v') && !contains(github.ref_name, '-') }}
     uses: ./.github/workflows/deploy-azd.yml
     with:

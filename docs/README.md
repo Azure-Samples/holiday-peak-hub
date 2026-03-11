@@ -25,7 +25,7 @@ The Python CLI in `.infra/cli.py` is scaffolding-only (`generate-bicep`, `genera
 Use environment-specific entry workflows:
 
 - `.github/workflows/deploy-azd-dev.yml` as the default development path (auto-runs on `main` changes and supports manual dispatch).
-- `.github/workflows/deploy-azd-prod.yml` for production deployments triggered only by stable release tags (`v*.*.*` without pre-release suffixes).
+- `.github/workflows/deploy-azd-prod.yml` for production deployments triggered only by stable release tags (`v*.*.*` without pre-release suffixes) that also have a published GitHub Release.
 - `.github/workflows/deploy-azd.yml` remains the shared core workflow invoked by both entry workflows.
 
 > Provisioning is mandatory before frontend/backend consumption in any environment. Always run `azd provision` (and then `azd deploy`) before validating APIs or UI integration.
@@ -55,12 +55,14 @@ gh workflow run deploy-azd-dev.yml -f location=eastus2 -f projectName=holidaypea
 gh workflow run deploy-azd-dev.yml -f location=eastus2 -f projectName=holidaypeakhub405 -f imageTag=latest -f deployStatic=true -f seedDemoData=false -f autoAllowAcrRunnerIp=true
 ```
 
-- Production rollout (stable release tag trigger):
+- Production rollout (stable release tag + published GitHub Release):
 
 ```bash
 git tag v1.2.3
 git push origin v1.2.3
 ```
+
+Then publish a GitHub Release for `v1.2.3`. The production workflow validates release existence before deploying.
 
 Core workflow note: `.github/workflows/deploy-azd.yml` is reusable-only and not intended for direct manual dispatch.
 
