@@ -1,56 +1,24 @@
 name: deploy-azd-prod (entrypoint)
 
 on:
-  workflow_dispatch:
-    inputs:
-      location:
-        description: Azure location
-        required: true
-        default: centralus
-      projectName:
-        description: Project prefix used by naming convention
-        required: true
-        default: holidaypeakhub405
-      imageTag:
-        description: Image tag to deploy
-        required: true
-        default: latest
-      deployStatic:
-        description: Provision static web app resources
-        required: true
-        type: boolean
-        default: true
-      confirmProduction:
-        description: Type DEPLOY_PROD to confirm production deployment
-        required: true
-        default: ''
+  push:
+    tags:
+      - 'v*.*.*'
 
 permissions:
   id-token: write
   contents: read
 
 jobs:
-  confirm:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Validate production confirmation token
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ "${{ inputs.confirmProduction }}" != "DEPLOY_PROD" ]; then
-            echo "confirmProduction must equal DEPLOY_PROD for production deployments." >&2
-            exit 1
-          fi
-
   deploy:
-    needs: confirm
+    if: ${{ startsWith(github.ref_name, 'v') && !contains(github.ref_name, '-') }}
     uses: ./.github/workflows/deploy-azd.yml
     with:
       environment: prod
-      location: ${{ inputs.location }}
-      projectName: ${{ inputs.projectName }}
-      imageTag: ${{ inputs.imageTag }}
-      deployStatic: ${{ inputs.deployStatic }}
+      location: centralus
+      projectName: holidaypeakhub405
+      imageTag: ${{ github.ref_name }}
+      deployStatic: true
       uiOnly: false
       apiBaseUrl: ''
       seedDemoData: false

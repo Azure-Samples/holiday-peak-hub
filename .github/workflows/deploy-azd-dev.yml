@@ -1,6 +1,16 @@
 name: deploy-azd-dev (entrypoint)
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - azure.yaml
+      - apps/**
+      - lib/**
+      - .infra/**
+      - .github/workflows/deploy-azd.yml
+      - .github/workflows/deploy-azd-dev.yml
   workflow_dispatch:
     inputs:
       location:
@@ -54,16 +64,16 @@ jobs:
     uses: ./.github/workflows/deploy-azd.yml
     with:
       environment: dev
-      location: ${{ inputs.location }}
-      projectName: ${{ inputs.projectName }}
-      imageTag: ${{ inputs.imageTag }}
-      deployStatic: ${{ inputs.deployStatic }}
-      uiOnly: ${{ inputs.uiOnly }}
-      apiBaseUrl: ${{ inputs.apiBaseUrl }}
-      seedDemoData: ${{ inputs.seedDemoData }}
+      location: ${{ inputs.location || 'centralus' }}
+      projectName: ${{ inputs.projectName || 'holidaypeakhub405' }}
+      imageTag: ${{ inputs.imageTag || github.sha }}
+      deployStatic: ${{ github.event_name == 'workflow_dispatch' && inputs.deployStatic || true }}
+      uiOnly: ${{ github.event_name == 'workflow_dispatch' && inputs.uiOnly || false }}
+      apiBaseUrl: ${{ inputs.apiBaseUrl || '' }}
+      seedDemoData: ${{ github.event_name == 'workflow_dispatch' && inputs.seedDemoData || false }}
       deployChangedOnly: true
-      forceApimSync: ${{ inputs.forceApimSync }}
-      autoAllowAcrRunnerIp: ${{ inputs.autoAllowAcrRunnerIp }}
+      forceApimSync: ${{ github.event_name == 'workflow_dispatch' && inputs.forceApimSync || false }}
+      autoAllowAcrRunnerIp: ${{ github.event_name == 'workflow_dispatch' && inputs.autoAllowAcrRunnerIp || true }}
     secrets:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}

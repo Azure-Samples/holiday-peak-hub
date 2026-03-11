@@ -24,8 +24,8 @@ The Python CLI in `.infra/cli.py` is scaffolding-only (`generate-bicep`, `genera
 
 Use environment-specific entry workflows:
 
-- `.github/workflows/deploy-azd-dev.yml` for routine development deployments.
-- `.github/workflows/deploy-azd-prod.yml` for production deployments with an explicit confirmation gate.
+- `.github/workflows/deploy-azd-dev.yml` as the default development path (auto-runs on `main` changes and supports manual dispatch).
+- `.github/workflows/deploy-azd-prod.yml` for production deployments triggered only by stable release tags (`v*.*.*` without pre-release suffixes).
 - `.github/workflows/deploy-azd.yml` remains the shared core workflow invoked by both entry workflows.
 
 > Provisioning is mandatory before frontend/backend consumption in any environment. Always run `azd provision` (and then `azd deploy`) before validating APIs or UI integration.
@@ -39,7 +39,7 @@ Use environment-specific entry workflows:
 **Entry workflow inputs**:
 
 - Dev entrypoint (`deploy-azd-dev.yml`): `location`, `projectName`, `imageTag`, `deployStatic`, `uiOnly`, `apiBaseUrl`, `seedDemoData`, `forceApimSync`, `autoAllowAcrRunnerIp`.
-- Prod entrypoint (`deploy-azd-prod.yml`): `location`, `projectName`, `imageTag`, `deployStatic`, `confirmProduction`.
+- Prod entrypoint (`deploy-azd-prod.yml`): no manual inputs; runs only from stable release tags and deploys using the tag name as `imageTag`.
 
 **Manual trigger examples**:
 
@@ -55,10 +55,11 @@ gh workflow run deploy-azd-dev.yml -f location=eastus2 -f projectName=holidaypea
 gh workflow run deploy-azd-dev.yml -f location=eastus2 -f projectName=holidaypeakhub405 -f imageTag=latest -f deployStatic=true -f seedDemoData=false -f autoAllowAcrRunnerIp=true
 ```
 
-- Production rollout (requires explicit confirmation token):
+- Production rollout (stable release tag trigger):
 
 ```bash
-gh workflow run deploy-azd-prod.yml -f location=eastus2 -f projectName=holidaypeakhub405 -f imageTag=latest -f deployStatic=true -f confirmProduction=DEPLOY_PROD
+git tag v1.2.3
+git push origin v1.2.3
 ```
 
 Core workflow note: `.github/workflows/deploy-azd.yml` is reusable-only and not intended for direct manual dispatch.
