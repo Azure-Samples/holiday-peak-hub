@@ -1589,6 +1589,17 @@ jobs:
           JOB_NAME="crud-demo-seed-${{ github.run_id }}"
 
           if [ -z "${CRUD_IMAGE:-}" ]; then
+            CRUD_IMAGE=$(kubectl get deployment crud-service-crud-service -n holiday-peak -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || true)
+          fi
+
+          if [ -z "${CRUD_IMAGE:-}" ]; then
+            CRUD_DEPLOYMENT_NAME=$(kubectl get deployment -n holiday-peak -o name 2>/dev/null | grep '^deployment.apps/crud-service' | head -n 1 | sed 's#deployment.apps/##' || true)
+            if [ -n "${CRUD_DEPLOYMENT_NAME:-}" ]; then
+              CRUD_IMAGE=$(kubectl get deployment "$CRUD_DEPLOYMENT_NAME" -n holiday-peak -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || true)
+            fi
+          fi
+
+          if [ -z "${CRUD_IMAGE:-}" ]; then
             CRUD_IMAGE=$(kubectl get deployment -n holiday-peak -l app=crud-service -o jsonpath='{.items[0].spec.template.spec.containers[0].image}' 2>/dev/null || true)
           fi
 
