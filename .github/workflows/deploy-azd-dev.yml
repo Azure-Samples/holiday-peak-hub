@@ -60,20 +60,42 @@ permissions:
   contents: read
 
 jobs:
-  deploy:
+  deploy-from-push:
+    if: ${{ github.event_name == 'push' }}
     uses: ./.github/workflows/deploy-azd.yml
     with:
       environment: dev
-      location: ${{ inputs.location || 'centralus' }}
-      projectName: ${{ inputs.projectName || 'holidaypeakhub405' }}
-      imageTag: ${{ inputs.imageTag || github.sha }}
-      deployStatic: ${{ github.event_name == 'workflow_dispatch' && inputs.deployStatic || true }}
-      uiOnly: ${{ github.event_name == 'workflow_dispatch' && inputs.uiOnly || false }}
-      apiBaseUrl: ${{ inputs.apiBaseUrl || '' }}
-      seedDemoData: ${{ github.event_name == 'workflow_dispatch' && inputs.seedDemoData || false }}
+      location: centralus
+      projectName: holidaypeakhub405
+      imageTag: ${{ github.sha }}
+      deployStatic: true
+      uiOnly: false
+      apiBaseUrl: ''
+      seedDemoData: false
       deployChangedOnly: true
-      forceApimSync: ${{ github.event_name == 'workflow_dispatch' && inputs.forceApimSync || false }}
-      autoAllowAcrRunnerIp: ${{ github.event_name == 'workflow_dispatch' && inputs.autoAllowAcrRunnerIp || true }}
+      forceApimSync: false
+      autoAllowAcrRunnerIp: true
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      SWA_DEPLOYMENT_TOKEN: ${{ secrets.SWA_DEPLOYMENT_TOKEN }}
+
+  deploy-manual:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    uses: ./.github/workflows/deploy-azd.yml
+    with:
+      environment: dev
+      location: ${{ inputs.location }}
+      projectName: ${{ inputs.projectName }}
+      imageTag: ${{ inputs.imageTag }}
+      deployStatic: ${{ inputs.deployStatic }}
+      uiOnly: ${{ inputs.uiOnly }}
+      apiBaseUrl: ${{ inputs.apiBaseUrl }}
+      seedDemoData: ${{ inputs.seedDemoData }}
+      deployChangedOnly: true
+      forceApimSync: ${{ inputs.forceApimSync }}
+      autoAllowAcrRunnerIp: ${{ inputs.autoAllowAcrRunnerIp }}
     secrets:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}

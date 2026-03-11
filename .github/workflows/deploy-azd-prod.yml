@@ -34,11 +34,18 @@ jobs:
             exit 1
           fi
 
+          DRAFT=$(python3 -c "import json; print(str(json.load(open('/tmp/release-check.json')).get('draft', False)).lower())")
+          PRERELEASE=$(python3 -c "import json; print(str(json.load(open('/tmp/release-check.json')).get('prerelease', False)).lower())")
+          if [ "$DRAFT" = "true" ] || [ "$PRERELEASE" = "true" ]; then
+            echo "Production release for '${{ github.ref_name }}' must be published and non-prerelease (draft=false, prerelease=false)." >&2
+            exit 1
+          fi
+
       - name: Verify tag commit is reachable from main
         shell: bash
         run: |
           set -euo pipefail
-          git fetch origin main --depth=1
+          git fetch origin main
           if ! git merge-base --is-ancestor "$GITHUB_SHA" "origin/main"; then
             echo "Production tag '${{ github.ref_name }}' points to commit '$GITHUB_SHA' that is not reachable from main." >&2
             exit 1
