@@ -1558,6 +1558,18 @@ jobs:
       - name: Setup azd
         uses: Azure/setup-azd@v2
 
+      - name: Install kubelogin
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if az aks install-cli --kubelogin-version latest; then
+              exit 0
+            fi
+            echo "kubelogin install failed on attempt ${attempt}; retrying..."
+            sleep 15
+          done
+          echo "kubelogin install failed after retries"
+          exit 1
+
       - name: Resolve environment values
         run: |
           eval "$(azd env get-values -e '${{ inputs.environment }}' | sed 's/^/export /')"
