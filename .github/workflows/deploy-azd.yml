@@ -1600,13 +1600,34 @@ jobs:
       - name: Run demo faker seed job
         run: |
           POSTGRES_PASSWORD_SECRET_NAME="${POSTGRES_PASSWORD_SECRET_NAME:-postgres-admin-password}"
+          RESOURCE_GROUP="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
 
-          if [ -z "${POSTGRES_PASSWORD:-}" ] && [ -n "${KEY_VAULT_URI:-}" ]; then
-            KV_NAME=$(echo "${KEY_VAULT_URI}" | sed -E 's#https://([^./]+).*#\1#')
-            POSTGRES_PASSWORD=$(az keyvault secret show \
-              --vault-name "${KV_NAME}" \
-              --name "${POSTGRES_PASSWORD_SECRET_NAME}" \
-              --query value -o tsv 2>/dev/null || true)
+          if [ -z "${POSTGRES_PASSWORD:-}" ]; then
+            KV_NAME=""
+
+            if [ -n "${KEY_VAULT_URI:-}" ]; then
+              KV_NAME=$(echo "${KEY_VAULT_URI}" | sed -E 's#https://([^./]+).*#\1#')
+            fi
+
+            if [ -z "${KV_NAME:-}" ]; then
+              KV_NAME=$(az keyvault list \
+                --resource-group "${RESOURCE_GROUP}" \
+                --query "[0].name" -o tsv 2>/dev/null || true)
+            fi
+
+            if [ -z "${KV_NAME:-}" ]; then
+              KV_NAME=$(az resource list \
+                --resource-group "${RESOURCE_GROUP}" \
+                --resource-type "Microsoft.KeyVault/vaults" \
+                --query "[0].name" -o tsv 2>/dev/null || true)
+            fi
+
+            if [ -n "${KV_NAME:-}" ]; then
+              POSTGRES_PASSWORD=$(az keyvault secret show \
+                --vault-name "${KV_NAME}" \
+                --name "${POSTGRES_PASSWORD_SECRET_NAME}" \
+                --query value -o tsv 2>/dev/null || true)
+            fi
           fi
 
           CRUD_POD=$(kubectl get pods -n holiday-peak -o jsonpath='{.items[*].metadata.name}' \
@@ -1633,13 +1654,14 @@ jobs:
             POSTGRES_PASSWORD=$(kubectl exec -n holiday-peak "${CRUD_POD}" -- printenv POSTGRES_PASSWORD 2>/dev/null || true)
           fi
 
+          if [ -z "${POSTGRES_PASSWORD:-}" ]; then
+            echo "Could not resolve POSTGRES_PASSWORD from azd env, Key Vault, or CRUD pod environment."
+            exit 1
+          fi
+
           if [ -n "${POSTGRES_PASSWORD:-}" ]; then
             kubectl exec -n holiday-peak "${CRUD_POD}" -- env \
               POSTGRES_AUTH_MODE=password \
               POSTGRES_PASSWORD="${POSTGRES_PASSWORD}" \
-              python -m crud_service.scripts.seed_demo_data
-          else
-            kubectl exec -n holiday-peak "${CRUD_POD}" -- env \
-              POSTGRES_AUTH_MODE=password \
               python -m crud_service.scripts.seed_demo_data
           fi
