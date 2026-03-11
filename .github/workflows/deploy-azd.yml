@@ -1562,12 +1562,14 @@ jobs:
         run: |
           eval "$(azd env get-values -e '${{ inputs.environment }}' | sed 's/^/export /')"
 
-          if [ -z "${SERVICE_CRUD_SERVICE_IMAGE_NAME:-}" ]; then
-            echo "SERVICE_CRUD_SERVICE_IMAGE_NAME is required for seed job"
-            exit 1
+          CRUD_IMAGE_VALUE="${SERVICE_CRUD_SERVICE_IMAGE_NAME:-${SERVICE_CRUD_IMAGE_NAME:-}}"
+
+          if [ -n "$CRUD_IMAGE_VALUE" ]; then
+            echo "CRUD_IMAGE=$CRUD_IMAGE_VALUE" >> "$GITHUB_ENV"
+          else
+            echo "CRUD_IMAGE=" >> "$GITHUB_ENV"
           fi
 
-          echo "CRUD_IMAGE=${SERVICE_CRUD_SERVICE_IMAGE_NAME}" >> "$GITHUB_ENV"
           echo "POSTGRES_HOST=${POSTGRES_HOST}" >> "$GITHUB_ENV"
           echo "POSTGRES_USER=${POSTGRES_USER}" >> "$GITHUB_ENV"
           echo "POSTGRES_PASSWORD=${POSTGRES_PASSWORD}" >> "$GITHUB_ENV"
@@ -1585,6 +1587,15 @@ jobs:
       - name: Run demo faker seed job
         run: |
           JOB_NAME="crud-demo-seed-${{ github.run_id }}"
+
+          if [ -z "${CRUD_IMAGE:-}" ]; then
+            CRUD_IMAGE=$(kubectl get deployment -n holiday-peak -l app=crud-service -o jsonpath='{.items[0].spec.template.spec.containers[0].image}' 2>/dev/null || true)
+          fi
+
+          if [ -z "${CRUD_IMAGE:-}" ]; then
+            echo "Could not resolve CRUD image from azd env or live deployment."
+            exit 1
+          fi
 
           cat <<EOF | kubectl apply -f -
           apiVersion: batch/v1
