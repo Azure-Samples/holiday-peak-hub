@@ -1,7 +1,7 @@
 # Holiday Peak Hub - Architecture Documentation
 
-**Last Updated**: February 27, 2026  
-**Version**: [v1.0.0](https://github.com/Azure-Samples/holiday-peak-hub/releases/tag/v1.0.0)  
+**Last Updated**: March 11, 2026  
+**Version**: [v2.0.0](https://github.com/Azure-Samples/holiday-peak-hub/releases/tag/v2.0.0)  
 **Status**: Active Development
 
 ## Overview
@@ -24,9 +24,10 @@ The Python CLI in `.infra/cli.py` is scaffolding-only (`generate-bicep`, `genera
 
 Use environment-specific entry workflows:
 
-- `.github/workflows/deploy-azd-dev.yml` for routine development deployments.
-- `.github/workflows/deploy-azd-prod.yml` for production deployments with an explicit confirmation gate.
+- `.github/workflows/deploy-azd-dev.yml` as the default development path (auto-runs on `main` changes and supports manual dispatch).
+- `.github/workflows/deploy-azd-prod.yml` for production deployments triggered only by stable release tags (`v*.*.*` without pre-release suffixes) that also have a published GitHub Release and point to a commit reachable from `main`.
 - `.github/workflows/deploy-azd.yml` remains the shared core workflow invoked by both entry workflows.
+- `.github/workflows/ci.yml` publishes GHCR images automatically for stable tags (`v*.*.*`) and can still be run manually for build/optional publish.
 
 > Provisioning is mandatory before frontend/backend consumption in any environment. Always run `azd provision` (and then `azd deploy`) before validating APIs or UI integration.
 
@@ -36,14 +37,10 @@ Use environment-specific entry workflows:
 - `AZURE_TENANT_ID`
 - `AZURE_SUBSCRIPTION_ID`
 
-**Core workflow inputs**:
+**Entry workflow inputs**:
 
-- `environment` (azd env name, e.g. `dev`, `staging`, `prod`)
-- `location` (Azure region)
-- `projectName` (naming prefix, default `holidaypeakhub405`)
-- `imageTag` (container image tag to deploy)
-- `deployStatic` (boolean to provision Static Web App resources)
-- `seedDemoData` (boolean to run or skip demo faker seeding in non-prod)
+- Dev entrypoint (`deploy-azd-dev.yml`): `location`, `projectName`, `imageTag`, `deployStatic`, `uiOnly`, `apiBaseUrl`, `seedDemoData`, `forceApimSync`, `autoAllowAcrRunnerIp`.
+- Prod entrypoint (`deploy-azd-prod.yml`): no manual inputs; runs only from stable release tags and deploys using the tag name as `imageTag`.
 
 **Manual trigger examples**:
 
@@ -59,25 +56,16 @@ gh workflow run deploy-azd-dev.yml -f location=eastus2 -f projectName=holidaypea
 gh workflow run deploy-azd-dev.yml -f location=eastus2 -f projectName=holidaypeakhub405 -f imageTag=latest -f deployStatic=true -f seedDemoData=false -f autoAllowAcrRunnerIp=true
 ```
 
-- Production rollout (requires explicit confirmation token):
+- Production rollout (stable release tag + published GitHub Release):
 
 ```bash
-gh workflow run deploy-azd-prod.yml -f location=eastus2 -f projectName=holidaypeakhub405 -f imageTag=latest -f deployStatic=true -f forceApimSync=true -f confirmProduction=DEPLOY_PROD
+git tag v1.2.3
+git push origin v1.2.3
 ```
 
-- Direct core workflow invocation (advanced/legacy path):
+Then publish a GitHub Release for `v1.2.3`. The production workflow validates release existence before deploying.
 
-- Full non-prod demo rollout with seeding (default):
-
-```bash
-gh workflow run deploy-azd.yml -f environment=dev -f location=eastus2 -f projectName=holidaypeakhub405 -f imageTag=latest -f deployStatic=true -f seedDemoData=true
-```
-
-- Fast non-prod rerun without reseeding:
-
-```bash
-gh workflow run deploy-azd.yml -f environment=dev -f location=eastus2 -f projectName=holidaypeakhub405 -f imageTag=latest -f deployStatic=true -f seedDemoData=false
-```
+Core workflow note: `.github/workflows/deploy-azd.yml` is reusable-only and not intended for direct manual dispatch.
 
 **Execution order**:
 
@@ -96,6 +84,19 @@ gh workflow run deploy-azd.yml -f environment=dev -f location=eastus2 -f project
 - Demo seeding uses a curated catalog of 10 categories and 100 products with realistic retail data. Re-runs are idempotent by item ID (`cat-*`, `prd-*`): existing seeded records are updated instead of duplicated.
 - Use environment approvals in GitHub Environments for `staging`/`prod`.
 - Keep image tags immutable for reproducible rollback.
+
+### Governance Compliance Checklist
+
+- Use environment entrypoint workflows only (`deploy-azd-dev.yml`, `deploy-azd-prod.yml`).
+- Apply production gates: stable tag, published release, and commit lineage from `main`.
+- Enforce OIDC authentication and Key Vault secret management.
+- Preserve changed-service deployment and APIM sync/smoke behavior per environment defaults.
+- Run lint/test quality gates before deployment (repo minimum 75% coverage).
+- Update governance docs when workflow behavior or runtime controls change:
+  - `docs/governance/README.md`
+  - `docs/governance/backend-governance.md`
+  - `docs/governance/frontend-governance.md`
+  - `docs/governance/infrastructure-governance.md`
 
 ### Reproducible Deployment Operations (Non-Bicep)
 
@@ -256,7 +257,7 @@ az acr update -n <acrName> --public-network-enabled false
 ## 🏗️ System Architecture
 
 ### Frontend Layer
-**Technology**: Next.js 15.1.6, React 19, TypeScript 5.7.2, Tailwind CSS 4.0  
+**Technology**: Next.js 16.2.0-canary.17, React 19, TypeScript 5.7.2, Tailwind CSS 3.4.0  
 **Location**: `apps/ui/`  
 **Status**: ✅ Complete (13 pages, 52 components)
 

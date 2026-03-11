@@ -3,7 +3,7 @@
 **Agent-driven retail accelerator** with cloud-native architecture, complete frontend implementation, and comprehensive backend plan.
 
 ![Status](https://img.shields.io/badge/Status-Active%20Development-green)
-![Version](https://img.shields.io/badge/lib-v1.1.0--stable-brightgreen)
+![Version](https://img.shields.io/badge/release-v2.0.0-brightgreen)
 ![Frontend](https://img.shields.io/badge/Frontend-Complete-brightgreen)
 ![Backend](https://img.shields.io/badge/Backend-Complete-brightgreen)
 ![Connectors](https://img.shields.io/badge/Connectors-Oracle%7CSalesforce%7CSAP%7CDynamics-blue)
@@ -17,16 +17,13 @@
 
 ## What's New
 
-> **v1.1.0** — Enterprise Connectors, Product Truth Layer, HITL Review System
+> **v2.0.0** — Single-path completeness operations (breaking compatibility removal)
 >
-> - **Enterprise Connectors**: Oracle Fusion Cloud SCM, Salesforce CRM, SAP S/4HANA, Dynamics 365
-> - **Product Truth Layer**: Foundation data models, ingestion service, Cosmos DB integration
-> - **HITL Review UI**: Staff review queue, proposal cards, audit timeline
-> - **Enterprise Hardening**: Circuit breaker, bulkhead, rate limiter, telemetry
-> - **PIM Writeback**: Opt-in config, conflict detection, audit trail
-> - **508 tests passing** (↑343 from v1.0.0)
+> - **Canonical completeness path**: standardized schema-driven operation model
+> - **Legacy compatibility removed**: deprecated consistency MCP tools and legacy event path removed
+> - **Operational simplification**: one operation contract for completeness evaluation workflows
 >
-> See the [CHANGELOG](CHANGELOG.md) for the full version history and the [GitHub Release](https://github.com/Azure-Samples/holiday-peak-hub/releases/tag/v1.1.0) for details.
+> See the [CHANGELOG](CHANGELOG.md) for the full version history and the [GitHub Release](https://github.com/Azure-Samples/holiday-peak-hub/releases/tag/v2.0.0) for details.
 
 ---
 
@@ -219,8 +216,31 @@ pytest lib/tests apps/**/tests --maxfail=1 --cov=. --cov-report=term-missing --c
 
 ## CI
 
-The workflow in .github/workflows/ci.yml runs lint, format, and tests on pushes/PRs and, on main, builds and pushes every app image to GHCR (`ghcr.io/<owner>/<app>:latest`).
-For production-style rollout with ordering, use `.github/workflows/deploy-azd.yml` (provision, deploy CRUD, optionally deploy the Static Web App UI, then deploy agent services).
+The workflow in `.github/workflows/ci.yml` builds all app images and publishes to GHCR on stable tags (`v*.*.*`), and can also be run manually for build-only validation or optional publish.
+For deployment orchestration, use the entry workflows:
+
+- `.github/workflows/deploy-azd-dev.yml` (default dev path: push-to-main automation + manual dispatch)
+- `.github/workflows/deploy-azd-prod.yml` (strict prod path: stable tags only, published release required, tag commit must be reachable from `main`)
+
+The reusable core `.github/workflows/deploy-azd.yml` is invoked by those entry workflows and is not intended for direct dispatch.
+
+## Deployment Policy (dev vs prod)
+
+- **Development (`deploy-azd-dev.yml`)**: primary/default path; auto-runs on `main` pushes for app/lib/infra/workflow changes and also supports manual dispatch.
+- **Production (`deploy-azd-prod.yml`)**: runs only on stable tags matching `v*.*.*` (no prerelease suffix).
+- **Release gate**: production requires a GitHub Release for the same tag with `draft=false` and `prerelease=false`.
+- **Lineage gate**: production requires the tagged commit to be reachable from `main`.
+- **Core workflow (`deploy-azd.yml`)**: reusable engine only; invoke through dev/prod entry workflows.
+
+## Governance Compliance Checklist
+
+- **Workflow entrypoint**: use `deploy-azd-dev.yml` for dev and `deploy-azd-prod.yml` for prod.
+- **Production release gate**: deploy only from stable tags with a published non-prerelease GitHub Release.
+- **Production lineage gate**: ensure tagged commit is reachable from `main`.
+- **Identity and secrets**: use OIDC + Managed Identity + Key Vault; no hardcoded secrets.
+- **Quality gates**: pass lint/test thresholds (repo minimum 75% coverage).
+- **Post-deploy checks**: confirm smoke checks for CRUD/API/UI where applicable.
+- **Governance references**: keep [docs/governance/README.md](docs/governance/README.md) and linked policies updated when behavior changes.
 
 ## Infrastructure and deployment
 
@@ -374,7 +394,7 @@ azd provision -e dev
 - **Secrets**: Azure Key Vault with Managed Identity — zero hardcoded secrets
 - **Networking**: Private Endpoints for all Azure services — zero public backend endpoints
 - **API Gateway**: Azure API Management with APIM-routed agent client (circuit breaker + retry)
-- **Deployment**: AKS with Helm, KEDA autoscaling, `deploy-azd.yml` 8-job pipeline
+- **Deployment**: AKS with Helm + KEDA via entrypoint workflows (`deploy-azd-dev.yml` for dev, `deploy-azd-prod.yml` for prod) backed by reusable core `deploy-azd.yml`
 - **Monitoring**: Application Insights with distributed tracing, Log Analytics
 - **Database**: PostgreSQL (asyncpg) with JSONB + GIN indexes
 - See [Implementation Roadmap](docs/IMPLEMENTATION_ROADMAP.md) for deployment steps

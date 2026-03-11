@@ -147,19 +147,21 @@ KEDA_ENABLED=false
 
 ### GitHub Actions Workflow
 
-The workflow (`.github/workflows/deploy-azd.yml`) supports:
+The deployment model uses environment entrypoints plus a reusable core:
 
-- **Manual trigger** (`workflow_dispatch`) with inputs: environment, location, projectName, imageTag, deployStatic, seedDemoData
+- **Dev entrypoint** (`.github/workflows/deploy-azd-dev.yml`) — supports push-triggered and manual development deployments
+- **Prod entrypoint** (`.github/workflows/deploy-azd-prod.yml`) — runs only for stable release tags after release/lineage validation
+- **Reusable core** (`.github/workflows/deploy-azd.yml`) — invoked through `workflow_call` and not used as a direct operator entrypoint
 - **OIDC federation** — federated identity for Azure login (no client secrets)
 - **Ordered jobs**: provision → deploy-crud → deploy-ui (optional) → deploy-agents → seed-demo-data (optional, non-prod)
-- **Parallel agent matrix** — all 21 agents deploy concurrently in the agents phase
-- **Seed control** — operators can set `seedDemoData=false` for fast reruns when demo data is already present
+- **Parallel agent matrix** — all agents deploy concurrently in the agents phase
+- **Seed control** — non-prod entrypoints can set `seedDemoData=false` for faster reruns
 
 Manual trigger examples:
 
 ```bash
-gh workflow run deploy-azd.yml -f environment=dev -f location=eastus2 -f projectName=holidaypeakhub -f imageTag=latest -f deployStatic=true -f seedDemoData=true
-gh workflow run deploy-azd.yml -f environment=dev -f location=eastus2 -f projectName=holidaypeakhub -f imageTag=latest -f deployStatic=true -f seedDemoData=false
+gh workflow run deploy-azd-dev.yml -f location=eastus2 -f projectName=holidaypeakhub -f imageTag=latest -f deployStatic=true -f seedDemoData=true
+gh workflow run deploy-azd-dev.yml -f location=eastus2 -f projectName=holidaypeakhub -f imageTag=latest -f deployStatic=true -f seedDemoData=false
 ```
 
 Seeding behavior:

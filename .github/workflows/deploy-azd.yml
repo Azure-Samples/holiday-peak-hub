@@ -1,58 +1,6 @@
-name: deploy-azd
+name: deploy-azd-core (reusable)
 
 on:
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: Deployment environment name (for azd -e)
-        required: true
-        default: dev
-      location:
-        description: Azure location
-        required: true
-        default: centralus
-      projectName:
-        description: Project prefix used by naming convention
-        required: true
-        default: holidaypeakhub405
-      imageTag:
-        description: Image tag to deploy
-        required: true
-        default: latest
-      deployStatic:
-        description: Provision static web app resources
-        required: true
-        type: boolean
-        default: true
-      uiOnly:
-        description: Deploy only the UI using SWA token (skips provision and Azure login jobs)
-        required: true
-        type: boolean
-        default: false
-      apiBaseUrl:
-        description: Optional API base URL for UI build override
-        required: false
-        default: ''
-      seedDemoData:
-        description: Run demo faker seed job after deployment (non-prod only)
-        required: true
-        type: boolean
-        default: true
-      deployChangedOnly:
-        description: Legacy flag (changed-app-only deployment is always enforced)
-        required: true
-        type: boolean
-        default: true
-      forceApimSync:
-        description: Force APIM sync and smoke checks even when no changed services are detected
-        required: true
-        type: boolean
-        default: false
-      autoAllowAcrRunnerIp:
-        description: Temporarily allow this GitHub runner egress IP in ACR firewall during deploy and remove it afterward
-        required: true
-        type: boolean
-        default: true
   workflow_call:
     inputs:
       environment:
@@ -308,6 +256,15 @@ jobs:
           azd env set AZURE_AKS_CLUSTER_NAME "${{ inputs.projectName }}-${{ inputs.environment }}-aks" -e "${{ inputs.environment }}"
           azd env set AKS_CLUSTER_NAME "${{ inputs.projectName }}-${{ inputs.environment }}-aks" -e "${{ inputs.environment }}"
           azd env set AZURE_CONTAINER_REGISTRY_ENDPOINT "${{ inputs.projectName }}${{ inputs.environment }}acr.azurecr.io" -e "${{ inputs.environment }}"
+          azd env set deployShared true -e "${{ inputs.environment }}"
+          azd env set deployStatic "${{ inputs.deployStatic }}" -e "${{ inputs.environment }}"
+          azd env set environment "${{ inputs.environment }}" -e "${{ inputs.environment }}"
+          azd env set location "${{ inputs.location }}" -e "${{ inputs.environment }}"
+          azd env set projectName "${{ inputs.projectName }}" -e "${{ inputs.environment }}"
+          azd env set IMAGE_PREFIX "ghcr.io/${{ github.repository_owner }}" -e "${{ inputs.environment }}"
+          azd env set IMAGE_TAG "${{ inputs.imageTag }}" -e "${{ inputs.environment }}"
+          azd env set K8S_NAMESPACE holiday-peak -e "${{ inputs.environment }}"
+          azd env set KEDA_ENABLED false -e "${{ inputs.environment }}"
 
       - name: Install kubelogin
         run: |
@@ -342,47 +299,16 @@ jobs:
                 fi
                 sleep 30
               done
+
+              FINAL_STATE=$(az aks show --resource-group "$AKS_RG" --name "$AKS_NAME" --query "powerState.code" -o tsv 2>/dev/null || true)
+              if [ "$FINAL_STATE" != "Running" ]; then
+                echo "AKS cluster failed to reach Running state (current: ${FINAL_STATE:-unknown})." >&2
+                exit 1
+              fi
             fi
           else
             echo "AKS cluster does not exist yet. Continuing."
           fi
-
-      - name: Install kubelogin
-        run: |
-          for attempt in 1 2 3 4 5; do
-            if az aks install-cli --kubelogin-version latest; then
-              exit 0
-            fi
-            echo "kubelogin install failed on attempt ${attempt}; retrying..."
-            sleep 15
-          done
-          echo "kubelogin install failed after retries"
-          exit 1
-
-      - name: Ensure hook scripts executable
-        run: chmod +x ./.infra/azd/hooks/*.sh
-
-      - name: Configure azd environment
-        run: |
-          azd env set AZURE_SUBSCRIPTION_ID "${AZURE_SUBSCRIPTION_ID}" -e "${{ inputs.environment }}"
-          azd env set AZURE_LOCATION "${{ inputs.location }}" -e "${{ inputs.environment }}"
-          azd env set AZURE_ENV_NAME "${{ inputs.environment }}" -e "${{ inputs.environment }}"
-          azd env set AZURE_RESOURCE_GROUP "${{ inputs.projectName }}-${{ inputs.environment }}-rg" -e "${{ inputs.environment }}"
-          azd env set resourceGroupName "${{ inputs.projectName }}-${{ inputs.environment }}-rg" -e "${{ inputs.environment }}"
-          azd env set AZURE_AKS_CLUSTER_NAME "${{ inputs.projectName }}-${{ inputs.environment }}-aks" -e "${{ inputs.environment }}"
-          azd env set AKS_CLUSTER_NAME "${{ inputs.projectName }}-${{ inputs.environment }}-aks" -e "${{ inputs.environment }}"
-          azd env set AZURE_CONTAINER_REGISTRY_ENDPOINT "${{ inputs.projectName }}${{ inputs.environment }}acr.azurecr.io" -e "${{ inputs.environment }}"
-
-          azd env set deployShared true -e "${{ inputs.environment }}"
-          azd env set deployStatic "${{ inputs.deployStatic }}" -e "${{ inputs.environment }}"
-          azd env set environment "${{ inputs.environment }}" -e "${{ inputs.environment }}"
-          azd env set location "${{ inputs.location }}" -e "${{ inputs.environment }}"
-          azd env set projectName "${{ inputs.projectName }}" -e "${{ inputs.environment }}"
-
-          azd env set IMAGE_PREFIX "ghcr.io/${{ github.repository_owner }}" -e "${{ inputs.environment }}"
-          azd env set IMAGE_TAG "${{ inputs.imageTag }}" -e "${{ inputs.environment }}"
-          azd env set K8S_NAMESPACE holiday-peak -e "${{ inputs.environment }}"
-          azd env set KEDA_ENABLED false -e "${{ inputs.environment }}"
 
       - name: Ensure deploy principal has AKS RBAC Cluster Admin
         shell: bash
@@ -684,17 +610,6 @@ jobs:
       - name: Ensure hook scripts executable
         run: chmod +x ./.infra/azd/hooks/*.sh
 
-      - name: Configure azd environment context
-        run: |
-          azd env set AZURE_SUBSCRIPTION_ID "${AZURE_SUBSCRIPTION_ID}" -e "${{ inputs.environment }}"
-          azd env set AZURE_LOCATION "${{ inputs.location }}" -e "${{ inputs.environment }}"
-          azd env set AZURE_ENV_NAME "${{ inputs.environment }}" -e "${{ inputs.environment }}"
-          azd env set AZURE_RESOURCE_GROUP "${{ inputs.projectName }}-${{ inputs.environment }}-rg" -e "${{ inputs.environment }}"
-          azd env set resourceGroupName "${{ inputs.projectName }}-${{ inputs.environment }}-rg" -e "${{ inputs.environment }}"
-          azd env set AZURE_AKS_CLUSTER_NAME "${{ inputs.projectName }}-${{ inputs.environment }}-aks" -e "${{ inputs.environment }}"
-          azd env set AKS_CLUSTER_NAME "${{ inputs.projectName }}-${{ inputs.environment }}-aks" -e "${{ inputs.environment }}"
-          azd env set AZURE_CONTAINER_REGISTRY_ENDPOINT "${{ inputs.projectName }}${{ inputs.environment }}acr.azurecr.io" -e "${{ inputs.environment }}"
-
       - name: Get AKS credentials
         run: |
           az aks get-credentials \
@@ -797,6 +712,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          export AZURE_CLIENT_ID="${WORKLOAD_AZURE_CLIENT_ID}"
           max_attempts=4
 
           for attempt in $(seq 1 "$max_attempts"); do
@@ -837,7 +753,6 @@ jobs:
         env:
           DEPLOY_ENV: ${{ inputs.environment }}
           INGRESS_CLASS_NAME: ${{ env.INGRESS_CLASS_NAME }}
-          AZURE_CLIENT_ID: ${{ env.WORKLOAD_AZURE_CLIENT_ID }}
           AZURE_TENANT_ID: ${{ env.AZURE_TENANT_ID }}
           PROJECT_ENDPOINT: ${{ needs.provision.outputs.PROJECT_ENDPOINT }}
           PROJECT_NAME: ${{ needs.provision.outputs.PROJECT_NAME }}
@@ -1083,8 +998,8 @@ jobs:
         env:
           NEXT_PUBLIC_API_URL: ${{ steps.api.outputs.api_url }}
           NEXT_PUBLIC_CRUD_API_URL: ${{ steps.api.outputs.crud_api_url }}
-          NEXT_PUBLIC_ENTRA_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_ENTRA_CLIENT_ID }}
-          NEXT_PUBLIC_ENTRA_TENANT_ID: ${{ secrets.NEXT_PUBLIC_ENTRA_TENANT_ID }}
+          NEXT_PUBLIC_ENTRA_CLIENT_ID: ${{ vars.NEXT_PUBLIC_ENTRA_CLIENT_ID }}
+          NEXT_PUBLIC_ENTRA_TENANT_ID: ${{ vars.NEXT_PUBLIC_ENTRA_TENANT_ID }}
 
       - name: Smoke test UI host and API health after deploy
         shell: bash
@@ -1248,8 +1163,8 @@ jobs:
         env:
           NEXT_PUBLIC_API_URL: ${{ steps.api.outputs.api_url }}
           NEXT_PUBLIC_CRUD_API_URL: ${{ steps.api.outputs.crud_api_url }}
-          NEXT_PUBLIC_ENTRA_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_ENTRA_CLIENT_ID }}
-          NEXT_PUBLIC_ENTRA_TENANT_ID: ${{ secrets.NEXT_PUBLIC_ENTRA_TENANT_ID }}
+          NEXT_PUBLIC_ENTRA_CLIENT_ID: ${{ vars.NEXT_PUBLIC_ENTRA_CLIENT_ID }}
+          NEXT_PUBLIC_ENTRA_TENANT_ID: ${{ vars.NEXT_PUBLIC_ENTRA_TENANT_ID }}
 
       - name: Smoke test API health after UI-only deploy
         shell: bash
@@ -1371,10 +1286,11 @@ jobs:
           exit 1
 
       - name: Deploy service
-        run: azd deploy --service "${{ matrix.service }}" --no-prompt -e "${{ inputs.environment }}"
+        run: |
+          export AZURE_CLIENT_ID="${WORKLOAD_AZURE_CLIENT_ID}"
+          azd deploy --service "${{ matrix.service }}" --no-prompt -e "${{ inputs.environment }}"
         env:
           DEPLOY_ENV: ${{ inputs.environment }}
-          AZURE_CLIENT_ID: ${{ env.WORKLOAD_AZURE_CLIENT_ID }}
           AZURE_TENANT_ID: ${{ env.AZURE_TENANT_ID }}
           PROJECT_ENDPOINT: ${{ needs.provision.outputs.PROJECT_ENDPOINT }}
           PROJECT_NAME: ${{ needs.provision.outputs.PROJECT_NAME }}
@@ -1623,7 +1539,7 @@ jobs:
       - smoke-apim
       - ensure-foundry-agents
       - deploy-ui
-    if: ${{ always() && inputs.seedDemoData && needs.ensure-foundry-agents.result == 'success' && (needs.smoke-apim.result == 'success' || needs.smoke-apim.result == 'skipped') && (needs.deploy-ui.result == 'success' || needs.deploy-ui.result == 'skipped') && inputs.environment != 'prod' && inputs.environment != 'production' }}
+    if: ${{ always() && inputs.seedDemoData && (needs.ensure-foundry-agents.result == 'success' || needs.ensure-foundry-agents.result == 'skipped') && (needs.smoke-apim.result == 'success' || needs.smoke-apim.result == 'skipped') && (needs.deploy-ui.result == 'success' || needs.deploy-ui.result == 'skipped') && inputs.environment != 'prod' && inputs.environment != 'production' }}
     environment: ${{ inputs.environment }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}

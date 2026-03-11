@@ -1,74 +1,74 @@
-name: deploy-azd-prod
+name: deploy-azd-prod (entrypoint)
 
 on:
-  workflow_dispatch:
-    inputs:
-      location:
-        description: Azure location
-        required: true
-        default: centralus
-      projectName:
-        description: Project prefix used by naming convention
-        required: true
-        default: holidaypeakhub405
-      imageTag:
-        description: Image tag to deploy
-        required: true
-        default: latest
-      deployStatic:
-        description: Provision static web app resources
-        required: true
-        type: boolean
-        default: true
-      uiOnly:
-        description: Deploy only the UI using SWA token (skips provision and Azure login jobs)
-        required: true
-        type: boolean
-        default: false
-      apiBaseUrl:
-        description: Optional API base URL for UI build override
-        required: false
-        default: ''
-      forceApimSync:
-        description: Force APIM sync and smoke checks even when no changed services are detected
-        required: true
-        type: boolean
-        default: true
-      confirmProduction:
-        description: Type DEPLOY_PROD to confirm production deployment
-        required: true
-        default: ''
+  push:
+    tags:
+      - 'v*.*.*'
 
 permissions:
   id-token: write
   contents: read
 
 jobs:
-  confirm:
+  verify-release:
+    if: ${{ startsWith(github.ref_name, 'v') && !contains(github.ref_name, '-') }}
     runs-on: ubuntu-latest
     steps:
-      - name: Validate production confirmation token
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify GitHub Release exists for tag
         shell: bash
         run: |
           set -euo pipefail
-          if [ "${{ inputs.confirmProduction }}" != "DEPLOY_PROD" ]; then
-            echo "confirmProduction must equal DEPLOY_PROD for production deployments." >&2
+          api_url="https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ github.ref_name }}"
+          status=$(curl -sS -o /tmp/release-check.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "$api_url")
+
+          if [ "$status" != "200" ]; then
+            echo "Stable production tag '${{ github.ref_name }}' must have a published GitHub Release before deployment." >&2
+            cat /tmp/release-check.json 2>/dev/null || true
+            exit 1
+          fi
+
+          DRAFT=$(python3 -c "import json; print(str(json.load(open('/tmp/release-check.json')).get('draft', False)).lower())")
+          PRERELEASE=$(python3 -c "import json; print(str(json.load(open('/tmp/release-check.json')).get('prerelease', False)).lower())")
+          if [ "$DRAFT" = "true" ] || [ "$PRERELEASE" = "true" ]; then
+            echo "Production release for '${{ github.ref_name }}' must be published and non-prerelease (draft=false, prerelease=false)." >&2
+            exit 1
+          fi
+
+      - name: Verify tag commit is reachable from main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" "origin/main"; then
+            echo "Production tag '${{ github.ref_name }}' points to commit '$GITHUB_SHA' that is not reachable from main." >&2
             exit 1
           fi
 
   deploy:
-    needs: confirm
+    needs: verify-release
+    if: ${{ startsWith(github.ref_name, 'v') && !contains(github.ref_name, '-') }}
     uses: ./.github/workflows/deploy-azd.yml
     with:
       environment: prod
-      location: ${{ inputs.location }}
-      projectName: ${{ inputs.projectName }}
-      imageTag: ${{ inputs.imageTag }}
-      deployStatic: ${{ inputs.deployStatic }}
-      uiOnly: ${{ inputs.uiOnly }}
-      apiBaseUrl: ${{ inputs.apiBaseUrl }}
+      location: centralus
+      projectName: holidaypeakhub405
+      imageTag: ${{ github.ref_name }}
+      deployStatic: true
+      uiOnly: false
+      apiBaseUrl: ''
       seedDemoData: false
       deployChangedOnly: true
-      forceApimSync: ${{ inputs.forceApimSync }}
+      forceApimSync: true
       autoAllowAcrRunnerIp: false
-    secrets: inherit
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      SWA_DEPLOYMENT_TOKEN: ${{ secrets.SWA_DEPLOYMENT_TOKEN }}

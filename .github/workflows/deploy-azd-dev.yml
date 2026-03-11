@@ -1,6 +1,16 @@
-name: deploy-azd-dev
+name: deploy-azd-dev (entrypoint)
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - azure.yaml
+      - apps/**
+      - lib/**
+      - .infra/**
+      - .github/workflows/deploy-azd.yml
+      - .github/workflows/deploy-azd-dev.yml
   workflow_dispatch:
     inputs:
       location:
@@ -24,7 +34,7 @@ on:
         description: Deploy only the UI using SWA token (skips provision and Azure login jobs)
         required: true
         type: boolean
-        default: false
+        default: true
       apiBaseUrl:
         description: Optional API base URL for UI build override
         required: false
@@ -50,7 +60,29 @@ permissions:
   contents: read
 
 jobs:
-  deploy:
+  deploy-from-push:
+    if: ${{ github.event_name == 'push' }}
+    uses: ./.github/workflows/deploy-azd.yml
+    with:
+      environment: dev
+      location: centralus
+      projectName: holidaypeakhub405
+      imageTag: ${{ github.sha }}
+      deployStatic: true
+      uiOnly: false
+      apiBaseUrl: ''
+      seedDemoData: false
+      deployChangedOnly: true
+      forceApimSync: false
+      autoAllowAcrRunnerIp: true
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      SWA_DEPLOYMENT_TOKEN: ${{ secrets.SWA_DEPLOYMENT_TOKEN }}
+
+  deploy-manual:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     uses: ./.github/workflows/deploy-azd.yml
     with:
       environment: dev
@@ -64,4 +96,8 @@ jobs:
       deployChangedOnly: true
       forceApimSync: ${{ inputs.forceApimSync }}
       autoAllowAcrRunnerIp: ${{ inputs.autoAllowAcrRunnerIp }}
-    secrets: inherit
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      SWA_DEPLOYMENT_TOKEN: ${{ secrets.SWA_DEPLOYMENT_TOKEN }}

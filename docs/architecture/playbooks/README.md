@@ -2,6 +2,10 @@
 
 Index of operational playbooks for the Holiday Peak Hub accelerator.
 
+## Baseline
+
+- [Incident response baseline](incident-response.md) — Severity model, ownership, escalation, and communication flow
+
 | Playbook | Area | Trigger |
 |---|---|---|
 | [Agent latency spikes](playbook-agent-latency-spikes.md) | Agents | P95 latency breach or timeouts |
@@ -15,3 +19,17 @@ Index of operational playbooks for the Holiday Peak Hub accelerator.
 | [Blob throttling](playbook-blob-throttling.md) | Memory/Cold | 503s or slow downloads/uploads |
 | [Connection pool exhaustion](playbook-connection-pool-exhaustion.md) | Memory | Connection timeouts/too many connections |
 | [TTL not expiring](playbook-ttl-not-expiring.md) | Memory | Stale data or unbounded growth |
+
+## Playbook Policy Checklist
+
+Every operational playbook should include the following sections:
+
+1. Scope
+2. Trigger conditions and detection metrics
+3. Triage sequence
+4. Mitigation steps
+5. Prevention actions
+6. Escalation path and ownership
+7. Implementation snippets (when applicable)
+
+This checklist aligns with governance requirements in `docs/governance/README.md` and infrastructure/back-end governance policies.
