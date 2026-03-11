@@ -1316,7 +1316,7 @@ jobs:
 
   sync-apim:
     runs-on: ubuntu-latest
-    if: ${{ !inputs.uiOnly && (inputs.forceApimSync || needs.detect-changes.outputs.agents_changed == 'true' || needs.detect-changes.outputs.crud_changed == 'true') && (needs.deploy-crud.result == 'success' || needs.deploy-crud.result == 'skipped') && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') }}
+    if: ${{ !inputs.uiOnly && (inputs.forceApimSync || needs.detect-changes.outputs.agents_changed == 'true' || needs.detect-changes.outputs.crud_changed == 'true' || needs.detect-changes.outputs.ui_changed == 'true') && (needs.deploy-crud.result == 'success' || needs.deploy-crud.result == 'skipped') && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') }}
     needs:
       - deploy-crud
       - deploy-agents
@@ -1326,7 +1326,7 @@ jobs:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      CHANGED_SERVICES: ${{ needs.detect-changes.outputs.changed_aks_services_csv }}
+      CHANGED_SERVICES: ${{ needs.detect-changes.outputs.changed_aks_services_csv != '' && needs.detect-changes.outputs.changed_aks_services_csv || (needs.detect-changes.outputs.ui_changed == 'true' && 'crud-service' || '') }}
     steps:
       - uses: actions/checkout@v4
 
@@ -1353,7 +1353,7 @@ jobs:
 
   smoke-apim:
     runs-on: ubuntu-latest
-    if: ${{ !inputs.uiOnly && (inputs.forceApimSync || needs.detect-changes.outputs.agents_changed == 'true' || needs.detect-changes.outputs.crud_changed == 'true') && (needs.sync-apim.result == 'success' || needs.sync-apim.result == 'skipped') && (needs.ensure-foundry-agents.result == 'success' || needs.ensure-foundry-agents.result == 'skipped') }}
+    if: ${{ !inputs.uiOnly && (inputs.forceApimSync || needs.detect-changes.outputs.agents_changed == 'true' || needs.detect-changes.outputs.crud_changed == 'true' || needs.detect-changes.outputs.ui_changed == 'true') && (needs.sync-apim.result == 'success' || needs.sync-apim.result == 'skipped') && (needs.ensure-foundry-agents.result == 'success' || needs.ensure-foundry-agents.result == 'skipped') }}
     needs:
       - detect-changes
       - sync-apim

@@ -51,8 +51,15 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 - CRUD-first sequencing before dependent agent rollouts.
 - Changed-service detection to reduce blast radius and deployment duration.
 - APIM sync/smoke checks for API path health after relevant changes.
+- APIM sync determinism is required: ingress sync must resolve against an explicit Application Gateway target in workflow execution.
+- APIM sync filtering must always include `crud-service` when CRUD sync is enabled, even under changed-services filtering.
 - Optional UI-only deployment path constrained by SWA token flow and health checks.
 - ACR network-rule temporary exceptions may be applied/removed automatically when enabled.
+
+## Data Connectivity Guardrails
+
+- For CRUD PostgreSQL Entra mode, `POSTGRES_USER` must be a workload identity principal (for example AKS agentpool principal), not admin login `crud_admin`.
+- CRUD env-generation hooks must normalize invalid/missing Entra users to the environment-derived AKS principal name before manifest rendering.
 
 ## Observability and Operational Policy
 
