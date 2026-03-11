@@ -1598,76 +1598,23 @@ jobs:
 
       - name: Run demo faker seed job
         run: |
-          JOB_NAME="crud-demo-seed-${{ github.run_id }}"
+          CRUD_POD=$(kubectl get pods -n holiday-peak -o jsonpath='{.items[*].metadata.name}' \
+            | tr ' ' '\n' \
+            | grep '^crud-service-crud-service-' \
+            | head -n 1 || true)
 
-          if [ -z "${CRUD_IMAGE:-}" ]; then
-            CRUD_IMAGE=$(kubectl get deployment crud-service-crud-service -n holiday-peak -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || true)
+          if [ -z "${CRUD_POD:-}" ]; then
+            CRUD_POD=$(kubectl get pods -n holiday-peak -o jsonpath='{.items[*].metadata.name}' \
+              | tr ' ' '\n' \
+              | grep '^crud-service-' \
+              | head -n 1 || true)
           fi
 
-          if [ -z "${CRUD_IMAGE:-}" ]; then
-            CRUD_DEPLOYMENT_NAME=$(kubectl get deployment -n holiday-peak -o name 2>/dev/null | grep '^deployment.apps/crud-service' | head -n 1 | sed 's#deployment.apps/##' || true)
-            if [ -n "${CRUD_DEPLOYMENT_NAME:-}" ]; then
-              CRUD_IMAGE=$(kubectl get deployment "$CRUD_DEPLOYMENT_NAME" -n holiday-peak -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || true)
-            fi
-          fi
-
-          if [ -z "${CRUD_IMAGE:-}" ]; then
-            CRUD_IMAGE=$(kubectl get deployment -n holiday-peak -l app=crud-service -o jsonpath='{.items[0].spec.template.spec.containers[0].image}' 2>/dev/null || true)
-          fi
-
-          if [ -z "${CRUD_IMAGE:-}" ]; then
-            echo "Could not resolve CRUD image from azd env or live deployment."
+          if [ -z "${CRUD_POD:-}" ]; then
+            echo "Could not find a running CRUD pod to execute seed script."
+            kubectl get pods -n holiday-peak -o wide || true
             exit 1
           fi
 
-          cat <<EOF | kubectl apply -f -
-          apiVersion: batch/v1
-          kind: Job
-          metadata:
-            name: ${JOB_NAME}
-            namespace: holiday-peak
-          spec:
-            backoffLimit: 1
-            ttlSecondsAfterFinished: 600
-            template:
-              spec:
-                restartPolicy: Never
-                containers:
-                  - name: seed
-                    image: ${CRUD_IMAGE}
-                    imagePullPolicy: Always
-                    command: ["python", "-m", "crud_service.scripts.seed_demo_data"]
-                    env:
-                      - name: DEMO_ENVIRONMENT
-                        value: "${{ inputs.environment }}"
-                      - name: POSTGRES_HOST
-                        value: "${POSTGRES_HOST}"
-                      - name: POSTGRES_USER
-                        value: "${POSTGRES_USER}"
-                      - name: POSTGRES_PASSWORD
-                        value: "${POSTGRES_PASSWORD}"
-                      - name: POSTGRES_DATABASE
-                        value: "${POSTGRES_DATABASE}"
-                      - name: POSTGRES_PORT
-                        value: "${POSTGRES_PORT}"
-                      - name: POSTGRES_SSL
-                        value: "${POSTGRES_SSL}"
-          EOF
-
-          if ! kubectl wait --for=condition=complete "job/${JOB_NAME}" -n holiday-peak --timeout=10m; then
-            echo "Seed job did not reach Complete condition. Collecting diagnostics..."
-            kubectl get job "${JOB_NAME}" -n holiday-peak -o wide || true
-            kubectl describe job "${JOB_NAME}" -n holiday-peak || true
-
-            POD_NAME=$(kubectl get pods -n holiday-peak -l "job-name=${JOB_NAME}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-            if [ -n "${POD_NAME:-}" ]; then
-              kubectl get pod "${POD_NAME}" -n holiday-peak -o wide || true
-              kubectl describe pod "${POD_NAME}" -n holiday-peak || true
-              kubectl logs "${POD_NAME}" -n holiday-peak --all-containers=true || true
-              kubectl logs "${POD_NAME}" -n holiday-peak --all-containers=true --previous || true
-            fi
-
-            exit 1
-          fi
-
-          kubectl logs "job/${JOB_NAME}" -n holiday-peak
+          echo "Executing seed script in pod: ${CRUD_POD}"
+          kubectl exec -n holiday-peak "${CRUD_POD}" -- python -m crud_service.scripts.seed_demo_data
