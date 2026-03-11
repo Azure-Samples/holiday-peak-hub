@@ -14,7 +14,7 @@ on:
       projectName:
         description: Project prefix used by naming convention
         required: true
-        default: holidaypeakhub
+        default: holidaypeakhub405
       imageTag:
         description: Image tag to deploy
         required: true

@@ -81,15 +81,27 @@ get_env_from_deployment() {
 POSTGRES_HOST="$(get_env_from_deployment "$DEPLOYMENT_NAME" "POSTGRES_HOST")"
 POSTGRES_USER="$(get_env_from_deployment "$DEPLOYMENT_NAME" "POSTGRES_USER")"
 POSTGRES_PASSWORD="$(get_env_from_deployment "$DEPLOYMENT_NAME" "POSTGRES_PASSWORD")"
+POSTGRES_AUTH_MODE="$(get_env_from_deployment "$DEPLOYMENT_NAME" "POSTGRES_AUTH_MODE")"
+POSTGRES_ENTRA_SCOPE="$(get_env_from_deployment "$DEPLOYMENT_NAME" "POSTGRES_ENTRA_SCOPE")"
 POSTGRES_DATABASE="$(get_env_from_deployment "$DEPLOYMENT_NAME" "POSTGRES_DATABASE")"
 POSTGRES_PORT="$(get_env_from_deployment "$DEPLOYMENT_NAME" "POSTGRES_PORT")"
 POSTGRES_SSL="$(get_env_from_deployment "$DEPLOYMENT_NAME" "POSTGRES_SSL")"
 
+[ -z "$POSTGRES_AUTH_MODE" ] && POSTGRES_AUTH_MODE="password"
 [ -z "$POSTGRES_DATABASE" ] && POSTGRES_DATABASE="holiday_peak_crud"
 [ -z "$POSTGRES_PORT" ] && POSTGRES_PORT="5432"
 [ -z "$POSTGRES_SSL" ] && POSTGRES_SSL="true"
+[ -z "$POSTGRES_ENTRA_SCOPE" ] && POSTGRES_ENTRA_SCOPE="https://ossrdbms-aad.database.windows.net/.default"
 
-if [ -z "$POSTGRES_HOST" ] || [ -z "$POSTGRES_USER" ] || [ -z "$POSTGRES_PASSWORD" ]; then
+if [ "$POSTGRES_AUTH_MODE" = "entra" ]; then
+  if [ -z "$POSTGRES_HOST" ] || [ -z "$POSTGRES_USER" ]; then
+    echo "Missing PostgreSQL environment values from CRUD deployment (POSTGRES_HOST/POSTGRES_USER)."
+    if [ "$FAIL_ON_ERROR" = "true" ]; then
+      exit 1
+    fi
+    exit 0
+  fi
+elif [ -z "$POSTGRES_HOST" ] || [ -z "$POSTGRES_USER" ] || [ -z "$POSTGRES_PASSWORD" ]; then
   echo "Missing PostgreSQL environment values from CRUD deployment (POSTGRES_HOST/POSTGRES_USER/POSTGRES_PASSWORD)."
   if [ "$FAIL_ON_ERROR" = "true" ]; then
     exit 1
@@ -142,6 +154,15 @@ spec:
   template:
     spec:
       restartPolicy: Never
+      tolerations:
+        - key: workload
+          operator: Equal
+          value: crud
+          effect: NoSchedule
+        - key: workload
+          operator: Equal
+          value: agents
+          effect: NoSchedule
       containers:
         - name: seed
           image: $CRUD_IMAGE
@@ -150,6 +171,10 @@ spec:
           env:
             - name: DEMO_ENVIRONMENT
               value: "$ENVIRONMENT_NAME"
+            - name: POSTGRES_AUTH_MODE
+              value: "$POSTGRES_AUTH_MODE"
+            - name: POSTGRES_ENTRA_SCOPE
+              value: "$POSTGRES_ENTRA_SCOPE"
             - name: POSTGRES_HOST
               value: "$POSTGRES_HOST"
             - name: POSTGRES_USER

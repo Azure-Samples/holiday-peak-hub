@@ -36,7 +36,7 @@ Use workflow `.github/workflows/deploy-azd.yml` for ordered production rollout.
 
 - `environment` (azd env name, e.g. `dev`, `staging`, `prod`)
 - `location` (Azure region)
-- `projectName` (naming prefix, default `holidaypeakhub`)
+- `projectName` (naming prefix, default `holidaypeakhub405`)
 - `imageTag` (container image tag to deploy)
 - `deployStatic` (boolean to provision Static Web App resources)
 - `seedDemoData` (boolean to run or skip demo faker seeding in non-prod)
@@ -46,13 +46,13 @@ Use workflow `.github/workflows/deploy-azd.yml` for ordered production rollout.
 - Full non-prod demo rollout with seeding (default):
 
 ```bash
-gh workflow run deploy-azd.yml -f environment=dev -f location=eastus2 -f projectName=holidaypeakhub -f imageTag=latest -f deployStatic=true -f seedDemoData=true
+gh workflow run deploy-azd.yml -f environment=dev -f location=eastus2 -f projectName=holidaypeakhub405 -f imageTag=latest -f deployStatic=true -f seedDemoData=true
 ```
 
 - Fast non-prod rerun without reseeding:
 
 ```bash
-gh workflow run deploy-azd.yml -f environment=dev -f location=eastus2 -f projectName=holidaypeakhub -f imageTag=latest -f deployStatic=true -f seedDemoData=false
+gh workflow run deploy-azd.yml -f environment=dev -f location=eastus2 -f projectName=holidaypeakhub405 -f imageTag=latest -f deployStatic=true -f seedDemoData=false
 ```
 
 **Execution order**:
@@ -214,6 +214,7 @@ az acr update -n <acrName> --public-network-enabled false
   - 31 REST endpoints, authentication, event publishing
   - Database schemas, deployment guides
   - Frontend integration examples
+- **[Single RG Deployment Runbook](implementation/single-rg-deployment-runbook.md)** - Fast provision/recover/deprovision operations for `holidaypeakhub405-dev-rg`
 
 ### Architecture Documentation
 
