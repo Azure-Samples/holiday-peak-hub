@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from product_management_consistency_validation.completeness_engine import (
     CategorySchema,
     CompletenessEngine,
@@ -13,7 +12,6 @@ from product_management_consistency_validation.completeness_engine import (
     _is_empty,
     _type_valid,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -288,10 +286,11 @@ async def test_get_schema_missing_returns_none():
 
 @pytest.mark.asyncio
 async def test_store_gap_report_in_memory():
+    from datetime import datetime, timezone
+
     from product_management_consistency_validation.adapters import (
         CompletenessStorageAdapter,
     )
-    from datetime import datetime, timezone
 
     adapter = CompletenessStorageAdapter()
     report = GapReport(
