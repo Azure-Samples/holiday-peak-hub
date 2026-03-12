@@ -324,7 +324,7 @@ $candidate"
 
 validate_ingress_health() {
   host="$1"
-  probe_url="http://$host/crud-service/health"
+  probe_url="http://$host/health"
   probe_body="/tmp/apim-ingress-health.json"
   status_code=""
 
@@ -371,8 +371,12 @@ resolve_backend_url() {
   # If using Ingress (AGIC), resolve via App Gateway public IP
   if [ "$USE_INGRESS" = true ]; then
     ensure_ingress_ready
-    # Route through ingress controller with path-based routing.
-    printf 'http://%s/%s' "$RESOLVED_INGRESS_HOST" "$svc"
+    # CRUD uses app-native ingress paths (/health, /api) at gateway root.
+    if [ "$svc" = "crud-service" ]; then
+      printf 'http://%s' "$RESOLVED_INGRESS_HOST"
+    else
+      printf 'http://%s/%s' "$RESOLVED_INGRESS_HOST" "$svc"
+    fi
     return
   fi
 

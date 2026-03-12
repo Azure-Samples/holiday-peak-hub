@@ -349,7 +349,7 @@ function Test-IngressCrudHealth {
         [Parameter(Mandatory = $true)][string]$GatewayHost
     )
 
-    $probeUrl = "http://$GatewayHost/crud-service/health"
+    $probeUrl = "http://$GatewayHost/health"
     $lastStatus = ''
     $lastBody = ''
 
@@ -414,6 +414,9 @@ function Resolve-ServiceBackendUrl {
 
     if ($script:useIngressMode) {
         Ensure-IngressReady
+        if ($Service -eq 'crud-service') {
+            return "http://$($script:resolvedIngressGatewayHost)"
+        }
         return "http://$($script:resolvedIngressGatewayHost)/$Service"
     }
 

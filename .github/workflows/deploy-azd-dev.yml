@@ -43,7 +43,7 @@ on:
         description: Force APIM sync and smoke checks even when no changed services are detected
         required: true
         type: boolean
-        default: false
+        default: true
       autoAllowAcrRunnerIp:
         description: Temporarily allow GitHub runner egress IP in ACR firewall during deploy and remove it afterward
         required: true
@@ -55,40 +55,19 @@ permissions:
   contents: read
 
 jobs:
-  deploy-from-push:
-    if: ${{ github.event_name == 'push' }}
+  deploy:
     uses: ./.github/workflows/deploy-azd.yml
     with:
       environment: dev
-      location: centralus
-      projectName: holidaypeakhub405
-      imageTag: ${{ github.sha }}
-      deployStatic: true
-      uiOnly: false
-      apiBaseUrl: ''
+      location: ${{ github.event_name == 'workflow_dispatch' && inputs.location || 'centralus' }}
+      projectName: ${{ github.event_name == 'workflow_dispatch' && inputs.projectName || 'holidaypeakhub405' }}
+      imageTag: ${{ github.event_name == 'workflow_dispatch' && inputs.imageTag || github.sha }}
+      deployStatic: ${{ github.event_name != 'workflow_dispatch' || inputs.deployStatic }}
+      uiOnly: ${{ github.event_name == 'workflow_dispatch' && inputs.uiOnly }}
+      apiBaseUrl: ${{ github.event_name == 'workflow_dispatch' && inputs.apiBaseUrl || '' }}
       deployChangedOnly: true
-      forceApimSync: false
-      autoAllowAcrRunnerIp: true
-    secrets:
-      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      SWA_DEPLOYMENT_TOKEN: ${{ secrets.SWA_DEPLOYMENT_TOKEN }}
-
-  deploy-manual:
-    if: ${{ github.event_name == 'workflow_dispatch' }}
-    uses: ./.github/workflows/deploy-azd.yml
-    with:
-      environment: dev
-      location: ${{ inputs.location }}
-      projectName: ${{ inputs.projectName }}
-      imageTag: ${{ inputs.imageTag }}
-      deployStatic: ${{ inputs.deployStatic }}
-      uiOnly: ${{ inputs.uiOnly }}
-      apiBaseUrl: ${{ inputs.apiBaseUrl }}
-      deployChangedOnly: true
-      forceApimSync: ${{ inputs.forceApimSync }}
-      autoAllowAcrRunnerIp: ${{ inputs.autoAllowAcrRunnerIp }}
+      forceApimSync: ${{ github.event_name != 'workflow_dispatch' || inputs.forceApimSync }}
+      autoAllowAcrRunnerIp: ${{ github.event_name != 'workflow_dispatch' || inputs.autoAllowAcrRunnerIp }}
     secrets:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}

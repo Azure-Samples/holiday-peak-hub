@@ -8,35 +8,35 @@ This module provisions **Azure Static Web Apps** for the Holiday Peak Hub fronte
   - Free tier (dev/staging)
   - Standard tier (prod) with enterprise CDN
 - **GitHub Actions Integration** - Automatic CI/CD on push to main
-- **Custom Domain** (prod only) - www.holidaypeakhub.com
+- **Custom Domain** (prod only) - `www.holidaypeakhub.com`
 
 ## Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────────┐
-│ Azure Static Web Apps                                    │
+│ Azure Static Web Apps                                  │
 │ ┌─────────────────────────────────────────────────────┐ │
-│ │ Frontend (Next.js)                                   │ │
-│ │ - Homepage                                           │ │
-│ │ - Product Pages                                      │ │
-│ │ - Checkout                                           │ │
-│ │ - Dashboard                                          │ │
-│ │ - Staff/Admin Pages                                  │ │
+│ │ Frontend (Next.js)                                  │ │
+│ │ - Homepage                                          │ │
+│ │ - Product Pages                                     │ │
+│ │ - Checkout                                          │ │
+│ │ - Dashboard                                         │ │
+│ │ - Staff/Admin Pages                                 │ │
 │ └─────────────────────────────────────────────────────┘ │
-│                          │                               │
-│                          ▼                               │
+│                          │                              │
+│                          ▼                              │
 │ ┌─────────────────────────────────────────────────────┐ │
-│ │ Azure CDN (Global Edge Locations)                    │ │
-│ │ - Static assets (JS, CSS, images)                   │ │
-│ │ - Automatic caching                                  │ │
-│ │ - Brotli compression                                 │ │
+│ │ Azure CDN (Global Edge Locations)                  │ │
+│ │ - Static assets (JS, CSS, images)                  │ │
+│ │ - Automatic caching                                 │ │
+│ │ - Brotli compression                                │ │
 │ └─────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────┘
                           │
                           ▼
               ┌───────────────────────┐
-              │ Azure API Management   │
-              │ (Backend APIs)         │
+              │ Azure API Management  │
+              │ (Backend APIs)        │
               └───────────────────────┘
 ```
 
@@ -120,15 +120,16 @@ swa deploy \
 
 ## GitHub Actions Integration
 
-The Bicep deployment automatically creates a GitHub Actions workflow. The deployment token is output by the module.
+The Bicep deployment automatically creates a GitHub Actions workflow. Retrieve the deployment token directly from the Static Web App resource (do not output it from IaC deployment outputs).
 
 ### Store Deployment Token in GitHub Secrets
 
 ```bash
-# Get deployment token
-DEPLOYMENT_TOKEN=$(az deployment sub show \
-  --name static-web-app-deployment \
-  --query properties.outputs.deploymentToken.value -o tsv)
+# Get deployment token from the Static Web App resource
+DEPLOYMENT_TOKEN=$(az staticwebapp secrets list \
+  --name holidaypeakhub-ui-dev \
+  --resource-group holidaypeakhub-dev-rg \
+  --query properties.apiKey -o tsv)
 
 # Store in GitHub secrets (requires GitHub CLI)
 gh secret set AZURE_STATIC_WEB_APPS_API_TOKEN --body "$DEPLOYMENT_TOKEN"
@@ -178,17 +179,20 @@ jobs:
 ### Environment Variables (Build Time)
 
 Set in Bicep module:
+
 - `NEXT_PUBLIC_API_BASE_URL` - Backend API URL
 - `NEXT_PUBLIC_ENVIRONMENT` - Environment name (dev/staging/prod)
 
 ### Update API URLs
 
 **Dev**:
+
 ```bash
 NEXT_PUBLIC_API_BASE_URL=https://holidaypeakhub-dev-apim.azure-api.net
 ```
 
 **Production**:
+
 ```bash
 NEXT_PUBLIC_API_BASE_URL=https://api.holidaypeakhub.com
 ```
@@ -196,12 +200,14 @@ NEXT_PUBLIC_API_BASE_URL=https://api.holidaypeakhub.com
 ## Custom Domain (Production)
 
 ### Prerequisites
+
 1. Domain registered (e.g., GoDaddy, Namecheap)
 2. DNS access to create CNAME records
 
 ### Steps
 
 1. **Add Custom Domain in Bicep** (already configured for prod)
+
    ```bicep
    resource customDomain 'Microsoft.Web/staticSites/customDomains@2023-01-01' = if (environment == 'prod') {
      parent: staticWebApp
@@ -211,6 +217,7 @@ NEXT_PUBLIC_API_BASE_URL=https://api.holidaypeakhub.com
    ```
 
 2. **Get Validation Token**
+
    ```bash
    az staticwebapp hostname show \
      --name holidaypeakhub-ui-prod \
@@ -218,12 +225,14 @@ NEXT_PUBLIC_API_BASE_URL=https://api.holidaypeakhub.com
    ```
 
 3. **Add DNS Records**
-   | Type  | Name | Value                                      |
-   |-------|------|--------------------------------------------|
-   | CNAME | www  | <static-web-app-default-hostname>          |
-   | TXT   | www  | <validation-token>                         |
+
+   | Type | Name | Value |
+   | --- | --- | --- |
+   | CNAME | www | `static-web-app-default-hostname` |
+   | TXT | www | `validation-token` |
 
 4. **Verify Domain**
+
    ```bash
    az staticwebapp hostname show \
      --name holidaypeakhub-ui-prod \
@@ -272,24 +281,29 @@ Static Web Apps supports client-side routing. Create `staticwebapp.config.json` 
 ## Performance Optimization
 
 ### 1. Enable Compression
+
 - Brotli/Gzip automatically enabled by Azure CDN
 
 ### 2. Optimize Images
+
 Use Next.js Image component (with `unoptimized: true` for static export):
+
 ```tsx
 import Image from 'next/image'
 
-<Image 
-  src="/images/product.jpg" 
-  alt="Product" 
-  width={500} 
-  height={500} 
-  unoptimized 
+<Image
+  src="/images/product.jpg"
+  alt="Product"
+  width={500}
+  height={500}
+  unoptimized
 />
 ```
 
 ### 3. Code Splitting
+
 Next.js automatically code-splits pages. Use dynamic imports for heavy components:
+
 ```tsx
 import dynamic from 'next/dynamic'
 
@@ -299,7 +313,9 @@ const HeavyComponent = dynamic(() => import('../components/HeavyComponent'), {
 ```
 
 ### 4. Cache Headers
+
 Configured in `staticwebapp.config.json`:
+
 ```json
 {
   "routes": [
@@ -322,6 +338,7 @@ Configured in `staticwebapp.config.json`:
 ## Monitoring
 
 ### View Deployment Logs
+
 ```bash
 az staticwebapp show \
   --name holidaypeakhub-ui-dev \
@@ -329,11 +346,13 @@ az staticwebapp show \
 ```
 
 ### View Application Insights
+
 Static Web Apps automatically integrates with Application Insights if configured in the shared infrastructure module.
 
 ## Cost
 
 ### Free Tier (Dev/Staging)
+
 - **Bandwidth**: 100 GB/month
 - **Custom domains**: 2
 - **SSL certificates**: Included
@@ -341,6 +360,7 @@ Static Web Apps automatically integrates with Application Insights if configured
 - **Cost**: $0/month
 
 ### Standard Tier (Production)
+
 - **Bandwidth**: Unlimited
 - **Custom domains**: Unlimited
 - **Enterprise CDN**: Included
@@ -351,15 +371,18 @@ Static Web Apps automatically integrates with Application Insights if configured
 ## Troubleshooting
 
 ### Build Failures
+
 1. Check GitHub Actions logs
 2. Verify `next.config.js` has `output: 'export'`
 3. Ensure no server-side features (getServerSideProps, API routes)
 
 ### 404 Errors
+
 1. Verify `staticwebapp.config.json` has `navigationFallback`
 2. Check `trailingSlash: true` in `next.config.js`
 
 ### API Connection Issues
+
 1. Verify `NEXT_PUBLIC_API_BASE_URL` is set correctly
 2. Check CORS configuration in APIM
 3. Verify APIM is accessible from client browser

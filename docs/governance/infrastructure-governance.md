@@ -1,7 +1,7 @@
 # Infrastructure Governance and Compliance Guidelines
 
-**Version**: 2.0  
-**Last Updated**: 2026-03-11  
+**Version**: 2.1  
+**Last Updated**: 2026-03-12  
 **Owner**: Infrastructure Team
 
 ## Scope
@@ -28,16 +28,21 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 ## Environment Policy Matrix
 
 | Policy Area | dev | prod | staging |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Entrypoint workflow | `deploy-azd-dev.yml` | `deploy-azd-prod.yml` | Not currently provisioned as dedicated workflow |
 | Trigger model | `push` to `main` + `workflow_dispatch` | Stable tag push `v*.*.*` | Manual via reusable workflow only if explicitly configured |
 | Release gate | Not required | Required: published, non-draft, non-prerelease GitHub Release | N/A |
 | Main lineage gate | Not required | Required: tagged commit must be reachable from `main` | N/A |
 | Demo data seeding mode | Local/manual only (not part of CI deploy) | Local/manual only | Local/manual only |
 | Changed-only deployment | Enabled | Enabled | N/A |
-| Force APIM sync default | `false` | `true` | N/A |
+| Force APIM sync default | `true` | `true` | N/A |
 | Auto allow ACR runner IP | `true` default | `false` default | N/A |
 | Non-prod drift remediation | Enabled | Disabled | Would be treated as non-prod if introduced |
+
+### Workflow deduplication policy
+
+- Entrypoint workflows should avoid duplicated job blocks for push/manual variants when the same reusable workflow call can be parameterized with event-aware expressions.
+- `deploy-azd-dev.yml` is maintained as a single reusable-workflow invocation path to reduce drift between trigger types.
 
 ## Security and Access Controls
 
@@ -50,9 +55,14 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 
 - CRUD-first sequencing before dependent agent rollouts.
 - Changed-service detection to reduce blast radius and deployment duration.
+- Push-event changed-service detection must diff `${{ github.event.before }}...${{ github.sha }}` to avoid empty comparisons against `origin/main` after merge.
 - APIM sync/smoke checks for API path health after relevant changes.
 - APIM sync determinism is required: ingress sync must resolve against an explicit Application Gateway target in workflow execution.
+- Reusable deploy workflow ingress-class detection must prioritize `azure-application-gateway` before other classes in AGIC-first environments.
 - APIM sync filtering must always include `crud-service` when CRUD sync is enabled, even under changed-services filtering.
+- For App Gateway-backed CRUD routing, ingress must expose app-native paths (`/health`, `/api`) and APIM CRUD backend must target App Gateway root (no `/crud-service` suffix).
+- Path translation must not be split across AGIC and APIM for CRUD. APIM keeps health rewrite (`/api/health -> /health`), while `/api/*` routes are forwarded as-is.
+- AKS IaC defaults to AGIC/App Gateway-first ingress by setting Web App Routing addon disabled unless explicitly enabled (`aksWebApplicationRoutingEnabled`).
 - Optional UI-only deployment path constrained by SWA token flow and health checks.
 - ACR network-rule temporary exceptions may be applied/removed automatically when enabled.
 

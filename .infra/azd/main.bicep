@@ -11,6 +11,8 @@ param environment string = 'dev'
 param projectName string = 'holidaypeakhub'
 @description('Optional override for Key Vault name (3-24 chars, lowercase letters, numbers, and hyphens).')
 param keyVaultNameOverride string = ''
+@description('Enable AKS Web App Routing addon. Keep disabled for AGIC/App Gateway-first ingress topology.')
+param aksWebApplicationRoutingEnabled bool = false
 @secure()
 @description('Optional PostgreSQL admin password for CRUD database. Leave empty to auto-generate.')
 param postgresAdminPassword string = ''
@@ -31,6 +33,7 @@ module sharedInfra '../modules/shared-infrastructure/shared-infrastructure-main.
     environment: environment
     projectName: projectName
     keyVaultNameOverride: keyVaultNameOverride
+    aksWebApplicationRoutingEnabled: aksWebApplicationRoutingEnabled
     postgresAdminPassword: postgresAdminPassword
     resourceGroupName: resourceGroupName
   }

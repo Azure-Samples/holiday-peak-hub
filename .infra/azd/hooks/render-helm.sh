@@ -72,6 +72,12 @@ HELM_ARGS="$HELM_ARGS --set image.tag=$IMAGE_TAG"
 HELM_ARGS="$HELM_ARGS --set keda.enabled=$KEDA_ENABLED"
 HELM_ARGS="$HELM_ARGS --set ingress.enabled=$INGRESS_ENABLED"
 HELM_ARGS="$HELM_ARGS --set-string ingress.className=$INGRESS_CLASS_NAME"
+if [ "$SERVICE_NAME" = "crud-service" ]; then
+  HELM_ARGS="$HELM_ARGS --set ingress.paths[0].path=/health"
+  HELM_ARGS="$HELM_ARGS --set ingress.paths[0].pathType=Prefix"
+  HELM_ARGS="$HELM_ARGS --set ingress.paths[1].path=/api"
+  HELM_ARGS="$HELM_ARGS --set ingress.paths[1].pathType=Prefix"
+fi
 HELM_ARGS="$HELM_ARGS --set canary.enabled=$CANARY_ENABLED"
 HELM_ARGS="$HELM_ARGS --set probes.readiness.path=$READINESS_PATH"
 if [ -n "$REPLICA_COUNT" ]; then
