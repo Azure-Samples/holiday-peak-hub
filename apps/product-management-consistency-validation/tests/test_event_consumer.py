@@ -85,6 +85,7 @@ async def test_skips_event_when_product_missing():
     from product_management_consistency_validation.adapters import (
         CompletenessStorageAdapter,
         ProductConsistencyAdapters,
+        ProductConsistencyValidator,
     )
 
     connector = ProductConnector(adapter=MockProductAdapter())
@@ -93,6 +94,7 @@ async def test_skips_event_when_product_missing():
     completeness = CompletenessStorageAdapter()
     adapters = ProductConsistencyAdapters(
         products=connector,
+        validator=ProductConsistencyValidator(),
         completeness=completeness,
     )
 
@@ -115,6 +117,7 @@ async def test_evaluates_completeness_and_stores_report():
     from product_management_consistency_validation.adapters import (
         CompletenessStorageAdapter,
         ProductConsistencyAdapters,
+        ProductConsistencyValidator,
     )
 
     product = _make_product(sku="SKU-10", category="apparel")
@@ -126,6 +129,7 @@ async def test_evaluates_completeness_and_stores_report():
     completeness.seed_schema(schema)
     adapters = ProductConsistencyAdapters(
         products=connector,
+        validator=ProductConsistencyValidator(),
         completeness=completeness,
     )
 
@@ -158,6 +162,7 @@ async def test_publishes_enrichment_job_below_threshold(monkeypatch):
     from product_management_consistency_validation.adapters import (
         CompletenessStorageAdapter,
         ProductConsistencyAdapters,
+        ProductConsistencyValidator,
     )
 
     # Product missing description (enrichable) and price → score < 0.7 (name only: 2/4)
@@ -174,6 +179,7 @@ async def test_publishes_enrichment_job_below_threshold(monkeypatch):
     completeness.seed_schema(schema)
     adapters = ProductConsistencyAdapters(
         products=connector,
+        validator=ProductConsistencyValidator(),
         completeness=completeness,
     )
 
@@ -182,15 +188,12 @@ async def test_publishes_enrichment_job_below_threshold(monkeypatch):
     async def _fake_publish(entity_id, report):
         published.append(entity_id)
 
-    with (
-        patch(
-            "product_management_consistency_validation.event_consumer.build_consistency_adapters",
-            return_value=adapters,
-        ),
-        patch(
-            "product_management_consistency_validation.event_consumer._publish_enrichment_job",
-            side_effect=_fake_publish,
-        ),
+    with patch(
+        "product_management_consistency_validation.event_consumer.build_consistency_adapters",
+        return_value=adapters,
+    ), patch(
+        "product_management_consistency_validation.event_consumer._publish_enrichment_job",
+        side_effect=_fake_publish,
     ):
         handlers = build_completeness_event_handlers(completeness_threshold=0.9)
         handler = handlers["completeness-jobs"]
