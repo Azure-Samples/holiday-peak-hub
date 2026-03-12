@@ -13,6 +13,7 @@ ingress:
   className: "webapprouting.kubernetes.azure.com"
   host: ""  # Leave empty for path-based routing, or set hostname for host-based
   path: ""  # Defaults to /{serviceName}
+  paths: []  # Optional explicit ingress paths, e.g. [{ path: /health, pathType: Prefix }, { path: /api, pathType: Prefix }]
   pathType: "Prefix"
   requestTimeout: 30
   tls: []

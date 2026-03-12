@@ -71,7 +71,7 @@ These controls reduce the chance that frontend `/api/products` or `/api/categori
   - Prefer explicit `ingress host` or explicit `app gateway name/ip` when provided.
   - Auto-resolution is allowed only when a single unambiguous candidate exists.
   - Ambiguous routing candidates now fail fast.
-- Before any APIM update in ingress mode, hooks probe `http://<resolved-ingress-host>/crud-service/health` and abort on unhealthy/invalid resolution.
+- Before any APIM update in ingress mode, hooks probe `http://<resolved-ingress-host>/health` and abort on unhealthy/invalid resolution.
 
 ## Closure Status Update (2026-03-06, PR #198)
 
