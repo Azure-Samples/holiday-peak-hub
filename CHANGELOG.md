@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- APIM-to-CRUD routing stability for dev deployments by hardening sync behavior and preventing CRUD API drift under changed-service filtering.
+- CRUD data endpoint availability (`/api/products`, `/api/categories`) by correcting Entra PostgreSQL user normalization in CRUD env-generation hooks.
+
+### Changed
+
+- Deployment workflow APIM reconciliation now also evaluates UI-only change scenarios and applies a CRUD fallback filter when no AKS service changes are detected.
+- APIM sync ingress resolution now prioritizes ingress controller discovery before gateway auto-fallback and treats HTTP `404` as a reachability signal during ingress liveness probing.
+- Governance documentation now codifies APIM deterministic sync requirements and CRUD Entra PostgreSQL user guardrails.
+
 ## [2.0.0] - 2026-03-04
 
 > **Release**: `v2.0.0`
