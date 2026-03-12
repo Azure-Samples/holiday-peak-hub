@@ -96,6 +96,13 @@ $helmArgs = @(
   "tolerations[0].effect=NoSchedule"
 )
 
+if ($ServiceName -eq "crud-service") {
+  $helmArgs += @('--set', 'ingress.paths[0].path=/health')
+  $helmArgs += @('--set', 'ingress.paths[0].pathType=Prefix')
+  $helmArgs += @('--set', 'ingress.paths[1].path=/api')
+  $helmArgs += @('--set', 'ingress.paths[1].pathType=Prefix')
+}
+
 if ($replicaCount) {
   $helmArgs += @('--set', "replicaCount=$replicaCount")
 }

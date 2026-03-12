@@ -8,6 +8,8 @@ param projectName string = 'holidaypeakhub'
 param keyVaultNameOverride string = ''
 @description('AKS Kubernetes version; leave empty to use Azure default')
 param aksKubernetesVersion string = ''
+@description('Enable AKS Web App Routing addon. Keep disabled for AGIC/App Gateway-first ingress topology.')
+param aksWebApplicationRoutingEnabled bool = false
 @secure()
 @description('PostgreSQL administrator password for CRUD transactional database. Leave empty to auto-generate a deterministic dev password.')
 param postgresAdminPassword string = ''
@@ -695,7 +697,7 @@ module aks 'br/public:avm/res/container-service/managed-cluster:0.12.0' = {
     omsAgentEnabled: true
     enableKeyvaultSecretsProvider: true
     enableOidcIssuerProfile: true
-    webApplicationRoutingEnabled: true
+    webApplicationRoutingEnabled: aksWebApplicationRoutingEnabled
     primaryAgentPoolProfiles: [
       {
         name: 'system'

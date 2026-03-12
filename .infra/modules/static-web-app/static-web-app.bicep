@@ -35,6 +35,8 @@ resource staticWebApp 'Microsoft.Web/staticSites@2023-01-01' = {
     ManagedBy: 'Bicep'
     'azd-service-name': 'ui'
     'azd-env-name': environment
+    SourceRepository: repositoryUrl
+    SourceBranch: branch
   }
 }
 
@@ -59,4 +61,3 @@ resource appSettings 'Microsoft.Web/staticSites/config@2023-01-01' = {
 output staticWebAppName string = staticWebApp.name
 output staticWebAppDefaultHostname string = staticWebApp.properties.defaultHostname
 output staticWebAppId string = staticWebApp.id
-output deploymentToken string = listSecrets(staticWebApp.id, staticWebApp.apiVersion).properties.apiKey

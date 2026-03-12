@@ -94,7 +94,11 @@ jobs:
           DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
           git fetch origin "$DEFAULT_BRANCH" --depth=1
 
-          CHANGED_FILES=$(git diff --name-only "origin/$DEFAULT_BRANCH...HEAD")
+          if [ "${{ github.event_name }}" = "push" ] && [ -n "${{ github.event.before }}" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+            CHANGED_FILES=$(git diff --name-only "${{ github.event.before }}...${{ github.sha }}")
+          else
+            CHANGED_FILES=$(git diff --name-only "origin/$DEFAULT_BRANCH...HEAD")
+          fi
 
           mapfile -t AGENT_SERVICES < <(python3 - <<'PY'
           import re
@@ -632,7 +636,7 @@ jobs:
             exit 0
           fi
 
-          for cls in webapprouting.kubernetes.azure.com nginx azure-application-gateway; do
+          for cls in azure-application-gateway webapprouting.kubernetes.azure.com nginx; do
             if kubectl get ingressclass "$cls" >/dev/null 2>&1; then
               echo "Using detected ingress class: $cls"
               echo "INGRESS_CLASS_NAME=$cls" >> "$GITHUB_ENV"

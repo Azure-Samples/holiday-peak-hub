@@ -31,6 +31,17 @@ spec:
     - http:
     {{- end }}
         paths:
+          {{- if .Values.ingress.paths }}
+          {{- range .Values.ingress.paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType | default $.Values.ingress.pathType | default "Prefix" }}
+            backend:
+              service:
+                name: {{ include "holiday-peak-service.fullname" $ }}
+                port:
+                  number: {{ $.Values.service.port | default 80 }}
+          {{- end }}
+          {{- else }}
           - path: {{ .Values.ingress.path | default (printf "/%s" .Values.serviceName) }}
             pathType: {{ .Values.ingress.pathType | default "Prefix" }}
             backend:
@@ -38,6 +49,7 @@ spec:
                 name: {{ include "holiday-peak-service.fullname" . }}
                 port:
                   number: {{ .Values.service.port | default 80 }}
+          {{- end }}
 {{- end }}
 
 ---

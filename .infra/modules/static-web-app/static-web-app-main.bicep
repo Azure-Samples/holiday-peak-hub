@@ -24,4 +24,3 @@ module swa './static-web-app.bicep' = {
 // Outputs
 output staticWebAppName string = swa.outputs.staticWebAppName
 output staticWebAppDefaultHostname string = swa.outputs.staticWebAppDefaultHostname
-output deploymentToken string = swa.outputs.deploymentToken

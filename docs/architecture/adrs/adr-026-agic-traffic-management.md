@@ -96,9 +96,12 @@ flowchart TB
 
 | Traffic Type | Path | Backend |
 |-------------|------|---------|
-| CRUD API | `/crud-service/*` | crud-service ClusterIP |
+| CRUD API (health) | `/health` | crud-service ClusterIP |
+| CRUD API (business) | `/api/*` | crud-service ClusterIP |
 | Agent Services | `/{agent-name}/*` | agent service ClusterIP |
 | Canary Traffic | `/{service-name}/canary/*` | canary deployment (when enabled) |
+
+APIM keeps the CRUD public surface under `/api/*` and only rewrites the health probe route (`/api/health -> /health`).
 
 ### Canary Deployment Flow
 
