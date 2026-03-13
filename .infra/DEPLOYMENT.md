@@ -79,6 +79,7 @@ Release gate notes:
 - UI deployment is blocked unless backend deployment jobs are `success` or `skipped`.
 - APIM gateway URL is propagated from `azd` outputs and checked against live APIM to catch config drift.
 - APIM smoke checks validate `GET /api/health`, `GET /api/products?limit=1`, and `GET /api/categories` plus changed agent `GET /agents/<service>/health` before UI publish.
+- APIM sync auto-falls back to the Application Gateway ingress host for CRUD when the service has no resolvable load balancer endpoint (for example, when CRUD runs as `ClusterIP`).
 - UI deployment runs pre/post smoke checks to ensure API health and SWA hostname reachability.
 
 ### Step 1: Deploy Shared Infrastructure
