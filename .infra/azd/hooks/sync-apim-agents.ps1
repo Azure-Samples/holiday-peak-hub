@@ -307,33 +307,39 @@ function Resolve-IngressGatewayHost {
         return $script:resolvedIngressGatewayHost
     }
 
-    $ingressCandidates = [System.Collections.Generic.List[string]]::new()
-    Add-UniqueHostCandidate -Collection $ingressCandidates -Candidate (kubectl get svc -A -l 'app.kubernetes.io/name=nginx' -o jsonpath="{.items[0].status.loadBalancer.ingress[0].ip}" 2>$null)
-    Add-UniqueHostCandidate -Collection $ingressCandidates -Candidate (kubectl get svc -A -l 'app.kubernetes.io/name=nginx' -o jsonpath="{.items[0].status.loadBalancer.ingress[0].hostname}" 2>$null)
-    Add-UniqueHostCandidate -Collection $ingressCandidates -Candidate (kubectl get svc nginx -n app-routing-system -o jsonpath="{.status.loadBalancer.ingress[0].ip}" 2>$null)
-    Add-UniqueHostCandidate -Collection $ingressCandidates -Candidate (kubectl get svc nginx -n app-routing-system -o jsonpath="{.status.loadBalancer.ingress[0].hostname}" 2>$null)
-    Add-UniqueHostCandidate -Collection $ingressCandidates -Candidate (kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath="{.status.loadBalancer.ingress[0].ip}" 2>$null)
-    Add-UniqueHostCandidate -Collection $ingressCandidates -Candidate (kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath="{.status.loadBalancer.ingress[0].hostname}" 2>$null)
-
-    if ($ingressCandidates.Count -gt 1) {
-        throw 'Ambiguous ingress host candidates detected. Provide -AppGatewayName, -AppGatewayIp, or -IngressHost.'
+    $autoGateways = @(az network application-gateway list --resource-group $Rg --query '[].name' -o tsv 2>$null | Where-Object { $_.Trim() })
+    if ($autoGateways.Count -gt 1) {
+        $appGatewayCandidates = @($autoGateways | Where-Object { $_ -match 'appgw' })
+        if ($appGatewayCandidates.Count -eq 1) {
+            $autoGateways = $appGatewayCandidates
+        }
+        else {
+            throw "Multiple application gateways detected in '$Rg'. Provide -AppGatewayName, -AppGatewayIp, or -IngressHost."
+        }
     }
 
-    if ($ingressCandidates.Count -eq 1) {
-        $resolvedHost = $ingressCandidates[0]
+    if ($autoGateways.Count -eq 1) {
+        $resolvedHost = Resolve-PublicHostFromGateway -Gateway $autoGateways[0]
+        if (-not $resolvedHost) {
+            throw "Failed to resolve ingress host from detected application gateway '$($autoGateways[0])'."
+        }
     }
 
     if (-not $resolvedHost) {
-        $autoGateways = @(az network application-gateway list --resource-group $Rg --query '[].name' -o tsv 2>$null | Where-Object { $_.Trim() })
-        if ($autoGateways.Count -gt 1) {
-            throw "Multiple application gateways detected in '$Rg'. Provide -AppGatewayName, -AppGatewayIp, or -IngressHost."
+        $ingressCandidates = [System.Collections.Generic.List[string]]::new()
+        Add-UniqueHostCandidate -Collection $ingressCandidates -Candidate (kubectl get svc -A -l 'app.kubernetes.io/name=nginx' -o jsonpath="{.items[0].status.loadBalancer.ingress[0].ip}" 2>$null)
+        Add-UniqueHostCandidate -Collection $ingressCandidates -Candidate (kubectl get svc -A -l 'app.kubernetes.io/name=nginx' -o jsonpath="{.items[0].status.loadBalancer.ingress[0].hostname}" 2>$null)
+        Add-UniqueHostCandidate -Collection $ingressCandidates -Candidate (kubectl get svc nginx -n app-routing-system -o jsonpath="{.status.loadBalancer.ingress[0].ip}" 2>$null)
+        Add-UniqueHostCandidate -Collection $ingressCandidates -Candidate (kubectl get svc nginx -n app-routing-system -o jsonpath="{.status.loadBalancer.ingress[0].hostname}" 2>$null)
+        Add-UniqueHostCandidate -Collection $ingressCandidates -Candidate (kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath="{.status.loadBalancer.ingress[0].ip}" 2>$null)
+        Add-UniqueHostCandidate -Collection $ingressCandidates -Candidate (kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath="{.status.loadBalancer.ingress[0].hostname}" 2>$null)
+
+        if ($ingressCandidates.Count -gt 1) {
+            throw 'Ambiguous ingress host candidates detected. Provide -AppGatewayName, -AppGatewayIp, or -IngressHost.'
         }
 
-        if ($autoGateways.Count -eq 1) {
-            $resolvedHost = Resolve-PublicHostFromGateway -Gateway $autoGateways[0]
-            if (-not $resolvedHost) {
-                throw "Failed to resolve ingress host from detected application gateway '$($autoGateways[0])'."
-            }
+        if ($ingressCandidates.Count -eq 1) {
+            $resolvedHost = $ingressCandidates[0]
         }
     }
 
@@ -496,6 +502,20 @@ function Resolve-ServiceBackendUrl {
                     return "http://${clusterIp}:$servicePort"
                 }
             }
+        }
+    }
+
+    if ($RequireLb -and $Service -eq 'crud-service') {
+        try {
+            $fallbackHost = Resolve-IngressGatewayHost -Rg $script:resolvedResourceGroup -GatewayName $script:resolvedAppGatewayName
+            if (-not $Preview) {
+                Test-IngressCrudHealth -GatewayHost $fallbackHost
+            }
+            Write-Host "Using ingress fallback host '$fallbackHost' for CRUD APIM backend because no load balancer endpoint was resolved."
+            return "http://$fallbackHost"
+        }
+        catch {
+            throw "Service '$Service' has no resolvable load balancer backend and ingress fallback failed in namespace '$Namespace'. $($_.Exception.Message)"
         }
     }
 
