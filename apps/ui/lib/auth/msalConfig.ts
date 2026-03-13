@@ -58,7 +58,7 @@ export const getMsalConfig = () => {
  * Scopes for login request
  */
 export const loginRequest = {
-  scopes: ['openid', 'profile', 'email', 'User.Read'],
+  scopes: ['openid', 'profile', 'email'],
 };
 
 /**
