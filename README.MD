@@ -2,9 +2,14 @@
 
 Agent-driven retail accelerator for building and operating intelligent, cloud-native retail services with a shared framework and domain-focused apps.
 
-![Release](https://img.shields.io/badge/release-v2.1.0--unstable.0-blue)
-![Tests](https://img.shields.io/badge/tests-1410%20passing-brightgreen)
-![License](https://img.shields.io/badge/license-MIT-green)
+[![Release](https://img.shields.io/github/v/release/Azure-Samples/holiday-peak-hub?display_name=tag&include_prereleases&sort=semver)](https://github.com/Azure-Samples/holiday-peak-hub/releases)
+[![Pre-release](https://img.shields.io/badge/channel-unstable-orange)](https://github.com/Azure-Samples/holiday-peak-hub/releases/tag/v2.1.0-unstable.0)
+[![CI](https://img.shields.io/github/actions/workflow/status/Azure-Samples/holiday-peak-hub/ci.yml?branch=main&label=ci)](https://github.com/Azure-Samples/holiday-peak-hub/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/coverage-89.39%25-brightgreen)](htmlcov/index.html)
+[![Code Style](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Python](https://img.shields.io/badge/python-3.13-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![TypeScript](https://img.shields.io/badge/typescript-5.x-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![License](https://img.shields.io/github/license/Azure-Samples/holiday-peak-hub)](LICENSE)
 
 ## Quick links
 
