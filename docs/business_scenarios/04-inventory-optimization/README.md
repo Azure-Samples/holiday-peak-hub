@@ -43,3 +43,19 @@ flowchart LR
    class D,E,F,G,H b
    class C c
 ```
+
+## Implemented Reservation Lifecycle (Issue #216)
+
+Checkout now uses an explicit reservation lifecycle in the CRUD API to protect stock integrity during payment.
+
+1. `POST /api/inventory/reservations` creates per-item holds (`status=created`, reason `checkout_hold`).
+2. If checkout setup fails after partial holds, the UI rolls back with `POST /api/inventory/reservations/{id}/release`.
+3. After Stripe confirmation and `POST /api/payments/confirm-intent`, the UI finalizes holds with `POST /api/inventory/reservations/{id}/confirm`.
+4. On checkout abandonment (before payment confirmation), outstanding holds are released on page teardown.
+
+State model implemented in CRUD:
+
+- `created -> confirmed` (successful payment finalization)
+- `created -> released` (rollback/abandonment)
+- `confirmed` and `released` are terminal states
+- Invalid transitions (`released -> confirmed`, `confirmed -> released`) return `409`

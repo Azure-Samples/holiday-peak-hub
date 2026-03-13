@@ -20,24 +20,27 @@ from crud_service.routes import (
     acp_products,
     audit_trail,
     auth,
+    brand_shopping,
     cart,
     categories,
     checkout,
     completeness,
     connector_webhooks,
     health,
+    inventory,
     orders,
     payments,
     products,
     proposed_attributes,
     reviews,
+    returns as customer_returns,
     schemas_registry,
     truth_attributes,
     ucp_products,
     users,
     webhooks,
 )
-from crud_service.routes.staff import analytics, returns, shipments, tickets
+from crud_service.routes.staff import analytics, returns as staff_returns, shipments, tickets
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -186,11 +189,14 @@ app.include_router(products.router, prefix="/api", tags=["Products"])
 app.include_router(categories.router, prefix="/api", tags=["Categories"])
 app.include_router(cart.router, prefix="/api", tags=["Cart"])
 app.include_router(orders.router, prefix="/api", tags=["Orders"])
+app.include_router(inventory.router, prefix="/api", tags=["Inventory"])
 app.include_router(checkout.router, prefix="/api", tags=["Checkout"])
 app.include_router(payments.router, prefix="/api", tags=["Payments"])
+app.include_router(customer_returns.router, prefix="/api/returns", tags=["Returns"])
 app.include_router(webhooks.router, tags=["Webhooks"])
 app.include_router(connector_webhooks.router, tags=["Connector Webhooks"])
 app.include_router(reviews.router, prefix="/api", tags=["Reviews"])
+app.include_router(brand_shopping.router, prefix="/api", tags=["Brand Shopping"])
 app.include_router(acp_products.router, prefix="/acp", tags=["ACP Products"])
 app.include_router(acp_checkout.router, prefix="/acp", tags=["ACP Checkout"])
 app.include_router(acp_payments.router, prefix="/acp", tags=["ACP Payments"])
@@ -198,7 +204,7 @@ app.include_router(acp_payments.router, prefix="/acp", tags=["ACP Payments"])
 # Staff routes
 app.include_router(analytics.router, prefix="/api/staff/analytics", tags=["Staff Analytics"])
 app.include_router(tickets.router, prefix="/api/staff/tickets", tags=["Staff Tickets"])
-app.include_router(returns.router, prefix="/api/staff/returns", tags=["Staff Returns"])
+app.include_router(staff_returns.router, prefix="/api/staff/returns", tags=["Staff Returns"])
 app.include_router(shipments.router, prefix="/api/staff/shipments", tags=["Staff Shipments"])
 
 # Truth-layer routes

@@ -6,7 +6,7 @@
 
 ## Overview
 
-Enables customers to search product catalog with natural language queries. Uses Azure AI Search for vector similarity (semantic search) and keyword matching (hybrid mode). Agents augment search results with personalization and inventory checks.
+Enables customers to search product catalog with natural language queries. Runtime now uses Azure AI Search (when configured) to retrieve ranked SKU candidates, then resolves ACP product payloads through adapters with inventory checks. If AI Search is unavailable or returns no usable hits, the service falls back to the existing adapter retrieval path.
 
 ## Architecture
 
@@ -36,18 +36,17 @@ graph LR
 
 Orchestrates search with:
 - Query understanding (extract intent, filters)
-- Vector embedding generation
-- Search execution (AI Search API)
-- Result ranking (personalization if user context available)
+- Search execution (AI Search API when configured)
+- SKU resolution through product adapter
 - Inventory validation (check stock via adapter)
 
-**Current Status**: ✅ **IMPLEMENTED (mock adapters)** — Agent orchestrates catalog lookups and emits ACP-aligned fields. Foundry integration remains optional.
+**Current Status**: ✅ **IMPLEMENTED** — Agent queries Azure AI Search when configured and falls back to adapter retrieval when unavailable/empty. Foundry integration remains optional.
 
 ### 3. Catalog Adapters (`adapters.py`)
 
 Wraps product + inventory connectors and maps results to ACP fields.
 
-**Current Status**: ⚠️ **PARTIAL** — Uses mock product + inventory adapters; no real Azure AI Search calls yet.
+**Current Status**: ⚠️ **PARTIAL** — Product/inventory adapters remain mock-oriented by default, while AI Search runtime calls are implemented in `ai_search.py`.
 
 ### 4. Memory Integration
 
@@ -62,19 +61,22 @@ Wraps product + inventory connectors and maps results to ACP fields.
 ✅ FastAPI app structure with `/invoke` and `/health` endpoints  
 ✅ MCP tool registration for `/catalog/search` and `/catalog/product`  
 ✅ ACP-aligned product mapping (required feed fields + eligibility flags)  
+✅ Shared infra provisioning of Azure AI Search + `catalog-products` index  
+✅ Deployment output/env propagation for `AI_SEARCH_ENDPOINT`, `AI_SEARCH_INDEX`, and `AI_SEARCH_AUTH_MODE`  
+✅ Runtime AI Search query path with graceful fallback when unconfigured/unavailable/empty  
+✅ Product event-driven AI Search document upsert/delete hooks  
 ✅ Memory tier wiring (Redis/Cosmos/Blob configs)  
 ✅ Basic unit tests (`tests/test_api.py`)  
 ✅ Dockerfile with multi-stage build  
 ✅ Bicep module for Azure resource provisioning  
 
-## What's NOT Implemented
+## Remaining Optional Hardening
 
-### Azure AI Search Integration
+### AI Search Retrieval Quality
 
-❌ **No Real Index**: Mock adapters return placeholder products  
-❌ **No Embedding Model**: No vector generation for semantic search  
-❌ **No Hybrid Queries**: No vector + keyword blend yet  
-❌ **No Index Population**: No script to upload catalog to AI Search  
+⚠️ **No embedding/vector retrieval path in runtime yet** (current retrieval is keyword query + SKU resolution).  
+⚠️ **No explicit weighted hybrid tuning policy documented/validated yet**.  
+⚠️ **No formal relevance benchmark suite (NDCG/MRR) wired into CI gates yet**.  
 
 **To Implement**:
 ```python
@@ -190,7 +192,7 @@ async def test_search_relevance():
 ### Data Seeding
 
 ❌ **No Sample Catalog**: No CSV/JSON with products to upload  
-❌ **No Index Creation Script**: No automation to provision AI Search index  
+✅ **Index Provisioning via Shared Infra**: AI Search index lifecycle is provisioned by shared infrastructure modules (no app-local index creation script required)  
 
 **Add Seed Script**:
 ```python
@@ -242,8 +244,9 @@ pip install -e apps/ecommerce-catalog-search/src
 # Set environment variables
 export REDIS_HOST=localhost
 export COSMOS_ENDPOINT=https://<account>.documents.azure.com
-export SEARCH_ENDPOINT=https://<search>.search.windows.net
-export SEARCH_API_KEY=<key>
+export AI_SEARCH_ENDPOINT=https://<search>.search.windows.net
+export AI_SEARCH_INDEX=catalog-products
+export AI_SEARCH_AUTH_MODE=managed_identity
 
 # Run app
 uvicorn main:app --reload --app-dir apps/ecommerce-catalog-search/src
@@ -310,8 +313,10 @@ helm upgrade catalog-search .kubernetes/chart \
 | `COSMOS_ENDPOINT` | Cosmos DB URI | - | ✅ |
 | `COSMOS_KEY` | Cosmos DB key | - | ✅ (dev) |
 | `BLOB_ACCOUNT` | Storage account | - | ✅ |
-| `SEARCH_ENDPOINT` | AI Search URI | - | ✅ |
-| `SEARCH_API_KEY` | AI Search key | - | ✅ (dev) |
+| `AI_SEARCH_ENDPOINT` | AI Search URI | - | ✅ (for AI Search runtime path) |
+| `AI_SEARCH_INDEX` | AI Search index name | `catalog-products` | ✅ (for AI Search runtime path) |
+| `AI_SEARCH_AUTH_MODE` | Auth mode (`managed_identity` or `api_key`) | `managed_identity` | ✅ (for AI Search runtime path) |
+| `AI_SEARCH_KEY` | AI Search API key (only with `api_key` auth mode) | - | ⚠️ Optional |
 | `FOUNDRY_ENDPOINT` | Agent endpoint | - | ⚠️ (when wiring agents) |
 
 **Prod Note**: Use Managed Identity; avoid keys in env vars.

@@ -58,8 +58,8 @@ The CRUD service currently manages **11 JSONB-backed Postgres tables** and expos
 | **Logistics** | **High** | Shipment table is read-only. No write path for agent-produced tracking data. |
 | **Funnel/Campaign** | **High** | No campaign or funnel tables. Campaign intelligence agent fully mocked. |
 | **Product Management** | **High** | No CRUD integration for any of the 4 product-management agents. |
-| **Payments** | **Medium** | Payment processing is simulated. Stripe SDK unused. `GET /payments/{id}` returns 501. |
-| **Tickets** | **Medium** | Read-only. No create endpoint. Agent ticket creation returns "unsupported". |
+| **Payments** | **Medium** | Payment processing persists API-created payment records and `GET /api/payments/{id}` now supports role/ownership checks. Refund/history gaps remain. |
+| **Tickets** | **Medium** | Staff/admin ticket lifecycle is mutable (`create`, `update`, `resolve`, `escalate`) with audit metadata. Customer-facing creation remains a gap. |
 | **PIM/DAM** | **Medium** | Issue #34 proposes a full Product Graph + DAM workflow — no CRUD models exist. |
 | **Schema alignment** | **Medium** | `id` vs `sku`, `name` vs `title`, `category_id` vs `category` mismatches throughout. |
 
@@ -81,9 +81,10 @@ All tables share the universal schema: `(id TEXT PK, partition_key TEXT, data JS
 | `payment_tokens` | `PaymentTokenRepository` | `POST /acp/payments/delegate` | Create only |
 | `categories` | Inline `CategoryRepository` | `GET /api/categories`, `GET /api/categories/{id}` | Seed only |
 | `reviews` | Inline `ReviewRepository` | `GET /api/reviews`, `POST /api/reviews`, `DELETE /api/reviews/{id}` | Create + Delete |
-| `tickets` | Inline `TicketRepository` | `GET /api/staff/tickets`, `GET /api/staff/tickets/{id}` | **Read-only** |
+| `tickets` | Inline `TicketRepository` | `GET /api/staff/tickets`, `GET /api/staff/tickets/{id}`, `POST /api/staff/tickets`, `PATCH /api/staff/tickets/{id}`, `POST /api/staff/tickets/{id}/resolve`, `POST /api/staff/tickets/{id}/escalate` | Create + Update + Resolve + Escalate |
 | `returns` | Inline `ReturnRepository` | `GET /api/staff/returns`, `PATCH /api/staff/returns/{id}/approve` | Approve only |
 | `shipments` | Inline `ShipmentRepository` | `GET /api/staff/shipments`, `GET /api/staff/shipments/{id}` | **Read-only** |
+| `brand_shopping` | `ProductRepository` + `UserRepository` + `AgentClient` | `GET /api/catalog/products/{sku}`, `GET /api/customers/{customer_id}/profile`, `POST /api/pricing/offers`, `POST /api/recommendations/rank`, `POST /api/recommendations/compose` | Contract-only, additive |
 
 ### 2.2 Agent Integrations (via `AgentClient`)
 
@@ -332,9 +333,9 @@ CRUD stores `price: float` directly on the product document. There is no price h
 #### Gaps
 
 1. **Payment processing is simulated** — `stripe` SDK listed but never imported/used.
-2. **`GET /payments/{id}` returns 501** — Not implemented.
+2. **`GET /api/payments/{id}` ownership model is strict** — Customer can only read own payment; staff/admin can read any.
 3. **`PaymentMethodRepository` is an empty class** — `pass` only.
-4. **No `payments` table** — Payments are created in-memory and attached to order records.
+4. **Payments are persisted for API-processed payments** — Webhook-only payment history and refunds remain limited.
 5. **No payment history or refund tracking**.
 6. **ACP checkout sessions not connected to checkout agent** — Agent validates raw item lists, not ACP session models.
 
@@ -344,8 +345,8 @@ CRUD stores `price: float` directly on the product document. There is no price h
 
 #### Gaps
 
-1. **Tickets are read-only** — No `POST /api/tickets` for customer or agent ticket creation.
-2. **`BaseCRUDAdapter._create_ticket()` returns `unsupported_operation`** — All agents' ticket creation attempts fail silently.
+1. **Customer/agent ticket creation route is still missing** — Staff/admin lifecycle endpoints exist, but there is no customer-facing create route.
+2. **`BaseCRUDAdapter._create_ticket()` returns `unsupported_operation`** — Agent-side ticket creation remains unresolved.
 3. **Returns lack customer-facing creation** — Only staff can view/approve. No `POST /api/orders/{id}/returns`.
 4. **Returns model misaligned with agent output** — CRUD stores `{id, order_id, user_id, status, reason, created_at}`. Agent produces `{eligible_for_return, next_steps}`.
 
@@ -669,7 +670,7 @@ These are the issues that should be filed to bring the CRUD service to full feat
 | 30 | CI agent tests silently swallowed with \|\| true | Bug | CI reliability |
 | 31 | Payment processing fully stubbed | Enhancement | Payment features non-functional |
 | 32 | Azure AI Search not provisioned | Enhancement | Catalog search agent non-functional |
-| 33 | No middleware.ts for route protection | Enhancement | Security gap |
+| 33 | Route protection middleware implemented (issue #33 resolved) | Resolved | Closed via UI middleware with login redirect messaging polish |
 | 34 | PIM/DAM Agentic Workflow | Feature | Requires new CRUD models |
 
 ### Connector Issues (#36-78) — 43 issues

@@ -46,3 +46,31 @@ flowchart LR
    class C c
    class E,F d
 ```
+
+## Implemented Lifecycle Scope (Issue #217)
+
+This scenario is implemented through CRUD lifecycle APIs and staff operations (not agent-orchestrated workflow).
+
+### Canonical Return Lifecycle
+
+- `requested -> approved|rejected -> received -> restocked -> refunded`
+- Terminal states: `rejected`, `refunded`
+- Invalid transitions return `409 Conflict`
+
+### Customer Journey (Implemented APIs)
+
+- `POST /api/returns` creates a return request in `requested`
+- `GET /api/returns` lists customer-owned returns
+- `GET /api/returns/{return_id}` returns lifecycle timeline and attached refund snapshot when present
+- `GET /api/returns/{return_id}/refund` returns refund progression (`issued`)
+
+### Staff Operations (Implemented APIs)
+
+- `GET /api/staff/returns/` and `GET /api/staff/returns/{return_id}` provide shared read model access
+- Transition endpoints: `POST /approve`, `POST /reject`, `POST /receive`, `POST /restock`, `POST /refund`
+- Legacy compatibility endpoint: `PATCH /api/staff/returns/{return_id}/approve`
+
+### Event Outcomes
+
+- Return lifecycle events are emitted to `return-events`: `ReturnRequested`, `ReturnApproved`, `ReturnRejected`, `ReturnReceived`, `ReturnRestocked`, `ReturnRefunded`
+- Refund issuance is emitted to `payment-events` as `RefundIssued`

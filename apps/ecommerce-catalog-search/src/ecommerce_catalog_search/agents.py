@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 from typing import Any
 
@@ -12,6 +13,10 @@ from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.schemas.product import CatalogProduct
 
 from .adapters import CatalogAdapters, build_catalog_adapters
+from .ai_search import search_catalog_skus_detailed
+
+
+logger = logging.getLogger(__name__)
 
 
 class CatalogSearchAgent(BaseRetailAgent):
@@ -114,6 +119,26 @@ def _coerce_query_to_sku(query: str) -> str:
 async def _search_products(
     adapters: CatalogAdapters, *, query: str, limit: int
 ) -> list[CatalogProduct]:
+    ai_search_result = await search_catalog_skus_detailed(query=query, limit=limit)
+    ai_search_skus = ai_search_result.skus
+    if ai_search_skus:
+        resolved_products = await asyncio.gather(
+            *[adapters.products.get_product(sku) for sku in ai_search_skus]
+        )
+        ai_search_products = [product for product in resolved_products if product is not None]
+        if ai_search_products:
+            return ai_search_products[:limit]
+
+    if ai_search_result.fallback_reason is not None:
+        logger.warning(
+            "catalog_search_fallback_path",
+            extra={
+                "fallback_reason": ai_search_result.fallback_reason,
+                "query_length": len(query),
+                "limit": limit,
+            },
+        )
+
     primary_sku = _coerce_query_to_sku(query)
     primary = await adapters.products.get_product(primary_sku)
     related = await adapters.products.get_related(primary_sku, limit=max(limit - 1, 0))

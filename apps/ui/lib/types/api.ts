@@ -23,6 +23,91 @@ export interface UpdateProfileRequest {
   phone?: string;
 }
 
+export interface CatalogProductContract {
+  sku: string;
+  name: string;
+  description: string;
+  category_id: string;
+  price: number;
+  currency: 'usd';
+  in_stock: boolean;
+}
+
+export interface CustomerProfileContract {
+  customer_id: string;
+  email?: string | null;
+  name?: string | null;
+  phone?: string | null;
+  tier: string;
+  crm_profile?: Record<string, unknown> | null;
+  personalization?: Record<string, unknown> | null;
+}
+
+export interface PricingOffer {
+  code: string;
+  title: string;
+  amount: number;
+  offer_type: 'bulk' | 'loyalty' | 'dynamic';
+  source: 'rule' | 'agent';
+}
+
+export interface PricingOffersRequest {
+  customer_id: string;
+  sku: string;
+  quantity: number;
+  currency?: 'usd';
+}
+
+export interface PricingOffersResponse {
+  customer_id: string;
+  sku: string;
+  quantity: number;
+  currency: 'usd';
+  base_price: number;
+  offers: PricingOffer[];
+  final_price: number;
+}
+
+export interface RecommendationCandidate {
+  sku: string;
+  score: number;
+}
+
+export interface RankRecommendationsRequest {
+  customer_id: string;
+  candidates: RecommendationCandidate[];
+}
+
+export interface RankedRecommendation {
+  sku: string;
+  score: number;
+  reason_codes: string[];
+}
+
+export interface RankRecommendationsResponse {
+  customer_id: string;
+  ranked: RankedRecommendation[];
+}
+
+export interface ComposeRecommendationsRequest {
+  customer_id: string;
+  ranked_items: RecommendationCandidate[];
+  max_items?: number;
+}
+
+export interface ComposedRecommendation {
+  sku: string;
+  title: string;
+  score: number;
+  message: string;
+}
+
+export interface ComposeRecommendationsResponse {
+  customer_id: string;
+  headline: string;
+  recommendations: ComposedRecommendation[];
+}
+
 // Product types
 export interface Product {
   id: string;
@@ -91,6 +176,63 @@ export interface CreateOrderRequest {
   payment_method_id: string;
 }
 
+export type InventoryHealthStatus = 'healthy' | 'low_stock' | 'out_of_stock';
+
+export interface InventoryItem {
+  id: string;
+  sku: string;
+  quantity_on_hand: number;
+  reserved_quantity: number;
+  available_quantity: number;
+  reorder_point: number;
+  safety_stock: number;
+  low_stock: boolean;
+  health_status: InventoryHealthStatus;
+  created_at: string;
+  updated_at: string;
+  created_by: string;
+  updated_by: string;
+  audit_log: Array<Record<string, unknown>>;
+}
+
+export interface InventoryHealthResponse {
+  total_skus: number;
+  healthy: number;
+  low_stock: number;
+  out_of_stock: number;
+  items: InventoryItem[];
+}
+
+export type ReservationStatus = 'created' | 'confirmed' | 'released';
+
+export interface CreateReservationRequest {
+  sku: string;
+  quantity: number;
+  reason?: string;
+}
+
+export interface ReservationActionRequest {
+  reason?: string;
+}
+
+export interface InventoryReservation {
+  id: string;
+  sku: string;
+  quantity: number;
+  status: ReservationStatus;
+  created_at: string;
+  updated_at: string;
+  created_by: string;
+  updated_by: string;
+  confirmed_at?: string | null;
+  confirmed_by?: string | null;
+  released_at?: string | null;
+  released_by?: string | null;
+  reason?: string | null;
+  status_history: Array<Record<string, unknown>>;
+  audit_log: Array<Record<string, unknown>>;
+}
+
 // Checkout types
 export interface CheckoutValidationResponse {
   valid: boolean;
@@ -114,6 +256,11 @@ export interface PaymentIntentResponse {
   amount: number;
   currency: string;
   status: string;
+}
+
+export interface ConfirmPaymentIntentRequest {
+  order_id: string;
+  payment_intent_id: string;
 }
 
 export interface ProcessPaymentRequest {
@@ -157,22 +304,148 @@ export interface SalesAnalytics {
   top_products: any[];
 }
 
+export type TicketStatus = 'open' | 'in_progress' | 'pending_customer' | 'escalated' | 'resolved' | 'closed';
+export type TicketPriority = 'low' | 'medium' | 'high' | 'urgent';
+
 export interface Ticket {
   id: string;
   user_id: string;
   subject: string;
-  status: string;
-  priority: string;
+  status: TicketStatus;
+  priority: TicketPriority;
   created_at: string;
+  description?: string;
+  assignee_id?: string;
+  updated_at?: string;
+  updated_by?: string;
+  resolved_at?: string;
+  resolved_by?: string;
+  escalation_reason?: string;
+  escalated_at?: string;
+  escalated_by?: string;
+  resolution_note?: string;
+  status_history?: Array<{
+    from?: string | null;
+    to: string;
+    at: string;
+    actor_id: string;
+    reason?: string | null;
+  }>;
+  audit_log?: Array<{
+    action: string;
+    at: string;
+    actor_id: string;
+    actor_roles: string[];
+    reason?: string;
+    details?: Record<string, unknown>;
+  }>;
+}
+
+export interface CreateTicketRequest {
+  user_id: string;
+  subject: string;
+  priority?: TicketPriority;
+  description?: string;
+}
+
+export interface UpdateTicketRequest {
+  subject?: string;
+  priority?: TicketPriority;
+  status?: TicketStatus;
+  assignee_id?: string;
+  reason?: string;
+  note?: string;
+}
+
+export interface ResolveTicketRequest {
+  reason?: string;
+  resolution_note?: string;
+}
+
+export interface EscalateTicketRequest {
+  reason: string;
+}
+
+export type ReturnStatus = 'requested' | 'approved' | 'rejected' | 'received' | 'restocked' | 'refunded';
+export type RefundStatus = 'issued';
+
+export interface ReturnStatusHistoryItem {
+  from?: string | null;
+  to: ReturnStatus;
+  at: string;
+  actor_id: string;
+  actor_roles: string[];
+  reason?: string | null;
+}
+
+export interface ReturnAuditLogItem {
+  action: string;
+  at: string;
+  actor_id: string;
+  actor_roles: string[];
+  reason?: string;
+}
+
+export interface RefundStatusHistoryItem {
+  from?: string | null;
+  to: RefundStatus;
+  at: string;
+  actor_id: string;
+  actor_roles: string[];
+}
+
+export interface RefundAuditLogItem {
+  action: string;
+  at: string;
+  actor_id: string;
+  actor_roles: string[];
+}
+
+export interface Refund {
+  id: string;
+  return_id: string;
+  order_id: string;
+  user_id: string;
+  status: RefundStatus;
+  created_at: string;
+  updated_at: string;
+  issued_at: string;
+  last_transition_at: string;
+  requested_at: string;
+  status_history: RefundStatusHistoryItem[];
+  audit_log: RefundAuditLogItem[];
 }
 
 export interface Return {
   id: string;
   order_id: string;
   user_id: string;
-  status: string;
+  status: ReturnStatus;
   reason: string;
+  items: Array<Record<string, unknown>>;
   created_at: string;
+  updated_at: string;
+  requested_at: string;
+  approved_at?: string | null;
+  rejected_at?: string | null;
+  received_at?: string | null;
+  restocked_at?: string | null;
+  refunded_at?: string | null;
+  last_transition_at: string;
+  status_history: ReturnStatusHistoryItem[];
+  audit_log: ReturnAuditLogItem[];
+  refund?: Refund | null;
+  idempotent?: boolean;
+}
+
+export interface CreateReturnRequest {
+  order_id: string;
+  reason: string;
+  items?: Array<Record<string, unknown>>;
+}
+
+export interface ReturnTransitionRequest {
+  reason?: string;
 }
 
 export interface Shipment {

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+import { AUTH_COOKIE_NAME, readAuthRolesFromCookie } from './lib/auth/authCookie';
+
 const LOGIN_PATH = '/auth/login';
 
 /**
@@ -26,13 +28,11 @@ const STAFF_REQUIRED_SEGMENTS = ['/staff'];
 const ADMIN_REQUIRED_SEGMENTS = ['/admin'];
 
 /**
- * Read the msal-auth cookie value set by AuthContext after a successful login.
- * The value is a comma-separated list of roles, e.g. "customer" or "staff,admin".
+ * Read the server-signed msal-auth cookie value set by auth session endpoints.
  */
-function getAuthRoles(request: NextRequest): string[] {
-  const raw = request.cookies.get('msal-auth')?.value;
-  if (!raw) return [];
-  return raw.split(',').map((r) => r.trim()).filter(Boolean);
+async function getAuthRoles(request: NextRequest): Promise<string[]> {
+  const raw = request.cookies.get(AUTH_COOKIE_NAME)?.value;
+  return readAuthRolesFromCookie(raw);
 }
 
 function pathMatchesSegments(pathname: string, segments: string[]): boolean {
@@ -41,7 +41,7 @@ function pathMatchesSegments(pathname: string, segments: string[]): boolean {
   );
 }
 
-export function middleware(request: NextRequest): NextResponse {
+export async function middleware(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl;
 
   const requiresAdmin = pathMatchesSegments(pathname, ADMIN_REQUIRED_SEGMENTS);
@@ -53,7 +53,7 @@ export function middleware(request: NextRequest): NextResponse {
     return NextResponse.next();
   }
 
-  const roles = getAuthRoles(request);
+  const roles = await getAuthRoles(request);
 
   // Not authenticated — redirect to login
   if (roles.length === 0) {

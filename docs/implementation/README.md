@@ -1,6 +1,6 @@
 # Implementation Documentation
 
-**Last Updated**: January 30, 2026  
+**Last Updated**: March 12, 2026  
 **Status**: Ready for Execution
 
 ---
@@ -27,7 +27,7 @@ This directory contains comprehensive implementation plans and compliance analys
 
 ### [Architecture Implementation Plan](./architecture-implementation-plan.md)
 **Purpose**: Step-by-step guide to achieve 100% compliance  
-**Timeline**: 12 weeks (3 phases)  
+**Timeline**: 12 weeks (4 phases)  
 **Phases**:
 1. **Event Handler Implementation** (Weeks 1-6): Add async event processing to all agents
 2. **Resilience Patterns** (Weeks 7-8): Implement circuit breakers, timeouts, and fallbacks
@@ -57,6 +57,25 @@ This directory contains comprehensive implementation plans and compliance analys
 - Postman collection and sample script links
 
 This reference is aligned with architecture intent in [Architecture Overview](../architecture/architecture.md) and [Business Summary](../architecture/business-summary.md) for deterministic governance + agentic enrichment flows.
+
+### [Open Issues Execution Wave Plan](./open-issues-execution-wave-plan.md)
+**Purpose**: Dependency-ordered implementation strategy for all currently open issues  
+**Includes**:
+- Unified evaluation model (impact, risk, dependencies, pattern, acceptance slices)
+- Wave-based sequencing (foundation -> scenario completeness -> parity -> connector scale)
+- Cross-wave governance rules (contract-first, idempotency, observability, security boundaries)
+- Immediate two-week execution focus
+
+### [Issue #217 Returns + Refund Lifecycle Architecture](./issue-217-returns-refund-lifecycle-architecture.md)
+**Purpose**: Strict implementation architecture for returns creation and refund lifecycle APIs  
+**Includes**:
+- Exact CRUD and UI file touchpoints
+- Canonical state machine with transition constraints
+- Endpoint contracts and event publication points
+- Test strategy, rollout, and compatibility rules
+
+### [Entra ID Setup](./entra-id-setup.md)
+**Purpose**: Local and deployed environment configuration guidance for Entra ID auth in UI and CRUD service
 
 ---
 

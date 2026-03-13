@@ -47,3 +47,16 @@ flowchart LR
    class H c
    class I,J e
 ```
+
+## Real Checkout Contract (Issue #210)
+
+Checkout in this scenario runs on the live CRUD payment path (no stubbed success responses).
+
+1. `POST /api/checkout/validate` validates cart and inventory warnings/errors.
+2. `POST /api/orders` creates the order record.
+3. `POST /api/payments/intent` creates a Stripe PaymentIntent for client-side confirmation.
+4. Frontend confirms payment with Stripe.js.
+5. `POST /api/payments/confirm-intent` reconciles the confirmed PaymentIntent back to the order, persists payment, sets order status to `paid`, and publishes payment-processed event when transitioning to paid.
+6. `GET /api/payments/{payment_id}` supports post-checkout payment retrieval (customer ownership, staff/admin override).
+
+Business impact: confirmation is tied to provider-backed payment state and auditable order/payment linkage, preserving payment-to-shipment continuity targets.

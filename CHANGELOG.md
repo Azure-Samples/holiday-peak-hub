@@ -9,14 +9,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- APIM-to-CRUD routing stability for dev deployments by hardening sync behavior and preventing CRUD API drift under changed-service filtering.
-- CRUD data endpoint availability (`/api/products`, `/api/categories`) by correcting Entra PostgreSQL user normalization in CRUD env-generation hooks.
+- Issue #29: made `lib/tests/test_config.py` deterministic by isolating settings env-file loading in tests only (`_env_file=None`), preventing local `.env` values from affecting `MemorySettings`, `ServiceSettings`, `PostgresSettings`, and `TruthLayerSettings` test outcomes.
+
 
 ### Changed
 
-- Deployment workflow APIM reconciliation now also evaluates UI-only change scenarios and applies a CRUD fallback filter when no AKS service changes are detected.
-- APIM sync ingress resolution now prioritizes ingress controller discovery before gateway auto-fallback and treats HTTP `404` as a reachability signal during ingress liveness probing.
-- Governance documentation now codifies APIM deterministic sync requirements and CRUD Entra PostgreSQL user guardrails.
+- Documentation updates for issue #32: business scenario, architecture, and status docs now reflect implemented Azure AI Search provisioning (`catalog-products` index), deploy-time env propagation (`AI_SEARCH_ENDPOINT`, `AI_SEARCH_INDEX`, `AI_SEARCH_AUTH_MODE`), and runtime query/index fallback behavior in `ecommerce-catalog-search`, with optional hardening (vector/hybrid tuning, relevance/load gates) tracked separately.
+
+- Documentation updates for issue #28: business scenario, architecture, and roadmap docs now state that dashboard/profile supported paths use UI API hooks, and previously hardcoded values without backend contracts were removed in favor of explicit unavailable/unsupported UI states.
+
+- Documentation updates for issue #30: architecture/governance/status/roadmap now explicitly reflect CI fail-fast behavior where required smoke/test gates do not swallow failures, transport errors are normalized and treated as hard failures in required checks, and advisory diagnostics are separated from blocking gates.
+
+- Documentation updates for issue #33: status/roadmap/governance tracking now reflects implemented server-side route protection middleware in the UI (`apps/ui/middleware.ts`) for closure-readiness alignment.
+
+- Documentation updates for issue #112: Entra ID setup guidance now includes deployed CRUD environment wiring (`ENTRA_TENANT_ID`, `ENTRA_CLIENT_ID`) and where to set values in deployed env/workflow/Key Vault references.
+
+- Documentation updates for issue #217: business scenario and architecture docs now reflect the implemented returns/refund lifecycle with deterministic transitions (`requested -> approved|rejected -> received -> restocked -> refunded`), customer/staff API contracts (`/api/returns/*`, `/api/staff/returns/*`), and emitted events (`ReturnRequested|Approved|Rejected|Received|Restocked|Refunded`, `RefundIssued`).
+
+- Documentation updates for issue #216: scenario 04 business and architecture docs now reflect the implemented inventory reservation lifecycle in checkout (`POST /api/inventory/reservations`, `GET /api/inventory/reservations/{id}`, `POST /api/inventory/reservations/{id}/confirm`, `POST /api/inventory/reservations/{id}/release`, `GET /api/inventory/health`) including enforced state transitions (`created -> confirmed|released`, terminal `confirmed/released`).
+
+- Documentation updates for issue #215: business scenario and architecture docs now describe the implemented brand-shopping personalization contract chain (`GET /api/catalog/products/{sku}`, `GET /api/customers/{customer_id}/profile`, `POST /api/pricing/offers`, `POST /api/recommendations/rank`, `POST /api/recommendations/compose`) and the orchestration split (CRUD owns contracts, UI orchestrates execution flow).
+
+- Documentation updates for issue #214: business scenario and architecture coverage now explicitly describe dual auth mode (Entra ID primary + non-production dev mock fail-safe), role-based demo enablement, and production safeguards for mock auth endpoints.
+
+- Documentation updates for issue #210: business scenario and architecture docs now capture the real checkout orchestration (`/api/checkout/validate` → `/api/orders` → `/api/payments/intent` → Stripe confirmation → `/api/payments/confirm-intent`) and payment retrieval path (`GET /api/payments/{payment_id}`), replacing stubbed-flow assumptions.
+
+### Added
+
+- CRUD support ticket lifecycle APIs for staff/admin: `POST /api/staff/tickets`, `PATCH /api/staff/tickets/{id}`, `POST /api/staff/tickets/{id}/resolve`, and `POST /api/staff/tickets/{id}/escalate`, including audit/status history metadata for workflow traceability.
+
+- `GET /api/payments/{payment_id}` now returns persisted payment details with ownership checks (customer can read own payment, staff/admin can read any), replacing prior `501` behavior.
+
+- Inventory persistence and reservation APIs in CRUD service: `GET/PATCH /api/inventory/{sku}`, `PATCH /api/inventory/{sku}/thresholds`, `GET /api/inventory/health`, `POST /api/inventory/reservations`, `GET /api/inventory/reservations/{id}`, `POST /api/inventory/reservations/{id}/confirm`, and `POST /api/inventory/reservations/{id}/release`, with explicit transitions, idempotent confirm/release semantics, and persisted status/audit history.
 
 ## [2.0.0] - 2026-03-04
 

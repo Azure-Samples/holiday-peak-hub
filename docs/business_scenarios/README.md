@@ -28,6 +28,12 @@ Executive scenario playbook for Holiday Peak Hub: each scenario is a value strea
 | Normalization + ACP + validation + assortment | 7 | Product-management agents, truth services |
 | Support assistance + escalation intelligence | 8 | CRM support agent, order status, KB loop |
 
+## Demo Access Modes
+
+- Primary mode: Microsoft Entra ID authentication with RBAC (`customer`, `staff`, `admin`).
+- Developer fail-safe mode: dev mock login can be enabled only outside production for role-based walkthroughs.
+- Production safeguard: mock auth routes are disabled in production and role checks remain enforced by UI middleware.
+
 ## Executive Flow Map
 
 ```mermaid

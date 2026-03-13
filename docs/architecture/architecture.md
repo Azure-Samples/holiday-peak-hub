@@ -249,6 +249,82 @@ sequenceDiagram
     OrderSvc->>Customer: Email confirmation
 ```
 
+### Checkout Orchestration: Confirm-Intent Reconciliation
+
+```mermaid
+sequenceDiagram
+    participant Customer
+    participant UI as Next.js UI
+    participant CRUD as CRUD Service
+    participant Stripe as Stripe
+    participant EventHub as Event Hubs
+
+    Customer->>UI: Checkout submission
+    UI->>CRUD: POST /api/checkout/validate
+    CRUD-->>UI: Validation result
+    UI->>CRUD: POST /api/orders
+    CRUD-->>UI: Order created
+
+    UI->>CRUD: POST /api/payments/intent
+    CRUD->>Stripe: Create PaymentIntent
+    Stripe-->>CRUD: client_secret + intent_id
+    CRUD-->>UI: client_secret + intent_id
+
+    UI->>Stripe: Confirm PaymentIntent (Stripe.js)
+    Stripe-->>UI: intent status = succeeded
+    UI->>CRUD: POST /api/payments/confirm-intent
+    CRUD->>Stripe: Retrieve PaymentIntent
+    Stripe-->>CRUD: Confirmed intent metadata
+
+    CRUD->>CRUD: Persist payment if missing (idempotent)
+    CRUD->>CRUD: Set order status=paid, attach payment_id
+    alt order transitioned to paid
+        CRUD->>EventHub: payment.processed
+    end
+    CRUD-->>UI: PaymentResponse
+```
+
+### Inventory Reservation Lifecycle in Checkout (Issue #216)
+
+Implemented checkout integration uses CRUD reservation endpoints as a guarded stock-hold lifecycle:
+
+- Pre-order hold: `POST /api/inventory/reservations` (one hold per checkout line item)
+- Rollback/abandon release: `POST /api/inventory/reservations/{id}/release`
+- Post-payment confirmation: `POST /api/inventory/reservations/{id}/confirm`
+- Reservation read model: `GET /api/inventory/reservations/{id}` and health aggregation via `GET /api/inventory/health`
+
+State constraints enforced by CRUD:
+
+- `created -> confirmed`
+- `created -> released`
+- `confirmed` and `released` terminal
+
+Invalid transitions return `409 Conflict`, preserving deterministic reservation semantics during retries and recovery.
+
+### Personalization Orchestration: Brand-Shopping Contract Chain
+
+Orchestration responsibility is split intentionally:
+- **CRUD Service** owns stable contract endpoints and response schemas.
+- **UI layer** orchestrates endpoint invocation order for personalization rendering.
+
+```mermaid
+sequenceDiagram
+    participant UI as Next.js UI
+    participant CRUD as CRUD Service
+
+    UI->>CRUD: GET /api/catalog/products/{sku}
+    CRUD-->>UI: CatalogProductResponse
+    UI->>CRUD: GET /api/customers/{customer_id}/profile
+    CRUD-->>UI: CustomerProfileResponse
+
+    UI->>CRUD: POST /api/pricing/offers
+    CRUD-->>UI: PricingOffersResponse
+    UI->>CRUD: POST /api/recommendations/rank
+    CRUD-->>UI: RankRecommendationsResponse
+    UI->>CRUD: POST /api/recommendations/compose
+    CRUD-->>UI: ComposeRecommendationsResponse
+```
+
 ### Agent Tool Calling Flow
 
 ```mermaid

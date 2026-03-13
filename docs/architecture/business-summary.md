@@ -196,6 +196,7 @@ Each app addresses a specific retail process:
 - **Value**: Bicep standards, AKS best practices, security policies, DR procedures, cost management
 - **Scope**: Infrastructure as Code, Azure services, Kubernetes, monitoring, compliance (SOC 2, GDPR, PCI DSS)
 - **Expected Use**: All infrastructure changes via Bicep; automated validation in CI/CD pipeline
+- **Operational Gate**: Required CI smoke/health checks are deterministic and fail on transport errors or non-200 responses, with transport failures normalized as hard failures; advisory diagnostics are separated from required gates and permissive commands are limited to non-gating diagnostics/cleanup
 - **Not Expected**: Manual Azure Portal changes, untagged resources, public endpoints
 
 **Business Value**: Reduces onboarding time by 60%, ensures consistent quality across teams, minimizes security risks, facilitates compliance audits, enables automated enforcement.

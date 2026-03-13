@@ -42,3 +42,11 @@ The settings models in `lib/src/holiday_peak_lib/config/settings.py` were update
 
 - `lib/tests/test_config.py` — Update test assertions
 - `lib/src/holiday_peak_lib/config/settings.py` — Reference (do not modify)
+
+## Resolution (2026-03-12)
+
+Issue #29 was resolved with minimal scope by isolating environment-file loading in tests only.
+
+- Updated `lib/tests/test_config.py` to instantiate `MemorySettings`, `ServiceSettings`, `PostgresSettings`, and `TruthLayerSettings` with `_env_file=None`.
+- No runtime settings model changes were made in `lib/src/holiday_peak_lib/config/settings.py`.
+- Validation run: `python -m pytest lib/tests/test_config.py -q` → `20 passed`.

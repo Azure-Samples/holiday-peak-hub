@@ -59,6 +59,10 @@ output APIM_GATEWAY_URL string = deployShared ? sharedInfra!.outputs.apimGateway
 
 // Propagate shared infrastructure outputs for azd env and Helm rendering
 output AI_SERVICES_NAME string = deployShared ? sharedInfra!.outputs.aiServicesName : ''
+output AI_SEARCH_NAME string = deployShared ? sharedInfra!.outputs.aiSearchName : ''
+output AI_SEARCH_ENDPOINT string = deployShared ? sharedInfra!.outputs.aiSearchEndpoint : ''
+output AI_SEARCH_INDEX string = deployShared ? sharedInfra!.outputs.aiSearchIndexName : ''
+output AI_SEARCH_AUTH_MODE string = deployShared ? sharedInfra!.outputs.aiSearchAuthMode : ''
 output PROJECT_NAME string = deployShared ? sharedInfra!.outputs.aiProjectName : ''
 output PROJECT_ENDPOINT string = deployShared ? 'https://${sharedInfra!.outputs.aiServicesName}.cognitiveservices.azure.com' : ''
 output COSMOS_ACCOUNT_URI string = deployShared ? sharedInfra!.outputs.cosmosEndpoint : ''

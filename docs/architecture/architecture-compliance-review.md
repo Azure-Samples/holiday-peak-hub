@@ -29,6 +29,8 @@
 - ✅ Dev/prod entrypoint split is implemented (`deploy-azd-dev.yml`, `deploy-azd-prod.yml`)
 - ✅ Prod pipeline includes release and lineage gates
 - ✅ Reusable core workflow remains parameterized for environment-specific deployments
+- ✅ Mandatory smoke/test gate enforcement updated: required CI smoke and health checks now fail deterministically on transport errors and non-200 responses, with transport failures normalized as hard failures in required checks and CI Foundry ensure running with explicit fail-on-error mode
+- ✅ Advisory diagnostics are separated from required gates; permissive handling remains limited to non-gating cleanup/inspection paths
 - ⚠️ `deploy-azd.yml` contains repeated setup blocks (duplicate `kubelogin` and env setup sections); this does not break policy but increases maintenance risk
 
 ### Architecture documentation quality

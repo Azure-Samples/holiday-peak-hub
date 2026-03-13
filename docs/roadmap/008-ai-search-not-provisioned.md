@@ -37,6 +37,21 @@ The `ecommerce-catalog-search` agent depends on Azure AI Search for vector/hybri
 - `apps/ecommerce-catalog-search/src/` — Ensure AI Search client is configured
 - `.github/workflows/deploy-azd.yml` — Add index schema deployment step
 
+## Implementation Notes (Issue #32)
+
+- Shared infra now provisions a single Azure AI Search service and `catalog-products` index in `.infra/modules/shared-infrastructure/shared-infrastructure.bicep`.
+- Outputs now propagate through `.infra/modules/shared-infrastructure/shared-infrastructure-main.bicep` and `.infra/azd/main.bicep`:
+	- `AI_SEARCH_ENDPOINT`
+	- `AI_SEARCH_INDEX`
+	- `AI_SEARCH_AUTH_MODE`
+- Deployment wiring now forwards these values through `.github/workflows/deploy-azd.yml` and Helm render hooks:
+	- `.infra/azd/hooks/render-helm.sh`
+	- `.infra/azd/hooks/render-helm.ps1`
+- `apps/ecommerce-catalog-search` runtime now:
+	- Queries Azure AI Search when configured (`ai_search.py` + `agents.py`)
+	- Falls back safely to existing hash/mock retrieval path when AI Search is missing/unavailable
+	- Upserts/deletes index documents from existing product event flow (`event_handlers.py`)
+
 ## Cost Considerations
 
 - AI Search Basic tier: ~$75/month (1 replica, 1 partition)

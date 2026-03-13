@@ -1,18 +1,27 @@
 """Unit tests for JWT JWKS verification in auth dependencies."""
 
 import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 import crud_service.auth.dependencies as deps_module
 import httpx
 import pytest
 from fastapi import HTTPException
 from jose import jwt as jose_jwt
+from starlette.requests import Request
 
 JWTConfig = deps_module.JWTConfig
 get_current_user = deps_module.get_current_user
 get_current_user_optional = deps_module.get_current_user_optional
 User = deps_module.User
+
+
+def _build_request(headers: dict[str, str] | None = None) -> Request:
+    request_headers = [
+        (key.lower().encode("latin-1"), value.encode("latin-1"))
+        for key, value in (headers or {}).items()
+    ]
+    return Request({"type": "http", "headers": request_headers})
 
 
 # ── JWTConfig JWKS caching ──────────────────────────────────────────
@@ -40,7 +49,7 @@ class TestJWTConfigJwks:
             async def __aexit__(self, *args):
                 pass
 
-            async def get(self, url):
+            async def get(self, _url):
                 return FakeResponse()
 
         monkeypatch.setattr(deps_module.httpx, "AsyncClient", lambda **kw: FakeClient())
@@ -125,17 +134,16 @@ class TestGetCurrentUser:
 
         creds = MagicMock()
         creds.credentials = token
+        request = _build_request()
 
         with pytest.raises(HTTPException) as exc_info:
-            await get_current_user(creds)
+            await get_current_user(request, creds)
         assert exc_info.value.status_code == 401
         assert "signing key" in exc_info.value.detail.lower()
 
     @pytest.mark.asyncio
     async def test_rejects_invalid_signature(self, monkeypatch):
         """Should reject token with invalid signature via JWTError."""
-        from jose import JWTError
-
         async def fake_keys():
             return {
                 "keys": [
@@ -161,9 +169,10 @@ class TestGetCurrentUser:
 
         creds = MagicMock()
         creds.credentials = token
+        request = _build_request()
 
         with pytest.raises(HTTPException) as exc_info:
-            await get_current_user(creds)
+            await get_current_user(request, creds)
         assert exc_info.value.status_code == 401
 
     @pytest.mark.asyncio
@@ -193,6 +202,7 @@ class TestGetCurrentUser:
         token = "fake.jwt.token"
         creds = MagicMock()
         creds.credentials = token
+        request = _build_request()
 
         # Also patch get_unverified_header to return matching kid
         monkeypatch.setattr(
@@ -201,7 +211,7 @@ class TestGetCurrentUser:
             lambda t: {"kid": "k1", "alg": "RS256"},
         )
 
-        user = await get_current_user(creds)
+        user = await get_current_user(request, creds)
         assert isinstance(user, User)
         assert user.user_id == "user-1"
         assert user.email == "a@b.com"
@@ -236,8 +246,9 @@ class TestGetCurrentUser:
 
         creds = MagicMock()
         creds.credentials = "fake.jwt.token"
+        request = _build_request()
 
-        user = await get_current_user(creds)
+        user = await get_current_user(request, creds)
         assert user.user_id == "oid-user-1"
         assert user.email == "a@b.com"
 
@@ -264,11 +275,74 @@ class TestGetCurrentUser:
 
         creds = MagicMock()
         creds.credentials = "fake.jwt.token"
+        request = _build_request()
 
         with pytest.raises(HTTPException) as exc_info:
-            await get_current_user(creds)
+            await get_current_user(request, creds)
         assert exc_info.value.status_code == 401
         assert "user identifier" in exc_info.value.detail.lower()
+
+    @pytest.mark.asyncio
+    async def test_accepts_dev_mock_headers_when_enabled(self, monkeypatch):
+        """Should accept explicit dev mock auth headers only in enabled dev mode."""
+
+        monkeypatch.setattr(deps_module.settings, "environment", "dev", raising=False)
+        monkeypatch.setattr(deps_module.settings, "dev_auth_mock", True, raising=False)
+
+        request = _build_request(
+            {
+                "x-dev-auth-mock": "true",
+                "x-dev-auth-roles": "staff,admin",
+                "x-dev-auth-user-id": "mock-staff",
+                "x-dev-auth-email": "mock.staff@local.dev",
+                "x-dev-auth-name": "Mock Staff",
+            }
+        )
+
+        user = await get_current_user(request, None)
+
+        assert user.user_id == "mock-staff"
+        assert user.email == "mock.staff@local.dev"
+        assert user.name == "Mock Staff"
+        assert user.roles == ["staff", "admin"]
+
+    @pytest.mark.asyncio
+    async def test_rejects_dev_mock_headers_when_disabled(self, monkeypatch):
+        """Should reject dev mock headers when feature flag is disabled."""
+
+        monkeypatch.setattr(deps_module.settings, "environment", "dev", raising=False)
+        monkeypatch.setattr(deps_module.settings, "dev_auth_mock", False, raising=False)
+
+        request = _build_request(
+            {
+                "x-dev-auth-mock": "true",
+                "x-dev-auth-roles": "customer",
+            }
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            await get_current_user(request, None)
+
+        assert exc_info.value.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_rejects_dev_mock_headers_outside_development(self, monkeypatch):
+        """Should reject dev mock headers outside development environment."""
+
+        monkeypatch.setattr(deps_module.settings, "environment", "prod", raising=False)
+        monkeypatch.setattr(deps_module.settings, "dev_auth_mock", True, raising=False)
+
+        request = _build_request(
+            {
+                "x-dev-auth-mock": "true",
+                "x-dev-auth-roles": "customer",
+            }
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            await get_current_user(request, None)
+
+        assert exc_info.value.status_code == 401
 
 
 class TestGetCurrentUserOptional:
@@ -285,9 +359,28 @@ class TestGetCurrentUserOptional:
 
         creds = MagicMock()
         creds.credentials = "fake.jwt.token"
+        request = _build_request()
 
         with caplog.at_level("WARNING"):
-            user = await get_current_user_optional(creds)
+            user = await get_current_user_optional(request, creds)
 
         assert user is None
         assert "Optional auth runtime failure" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_optional_auth_accepts_dev_mock_headers(self, monkeypatch):
+        """Optional auth should resolve mock user in enabled dev mock mode."""
+
+        monkeypatch.setattr(deps_module.settings, "environment", "dev", raising=False)
+        monkeypatch.setattr(deps_module.settings, "dev_auth_mock", True, raising=False)
+
+        request = _build_request(
+            {
+                "x-dev-auth-mock": "true",
+                "x-dev-auth-roles": "customer",
+            }
+        )
+
+        user = await get_current_user_optional(request, None)
+        assert user is not None
+        assert user.roles == ["customer"]

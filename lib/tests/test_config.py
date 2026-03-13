@@ -10,6 +10,22 @@ from holiday_peak_lib.config.settings import (
 from holiday_peak_lib.config.tenant_config import TenantConfig
 
 
+def _memory_settings() -> MemorySettings:
+    return MemorySettings(_env_file=None)
+
+
+def _service_settings() -> ServiceSettings:
+    return ServiceSettings(_env_file=None)
+
+
+def _postgres_settings() -> PostgresSettings:
+    return PostgresSettings(_env_file=None)
+
+
+def _truth_layer_settings() -> TruthLayerSettings:
+    return TruthLayerSettings(_env_file=None)
+
+
 class TestMemorySettings:
     """Test MemorySettings configuration."""
 
@@ -22,7 +38,7 @@ class TestMemorySettings:
         monkeypatch.setenv("BLOB_ACCOUNT_URL", "https://test.blob.core.windows.net")
         monkeypatch.setenv("BLOB_CONTAINER", "test_blob_container")
 
-        settings = MemorySettings()
+        settings = _memory_settings()
         assert settings.redis_url == "redis://localhost:6379"
         assert settings.cosmos_account_uri == "https://test.documents.azure.com"
         assert settings.cosmos_database == "test_db"
@@ -43,7 +59,7 @@ class TestMemorySettings:
         ]:
             monkeypatch.delenv(key, raising=False)
 
-        settings = MemorySettings()
+        settings = _memory_settings()
         assert settings.redis_url is None
         assert settings.cosmos_account_uri is None
 
@@ -56,7 +72,7 @@ class TestMemorySettings:
         monkeypatch.setenv("BLOB_ACCOUNT_URL", "https://test.blob.core.windows.net")
         monkeypatch.setenv("BLOB_CONTAINER", "container")
 
-        settings = MemorySettings()
+        settings = _memory_settings()
         assert "redis://" in settings.redis_url
         assert "6379" in settings.redis_url
 
@@ -73,7 +89,7 @@ class TestServiceSettings:
         monkeypatch.setenv("EVENT_HUB_NAMESPACE", "test-namespace")
         monkeypatch.setenv("EVENT_HUB_NAME", "test-hub")
 
-        settings = ServiceSettings()
+        settings = _service_settings()
         assert settings.service_name == "test-service"
         assert settings.ai_search_endpoint == "https://search.azure.com"
         assert settings.ai_search_index == "test-index"
@@ -91,7 +107,7 @@ class TestServiceSettings:
         monkeypatch.setenv("EVENT_HUB_NAME", "test-hub")
         monkeypatch.setenv("AZURE_MONITOR_CONNECTION_STRING", "InstrumentationKey=abc")
 
-        settings = ServiceSettings()
+        settings = _service_settings()
         assert settings.monitor_connection_string == "InstrumentationKey=abc"
 
     def test_monitor_connection_string_defaults_to_none(self, monkeypatch):
@@ -104,7 +120,7 @@ class TestServiceSettings:
         monkeypatch.setenv("EVENT_HUB_NAME", "test-hub")
         monkeypatch.delenv("AZURE_MONITOR_CONNECTION_STRING", raising=False)
 
-        settings = ServiceSettings()
+        settings = _service_settings()
         assert settings.monitor_connection_string is None
 
 
@@ -115,7 +131,7 @@ class TestPostgresSettings:
         """Test creating PostgresSettings from environment variables."""
         monkeypatch.setenv("POSTGRES_DSN", "postgresql://user:pass@localhost:5432/dbname")
 
-        settings = PostgresSettings()
+        settings = _postgres_settings()
         assert settings.postgres_dsn == "postgresql://user:pass@localhost:5432/dbname"
         assert "postgresql://" in settings.postgres_dsn
 
@@ -124,7 +140,7 @@ class TestPostgresSettings:
         monkeypatch.delenv("POSTGRES_DSN", raising=False)
 
         with pytest.raises(Exception):  # Pydantic ValidationError
-            PostgresSettings()
+            _postgres_settings()
 
     def test_postgres_dsn_format_validation(self, monkeypatch):
         """Test various Postgres DSN formats."""
@@ -138,7 +154,7 @@ class TestPostgresSettings:
 
         for dsn in valid_dsns:
             monkeypatch.setenv("POSTGRES_DSN", dsn)
-            settings = PostgresSettings()
+            settings = _postgres_settings()
             assert settings.postgres_dsn == dsn
 
 
@@ -170,9 +186,9 @@ class TestSettingsIntegration:
         for key, value in env_vars.items():
             monkeypatch.setenv(key, value)
 
-        memory_settings = MemorySettings()
-        service_settings = ServiceSettings()
-        postgres_settings = PostgresSettings()
+        memory_settings = _memory_settings()
+        service_settings = _service_settings()
+        postgres_settings = _postgres_settings()
 
         assert memory_settings.redis_url is not None
         assert service_settings.service_name == "test-service"
@@ -187,7 +203,7 @@ class TestSettingsIntegration:
         monkeypatch.setenv("BLOB_ACCOUNT_URL", "https://test.blob.core.windows.net")
         monkeypatch.setenv("BLOB_CONTAINER", "container")
 
-        settings = MemorySettings()
+        settings = _memory_settings()
         original_url = settings.redis_url
 
         # Changing env var shouldn't affect existing instance
@@ -200,7 +216,7 @@ class TestTruthLayerSettings:
 
     def test_default_values(self):
         """Test that TruthLayerSettings has correct default values."""
-        settings = TruthLayerSettings()
+        settings = _truth_layer_settings()
 
         # Cosmos DB containers
         assert settings.cosmos_products_container == "products"
@@ -241,7 +257,7 @@ class TestTruthLayerSettings:
         monkeypatch.setenv("TRUTH_MAX_ENRICHMENT_RETRIES", "5")
         monkeypatch.setenv("TRUTH_COMPLETENESS_CACHE_TTL_SECONDS", "600")
 
-        settings = TruthLayerSettings()
+        settings = _truth_layer_settings()
 
         assert settings.cosmos_products_container == "custom_products"
         assert settings.eventhub_enrichment_jobs == "my-enrichment-topic"
@@ -253,7 +269,7 @@ class TestTruthLayerSettings:
 
     def test_production_safe_defaults(self):
         """Verify writeback and evidence extraction are off by default."""
-        settings = TruthLayerSettings()
+        settings = _truth_layer_settings()
         assert settings.writeback_enabled is False
         assert settings.evidence_extraction_enabled is False
 
@@ -262,7 +278,7 @@ class TestTruthLayerSettings:
         monkeypatch.setenv("COSMOS_PRODUCTS_CONTAINER", "should_be_ignored")
         monkeypatch.setenv("ENRICHMENT_ENABLED", "false")
 
-        settings = TruthLayerSettings()
+        settings = _truth_layer_settings()
 
         assert settings.cosmos_products_container == "products"
         assert settings.enrichment_enabled is True

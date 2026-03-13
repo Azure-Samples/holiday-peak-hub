@@ -1,27 +1,88 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { MainLayout } from '@/components/templates/MainLayout';
 import { Card } from '@/components/molecules/Card';
 import { Button } from '@/components/atoms/Button';
 import { Badge } from '@/components/atoms/Badge';
+import { Input } from '@/components/atoms/Input';
+import { getApiErrorMessage, getApiStatusCode } from '@/lib/api/errorPresentation';
 import { useOrders } from '@/lib/hooks/useOrders';
+import { useBrandShoppingFlow } from '@/lib/hooks/usePersonalization';
 import { 
   FiPackage, FiHeart, FiMapPin, FiUser,
   FiShoppingBag, FiArrowRight
 } from 'react-icons/fi';
 
+const IDENTIFIER_PATTERN = /^[A-Za-z0-9._-]+$/;
+
 export default function DashboardPage() {
   const { data: orders = [], isLoading: ordersLoading } = useOrders();
+  const personalizationFlow = useBrandShoppingFlow();
+  const {
+    mutate: runPersonalization,
+    data: personalizationData,
+    error: personalizationError,
+    isPending: personalizationPending,
+    isError: personalizationIsError,
+  } = personalizationFlow;
 
   const recentOrders = orders.slice(0, 3);
+  const seedCustomerId = recentOrders[0]?.user_id ?? '';
+  const seedSku = recentOrders[0]?.items?.[0]?.product_id ?? '';
+  const [customerId, setCustomerId] = useState(seedCustomerId);
+  const [sku, setSku] = useState(seedSku);
+  const normalizedCustomerId = customerId.trim();
+  const normalizedSku = sku.trim();
+  const hasValidCustomerId = Boolean(normalizedCustomerId && IDENTIFIER_PATTERN.test(normalizedCustomerId));
+  const hasValidSku = Boolean(normalizedSku && IDENTIFIER_PATTERN.test(normalizedSku));
+  const canRefreshPersonalization = !personalizationPending && hasValidCustomerId && hasValidSku;
+
+  const recommendationCount = personalizationData?.composed.recommendations.length ?? 0;
+  const isPersonalizationEmpty = !personalizationPending
+    && !personalizationIsError
+    && recommendationCount === 0;
+  const personalizationStatusMessage = personalizationPending
+    ? 'Loading personalized recommendations.'
+    : personalizationIsError
+      ? getApiErrorMessage(personalizationError, 'Personalization could not be loaded.')
+      : isPersonalizationEmpty
+        ? 'No recommendations available for this customer and SKU.'
+        : `Showing ${recommendationCount} personalized recommendation${recommendationCount === 1 ? '' : 's'}.`;
+
+  useEffect(() => {
+    if (!customerId && seedCustomerId) {
+      setCustomerId(seedCustomerId);
+    }
+  }, [customerId, seedCustomerId]);
+
+  useEffect(() => {
+    if (!sku && seedSku) {
+      setSku(seedSku);
+    }
+  }, [sku, seedSku]);
+
+  useEffect(() => {
+    if (!personalizationPending && !personalizationData && !personalizationError && hasValidCustomerId && hasValidSku) {
+      runPersonalization({ customerId: normalizedCustomerId, sku: normalizedSku, quantity: 1, maxItems: 4 });
+    }
+  }, [
+    hasValidCustomerId,
+    hasValidSku,
+    normalizedCustomerId,
+    normalizedSku,
+    personalizationData,
+    personalizationError,
+    personalizationPending,
+    runPersonalization,
+  ]);
 
   const stats = [
     { label: 'Total Orders', value: ordersLoading ? '…' : String(orders.length), icon: FiPackage, color: 'ocean' as const },
-    { label: 'Wishlist Items', value: '12', icon: FiHeart, color: 'lime' as const },
-    { label: 'Saved Addresses', value: '3', icon: FiMapPin, color: 'cyan' as const },
-    { label: 'Rewards Points', value: '1,250', icon: FiShoppingBag, color: 'ocean' as const },
+    { label: 'Wishlist Items', value: 'Unavailable', icon: FiHeart, color: 'lime' as const },
+    { label: 'Saved Addresses', value: 'Unavailable', icon: FiMapPin, color: 'cyan' as const },
+    { label: 'Rewards Points', value: 'Unavailable', icon: FiShoppingBag, color: 'ocean' as const },
   ];
 
   const getStatusBadge = (status: string) => {
@@ -106,21 +167,129 @@ export default function DashboardPage() {
                   </div>
                 ))}
                 {!ordersLoading && recentOrders.length === 0 && (
-                  <p className="text-sm text-gray-600 dark:text-gray-400">No orders yet.</p>
+                  <p
+                    className="text-sm text-gray-600 dark:text-gray-400"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    No orders yet.
+                  </p>
                 )}
               </div>
             </Card>
 
             {/* Recommended Products */}
             <Card className="p-6">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
+              <div className="mb-6">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                 Recommended for You
-              </h2>
-              <div className="grid grid-cols-2 gap-4">
-                {[1, 2, 3, 4].map((i) => (
-                  <RecommendedProduct key={i} id={i} />
-                ))}
+                </h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+                  Live personalization flow using catalog, profile, pricing, ranking, and compose endpoints.
+                </p>
               </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                <div>
+                  <label htmlFor="dashboard-customer-id" className="sr-only">Customer ID</label>
+                  <Input
+                    id="dashboard-customer-id"
+                    name="dashboard-customer-id"
+                    value={customerId}
+                    onChange={(event) => setCustomerId(event.target.value)}
+                    placeholder="customer-100"
+                    ariaLabel="Customer ID"
+                    aria-describedby="dashboard-personalization-status"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="dashboard-sku" className="sr-only">Product SKU</label>
+                  <Input
+                    id="dashboard-sku"
+                    name="dashboard-sku"
+                    value={sku}
+                    onChange={(event) => setSku(event.target.value)}
+                    placeholder="seed-product-0001"
+                    ariaLabel="Product SKU"
+                    aria-describedby="dashboard-personalization-status"
+                  />
+                </div>
+              </div>
+
+              <div className="mb-5 flex items-center gap-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => runPersonalization({ customerId: normalizedCustomerId, sku: normalizedSku, quantity: 1, maxItems: 4 })}
+                  disabled={!canRefreshPersonalization}
+                  aria-label="Refresh recommendations"
+                  aria-describedby="dashboard-personalization-status"
+                >
+                  {personalizationPending ? 'Refreshing…' : 'Refresh Recommendations'}
+                </Button>
+                {personalizationData?.offers ? (
+                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                    Offer preview: ${personalizationData.offers.final_price.toFixed(2)} from ${personalizationData.offers.base_price.toFixed(2)}
+                  </p>
+                ) : null}
+              </div>
+
+              <p
+                id="dashboard-personalization-status"
+                className="sr-only"
+                role="status"
+                aria-live={personalizationIsError ? 'assertive' : 'polite'}
+                aria-atomic="true"
+              >
+                {personalizationStatusMessage}
+                {personalizationIsError && getApiStatusCode(personalizationError)
+                  ? ` Backend status: ${getApiStatusCode(personalizationError)}.`
+                  : ''}
+              </p>
+
+              {personalizationIsError ? (
+                <div
+                  className="mb-4 rounded-lg border border-red-300 p-3 text-red-700 dark:border-red-900 dark:text-red-300"
+                  role="alert"
+                  aria-live="assertive"
+                >
+                  <p>
+                    {getApiErrorMessage(personalizationFlow.error, 'Personalization could not be loaded.')}
+                  </p>
+                  {getApiStatusCode(personalizationFlow.error) ? (
+                    <p className="mt-1 text-xs">Backend status: {getApiStatusCode(personalizationFlow.error)}</p>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {personalizationPending ? (
+                <div className="grid grid-cols-2 gap-4">
+                  {Array.from({ length: 4 }).map((_, index) => (
+                    <div key={index} className="aspect-square bg-gray-50 dark:bg-gray-800 rounded-lg animate-pulse" />
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-4">
+                  {personalizationData?.composed.recommendations.map((item) => (
+                    <RecommendedProduct
+                      key={`${item.sku}-${item.score}`}
+                      sku={item.sku}
+                      title={item.title}
+                      score={item.score}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {isPersonalizationEmpty ? (
+                <p
+                  className="text-sm text-gray-600 dark:text-gray-400"
+                  role="status"
+                  aria-live="polite"
+                >
+                  No recommendations available for this customer and SKU.
+                </p>
+              ) : null}
             </Card>
           </div>
 
@@ -166,19 +335,23 @@ export default function DashboardPage() {
                   <FiShoppingBag className="w-6 h-6 text-white dark:text-gray-900" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-gray-900 dark:text-white">
+                  <h3
+                    className="font-bold text-gray-900 dark:text-white"
+                    aria-describedby="dashboard-rewards-unavailable"
+                  >
                     Rewards Program
                   </h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    1,250 points
+                    Unavailable
                   </p>                </div>
               </div>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                You&apos;re 750 points away from your next reward!
+              <p
+                id="dashboard-rewards-unavailable"
+                className="text-sm text-gray-600 dark:text-gray-400 mb-4"
+                role="note"
+              >
+                Rewards data is not available in the current API contract.
               </p>
-              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-4">
-                <div className="bg-lime-500 h-2 rounded-full" style={{ width: '62%' }} />
-              </div>
               <Button variant="outline" size="sm" className="w-full border-ocean-500 text-ocean-500 dark:border-ocean-300 dark:text-ocean-300">
                 Learn More
               </Button>
@@ -222,7 +395,14 @@ function StatCard({ label, value, icon: Icon, color }: {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{label}</p>
-          <p className="text-3xl font-bold text-gray-900 dark:text-white">{value}</p>
+          <p
+            className="text-3xl font-bold text-gray-900 dark:text-white"
+            aria-label={value === 'Unavailable'
+              ? `${label} unavailable in the current API contract`
+              : `${label}: ${value}`}
+          >
+            {value}
+          </p>
         </div>
         <div className={`w-14 h-14 rounded-full flex items-center justify-center ${colorClasses[color]}`}>
           <Icon className="w-7 h-7" />
@@ -232,17 +412,16 @@ function StatCard({ label, value, icon: Icon, color }: {
   );
 }
 
-function RecommendedProduct({ id }: { id: number }) {
+function RecommendedProduct({ sku, title, score }: { sku: string; title: string; score: number }) {
   return (
-    <Link href={`/product/${id}`}>
+    <Link href={`/product/${encodeURIComponent(sku)}`}>
       <div className="group cursor-pointer">
         <div className="aspect-square bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 rounded-lg mb-2 group-hover:scale-105 transition-transform" />
         <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-1 line-clamp-2">
-          Product {id}
+          {title}
         </h4>
-        <p className="text-sm font-bold text-ocean-500 dark:text-ocean-300">
-          ${(id * 49.99).toFixed(2)}
-        </p>
+        <p className="text-xs text-gray-600 dark:text-gray-400">{sku}</p>
+        <p className="text-sm font-bold text-ocean-500 dark:text-ocean-300">Score: {score.toFixed(2)}</p>
       </div>
     </Link>
   );

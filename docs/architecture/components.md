@@ -162,6 +162,11 @@ See [Component Library Documentation](../../ui/components/COMPONENT_README.md) f
 | Dashboard | `/dashboard` | profile-aggregation, segmentation-personalization, order-status, inventory-health-check | Customer overview |
 | Profile | `/profile` | profile-aggregation, segmentation-personalization | User profile and preferences |
 
+Issue #28 alignment (dashboard/profile):
+- Supported dashboard/profile data paths are consumed through UI API hooks over `/api/*` contracts.
+- Previously hardcoded dashboard/profile values without backend contracts were removed.
+- Unsupported profile/dashboard fields now render explicit unavailable/unsupported states rather than fabricated values.
+
 #### Staff Pages (5 pages - Role: `staff`)
 
 | Page | Route | Services Used | Purpose |
@@ -194,6 +199,13 @@ See [Component Library Documentation](../../ui/components/COMPONENT_README.md) f
 - **Role-Based Access Control (RBAC)** with 4 roles: `anonymous`, `customer`, `staff`, `admin`
 - **Next.js middleware** for route protection
 - **Session management** with automatic refresh
+- **Dual auth mode**:
+	- Primary: Entra ID sign-in and role claims
+	- Dev fail-safe: signed mock auth cookie with role selection (`customer`, `staff`, `admin`) for local/non-prod demos
+- **Production safeguards**:
+	- Dev mock auth is disabled in production runtime
+	- Mock auth routes reject requests with `403` when disabled
+	- Route authorization remains enforced in middleware for `staff` and `admin` paths
 
 ### Design System
 

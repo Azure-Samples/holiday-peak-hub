@@ -11,6 +11,8 @@ router = APIRouter()
 cart_repo = CartRepository()
 agent_client = get_agent_client()
 settings = get_settings()
+DEFAULT_SHIPPING_FEE = 9.99
+DEFAULT_TAX_RATE = 0.08
 
 
 class CheckoutValidationResponse(BaseModel):
@@ -88,8 +90,8 @@ async def validate_checkout(current_user: User = Depends(get_current_user)):
 
     # Calculate totals
     subtotal = sum(item["price"] * item["quantity"] for item in cart.get("items", []))
-    estimated_shipping = 9.99  # TODO: Calculate shipping
-    estimated_tax = subtotal * 0.08  # TODO: Calculate tax by location
+    estimated_shipping = DEFAULT_SHIPPING_FEE
+    estimated_tax = subtotal * DEFAULT_TAX_RATE
 
     return CheckoutValidationResponse(
         valid=len(errors) == 0,

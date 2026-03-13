@@ -14,11 +14,10 @@ jest.mock('next/navigation', () => ({
   }),
 }));
 
-jest.mock('../../lib/hooks/useProducts', () => ({
-  useProductSearch: () => ({
-    data: [],
-    isLoading: false,
-  }),
+const mockUseSemanticSearch = jest.fn();
+
+jest.mock('../../lib/hooks/useSemanticSearch', () => ({
+  useSemanticSearch: (...args: unknown[]) => mockUseSemanticSearch(...args),
 }));
 
 jest.mock('../../components/atoms/ThemeToggle', () => ({
@@ -35,13 +34,31 @@ describe('SearchPage', () => {
   beforeEach(() => {
     push.mockClear();
     getParam.mockReturnValue('headphones');
+    mockUseSemanticSearch.mockReturnValue({
+      data: { items: [], source: 'agent' },
+      isLoading: false,
+    });
   });
 
   it('prefills the query from the URL and shows source badge', () => {
     render(<SearchPage />);
 
     expect(screen.getByDisplayValue('headphones')).toBeInTheDocument();
-    expect(screen.getByText('Source: Catalog Search')).toBeInTheDocument();
+    expect(screen.getByText('Search source: Catalog Search Agent')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toBeInTheDocument();
+  });
+
+  it('shows CRUD fallback source badge when semantic source is unavailable', () => {
+    mockUseSemanticSearch.mockReturnValue({
+      data: { items: [], source: 'crud' },
+      isLoading: false,
+    });
+
+    render(<SearchPage />);
+
+    expect(
+      screen.getByText('Search source: Catalog Search fallback (agent unavailable)')
+    ).toBeInTheDocument();
   });
 
   it('updates the URL when searching', () => {

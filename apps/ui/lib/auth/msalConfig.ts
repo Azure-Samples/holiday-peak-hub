@@ -4,8 +4,11 @@
 
 const entraClientId = process.env.NEXT_PUBLIC_ENTRA_CLIENT_ID || '';
 const entraTenantId = process.env.NEXT_PUBLIC_ENTRA_TENANT_ID || '';
+const devAuthMockEnabled =
+  process.env.NODE_ENV !== 'production' && process.env.NEXT_PUBLIC_DEV_AUTH_MOCK === 'true';
 
 export const isEntraConfigured = Boolean(entraClientId && entraTenantId);
+export const isDevAuthMockUiEnabled = devAuthMockEnabled;
 
 export const getMissingEntraConfigKeys = (): string[] => {
   const missing: string[] = [];
@@ -15,7 +18,7 @@ export const getMissingEntraConfigKeys = (): string[] => {
 };
 
 export const getEntraConfigError = (): string | null => {
-  if (isEntraConfigured) {
+  if (isEntraConfigured || isDevAuthMockUiEnabled) {
     return null;
   }
 

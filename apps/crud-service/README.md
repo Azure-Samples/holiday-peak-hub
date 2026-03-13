@@ -264,13 +264,23 @@ docker run -p 8001:8000 \
 - `POST /api/orders` - Create order
 - `GET /api/users/me/orders` - Order history
 - `POST /api/payments/create-intent` - Create payment intent
+- `POST /api/returns` - Create return request (requested state)
+- `GET /api/returns` - List own returns
+- `GET /api/returns/{return_id}` - Get own return lifecycle timeline
+- `GET /api/returns/{return_id}/refund` - Get refund progression
 
 ### Staff (Role: staff)
 - `GET /api/staff/analytics/sales` - Sales analytics
 - `GET /api/staff/tickets` - Customer support tickets
 - `PUT /api/staff/tickets/{id}/status` - Update ticket
 - `GET /api/staff/shipments` - Shipment tracking
-- `POST /api/staff/returns` - Process return request
+- `GET /api/staff/returns` - List returns with lifecycle state
+- `POST /api/staff/returns/{id}/approve` - requested → approved
+- `POST /api/staff/returns/{id}/reject` - requested → rejected
+- `POST /api/staff/returns/{id}/receive` - approved → received
+- `POST /api/staff/returns/{id}/restock` - received → restocked
+- `POST /api/staff/returns/{id}/refund` - restocked → refunded
+- `GET /api/staff/returns/{id}/refund` - Get refund progression
 
 ### Admin (Role: admin)
 - `GET /api/admin/health` - System health
@@ -336,6 +346,17 @@ class EventPublisher:
 ```
 
 **Subscribers**: `ecommerce-checkout-support`, `crm-campaign-intelligence`
+
+**Return Events** → `return-events` topic:
+- `ReturnRequested`
+- `ReturnApproved`
+- `ReturnRejected`
+- `ReturnReceived`
+- `ReturnRestocked`
+- `ReturnRefunded`
+
+**Refund Events** → `payment-events` topic:
+- `RefundIssued`
 
 **Inventory Events** → `inventory-events` topic:
 ```json

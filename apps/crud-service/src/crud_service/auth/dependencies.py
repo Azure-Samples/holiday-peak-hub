@@ -6,7 +6,7 @@ from typing import Annotated
 
 import httpx
 from crud_service.config import get_settings
-from fastapi import Depends, HTTPException, Security, status
+from fastapi import Depends, HTTPException, Request, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from pydantic import BaseModel
@@ -16,6 +16,12 @@ settings = get_settings()
 
 security = HTTPBearer()
 optional_security = HTTPBearer(auto_error=False)
+_DEV_MOCK_AUTH_HEADER = "x-dev-auth-mock"
+_DEV_MOCK_ROLES_HEADER = "x-dev-auth-roles"
+_DEV_MOCK_USER_ID_HEADER = "x-dev-auth-user-id"
+_DEV_MOCK_EMAIL_HEADER = "x-dev-auth-email"
+_DEV_MOCK_NAME_HEADER = "x-dev-auth-name"
+_ALLOWED_MOCK_ROLES = {"customer", "staff", "admin"}
 
 
 class User(BaseModel):
@@ -76,8 +82,43 @@ class JWTConfig:
 jwt_config = JWTConfig()
 
 
+def _is_dev_mock_auth_enabled() -> bool:
+    return settings.is_development and settings.dev_auth_mock
+
+
+def _build_dev_mock_user(request: Request) -> User | None:
+    if not _is_dev_mock_auth_enabled():
+        return None
+
+    enabled_header = request.headers.get(_DEV_MOCK_AUTH_HEADER, "").strip().lower()
+    if enabled_header != "true":
+        return None
+
+    raw_roles = request.headers.get(_DEV_MOCK_ROLES_HEADER, "")
+    roles = [role.strip().lower() for role in raw_roles.split(",") if role.strip()]
+    normalized_roles = [role for role in roles if role in _ALLOWED_MOCK_ROLES]
+
+    if not normalized_roles:
+        return None
+
+    user_id = request.headers.get(_DEV_MOCK_USER_ID_HEADER, "").strip() or f"mock-{normalized_roles[0]}"
+    email = request.headers.get(_DEV_MOCK_EMAIL_HEADER, "").strip() or f"{user_id}@local.dev"
+    name = request.headers.get(_DEV_MOCK_NAME_HEADER, "").strip() or "Mock User"
+
+    return User(
+        user_id=user_id,
+        email=email,
+        name=name,
+        roles=normalized_roles,
+    )
+
+
 async def get_current_user(
-    credentials: Annotated[HTTPAuthorizationCredentials, Security(security)],
+    request: Request,
+    credentials: Annotated[
+        HTTPAuthorizationCredentials | None,
+        Security(optional_security),
+    ] = None,
 ) -> User:
     """
     Extract and validate JWT token from Authorization header.
@@ -88,6 +129,17 @@ async def get_current_user(
     Raises:
         HTTPException: If token is invalid or expired.
     """
+    if credentials is None:
+        mock_user = _build_dev_mock_user(request)
+        if mock_user is not None:
+            return mock_user
+
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorization token is required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     token = credentials.credentials
 
     try:
@@ -180,16 +232,15 @@ require_admin = require_role("admin")
 
 # Optional authentication (for endpoints that work for both anonymous and authenticated)
 async def get_current_user_optional(
+    request: Request,
     credentials: Annotated[
         HTTPAuthorizationCredentials | None,
         Security(optional_security),
     ] = None,
 ) -> User | None:
     """Get current user if authenticated, otherwise return None."""
-    if credentials is None:
-        return None
     try:
-        return await get_current_user(credentials)
+        return await get_current_user(request, credentials)
     except HTTPException:
         return None
     except Exception as exc:

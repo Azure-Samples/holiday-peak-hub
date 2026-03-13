@@ -80,6 +80,7 @@ This document tracks the implementation progress of the Holiday Peak Hub platfor
 - ✅ Connector test suites (Oracle: 48 tests, Salesforce: 48 tests)
 - ✅ Enterprise hardening tests (circuit breaker, bulkhead, rate limiter, telemetry)
 - ✅ PIM writeback tests (25 tests)
+- ✅ **Issue #30 CI fail-fast policy**: required smoke/test gates now treat normalized transport failures and non-200 responses as hard failures; advisory diagnostics are separated as non-gating checks
 
 ---
 

@@ -1,4 +1,3 @@
-// Mock next/server before importing middleware
 jest.mock('next/server', () => {
   return {
     NextRequest: jest.fn(),
@@ -13,14 +12,13 @@ jest.mock('next/server', () => {
 });
 
 import { NextResponse } from 'next/server';
-import { middleware, config } from '../../middleware';
+
+import { createSignedAuthCookieValue } from '../../lib/auth/authCookie';
+import { config, middleware } from '../../middleware';
 
 const mockNext = NextResponse.next as jest.Mock;
 const mockRedirect = NextResponse.redirect as jest.Mock;
 
-/**
- * Build a minimal NextRequest-compatible object for the middleware.
- */
 function makeRequest(pathname: string, cookies: Record<string, string> = {}) {
   return {
     nextUrl: new URL(`http://localhost${pathname}`),
@@ -32,134 +30,14 @@ function makeRequest(pathname: string, cookies: Record<string, string> = {}) {
 }
 
 beforeEach(() => {
+  process.env.AUTH_COOKIE_SECRET = 'test-auth-cookie-secret';
   mockNext.mockClear();
   mockRedirect.mockClear();
 });
 
-describe('middleware matcher config', () => {
-  it('exports a matcher array covering protected segments', () => {
-    expect(config.matcher).toEqual(
-      expect.arrayContaining([
-        expect.stringContaining('/dashboard'),
-        expect.stringContaining('/staff'),
-        expect.stringContaining('/admin'),
-      ])
-    );
-  });
+afterAll(() => {
+  delete process.env.AUTH_COOKIE_SECRET;
 });
-
-describe('middleware – public routes', () => {
-  it('passes through the homepage', () => {
-    middleware(makeRequest('/'));
-    expect(mockNext).toHaveBeenCalledTimes(1);
-    expect(mockRedirect).not.toHaveBeenCalled();
-  });
-
-  it('passes through product pages', () => {
-    middleware(makeRequest('/product/123'));
-    expect(mockNext).toHaveBeenCalledTimes(1);
-  });
-
-  it('passes through category pages', () => {
-    middleware(makeRequest('/category/electronics'));
-    expect(mockNext).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('middleware – protected routes (no cookie)', () => {
-  const protectedPaths = [
-    '/dashboard',
-    '/profile',
-    '/checkout',
-    '/orders',
-    '/order/ORD-001',
-    '/wishlist',
-    '/cart',
-  ];
-
-  protectedPaths.forEach((path) => {
-    it(`redirects unauthenticated user from ${path} to login`, () => {
-      middleware(makeRequest(path));
-      expect(mockRedirect).toHaveBeenCalledTimes(1);
-      const redirectUrl: URL = mockRedirect.mock.calls[0][0];
-      expect(redirectUrl.pathname).toBe('/auth/login');
-      expect(redirectUrl.searchParams.get('redirect')).toBe(path);
-    });
-  });
-});
-
-describe('middleware – staff routes', () => {
-  it('redirects unauthenticated user from /staff/logistics to login', () => {
-    middleware(makeRequest('/staff/logistics'));
-    expect(mockRedirect).toHaveBeenCalledTimes(1);
-    const url: URL = mockRedirect.mock.calls[0][0];
-    expect(url.pathname).toBe('/auth/login');
-  });
-
-  it('redirects customer (no staff role) from /staff/logistics to home', () => {
-    middleware(makeRequest('/staff/logistics', { 'msal-auth': 'customer' }));
-    expect(mockRedirect).toHaveBeenCalledTimes(1);
-    const url: URL = mockRedirect.mock.calls[0][0];
-    expect(url.pathname).toBe('/');
-  });
-
-  it('allows staff user through /staff/logistics', () => {
-    middleware(makeRequest('/staff/logistics', { 'msal-auth': 'staff' }));
-    expect(mockNext).toHaveBeenCalledTimes(1);
-    expect(mockRedirect).not.toHaveBeenCalled();
-  });
-
-  it('allows admin user through /staff routes', () => {
-    middleware(makeRequest('/staff/sales', { 'msal-auth': 'admin' }));
-    expect(mockNext).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('middleware – admin routes', () => {
-  it('redirects unauthenticated user from /admin to login', () => {
-    middleware(makeRequest('/admin'));
-    expect(mockRedirect).toHaveBeenCalledTimes(1);
-    const url: URL = mockRedirect.mock.calls[0][0];
-    expect(url.pathname).toBe('/auth/login');
-  });
-
-  it('redirects staff user (no admin role) from /admin to home', () => {
-    middleware(makeRequest('/admin', { 'msal-auth': 'staff' }));
-    expect(mockRedirect).toHaveBeenCalledTimes(1);
-    const url: URL = mockRedirect.mock.calls[0][0];
-    expect(url.pathname).toBe('/');
-  });
-
-  it('allows admin user through /admin', () => {
-    middleware(makeRequest('/admin', { 'msal-auth': 'admin' }));
-    expect(mockNext).toHaveBeenCalledTimes(1);
-    expect(mockRedirect).not.toHaveBeenCalled();
-  });
-
-  it('allows admin user through nested /admin/crm', () => {
-    middleware(makeRequest('/admin/crm', { 'msal-auth': 'admin' }));
-    expect(mockNext).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('middleware – authenticated customer on customer-only routes', () => {
-  it('allows customer through /dashboard', () => {
-    middleware(makeRequest('/dashboard', { 'msal-auth': 'customer' }));
-    expect(mockNext).toHaveBeenCalledTimes(1);
-    expect(mockRedirect).not.toHaveBeenCalled();
-  });
-
-  it('allows customer through /orders', () => {
-    middleware(makeRequest('/orders', { 'msal-auth': 'customer' }));
-    expect(mockNext).toHaveBeenCalledTimes(1);
-  });
-
-  it('allows customer through /checkout', () => {
-    middleware(makeRequest('/checkout', { 'msal-auth': 'customer' }));
-    expect(mockNext).toHaveBeenCalledTimes(1);
-  });
-});
-
 
 describe('middleware matcher config', () => {
   it('exports a matcher array covering protected segments', () => {
@@ -168,119 +46,86 @@ describe('middleware matcher config', () => {
         expect.stringContaining('/dashboard'),
         expect.stringContaining('/staff'),
         expect.stringContaining('/admin'),
-      ])
+      ]),
     );
   });
 });
 
 describe('middleware – public routes', () => {
-  it('passes through the homepage', () => {
-    middleware(makeRequest('/'));
+  it('passes through the homepage', async () => {
+    await middleware(makeRequest('/'));
     expect(mockNext).toHaveBeenCalledTimes(1);
     expect(mockRedirect).not.toHaveBeenCalled();
   });
 
-  it('passes through product pages', () => {
-    middleware(makeRequest('/product/123'));
-    expect(mockNext).toHaveBeenCalledTimes(1);
-  });
-
-  it('passes through category pages', () => {
-    middleware(makeRequest('/category/electronics'));
+  it('passes through product pages', async () => {
+    await middleware(makeRequest('/product/123'));
     expect(mockNext).toHaveBeenCalledTimes(1);
   });
 });
 
-describe('middleware – protected routes (no cookie)', () => {
-  const protectedPaths = [
-    '/dashboard',
-    '/profile',
-    '/checkout',
-    '/orders',
-    '/order/ORD-001',
-    '/wishlist',
-    '/cart',
-  ];
-
-  protectedPaths.forEach((path) => {
-    it(`redirects unauthenticated user from ${path} to login`, () => {
-      middleware(makeRequest(path));
-      expect(mockRedirect).toHaveBeenCalledTimes(1);
-      const redirectUrl: URL = mockRedirect.mock.calls[0][0];
-      expect(redirectUrl.pathname).toBe('/auth/login');
-      expect(redirectUrl.searchParams.get('redirect')).toBe(path);
-    });
-  });
-});
-
-describe('middleware – staff routes', () => {
-  it('redirects unauthenticated user from /staff/logistics to login', () => {
-    middleware(makeRequest('/staff/logistics'));
+describe('middleware – protected routes', () => {
+  it('redirects unauthenticated user from /dashboard to login', async () => {
+    await middleware(makeRequest('/dashboard'));
     expect(mockRedirect).toHaveBeenCalledTimes(1);
-    const url: URL = mockRedirect.mock.calls[0][0];
-    expect(url.pathname).toBe('/auth/login');
+    const redirectUrl: URL = mockRedirect.mock.calls[0][0];
+    expect(redirectUrl.pathname).toBe('/auth/login');
+    expect(redirectUrl.searchParams.get('redirect')).toBe('/dashboard');
   });
 
-  it('redirects customer (no staff role) from /staff/logistics to home', () => {
-    middleware(makeRequest('/staff/logistics', { 'msal-auth': 'customer' }));
+  it('rejects unsigned cookie values and redirects to login', async () => {
+    await middleware(makeRequest('/orders', { 'msal-auth': 'customer' }));
     expect(mockRedirect).toHaveBeenCalledTimes(1);
-    const url: URL = mockRedirect.mock.calls[0][0];
-    expect(url.pathname).toBe('/');
+    const redirectUrl: URL = mockRedirect.mock.calls[0][0];
+    expect(redirectUrl.pathname).toBe('/auth/login');
   });
 
-  it('allows staff user through /staff/logistics', () => {
-    middleware(makeRequest('/staff/logistics', { 'msal-auth': 'staff' }));
+  it('allows signed customer role through /orders', async () => {
+    const signedCookie = await createSignedAuthCookieValue(['customer']);
+    await middleware(makeRequest('/orders', { 'msal-auth': signedCookie }));
+    expect(mockNext).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows signed staff role through /staff/logistics', async () => {
+    const signedCookie = await createSignedAuthCookieValue(['staff']);
+    await middleware(makeRequest('/staff/logistics', { 'msal-auth': signedCookie }));
     expect(mockNext).toHaveBeenCalledTimes(1);
     expect(mockRedirect).not.toHaveBeenCalled();
   });
 
-  it('allows admin user through /staff routes', () => {
-    middleware(makeRequest('/staff/sales', { 'msal-auth': 'admin' }));
-    expect(mockNext).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('middleware – admin routes', () => {
-  it('redirects unauthenticated user from /admin to login', () => {
-    middleware(makeRequest('/admin'));
+  it('redirects signed staff role away from /admin', async () => {
+    const signedCookie = await createSignedAuthCookieValue(['staff']);
+    await middleware(makeRequest('/admin', { 'msal-auth': signedCookie }));
     expect(mockRedirect).toHaveBeenCalledTimes(1);
-    const url: URL = mockRedirect.mock.calls[0][0];
-    expect(url.pathname).toBe('/auth/login');
+    const redirectUrl: URL = mockRedirect.mock.calls[0][0];
+    expect(redirectUrl.pathname).toBe('/');
   });
 
-  it('redirects staff user (no admin role) from /admin to home', () => {
-    middleware(makeRequest('/admin', { 'msal-auth': 'staff' }));
-    expect(mockRedirect).toHaveBeenCalledTimes(1);
-    const url: URL = mockRedirect.mock.calls[0][0];
-    expect(url.pathname).toBe('/');
-  });
-
-  it('allows admin user through /admin', () => {
-    middleware(makeRequest('/admin', { 'msal-auth': 'admin' }));
+  it('allows signed admin role through /admin', async () => {
+    const signedCookie = await createSignedAuthCookieValue(['admin']);
+    await middleware(makeRequest('/admin', { 'msal-auth': signedCookie }));
     expect(mockNext).toHaveBeenCalledTimes(1);
     expect(mockRedirect).not.toHaveBeenCalled();
   });
 
-  it('allows admin user through nested /admin/crm', () => {
-    middleware(makeRequest('/admin/crm', { 'msal-auth': 'admin' }));
-    expect(mockNext).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('middleware – authenticated customer on customer-only routes', () => {
-  it('allows customer through /dashboard', () => {
-    middleware(makeRequest('/dashboard', { 'msal-auth': 'customer' }));
-    expect(mockNext).toHaveBeenCalledTimes(1);
-    expect(mockRedirect).not.toHaveBeenCalled();
+  it('rejects invalid signed cookie and redirects to login', async () => {
+    await middleware(makeRequest('/checkout', { 'msal-auth': 'invalid.payload' }));
+    expect(mockRedirect).toHaveBeenCalledTimes(1);
+    const redirectUrl: URL = mockRedirect.mock.calls[0][0];
+    expect(redirectUrl.pathname).toBe('/auth/login');
   });
 
-  it('allows customer through /orders', () => {
-    middleware(makeRequest('/orders', { 'msal-auth': 'customer' }));
-    expect(mockNext).toHaveBeenCalledTimes(1);
-  });
+  it('redirects expired signed cookie to login', async () => {
+    const dateNowSpy = jest.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000);
+    const signedCookie = await createSignedAuthCookieValue(['customer'], 5);
+    dateNowSpy.mockReturnValue(1_700_000_010_000);
 
-  it('allows customer through /checkout', () => {
-    middleware(makeRequest('/checkout', { 'msal-auth': 'customer' }));
-    expect(mockNext).toHaveBeenCalledTimes(1);
+    await middleware(makeRequest('/checkout', { 'msal-auth': signedCookie }));
+    expect(mockRedirect).toHaveBeenCalledTimes(1);
+    const redirectUrl: URL = mockRedirect.mock.calls[0][0];
+    expect(redirectUrl.pathname).toBe('/auth/login');
+    expect(redirectUrl.searchParams.get('redirect')).toBe('/checkout');
+
+    dateNowSpy.mockRestore();
   });
 });

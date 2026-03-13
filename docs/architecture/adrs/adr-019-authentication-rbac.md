@@ -47,6 +47,13 @@ The Holiday Peak Hub frontend has distinct user personas with different access r
 
 We will implement a **JWT-based authentication system with Next.js middleware for route protection** and **RBAC for granular access control**.
 
+### Operational Auth Modes (Issue #214)
+
+- **Primary mode (all environments)**: Microsoft Entra ID authentication with role claims.
+- **Dev fail-safe mode (non-production only)**: role-selectable mock login for deterministic demo execution when Entra setup is unavailable.
+- **Production safeguard**: mock auth endpoints are disabled in production and return `403` when mock mode is off.
+- **Enforcement invariant**: route-level authorization for `staff`/`admin` remains enforced in middleware regardless of auth mode.
+
 ### Architecture
 
 ```mermaid

@@ -96,6 +96,13 @@ class Settings(BaseSettings):
         default=None,
         description="Entra ID issuer (e.g., https://login.microsoftonline.com/...)",
     )
+    dev_auth_mock: bool = Field(
+        default=False,
+        description=(
+            "Enable development-only mock API authentication via explicit request headers. "
+            "Ignored when ENVIRONMENT is not 'dev'."
+        ),
+    )
 
     # CORS
     cors_origins: List[str] = Field(

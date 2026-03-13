@@ -8,13 +8,14 @@ This guide explains how to configure Microsoft Entra ID (formerly Azure Active D
 
 1. [Overview](#overview)
 2. [Running Without Entra (Anonymous / Guest Mode)](#running-without-entra-anonymous--guest-mode)
-3. [App Registration — Step-by-Step](#app-registration--step-by-step)
-4. [Local Development Configuration](#local-development-configuration)
-5. [Deployed Environment Configuration](#deployed-environment-configuration)
-6. [MSAL Frontend Configuration](#msal-frontend-configuration)
-7. [CRUD Service JWT Validation](#crud-service-jwt-validation)
-8. [RBAC Role Definitions](#rbac-role-definitions)
-9. [Troubleshooting](#troubleshooting)
+3. [Dev Mock Login Mode (Dev Only)](#dev-mock-login-mode-dev-only)
+4. [App Registration — Step-by-Step](#app-registration--step-by-step)
+5. [Local Development Configuration](#local-development-configuration)
+6. [Deployed Environment Configuration](#deployed-environment-configuration)
+7. [MSAL Frontend Configuration](#msal-frontend-configuration)
+8. [CRUD Service JWT Validation](#crud-service-jwt-validation)
+9. [RBAC Role Definitions](#rbac-role-definitions)
+10. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -47,6 +48,34 @@ Entra ID is **optional** in local development. When `NEXT_PUBLIC_ENTRA_CLIENT_ID
 - Features that require authentication (e.g. order history, checkout) will display a prompt or be disabled.
 
 This behaviour is intentional and expected on developer machines that have not registered an Entra app.
+
+---
+
+## Dev Mock Login Mode (Dev Only)
+
+For local UI scenario testing, the app supports a **dev-only mock auth mode** that provides role selection at `/auth/login` and sets a **signed** auth cookie consumed by middleware.
+
+Environment variables:
+
+```env
+DEV_AUTH_MOCK=true
+NEXT_PUBLIC_DEV_AUTH_MOCK=true
+AUTH_COOKIE_SECRET=<dev-secret>
+```
+
+Behavior:
+
+- Available roles: `customer`, `staff`, `admin`.
+- Mock mode is **automatically disabled in production** even if `DEV_AUTH_MOCK=true`.
+- Production deployments should keep `DEV_AUTH_MOCK=false` and use Entra login.
+- Route protection behavior remains role-based (`/staff` requires `staff|admin`, `/admin` requires `admin`).
+
+Safeguards:
+
+- Mock login/logout API routes return `403` when mock mode is disabled.
+- Mock auth uses a signed cookie that is validated by middleware before role checks are applied.
+- Entra mode also uses a server-managed signed session cookie (`/api/auth/session`) validated by middleware; unsigned client-written role cookies are rejected.
+- In production, `AUTH_COOKIE_SECRET` must be set for signed cookie operations; non-production can use a local fallback secret.
 
 ---
 
@@ -134,18 +163,46 @@ In the Azure Portal, navigate to your Static Web App → **Configuration → App
 | `NEXT_PUBLIC_ENTRA_TENANT_ID` | `<tenant ID>` |
 | `NEXT_PUBLIC_CRUD_API_URL` | `<CRUD service URL>` |
 | `NEXT_PUBLIC_AGENT_API_URL` | `<Agent service URL>` |
+| `AUTH_COOKIE_SECRET` | `<strong random secret>` |
+| `DEV_AUTH_MOCK` | `false` |
+| `NEXT_PUBLIC_DEV_AUTH_MOCK` | `false` |
+
+Production safety requirements:
+- Keep `DEV_AUTH_MOCK=false` and `NEXT_PUBLIC_DEV_AUTH_MOCK=false` in all deployed environments.
+- Set `AUTH_COOKIE_SECRET` to a strong secret (minimum 32+ random characters) so signed auth cookies are valid across API routes and middleware.
 
 Alternatively, reference Azure Key Vault secrets via the Key Vault Reference syntax: `@Microsoft.KeyVault(SecretUri=...)`.
 
 ### GitHub Actions / AZD Workflow
 
-The `.github/workflows/deploy-azd.yml` workflow provisions infrastructure via `azd`. Pass Entra values as pipeline secrets:
+The `.github/workflows/deploy-azd.yml` workflow already sets UI deploy-time `NEXT_PUBLIC_ENTRA_CLIENT_ID` and `NEXT_PUBLIC_ENTRA_TENANT_ID` from repository/environment variables.
+
+CRUD `ENTRA_*` runtime env wiring is not explicit by default in that workflow; add optional/custom mappings when you want workflow-managed backend injection.
+
+If you want CI-managed wiring, add explicit mappings in your workflow and/or azd environment values. Example optional pattern:
 
 ```yaml
 env:
   NEXT_PUBLIC_ENTRA_CLIENT_ID: ${{ secrets.ENTRA_CLIENT_ID }}
   NEXT_PUBLIC_ENTRA_TENANT_ID: ${{ secrets.ENTRA_TENANT_ID }}
+   AUTH_COOKIE_SECRET: ${{ secrets.AUTH_COOKIE_SECRET }}
+   DEV_AUTH_MOCK: false
+   NEXT_PUBLIC_DEV_AUTH_MOCK: false
 ```
+
+### Deployed CRUD service env wiring
+
+When Entra validation is enabled for deployed CRUD service endpoints, set the backend env vars explicitly:
+
+| Name | Value |
+|------|-------|
+| `ENTRA_TENANT_ID` | `<Directory (tenant) ID>` |
+| `ENTRA_CLIENT_ID` | `<API application (client) ID used as token audience>` |
+
+Where to set them:
+- **Deployed service environment** (App Service, ACA, AKS Helm values, or equivalent): add `ENTRA_TENANT_ID` and `ENTRA_CLIENT_ID` as runtime env vars for `apps/crud-service`.
+- **Deployment workflow** (`.github/workflows/deploy-azd.yml`, optional customization): map from secrets (for example `secrets.ENTRA_TENANT_ID` and `secrets.ENTRA_CLIENT_ID`) into CRUD deployment env values if you want workflow-managed injection.
+- **Key Vault references**: if your deployment supports Key Vault reference syntax, store both IDs as Key Vault secrets and reference them in the deployed env configuration instead of hardcoding values.
 
 ---
 

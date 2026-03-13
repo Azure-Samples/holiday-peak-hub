@@ -20,6 +20,7 @@ class EventPublisher:
     Events are published to topic-specific Event Hubs:
     - order-events: OrderCreated, OrderUpdated, OrderCancelled
     - payment-events: PaymentProcessed, PaymentFailed, RefundIssued
+    - return-events: ReturnRequested, ReturnApproved, ReturnRejected, ReturnReceived, ReturnRestocked, ReturnRefunded
     - inventory-events: InventoryReserved, InventoryReleased
     - shipment-events: ShipmentCreated, ShipmentUpdated
     - user-events: UserRegistered, UserUpdated
@@ -38,6 +39,7 @@ class EventPublisher:
         topics = [
             "order-events",
             "payment-events",
+            "return-events",
             "inventory-events",
             "shipment-events",
             "user-events",
@@ -112,6 +114,14 @@ class EventPublisher:
     async def publish_user_registered(self, user: dict):
         """Publish UserRegistered event."""
         await self.publish("user-events", "UserRegistered", user)
+
+    async def publish_return_lifecycle_event(self, *, event_type: str, data: dict):
+        """Publish return lifecycle events to return-events topic."""
+        await self.publish("return-events", event_type, data)
+
+    async def publish_refund_issued(self, refund: dict):
+        """Publish RefundIssued event to payment-events topic."""
+        await self.publish("payment-events", "RefundIssued", refund)
 
 
 # Global instance (initialized in lifespan)

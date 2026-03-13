@@ -63,3 +63,7 @@ output appInsightsConnectionString string = sharedInfra.outputs.appInsightsConne
 output vnetName string = sharedInfra.outputs.vnetName
 output aiProjectName string = sharedInfra.outputs.aiProjectName
 output aiServicesName string = sharedInfra.outputs.aiServicesName
+output aiSearchName string = sharedInfra.outputs.aiSearchName
+output aiSearchEndpoint string = sharedInfra.outputs.aiSearchEndpoint
+output aiSearchIndexName string = sharedInfra.outputs.aiSearchIndexName
+output aiSearchAuthMode string = sharedInfra.outputs.aiSearchAuthMode

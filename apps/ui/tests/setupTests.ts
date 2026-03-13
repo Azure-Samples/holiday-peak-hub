@@ -1,5 +1,17 @@
 import '@testing-library/jest-dom';
 
+if (!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) {
+	process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY = 'pk_test_checkout';
+}
+
+if (!(global as any).crypto?.subtle) {
+	const { webcrypto } = require('crypto');
+	Object.defineProperty(global, 'crypto', {
+		value: webcrypto,
+		configurable: true,
+	});
+}
+
 const React = require('react');
 
 jest.mock('@/components/atoms/ThemeToggle', () => ({

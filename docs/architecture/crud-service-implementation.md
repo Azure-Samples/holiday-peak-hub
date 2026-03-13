@@ -1,7 +1,7 @@
 # CRUD Service Implementation
 
 **Status**: ✅ Implemented  
-**Last Updated**: February 2, 2026  
+**Last Updated**: March 12, 2026  
 **Version**: 1.1.0
 
 ## Overview
@@ -154,7 +154,7 @@ apps/crud-service/
 └── README.md
 ```
 
-### API Endpoints (31 Total)
+### API Endpoints (current implementation)
 
 #### Anonymous Access (7 endpoints)
 - `GET /health` - Health check
@@ -177,7 +177,7 @@ apps/crud-service/
 - `DELETE /cart/items/{id}` - Remove cart item
 - `POST /checkout/validate` - Validate checkout
 
-#### Authenticated - Customer (continued) (8 endpoints)
+#### Authenticated - Customer (continued) (9 endpoints)
 - `POST /orders` - Create order
 - `GET /orders` - List user's orders
 - `GET /orders/{id}` - Get order details
@@ -185,12 +185,18 @@ apps/crud-service/
 - `POST /products/{id}/reviews` - Create review
 - `GET /products/{id}/reviews` - Get product reviews
 - `POST /payments/intent` - Create payment intent (Stripe)
-- `POST /payments/{id}/confirm` - Confirm payment
+- `POST /payments` - Server-side payment confirmation with payment method
+- `POST /payments/confirm-intent` - Reconcile confirmed Stripe PaymentIntent to persisted payment + order
+- `GET /payments/{id}` - Retrieve persisted payment details (ownership + role checks)
 
-#### Authenticated - Staff (4 endpoints)
+#### Authenticated - Staff (ticket and operations workflows)
 - `GET /staff/analytics` - Sales analytics dashboard
 - `GET /staff/tickets` - List support tickets
-- `PUT /staff/tickets/{id}` - Update ticket status
+- `GET /staff/tickets/{id}` - Get ticket details
+- `POST /staff/tickets` - Create support ticket (staff/admin)
+- `PATCH /staff/tickets/{id}` - Update ticket fields/status (staff/admin)
+- `POST /staff/tickets/{id}/escalate` - Escalate ticket with reason (staff/admin)
+- `POST /staff/tickets/{id}/resolve` - Resolve ticket with note/reason (staff/admin)
 - `GET /staff/shipments` - List shipments
 
 #### Authenticated - Admin (2 endpoints)
@@ -231,7 +237,7 @@ async def require_role(required_role: str):
 |------|--------|
 | **Anonymous** | Health checks, product browsing, categories |
 | **Customer** | Cart, orders, reviews, profile, checkout |
-| **Staff** | Analytics, tickets, shipments (read/update) |
+| **Staff** | Analytics, ticket lifecycle actions (create/update/escalate/resolve), shipments |
 | **Admin** | Returns (process), user management (future) |
 
 ### Database Schema
@@ -306,6 +312,14 @@ CREATE INDEX IF NOT EXISTS idx_{table_name}_data ON {table_name} USING GIN (data
 - **Inventory agents**: Subscribe to `order-events`, `inventory-events`
 - **Logistics agents**: Subscribe to `order-events`
 - **Product agents**: Subscribe to `product-events`
+
+### Checkout Payment Reconciliation Path
+
+- Frontend-first flow uses `POST /payments/intent` + Stripe.js confirmation, then `POST /payments/confirm-intent`.
+- Reconciliation validates order ownership and Stripe metadata (`order_id`, `user_id`) before persisting/returning payment.
+- Existing payment records are reused when `order_id + transaction_id` already exists (idempotent behavior).
+- Order status is updated to `paid` and `payment_id` is attached when needed.
+- `payment.processed` event is published only when the order transitions from non-paid to paid.
 
 ### Agent Integration (APIM-Routed with Circuit Breaker)
 

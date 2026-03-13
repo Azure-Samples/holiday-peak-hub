@@ -41,13 +41,23 @@ jobs:
       # ── 5. Install every Python app ─────────────────────────────────
       - name: Install all Python service apps
         run: |
+          set -euo pipefail
+          FAILED_APPS=()
           for d in apps/*/src; do
             if [ -f "$d/pyproject.toml" ]; then
               echo "::group::Installing $(basename $(dirname $d))"
-              uv pip install --system -e "$d" || echo "⚠ Skipped $d"
+              if ! uv pip install --system -e "$d"; then
+                echo "❌ Failed to install $d"
+                FAILED_APPS+=("$d")
+              fi
               echo "::endgroup::"
             fi
           done
+
+          if [ ${#FAILED_APPS[@]} -gt 0 ]; then
+            echo "One or more app installs failed: ${FAILED_APPS[*]}"
+            exit 1
+          fi
 
       # ── 6. Install additional test dependencies ────────────────────
       - name: Install test tooling
@@ -64,18 +74,21 @@ jobs:
       - name: Install UI dependencies
         working-directory: apps/ui
         run: |
+          set -euo pipefail
           corepack enable
-          yarn install --frozen-lockfile || yarn install
+          yarn install --frozen-lockfile
 
       # ── 9. Verify Python setup ──────────────────────────────────────
       - name: Verify Python environment
         run: |
+          set -euo pipefail
           python --version
           python -c "import holiday_peak_lib; print('✓ holiday-peak-lib importable')"
-          python -m pytest --co -q lib/tests/ 2>/dev/null | tail -5 || true
+          python -m pytest --co -q lib/tests/ 2>/dev/null | tail -5
 
       # ── 10. Verify frontend setup ───────────────────────────────────
       - name: Verify frontend build
         working-directory: apps/ui
         run: |
-          npx next --version || true
+          set -euo pipefail
+          npx next --version

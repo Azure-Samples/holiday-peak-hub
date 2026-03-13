@@ -19,6 +19,7 @@ import {
   apiRequest,
   getEntraConfigError,
   getMissingEntraConfigKeys,
+  isDevAuthMockUiEnabled,
   isEntraConfigured,
 } from '../lib/auth/msalConfig';
 import { authService } from '../lib/services/authService';
@@ -32,11 +33,44 @@ interface AuthContextType {
   isLoading: boolean;
   authConfigError: string | null;
   login: () => Promise<void>;
+  loginAsMockRole: (role: 'customer' | 'staff' | 'admin') => Promise<void>;
   logout: () => Promise<void>;
   getAccessToken: () => Promise<string | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const MOCK_AUTH_USER_STORAGE_KEY = 'mock_auth_user';
+
+function loadPersistedMockUser(): User | null {
+  if (typeof window === 'undefined') return null;
+  const raw = localStorage.getItem(MOCK_AUTH_USER_STORAGE_KEY);
+  if (!raw) return null;
+
+  try {
+    return JSON.parse(raw) as User;
+  } catch {
+    return null;
+  }
+}
+
+function persistMockUser(user: User): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(MOCK_AUTH_USER_STORAGE_KEY, JSON.stringify(user));
+}
+
+function clearPersistedMockUser(): void {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(MOCK_AUTH_USER_STORAGE_KEY);
+}
+
+function buildMockUser(role: 'customer' | 'staff' | 'admin'): User {
+  return {
+    user_id: `mock-${role}`,
+    name: `Mock ${role[0].toUpperCase()}${role.slice(1)}`,
+    email: `mock.${role}@local.dev`,
+    roles: [role],
+  };
+}
 
 /**
  * Auth Provider Component (inner - uses MSAL hooks)
@@ -45,6 +79,7 @@ function AuthProviderInner({ children }: { children: ReactNode }) {
   const { instance, accounts, inProgress } = useMsal();
   const isAuthenticated = useIsAuthenticated();
   const [user, setUser] = useState<User | null>(null);
+  const [mockUser, setMockUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const authConfigError = getEntraConfigError();
 
@@ -54,6 +89,7 @@ function AuthProviderInner({ children }: { children: ReactNode }) {
    * Get access token for API calls
    */
   const getAccessToken = async (): Promise<string | null> => {
+    if (isDevAuthMockUiEnabled) return null;
     if (!account) return null;
 
     try {
@@ -77,28 +113,41 @@ function AuthProviderInner({ children }: { children: ReactNode }) {
   };
 
   /**
-   * Set the msal-auth cookie so Next.js middleware can detect the auth session
-   * and enforce server-side route protection without a client-side flash.
+   * Synchronize server-managed signed auth cookie from a validated Entra token.
    */
-  const setAuthCookie = (roles: string[]) => {
-    if (typeof document === 'undefined') return;
-    const secure = location.protocol === 'https:' ? '; Secure' : '';
-    document.cookie = `msal-auth=${roles.join(',')}; path=/; SameSite=Strict${secure}`;
+  const syncAuthSessionCookie = async (token: string): Promise<void> => {
+    const response = await fetch('/api/auth/session', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to synchronize auth session cookie.');
+    }
   };
 
   /**
-   * Clear the msal-auth cookie on logout.
+   * Clear server-managed auth session cookie.
    */
-  const clearAuthCookie = () => {
-    if (typeof document === 'undefined') return;
-    document.cookie =
-      'msal-auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict';
+  const clearAuthSessionCookie = async (): Promise<void> => {
+    await fetch('/api/auth/session', {
+      method: 'DELETE',
+    });
   };
 
   /**
    * Login handler
    */
   const login = async () => {
+    if (isDevAuthMockUiEnabled) {
+      if (typeof window !== 'undefined') {
+        window.location.href = '/auth/login';
+      }
+      return;
+    }
+
     if (authConfigError) {
       throw new Error(authConfigError);
     }
@@ -111,16 +160,52 @@ function AuthProviderInner({ children }: { children: ReactNode }) {
     }
   };
 
+  const loginAsMockRole = async (role: 'customer' | 'staff' | 'admin') => {
+    if (!isDevAuthMockUiEnabled) {
+      throw new Error('Mock authentication is disabled.');
+    }
+
+    const response = await fetch('/api/auth/mock/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ role }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Couldn't proceed with your login. Please try again later.");
+    }
+
+    const mockProfile = buildMockUser(role);
+    setMockUser(mockProfile);
+    setUser(mockProfile);
+    persistMockUser(mockProfile);
+  };
+
   /**
    * Logout handler
    */
   const logout = async () => {
-    try {
-      // Clear backend session
-      await authService.logout();
+    if (isDevAuthMockUiEnabled) {
+      try {
+        await fetch('/api/auth/mock/logout', {
+          method: 'POST',
+        });
+      } finally {
+        clearPersistedMockUser();
+        setMockUser(null);
+        setUser(null);
+      }
+      return;
+    }
 
-      // Clear middleware auth cookie
-      clearAuthCookie();
+    try {
+      // Clear backend session and middleware auth cookie
+      await Promise.allSettled([
+        authService.logout(),
+        clearAuthSessionCookie(),
+      ]);
 
       // Clear MSAL session
       await instance.logoutPopup({
@@ -138,6 +223,12 @@ function AuthProviderInner({ children }: { children: ReactNode }) {
    * Load user profile when authenticated
    */
   useEffect(() => {
+    if (isDevAuthMockUiEnabled) {
+      setMockUser(loadPersistedMockUser());
+      setIsLoading(false);
+      return;
+    }
+
     const loadUser = async () => {
       if (isAuthenticated && account && inProgress === InteractionStatus.None) {
         try {
@@ -151,18 +242,18 @@ function AuthProviderInner({ children }: { children: ReactNode }) {
             const userProfile = await authService.getCurrentUser();
             setUser(userProfile);
 
-            // Persist roles in a cookie for Next.js middleware route protection
-            setAuthCookie(userProfile.roles ?? []);
+            // Persist roles in a server-signed cookie for Next.js middleware route protection
+            await syncAuthSessionCookie(token);
           }
         } catch (error) {
           console.error('Failed to load user:', error);
           setUser(null);
-          clearAuthCookie();
+          await clearAuthSessionCookie();
         } finally {
           setIsLoading(false);
         }
       } else if (!isAuthenticated && inProgress === InteractionStatus.None) {
-        clearAuthCookie();
+        await clearAuthSessionCookie();
         setIsLoading(false);
       } else {
         setIsLoading(false);
@@ -173,13 +264,19 @@ function AuthProviderInner({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, account, inProgress]);
 
+  const effectiveUser = isDevAuthMockUiEnabled ? mockUser : user;
+  const effectiveIsAuthenticated = isDevAuthMockUiEnabled
+    ? Boolean(mockUser)
+    : isAuthenticated;
+
   const value: AuthContextType = {
-    user,
+    user: effectiveUser,
     account,
-    isAuthenticated,
+    isAuthenticated: effectiveIsAuthenticated,
     isLoading: isLoading || inProgress !== InteractionStatus.None,
     authConfigError,
     login,
+    loginAsMockRole,
     logout,
     getAccessToken,
   };
@@ -195,6 +292,7 @@ function AuthProviderInner({ children }: { children: ReactNode }) {
  * Auth Provider Component (outer - wraps with MsalProvider)
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const [mockUser, setMockUser] = useState<User | null>(null);
   const [msalInstance, setMsalInstance] = useState<PublicClientApplication | null>(
     null
   );
@@ -202,6 +300,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+
+    if (isDevAuthMockUiEnabled) {
+      setMockUser(loadPersistedMockUser());
+      return;
+    }
 
     const init = async () => {
       if (!isEntraConfigured) {
@@ -221,6 +324,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     init().catch((err) => console.error('MSAL initialization failed:', err));
   }, []);
 
+  if (isDevAuthMockUiEnabled) {
+    return (
+      <AuthContext.Provider
+        value={{
+          user: mockUser,
+          account: null,
+          isAuthenticated: Boolean(mockUser),
+          isLoading: false,
+          authConfigError: null,
+          login: async () => {
+            if (typeof window !== 'undefined') {
+              window.location.href = '/auth/login';
+            }
+          },
+          loginAsMockRole: async (role) => {
+            const response = await fetch('/api/auth/mock/login', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ role }),
+            });
+
+            if (!response.ok) {
+              throw new Error("Couldn't proceed with your login. Please try again later.");
+            }
+
+            const mockProfile = buildMockUser(role);
+            setMockUser(mockProfile);
+            persistMockUser(mockProfile);
+          },
+          logout: async () => {
+            try {
+              await fetch('/api/auth/mock/logout', {
+                method: 'POST',
+              });
+            } finally {
+              clearPersistedMockUser();
+              setMockUser(null);
+            }
+          },
+          getAccessToken: async () => null,
+        }}
+      >
+        {children}
+      </AuthContext.Provider>
+    );
+  }
+
   if (!msalInstance) {
     return (
       <AuthContext.Provider
@@ -232,6 +384,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           authConfigError: configError,
           login: async () => {
             throw new Error(configError || 'Authentication configuration is missing.');
+          },
+          loginAsMockRole: async () => {
+            throw new Error('Mock authentication is disabled.');
           },
           logout: async () => {},
           getAccessToken: async () => null,

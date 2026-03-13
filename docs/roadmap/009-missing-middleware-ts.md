@@ -1,61 +1,39 @@
-# 009: No middleware.ts for Route Protection
+# 009: Route Protection Middleware Implemented
 
 **Severity**: Medium  
 **Category**: Frontend  
 **Discovered**: February 2026
 
+## Status
+
+✅ **Resolved** (March 2026, issue [#33](https://github.com/Azure-Samples/holiday-peak-hub/issues/33))
+
 ## Summary
 
-The Next.js frontend lacks a `middleware.ts` file for server-side route protection. All route guarding relies on client-side checks in the `AuthContext`, which means protected pages briefly render before redirecting unauthenticated users.
+The Next.js frontend now includes server-side route protection middleware. Route access checks are enforced before protected pages render.
 
 ## Current State
 
-- No `apps/ui/middleware.ts` file exists
-- Auth checks happen in `AuthContext.tsx` (client-side only)
-- Protected pages flash their content before redirect
-- No server-side token validation on page requests
-- Staff and admin pages are accessible to any client that renders the URL
+- `apps/ui/middleware.ts` is implemented and active
+- Middleware reads auth roles from the signed auth cookie and enforces route-level access
+- Protected customer routes are guarded (`/dashboard`, `/profile`, `/checkout`, `/orders`, `/order`, `/wishlist`, `/cart`)
+- Staff and admin route segments are role-gated (`/staff/*`, `/admin/*`)
+- Unit tests covering middleware/auth behavior are present in `apps/ui/tests/unit/middleware.test.ts`, `apps/ui/tests/unit/authCookie.test.ts`, and `apps/ui/tests/unit/mockAuthRoutes.test.ts`
 
-## Expected Behavior
+## Implemented Behavior
 
-- `middleware.ts` should intercept requests to protected routes before rendering
-- Unauthenticated users should be redirected to login without seeing the page
-- Role-based middleware should enforce:
-  - `/dashboard`, `/profile`, `/checkout`, `/my-orders` → require `customer` role
-  - `/staff/*` → require `staff` role
-  - `/admin` → require `admin` role
-- Public routes (`/`, `/category/*`, `/product/*`) should pass through
+- Middleware intercepts configured protected routes before page rendering
+- Unauthenticated requests are redirected to `/auth/login` with redirect context
+- Role checks enforce staff/admin constraints and redirect unauthorized requests to `/`
+- Non-protected routes pass through without auth enforcement
 
-## Suggested Fix
+## Resolution Notes
 
-1. Create `apps/ui/middleware.ts` with Next.js middleware API
-2. Check for auth token in cookies/headers
-3. Validate token claims (role) against route requirements
-4. Redirect to `/login` (or `/`) if unauthorized
-5. Configure `matcher` to only run on protected routes
+No additional code changes are required for issue #33 closure-readiness; documentation alignment only.
 
-```typescript
-// apps/ui/middleware.ts
-import { NextRequest, NextResponse } from 'next/server';
-
-export function middleware(request: NextRequest) {
-  const token = request.cookies.get('auth-token')?.value;
-  // Validate and check roles...
-}
-
-export const config = {
-  matcher: ['/dashboard/:path*', '/profile/:path*', '/checkout/:path*',
-            '/my-orders/:path*', '/staff/:path*', '/admin/:path*'],
-};
-```
-
-## Files to Create
+## Implemented File
 
 - `apps/ui/middleware.ts` — Route protection middleware
-
-## Files to Modify
-
-- `apps/ui/contexts/AuthContext.tsx` — Remove redundant client-side redirects (keep as fallback)
 
 ## References
 

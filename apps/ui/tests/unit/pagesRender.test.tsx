@@ -1,10 +1,11 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 
 import HomePage from '../../app/page';
 import { CategoryPageClient } from '../../app/category/CategoryPageClient';
 import { ProductPageClient } from '../../app/product/ProductPageClient';
 import CheckoutPage from '../../app/checkout/page';
+import OrdersPage from '../../app/orders/page';
 import OrderTrackingPage from '../../app/order/[id]/page';
 import ProfilePage from '../../app/profile/page';
 import DashboardPage from '../../app/dashboard/page';
@@ -22,11 +23,15 @@ import CategoriesPage from '../../app/categories/page';
 import NewArrivalsPage from '../../app/new/page';
 
 const redirect = jest.fn();
+const useSearchParamsMock = jest.fn(() => ({
+  get: () => null,
+}));
 
 jest.mock('next/navigation', () => ({
   redirect: (path: string) => redirect(path),
   useParams: () => ({ id: 'ORD-2026-0123', entityId: 'prod-001' }),
   useRouter: () => ({ push: jest.fn() }),
+  useSearchParams: () => useSearchParamsMock(),
 }));
 
 jest.mock('../../lib/hooks/useCategories', () => ({
@@ -118,6 +123,126 @@ jest.mock('../../lib/hooks/useOrders', () => ({
   }),
 }));
 
+jest.mock('../../lib/hooks/useReturns', () => ({
+  useReturns: () => ({
+    data: [
+      {
+        id: 'ret-1',
+        order_id: 'ORD-2026-0123',
+        user_id: 'user-1',
+        status: 'requested',
+        reason: 'Damaged item',
+        items: [{ product_id: 'seed-product-0001', quantity: 1 }],
+        created_at: '2026-01-27T10:00:00Z',
+        updated_at: '2026-01-27T10:00:00Z',
+        requested_at: '2026-01-27T10:00:00Z',
+        approved_at: null,
+        rejected_at: null,
+        received_at: null,
+        restocked_at: null,
+        refunded_at: null,
+        last_transition_at: '2026-01-27T10:00:00Z',
+        status_history: [],
+        audit_log: [],
+        refund: null,
+      },
+    ],
+    isLoading: false,
+    isError: false,
+  }),
+  useCreateReturn: () => ({
+    mutateAsync: jest.fn(),
+    isPending: false,
+    isError: false,
+  }),
+}));
+
+jest.mock('../../lib/hooks/usePersonalization', () => ({
+  useBrandShoppingFlow: () => ({
+    mutate: jest.fn(),
+    data: {
+      product: {
+        sku: 'seed-product-0001',
+        name: 'Wireless Headphones',
+        description: 'Headphones',
+        category_id: 'electronics',
+        price: 199.99,
+        currency: 'usd',
+        in_stock: true,
+      },
+      profile: {
+        customer_id: 'user-1',
+        email: 'demo@example.com',
+        name: 'Demo User',
+        tier: 'standard',
+      },
+      offers: {
+        customer_id: 'user-1',
+        sku: 'seed-product-0001',
+        quantity: 1,
+        currency: 'usd',
+        base_price: 199.99,
+        offers: [],
+        final_price: 199.99,
+      },
+      ranked: {
+        customer_id: 'user-1',
+        ranked: [{ sku: 'seed-product-0001', score: 0.75, reason_codes: ['input_score'] }],
+      },
+      composed: {
+        customer_id: 'user-1',
+        headline: 'Top picks for user-1',
+        recommendations: [
+          {
+            sku: 'seed-product-0001',
+            title: 'Wireless Headphones',
+            score: 0.75,
+            message: 'Recommended for user-1 based on shopping intent',
+          },
+        ],
+      },
+    },
+    error: null,
+    isPending: false,
+    isError: false,
+  }),
+}));
+
+jest.mock('../../lib/hooks/useCart', () => ({
+  useCart: () => ({
+    data: {
+      user_id: 'user-1',
+      items: [
+        {
+          product_id: 'seed-product-0001',
+          quantity: 1,
+          price: 199.99,
+        },
+      ],
+      total: 199.99,
+    },
+    isLoading: false,
+    isError: false,
+  }),
+}));
+
+jest.mock('../../lib/hooks/useInventory', () => ({
+  useInventoryHealth: () => ({
+    data: {
+      total_skus: 1,
+      healthy: 1,
+      low_stock: 0,
+      out_of_stock: 0,
+      items: [],
+    },
+    isLoading: false,
+    isError: false,
+    isFetching: false,
+    refetch: jest.fn(),
+  }),
+  useReservationOutcomeQueries: () => [],
+}));
+
 jest.mock('../../lib/hooks/useUser', () => ({
   useUserProfile: () => ({
     data: {
@@ -156,9 +281,20 @@ jest.mock('../../lib/hooks/useStaff', () => ({
         id: 'ret-1',
         order_id: 'ORD-2026-0123',
         user_id: 'user-1',
-        status: 'pending',
+        status: 'requested',
         reason: 'Damaged',
         created_at: '2026-01-27T10:00:00Z',
+        updated_at: '2026-01-27T10:00:00Z',
+        requested_at: '2026-01-27T10:00:00Z',
+        approved_at: null,
+        rejected_at: null,
+        received_at: null,
+        restocked_at: null,
+        refunded_at: null,
+        last_transition_at: '2026-01-27T10:00:00Z',
+        status_history: [],
+        audit_log: [],
+        refund: null,
       },
     ],
     isLoading: false,
@@ -187,6 +323,47 @@ jest.mock('../../lib/hooks/useStaff', () => ({
     },
     isLoading: false,
     isError: false,
+  }),
+  useCreateStaffTicket: () => ({
+    mutate: jest.fn(),
+    isPending: false,
+  }),
+  useUpdateStaffTicket: () => ({
+    mutate: jest.fn(),
+    isPending: false,
+  }),
+  useResolveStaffTicket: () => ({
+    mutate: jest.fn(),
+    isPending: false,
+  }),
+  useEscalateStaffTicket: () => ({
+    mutate: jest.fn(),
+    isPending: false,
+  }),
+  useApproveStaffReturn: () => ({
+    mutateAsync: jest.fn(),
+    isPending: false,
+    error: null,
+  }),
+  useRejectStaffReturn: () => ({
+    mutateAsync: jest.fn(),
+    isPending: false,
+    error: null,
+  }),
+  useReceiveStaffReturn: () => ({
+    mutateAsync: jest.fn(),
+    isPending: false,
+    error: null,
+  }),
+  useRestockStaffReturn: () => ({
+    mutateAsync: jest.fn(),
+    isPending: false,
+    error: null,
+  }),
+  useRefundStaffReturn: () => ({
+    mutateAsync: jest.fn(),
+    isPending: false,
+    error: null,
   }),
 }));
 
@@ -324,6 +501,12 @@ jest.mock('@/components/templates/CheckoutLayout', () => ({
 }));
 
 describe('Page rendering smoke tests', () => {
+  beforeEach(() => {
+    useSearchParamsMock.mockReturnValue({
+      get: () => null,
+    });
+  });
+
   it('renders the home page hero', () => {
     render(<HomePage />);
     expect(
@@ -358,6 +541,13 @@ describe('Page rendering smoke tests', () => {
     expect(screen.getByText('Order Summary')).toBeInTheDocument();
   });
 
+  it('renders orders page with return lifecycle action state', () => {
+    render(<OrdersPage />);
+    expect(screen.getByText('Orders')).toBeInTheDocument();
+    expect(screen.getByText('Request Return')).toBeInTheDocument();
+    expect(screen.getByText('Return lifecycle in progress: requested')).toBeInTheDocument();
+  });
+
   it('renders order details page', () => {
     render(<OrderTrackingPage />);
     expect(screen.getByText('Order Details')).toBeInTheDocument();
@@ -366,11 +556,34 @@ describe('Page rendering smoke tests', () => {
   it('renders profile page', () => {
     render(<ProfilePage />);
     expect(screen.getByText('My Profile')).toBeInTheDocument();
+    expect(screen.getByText('Demo User')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Addresses' }));
+    expect(screen.getByText('Addresses are not available in the current API contract.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Payment Methods' }));
+    expect(screen.getByText('Payment methods are not available in the current API contract.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Security' }));
+    expect(screen.getByText('Security settings are not available in the current API contract.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Preferences' }));
+    expect(screen.getByText('Preferences are not available in the current API contract.')).toBeInTheDocument();
+
+    expect(screen.queryByText('123 Main St')).not.toBeInTheDocument();
+    expect(screen.queryByText('456 Office Plaza')).not.toBeInTheDocument();
+    expect(screen.queryByText('Add New Address')).not.toBeInTheDocument();
+    expect(screen.queryByText('Add Payment Method')).not.toBeInTheDocument();
   });
 
   it('renders dashboard page', () => {
     render(<DashboardPage />);
     expect(screen.getByText('My Dashboard')).toBeInTheDocument();
+    expect(screen.getByText('Total Orders')).toBeInTheDocument();
+    expect(screen.getAllByText('Unavailable').length).toBeGreaterThan(0);
+    expect(screen.getByText('Rewards data is not available in the current API contract.')).toBeInTheDocument();
+    expect(screen.queryByText('1,250 points')).not.toBeInTheDocument();
+    expect(screen.queryByText("You're 750 points away from your next reward!")).not.toBeInTheDocument();
   });
 
   it('renders admin portal page', () => {
@@ -411,6 +624,15 @@ describe('Page rendering smoke tests', () => {
   it('renders login page', () => {
     render(<LoginPage />);
     expect(screen.getByText('Welcome to Holiday Peak Hub')).toBeInTheDocument();
+  });
+
+  it('renders route-protection login message when redirect is present', () => {
+    useSearchParamsMock.mockReturnValue({
+      get: (key: string) => (key === 'redirect' ? '/checkout' : null),
+    });
+
+    render(<LoginPage />);
+    expect(screen.getByText('Sign in to continue to the page you requested.')).toBeInTheDocument();
   });
 
   it('renders signup page', () => {

@@ -206,6 +206,10 @@ jobs:
     environment: ${{ inputs.environment }}
     outputs:
       AI_SERVICES_NAME: ${{ steps.outputs.outputs.AI_SERVICES_NAME }}
+      AI_SEARCH_NAME: ${{ steps.outputs.outputs.AI_SEARCH_NAME }}
+      AI_SEARCH_ENDPOINT: ${{ steps.outputs.outputs.AI_SEARCH_ENDPOINT }}
+      AI_SEARCH_INDEX: ${{ steps.outputs.outputs.AI_SEARCH_INDEX }}
+      AI_SEARCH_AUTH_MODE: ${{ steps.outputs.outputs.AI_SEARCH_AUTH_MODE }}
       PROJECT_ENDPOINT: ${{ steps.outputs.outputs.PROJECT_ENDPOINT }}
       PROJECT_NAME: ${{ steps.outputs.outputs.PROJECT_NAME }}
       APIM_GATEWAY_URL: ${{ steps.outputs.outputs.APIM_GATEWAY_URL }}
@@ -508,6 +512,10 @@ jobs:
           APIM_GATEWAY_URL_VALUE="${APIM_GATEWAY_URL:-${apimGatewayUrl:-}}"
           {
             echo "AI_SERVICES_NAME=${AI_SERVICES_NAME}"
+            echo "AI_SEARCH_NAME=${AI_SEARCH_NAME}"
+            echo "AI_SEARCH_ENDPOINT=${AI_SEARCH_ENDPOINT}"
+            echo "AI_SEARCH_INDEX=${AI_SEARCH_INDEX}"
+            echo "AI_SEARCH_AUTH_MODE=${AI_SEARCH_AUTH_MODE}"
             echo "PROJECT_ENDPOINT=${PROJECT_ENDPOINT}"
             echo "PROJECT_NAME=${PROJECT_NAME}"
             echo "APIM_GATEWAY_URL=${APIM_GATEWAY_URL_VALUE}"
@@ -667,7 +675,9 @@ jobs:
             --name "$ACR_NAME" \
             --query "loginServer" -o tsv)
 
-          STATUS_CODE=$(curl -sS -o /tmp/acr-v2-probe.txt -w "%{http_code}" --max-time 25 "https://${ACR_LOGIN_SERVER}/v2/" || true)
+          if ! STATUS_CODE=$(curl -sS -o /tmp/acr-v2-probe.txt -w "%{http_code}" --max-time 25 "https://${ACR_LOGIN_SERVER}/v2/"); then
+            STATUS_CODE="000"
+          fi
 
           if [ "$STATUS_CODE" = "200" ] || [ "$STATUS_CODE" = "401" ]; then
             echo "ACR preflight passed: ${ACR_LOGIN_SERVER} is reachable from this runner (HTTP $STATUS_CODE)."
@@ -677,7 +687,10 @@ jobs:
             exit 0
           fi
 
-          RUNNER_IP=$(curl -sS --max-time 10 https://api.ipify.org || true)
+          RUNNER_IP=""
+          if ! RUNNER_IP=$(curl -sS --max-time 10 https://api.ipify.org); then
+            RUNNER_IP=""
+          fi
           echo "ACR preflight failed: ${ACR_LOGIN_SERVER}/v2/ returned HTTP ${STATUS_CODE}." >&2
           if [ "$STATUS_CODE" = "403" ]; then
             echo "Likely cause: ACR firewall/network rules are blocking this GitHub-hosted runner." >&2
@@ -691,7 +704,9 @@ jobs:
               echo "acr_name=${ACR_NAME}" >> "$GITHUB_OUTPUT"
               echo "rg_name=${RG_NAME}" >> "$GITHUB_OUTPUT"
               sleep 15
-              RETRY_CODE=$(curl -sS -o /tmp/acr-v2-probe-retry.txt -w "%{http_code}" --max-time 25 "https://${ACR_LOGIN_SERVER}/v2/" || true)
+              if ! RETRY_CODE=$(curl -sS -o /tmp/acr-v2-probe-retry.txt -w "%{http_code}" --max-time 25 "https://${ACR_LOGIN_SERVER}/v2/"); then
+                RETRY_CODE="000"
+              fi
               if [ "$RETRY_CODE" = "200" ] || [ "$RETRY_CODE" = "401" ]; then
                 echo "ACR preflight passed after temporary runner IP allowlist (HTTP $RETRY_CODE)."
                 exit 0
@@ -753,6 +768,9 @@ jobs:
           DEPLOY_ENV: ${{ inputs.environment }}
           INGRESS_CLASS_NAME: ${{ env.INGRESS_CLASS_NAME }}
           AZURE_TENANT_ID: ${{ env.AZURE_TENANT_ID }}
+          AI_SEARCH_ENDPOINT: ${{ needs.provision.outputs.AI_SEARCH_ENDPOINT }}
+          AI_SEARCH_INDEX: ${{ needs.provision.outputs.AI_SEARCH_INDEX }}
+          AI_SEARCH_AUTH_MODE: ${{ needs.provision.outputs.AI_SEARCH_AUTH_MODE }}
           PROJECT_ENDPOINT: ${{ needs.provision.outputs.PROJECT_ENDPOINT }}
           PROJECT_NAME: ${{ needs.provision.outputs.PROJECT_NAME }}
           MODEL_DEPLOYMENT_NAME_FAST: gpt-5-nano
@@ -783,7 +801,9 @@ jobs:
             local label="$2"
 
             for attempt in $(seq 1 24); do
-              STATUS_CODE=$(curl -sS -o /tmp/crud-ready.json -w "%{http_code}" "$url" || true)
+              if ! STATUS_CODE=$(curl -sS -o /tmp/crud-ready.json -w "%{http_code}" "$url"); then
+                STATUS_CODE="000"
+              fi
               if [ "$STATUS_CODE" = "200" ]; then
                 echo "[OK] ${label} ready on attempt ${attempt}: ${url}"
                 return 0
@@ -921,7 +941,9 @@ jobs:
             local label="$2"
 
             for attempt in $(seq 1 20); do
-              STATUS_CODE=$(curl -sS -o /tmp/api-health.json -w "%{http_code}" "$url" || true)
+              if ! STATUS_CODE=$(curl -sS -o /tmp/api-health.json -w "%{http_code}" "$url"); then
+                STATUS_CODE="000"
+              fi
               if [ "$STATUS_CODE" = "200" ]; then
                 echo "[OK] $label: $url"
                 return 0
@@ -1022,7 +1044,9 @@ jobs:
 
           UI_URL="https://$SWA_HOSTNAME"
           for attempt in $(seq 1 20); do
-            STATUS_CODE=$(curl -sS -o /tmp/ui-homepage.html -w "%{http_code}" "$UI_URL" || true)
+            if ! STATUS_CODE=$(curl -sS -o /tmp/ui-homepage.html -w "%{http_code}" "$UI_URL"); then
+              STATUS_CODE="000"
+            fi
             if [ "$STATUS_CODE" = "200" ]; then
               echo "UI homepage is reachable: $UI_URL"
               break
@@ -1036,7 +1060,11 @@ jobs:
           done
 
           API_HEALTH_URL="${API_BASE_URL%/}/api/health"
-          STATUS_CODE=$(curl -sS -o /tmp/ui-api-health.json -w "%{http_code}" "$API_HEALTH_URL" || true)
+          if ! STATUS_CODE=$(curl -sS -o /tmp/ui-api-health.json -w "%{http_code}" "$API_HEALTH_URL"); then
+            echo "API health check failed after UI deploy due to transport error at $API_HEALTH_URL" >&2
+            cat /tmp/ui-api-health.json 2>/dev/null || true
+            exit 1
+          fi
           if [ "$STATUS_CODE" != "200" ]; then
             echo "API health check failed after UI deploy with HTTP $STATUS_CODE at $API_HEALTH_URL" >&2
             cat /tmp/ui-api-health.json 2>/dev/null || true
@@ -1044,7 +1072,11 @@ jobs:
           fi
 
           PRODUCTS_URL="${API_BASE_URL%/}/api/products?limit=1"
-          STATUS_CODE=$(curl -sS -o /tmp/ui-api-products.json -w "%{http_code}" "$PRODUCTS_URL" || true)
+          if ! STATUS_CODE=$(curl -sS -o /tmp/ui-api-products.json -w "%{http_code}" "$PRODUCTS_URL"); then
+            echo "Products smoke check failed after UI deploy due to transport error at $PRODUCTS_URL" >&2
+            cat /tmp/ui-api-products.json 2>/dev/null || true
+            exit 1
+          fi
           if [ "$STATUS_CODE" != "200" ]; then
             echo "Products smoke check failed after UI deploy with HTTP $STATUS_CODE at $PRODUCTS_URL" >&2
             cat /tmp/ui-api-products.json 2>/dev/null || true
@@ -1052,7 +1084,11 @@ jobs:
           fi
 
           CATEGORIES_URL="${API_BASE_URL%/}/api/categories"
-          STATUS_CODE=$(curl -sS -o /tmp/ui-api-categories.json -w "%{http_code}" "$CATEGORIES_URL" || true)
+          if ! STATUS_CODE=$(curl -sS -o /tmp/ui-api-categories.json -w "%{http_code}" "$CATEGORIES_URL"); then
+            echo "Categories smoke check failed after UI deploy due to transport error at $CATEGORIES_URL" >&2
+            cat /tmp/ui-api-categories.json 2>/dev/null || true
+            exit 1
+          fi
           if [ "$STATUS_CODE" != "200" ]; then
             echo "Categories smoke check failed after UI deploy with HTTP $STATUS_CODE at $CATEGORIES_URL" >&2
             cat /tmp/ui-api-categories.json 2>/dev/null || true
@@ -1138,7 +1174,11 @@ jobs:
           smoke_endpoint() {
             local url="$1"
             local label="$2"
-            STATUS_CODE=$(curl -sS -o /tmp/ui-token-health-pre.json -w "%{http_code}" "$url" || true)
+            if ! STATUS_CODE=$(curl -sS -o /tmp/ui-token-health-pre.json -w "%{http_code}" "$url"); then
+              echo "$label check failed before UI-only deployment due to transport error at $url" >&2
+              cat /tmp/ui-token-health-pre.json 2>/dev/null || true
+              exit 1
+            fi
             if [ "$STATUS_CODE" != "200" ]; then
               echo "$label check failed before UI-only deployment with HTTP $STATUS_CODE at $url" >&2
               cat /tmp/ui-token-health-pre.json 2>/dev/null || true
@@ -1176,7 +1216,11 @@ jobs:
           smoke_endpoint() {
             local url="$1"
             local label="$2"
-            STATUS_CODE=$(curl -sS -o /tmp/ui-token-health-post.json -w "%{http_code}" "$url" || true)
+            if ! STATUS_CODE=$(curl -sS -o /tmp/ui-token-health-post.json -w "%{http_code}" "$url"); then
+              echo "$label check failed after UI-only deployment due to transport error at $url" >&2
+              cat /tmp/ui-token-health-post.json 2>/dev/null || true
+              exit 1
+            fi
             if [ "$STATUS_CODE" != "200" ]; then
               echo "$label check failed after UI-only deployment with HTTP $STATUS_CODE at $url" >&2
               cat /tmp/ui-token-health-post.json 2>/dev/null || true
@@ -1260,7 +1304,9 @@ jobs:
             --name "$ACR_NAME" \
             --query "loginServer" -o tsv)
 
-          STATUS_CODE=$(curl -sS -o /tmp/acr-v2-probe-agents.txt -w "%{http_code}" --max-time 25 "https://${ACR_LOGIN_SERVER}/v2/" || true)
+          if ! STATUS_CODE=$(curl -sS -o /tmp/acr-v2-probe-agents.txt -w "%{http_code}" --max-time 25 "https://${ACR_LOGIN_SERVER}/v2/"); then
+            STATUS_CODE="000"
+          fi
           if [ "$STATUS_CODE" = "200" ] || [ "$STATUS_CODE" = "401" ]; then
             echo "runner_ip=" >> "$GITHUB_OUTPUT"
             echo "acr_name=${ACR_NAME}" >> "$GITHUB_OUTPUT"
@@ -1268,14 +1314,19 @@ jobs:
             exit 0
           fi
 
-          RUNNER_IP=$(curl -sS --max-time 10 https://api.ipify.org || true)
+          RUNNER_IP=""
+          if ! RUNNER_IP=$(curl -sS --max-time 10 https://api.ipify.org); then
+            RUNNER_IP=""
+          fi
           if [ -n "$RUNNER_IP" ] && [ "${{ inputs.autoAllowAcrRunnerIp }}" = "true" ] && [ "$STATUS_CODE" = "403" ]; then
             az acr network-rule add --name "$ACR_NAME" --resource-group "$RG_NAME" --ip-address "$RUNNER_IP" >/dev/null
             echo "runner_ip=${RUNNER_IP}" >> "$GITHUB_OUTPUT"
             echo "acr_name=${ACR_NAME}" >> "$GITHUB_OUTPUT"
             echo "rg_name=${RG_NAME}" >> "$GITHUB_OUTPUT"
             sleep 15
-            RETRY_CODE=$(curl -sS -o /tmp/acr-v2-probe-agents-retry.txt -w "%{http_code}" --max-time 25 "https://${ACR_LOGIN_SERVER}/v2/" || true)
+            if ! RETRY_CODE=$(curl -sS -o /tmp/acr-v2-probe-agents-retry.txt -w "%{http_code}" --max-time 25 "https://${ACR_LOGIN_SERVER}/v2/"); then
+              RETRY_CODE="000"
+            fi
             if [ "$RETRY_CODE" = "200" ] || [ "$RETRY_CODE" = "401" ]; then
               exit 0
             fi
@@ -1291,6 +1342,9 @@ jobs:
         env:
           DEPLOY_ENV: ${{ inputs.environment }}
           AZURE_TENANT_ID: ${{ env.AZURE_TENANT_ID }}
+          AI_SEARCH_ENDPOINT: ${{ needs.provision.outputs.AI_SEARCH_ENDPOINT }}
+          AI_SEARCH_INDEX: ${{ needs.provision.outputs.AI_SEARCH_INDEX }}
+          AI_SEARCH_AUTH_MODE: ${{ needs.provision.outputs.AI_SEARCH_AUTH_MODE }}
           PROJECT_ENDPOINT: ${{ needs.provision.outputs.PROJECT_ENDPOINT }}
           PROJECT_NAME: ${{ needs.provision.outputs.PROJECT_NAME }}
           FOUNDRY_AUTO_ENSURE_ON_STARTUP: "true"
@@ -1409,7 +1463,9 @@ jobs:
             local label="$2"
 
             for attempt in $(seq 1 20); do
-              STATUS_CODE=$(curl -sS -o /tmp/smoke-response.json -w "%{http_code}" "$url" || true)
+              if ! STATUS_CODE=$(curl -sS -o /tmp/smoke-response.json -w "%{http_code}" "$url"); then
+                STATUS_CODE="000"
+              fi
               if [ "$STATUS_CODE" = "200" ]; then
                 echo "[OK] $label: $url"
                 return 0
@@ -1473,7 +1529,7 @@ jobs:
 
       - name: Ensure all V2 Foundry agents are provisioned
         run: |
-          bash .infra/azd/hooks/ensure-foundry-agents.sh --port-forward
+          bash .infra/azd/hooks/ensure-foundry-agents.sh --port-forward --fail-on-error
         env:
           K8S_NAMESPACE: holiday-peak
 
@@ -1515,7 +1571,10 @@ jobs:
             PF_PID=$!
             sleep 3
 
-            STATUS=$(curl -s "http://localhost:$LOCAL_PORT/health" 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('status','unknown'))" 2>/dev/null || echo "unreachable")
+            STATUS="unreachable"
+            if HEALTH_BODY=$(curl -sS "http://localhost:$LOCAL_PORT/health" 2>/dev/null); then
+              STATUS=$(printf '%s' "$HEALTH_BODY" | python3 -c "import sys,json; print(json.load(sys.stdin).get('status','unknown'))" 2>/dev/null || echo "invalid-json")
+            fi
             kill "$PF_PID" 2>/dev/null || true
 
             if [ "$STATUS" = "ok" ]; then

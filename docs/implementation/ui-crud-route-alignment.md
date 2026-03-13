@@ -110,3 +110,55 @@
   - `apps/ui/tests/unit/agentApiProxyRouteEnv.test.ts`: verifies explicit `502` diagnostics for agent proxy upstream fetch exceptions.
   - `apps/ui/tests/unit/apiClientErrors.test.ts`: verifies payload-aware frontend error extraction.
   - `apps/ui/tests/unit/staticWebAppConfigParity.test.ts`: keeps `apps/ui/staticwebapp.config.json` and `apps/ui/public/staticwebapp.config.json` in parity to reduce SWA config drift risk.
+
+## Issue #28 conformance validation (2026-03-12)
+
+### Scope validated
+
+- Dashboard and profile data paths were validated end-to-end for backend availability and UI proxy conformance.
+- Validation focused on UI-consumed endpoints only, with no feature additions.
+
+### UI-required endpoints confirmed in backend
+
+- Dashboard data:
+  - `GET /api/orders`
+  - `GET /api/catalog/products/{sku}`
+  - `GET /api/customers/{customer_id}/profile`
+  - `POST /api/pricing/offers`
+  - `POST /api/recommendations/rank`
+  - `POST /api/recommendations/compose`
+- Profile data:
+  - `GET /api/users/me`
+  - `PATCH /api/users/me`
+- Auth profile dependency (session bootstrap):
+  - `GET /api/auth/me`
+
+### UI proxy conformance confirmed
+
+- Browser UI API calls for dashboard/profile flows are same-origin `/api/*` paths from `apps/ui/lib/api/endpoints.ts`.
+- Those calls are forwarded by Next.js catch-all proxy route `apps/ui/app/api/[...path]/route.ts` to `${CRUD_BASE_URL}/api/*` using documented fallback resolution in `apps/ui/app/api/_shared/base-url-resolver.ts`.
+- Server-side session bootstrap (`apps/ui/app/api/auth/session/route.ts`) uses the same CRUD base URL resolver and calls `/api/auth/me` directly for token validation.
+
+### Backend/config change decision
+
+- No backend route changes were required.
+- No infrastructure/config changes were required.
+- Doc update only: this section records conformance evidence for issue #28.
+
+## Issue #28 remaining UI alignment (2026-03-12)
+
+- `apps/ui/app/dashboard/page.tsx` no longer renders fabricated business metric values (`wishlist`, `saved addresses`, `rewards points`); unsupported values now render explicit `Unavailable` or API-contract messaging.
+- Dashboard rewards panel no longer shows fabricated points/progress and now states rewards data is unavailable under the current API contract.
+- `apps/ui/app/profile/page.tsx` no longer defines hardcoded saved addresses or payment methods arrays.
+- Profile tabs that are not backed by the current API contract (`Addresses`, `Payment Methods`, `Security`, `Preferences`) now render explicit unsupported-state messaging.
+- `apps/ui/tests/unit/pagesRender.test.tsx` now asserts unsupported-tab empty states and verifies legacy hardcoded literals are absent.
+
+## Issue #32 UI alignment (2026-03-12)
+
+- Search page runtime path now aligns with live Azure AI Search-backed agent behavior while preserving fallback safety.
+- `apps/ui/app/search/page.tsx` now uses `useSemanticSearch` instead of CRUD-only product search.
+- Source badge now reflects effective runtime source from the semantic search service response:
+  - `Catalog Search Agent` when agent invocation succeeds.
+  - `Catalog Search fallback (agent unavailable)` when agent path is unavailable and CRUD fallback is used.
+- `apps/ui/lib/hooks/useSemanticSearch.ts` query enablement now triggers for any non-empty query (`trim().length > 0`) to keep existing search UX responsiveness.
+- `apps/ui/tests/unit/SearchPage.test.tsx` now validates both source badge variants.

@@ -20,6 +20,11 @@
 ### Runtime Hotfix Notes (2026-03-06)
 - **Truth Export Compatibility**: Added a `truth_export.schemas_compat` fallback to keep `truth-export` functional when runtime images resolve an older `holiday-peak-lib` package that does not expose `holiday_peak_lib.schemas.truth`.
 - **Notebook Live Checks**: Updated the Product Truth Layer notebook live integration cell to support Cosmos SDK query compatibility differences and improved PostgreSQL sample payload parsing.
+- **Lib Config Test Determinism**: Resolved issue #29 by isolating env-file loading in `lib/tests/test_config.py` via `_env_file=None`, preventing local `.env` leakage into test assertions (`python -m pytest lib/tests/test_config.py -q` → `20 passed`).
+
+### Runtime Hotfix Notes (2026-03-12)
+- **Mandatory CI Gate Enforcement (Issue #30)**: Required smoke/health checks in deploy workflows now fail deterministically on transport failures and non-200 responses; transport failures are normalized as hard failures in required checks; permissive handling is retained only for advisory/non-gating diagnostics and cleanup paths.
+- **Azure AI Search Provisioning/Runtime Activation (Issue #32)**: Shared infrastructure now provisions Azure AI Search plus `catalog-products` index; deploy workflow and Helm rendering now propagate `AI_SEARCH_ENDPOINT`, `AI_SEARCH_INDEX`, and `AI_SEARCH_AUTH_MODE`; catalog-search runtime now queries AI Search when configured and falls back to adapter retrieval when unavailable/empty.
 
 ### Merged PRs (v1.1.0)
 | # | Title | Category |
@@ -64,7 +69,10 @@
 | [#25](https://github.com/Azure-Samples/holiday-peak-hub/issues/25) | CRUD service not registered in APIM | Critical | Infrastructure | ✅ Closed |
 | [#26](https://github.com/Azure-Samples/holiday-peak-hub/issues/26) | Agent health endpoints return 500 through APIM | Critical | Agents | ✅ Closed |
 | [#27](https://github.com/Azure-Samples/holiday-peak-hub/issues/27) | SWA API proxy returns 404 for all /api/* routes | High | Frontend | ✅ Closed |
+| [#28](https://github.com/Azure-Samples/holiday-peak-hub/issues/28) | Frontend pages use hardcoded mock data instead of API hooks | High | Frontend | ✅ Closed |
 | [#31](https://github.com/Azure-Samples/holiday-peak-hub/issues/31) | Payment processing fully stubbed | Medium | Backend | ✅ Closed (PR #153, #157) |
+| [#32](https://github.com/Azure-Samples/holiday-peak-hub/issues/32) | Azure AI Search not provisioned — catalog-search agent non-functional | Medium | Infrastructure | ✅ Closed (AI Search provisioning + env propagation + runtime fallback path) |
+| [#33](https://github.com/Azure-Samples/holiday-peak-hub/issues/33) | Server-side route protection middleware | Medium | Frontend | ✅ Closed (`apps/ui/middleware.ts`, login redirect messaging polish in `apps/ui/app/auth/login/page.tsx`) |
 | [#36](https://github.com/Azure-Samples/holiday-peak-hub/issues/36) | SAP S/4HANA connector | Low | Connectors | ✅ Closed (PR #121) |
 | [#40](https://github.com/Azure-Samples/holiday-peak-hub/issues/40) | Salesforce CRM connector | Low | Connectors | ✅ Closed (PR #156) |
 | [#41](https://github.com/Azure-Samples/holiday-peak-hub/issues/41) | Microsoft Dynamics 365 connector | Low | Connectors | ✅ Closed (PR #118) |
@@ -77,6 +85,9 @@
 | [#103](https://github.com/Azure-Samples/holiday-peak-hub/issues/103) | Phase 3: HITL Staff Review UI pages | High | Truth Layer | ✅ Closed (PR #127) |
 | [#107](https://github.com/Azure-Samples/holiday-peak-hub/issues/107) | Phase 5: PIM writeback module | Low | Truth Layer | ✅ Closed (PR #116) |
 | [#110](https://github.com/Azure-Samples/holiday-peak-hub/issues/110) | Phase 5: Enterprise hardening | Low | Hardening | ✅ Closed (PR #119) |
+| [#112](https://github.com/Azure-Samples/holiday-peak-hub/issues/112) | docs: Document Entra ID configuration for local and deployed environments | Low | Documentation | ✅ Closed |
+| [#29](https://github.com/Azure-Samples/holiday-peak-hub/issues/29) | 10 lib config tests fail due to schema drift | Medium | Testing | ✅ Closed (test env-file isolation in `lib/tests/test_config.py`) |
+| [#30](https://github.com/Azure-Samples/holiday-peak-hub/issues/30) | CI agent tests silently swallowed with `\|\| true` | Medium | CI/CD | ✅ Closed (required gates now hard-fail on normalized transport and HTTP failures) |
 | [#79](https://github.com/Azure-Samples/holiday-peak-hub/issues/79) | Connector Registry Pattern | Medium | Architecture | ✅ Closed |
 | [#80](https://github.com/Azure-Samples/holiday-peak-hub/issues/80) | Event-Driven Connector Sync | Medium | Architecture | ✅ Closed |
 | [#81](https://github.com/Azure-Samples/holiday-peak-hub/issues/81) | Multi-Tenant Connector Config | Medium | Architecture | ✅ Closed |
@@ -119,16 +130,7 @@ Ordered by **review priority** from highest to lowest.
 
 ### 🔴 Priority 1 — Platform Quality Bugs (agent: `Platform_Quality`)
 
-Remaining quality issues to address.
-
-| # | Title | Severity | Category |
-|---|---|---|---|
-| [#30](https://github.com/Azure-Samples/holiday-peak-hub/issues/30) | CI agent tests silently swallowed with `\|\| true` | Medium | CI/CD |
-| [#29](https://github.com/Azure-Samples/holiday-peak-hub/issues/29) | 10 lib config tests fail due to schema drift | Medium | Testing |
-| [#28](https://github.com/Azure-Samples/holiday-peak-hub/issues/28) | Frontend pages use hardcoded mock data instead of API hooks | High | Frontend |
-| [#33](https://github.com/Azure-Samples/holiday-peak-hub/issues/33) | No middleware.ts for server-side route protection | Medium | Frontend |
-| [#32](https://github.com/Azure-Samples/holiday-peak-hub/issues/32) | Azure AI Search not provisioned — catalog-search agent non-functional | Medium | Infrastructure |
-| [#112](https://github.com/Azure-Samples/holiday-peak-hub/issues/112) | docs: Document Entra ID configuration for local and deployed environments | Low | Documentation |
+No remaining open Platform Quality issues.
 
 ---
 
@@ -140,7 +142,7 @@ Remaining quality issues to address.
 |---|---|---|---|
 | [#87](https://github.com/Azure-Samples/holiday-peak-hub/issues/87) | **Epic: Product Truth Layer** | Epic | In Progress |
 | [#91](https://github.com/Azure-Samples/holiday-peak-hub/issues/91) | Phase 1: Truth Store Cosmos DB adapter | 1 | PR #147 (Draft) |
-| [#92](https://github.com/Azure-Samples/holiday-peak-hub/issues/92) | Phase 1: Tenant Configuration model | 1 | PR #145 (Draft) |
+| [#92](https://github.com/Azure-Samples/holiday-peak-hub/issues/92) | Phase 1: Tenant Configuration model | 1 | PR #148 (Draft) |
 | [#93](https://github.com/Azure-Samples/holiday-peak-hub/issues/93) | Phase 1: UCP schema and category schemas | 1 | PR #148 (Draft) |
 | [#94](https://github.com/Azure-Samples/holiday-peak-hub/issues/94) | Phase 1: Event Hub helpers | 1 | PR #150 (Draft) |
 | [#96](https://github.com/Azure-Samples/holiday-peak-hub/issues/96) | Phase 2: Generic REST PIM connector | 2 | PR #151 (Draft) |
@@ -284,21 +286,21 @@ These issues are superseded by the Truth Layer epic or are long-running backgrou
 
 ### Completed
 - **20 PRs merged** (19 feature PRs + 1 CI fix)
-- **16 issues closed** (12 Truth Layer, 3 Connectors, 1 Payment)
+- **27 issues closed** across Truth Layer, Connectors, Payment, and Platform Quality workstreams
 - **635 tests** passing (249 new tests)
 - **4 Enterprise Connectors** production-ready
 - **Enterprise Hardening** complete
 
 ### In Progress
 - **12 Draft PRs** assigned to Copilot agents (Truth Layer Phases 2-5)
-- **6 Platform Quality** issues remaining
+- **0 Platform Quality** issues remaining
 - **~35 Connector** issues remaining
 
 ### Agent Assignment Summary
 
 | Agent | Completed | In Progress | Priority |
 |---|---|---|---|
-| `Platform_Quality` | 1 (#31) | 6 (#28-#30, #32-#33, #112) | 🔴 Review First |
+| `Platform_Quality` | 7 (#28, #29, #30, #31, #32, #33, #112) | 0 | ✅ Complete |
 | `Truth_Layer_Pipeline` | 12 | 8 (PRs #144-#151, #125-#129) | 🟠 High |
 | `Architecture_Patterns` | 5 (#79-#83) | 1 (#84) | 🟡 Medium |
 | `Enterprise_Connectors` | 5 | ~35 remaining | 🟡 Low |

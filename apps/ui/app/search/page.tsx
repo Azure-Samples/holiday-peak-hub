@@ -6,8 +6,7 @@ import { MainLayout } from '@/components/templates/MainLayout';
 import { SearchInput } from '@/components/molecules/SearchInput';
 import { ProductGrid } from '@/components/organisms/ProductGrid';
 import { Badge } from '@/components/atoms/Badge';
-import { useProductSearch } from '@/lib/hooks/useProducts';
-import { mapApiProductsToUi } from '@/lib/utils/productMappers';
+import { useSemanticSearch } from '@/lib/hooks/useSemanticSearch';
 
 export default function SearchPage() {
   const router = useRouter();
@@ -15,8 +14,12 @@ export default function SearchPage() {
   const initialQuery = searchParams.get('q') ?? '';
   const [query, setQuery] = useState(initialQuery);
 
-  const { data, isLoading } = useProductSearch(query, 20);
-  const products = mapApiProductsToUi(data || []);
+  const { data, isLoading } = useSemanticSearch(query, 20);
+  const products = data?.items ?? [];
+  const sourceLabel =
+    data?.source === 'agent'
+      ? 'Catalog Search Agent'
+      : 'Catalog Search fallback (agent unavailable)';
 
   useEffect(() => {
     setQuery(initialQuery);
@@ -45,8 +48,8 @@ export default function SearchPage() {
           onSearch={handleSearch}
           size="lg"
         />
-        <div>
-          <Badge className="bg-ocean-500 text-white">Source: Catalog Search</Badge>
+        <div role="status" aria-live="polite" aria-atomic="true">
+          <Badge className="bg-ocean-500 text-white">Search source: {sourceLabel}</Badge>
         </div>
       </div>
 

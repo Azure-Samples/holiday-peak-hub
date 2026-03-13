@@ -58,6 +58,11 @@ const CRUD_API_BASE_URL = IS_TEST_ENV
     ? ''
     : SERVER_CRUD_API_BASE_URL;
 
+const DEV_MOCK_AUTH_HEADER_PREFIX = 'X-Dev-Auth-';
+const DEV_MOCK_AUTH_ENABLED =
+  process.env.NODE_ENV !== 'production' && process.env.NEXT_PUBLIC_DEV_AUTH_MOCK === 'true';
+const MOCK_AUTH_USER_STORAGE_KEY = 'mock_auth_user';
+
 if (!CRUD_API_BASE_URL && typeof window === 'undefined') {
   throw new Error(
     'CRUD API base URL is not configured. Set one of NEXT_PUBLIC_CRUD_API_URL, NEXT_PUBLIC_API_URL, NEXT_PUBLIC_API_BASE_URL, or CRUD_API_URL.',
@@ -75,6 +80,58 @@ export const apiClient: AxiosInstance = axios.create({
   },
 });
 
+type MockAuthUser = {
+  user_id?: string;
+  email?: string;
+  name?: string;
+  roles?: string[];
+};
+
+function readMockAuthUserFromStorage(): MockAuthUser | null {
+  if (!DEV_MOCK_AUTH_ENABLED || typeof window === 'undefined') {
+    return null;
+  }
+
+  const raw = localStorage.getItem(MOCK_AUTH_USER_STORAGE_KEY);
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(raw) as MockAuthUser;
+  } catch {
+    return null;
+  }
+}
+
+function appendDevMockAuthHeaders(config: InternalAxiosRequestConfig): void {
+  if (!config.headers) {
+    return;
+  }
+
+  const mockUser = readMockAuthUserFromStorage();
+  const roles = Array.isArray(mockUser?.roles) ? mockUser?.roles : [];
+
+  if (!mockUser || roles.length === 0) {
+    return;
+  }
+
+  config.headers[`${DEV_MOCK_AUTH_HEADER_PREFIX}Mock`] = 'true';
+  config.headers[`${DEV_MOCK_AUTH_HEADER_PREFIX}Roles`] = roles.join(',');
+
+  if (typeof mockUser.user_id === 'string' && mockUser.user_id.trim().length > 0) {
+    config.headers[`${DEV_MOCK_AUTH_HEADER_PREFIX}User-Id`] = mockUser.user_id;
+  }
+
+  if (typeof mockUser.email === 'string' && mockUser.email.trim().length > 0) {
+    config.headers[`${DEV_MOCK_AUTH_HEADER_PREFIX}Email`] = mockUser.email;
+  }
+
+  if (typeof mockUser.name === 'string' && mockUser.name.trim().length > 0) {
+    config.headers[`${DEV_MOCK_AUTH_HEADER_PREFIX}Name`] = mockUser.name;
+  }
+}
+
 /**
  * Request interceptor - attach auth token
  */
@@ -85,6 +142,8 @@ apiClient.interceptors.request.use(
     
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
+    } else {
+      appendDevMockAuthHeaders(config);
     }
     
     return config;

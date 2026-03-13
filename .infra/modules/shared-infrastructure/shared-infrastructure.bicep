@@ -43,6 +43,9 @@ var appInsightsName = '${projectName}${envSuffix}-insights'
 var logAnalyticsName = '${projectName}${envSuffix}-logs'
 var vnetName = '${projectName}${envSuffix}-vnet'
 var aiServicesName = take('${safeProjectName}${replace(envSuffix, '-', '')}ais', 24)
+var aiSearchName = take('${safeProjectName}${replace(envSuffix, '-', '')}search', 60)
+var aiSearchIndexName = 'catalog-products'
+var aiSearchAuthMode = 'managed_identity'
 var aiProjectSuffix = substring(uniqueString(resourceGroup().id), 0, 3)
 var aiProjectInstanceName = 'aip${take(safeProjectName, 6)}${aiProjectSuffix}'
 var aiProjectFriendlyName = '${projectName}${envSuffix} Foundry Project'
@@ -642,6 +645,83 @@ module keyVault 'br/public:avm/res/key-vault/vault:0.13.3' = {
   }
 }
 
+// Shared Azure AI Search service for catalog search retrieval
+resource aiSearch 'Microsoft.Search/searchServices@2022-09-01' = {
+  name: aiSearchName
+  location: location
+  sku: {
+    name: environment == 'prod' ? 'standard' : 'basic'
+  }
+  identity: {
+    type: 'SystemAssigned'
+  }
+  properties: {
+    replicaCount: 1
+    partitionCount: 1
+  }
+  tags: tags
+}
+
+resource aiSearchCatalogIndex 'Microsoft.Search/searchServices/indexes@2022-09-01' = {
+  parent: aiSearch
+  name: aiSearchIndexName
+  properties: {
+    fields: [
+      {
+        name: 'id'
+        type: 'Edm.String'
+        key: true
+        filterable: true
+        searchable: false
+      }
+      {
+        name: 'sku'
+        type: 'Edm.String'
+        searchable: true
+        filterable: true
+      }
+      {
+        name: 'title'
+        type: 'Edm.String'
+        searchable: true
+      }
+      {
+        name: 'description'
+        type: 'Edm.String'
+        searchable: true
+      }
+      {
+        name: 'content'
+        type: 'Edm.String'
+        searchable: true
+      }
+      {
+        name: 'category'
+        type: 'Edm.String'
+        searchable: true
+        filterable: true
+      }
+      {
+        name: 'brand'
+        type: 'Edm.String'
+        searchable: true
+        filterable: true
+      }
+      {
+        name: 'availability'
+        type: 'Edm.String'
+        filterable: true
+      }
+      {
+        name: 'price'
+        type: 'Edm.Double'
+        filterable: true
+        sortable: true
+      }
+    ]
+  }
+}
+
 // Azure AI Foundry Project (AVM)
 module aiFoundry 'br/public:avm/ptn/ai-ml/ai-foundry:0.6.0' = {
   name: 'ai-foundry'
@@ -886,6 +966,17 @@ resource aksStorageRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   ]
 }
 
+// AKS workload identity -> Azure AI Search (index data query + document upsert/delete)
+resource aksSearchIndexDataContributorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, aksClusterName, aiSearchName, 'SearchIndexDataContributor')
+  scope: aiSearch
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8ebe5a00-799e-43f5-93ac-243d3dce84a7') // Search Index Data Contributor
+    principalId: aks.outputs.?kubeletIdentityObjectId ?? ''
+    principalType: 'ServicePrincipal'
+  }
+}
+
 // Outputs
 output aksClusterName string = aks.outputs.name
 output acrLoginServer string = acr.outputs.loginServer
@@ -908,6 +999,10 @@ output apimName string = apim.outputs.name
 output apimGatewayUrl string = 'https://${apimName}.azure-api.net'
 output aiServicesName string = aiFoundry.outputs.aiServicesName
 output aiProjectName string = aiFoundry.outputs.aiProjectName
+output aiSearchName string = aiSearch.name
+output aiSearchEndpoint string = 'https://${aiSearch.name}.search.windows.net'
+output aiSearchIndexName string = aiSearchIndexName
+output aiSearchAuthMode string = aiSearchAuthMode
 output appInsightsConnectionString string = appInsights.outputs.connectionString
 output appInsightsInstrumentationKey string = appInsights.outputs.instrumentationKey
 output vnetId string = vnet.outputs.resourceId

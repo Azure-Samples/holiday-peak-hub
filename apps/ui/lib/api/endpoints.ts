@@ -30,6 +30,15 @@ export const API_ENDPOINTS = {
     byCategory: (categoryId: string) => `/api/products?category=${categoryId}`,
   },
 
+  // Brand Shopping Personalization
+  brandShopping: {
+    catalogProduct: (sku: string) => `/api/catalog/products/${sku}`,
+    customerProfile: (customerId: string) => `/api/customers/${customerId}/profile`,
+    pricingOffers: '/api/pricing/offers',
+    rankRecommendations: '/api/recommendations/rank',
+    composeRecommendations: '/api/recommendations/compose',
+  },
+
   // Categories
   categories: {
     list: '/api/categories',
@@ -53,14 +62,34 @@ export const API_ENDPOINTS = {
     cancel: (id: string) => `/api/orders/${id}/cancel`,
   },
 
+  // Returns / Refund progression
+  returns: {
+    list: '/api/returns',
+    create: '/api/returns',
+    get: (id: string) => `/api/returns/${id}`,
+    refund: (id: string) => `/api/returns/${id}/refund`,
+  },
+
   // Checkout
   checkout: {
     validate: '/api/checkout/validate',
   },
 
+  // Inventory / Reservations
+  inventory: {
+    health: '/api/inventory/health',
+    reservations: {
+      create: '/api/inventory/reservations',
+      get: (reservationId: string) => `/api/inventory/reservations/${reservationId}`,
+      confirm: (reservationId: string) => `/api/inventory/reservations/${reservationId}/confirm`,
+      release: (reservationId: string) => `/api/inventory/reservations/${reservationId}/release`,
+    },
+  },
+
   // Payments
   payments: {
     intent: '/api/payments/intent',
+    confirmIntent: '/api/payments/confirm-intent',
     process: '/api/payments',
     get: (id: string) => `/api/payments/${id}`,
   },
@@ -79,11 +108,21 @@ export const API_ENDPOINTS = {
     },
     tickets: {
       list: '/api/staff/tickets',
+      create: '/api/staff/tickets',
       get: (id: string) => `/api/staff/tickets/${id}`,
+      update: (id: string) => `/api/staff/tickets/${id}`,
+      resolve: (id: string) => `/api/staff/tickets/${id}/resolve`,
+      escalate: (id: string) => `/api/staff/tickets/${id}/escalate`,
     },
     returns: {
       list: '/api/staff/returns',
+      get: (id: string) => `/api/staff/returns/${id}`,
       approve: (id: string) => `/api/staff/returns/${id}/approve`,
+      reject: (id: string) => `/api/staff/returns/${id}/reject`,
+      receive: (id: string) => `/api/staff/returns/${id}/receive`,
+      restock: (id: string) => `/api/staff/returns/${id}/restock`,
+      refund: (id: string) => `/api/staff/returns/${id}/refund`,
+      refundProgress: (id: string) => `/api/staff/returns/${id}/refund`,
     },
     shipments: {
       list: '/api/staff/shipments',

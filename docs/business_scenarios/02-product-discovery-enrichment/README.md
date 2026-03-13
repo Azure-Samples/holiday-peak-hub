@@ -45,3 +45,19 @@ flowchart LR
    class G c
    class H d
 ```
+
+## Issue #32 Implementation Status (2026-03-12)
+
+Implemented and operational in platform deployment/runtime paths:
+
+- **Provisioning**: Shared infrastructure now provisions Azure AI Search and a `catalog-products` index.
+- **Environment propagation**: `AI_SEARCH_ENDPOINT`, `AI_SEARCH_INDEX`, and `AI_SEARCH_AUTH_MODE` flow from Bicep outputs through `azd`/workflow outputs into Helm-rendered service environment variables.
+- **Runtime query path**: `ecommerce-catalog-search` queries Azure AI Search when configured.
+- **Runtime fallback**: If AI Search is unconfigured/unavailable or returns no usable SKU set, catalog search falls back to the existing adapter-based retrieval path to preserve response continuity.
+- **Index maintenance**: Product event handlers attempt AI Search document upsert/delete when AI Search configuration is present.
+
+### Optional Hardening (Non-blocking)
+
+- Add vector embeddings + weighted hybrid query tuning (current path is keyword/SKU retrieval).
+- Add index relevance/load evaluation suites and SLO-driven alert thresholds.
+- Add stricter index/schema drift validation in CI pre-deploy checks.
