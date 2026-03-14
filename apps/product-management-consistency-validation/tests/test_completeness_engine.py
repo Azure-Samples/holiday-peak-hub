@@ -211,18 +211,14 @@ def test_nested_field_path():
             }
         ]
     )
-    report = engine.evaluate(
-        "SKU-1", {"attributes": {"color": "red"}}, schema
-    )
+    report = engine.evaluate("SKU-1", {"attributes": {"color": "red"}}, schema)
     assert report.completeness_score == 1.0
     assert report.gaps == []
 
 
 def test_empty_schema_returns_perfect_score():
     engine = CompletenessEngine()
-    schema = CategorySchema(
-        category_id="empty", schema_version="1.0", fields=[]
-    )
+    schema = CategorySchema(category_id="empty", schema_version="1.0", fields=[])
     report = engine.evaluate("SKU-1", {}, schema)
     assert report.completeness_score == 1.0
     assert report.total_fields == 0
@@ -233,11 +229,7 @@ def test_gap_report_metadata():
     schema = CategorySchema(
         category_id="apparel",
         schema_version="2.1",
-        fields=[
-            FieldDefinition(
-                field_name="name", field_path="name", expected_type="str"
-            )
-        ],
+        fields=[FieldDefinition(field_name="name", field_path="name", expected_type="str")],
     )
     report = engine.evaluate("SKU-99", {"name": "Scarf"}, schema)
     assert report.entity_id == "SKU-99"
@@ -261,11 +253,7 @@ async def test_get_schema_returns_seeded_schema():
     schema = CategorySchema(
         category_id="electronics",
         schema_version="1.0",
-        fields=[
-            FieldDefinition(
-                field_name="name", field_path="name", expected_type="str"
-            )
-        ],
+        fields=[FieldDefinition(field_name="name", field_path="name", expected_type="str")],
     )
     adapter.seed_schema(schema)
     result = await adapter.get_schema("electronics")

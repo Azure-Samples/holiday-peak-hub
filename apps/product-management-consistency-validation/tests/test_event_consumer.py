@@ -188,12 +188,15 @@ async def test_publishes_enrichment_job_below_threshold(monkeypatch):
     async def _fake_publish(entity_id, report):
         published.append(entity_id)
 
-    with patch(
-        "product_management_consistency_validation.event_consumer.build_consistency_adapters",
-        return_value=adapters,
-    ), patch(
-        "product_management_consistency_validation.event_consumer._publish_enrichment_job",
-        side_effect=_fake_publish,
+    with (
+        patch(
+            "product_management_consistency_validation.event_consumer.build_consistency_adapters",
+            return_value=adapters,
+        ),
+        patch(
+            "product_management_consistency_validation.event_consumer._publish_enrichment_job",
+            side_effect=_fake_publish,
+        ),
     ):
         handlers = build_completeness_event_handlers(completeness_threshold=0.9)
         handler = handlers["completeness-jobs"]
