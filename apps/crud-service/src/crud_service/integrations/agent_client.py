@@ -97,6 +97,9 @@ class AgentClient:
 
     async def get_product_enrichment(self, sku: str) -> dict[str, Any] | None:
         """Get enriched product details from the enrichment agent."""
+        if not settings.product_enrichment_agent_url:
+            return None
+
         result = await self.call_endpoint(
             agent_url=self._resolve_agent_url(
                 settings.product_enrichment_agent_url,

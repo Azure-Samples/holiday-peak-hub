@@ -11,8 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Issue #29: made `lib/tests/test_config.py` deterministic by isolating settings env-file loading in tests only (`_env_file=None`), preventing local `.env` values from affecting `MemorySettings`, `ServiceSettings`, `PostgresSettings`, and `TruthLayerSettings` test outcomes.
 
+- Issue #246: stabilized `main` quality gates after dependency updates by restoring deterministic product-search fallback and enrichment URL guard behavior in CRUD (`apps/crud-service/src/crud_service/routes/products.py`, `apps/crud-service/src/crud_service/integrations/agent_client.py`), resolving regressions in `test_list_products_with_search` and `test_get_product_enrichment_no_agent_url`.
+
+- Issue #248: completed branch/artifact hygiene for remediation flow by pruning temporary local branches and cleanup artifacts so local working clones retain only `main` for stabilization operations.
+
 
 ### Changed
+
+- Dependabot remediation merged for security/tooling maintenance: PR #245 (`pyjwt` bump to `2.12.0`) and PR #222 (`black` bump to `26.3.1`) are now integrated on `main`, with lint/test checks revalidated after merge.
 
 - Documentation updates for issue #32: business scenario, architecture, and status docs now reflect implemented Azure AI Search provisioning (`catalog-products` index), deploy-time env propagation (`AI_SEARCH_ENDPOINT`, `AI_SEARCH_INDEX`, `AI_SEARCH_AUTH_MODE`), and runtime query/index fallback behavior in `ecommerce-catalog-search`, with optional hardening (vector/hybrid tuning, relevance/load gates) tracked separately.
 

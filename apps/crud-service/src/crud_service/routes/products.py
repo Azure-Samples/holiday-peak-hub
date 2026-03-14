@@ -45,8 +45,17 @@ async def _fetch_products(
     if search:
         try:
             agent_results = await agent_client.semantic_search(search, limit=limit)
-            if agent_results:
-                products = agent_results
+            if isinstance(agent_results, list):
+                canonical_results = [
+                    product
+                    for product in agent_results
+                    if isinstance(product, dict)
+                    and product.get("id")
+                    and product.get("name")
+                    and product.get("category_id")
+                ]
+                if canonical_results:
+                    products = canonical_results
         except Exception:
             pass
         if not products:

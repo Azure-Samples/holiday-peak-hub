@@ -26,6 +26,11 @@
 - **Mandatory CI Gate Enforcement (Issue #30)**: Required smoke/health checks in deploy workflows now fail deterministically on transport failures and non-200 responses; transport failures are normalized as hard failures in required checks; permissive handling is retained only for advisory/non-gating diagnostics and cleanup paths.
 - **Azure AI Search Provisioning/Runtime Activation (Issue #32)**: Shared infrastructure now provisions Azure AI Search plus `catalog-products` index; deploy workflow and Helm rendering now propagate `AI_SEARCH_ENDPOINT`, `AI_SEARCH_INDEX`, and `AI_SEARCH_AUTH_MODE`; catalog-search runtime now queries AI Search when configured and falls back to adapter retrieval when unavailable/empty.
 
+### Runtime Hotfix Notes (2026-03-14)
+- **Main Branch Stabilization (Issue #246)**: CRUD semantic search fallback now degrades safely to repository search when semantic payloads are non-canonical; product enrichment now returns `None` when enrichment URL is not explicitly configured, restoring deterministic fallback behavior expected by tests.
+- **Quality Gate Revalidation**: Repository validation on `main` now reports `1430 passed, 2 skipped` for pytest and a passing pylint score (`9.87/10`, above fail-under threshold).
+- **Branch Hygiene (Issue #248)**: temporary remediation branches/artifacts were pruned from local operations clones to keep stabilization flow aligned to `main`.
+
 ### Merged PRs (v1.1.0)
 | # | Title | Category |
 |---|-------|----------|
