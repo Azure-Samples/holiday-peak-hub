@@ -32,15 +32,19 @@ from crud_service.routes import (
     payments,
     products,
     proposed_attributes,
+)
+from crud_service.routes import returns as customer_returns
+from crud_service.routes import (
     reviews,
-    returns as customer_returns,
     schemas_registry,
     truth_attributes,
     ucp_products,
     users,
     webhooks,
 )
-from crud_service.routes.staff import analytics, returns as staff_returns, shipments, tickets
+from crud_service.routes.staff import analytics
+from crud_service.routes.staff import returns as staff_returns
+from crud_service.routes.staff import shipments, tickets
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse

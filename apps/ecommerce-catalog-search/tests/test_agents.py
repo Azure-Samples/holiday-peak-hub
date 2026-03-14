@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from ecommerce_catalog_search.adapters import AcpCatalogMapper, CatalogAdapters
-from ecommerce_catalog_search.ai_search import AISearchSkuResult
 from ecommerce_catalog_search.agents import CatalogSearchAgent
+from ecommerce_catalog_search.ai_search import AISearchSkuResult
 from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.schemas.inventory import InventoryItem
 from holiday_peak_lib.schemas.product import CatalogProduct
