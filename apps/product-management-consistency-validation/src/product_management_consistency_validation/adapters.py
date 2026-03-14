@@ -49,9 +49,7 @@ class CompletenessStorageAdapter:
             try:
                 db = self._cosmos.get_database_client(self._database)
                 container = db.get_container_client(self._schemas_container)
-                item = await container.read_item(
-                    item=category_id, partition_key=category_id
-                )
+                item = await container.read_item(item=category_id, partition_key=category_id)
                 return CategorySchema(**item)
             except Exception:  # noqa: BLE001
                 pass
@@ -77,9 +75,7 @@ class ProductConsistencyAdapters:
 
     products: ProductConnector
     validator: "ProductConsistencyValidator"
-    completeness: CompletenessStorageAdapter = field(
-        default_factory=CompletenessStorageAdapter
-    )
+    completeness: CompletenessStorageAdapter = field(default_factory=CompletenessStorageAdapter)
 
 
 class ProductConsistencyValidator:
