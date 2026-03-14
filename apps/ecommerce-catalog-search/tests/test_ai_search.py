@@ -7,7 +7,6 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from azure.core.exceptions import ClientAuthenticationError, ServiceRequestError
-
 from ecommerce_catalog_search.ai_search import (
     AISearchSkuResult,
     search_catalog_skus,

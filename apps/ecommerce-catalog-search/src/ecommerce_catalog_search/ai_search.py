@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
 
+from azure.core.credentials import AzureKeyCredential
 from azure.core.exceptions import (
     AzureError,
     ClientAuthenticationError,
@@ -15,10 +16,8 @@ from azure.core.exceptions import (
     ServiceRequestError,
     ServiceResponseError,
 )
-from azure.core.credentials import AzureKeyCredential
 from azure.identity.aio import DefaultAzureCredential
 from azure.search.documents.aio import SearchClient
-
 
 logger = logging.getLogger(__name__)
 
