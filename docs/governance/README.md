@@ -52,6 +52,24 @@ Detailed policy is defined in [Infrastructure Governance](infrastructure-governa
 - Security/compliance review for identity, secrets, and data-access changes
 - Post-incident review for Sev1/Sev2 issues
 
+## Main Branch Protection Policy
+
+`main` is PR-only and must not accept direct pushes from standard contributor or automation paths.
+
+- Require pull request before merge
+- Require review approvals and conversation resolution
+- Require strict required checks (branch up-to-date + named required checks)
+- Minimize bypass actors to explicit break-glass identities only
+- Revalidate protections after any GitHub ruleset/permission change
+
+### Validation Evidence
+
+For governance hardening changes, capture and retain:
+
+- Failed direct push attempt to `main`
+- Failed non-exempt automation direct update to `main`
+- Successful merge through fully gated PR path
+
 ## Related Architecture References
 
 - [Architecture Overview](../architecture/architecture.md)

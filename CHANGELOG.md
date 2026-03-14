@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Dependabot remediation merged for security/tooling maintenance: PR #245 (`pyjwt` bump to `2.12.0`) and PR #222 (`black` bump to `26.3.1`) are now integrated on `main`, with lint/test checks revalidated after merge.
 
+- Issue #250 governance hardening started: documented strict PR-only `main` protection policy, bypass minimization expectations, and validation evidence requirements in governance docs.
+
 - Documentation updates for issue #32: business scenario, architecture, and status docs now reflect implemented Azure AI Search provisioning (`catalog-products` index), deploy-time env propagation (`AI_SEARCH_ENDPOINT`, `AI_SEARCH_INDEX`, `AI_SEARCH_AUTH_MODE`), and runtime query/index fallback behavior in `ecommerce-catalog-search`, with optional hardening (vector/hybrid tuning, relevance/load gates) tracked separately.
 
 - Documentation updates for issue #28: business scenario, architecture, and roadmap docs now state that dashboard/profile supported paths use UI API hooks, and previously hardcoded values without backend contracts were removed in favor of explicit unavailable/unsupported UI states.
