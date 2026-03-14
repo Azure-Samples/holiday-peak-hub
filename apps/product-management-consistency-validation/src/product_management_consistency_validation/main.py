@@ -56,9 +56,7 @@ llm_config = (
 _all_handlers = {
     **build_event_handlers(),
     **build_completeness_event_handlers(
-        completeness_threshold=float(
-            os.getenv("COMPLETENESS_THRESHOLD", "0.7")
-        )
+        completeness_threshold=float(os.getenv("COMPLETENESS_THRESHOLD", "0.7"))
     ),
 }
 
