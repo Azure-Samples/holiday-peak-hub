@@ -9,6 +9,12 @@ import os
 from contextlib import asynccontextmanager
 
 from azure.monitor.opentelemetry import configure_azure_monitor
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from holiday_peak_lib.connectors.registry import ConnectorRegistry
+from opentelemetry import trace
+
 from crud_service.auth.dependencies import get_key_vault_secret
 from crud_service.config.settings import get_settings
 from crud_service.consumers import get_connector_sync_consumer
@@ -32,20 +38,19 @@ from crud_service.routes import (
     payments,
     products,
     proposed_attributes,
+)
+from crud_service.routes import returns as customer_returns
+from crud_service.routes import (
     reviews,
-    returns as customer_returns,
     schemas_registry,
     truth_attributes,
     ucp_products,
     users,
     webhooks,
 )
-from crud_service.routes.staff import analytics, returns as staff_returns, shipments, tickets
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from holiday_peak_lib.connectors.registry import ConnectorRegistry
-from opentelemetry import trace
+from crud_service.routes.staff import analytics
+from crud_service.routes.staff import returns as staff_returns
+from crud_service.routes.staff import shipments, tickets
 
 # Configure structured logging
 logging.basicConfig(

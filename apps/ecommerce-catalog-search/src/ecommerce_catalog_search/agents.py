@@ -15,7 +15,6 @@ from holiday_peak_lib.schemas.product import CatalogProduct
 from .adapters import CatalogAdapters, build_catalog_adapters
 from .ai_search import search_catalog_skus_detailed
 
-
 logger = logging.getLogger(__name__)
 
 

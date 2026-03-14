@@ -1,18 +1,19 @@
 """Customer return and refund progression routes."""
 
+from fastapi import APIRouter, Depends, HTTPException, status
+
 from crud_service.auth import User, require_customer
 from crud_service.integrations import get_event_publisher
 from crud_service.repositories import OrderRepository, RefundRepository, ReturnRequestRepository
 from crud_service.returns_lifecycle import (
     RETURN_TRANSITION_EVENTS,
+    RefundResponse,
     ReturnCreateRequest,
     ReturnResponse,
-    RefundResponse,
     create_return_record,
     event_data,
     utc_now_iso,
 )
-from fastapi import APIRouter, Depends, HTTPException, status
 
 router = APIRouter()
 return_repo = ReturnRequestRepository()

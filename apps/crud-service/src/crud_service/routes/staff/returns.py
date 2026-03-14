@@ -1,19 +1,20 @@
 """Staff return lifecycle management routes."""
 
+from fastapi import APIRouter, Depends, HTTPException, status
+
 from crud_service.auth import User, get_current_user
 from crud_service.integrations import get_event_publisher
 from crud_service.repositories import RefundRepository, ReturnRequestRepository
 from crud_service.returns_lifecycle import (
     RETURN_TRANSITION_EVENTS,
-    ReturnStatus,
-    ReturnResponse,
-    ReturnTransitionRequest,
     RefundResponse,
+    ReturnResponse,
+    ReturnStatus,
+    ReturnTransitionRequest,
     create_refund_record,
     event_data,
     transition_return_record,
 )
-from fastapi import APIRouter, Depends, HTTPException, status
 
 router = APIRouter()
 return_repo = ReturnRequestRepository()

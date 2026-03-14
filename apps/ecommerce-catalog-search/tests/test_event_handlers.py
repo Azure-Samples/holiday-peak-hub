@@ -6,7 +6,6 @@ import json
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-
 from ecommerce_catalog_search.event_handlers import build_event_handlers
 from holiday_peak_lib.schemas.inventory import InventoryItem
 
