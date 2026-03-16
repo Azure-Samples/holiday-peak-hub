@@ -14,7 +14,7 @@ jest.mock('next/server', () => {
 import { NextResponse } from 'next/server';
 
 import { createSignedAuthCookieValue } from '../../lib/auth/authCookie';
-import { config, middleware } from '../../middleware';
+import { config, proxy } from '../../proxy';
 
 const mockNext = NextResponse.next as jest.Mock;
 const mockRedirect = NextResponse.redirect as jest.Mock;
@@ -53,20 +53,20 @@ describe('middleware matcher config', () => {
 
 describe('middleware – public routes', () => {
   it('passes through the homepage', async () => {
-    await middleware(makeRequest('/'));
+    await proxy(makeRequest('/'));
     expect(mockNext).toHaveBeenCalledTimes(1);
     expect(mockRedirect).not.toHaveBeenCalled();
   });
 
   it('passes through product pages', async () => {
-    await middleware(makeRequest('/product/123'));
+    await proxy(makeRequest('/product/123'));
     expect(mockNext).toHaveBeenCalledTimes(1);
   });
 });
 
 describe('middleware – protected routes', () => {
   it('redirects unauthenticated user from /dashboard to login', async () => {
-    await middleware(makeRequest('/dashboard'));
+    await proxy(makeRequest('/dashboard'));
     expect(mockRedirect).toHaveBeenCalledTimes(1);
     const redirectUrl: URL = mockRedirect.mock.calls[0][0];
     expect(redirectUrl.pathname).toBe('/auth/login');
@@ -74,7 +74,7 @@ describe('middleware – protected routes', () => {
   });
 
   it('rejects unsigned cookie values and redirects to login', async () => {
-    await middleware(makeRequest('/orders', { 'msal-auth': 'customer' }));
+    await proxy(makeRequest('/orders', { 'msal-auth': 'customer' }));
     expect(mockRedirect).toHaveBeenCalledTimes(1);
     const redirectUrl: URL = mockRedirect.mock.calls[0][0];
     expect(redirectUrl.pathname).toBe('/auth/login');
@@ -82,20 +82,20 @@ describe('middleware – protected routes', () => {
 
   it('allows signed customer role through /orders', async () => {
     const signedCookie = await createSignedAuthCookieValue(['customer']);
-    await middleware(makeRequest('/orders', { 'msal-auth': signedCookie }));
+    await proxy(makeRequest('/orders', { 'msal-auth': signedCookie }));
     expect(mockNext).toHaveBeenCalledTimes(1);
   });
 
   it('allows signed staff role through /staff/logistics', async () => {
     const signedCookie = await createSignedAuthCookieValue(['staff']);
-    await middleware(makeRequest('/staff/logistics', { 'msal-auth': signedCookie }));
+    await proxy(makeRequest('/staff/logistics', { 'msal-auth': signedCookie }));
     expect(mockNext).toHaveBeenCalledTimes(1);
     expect(mockRedirect).not.toHaveBeenCalled();
   });
 
   it('redirects signed staff role away from /admin', async () => {
     const signedCookie = await createSignedAuthCookieValue(['staff']);
-    await middleware(makeRequest('/admin', { 'msal-auth': signedCookie }));
+    await proxy(makeRequest('/admin', { 'msal-auth': signedCookie }));
     expect(mockRedirect).toHaveBeenCalledTimes(1);
     const redirectUrl: URL = mockRedirect.mock.calls[0][0];
     expect(redirectUrl.pathname).toBe('/');
@@ -103,13 +103,13 @@ describe('middleware – protected routes', () => {
 
   it('allows signed admin role through /admin', async () => {
     const signedCookie = await createSignedAuthCookieValue(['admin']);
-    await middleware(makeRequest('/admin', { 'msal-auth': signedCookie }));
+    await proxy(makeRequest('/admin', { 'msal-auth': signedCookie }));
     expect(mockNext).toHaveBeenCalledTimes(1);
     expect(mockRedirect).not.toHaveBeenCalled();
   });
 
   it('rejects invalid signed cookie and redirects to login', async () => {
-    await middleware(makeRequest('/checkout', { 'msal-auth': 'invalid.payload' }));
+    await proxy(makeRequest('/checkout', { 'msal-auth': 'invalid.payload' }));
     expect(mockRedirect).toHaveBeenCalledTimes(1);
     const redirectUrl: URL = mockRedirect.mock.calls[0][0];
     expect(redirectUrl.pathname).toBe('/auth/login');
@@ -120,7 +120,7 @@ describe('middleware – protected routes', () => {
     const signedCookie = await createSignedAuthCookieValue(['customer'], 5);
     dateNowSpy.mockReturnValue(1_700_000_010_000);
 
-    await middleware(makeRequest('/checkout', { 'msal-auth': signedCookie }));
+    await proxy(makeRequest('/checkout', { 'msal-auth': signedCookie }));
     expect(mockRedirect).toHaveBeenCalledTimes(1);
     const redirectUrl: URL = mockRedirect.mock.calls[0][0];
     expect(redirectUrl.pathname).toBe('/auth/login');
