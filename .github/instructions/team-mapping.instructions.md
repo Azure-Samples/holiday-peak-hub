@@ -17,6 +17,32 @@ Before delegating to any agent:
 3. If a mapped agent is not available in `.github/agents/`, fall back to the current agent and continue with available tools.
 4. Do not invent agent names that are absent from team mapping or unavailable in the workspace.
 
+## Managed File Update Policy
+
+For these delegation-managed files:
+- `.github/copilot-instructions.md`
+- `.github/instructions/team-mapping.instructions.md`
+- `.github/agents/data/team-mapping.md`
+
+Apply the following rules:
+1. Do not perform automatic corrections, auto-refactors, or opportunistic rewrites.
+2. Keep changes minimal and scoped only to the intended synchronization/update.
+3. Any update must go through a dedicated PR named `agent-update`.
+4. The `agent-update` PR must always target the repository default branch (`main`).
+
+## Temporary Artifact Policy
+
+For all agent-generated temporary files:
+1. Use only the repository-local `.tmp/` folder as the temporary workspace.
+2. Delete temporary files from `.tmp/` after all related PRs are completed.
+3. Never commit or version files from `.tmp/`.
+
+## Language Policy
+
+For all agent-authored content:
+1. UI text, UX copy, documentation, prompts, and operational notes must be written in en-US.
+2. Avoid mixing locales in the same artifact; keep wording consistently en-US.
+
 ## Shared Agents Enabled By Control Plane
 
 The following shared agent files are currently enabled for export by `repos/asset-map.yaml`:
