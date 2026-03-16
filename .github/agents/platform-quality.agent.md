@@ -129,14 +129,14 @@ When working inside a repository that has platform specifications in `.github/ag
 
 ## References
 
-- [`docs/governance/README.md`](../../docs/governance/README.md) — Repository governance
-- [`docs/README.md`](../../docs/README.md) — Operational workflows
+- [`.github/governance-map.md`](../../.github/governance-map.md) — Repository governance
+- [`docs/OPERATIONAL-WORKFLOWS.md`](../../docs/OPERATIONAL-WORKFLOWS.md) — Operational workflows
 
 ---
 
 ## Agent Ecosystem
 
-> **Dynamic discovery**: Before delegating work, consult [`.github/agents/data/team-mapping.md`](../../.github/agents/data/team-mapping.md) for the full registry of specialist agents, their domains, and trigger phrases.
+> **Dynamic discovery**: Consult [`.github/agents/data/team-mapping.md`](../../.github/agents/data/team-mapping.md) when available; if it is absent, continue with available workspace agents/tools and do not hard-fail.
 >
 > Use `#runSubagent` with the agent name to invoke any specialist. The registry is the single source of truth for which agents exist and what they handle.
 

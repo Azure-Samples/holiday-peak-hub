@@ -221,7 +221,7 @@ Always prefer `partial` with honest gaps over fabricated `good` reports.
 ## References
 
 - [`.github/agents/data/operational-cadence.yaml`](../../.github/agents/data/operational-cadence.yaml) — Master cadence schedule
-- [`docs/README.md`](../../docs/README.md) — Workflow documentation
+- [`docs/OPERATIONAL-WORKFLOWS.md`](../../docs/OPERATIONAL-WORKFLOWS.md) — Workflow documentation
 - [`roles/gbb/README.md`](../../roles/gbb/README.md) — GBB role guide
 - [`roles/coordinator/README.md`](../../roles/coordinator/README.md) — Coordinator role guide
 - [`roles/gbb/templates/`](../../roles/gbb/templates/) — GBB output templates
@@ -234,7 +234,7 @@ Always prefer `partial` with honest gaps over fabricated `good` reports.
 
 ## Agent Ecosystem
 
-> **Dynamic discovery**: Before delegating work, consult [`.github/agents/data/team-mapping.md`](../../.github/agents/data/team-mapping.md) for the full registry of specialist agents, their domains, and trigger phrases.
+> **Dynamic discovery**: Consult [`.github/agents/data/team-mapping.md`](../../.github/agents/data/team-mapping.md) when available; if it is absent, continue with available workspace agents/tools and do not hard-fail.
 >
 > Use `#runSubagent` with the agent name to invoke any specialist. The registry is the single source of truth for which agents exist and what they handle.
 

@@ -2,8 +2,14 @@
 
 Canonical shared-agent registry generated from enabled agent families in `repos/asset-map.yaml`.
 
+## Ownership Metadata
+
+- Ownership class: `Derived-Generated` (see `.github/ownership-taxonomy.md`)
+- Canonical source metadata: enabled shared agent families in `repos/asset-map.yaml`
+- Generated mirrors: `.github/instructions/team-mapping.instructions.md` and managed delegation blocks in `.github/copilot-instructions.md`
+
 | Agent Name | File |
-|---|---|
+| --- | --- |
 | `azure-aks` | `.github/agents/azure-aks.agent.md` |
 | `azure-apim` | `.github/agents/azure-apim.agent.md` |
 | `azure-blob` | `.github/agents/azure-blob.agent.md` |
