@@ -221,7 +221,7 @@ Always prefer `partial` with honest gaps over fabricated `good` reports.
 ## References
 
 - [`.github/agents/data/operational-cadence.yaml`](../../.github/agents/data/operational-cadence.yaml) — Master cadence schedule
-- [`docs/OPERATIONAL-WORKFLOWS.md`](../../docs/OPERATIONAL-WORKFLOWS.md) — Workflow documentation
+- [`docs/README.md`](../../docs/README.md) — Workflow documentation
 - [`roles/gbb/README.md`](../../roles/gbb/README.md) — GBB role guide
 - [`roles/coordinator/README.md`](../../roles/coordinator/README.md) — Coordinator role guide
 - [`roles/gbb/templates/`](../../roles/gbb/templates/) — GBB output templates

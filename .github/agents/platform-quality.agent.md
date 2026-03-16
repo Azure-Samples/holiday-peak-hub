@@ -129,8 +129,8 @@ When working inside a repository that has platform specifications in `.github/ag
 
 ## References
 
-- [`.github/governance-map.md`](../../.github/governance-map.md) — Repository governance
-- [`docs/OPERATIONAL-WORKFLOWS.md`](../../docs/OPERATIONAL-WORKFLOWS.md) — Operational workflows
+- [`docs/governance/README.md`](../../docs/governance/README.md) — Repository governance
+- [`docs/README.md`](../../docs/README.md) — Operational workflows
 
 ---
 

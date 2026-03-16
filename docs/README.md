@@ -12,6 +12,8 @@ Holiday Peak Hub is a **cloud-native, agent-driven retail accelerator** with com
 
 Per-app run and test scripts are available under [scripts](scripts). These scripts create per-app virtual environments under each app src folder and run tests with coverage outputs per app directory.
 
+Python package management in this repository is uv-first. In CI, dependency installs use `uv pip --system`; use pip only as a compatibility bootstrap path to install uv.
+
 - Run an app: [scripts/run-app.sh](scripts/run-app.sh) with a per-app wrapper like [scripts/run-ecommerce-checkout-support.sh](scripts/run-ecommerce-checkout-support.sh)
 - Run all tests with coverage per app: [scripts/run-all-tests.sh](scripts/run-all-tests.sh)
 

@@ -260,9 +260,9 @@ Load `.github/agents/data/operational-cadence.yaml` for the combined daily/weekl
 
 ## References
 
-- [`.github/governance-map.md`](../../.github/governance-map.md) — Repository governance
+- [`docs/governance/README.md`](../../docs/governance/README.md) — Repository governance
 - [`.github/agents/data/team-mapping.md`](../../.github/agents/data/team-mapping.md) — Agent registry
-- [`docs/OPERATIONAL-WORKFLOWS.md`](../../docs/OPERATIONAL-WORKFLOWS.md) — Operational workflows
+- [`docs/README.md`](../../docs/README.md) — Operational workflows
 - [`roles/`](../../roles/) — Role definitions and prompts
 
 ---

@@ -15,12 +15,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Issue #248: completed branch/artifact hygiene for remediation flow by pruning temporary local branches and cleanup artifacts so local working clones retain only `main` for stabilization operations.
 
-
 ### Changed
 
 - Dependabot remediation merged for security/tooling maintenance: PR #245 (`pyjwt` bump to `2.12.0`) and PR #222 (`black` bump to `26.3.1`) are now integrated on `main`, with lint/test checks revalidated after merge.
 
 - Issue #250 governance hardening started: documented strict PR-only `main` protection policy, bypass minimization expectations, and validation evidence requirements in governance docs.
+
+- Issue #250 governance hardening advanced with auditable controls: added `scripts/ops/audit_main_governance.py` and `.github/workflows/governance-audit.yml` to fail when PR-only `main` controls are missing (PR rule, approvals/conversation resolution, strict required checks, force-push and deletion blocking, bypass minimization).
+
+- Issue #250 dry-run governance audit evidence recorded (2026-03-16): local dry-run against `.tmp/rulesets.json` (`[]`) and `.tmp/main-protection.json` (`404 Not Found`) reports no active `main` ruleset/protection, explicitly confirming an external admin-permission blocker for enforcement.
+
+- Issue #256 canonical governance reference remediation completed for tracked agent docs: stale references to missing `docs/OPERATIONAL-WORKFLOWS.md`, `docs/REPOSITORY-SURFACES.md`, and `.github/governance-map.md` were replaced with resolvable canonical targets, and CI now validates governance/architecture docs links plus stale-reference tokens in tracked agent docs.
 
 - Documentation updates for issue #32: business scenario, architecture, and status docs now reflect implemented Azure AI Search provisioning (`catalog-products` index), deploy-time env propagation (`AI_SEARCH_ENDPOINT`, `AI_SEARCH_INDEX`, `AI_SEARCH_AUTH_MODE`), and runtime query/index fallback behavior in `ecommerce-catalog-search`, with optional hardening (vector/hybrid tuning, relevance/load gates) tracked separately.
 

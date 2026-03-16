@@ -3,9 +3,24 @@ name: test
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 on:
   pull_request:
+    branches:
+      - main
   push:
+    branches:
+      - main
+    paths:
+      - lib/**
+      - apps/**
+      - pyproject.toml
+      - conftest.py
+      - .github/workflows/test.yml
+      - .github/workflows/lint.yml
 
 jobs:
   test:
@@ -16,19 +31,18 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - name: Install tooling
-        run: |
-          python -m pip install --upgrade pip
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
       - name: Install lib
-        run: pip install -e ./lib/src
+        run: uv pip install --system -e ./lib/src
       - name: Install test dependencies
-        run: pip install pytest pytest-cov pytest-asyncio httpx requests
+        run: uv pip install --system pytest pytest-cov pytest-asyncio httpx requests
       - name: Install apps
         run: |
           set -e
           for d in apps/*/src; do
             if [ -f "$d/pyproject.toml" ]; then
-              pip install -e "$d"
+              uv pip install --system -e "$d"
             else
               echo "Skipping $d (no pyproject.toml)"
             fi
