@@ -92,13 +92,59 @@ jobs:
           set -euo pipefail
 
           DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
-          git fetch origin "$DEFAULT_BRANCH" --depth=1
+          git fetch origin "$DEFAULT_BRANCH" --depth=1 || true
+
+          CHANGED_FILES=""
+          DIFF_RANGE=""
+          DIFF_STRATEGY=""
 
           if [ "${{ github.event_name }}" = "push" ] && [ -n "${{ github.event.before }}" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
-            CHANGED_FILES=$(git diff --name-only "${{ github.event.before }}...${{ github.sha }}")
-          else
-            CHANGED_FILES=$(git diff --name-only "origin/$DEFAULT_BRANCH...HEAD")
+            if git cat-file -e "${{ github.event.before }}^{commit}" 2>/dev/null; then
+              PUSH_BASE="${{ github.event.before }}"
+              MERGE_BASE=$(git merge-base "$PUSH_BASE" "${{ github.sha }}" || true)
+              if [ -n "$MERGE_BASE" ]; then
+                DIFF_RANGE="$PUSH_BASE...${{ github.sha }}"
+                DIFF_STRATEGY="push-before-three-dot"
+              else
+                DIFF_RANGE="$PUSH_BASE..${{ github.sha }}"
+                DIFF_STRATEGY="push-before-two-dot-fallback"
+                echo "::warning::No common ancestor between push before SHA and current SHA; using two-dot fallback diff range '$DIFF_RANGE'."
+              fi
+            else
+              echo "::warning::Push before SHA '${{ github.event.before }}' is not available in local clone; falling back to default branch baseline."
+            fi
           fi
+
+          if [ -z "$DIFF_RANGE" ]; then
+            DEFAULT_REF="origin/$DEFAULT_BRANCH"
+            if git rev-parse --verify "$DEFAULT_REF" >/dev/null 2>&1; then
+              MERGE_BASE=$(git merge-base "$DEFAULT_REF" HEAD || true)
+              if [ -n "$MERGE_BASE" ]; then
+                DIFF_RANGE="$MERGE_BASE...HEAD"
+                DIFF_STRATEGY="default-branch-merge-base-three-dot"
+              else
+                DIFF_RANGE="$DEFAULT_REF..HEAD"
+                DIFF_STRATEGY="default-branch-two-dot-fallback"
+                echo "::warning::No common ancestor with '$DEFAULT_REF'; using conservative fallback diff range '$DIFF_RANGE'."
+              fi
+            else
+              DIFF_STRATEGY="full-tree-fallback"
+              echo "::warning::Default branch reference '$DEFAULT_REF' is unavailable; treating tracked files as changed."
+            fi
+          fi
+
+          if [ "$DIFF_STRATEGY" = "full-tree-fallback" ]; then
+            CHANGED_FILES=$(git ls-files)
+          else
+            CHANGED_FILES=$(git diff --name-only "$DIFF_RANGE" || true)
+          fi
+
+          CHANGED_COUNT=$(printf '%s\n' "$CHANGED_FILES" | sed '/^$/d' | wc -l | xargs)
+          echo "Changed-services detection strategy: $DIFF_STRATEGY"
+          if [ -n "$DIFF_RANGE" ]; then
+            echo "Changed-services diff range: $DIFF_RANGE"
+          fi
+          echo "Changed-services file count: $CHANGED_COUNT"
 
           mapfile -t AGENT_SERVICES < <(python3 - <<'PY'
           import re
@@ -727,43 +773,47 @@ jobs:
         run: |
           set -euo pipefail
           export AZURE_CLIENT_ID="${WORKLOAD_AZURE_CLIENT_ID}"
-          max_attempts=4
+          TRIAGE_DIR="${RUNNER_TEMP}/deploy-triage"
+          mkdir -p "$TRIAGE_DIR"
 
-          for attempt in $(seq 1 "$max_attempts"); do
-            echo "Deploy attempt ${attempt}/${max_attempts}"
-            if azd deploy --service crud-service --no-prompt -e "${{ inputs.environment }}"; then
-              echo "CRUD deploy succeeded."
-              exit 0
-            fi
+          if azd deploy --service crud-service --no-prompt -e "${{ inputs.environment }}"; then
+            echo "CRUD deploy succeeded."
+            exit 0
+          fi
 
-            echo "Attempt ${attempt} failed; collecting ingress diagnostics..."
-            kubectl get ingressclass -o wide || true
-            kubectl get ingress -n holiday-peak -o wide || true
-            kubectl get pods -n app-routing-system -o wide || true
-            kubectl get pods -n ingress-nginx -o wide || true
-            echo "Collecting CRUD rollout diagnostics..."
-            kubectl -n holiday-peak get deployment crud-service-crud-service -o wide || true
-            kubectl -n holiday-peak describe deployment crud-service-crud-service || true
-            kubectl -n holiday-peak get rs -l app=crud-service -o wide || true
-            kubectl -n holiday-peak get pods -l app=crud-service -o wide || true
-            kubectl -n holiday-peak get events --sort-by='.lastTimestamp' | tail -n 120 || true
+          echo "CRUD deploy failed on first attempt; collecting deterministic triage evidence..."
+          {
+            echo "run_id=${{ github.run_id }}"
+            echo "run_attempt=${{ github.run_attempt }}"
+            echo "job=deploy-crud"
+            echo "workflow=${{ github.workflow }}"
+            echo "sha=${{ github.sha }}"
+            echo "ref=${{ github.ref }}"
+            echo "actor=${{ github.actor }}"
+            echo "event=${{ github.event_name }}"
+            echo "environment=${{ inputs.environment }}"
+            echo "first_failed_step_hint=Deploy CRUD service"
+          } > "$TRIAGE_DIR/run-metadata.txt"
 
-            NEW_POD=$(kubectl -n holiday-peak get pods -l app=crud-service --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1:].metadata.name}' 2>/dev/null || true)
-            if [ -n "$NEW_POD" ]; then
-              kubectl -n holiday-peak describe pod "$NEW_POD" || true
-              kubectl -n holiday-peak logs "$NEW_POD" --tail=200 || true
-              kubectl -n holiday-peak logs "$NEW_POD" --previous --tail=200 || true
-            fi
+          kubectl get ingressclass -o wide > "$TRIAGE_DIR/kubectl-ingressclass.txt" 2>&1 || true
+          kubectl get ingress -n holiday-peak -o wide > "$TRIAGE_DIR/kubectl-ingress.txt" 2>&1 || true
+          kubectl get pods -n app-routing-system -o wide > "$TRIAGE_DIR/kubectl-app-routing-pods.txt" 2>&1 || true
+          kubectl get pods -n ingress-nginx -o wide > "$TRIAGE_DIR/kubectl-ingress-nginx-pods.txt" 2>&1 || true
+          kubectl -n holiday-peak get deployment crud-service-crud-service -o wide > "$TRIAGE_DIR/kubectl-crud-deployment.txt" 2>&1 || true
+          kubectl -n holiday-peak describe deployment crud-service-crud-service > "$TRIAGE_DIR/kubectl-crud-deployment-describe.txt" 2>&1 || true
+          kubectl -n holiday-peak get rs -l app=crud-service -o wide > "$TRIAGE_DIR/kubectl-crud-rs.txt" 2>&1 || true
+          kubectl -n holiday-peak get pods -l app=crud-service -o wide > "$TRIAGE_DIR/kubectl-crud-pods.txt" 2>&1 || true
+          kubectl -n holiday-peak get events --sort-by='.lastTimestamp' | tail -n 200 > "$TRIAGE_DIR/kubectl-events-tail.txt" 2>&1 || true
 
-            if [ "$attempt" -eq "$max_attempts" ]; then
-              echo "CRUD deploy failed after ${max_attempts} attempts." >&2
-              exit 1
-            fi
+          NEW_POD=$(kubectl -n holiday-peak get pods -l app=crud-service --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1:].metadata.name}' 2>/dev/null || true)
+          if [ -n "$NEW_POD" ]; then
+            kubectl -n holiday-peak describe pod "$NEW_POD" > "$TRIAGE_DIR/kubectl-new-pod-describe.txt" 2>&1 || true
+            kubectl -n holiday-peak logs "$NEW_POD" --tail=300 > "$TRIAGE_DIR/kubectl-new-pod-logs.txt" 2>&1 || true
+            kubectl -n holiday-peak logs "$NEW_POD" --previous --tail=300 > "$TRIAGE_DIR/kubectl-new-pod-logs-previous.txt" 2>&1 || true
+          fi
 
-            backoff=$((attempt * 45))
-            echo "Retrying after ${backoff}s..."
-            sleep "$backoff"
-          done
+          echo "CRUD deploy failed on first attempt. Review first-failure protocol in run summary before rerun." >&2
+          exit 1
         env:
           DEPLOY_ENV: ${{ inputs.environment }}
           INGRESS_CLASS_NAME: ${{ env.INGRESS_CLASS_NAME }}
@@ -785,6 +835,45 @@ jobs:
           POSTGRES_HOST: ${{ needs.provision.outputs.POSTGRES_HOST }}
           POSTGRES_USER: ${{ needs.provision.outputs.POSTGRES_AUTH_MODE == 'password' && needs.provision.outputs.POSTGRES_ADMIN_USER || needs.provision.outputs.POSTGRES_USER }}
           POSTGRES_DATABASE: ${{ needs.provision.outputs.POSTGRES_DATABASE }}
+
+      - name: First-failure summary and rerun gate
+        if: ${{ failure() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TRIAGE_DIR="${RUNNER_TEMP}/deploy-triage"
+          ARTIFACT_NAME="deploy-crud-first-failure-${{ github.run_id }}-attempt-${{ github.run_attempt }}"
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          {
+            echo "## First-failure investigation required"
+            echo ""
+            echo "- Run: $RUN_URL"
+            echo "- Job: deploy-crud"
+            echo "- Artifact: $ARTIFACT_NAME"
+            echo "- First failed step hint: Deploy CRUD service"
+            echo ""
+            echo "### Required before rerun"
+            echo "- Capture root-cause category (config/code/infra/identity/quota/transient/platform)."
+            echo "- Document deterministic vs transient assessment in the linked issue/PR." 
+            echo "- Include hypothesis and evidence links (logs/artifacts) before rerun approval."
+            echo "- If deterministic, link the fix or rollback PR before rerun."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ -f "$TRIAGE_DIR/run-metadata.txt" ]; then
+            echo "Collected run metadata:"
+            cat "$TRIAGE_DIR/run-metadata.txt"
+          fi
+
+      - name: Upload CRUD first-failure triage artifact
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-crud-first-failure-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/deploy-triage
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Gate CRUD readiness (/ready)
         shell: bash

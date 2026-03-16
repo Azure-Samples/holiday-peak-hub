@@ -20,6 +20,12 @@ Applies to all Python services and shared framework packages under:
 - **Async stack**: `asyncio`, `httpx` async, async SDK clients
 - **Package management**: `pyproject.toml` + `uv`
 
+### Package manager policy (canonical)
+
+- CI and repository documentation must use `uv` commands for dependency installation.
+- In GitHub-hosted runners, use `uv pip --system` to avoid extra venv activation complexity.
+- `pip` usage is compatibility-only (for example, installing `uv` on fresh developer machines) and must not be introduced as the primary workflow path.
+
 ## Mandatory Standards
 
 ### Code and architecture

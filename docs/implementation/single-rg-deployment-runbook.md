@@ -62,3 +62,19 @@ This deletes `holidaypeakhub405-dev-rg` asynchronously.
 ## Required Governance Action
 
 An external principal (`MCAPSGov-AutomationApp`) is stopping services on a daily cadence. Restrict or exclude this environment from that automation; otherwise, connectivity will continue to break regardless of deployment script quality.
+
+## First-Failure Investigation Protocol (Deploy Workflow)
+
+Use this protocol after the first deployment failure and before any rerun.
+
+1. Capture run metadata (run id, attempt, job name, workflow, SHA, ref, actor, trigger).
+2. Capture first-failed-step clues and relevant Kubernetes rollout diagnostics.
+3. Upload and reference the workflow artifact bundle (`deploy-crud-first-failure-<run-id>-attempt-<n>`).
+4. Classify root cause (`config`, `code`, `infra`, `identity`, `quota`, `transient`, `platform`) and record deterministic vs transient assessment in issue/PR.
+5. Approve rerun only after hypothesis and evidence links are documented.
+
+### Rerun policy
+
+- Deterministic failure: rerun is blocked until fix or rollback is linked.
+- Transient failure: rerun allowed with explicit justification and owner assignment.
+- Repeated failure after rerun: escalate with Sev1/Sev2 incident handling and preserve evidence links.

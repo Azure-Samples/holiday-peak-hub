@@ -22,6 +22,18 @@ This folder is the governance source of truth for engineering standards, runtime
 **Audience**: DevOps/SRE/Cloud engineers  
 **Scope**: Azure IaC, AKS/SWA deployment, CI/CD and environment gates
 
+## Repository Source-of-Truth Map
+
+| Governance topic | Canonical source | Notes |
+| --- | --- | --- |
+| Governance policy baseline | `docs/governance/README.md` | This index and enforcement model |
+| Frontend standards | `docs/governance/frontend-governance.md` | UI/runtime coding and quality rules |
+| Backend/agent standards | `docs/governance/backend-governance.md` | API/agent architecture and test rules |
+| Infrastructure/deployment policy | `docs/governance/infrastructure-governance.md` | IaC, pipeline, and runtime deployment controls |
+| Architecture entrypoint | `docs/architecture/README.md` | Architecture navigation and design artifacts |
+| Operational documentation index | `docs/README.md` | Cross-domain docs catalog and navigation |
+| Agent registry map | `.github/agents/data/team-mapping.md` | Canonical registry for available specialist agents |
+
 ## Code-Aligned Baselines
 
 - **Python baseline**: 3.13+ (`lib/src/pyproject.toml`, app `src/pyproject.toml` files)
@@ -61,6 +73,32 @@ Detailed policy is defined in [Infrastructure Governance](infrastructure-governa
 - Require strict required checks (branch up-to-date + named required checks)
 - Minimize bypass actors to explicit break-glass identities only
 - Revalidate protections after any GitHub ruleset/permission change
+
+## Verification Procedure (PR-only governance)
+
+Use both checks below for governance hardening and drift detection:
+
+1. Docs reference validation (local + CI)
+	- `python scripts/ops/check_markdown_links.py --roots docs/governance docs/architecture/README.md`
+	- Fails on unresolved internal markdown links in governance docs and architecture entrypoint docs.
+	- `grep -RInE "OPERATIONAL-WORKFLOWS\.md|REPOSITORY-SURFACES\.md|governance-map\.md" .github/agents`
+	- CI fails if stale canonical governance reference tokens appear in tracked agent docs.
+
+2. Main protection audit (manual/CI)
+	- `python scripts/ops/audit_main_governance.py --repo <owner/repo>`
+	- Validates PR-only controls for `main`:
+	  - pull request rule present
+	  - at least one required approval
+	  - conversation resolution required
+	  - required status checks configured in strict mode
+	  - force pushes blocked
+	  - branch deletion blocked
+	  - bypass actors minimized to explicit allowlist
+
+### Current External Governance Gap
+
+- Ruleset/protection enforcement itself is controlled by repository admin permissions and cannot be remediated by branch code changes alone.
+- If audit fails because no active `main` ruleset/protection exists, treat as an external admin blocker and attach audit output as evidence in issue/PR records.
 
 ### Validation Evidence
 
