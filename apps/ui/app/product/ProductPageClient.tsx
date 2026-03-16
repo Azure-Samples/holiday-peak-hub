@@ -1,120 +1,539 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { MainLayout } from '@/components/templates/MainLayout';
 import { Badge } from '@/components/atoms/Badge';
 import { Button } from '@/components/atoms/Button';
 import { Card } from '@/components/molecules/Card';
 import { useProduct } from '@/lib/hooks/useProducts';
+import { useCategories } from '@/lib/hooks/useCategories';
 import { mapApiProductToUiProduct } from '@/lib/utils/productMappers';
-import { FiShoppingCart, FiTruck, FiShield, FiRotateCcw } from 'react-icons/fi';
+import { formatAgentResponse, type AgentMessageView } from '@/lib/utils/agentResponseCards';
+import AgentMessageDisplay from '@/components/organisms/AgentMessageDisplay';
+import agentApiClient from '@/lib/api/agentClient';
+import { trackEcommerceEvent } from '@/lib/utils/telemetry';
+import { FiArrowRight, FiShoppingCart, FiTruck, FiShield, FiRotateCcw } from 'react-icons/fi';
+
+type FitVerdict = 'fits' | 'partial' | 'not_fit' | 'unknown';
+
+type FitAssessment = {
+  verdict: FitVerdict;
+  confidence?: number;
+  reasonsForFit: string[];
+  reasonsAgainst: string[];
+  recommendation: string;
+};
+
+type ProductContext = {
+  name: string;
+  description: string;
+  features: string[];
+  inStock: boolean;
+};
+
+const toRecord = (value: unknown): Record<string, unknown> | null => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+};
+
+const toString = (value: unknown): string | undefined => {
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  return undefined;
+};
+
+const toStringArray = (value: unknown): string[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.map((entry) => toString(entry)).filter((entry): entry is string => Boolean(entry));
+};
+
+const parseVerdict = (value: unknown): FitVerdict => {
+  const normalized = (toString(value) || '').trim().toLowerCase();
+  if (['fits', 'fit', 'yes', 'works', 'good_fit'].includes(normalized)) {
+    return 'fits';
+  }
+  if (['partial', 'maybe', 'partially_fits'].includes(normalized)) {
+    return 'partial';
+  }
+  if (['not_fit', 'not fit', 'no', 'does_not_fit'].includes(normalized)) {
+    return 'not_fit';
+  }
+  return 'unknown';
+};
+
+const deriveFitAssessment = (payload: unknown, fallbackText: string): FitAssessment => {
+  const base = toRecord(payload) || {};
+  const enrichment = toRecord((base as Record<string, unknown>).enriched_product) || {};
+  const nestedFit = toRecord((base as Record<string, unknown>).fit_assessment) || {};
+
+  const confidenceRaw =
+    (base.confidence as number | string | undefined) ??
+    (nestedFit.confidence as number | string | undefined) ??
+    (enrichment.confidence as number | string | undefined);
+  const confidenceNumber =
+    typeof confidenceRaw === 'number'
+      ? confidenceRaw
+      : typeof confidenceRaw === 'string'
+        ? Number(confidenceRaw)
+        : undefined;
+
+  const verdict = parseVerdict(
+    base.fit_verdict || base.fit || nestedFit.fit_verdict || nestedFit.fit || enrichment.fit_verdict || enrichment.fit,
+  );
+  const reasonsForFit = toStringArray(
+    base.reasons_for_fit || nestedFit.reasons_for_fit || enrichment.reasons_for_fit || base.reasons || enrichment.reasons,
+  );
+  const reasonsAgainst = toStringArray(
+    base.reasons_against || nestedFit.reasons_against || enrichment.reasons_against || base.caveats || enrichment.caveats,
+  );
+  const recommendation =
+    toString(base.recommendation || nestedFit.recommendation || enrichment.recommendation) ||
+    toString(base.summary || nestedFit.summary || enrichment.summary) ||
+    fallbackText;
+
+  return {
+    verdict,
+    confidence: Number.isFinite(confidenceNumber as number) ? (confidenceNumber as number) : undefined,
+    reasonsForFit,
+    reasonsAgainst,
+    recommendation,
+  };
+};
+
+const tokenizeUseCase = (text: string): string[] => {
+  return text
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((token) => token.length > 2);
+};
+
+const buildLocalFitAssessment = (useCase: string, productContext: ProductContext): FitAssessment => {
+  const useCaseTokens = tokenizeUseCase(useCase);
+  const corpus = [productContext.name, productContext.description, ...productContext.features].join(' ').toLowerCase();
+
+  const matched = useCaseTokens.filter((token) => corpus.includes(token));
+  const missing = useCaseTokens.filter((token) => !corpus.includes(token));
+
+  const baseScore = useCaseTokens.length > 0 ? matched.length / useCaseTokens.length : 0.4;
+  const confidence = Math.max(0.15, Math.min(0.95, baseScore + (productContext.inStock ? 0.12 : -0.08)));
+
+  const verdict: FitVerdict = confidence >= 0.65 ? 'fits' : confidence >= 0.45 ? 'partial' : 'not_fit';
+
+  const reasonsForFit = [
+    ...matched.slice(0, 3).map((token) => `Matches use-case signal: ${token}`),
+    ...(productContext.inStock ? ['Currently in stock.'] : []),
+  ];
+
+  const reasonsAgainst = [
+    ...missing.slice(0, 3).map((token) => `No direct evidence for: ${token}`),
+    ...(!productContext.inStock ? ['Stock signal is weak for immediate purchase.'] : []),
+  ];
+
+  const recommendation =
+    verdict === 'fits'
+      ? 'This product appears to fit your stated use case.'
+      : verdict === 'partial'
+        ? 'This product may fit partially; review constraints before buying.'
+        : 'This product does not look ideal for your stated use case.';
+
+  return {
+    verdict,
+    confidence: Number(confidence.toFixed(2)),
+    reasonsForFit,
+    reasonsAgainst,
+    recommendation,
+  };
+};
+
+const isGenericAssessment = (assessment: FitAssessment): boolean => {
+  const recommendation = assessment.recommendation.toLowerCase();
+  const hasReasons = assessment.reasonsForFit.length > 0 || assessment.reasonsAgainst.length > 0;
+
+  if (assessment.verdict === 'unknown') {
+    return true;
+  }
+
+  if (!hasReasons && (recommendation.includes('acp-supplied') || recommendation.includes('rich,'))) {
+    return true;
+  }
+
+  return false;
+};
+
+const verdictBadgeClass = (verdict: FitVerdict): string => {
+  if (verdict === 'fits') {
+    return 'bg-[var(--hp-accent)]/20 text-[var(--hp-accent)]';
+  }
+  if (verdict === 'partial') {
+    return 'bg-[var(--hp-focus)]/20 text-[var(--hp-focus)]';
+  }
+  if (verdict === 'not_fit') {
+    return 'bg-[var(--hp-primary)]/20 text-[var(--hp-primary)]';
+  }
+  return 'bg-[var(--hp-surface-strong)] text-[var(--hp-text-muted)]';
+};
 
 export function ProductPageClient({ productId }: { productId: string }) {
+  const router = useRouter();
   const { data: product, isLoading, isError } = useProduct(productId);
+  const { data: categories = [] } = useCategories();
+
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [showFitPrompt, setShowFitPrompt] = useState(false);
+  const [useCaseInput, setUseCaseInput] = useState('');
+  const [fitLoading, setFitLoading] = useState(false);
+  const [fitError, setFitError] = useState<string | null>(null);
+  const [fitResponseView, setFitResponseView] = useState<AgentMessageView | null>(null);
+  const [fitAssessment, setFitAssessment] = useState<FitAssessment | null>(null);
 
   const uiProduct = useMemo(() => (product ? mapApiProductToUiProduct(product) : null), [product]);
+
+  useEffect(() => {
+    if (!product?.category_id) {
+      return;
+    }
+    setSelectedCategory(product.category_id);
+  }, [product?.category_id]);
+
+  const categoryList = useMemo(() => {
+    if (categories.length > 0) {
+      return categories;
+    }
+    if (!product?.category_id) {
+      return [];
+    }
+    return [
+      {
+        id: product.category_id,
+        name: product.category_id,
+        description: 'Current product category',
+      },
+    ];
+  }, [categories, product?.category_id]);
+
+  useEffect(() => {
+    if (!product) {
+      return;
+    }
+
+    trackEcommerceEvent('product_opened', {
+      sku: product.id,
+      source: 'product_page',
+    });
+  }, [product]);
+
+  const handleAddToCartClick = () => {
+    if (!product) {
+      return;
+    }
+
+    trackEcommerceEvent('add_to_cart_clicked', {
+      sku: product.id,
+      source: 'product_page',
+      in_stock: product.in_stock,
+    });
+  };
+
+  const handleRunFitEvaluation = async () => {
+    if (!product || !useCaseInput.trim()) {
+      return;
+    }
+
+    setFitLoading(true);
+    setFitError(null);
+
+    try {
+      const response = await agentApiClient.post('/ecommerce-product-detail-enrichment/invoke', {
+        sku: product.id,
+        use_case: useCaseInput.trim(),
+        message: `Evaluate if this product fits my use case: ${useCaseInput.trim()}`,
+      });
+
+      const remoteView = formatAgentResponse(response.data);
+      const remoteAssessment = deriveFitAssessment(response.data, remoteView.text);
+
+      if (isGenericAssessment(remoteAssessment)) {
+        const localAssessment = buildLocalFitAssessment(useCaseInput, {
+          name: product.name,
+          description: product.description,
+          features: product.features || [],
+          inStock: product.in_stock,
+        });
+
+        setFitAssessment(localAssessment);
+        setFitResponseView(
+          formatAgentResponse({
+            summary: localAssessment.recommendation,
+            fit_verdict: localAssessment.verdict,
+            confidence: localAssessment.confidence,
+            reasons_for_fit: localAssessment.reasonsForFit,
+            reasons_against: localAssessment.reasonsAgainst,
+            recommendation: localAssessment.recommendation,
+          }),
+        );
+      } else {
+        setFitAssessment(remoteAssessment);
+        setFitResponseView(remoteView);
+      }
+    } catch (error: unknown) {
+      const detail =
+        typeof error === 'object' &&
+        error !== null &&
+        'message' in error &&
+        typeof (error as { message?: unknown }).message === 'string'
+          ? (error as { message: string }).message
+          : 'The product enrichment agent could not evaluate this use case right now.';
+      setFitError(detail);
+    } finally {
+      setFitLoading(false);
+    }
+  };
 
   return (
     <MainLayout>
       {isLoading && (
         <div className="animate-pulse space-y-6">
-          <div className="h-6 w-1/3 bg-gray-200 dark:bg-gray-700 rounded" />
+          <div className="h-6 w-1/3 rounded bg-[var(--hp-surface-strong)]" />
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div className="aspect-square bg-gray-200 dark:bg-gray-700 rounded-2xl" />
+            <div className="aspect-square rounded-2xl bg-[var(--hp-surface-strong)]" />
             <div className="space-y-4">
-              <div className="h-8 w-3/4 bg-gray-200 dark:bg-gray-700 rounded" />
-              <div className="h-6 w-1/4 bg-gray-200 dark:bg-gray-700 rounded" />
-              <div className="h-24 w-full bg-gray-200 dark:bg-gray-700 rounded" />
+              <div className="h-8 w-3/4 rounded bg-[var(--hp-surface-strong)]" />
+              <div className="h-6 w-1/4 rounded bg-[var(--hp-surface-strong)]" />
+              <div className="h-24 w-full rounded bg-[var(--hp-surface-strong)]" />
             </div>
           </div>
         </div>
       )}
 
       {!isLoading && isError && (
-        <Card className="p-6 border border-red-200 dark:border-red-900">
-          <p className="text-red-600 dark:text-red-400">Product could not be loaded from the cloud backend.</p>
+        <Card className="border border-[var(--hp-primary)]/30 p-6">
+          <p className="text-[var(--hp-primary)]">Product could not be loaded from the cloud backend.</p>
         </Card>
       )}
 
       {!isLoading && !isError && uiProduct && product && (
         <>
-          <nav className="text-sm text-gray-600 dark:text-gray-400 mb-6 flex items-center gap-2">
-            <Link href="/" className="hover:text-ocean-500 dark:hover:text-ocean-300">Home</Link>
+          <nav className="mb-6 flex items-center gap-2 text-sm text-[var(--hp-text-muted)]">
+            <Link href="/" className="hover:text-[var(--hp-primary)]">Home</Link>
             <span>/</span>
             <Link
               href={`/category?slug=${encodeURIComponent(product.category_id)}`}
-              className="hover:text-ocean-500 dark:hover:text-ocean-300"
+              className="hover:text-[var(--hp-primary)]"
             >
               {product.category_id}
             </Link>
             <span>/</span>
-            <span className="text-gray-900 dark:text-white">{product.name}</span>
+            <span className="text-[var(--hp-text)]">{product.name}</span>
           </nav>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mb-12">
-            <div className="aspect-square rounded-2xl overflow-hidden bg-gray-100 dark:bg-gray-800">
-              <Image
-                src={uiProduct.thumbnail || '/images/products/p1.jpg'}
-                alt={product.name}
-                width={800}
-                height={800}
-                className="w-full h-full object-cover"
-              />
-            </div>
+          <section
+            className="mb-12 grid grid-cols-1 gap-8 lg:grid-cols-[220px_1fr]"
+            aria-label="Product detail and category navigation"
+          >
+            <aside className="h-fit rounded-2xl border border-[var(--hp-border)] bg-[var(--hp-surface)] p-4 lg:sticky lg:top-20">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--hp-text-muted)]">Categories</p>
+              <div className="space-y-2">
+                {categoryList.map((category) => {
+                  const isActive = category.id === selectedCategory;
+                  return (
+                    <button
+                      key={category.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedCategory(category.id);
+                        router.push(`/category?slug=${encodeURIComponent(category.id)}`);
+                      }}
+                      className={`w-full rounded-xl border px-3 py-2 text-left text-sm font-medium transition-colors ${
+                        isActive
+                          ? 'border-[var(--hp-primary)] bg-[var(--hp-surface-strong)] text-[var(--hp-primary)]'
+                          : 'border-[var(--hp-border)] bg-[var(--hp-surface)] text-[var(--hp-text-muted)] hover:text-[var(--hp-text)]'
+                      }`}
+                    >
+                      {category.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </aside>
 
             <div>
-              <div className="flex items-center gap-3 mb-4">
-                <Badge className="bg-ocean-500 text-white">Agent Enriched</Badge>
-                {product.in_stock ? (
-                  <Badge className="bg-lime-100 text-lime-700 dark:bg-lime-900 dark:text-lime-300">In Stock</Badge>
-                ) : (
-                  <Badge className="bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300">Out of Stock</Badge>
-                )}
-              </div>
-
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{product.name}</h1>
-              <p className="text-gray-600 dark:text-gray-400 mb-6">{product.description}</p>
-
-              <div className="flex items-end gap-3 mb-6">
-                <span className="text-4xl font-bold text-ocean-500 dark:text-ocean-300">
-                  ${product.price.toFixed(2)}
-                </span>
-                {typeof product.rating === 'number' && (
-                  <span className="text-sm text-gray-600 dark:text-gray-400">
-                    ★ {product.rating.toFixed(1)}{product.review_count ? ` (${product.review_count})` : ''}
-                  </span>
-                )}
-              </div>
-
-              <Button
-                size="lg"
-                className="w-full sm:w-auto bg-ocean-500 hover:bg-ocean-600 dark:bg-ocean-300 dark:hover:bg-ocean-400 text-white dark:text-gray-900"
-                disabled={!product.in_stock}
-              >
-                <FiShoppingCart className="mr-2 w-5 h-5" />
-                Add to Cart
-              </Button>
-
-              <Link
-                href={`/agents/product-enrichment-chat?sku=${encodeURIComponent(product.id)}`}
-                className="inline-flex w-full sm:w-auto mt-3 sm:mt-0 sm:ml-3"
-              >
-                <Button variant="outline" size="lg" className="w-full">Ask Product Agent</Button>
-              </Link>
-
-              {uiProduct.tags && uiProduct.tags.length > 0 && (
-                <div className="mt-6 flex flex-wrap gap-2">
-                  {uiProduct.tags.map((tag) => (
-                    <Badge key={tag} className="bg-cyan-100 text-cyan-700 dark:bg-cyan-900 dark:text-cyan-300">
-                      {tag}
-                    </Badge>
-                  ))}
+              <section className="grid grid-cols-1 gap-12 xl:grid-cols-2" aria-label="Product overview">
+                <div className="aspect-square overflow-hidden rounded-2xl bg-[var(--hp-surface-strong)]">
+                  <Image
+                    src={uiProduct.thumbnail || '/images/products/p1.jpg'}
+                    alt={product.name}
+                    width={800}
+                    height={800}
+                    className="h-full w-full object-cover"
+                  />
                 </div>
-              )}
+
+                <div>
+                  <div className="mb-4 flex items-center gap-3">
+                    <Badge className="bg-[var(--hp-primary)] text-white">Agent Enriched</Badge>
+                    {product.in_stock ? (
+                      <Badge className="bg-[var(--hp-accent)]/20 text-[var(--hp-accent)]">In Stock</Badge>
+                    ) : (
+                      <Badge className="bg-[var(--hp-primary)]/20 text-[var(--hp-primary)]">Out of Stock</Badge>
+                    )}
+                  </div>
+
+                  <h1 className="mb-2 text-3xl font-black text-[var(--hp-text)]">{product.name}</h1>
+                  <p className="mb-6 text-[var(--hp-text-muted)]">{product.description}</p>
+
+                  <div className="mb-6 flex items-end gap-3">
+                    <span className="text-4xl font-black text-[var(--hp-primary)]">${product.price.toFixed(2)}</span>
+                    {typeof product.rating === 'number' && (
+                      <span className="text-sm text-[var(--hp-text-muted)]">
+                        ★ {product.rating.toFixed(1)}{product.review_count ? ` (${product.review_count})` : ''}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <Button
+                      size="lg"
+                      className="w-full sm:w-auto"
+                      onClick={handleAddToCartClick}
+                      disabled={!product.in_stock}
+                    >
+                      <FiShoppingCart className="mr-2 h-5 w-5" />
+                      Add to Cart
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      className="w-full border-[var(--hp-primary)]/55 text-[var(--hp-primary)] hover:bg-[var(--hp-primary)]/10 sm:w-auto"
+                      onClick={() => setShowFitPrompt((current) => !current)}
+                    >
+                      Does this fits my case?
+                      <FiArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  {showFitPrompt ? (
+                    <Card className="mt-4 border border-[var(--hp-border)] bg-[var(--hp-surface)] p-4 text-[var(--hp-text)]">
+                      <label htmlFor="fit-use-case" className="mb-2 block text-sm font-semibold text-[var(--hp-text)]">
+                        Describe your use case
+                      </label>
+                      <textarea
+                        id="fit-use-case"
+                        value={useCaseInput}
+                        onChange={(event) => setUseCaseInput(event.target.value)}
+                        placeholder="Example: I need this product for daily travel, outdoor use, and long battery life."
+                        rows={4}
+                        className="w-full rounded-xl border border-[var(--hp-border)] bg-[var(--hp-surface-strong)] px-3 py-2 text-sm text-[var(--hp-text)] placeholder:text-[var(--hp-text-muted)]"
+                      />
+                      <div className="mt-3 flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          onClick={handleRunFitEvaluation}
+                          disabled={fitLoading || useCaseInput.trim().length === 0}
+                        >
+                          {fitLoading ? 'Evaluating...' : 'Evaluate fit'}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-[var(--hp-text-muted)] hover:text-[var(--hp-text)]"
+                          onClick={() => {
+                            setShowFitPrompt(false);
+                            setFitError(null);
+                          }}
+                        >
+                          Close
+                        </Button>
+                      </div>
+                    </Card>
+                  ) : null}
+
+                  {uiProduct.tags && uiProduct.tags.length > 0 && (
+                    <div className="mt-6 flex flex-wrap gap-2">
+                      {uiProduct.tags.map((tag) => (
+                        <Badge key={tag} className="bg-[var(--hp-accent)]/20 text-[var(--hp-accent)]">
+                          {tag}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+
+                  {fitError ? (
+                    <Card className="mt-4 border border-[var(--hp-primary)]/30 p-4">
+                      <p className="text-sm text-[var(--hp-primary)]">{fitError}</p>
+                    </Card>
+                  ) : null}
+
+                  {fitAssessment && fitResponseView ? (
+                    <Card className="mt-4 border border-[var(--hp-border)] p-4">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <h3 className="text-sm font-semibold text-[var(--hp-text)]">Use case evaluation</h3>
+                        <Badge className={verdictBadgeClass(fitAssessment.verdict)}>
+                          {fitAssessment.verdict === 'fits'
+                            ? 'Fits'
+                            : fitAssessment.verdict === 'partial'
+                              ? 'Partially fits'
+                              : fitAssessment.verdict === 'not_fit'
+                                ? 'Does not fit'
+                                : 'Needs review'}
+                        </Badge>
+                      </div>
+
+                      <div className="mb-3 grid gap-2 text-sm sm:grid-cols-2">
+                        <div className="rounded-lg border border-[var(--hp-border)] bg-[var(--hp-surface)] p-2">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--hp-text-muted)]">Confidence</p>
+                          <p className="text-[var(--hp-text)]">
+                            {typeof fitAssessment.confidence === 'number'
+                              ? `${Math.round(fitAssessment.confidence * (fitAssessment.confidence <= 1 ? 100 : 1))}%`
+                              : 'Not provided'}
+                          </p>
+                        </div>
+                        <div className="rounded-lg border border-[var(--hp-border)] bg-[var(--hp-surface)] p-2">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--hp-text-muted)]">Recommendation</p>
+                          <p className="text-[var(--hp-text)]">{fitAssessment.recommendation}</p>
+                        </div>
+                      </div>
+
+                      {fitAssessment.reasonsForFit.length > 0 ? (
+                        <div className="mb-3">
+                          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--hp-text-muted)]">Why it fits</p>
+                          <ul className="space-y-1 text-sm text-[var(--hp-text)]">
+                            {fitAssessment.reasonsForFit.slice(0, 4).map((reason, index) => (
+                              <li key={`fit-reason-${index}`} className="rounded-md bg-[var(--hp-surface)] px-2 py-1">{reason}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+
+                      {fitAssessment.reasonsAgainst.length > 0 ? (
+                        <div className="mb-3">
+                          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--hp-text-muted)]">Possible constraints</p>
+                          <ul className="space-y-1 text-sm text-[var(--hp-text)]">
+                            {fitAssessment.reasonsAgainst.slice(0, 4).map((reason, index) => (
+                              <li key={`fit-constraint-${index}`} className="rounded-md bg-[var(--hp-surface)] px-2 py-1">{reason}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+
+                      <AgentMessageDisplay compact view={fitResponseView} />
+                    </Card>
+                  ) : null}
+                </div>
+              </section>
             </div>
-          </div>
+          </section>
 
           <Card className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -132,9 +551,9 @@ export function ProductPageClient({ productId }: { productId: string }) {
 function Feature({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
   return (
     <div className="text-center">
-      <div className="text-ocean-500 dark:text-ocean-300 mb-2 flex justify-center">{icon}</div>
-      <h4 className="font-semibold text-gray-900 dark:text-white text-sm mb-1">{title}</h4>
-      <p className="text-xs text-gray-600 dark:text-gray-400">{description}</p>
+      <div className="mb-2 flex justify-center text-[var(--hp-accent)]">{icon}</div>
+      <h4 className="mb-1 text-sm font-semibold text-[var(--hp-text)]">{title}</h4>
+      <p className="text-xs text-[var(--hp-text-muted)]">{description}</p>
     </div>
   );
 }

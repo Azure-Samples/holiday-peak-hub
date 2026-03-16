@@ -28,6 +28,14 @@ const nextConfig = {
         protocol: 'https',
         hostname: '*.azurestaticapps.net',
       },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'picsum.photos',
+      },
     ],
     unoptimized: process.env.NODE_ENV === 'production', // For static export
   },
