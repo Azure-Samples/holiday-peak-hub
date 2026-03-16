@@ -410,15 +410,15 @@ Follow ADR-022: `<prefix>/<issue-id>-<short-description>`
 
 ## References
 
-- [`docs/README.md`](../../docs/README.md) — Merge and release workflows
-- [`docs/governance/README.md`](../../docs/governance/README.md) — Repository governance
+- [`docs/OPERATIONAL-WORKFLOWS.md`](../../docs/OPERATIONAL-WORKFLOWS.md) — Merge and release workflows
+- [`.github/governance-map.md`](../../.github/governance-map.md) — Repository governance
 - [GitHub PR Documentation](https://docs.github.com/en/pull-requests)
 
 ---
 
 ## Agent Ecosystem
 
-> **Dynamic discovery**: Before delegating work, consult [`.github/agents/data/team-mapping.md`](../../.github/agents/data/team-mapping.md) for the full registry of specialist agents, their domains, and trigger phrases.
+> **Dynamic discovery**: Consult [`.github/agents/data/team-mapping.md`](../../.github/agents/data/team-mapping.md) when available; if it is absent, continue with available workspace agents/tools and do not hard-fail.
 >
 > Use `#runSubagent` with the agent name to invoke any specialist. The registry is the single source of truth for which agents exist and what they handle.
 
