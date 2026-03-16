@@ -57,14 +57,14 @@ describe('base URL resolver contract', () => {
   });
 
   describe('resolveCrudApiClientBaseUrl', () => {
-    it('uses direct NEXT_PUBLIC vars in browser runtime when env param is omitted', () => {
+    it('uses browser proxy route in browser runtime when env param is omitted', () => {
       process.env.NEXT_PUBLIC_CRUD_API_URL = 'https://browser-direct.example.net/';
 
       const browser = resolveCrudApiClientBaseUrl({ runtime: 'browser' });
 
       expect(browser).toEqual({
-        baseUrl: 'https://browser-direct.example.net',
-        sourceKey: 'NEXT_PUBLIC_CRUD_API_URL',
+        baseUrl: '/api',
+        sourceKey: 'BROWSER_PROXY_ROUTE',
         runtime: 'browser',
       });
     });
@@ -77,15 +77,15 @@ describe('base URL resolver contract', () => {
         } as NodeJS.ProcessEnv,
       });
       expect(browser).toEqual({
-        baseUrl: 'https://browser.example.net',
-        sourceKey: 'NEXT_PUBLIC_CRUD_API_URL',
+        baseUrl: '/api',
+        sourceKey: 'BROWSER_PROXY_ROUTE',
         runtime: 'browser',
       });
 
       const browserFallback = resolveCrudApiClientBaseUrl({ runtime: 'browser', env: {} as NodeJS.ProcessEnv });
       expect(browserFallback).toEqual({
-        baseUrl: '',
-        sourceKey: null,
+        baseUrl: '/api',
+        sourceKey: 'BROWSER_PROXY_ROUTE',
         runtime: 'browser',
       });
 

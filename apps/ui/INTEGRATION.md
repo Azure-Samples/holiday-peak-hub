@@ -55,7 +55,7 @@ Shared resolver module: `app/api/_shared/base-url-resolver.ts`
 - CRUD env precedence: `NEXT_PUBLIC_CRUD_API_URL` → `NEXT_PUBLIC_API_URL` → `NEXT_PUBLIC_API_BASE_URL` → `CRUD_API_URL`
 - Agent env precedence: `NEXT_PUBLIC_AGENT_API_URL` → `AGENT_API_URL` → CRUD aliases above with `/agents` suffix
 - Browser runtime:
-  - CRUD client (`lib/api/client.ts`) uses configured public cloud URL when set; otherwise falls back to relative URL (`''`) via `/api/*` route
+  - CRUD client (`lib/api/client.ts`) always uses `/api/*` proxy route
   - Agent client (`lib/api/agentClient.ts`) uses `/agent-api/*`
 - Server runtime:
   - CRUD and Agent API routes/clients resolve from env precedence above
@@ -64,6 +64,22 @@ Shared resolver module: `app/api/_shared/base-url-resolver.ts`
   - Agent client derives from resolved CRUD base + `/agents` (fallback `/agents`)
 
 This contract is validated by unit tests in `tests/unit/baseUrlResolverContract.test.ts`.
+
+## Runtime Hosting Mode (Azure Static Web Apps + Next.js)
+
+This UI is deployed on **Azure Static Web Apps with Next.js server runtime enabled** (hybrid mode), not as static-only export.
+
+- Production evidence includes `X-Powered-By: Next.js`.
+- `/api/*` requests are handled by Next Route Handlers and proxied upstream with `x-holiday-peak-proxy: next-app-api`.
+- `next.config.js` uses `output: 'standalone'`, which is compatible with server-side runtime deployment.
+
+### Avoid confusion: Static-only vs Hybrid Next.js on SWA
+
+- **Static-only SWA (no Node runtime)**
+  Uses Next static export (`output: 'export'`), serves prebuilt assets only, and does not execute Next Route Handlers/SSR at request time.
+
+- **SWA + Next server runtime (current model)**
+  Supports SSR/Server Components/Route Handlers and returns runtime signals such as `X-Powered-By: Next.js` and proxy headers from server handlers.
 
 ## Architecture
 
