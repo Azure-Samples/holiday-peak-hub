@@ -9,9 +9,12 @@ import { Badge } from '@/components/atoms/Badge';
 import { ProductGrid } from '@/components/organisms/ProductGrid';
 import { HeroSlider } from '@/components/organisms/HeroSlider';
 import { ChatWidget } from '@/components/organisms/ChatWidget';
+import { CanvasShelf } from '@/components/organisms/CanvasShelf';
+import { ProductGraphCanvas } from '@/components/organisms/ProductGraphCanvas';
 import { useCategories } from '@/lib/hooks/useCategories';
 import { useProducts } from '@/lib/hooks/useProducts';
 import { mapApiProductsToUi } from '@/lib/utils/productMappers';
+import { trackEcommerceEvent } from '@/lib/utils/telemetry';
 import { FiTrendingUp, FiArrowRight, FiList, FiMessageSquare } from 'react-icons/fi';
 
 export default function HomePage() {
@@ -20,20 +23,49 @@ export default function HomePage() {
 
   const featuredProducts = mapApiProductsToUi(products);
   const featuredCategories = categories.slice(0, 4);
+  const categoryShelfItems = featuredCategories.map((category) => ({
+    id: category.id,
+    title: category.name,
+    subtitle: category.description || 'Browse this category',
+    meta: 'Category',
+    href: `/category?slug=${encodeURIComponent(category.id)}`,
+  }));
+  const productShelfItems = featuredProducts.slice(0, 10).map((product) => ({
+    id: product.sku,
+    title: product.title,
+    subtitle: product.description,
+    meta: product.inStock ? 'In stock' : 'Low availability',
+    href: `/product?id=${encodeURIComponent(product.sku)}`,
+  }));
+
+  const trackOpenFullCatalog = () => {
+    trackEcommerceEvent('category_opened', {
+      slug: 'all',
+      source: 'home_link',
+    });
+  };
 
   return (
     <MainLayout>
-      <section className="mb-8 sm:mb-10">
+      <section className="mb-10 sm:mb-14">
         <HeroSlider />
       </section>
 
-      <section className="showcase-shell mb-8 p-4 sm:mb-10 sm:p-5">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      {featuredProducts.length > 0 && (
+        <ProductGraphCanvas
+          products={featuredProducts}
+          ariaLabel="Homepage draggable product graph"
+        />
+      )}
+
+      <section className="showcase-shell mb-10 p-5 sm:mb-14 sm:p-6">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 sm:mb-6">
           <h2 className="text-2xl font-black showcase-gradient-text sm:text-3xl">
             Explore Catalog Departments
           </h2>
           <Link
             href="/category?slug=all"
+            onClick={trackOpenFullCatalog}
             className="inline-flex items-center text-sm font-semibold text-[var(--hp-primary)] transition-colors hover:text-[var(--hp-primary-hover)]"
           >
             Open full catalog
@@ -41,43 +73,23 @@ export default function HomePage() {
           </Link>
         </div>
 
-        <p className="mb-4 text-sm text-[var(--hp-text-muted)]">
+        <p className="mb-5 text-sm text-[var(--hp-text-muted)] sm:mb-6">
           Catalog path: start by category, then open product detail pages for exact attributes and pricing.
         </p>
 
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          {featuredCategories.length > 0 ? (
-            featuredCategories.map((category) => (
-              <Link
-                key={category.id}
-                href={`/category?slug=${encodeURIComponent(category.id)}`}
-                className="group relative block aspect-[4/3] overflow-hidden rounded-2xl border border-[var(--hp-border)] shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
-              >
-                {category.image_url ? (
-                  <Image
-                    src={category.image_url}
-                    alt={category.name}
-                    fill
-                    className="object-cover transition-transform duration-500 group-hover:scale-110"
-                  />
-                ) : (
-                  <div className="absolute inset-0 animate-pulse bg-[var(--hp-surface-strong)]" />
-                )}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-                <div className="absolute bottom-4 left-4 text-white z-10">
-                  <h3 className="mb-1 text-lg font-bold sm:text-xl">{category.name}</h3>
-                  <p className="translate-y-2 text-xs text-gray-200 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100 sm:text-sm">
-                    {category.description || 'Browse products'}
-                  </p>
-                </div>
-              </Link>
-            ))
-          ) : (
-            Array(4).fill(0).map((_, i) => (
+        {categoryShelfItems.length > 0 ? (
+          <CanvasShelf
+            title="Category Flow"
+            items={categoryShelfItems}
+            ariaLabel="Category shelf with drag and keyboard navigation"
+          />
+        ) : (
+          <div className="grid grid-cols-2 gap-4 sm:gap-5 md:grid-cols-4">
+            {Array(4).fill(0).map((_, i) => (
               <div key={i} className="aspect-[4/3] animate-pulse rounded-2xl bg-[var(--hp-surface-strong)]" />
-            ))
-          )}
-        </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="mb-8 sm:mb-10">
@@ -97,8 +109,18 @@ export default function HomePage() {
           ariaLabel="Featured product catalog"
         />
 
+        {productShelfItems.length > 0 && (
+          <div className="mt-6">
+            <CanvasShelf
+              title="Discovery Rail"
+              items={productShelfItems}
+              ariaLabel="Product discovery shelf with drag and keyboard navigation"
+            />
+          </div>
+        )}
+
         <div className="mt-6 text-center">
-          <Link href="/category?slug=all">
+          <Link href="/category?slug=all" onClick={trackOpenFullCatalog}>
             <Button
               size="lg"
               variant="secondary"
