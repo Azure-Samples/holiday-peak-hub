@@ -9,6 +9,7 @@ API_PATH_PREFIX="${API_PATH_PREFIX:-agents}"
 CHANGED_SERVICES="${CHANGED_SERVICES:-}"
 RESOURCE_GROUP="${AZURE_RESOURCE_GROUP:-${RESOURCE_GROUP:-}}"
 APIM_NAME="${APIM_NAME:-}"
+APIM_CORS_ALLOWED_ORIGINS="${APIM_CORS_ALLOWED_ORIGINS:-http://localhost:3000}"
 AKS_CLUSTER_NAME="${AKS_CLUSTER_NAME:-}"
 APP_GW_NAME="${APP_GW_NAME:-}"
 APP_GW_IP="${APP_GW_IP:-}"
@@ -525,18 +526,96 @@ ensure_crud_api() {
     return 1
   fi
 
+  CORS_ORIGINS_XML="$(python - "$APIM_CORS_ALLOWED_ORIGINS" <<'PY'
+import html
+import sys
+
+raw = sys.argv[1]
+origins = [origin.strip() for origin in raw.split(',') if origin.strip()]
+if not origins:
+    origins = ["http://localhost:3000"]
+
+print("".join(f"<origin>{html.escape(origin, quote=True)}</origin>" for origin in origins))
+PY
+)"
+
+  POLICY_XML_FILE="$(mktemp)"
+  cat > "$POLICY_XML_FILE" <<EOF
+<policies>
+  <inbound>
+    <base />
+    <cors allow-credentials="false">
+      <allowed-origins>$CORS_ORIGINS_XML</allowed-origins>
+      <allowed-methods preflight-result-max-age="300"><method>*</method></allowed-methods>
+      <allowed-headers><header>*</header></allowed-headers>
+      <expose-headers><header>*</header></expose-headers>
+    </cors>
+    <choose>
+      <when condition="@(context.Request.OriginalUrl.Path.Equals(&quot;/api/health&quot;, System.StringComparison.OrdinalIgnoreCase))">
+        <rewrite-uri template="/health" copy-unmatched-params="true" />
+      </when>
+      <when condition="@(context.Request.OriginalUrl.Path.Equals(&quot;/api&quot;, System.StringComparison.OrdinalIgnoreCase) || context.Request.OriginalUrl.Path.StartsWith(&quot;/api/&quot;, System.StringComparison.OrdinalIgnoreCase))">
+        <set-variable name="crudBackendPath" value="@(context.Request.OriginalUrl.Path.Length > 4 ? context.Request.OriginalUrl.Path.Substring(4) : string.Empty)" />
+        <rewrite-uri template="@(string.Concat(&quot;/api&quot;, (string)context.Variables[&quot;crudBackendPath&quot;]))" copy-unmatched-params="true" />
+      </when>
+      <otherwise>
+        <return-response>
+          <set-status code="400" reason="Bad Request" />
+          <set-header name="Content-Type" exists-action="override"><value>application/json</value></set-header>
+          <set-body>{"detail":"Invalid CRUD API path."}</set-body>
+        </return-response>
+      </otherwise>
+    </choose>
+  </inbound>
+  <backend>
+    <base />
+    <forward-request timeout="60" />
+  </backend>
+  <outbound>
+    <base />
+    <set-header name="Access-Control-Allow-Origin" exists-action="override"><value>@(context.Request.Headers.GetValueOrDefault(&quot;Origin&quot;, &quot;http://localhost:3000&quot;))</value></set-header>
+    <set-header name="Access-Control-Allow-Methods" exists-action="override"><value>GET,POST,PUT,PATCH,DELETE,OPTIONS</value></set-header>
+    <set-header name="Access-Control-Allow-Headers" exists-action="override"><value>*</value></set-header>
+  </outbound>
+  <on-error>
+    <base />
+    <return-response>
+      <set-status code="502" reason="Bad Gateway" />
+      <set-header name="Access-Control-Allow-Origin" exists-action="override"><value>@(context.Request.Headers.GetValueOrDefault(&quot;Origin&quot;, &quot;http://localhost:3000&quot;))</value></set-header>
+      <set-header name="Access-Control-Allow-Methods" exists-action="override"><value>GET,POST,PUT,PATCH,DELETE,OPTIONS</value></set-header>
+      <set-header name="Access-Control-Allow-Headers" exists-action="override"><value>*</value></set-header>
+      <set-header name="Content-Type" exists-action="override"><value>application/json</value></set-header>
+      <set-body>{"detail":"APIM upstream error while routing to CRUD backend."}</set-body>
+    </return-response>
+  </on-error>
+</policies>
+EOF
+
   POLICY_FILE="$(mktemp)"
-  cat > "$POLICY_FILE" <<'JSON'
-{
-  "properties": {
-    "format": "rawxml",
-    "value": "<policies><inbound><base /><choose><when condition=\"@(context.Request.OriginalUrl.Path.Equals(&quot;/api/health&quot;, System.StringComparison.OrdinalIgnoreCase))\"><rewrite-uri template=\"/health\" copy-unmatched-params=\"true\" /></when><when condition=\"@(context.Request.OriginalUrl.Path.Equals(&quot;/api&quot;, System.StringComparison.OrdinalIgnoreCase) || context.Request.OriginalUrl.Path.StartsWith(&quot;/api/&quot;, System.StringComparison.OrdinalIgnoreCase))\"><set-variable name=\"crudBackendPath\" value=\"@(context.Request.OriginalUrl.Path.Length > 4 ? context.Request.OriginalUrl.Path.Substring(4) : string.Empty)\" /><rewrite-uri template=\"@(string.Concat(&quot;/api&quot;, (string)context.Variables[&quot;crudBackendPath&quot;]))\" copy-unmatched-params=\"true\" /></when><otherwise><return-response><set-status code=\"400\" reason=\"Bad Request\" /><set-header name=\"Content-Type\" exists-action=\"override\"><value>application/json</value></set-header><set-body>{\"detail\":\"Invalid CRUD API path.\"}</set-body></return-response></otherwise></choose></inbound><backend><base /><forward-request timeout=\"60\" /></backend><outbound><base /></outbound><on-error><base /><return-response><set-status code=\"502\" reason=\"Bad Gateway\" /><set-header name=\"Content-Type\" exists-action=\"override\"><value>application/json</value></set-header><set-body>{\"detail\":\"APIM upstream error while routing to CRUD backend.\"}</set-body></return-response></on-error></policies>"
-  }
+  python - "$POLICY_XML_FILE" "$POLICY_FILE" <<'PY'
+import json
+import sys
+
+xml_path = sys.argv[1]
+json_path = sys.argv[2]
+
+with open(xml_path, encoding="utf-8") as f:
+    xml = f.read()
+
+payload = {
+    "properties": {
+        "format": "rawxml",
+        "value": xml,
+    }
 }
-JSON
+
+with open(json_path, "w", encoding="utf-8") as f:
+    json.dump(payload, f)
+PY
 
   POLICY_URL="https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ApiManagement/service/$APIM_NAME/apis/$API_ID/policies/policy?api-version=2022-08-01"
   az rest --method put --url "$POLICY_URL" --headers "Content-Type=application/json" --body "@$POLICY_FILE" --only-show-errors >/dev/null
+  rm -f "$POLICY_XML_FILE"
   rm -f "$POLICY_FILE"
 }
 

@@ -6,16 +6,14 @@
 
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 
-const IS_TEST_ENV = process.env.NODE_ENV === 'test';
-const SERVER_CRUD_API_BASE_URL = process.env.NEXT_PUBLIC_CRUD_API_URL || '';
-const AGENT_API_BASE_URL = IS_TEST_ENV
-  ? `${SERVER_CRUD_API_BASE_URL.replace(/\/$/, '')}/agents`
-  : typeof window !== 'undefined'
-    ? '/agent-api'
-    : process.env.NEXT_PUBLIC_AGENT_API_URL || `${SERVER_CRUD_API_BASE_URL.replace(/\/$/, '')}/agents`;
+import { resolveAgentApiClientBaseUrl } from '@/app/api/_shared/base-url-resolver';
+
+const AGENT_API_BASE_URL = resolveAgentApiClientBaseUrl().baseUrl || '';
 
 if (!AGENT_API_BASE_URL && typeof window === 'undefined') {
-  throw new Error('NEXT_PUBLIC_AGENT_API_URL or NEXT_PUBLIC_CRUD_API_URL must be set to a cloud backend URL.');
+  throw new Error(
+    'Agent API base URL is not configured. Set NEXT_PUBLIC_AGENT_API_URL or AGENT_API_URL (fallbacks: NEXT_PUBLIC_CRUD_API_URL, NEXT_PUBLIC_API_URL, NEXT_PUBLIC_API_BASE_URL, CRUD_API_URL).',
+  );
 }
 
 export const agentApiClient: AxiosInstance = axios.create({

@@ -48,6 +48,23 @@ axios@1.7.9
    NEXT_PUBLIC_ENTRA_TENANT_ID=your-tenant-id
    ```
 
+### Unified API Base URL Contract
+
+Shared resolver module: `app/api/_shared/base-url-resolver.ts`
+
+- CRUD env precedence: `NEXT_PUBLIC_CRUD_API_URL` → `NEXT_PUBLIC_API_URL` → `NEXT_PUBLIC_API_BASE_URL` → `CRUD_API_URL`
+- Agent env precedence: `NEXT_PUBLIC_AGENT_API_URL` → `AGENT_API_URL` → CRUD aliases above with `/agents` suffix
+- Browser runtime:
+  - CRUD client (`lib/api/client.ts`) uses relative URL (`''`) and calls `/api/*` via Next.js route
+  - Agent client (`lib/api/agentClient.ts`) uses `/agent-api/*`
+- Server runtime:
+  - CRUD and Agent API routes/clients resolve from env precedence above
+- Test runtime:
+  - CRUD client defaults to `http://localhost:8000`
+  - Agent client derives from resolved CRUD base + `/agents` (fallback `/agents`)
+
+This contract is validated by unit tests in `tests/unit/baseUrlResolverContract.test.ts`.
+
 ## Architecture
 
 ### API Layer (`lib/api/`)

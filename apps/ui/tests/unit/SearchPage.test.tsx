@@ -75,4 +75,31 @@ describe('SearchPage', () => {
 
     expect(push).toHaveBeenCalledWith('/search?q=boots');
   });
+
+  it('shows a recoverable proxy error with retry affordance on 502 failures', () => {
+    const refetch = jest.fn();
+    mockUseSemanticSearch.mockReturnValue({
+      data: { items: [], source: 'crud' },
+      isLoading: false,
+      isFetching: false,
+      error: {
+        status: 502,
+        details: {
+          proxy: {
+            failureKind: 'network',
+          },
+        },
+      },
+      refetch,
+    });
+
+    render(<SearchPage />);
+
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(screen.getByText('Catalog search is temporarily unavailable')).toBeInTheDocument();
+    expect(screen.getByText('Catalog search backend is temporarily unreachable.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry search' }));
+    expect(refetch).toHaveBeenCalledTimes(1);
+  });
 });
