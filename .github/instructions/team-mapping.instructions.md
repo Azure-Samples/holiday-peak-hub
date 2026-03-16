@@ -4,6 +4,12 @@ description: Delegation bootstrap that binds agent handoffs to team mapping and 
 ---
 # Delegation Bootstrap
 
+## Ownership Metadata
+
+- Ownership class: `Derived-Generated` (see `.github/ownership-taxonomy.md`)
+- Canonical source metadata: `.github/agents/data/team-mapping.md` generated from shared-agent families enabled in `repos/asset-map.yaml`
+- Generated mirror role: this instruction file is a generated delegation mirror for compatibility with instruction loaders
+
 Before delegating to any agent:
 
 1. Read `.github/agents/data/team-mapping.md` as the canonical agent registry.

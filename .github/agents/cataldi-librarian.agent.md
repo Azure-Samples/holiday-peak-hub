@@ -137,15 +137,15 @@ When working inside a repository that has content structure specifications in `.
 
 ## References
 
-- [`docs/governance/README.md`](../../docs/governance/README.md) — Repository governance and folder responsibilities
+- [`.github/governance-map.md`](../../.github/governance-map.md) — Repository governance and folder responsibilities
 - [`README.md`](../../README.md) — Repository model
-- [`docs/architecture/README.md`](../../docs/architecture/README.md) — Surface area map
+- [`docs/REPOSITORY-SURFACES.md`](../../docs/REPOSITORY-SURFACES.md) — Surface area map
 
 ---
 
 ## Agent Ecosystem
 
-> **Dynamic discovery**: Before delegating work, consult [`.github/agents/data/team-mapping.md`](../../.github/agents/data/team-mapping.md) for the full registry of specialist agents, their domains, and trigger phrases.
+> **Dynamic discovery**: Consult [`.github/agents/data/team-mapping.md`](../../.github/agents/data/team-mapping.md) when available; if it is absent, continue with available workspace agents/tools and do not hard-fail.
 >
 > Use `#runSubagent` with the agent name to invoke any specialist. The registry is the single source of truth for which agents exist and what they handle.
 
