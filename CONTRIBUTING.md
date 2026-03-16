@@ -3,7 +3,7 @@
 Thanks for helping improve Holiday Peak Hub. This repo is a Python 3.13 monorepo with a shared micro-framework plus multiple FastAPI services. Keep changes small, tested, and focused.
 
 ## Prerequisites
-- Python 3.13 with pip
+- Python 3.13 with uv
 - Docker (for image builds)
 - Azure CLI if you plan to run Bicep deploys
 - Access to Redis, Azure Cosmos DB, Azure Storage, and Azure AI Search when exercising memory/adapters end-to-end
@@ -11,9 +11,17 @@ Thanks for helping improve Holiday Peak Hub. This repo is a Python 3.13 monorepo
 ## Setup
 ```pwsh
 python -m pip install --upgrade pip
-pip install -e lib
-Get-ChildItem apps | ForEach-Object { pip install -e (Join-Path $_.FullName 'src') }
+python -m pip install uv
+uv pip install --system -e ./lib/src
+Get-ChildItem apps | ForEach-Object {
+	$srcPath = Join-Path $_.FullName 'src'
+	if (Test-Path (Join-Path $srcPath 'pyproject.toml')) {
+		uv pip install --system -e $srcPath
+	}
+}
 ```
+
+`uv` is the canonical package manager for this repo. `pip` is compatibility-only for bootstrapping `uv`.
 
 ## Development workflow
 - Format/lint: `python -m isort --check lib apps` then `python -m black --check lib apps` and `python -m pylint lib/src apps/*/src`

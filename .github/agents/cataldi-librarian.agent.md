@@ -137,9 +137,9 @@ When working inside a repository that has content structure specifications in `.
 
 ## References
 
-- [`.github/governance-map.md`](../../.github/governance-map.md) — Repository governance and folder responsibilities
+- [`docs/governance/README.md`](../../docs/governance/README.md) — Repository governance and folder responsibilities
 - [`README.md`](../../README.md) — Repository model
-- [`docs/REPOSITORY-SURFACES.md`](../../docs/REPOSITORY-SURFACES.md) — Surface area map
+- [`docs/architecture/README.md`](../../docs/architecture/README.md) — Surface area map
 
 ---
 

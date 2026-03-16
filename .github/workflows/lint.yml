@@ -3,9 +3,24 @@ name: lint
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 on:
   pull_request:
+    branches:
+      - main
   push:
+    branches:
+      - main
+    paths:
+      - lib/**
+      - apps/**
+      - pyproject.toml
+      - conftest.py
+      - .github/workflows/test.yml
+      - .github/workflows/lint.yml
 
 jobs:
   lint:
@@ -16,20 +31,28 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - name: Install tooling
-        run: |
-          python -m pip install --upgrade pip
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
       - name: Install lib
-        run: pip install -e ./lib/src
+        run: uv pip install --system -e ./lib/src
       - name: Install lint dependencies
-        run: pip install pylint isort "black[jupyter]>=25.1.0"
+        run: uv pip install --system pylint isort "black[jupyter]>=25.1.0"
       - name: Install apps
         run: |
           for d in apps/*/src; do
-            [ -f "$d/pyproject.toml" ] && pip install -e "$d" || echo "Skipping $d"
+            [ -f "$d/pyproject.toml" ] && uv pip install --system -e "$d" || echo "Skipping $d"
           done
       - name: Lint
         run: |
           python -m isort --check-only lib apps
           python -m black --check lib apps
           python -m pylint lib/src apps/*/src
+      - name: Validate governance and architecture docs links
+        run: |
+          python scripts/ops/check_markdown_links.py --roots docs/governance docs/architecture/README.md
+      - name: Block stale canonical governance references in agent docs
+        run: |
+          if grep -RInE "OPERATIONAL-WORKFLOWS\.md|REPOSITORY-SURFACES\.md|governance-map\.md" .github/agents; then
+            echo "Found stale canonical governance references in .github/agents"
+            exit 1
+          fi
