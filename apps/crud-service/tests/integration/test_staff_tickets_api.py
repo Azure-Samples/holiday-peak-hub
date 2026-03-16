@@ -49,10 +49,22 @@ def _mock_ticket_repo():
         return dict(item)
 
     with (
-        patch("crud_service.routes.staff.tickets.ticket_repo.query", new=AsyncMock(side_effect=fake_query)),
-        patch("crud_service.routes.staff.tickets.ticket_repo.get_by_id", new=AsyncMock(side_effect=fake_get)),
-        patch("crud_service.routes.staff.tickets.ticket_repo.create", new=AsyncMock(side_effect=fake_create)),
-        patch("crud_service.routes.staff.tickets.ticket_repo.update", new=AsyncMock(side_effect=fake_update)),
+        patch(
+            "crud_service.routes.staff.tickets.ticket_repo.query",
+            new=AsyncMock(side_effect=fake_query),
+        ),
+        patch(
+            "crud_service.routes.staff.tickets.ticket_repo.get_by_id",
+            new=AsyncMock(side_effect=fake_get),
+        ),
+        patch(
+            "crud_service.routes.staff.tickets.ticket_repo.create",
+            new=AsyncMock(side_effect=fake_create),
+        ),
+        patch(
+            "crud_service.routes.staff.tickets.ticket_repo.update",
+            new=AsyncMock(side_effect=fake_update),
+        ),
     ):
         yield
 

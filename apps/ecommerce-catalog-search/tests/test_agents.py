@@ -164,9 +164,7 @@ class TestCatalogSearchAgent:
             assert len(result["results"]) == 1
 
     @pytest.mark.asyncio
-    async def test_handle_uses_ai_search_results(
-        self, agent_dependencies, mock_catalog_product
-    ):
+    async def test_handle_uses_ai_search_results(self, agent_dependencies, mock_catalog_product):
         """Test configured AI Search path uses returned SKU order."""
         mock_inventory_item = InventoryItem(
             sku="SKU-001", available=10, reserved=0, warehouse_id="WH1"
@@ -278,7 +276,6 @@ class TestCatalogSearchAgent:
 
             assert any(
                 record.msg == "catalog_search_fallback_path"
-                and getattr(record, "fallback_reason", None)
-                == "ai_search_transport_error"
+                and getattr(record, "fallback_reason", None) == "ai_search_transport_error"
                 for record in caplog.records
             )

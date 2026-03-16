@@ -55,11 +55,7 @@ def fixture_stores(monkeypatch):
 
     async def fake_get_returns_by_user(user_id, limit=100):
         del limit
-        return [
-            dict(item)
-            for item in return_store.values()
-            if item.get("user_id") == user_id
-        ]
+        return [dict(item) for item in return_store.values() if item.get("user_id") == user_id]
 
     async def fake_get_refund_by_return_id(return_id):
         for item in refund_store.values():
