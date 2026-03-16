@@ -69,11 +69,7 @@ def _mock_returns_dependencies():
 
     async def fake_get_returns_by_user(user_id, limit=100):
         del limit
-        return [
-            dict(item)
-            for item in return_store.values()
-            if item.get("user_id") == user_id
-        ]
+        return [dict(item) for item in return_store.values() if item.get("user_id") == user_id]
 
     async def fake_get_refund_by_return_id(return_id):
         for item in refund_store.values():
@@ -213,7 +209,9 @@ def test_return_lifecycle_happy_path_with_refund_progression(client, _mock_retur
     assert refund_progress.status_code == 200
     assert refund_progress.json()["status"] == "issued"
 
-    lifecycle_event_types = [event_type for event_type, _ in _mock_returns_dependencies["published_lifecycle"]]
+    lifecycle_event_types = [
+        event_type for event_type, _ in _mock_returns_dependencies["published_lifecycle"]
+    ]
     assert lifecycle_event_types == [
         "ReturnRequested",
         "ReturnApproved",
@@ -243,5 +241,7 @@ def test_invalid_transition_returns_conflict_and_no_event(client, _mock_returns_
     assert invalid.status_code == 409
     assert "Invalid return status transition" in invalid.json()["detail"]
 
-    lifecycle_event_types = [event_type for event_type, _ in _mock_returns_dependencies["published_lifecycle"]]
+    lifecycle_event_types = [
+        event_type for event_type, _ in _mock_returns_dependencies["published_lifecycle"]
+    ]
     assert lifecycle_event_types == ["ReturnRequested"]

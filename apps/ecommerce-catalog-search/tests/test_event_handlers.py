@@ -32,7 +32,9 @@ async def test_product_delete_event_deletes_index_document() -> None:
     adapters.mapping = Mock()
 
     with (
-        patch("ecommerce_catalog_search.event_handlers.build_catalog_adapters", return_value=adapters),
+        patch(
+            "ecommerce_catalog_search.event_handlers.build_catalog_adapters", return_value=adapters
+        ),
         patch(
             "ecommerce_catalog_search.event_handlers.delete_catalog_document",
             new=AsyncMock(return_value=True),
@@ -54,9 +56,7 @@ async def test_product_delete_event_deletes_index_document() -> None:
 
 @pytest.mark.asyncio
 async def test_product_update_event_upserts_index_document(mock_catalog_product) -> None:
-    inventory_item = InventoryItem(
-        sku="SKU-001", available=4, reserved=0, warehouse_id="WH1"
-    )
+    inventory_item = InventoryItem(sku="SKU-001", available=4, reserved=0, warehouse_id="WH1")
 
     adapters = Mock()
     adapters.products = AsyncMock()
@@ -67,7 +67,9 @@ async def test_product_update_event_upserts_index_document(mock_catalog_product)
     adapters.mapping.to_acp_product = Mock(return_value={"item_id": "SKU-001"})
 
     with (
-        patch("ecommerce_catalog_search.event_handlers.build_catalog_adapters", return_value=adapters),
+        patch(
+            "ecommerce_catalog_search.event_handlers.build_catalog_adapters", return_value=adapters
+        ),
         patch(
             "ecommerce_catalog_search.event_handlers.upsert_catalog_document",
             new=AsyncMock(return_value=True),

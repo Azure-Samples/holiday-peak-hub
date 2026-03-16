@@ -160,8 +160,7 @@ def test_confirm_after_release_returns_conflict(
 
     assert response.status_code == 409
     assert (
-        response.json()["detail"]
-        == "Invalid reservation status transition: released -> confirmed"
+        response.json()["detail"] == "Invalid reservation status transition: released -> confirmed"
     )
     assert inventory_store["SKU-1"]["reserved_quantity"] == 0
 
@@ -201,8 +200,7 @@ def test_release_after_confirm_returns_conflict(
 
     assert response.status_code == 409
     assert (
-        response.json()["detail"]
-        == "Invalid reservation status transition: confirmed -> released"
+        response.json()["detail"] == "Invalid reservation status transition: confirmed -> released"
     )
     assert inventory_store["SKU-1"]["reserved_quantity"] == 0
 

@@ -100,6 +100,7 @@ async def test_create_payment_intent_stripe_not_configured(monkeypatch, test_cli
 @pytest.mark.asyncio
 async def test_create_payment_intent_success(monkeypatch, test_client):
     """Returns 200 with client_secret when Stripe is configured and order exists."""
+
     async def fake_get(_order_id, partition_key=None):
         del partition_key
         return {"user_id": "user-1", "status": "pending", "total": 99.99}
