@@ -26,8 +26,8 @@ type Viewport = {
 };
 
 export interface ProductGraphCanvasProps {
-  categories: Category[];
-  products: Product[];
+  categories?: Category[];
+  products?: Product[];
   title?: string;
   ariaLabel?: string;
   height?: number;
@@ -89,8 +89,8 @@ const toGraphNodes = (params: {
 };
 
 export const ProductGraphCanvas: React.FC<ProductGraphCanvasProps> = ({
-  categories,
-  products,
+  categories = [],
+  products = [],
   title = 'Category Intelligence Graph',
   ariaLabel = 'Draggable category graph with AI summaries',
   height = 620,
