@@ -121,29 +121,6 @@ function inferRuntimeKind(env: EnvMap = process.env): RuntimeKind {
   return typeof window === 'undefined' ? 'server' : 'browser';
 }
 
-function resolveCrudBrowserPublicBaseUrlFromProcessEnv(): ResolutionResult {
-  const directPublicCandidates: Array<[string, string | undefined]> = [
-    ['NEXT_PUBLIC_CRUD_API_URL', process.env.NEXT_PUBLIC_CRUD_API_URL],
-    ['NEXT_PUBLIC_API_URL', process.env.NEXT_PUBLIC_API_URL],
-    ['NEXT_PUBLIC_API_BASE_URL', process.env.NEXT_PUBLIC_API_BASE_URL],
-  ];
-
-  for (const [key, value] of directPublicCandidates) {
-    const normalized = normalizeBaseUrl(value);
-    if (normalized) {
-      return {
-        baseUrl: normalized,
-        sourceKey: key,
-      };
-    }
-  }
-
-  return {
-    baseUrl: null,
-    sourceKey: null,
-  };
-}
-
 export function resolveCrudApiClientBaseUrl(params?: {
   env?: EnvMap;
   runtime?: RuntimeKind;
@@ -152,19 +129,9 @@ export function resolveCrudApiClientBaseUrl(params?: {
   const runtime = params?.runtime ?? inferRuntimeKind(env);
 
   if (runtime === 'browser') {
-    const resolved = params?.env
-      ? resolveCrudApiBaseUrl(env)
-      : resolveCrudBrowserPublicBaseUrlFromProcessEnv();
-    if (resolved.baseUrl) {
-      return {
-        ...resolved,
-        runtime,
-      };
-    }
-
     return {
-      baseUrl: '',
-      sourceKey: null,
+      baseUrl: '/api',
+      sourceKey: 'BROWSER_PROXY_ROUTE',
       runtime,
     };
   }
