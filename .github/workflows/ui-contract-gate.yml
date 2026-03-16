@@ -46,12 +46,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: yarn
-          cache-dependency-path: apps/ui/yarn.lock
 
       - name: Install UI dependencies
         working-directory: apps/ui
-        run: yarn install --frozen-lockfile --prefer-offline
+        run: yarn install --prefer-offline
 
       - name: Run focused UI contract tests
         working-directory: apps/ui
