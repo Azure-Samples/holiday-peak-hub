@@ -6,57 +6,14 @@
  */
 
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
+import {
+  resolveCrudApiBaseUrl,
+  resolveCrudApiClientBaseUrl,
+} from '@/app/api/_shared/base-url-resolver';
 
-const IS_TEST_ENV = process.env.NODE_ENV === 'test';
-const SERVER_BASE_URL_ENV_KEYS = [
-  'NEXT_PUBLIC_CRUD_API_URL',
-  'NEXT_PUBLIC_API_URL',
-  'NEXT_PUBLIC_API_BASE_URL',
-  'CRUD_API_URL',
-] as const;
+export const resolveServerCrudApiBaseUrl = resolveCrudApiBaseUrl;
 
-type ServerApiBaseUrlResolution = {
-  baseUrl: string | null;
-  sourceKey: (typeof SERVER_BASE_URL_ENV_KEYS)[number] | null;
-};
-
-function normalizeServerApiBaseUrl(candidate: string | undefined): string | null {
-  if (!candidate) {
-    return null;
-  }
-
-  const trimmed = candidate.trim();
-  if (!trimmed) {
-    return null;
-  }
-
-  return trimmed.replace(/\/+$/, '');
-}
-
-// Strategy pattern: resolve first configured API base URL alias in documented priority order.
-export function resolveServerCrudApiBaseUrl(env: NodeJS.ProcessEnv = process.env): ServerApiBaseUrlResolution {
-  for (const key of SERVER_BASE_URL_ENV_KEYS) {
-    const resolved = normalizeServerApiBaseUrl(env[key]);
-    if (resolved) {
-      return {
-        baseUrl: resolved,
-        sourceKey: key,
-      };
-    }
-  }
-
-  return {
-    baseUrl: null,
-    sourceKey: null,
-  };
-}
-
-const SERVER_CRUD_API_BASE_URL = resolveServerCrudApiBaseUrl().baseUrl;
-const CRUD_API_BASE_URL = IS_TEST_ENV
-  ? 'http://localhost:8000'
-  : typeof window !== 'undefined'
-    ? ''
-    : SERVER_CRUD_API_BASE_URL;
+const CRUD_API_BASE_URL = resolveCrudApiClientBaseUrl().baseUrl || '';
 
 const DEV_MOCK_AUTH_HEADER_PREFIX = 'X-Dev-Auth-';
 const DEV_MOCK_AUTH_ENABLED =

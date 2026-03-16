@@ -1,6 +1,7 @@
 param(
     [string]$ResourceGroup = $env:AZURE_RESOURCE_GROUP,
     [string]$ApimName = $env:APIM_NAME,
+    [string]$ApimCorsAllowedOrigins = $(if ($env:APIM_CORS_ALLOWED_ORIGINS) { $env:APIM_CORS_ALLOWED_ORIGINS } else { 'http://localhost:3000' }),
     [string]$Namespace = $(if ($env:K8S_NAMESPACE) { $env:K8S_NAMESPACE } else { 'holiday-peak' }),
     [string]$AzureYamlPath,
     [string]$ChangedServices = $env:CHANGED_SERVICES,
@@ -51,6 +52,23 @@ function Get-EnvValueFromFile {
     }
 
     return ''
+}
+
+function Convert-ToXmlEscapedValue {
+    param([Parameter(Mandatory = $true)][string]$Value)
+
+    return $Value.Replace('&', '&amp;').Replace('<', '&lt;').Replace('>', '&gt;').Replace('"', '&quot;').Replace("'", '&apos;')
+}
+
+function Get-CorsOriginXml {
+    param([string]$OriginsCsv)
+
+    $origins = @($OriginsCsv.Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    if (-not $origins -or $origins.Count -eq 0) {
+        $origins = @('http://localhost:3000')
+    }
+
+    return ($origins | ForEach-Object { "<origin>$(Convert-ToXmlEscapedValue -Value $_)</origin>" }) -join "`n            "
 }
 
 function Get-ResourceGroup {
@@ -683,10 +701,26 @@ function Update-CrudApi {
                 throw 'Failed to resolve Azure subscription id for CRUD APIM policy update.'
         }
 
-        $crudPolicyXml = @'
+        $corsOriginXml = Get-CorsOriginXml -OriginsCsv $ApimCorsAllowedOrigins
+
+        $crudPolicyXml = @"
 <policies>
     <inbound>
         <base />
+        <cors allow-credentials="false">
+            <allowed-origins>
+            $corsOriginXml
+            </allowed-origins>
+            <allowed-methods preflight-result-max-age="300">
+                <method>*</method>
+            </allowed-methods>
+            <allowed-headers>
+                <header>*</header>
+            </allowed-headers>
+            <expose-headers>
+                <header>*</header>
+            </expose-headers>
+        </cors>
         <choose>
             <when condition="@(context.Request.OriginalUrl.Path.Equals(&quot;/api/health&quot;, System.StringComparison.OrdinalIgnoreCase))">
                 <rewrite-uri template="/health" copy-unmatched-params="true" />
@@ -712,11 +746,29 @@ function Update-CrudApi {
     </backend>
     <outbound>
         <base />
+        <set-header name="Access-Control-Allow-Origin" exists-action="override">
+            <value>@(context.Request.Headers.GetValueOrDefault(&quot;Origin&quot;, &quot;http://localhost:3000&quot;))</value>
+        </set-header>
+        <set-header name="Access-Control-Allow-Methods" exists-action="override">
+            <value>GET,POST,PUT,PATCH,DELETE,OPTIONS</value>
+        </set-header>
+        <set-header name="Access-Control-Allow-Headers" exists-action="override">
+            <value>*</value>
+        </set-header>
     </outbound>
     <on-error>
         <base />
         <return-response>
             <set-status code="502" reason="Bad Gateway" />
+            <set-header name="Access-Control-Allow-Origin" exists-action="override">
+                <value>@(context.Request.Headers.GetValueOrDefault(&quot;Origin&quot;, &quot;http://localhost:3000&quot;))</value>
+            </set-header>
+            <set-header name="Access-Control-Allow-Methods" exists-action="override">
+                <value>GET,POST,PUT,PATCH,DELETE,OPTIONS</value>
+            </set-header>
+            <set-header name="Access-Control-Allow-Headers" exists-action="override">
+                <value>*</value>
+            </set-header>
             <set-header name="Content-Type" exists-action="override">
                 <value>application/json</value>
             </set-header>
@@ -724,7 +776,7 @@ function Update-CrudApi {
         </return-response>
     </on-error>
 </policies>
-'@
+"@
 
         $policyPayload = @{ properties = @{ format = 'rawxml'; value = $crudPolicyXml } } | ConvertTo-Json -Depth 8
         $policyTempPath = Join-Path ([System.IO.Path]::GetTempPath()) 'apim-crud-policy.json'

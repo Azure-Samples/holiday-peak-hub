@@ -25,6 +25,27 @@ describe('api client dev mock auth headers', () => {
     return requestInterceptor(config);
   }
 
+  async function getApiClientBaseUrl() {
+    const clientModule = await import('../../lib/api/client');
+    return clientModule.apiClient.defaults.baseURL;
+  }
+
+  it('uses configured cloud CRUD base URL in browser runtime', async () => {
+    process.env.NODE_ENV = 'development';
+    process.env.NEXT_PUBLIC_CRUD_API_URL = 'https://apim.example.azure-api.net/';
+
+    await expect(getApiClientBaseUrl()).resolves.toBe('https://apim.example.azure-api.net');
+  });
+
+  it('falls back to relative browser base URL when no public CRUD URL is configured', async () => {
+    process.env.NODE_ENV = 'development';
+    delete process.env.NEXT_PUBLIC_CRUD_API_URL;
+    delete process.env.NEXT_PUBLIC_API_URL;
+    delete process.env.NEXT_PUBLIC_API_BASE_URL;
+
+    await expect(getApiClientBaseUrl()).resolves.toBe('');
+  });
+
   it('adds bearer authorization when auth token exists', async () => {
     process.env.NEXT_PUBLIC_DEV_AUTH_MOCK = 'true';
     sessionStorage.setItem('auth_token', 'token-123');

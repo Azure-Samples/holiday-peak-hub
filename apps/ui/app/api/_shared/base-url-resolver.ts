@@ -10,6 +10,12 @@ type ResolutionResult = {
   sourceKey: string | null;
 };
 
+export type RuntimeKind = 'browser' | 'server' | 'test';
+
+type ClientResolutionResult = ResolutionResult & {
+  runtime: RuntimeKind;
+};
+
 function normalizeBaseUrl(candidate: string | undefined): string | null {
   if (!candidate) {
     return null;
@@ -105,4 +111,106 @@ export function resolveCrudApiBaseUrl(env?: EnvMap): ResolutionResult {
 
 export function resolveAgentApiBaseUrl(env?: EnvMap): ResolutionResult {
   return resolveBaseUrl(AGENT_BASE_URL_STRATEGIES, env);
+}
+
+function inferRuntimeKind(env: EnvMap = process.env): RuntimeKind {
+  if (env.NODE_ENV === 'test') {
+    return 'test';
+  }
+
+  return typeof window === 'undefined' ? 'server' : 'browser';
+}
+
+function resolveCrudBrowserPublicBaseUrlFromProcessEnv(): ResolutionResult {
+  const directPublicCandidates: Array<[string, string | undefined]> = [
+    ['NEXT_PUBLIC_CRUD_API_URL', process.env.NEXT_PUBLIC_CRUD_API_URL],
+    ['NEXT_PUBLIC_API_URL', process.env.NEXT_PUBLIC_API_URL],
+    ['NEXT_PUBLIC_API_BASE_URL', process.env.NEXT_PUBLIC_API_BASE_URL],
+  ];
+
+  for (const [key, value] of directPublicCandidates) {
+    const normalized = normalizeBaseUrl(value);
+    if (normalized) {
+      return {
+        baseUrl: normalized,
+        sourceKey: key,
+      };
+    }
+  }
+
+  return {
+    baseUrl: null,
+    sourceKey: null,
+  };
+}
+
+export function resolveCrudApiClientBaseUrl(params?: {
+  env?: EnvMap;
+  runtime?: RuntimeKind;
+}): ClientResolutionResult {
+  const env = params?.env ?? process.env;
+  const runtime = params?.runtime ?? inferRuntimeKind(env);
+
+  if (runtime === 'browser') {
+    const resolved = params?.env
+      ? resolveCrudApiBaseUrl(env)
+      : resolveCrudBrowserPublicBaseUrlFromProcessEnv();
+    if (resolved.baseUrl) {
+      return {
+        ...resolved,
+        runtime,
+      };
+    }
+
+    return {
+      baseUrl: '',
+      sourceKey: null,
+      runtime,
+    };
+  }
+
+  if (runtime === 'test') {
+    return {
+      baseUrl: 'http://localhost:8000',
+      sourceKey: 'TEST_DEFAULT_LOCALHOST',
+      runtime,
+    };
+  }
+
+  const resolved = resolveCrudApiBaseUrl(env);
+  return {
+    ...resolved,
+    runtime,
+  };
+}
+
+export function resolveAgentApiClientBaseUrl(params?: {
+  env?: EnvMap;
+  runtime?: RuntimeKind;
+}): ClientResolutionResult {
+  const env = params?.env ?? process.env;
+  const runtime = params?.runtime ?? inferRuntimeKind(env);
+
+  if (runtime === 'browser') {
+    return {
+      baseUrl: '/agent-api',
+      sourceKey: 'BROWSER_PROXY_ROUTE',
+      runtime,
+    };
+  }
+
+  if (runtime === 'test') {
+    const crudResolution = resolveCrudApiBaseUrl(env);
+    return {
+      baseUrl: crudResolution.baseUrl ? `${crudResolution.baseUrl}/agents` : '/agents',
+      sourceKey: crudResolution.sourceKey,
+      runtime,
+    };
+  }
+
+  const resolved = resolveAgentApiBaseUrl(env);
+  return {
+    ...resolved,
+    runtime,
+  };
 }
