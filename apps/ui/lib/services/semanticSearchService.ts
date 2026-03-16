@@ -5,6 +5,7 @@
  */
 
 import agentApiClient from '../api/agentClient';
+import { resolveAgentApiClientBaseUrl } from '@/app/api/_shared/base-url-resolver';
 import { productService } from './productService';
 import {
   mapAcpProductsToUi,
@@ -13,7 +14,7 @@ import {
 } from '../utils/productMappers';
 import type { Product as UiProduct } from '../../components/types';
 
-const AGENT_API_BASE_URL = process.env.NEXT_PUBLIC_AGENT_API_URL || '';
+const AGENT_API_BASE_URL = resolveAgentApiClientBaseUrl().baseUrl || '';
 
 export interface SemanticSearchRequest {
   query: string;

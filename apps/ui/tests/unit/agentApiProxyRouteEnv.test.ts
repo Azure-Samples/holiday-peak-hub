@@ -51,6 +51,27 @@ describe('/agent-api proxy route env handling', () => {
     } as unknown as NextRequest;
   }
 
+  it('returns explicit 502 config diagnostics when no agent proxy base URL is configured', async () => {
+    const route = await import('../../app/agent-api/[...path]/route');
+    const response = await route.GET(makeRequest('http://localhost/agent-api/ecommerce-catalog-search/invoke'), {
+      params: Promise.resolve({ path: ['ecommerce-catalog-search', 'invoke'] }),
+    });
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toEqual(
+      expect.objectContaining({
+        error: 'Agent API proxy is not configured for backend routing.',
+        proxy: expect.objectContaining({
+          failureKind: 'config',
+          attemptedPath: '/agents/ecommerce-catalog-search/invoke',
+          method: 'GET',
+          remediation: expect.any(Array),
+        }),
+      }),
+    );
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
   it('returns 502 with sanitized diagnostics when upstream agent fetch throws', async () => {
     process.env.NEXT_PUBLIC_AGENT_API_URL = 'https://apim.example.azure-api.net/agents';
     (global.fetch as jest.Mock).mockRejectedValue(new Error('connect ETIMEDOUT'));
@@ -65,8 +86,49 @@ describe('/agent-api proxy route env handling', () => {
       expect.objectContaining({
         error: 'Agent API proxy could not reach upstream service.',
         proxy: expect.objectContaining({
+          failureKind: 'network',
           sourceKey: 'NEXT_PUBLIC_AGENT_API_URL',
           attemptedPath: '/agents/ecommerce-product-detail-enrichment/invoke',
+          method: 'GET',
+          upstreamError: 'connect ETIMEDOUT',
+        }),
+      }),
+    );
+  });
+
+  it('returns 502 upstream diagnostics when upstream responds with 502', async () => {
+    process.env.NEXT_PUBLIC_AGENT_API_URL = 'https://apim.example.azure-api.net/agents';
+    (global.fetch as jest.Mock).mockResolvedValue({
+      body: null,
+      status: 502,
+      statusText: 'Bad Gateway',
+      headers: new Headers({
+        'content-type': 'application/json',
+        'x-request-id': 'agent-upstream-req-123',
+      }),
+      json: jest.fn(async () => ({
+        error: 'Agent dependency timeout',
+      })),
+      text: jest.fn(async () => ''),
+    });
+
+    const route = await import('../../app/agent-api/[...path]/route');
+    const response = await route.GET(makeRequest('http://localhost/agent-api/ecommerce-catalog-search/invoke'), {
+      params: Promise.resolve({ path: ['ecommerce-catalog-search', 'invoke'] }),
+    });
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toEqual(
+      expect.objectContaining({
+        error: 'Agent API proxy received a bad gateway response from upstream.',
+        proxy: expect.objectContaining({
+          failureKind: 'upstream',
+          attemptedPath: '/agents/ecommerce-catalog-search/invoke',
+          method: 'GET',
+          upstreamStatus: 502,
+          upstreamStatusText: 'Bad Gateway',
+          upstreamError: 'Agent dependency timeout',
+          upstreamRequestId: 'agent-upstream-req-123',
         }),
       }),
     );

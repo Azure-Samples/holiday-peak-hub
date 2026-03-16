@@ -9,19 +9,36 @@ type TargetResolution = {
   upstreamPath: string;
 };
 
+type ProxyFailureKind = 'config' | 'network' | 'upstream';
+
+type ProxyErrorPayload = {
+  error: string;
+  proxy: {
+    failureKind: ProxyFailureKind;
+    sourceKey: string | null;
+    baseUrl: string | null;
+    attemptedPath: string;
+    method: string;
+    upstreamStatus?: number;
+    upstreamStatusText?: string;
+    upstreamError?: string | null;
+    upstreamRequestId?: string | null;
+    remediation: string[];
+  };
+};
+
 function buildTargetUrl(request: NextRequest, pathSegments: string[]): TargetResolution {
+  const joinedPath = pathSegments.filter(Boolean).join('/');
+  const upstreamPath = joinedPath ? `/agents/${joinedPath}` : '/agents';
   const { baseUrl, sourceKey } = resolveAgentApiBaseUrl();
   if (!baseUrl) {
     return {
       targetUrl: null,
       baseUrl: null,
       sourceKey,
-      upstreamPath: '/agents',
+      upstreamPath,
     };
   }
-
-  const joinedPath = pathSegments.filter(Boolean).join('/');
-  const upstreamPath = joinedPath ? `/agents/${joinedPath}` : '/agents';
   const query = request.nextUrl.search;
 
   return {
@@ -32,24 +49,140 @@ function buildTargetUrl(request: NextRequest, pathSegments: string[]): TargetRes
   };
 }
 
+function extractFirstMessage(payload: unknown): string | null {
+  const extract = (value: unknown, depth = 0): string | null => {
+    if (depth > 4 || value === null || value === undefined) {
+      return null;
+    }
+
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      return trimmed.length > 0 ? trimmed : null;
+    }
+
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const message = extract(item, depth + 1);
+        if (message) {
+          return message;
+        }
+      }
+      return null;
+    }
+
+    if (typeof value === 'object') {
+      const record = value as Record<string, unknown>;
+      for (const key of ['error', 'message', 'detail', 'title', 'msg']) {
+        const message = extract(record[key], depth + 1);
+        if (message) {
+          return message;
+        }
+      }
+    }
+
+    return null;
+  };
+
+  return extract(payload);
+}
+
+async function readUpstreamErrorPayload(response: Response): Promise<string | null> {
+  const contentType = response.headers.get('content-type') || '';
+
+  if (contentType.includes('application/json')) {
+    try {
+      const jsonPayload = await response.json();
+      return extractFirstMessage(jsonPayload);
+    } catch {
+      return null;
+    }
+  }
+
+  try {
+    const text = (await response.text()).trim();
+    if (!text) {
+      return null;
+    }
+
+    return text.slice(0, 240);
+  } catch {
+    return null;
+  }
+}
+
+function buildProxyErrorPayload(params: {
+  failureKind: ProxyFailureKind;
+  sourceKey: string | null;
+  baseUrl: string | null;
+  attemptedPath: string;
+  method: string;
+  upstreamStatus?: number;
+  upstreamStatusText?: string;
+  upstreamError?: string | null;
+  upstreamRequestId?: string | null;
+}): ProxyErrorPayload {
+  const remediationByKind: Record<ProxyFailureKind, string[]> = {
+    config: [
+      'Set NEXT_PUBLIC_AGENT_API_URL or AGENT_API_URL to a reachable backend URL.',
+      'Redeploy or restart the UI host after updating environment variables.',
+    ],
+    network: [
+      'Verify DNS, firewall rules, and outbound network access from the UI host to the agent backend URL.',
+      'Check agent backend availability and retry the request.',
+    ],
+    upstream: [
+      'Inspect upstream agent service logs for request failures and dependency outages.',
+      'Retry after backend recovery or fail over to a healthy upstream instance.',
+    ],
+  };
+
+  const errorByKind: Record<ProxyFailureKind, string> = {
+    config: 'Agent API proxy is not configured for backend routing.',
+    network: 'Agent API proxy could not reach upstream service.',
+    upstream: 'Agent API proxy received a bad gateway response from upstream.',
+  };
+
+  return {
+    error: errorByKind[params.failureKind],
+    proxy: {
+      failureKind: params.failureKind,
+      sourceKey: params.sourceKey,
+      baseUrl: params.baseUrl,
+      attemptedPath: params.attemptedPath,
+      method: params.method,
+      upstreamStatus: params.upstreamStatus,
+      upstreamStatusText: params.upstreamStatusText,
+      upstreamError: params.upstreamError ?? null,
+      upstreamRequestId: params.upstreamRequestId ?? null,
+      remediation: remediationByKind[params.failureKind],
+    },
+  };
+}
+
 async function proxyRequest(
   request: NextRequest,
   context: { params: Promise<{ path: string[] }> },
 ): Promise<NextResponse> {
   const params = await context.params;
   const { targetUrl, baseUrl, sourceKey, upstreamPath } = buildTargetUrl(request, params.path);
+  const method = request.method.toUpperCase();
 
   if (!targetUrl) {
     return NextResponse.json(
+      buildProxyErrorPayload({
+        failureKind: 'config',
+        sourceKey,
+        baseUrl,
+        attemptedPath: upstreamPath,
+        method,
+      }),
       {
-        error:
-          'Agent API proxy is not configured. Set NEXT_PUBLIC_AGENT_API_URL or AGENT_API_URL (fallbacks: NEXT_PUBLIC_CRUD_API_URL, NEXT_PUBLIC_API_URL, CRUD_API_URL).',
-        proxy: {
-          sourceKey,
-          attemptedPath: upstreamPath,
+        status: 502,
+        headers: {
+          'x-holiday-peak-proxy': 'next-app-agent-api',
+          'x-holiday-peak-proxy-failure-kind': 'config',
         },
       },
-      { status: 500 },
     );
   }
 
@@ -57,7 +190,6 @@ async function proxyRequest(
   requestHeaders.delete('host');
   requestHeaders.delete('content-length');
 
-  const method = request.method.toUpperCase();
   const body = method === 'GET' || method === 'HEAD' ? undefined : await request.arrayBuffer();
 
   let upstream: Response;
@@ -79,15 +211,50 @@ async function proxyRequest(
       });
     }
     return NextResponse.json(
+      buildProxyErrorPayload({
+        failureKind: 'network',
+        sourceKey,
+        baseUrl,
+        attemptedPath: upstreamPath,
+        method,
+        upstreamError: error instanceof Error ? error.message : null,
+      }),
       {
-        error: 'Agent API proxy could not reach upstream service.',
-        proxy: {
-          sourceKey,
-          baseUrl,
-          attemptedPath: upstreamPath,
+        status: 502,
+        headers: {
+          'x-holiday-peak-proxy': 'next-app-agent-api',
+          'x-holiday-peak-proxy-source': sourceKey ?? '',
+          'x-holiday-peak-proxy-failure-kind': 'network',
         },
       },
-      { status: 502 },
+    );
+  }
+
+  if (upstream.status === 502) {
+    const upstreamError = await readUpstreamErrorPayload(upstream);
+    const upstreamRequestId =
+      upstream.headers.get('x-request-id') || upstream.headers.get('x-ms-request-id');
+
+    return NextResponse.json(
+      buildProxyErrorPayload({
+        failureKind: 'upstream',
+        sourceKey,
+        baseUrl,
+        attemptedPath: upstreamPath,
+        method,
+        upstreamStatus: upstream.status,
+        upstreamStatusText: upstream.statusText,
+        upstreamError,
+        upstreamRequestId,
+      }),
+      {
+        status: 502,
+        headers: {
+          'x-holiday-peak-proxy': 'next-app-agent-api',
+          'x-holiday-peak-proxy-source': sourceKey ?? '',
+          'x-holiday-peak-proxy-failure-kind': 'upstream',
+        },
+      },
     );
   }
 

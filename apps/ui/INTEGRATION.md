@@ -55,7 +55,7 @@ Shared resolver module: `app/api/_shared/base-url-resolver.ts`
 - CRUD env precedence: `NEXT_PUBLIC_CRUD_API_URL` → `NEXT_PUBLIC_API_URL` → `NEXT_PUBLIC_API_BASE_URL` → `CRUD_API_URL`
 - Agent env precedence: `NEXT_PUBLIC_AGENT_API_URL` → `AGENT_API_URL` → CRUD aliases above with `/agents` suffix
 - Browser runtime:
-  - CRUD client (`lib/api/client.ts`) uses relative URL (`''`) and calls `/api/*` via Next.js route
+  - CRUD client (`lib/api/client.ts`) uses configured public cloud URL when set; otherwise falls back to relative URL (`''`) via `/api/*` route
   - Agent client (`lib/api/agentClient.ts`) uses `/agent-api/*`
 - Server runtime:
   - CRUD and Agent API routes/clients resolve from env precedence above
