@@ -41,7 +41,7 @@ function pathMatchesSegments(pathname: string, segments: string[]): boolean {
   );
 }
 
-export async function middleware(request: NextRequest): Promise<NextResponse> {
+export async function proxy(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl;
 
   const requiresAdmin = pathMatchesSegments(pathname, ADMIN_REQUIRED_SEGMENTS);
