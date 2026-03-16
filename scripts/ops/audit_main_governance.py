@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Audit strict PR-only governance controls for the main branch."""
+"""Audit PR-only governance controls for a target branch."""
 
 from __future__ import annotations
 
@@ -30,6 +30,11 @@ def parse_args() -> argparse.Namespace:
         help="Repository in owner/name format. Defaults to GITHUB_REPOSITORY.",
     )
     parser.add_argument(
+        "--branch",
+        default="main",
+        help="Target branch to audit. Defaults to main.",
+    )
+    parser.add_argument(
         "--required-check",
         action="append",
         default=["lint", "test"],
@@ -43,6 +48,17 @@ def parse_args() -> argparse.Namespace:
         help="Bypass actor IDs explicitly allowed.",
     )
     parser.add_argument(
+        "--min-approvals",
+        type=int,
+        default=0,
+        help="Minimum required PR approvals. Defaults to 0 for solo mode.",
+    )
+    parser.add_argument(
+        "--require-conversation-resolution",
+        action="store_true",
+        help="Require conversation resolution in PR governance checks.",
+    )
+    parser.add_argument(
         "--rulesets-file",
         type=Path,
         help="Optional JSON snapshot file for rulesets endpoint.",
@@ -50,7 +66,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--branch-rules-file",
         type=Path,
-        help="Optional JSON snapshot file for rules/branches/main endpoint.",
+        help="Optional JSON snapshot file for rules/branches/<branch> endpoint.",
+    )
+    parser.add_argument(
+        "--branch-protection-file",
+        type=Path,
+        help="Optional JSON snapshot file for branches/<branch>/protection endpoint.",
     )
     parser.add_argument(
         "--dry-run",
@@ -76,6 +97,15 @@ def _github_get(repo: str, endpoint: str) -> Any:
     except error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
         raise RuntimeError(f"GitHub API {exc.code} on {endpoint}: {body}") from exc
+
+
+def _github_get_optional(repo: str, endpoint: str) -> Any | None:
+    try:
+        return _github_get(repo, endpoint)
+    except RuntimeError as exc:
+        if "GitHub API 404" in str(exc):
+            return None
+        raise
 
 
 def _load_json(path: Path) -> Any:
@@ -159,37 +189,82 @@ def _required_check_contexts(status_rule: dict[str, Any] | None) -> tuple[set[st
     return contexts, strict
 
 
+def _branch_protection_status_contexts(branch_protection: dict[str, Any] | None) -> tuple[set[str], bool]:
+    if not branch_protection:
+        return set(), False
+
+    required_status_checks = branch_protection.get("required_status_checks") or {}
+    strict = bool(required_status_checks.get("strict"))
+
+    contexts: set[str] = set()
+    for context in required_status_checks.get("contexts") or []:
+        if isinstance(context, str):
+            contexts.add(context)
+
+    for entry in required_status_checks.get("checks") or []:
+        if isinstance(entry, str):
+            contexts.add(entry)
+            continue
+        context = entry.get("context") if isinstance(entry, dict) else None
+        if context:
+            contexts.add(context)
+
+    return contexts, strict
+
+
 def audit(
     active_rulesets: list[dict[str, Any]],
     branch_rules: list[dict[str, Any]],
+    branch_protection: dict[str, Any] | None,
     required_checks: list[str],
     allowed_bypass_actor_ids: list[int],
+    min_approvals: int,
+    require_conversation_resolution: bool,
 ) -> AuditResult:
     failures: list[str] = []
     warnings: list[str] = []
 
-    if not active_rulesets and not branch_rules:
+    if not active_rulesets and not branch_rules and not branch_protection:
         failures.append("No active branch ruleset/protection detected for main.")
 
     rule_types = _collect_rule_types(active_rulesets, branch_rules)
 
-    if "pull_request" not in rule_types:
+    has_pull_request_governance = "pull_request" in rule_types or branch_protection is not None
+    if not has_pull_request_governance:
         failures.append("Missing pull_request governance rule (PR-only merge not enforced).")
 
     pull_request_rule = _find_rule(active_rulesets, "pull_request")
     pull_params = (pull_request_rule or {}).get("parameters", {})
     if pull_request_rule:
         approvals = int(pull_params.get("required_approving_review_count") or 0)
-        if approvals < 1:
-            failures.append("Pull request rule does not require at least one approval.")
-        if not bool(pull_params.get("required_review_thread_resolution")):
+        if approvals < min_approvals:
+            failures.append(
+                f"Pull request rule requires {approvals} approval(s), expected at least {min_approvals}."
+            )
+        if require_conversation_resolution and not bool(
+            pull_params.get("required_review_thread_resolution")
+        ):
             failures.append("Pull request rule does not require conversation resolution.")
+    elif branch_protection:
+        pr_reviews = branch_protection.get("required_pull_request_reviews") or {}
+        approvals = int(pr_reviews.get("required_approving_review_count") or 0)
+        if approvals < min_approvals:
+            failures.append(
+                f"Branch protection requires {approvals} approval(s), expected at least {min_approvals}."
+            )
+
+        conversation_resolution_enabled = bool(
+            (branch_protection.get("required_conversation_resolution") or {}).get("enabled")
+        )
+        if require_conversation_resolution and not conversation_resolution_enabled:
+            failures.append("Branch protection does not require conversation resolution.")
     else:
         warnings.append(
             "Pull request rule parameters unavailable in ruleset payload; approvals/thread resolution not fully verifiable."
         )
 
-    if "required_status_checks" not in rule_types:
+    has_required_status_checks = "required_status_checks" in rule_types or branch_protection is not None
+    if not has_required_status_checks:
         failures.append("Missing required_status_checks rule.")
 
     status_rule = _find_rule(active_rulesets, "required_status_checks")
@@ -200,15 +275,30 @@ def audit(
         for check in required_checks:
             if check not in contexts:
                 failures.append(f"Required status check '{check}' is missing from ruleset.")
+    elif branch_protection:
+        contexts, strict = _branch_protection_status_contexts(branch_protection)
+        if not strict:
+            failures.append("Status checks are not in strict mode (up-to-date branch required).")
+        for check in required_checks:
+            if check not in contexts:
+                failures.append(f"Required status check '{check}' is missing from branch protection.")
     else:
         warnings.append(
             "Required status check rule parameters unavailable in ruleset payload; check contexts not fully verifiable."
         )
 
-    if "non_fast_forward" not in rule_types:
+    has_non_fast_forward = "non_fast_forward" in rule_types
+    if branch_protection:
+        force_push_enabled = bool((branch_protection.get("allow_force_pushes") or {}).get("enabled"))
+        has_non_fast_forward = has_non_fast_forward or not force_push_enabled
+    if not has_non_fast_forward:
         failures.append("Missing non_fast_forward rule (force-push blocking).")
 
-    if "deletion" not in rule_types:
+    has_deletion_block = "deletion" in rule_types
+    if branch_protection:
+        deletion_enabled = bool((branch_protection.get("allow_deletions") or {}).get("enabled"))
+        has_deletion_block = has_deletion_block or not deletion_enabled
+    if not has_deletion_block:
         failures.append("Missing deletion rule (branch deletion blocking).")
 
     bypass_actors: list[dict[str, Any]] = []
@@ -241,24 +331,40 @@ def main() -> int:
     if args.branch_rules_file:
         branch_rules_payload = _load_json(args.branch_rules_file)
     else:
-        branch_rules_payload = _github_get(args.repo, "rules/branches/main")
+        branch_rules_payload = _github_get_optional(args.repo, f"rules/branches/{parse.quote(args.branch, safe='')}")
+
+    if args.branch_protection_file:
+        branch_protection_payload = _load_json(args.branch_protection_file)
+    else:
+        branch_protection_payload = _github_get_optional(
+            args.repo,
+            f"branches/{parse.quote(args.branch, safe='')}/protection",
+        )
 
     rulesets = rulesets_payload if isinstance(rulesets_payload, list) else []
     branch_rules = branch_rules_payload if isinstance(branch_rules_payload, list) else []
+    branch_protection = (
+        branch_protection_payload if isinstance(branch_protection_payload, dict) else None
+    )
 
     active_rulesets = _collect_active_branch_rulesets(rulesets)
     result = audit(
         active_rulesets=active_rulesets,
         branch_rules=branch_rules,
+        branch_protection=branch_protection,
         required_checks=args.required_check,
         allowed_bypass_actor_ids=args.allow_bypass_actor_id,
+        min_approvals=args.min_approvals,
+        require_conversation_resolution=args.require_conversation_resolution,
     )
 
     run_mode = "DRY-RUN" if args.dry_run else "LIVE"
     print(f"Governance audit mode: {run_mode}")
     print(f"Repository: {args.repo}")
+    print(f"Branch: {args.branch}")
     print(f"Active main branch rulesets: {len(active_rulesets)}")
     print(f"Branch rules entries (main): {len(branch_rules)}")
+    print(f"Branch protection detected: {branch_protection is not None}")
 
     if result.warnings:
         print("Warnings:")

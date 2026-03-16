@@ -144,6 +144,7 @@ class TestGetCurrentUser:
     @pytest.mark.asyncio
     async def test_rejects_invalid_signature(self, monkeypatch):
         """Should reject token with invalid signature via JWTError."""
+
         async def fake_keys():
             return {
                 "keys": [

@@ -99,7 +99,9 @@ def fixture_stores(monkeypatch):
         "publish_return_lifecycle_event",
         fake_publish_return_lifecycle_event,
     )
-    monkeypatch.setattr(returns.event_publisher, "publish_refund_issued", fake_publish_refund_issued)
+    monkeypatch.setattr(
+        returns.event_publisher, "publish_refund_issued", fake_publish_refund_issued
+    )
 
     return {
         "returns": return_store,

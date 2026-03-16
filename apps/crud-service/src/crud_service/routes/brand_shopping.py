@@ -73,7 +73,9 @@ def _ensure_customer_scope_access(customer_id: str, current_user: User) -> None:
     )
 
 
-def _dedupe_candidates(candidates: list["RecommendationCandidate"]) -> list["RecommendationCandidate"]:
+def _dedupe_candidates(
+    candidates: list["RecommendationCandidate"],
+) -> list["RecommendationCandidate"]:
     """Deduplicate recommendation candidates by SKU using max score."""
     max_scores_by_sku: dict[str, float] = {}
     for candidate in candidates:
@@ -82,8 +84,7 @@ def _dedupe_candidates(candidates: list["RecommendationCandidate"]) -> list["Rec
             max_scores_by_sku[candidate.sku] = candidate.score
 
     return [
-        RecommendationCandidate(sku=sku, score=score)
-        for sku, score in max_scores_by_sku.items()
+        RecommendationCandidate(sku=sku, score=score) for sku, score in max_scores_by_sku.items()
     ]
 
 
@@ -221,9 +222,7 @@ class ComposeRecommendationsResponse(BaseModel):
 
 
 @router.get("/catalog/products/{sku}", response_model=CatalogProductResponse)
-async def get_catalog_product(
-    sku: str = Path(min_length=1, pattern=IDENTIFIER_PATTERN)
-):
+async def get_catalog_product(sku: str = Path(min_length=1, pattern=IDENTIFIER_PATTERN)):
     """Get canonical product contract by SKU."""
     try:
         product = await product_repo.get_by_id(sku)
@@ -320,7 +319,9 @@ async def get_customer_profile(
     except Exception:
         personalization = None
 
-    tier = _normalize_tier((crm_profile or {}).get("tier") if isinstance(crm_profile, dict) else None)
+    tier = _normalize_tier(
+        (crm_profile or {}).get("tier") if isinstance(crm_profile, dict) else None
+    )
     if tier == "standard":
         tier = _normalize_tier(user.get("tier"))
 

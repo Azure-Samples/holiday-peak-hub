@@ -101,7 +101,9 @@ def _build_dev_mock_user(request: Request) -> User | None:
     if not normalized_roles:
         return None
 
-    user_id = request.headers.get(_DEV_MOCK_USER_ID_HEADER, "").strip() or f"mock-{normalized_roles[0]}"
+    user_id = (
+        request.headers.get(_DEV_MOCK_USER_ID_HEADER, "").strip() or f"mock-{normalized_roles[0]}"
+    )
     email = request.headers.get(_DEV_MOCK_EMAIL_HEADER, "").strip() or f"{user_id}@local.dev"
     name = request.headers.get(_DEV_MOCK_NAME_HEADER, "").strip() or "Mock User"
 

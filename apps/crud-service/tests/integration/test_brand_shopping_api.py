@@ -152,6 +152,7 @@ def test_brand_shopping_contract_validation_failures(client):
 
 def test_brand_shopping_contract_not_found_paths(client):
     """Contract endpoints return deterministic not-found errors."""
+
     async def _staff_user():
         return User(
             user_id="staff-100",
@@ -188,7 +189,10 @@ def test_brand_shopping_contract_not_found_paths(client):
         )
         compose_not_found = client.post(
             "/api/recommendations/compose",
-            json={"customer_id": "customer-404", "ranked_items": [{"sku": "SKU-404", "score": 0.5}]},
+            json={
+                "customer_id": "customer-404",
+                "ranked_items": [{"sku": "SKU-404", "score": 0.5}],
+            },
         )
 
     assert product_not_found.status_code == 404
