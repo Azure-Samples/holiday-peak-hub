@@ -59,6 +59,29 @@ This deletes `holidaypeakhub405-dev-rg` asynchronously.
   - `POSTGRES_AUTH_MODE=password`
   - `POSTGRES_AUTH_MODE=entra`
 
+## UI Runtime Clarification (SWA)
+
+The production UI on Azure Static Web Apps runs with **Next.js server runtime (hybrid)**, not static export-only hosting.
+
+- Expected production signals:
+  - `X-Powered-By: Next.js` on UI responses.
+  - `x-holiday-peak-proxy: next-app-api` on `/api/*` responses served via Next Route Handlers.
+- Operational implication: `/api/*` availability depends on Next server runtime health and upstream API reachability.
+
+### How to verify
+
+```bash
+curl -s -D - -o /dev/null https://blue-meadow-00fcb8810.4.azurestaticapps.net/
+curl -s -D - -o /dev/null https://blue-meadow-00fcb8810.4.azurestaticapps.net/api/health
+curl -s -D - -o /dev/null "https://blue-meadow-00fcb8810.4.azurestaticapps.net/api/products?limit=1"
+```
+
+Expected results:
+
+- HTTP status `200` for all three requests.
+- `X-Powered-By: Next.js` present in at least UI/runtime-served responses.
+- `x-holiday-peak-proxy: next-app-api` present on `/api/health` and `/api/products`.
+
 ## Required Governance Action
 
 An external principal (`MCAPSGov-AutomationApp`) is stopping services on a daily cadence. Restrict or exclude this environment from that automation; otherwise, connectivity will continue to break regardless of deployment script quality.
