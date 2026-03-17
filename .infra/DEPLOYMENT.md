@@ -72,14 +72,15 @@ az account set --subscription <SUBSCRIPTION_ID>
 
 Deploy a single shared resource stack, then deploy all services as AKS workloads.
 
-**Deployment order**: Shared Infrastructure → CRUD Service + Agent Services → APIM Sync + APIM Smoke Gate → Static Web App
+**Deployment order**: Shared Infrastructure → CRUD Service + Agent Services → AGC Readiness Gate → APIM Sync + APIM Smoke Gate → Static Web App
 
 Release gate notes:
 
 - UI deployment is blocked unless backend deployment jobs are `success` or `skipped`.
+- AGC readiness is validated before APIM sync by checking the configured GatewayClass and direct CRUD `/health` reachability on the approved AGC frontend hostname.
 - APIM gateway URL is propagated from `azd` outputs and checked against live APIM to catch config drift.
-- APIM smoke checks validate `GET /api/health`, `GET /api/products?limit=1`, and `GET /api/categories` plus changed agent `GET /agents/<service>/health` before UI publish.
-- APIM sync auto-falls back to the Application Gateway ingress host for CRUD when the service has no resolvable load balancer endpoint (for example, when CRUD runs as `ClusterIP`).
+- APIM smoke checks validate direct AGC CRUD health, APIM `GET /api/health`, `GET /api/products?limit=1`, `GET /api/categories`, CRUD CORS preflight, negative CRUD path behavior, and changed agent `GET /agents/<service>/health` before UI publish.
+- APIM sync consumes the approved AGC hostname contract from azd outputs and fails closed if the backend drifts to IP-based or cluster-local targets.
 - UI deployment runs pre/post smoke checks to ensure API health and SWA hostname reachability.
 
 ### Step 1: Deploy Shared Infrastructure
