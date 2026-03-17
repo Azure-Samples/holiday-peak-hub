@@ -1,0 +1,86 @@
+{{- if .Values.agc.enabled }}
+{{- $sharedNamespace := .Values.agc.sharedResources.namespace | default .Release.Namespace }}
+{{- $gatewayName := .Values.agc.sharedResources.gatewayName | default "holiday-peak-agc" }}
+{{- $albName := .Values.agc.sharedResources.applicationLoadBalancerName | default $gatewayName }}
+{{- if and .Values.agc.sharedResources.create .Values.agc.sharedResources.subnetId }}
+apiVersion: alb.networking.azure.io/v1
+kind: ApplicationLoadBalancer
+metadata:
+  name: {{ $albName }}
+  namespace: {{ $sharedNamespace }}
+  labels:
+    app: {{ .Values.serviceName }}
+spec:
+  associations:
+    - {{ .Values.agc.sharedResources.subnetId | quote }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: {{ $gatewayName }}
+  namespace: {{ $sharedNamespace }}
+  labels:
+    app: {{ .Values.serviceName }}
+spec:
+  gatewayClassName: {{ .Values.agc.gatewayClassName | quote }}
+  listeners:
+    {{- range .Values.agc.sharedResources.listeners }}
+    - name: {{ .name | quote }}
+      protocol: {{ .protocol | quote }}
+      port: {{ .port }}
+      {{- if .hostname }}
+      hostname: {{ .hostname | quote }}
+      {{- end }}
+      allowedRoutes:
+        namespaces:
+          from: Same
+    {{- end }}
+---
+{{- end }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ include "holiday-peak-service.fullname" . }}-agc
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Values.serviceName }}
+spec:
+  parentRefs:
+    {{- if .Values.agc.parentRefs }}
+    {{- range .Values.agc.parentRefs }}
+    - name: {{ .name | quote }}
+      {{- if .namespace }}
+      namespace: {{ .namespace | quote }}
+      {{- end }}
+    {{- end }}
+    {{- else }}
+    - name: {{ $gatewayName | quote }}
+      namespace: {{ $sharedNamespace | quote }}
+    {{- end }}
+  {{- if .Values.agc.hostnames }}
+  hostnames:
+    {{- range .Values.agc.hostnames }}
+    - {{ . | quote }}
+    {{- end }}
+  {{- end }}
+  rules:
+    {{- if .Values.agc.paths }}
+    {{- range .Values.agc.paths }}
+    - matches:
+        - path:
+            type: {{ .pathType | default "PathPrefix" }}
+            value: {{ .path | quote }}
+      backendRefs:
+        - name: {{ include "holiday-peak-service.fullname" $ }}
+          port: {{ $.Values.service.port | default 80 }}
+    {{- end }}
+    {{- else }}
+    - matches:
+        - path:
+            type: PathPrefix
+            value: "/"
+      backendRefs:
+        - name: {{ include "holiday-peak-service.fullname" . }}
+          port: {{ .Values.service.port | default 80 }}
+    {{- end }}
+{{- end }}

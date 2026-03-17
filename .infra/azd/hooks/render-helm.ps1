@@ -7,8 +7,17 @@ $namespace = if ($env:K8S_NAMESPACE) { $env:K8S_NAMESPACE } else { "holiday-peak
 $imagePrefix = if ($env:IMAGE_PREFIX) { $env:IMAGE_PREFIX } else { "ghcr.io/azure-samples" }
 $imageTag = if ($env:IMAGE_TAG) { $env:IMAGE_TAG } else { "latest" }
 $kedaEnabled = if ($env:KEDA_ENABLED) { $env:KEDA_ENABLED } else { "false" }
-$ingressEnabled = if ($env:INGRESS_ENABLED) { $env:INGRESS_ENABLED } else { "true" }
-$ingressClassName = if ($env:INGRESS_CLASS_NAME) { $env:INGRESS_CLASS_NAME } else { "webapprouting.kubernetes.azure.com" }
+$publicationMode = if ($env:PUBLICATION_MODE) { $env:PUBLICATION_MODE } else { "legacy" }
+$legacyIngressEnabled = "false"
+$legacyIngressClassName = if ($env:LEGACY_INGRESS_CLASS_NAME) { $env:LEGACY_INGRESS_CLASS_NAME } elseif ($env:INGRESS_CLASS_NAME) { $env:INGRESS_CLASS_NAME } else { "webapprouting.kubernetes.azure.com" }
+$agcEnabled = "false"
+$agcGatewayClassName = if ($env:AGC_GATEWAY_CLASS) { $env:AGC_GATEWAY_CLASS } else { "azure-alb-external" }
+$agcSubnetId = if ($env:AGC_SUBNET_ID) { $env:AGC_SUBNET_ID } else { "" }
+$agcSharedNamespace = if ($env:AGC_SHARED_NAMESPACE) { $env:AGC_SHARED_NAMESPACE } else { $namespace }
+$agcSharedGatewayName = if ($env:AGC_SHARED_GATEWAY_NAME) { $env:AGC_SHARED_GATEWAY_NAME } else { "holiday-peak-agc" }
+$agcSharedAlbName = if ($env:AGC_SHARED_ALB_NAME) { $env:AGC_SHARED_ALB_NAME } else { $agcSharedGatewayName }
+$agcSharedResourcesCreate = if ($env:AGC_SHARED_RESOURCES_CREATE) { $env:AGC_SHARED_RESOURCES_CREATE } else { "false" }
+$agcHostname = if ($env:AGC_HOSTNAME) { $env:AGC_HOSTNAME } else { "" }
 $canaryEnabled = if ($env:CANARY_ENABLED) { $env:CANARY_ENABLED } else { "false" }
 $readinessPath = "/ready"
 $replicaCount = ""
@@ -38,6 +47,30 @@ if ($ServiceName -eq "crud-service") {
     $maxUnavailable = "0"
     $maxSurge = "1"
   }
+}
+
+switch ($publicationMode.ToLowerInvariant()) {
+  'legacy' {
+    $legacyIngressEnabled = 'true'
+  }
+  'agc' {
+    $agcEnabled = 'true'
+  }
+  'dual' {
+    $legacyIngressEnabled = 'true'
+    $agcEnabled = 'true'
+  }
+  'none' {
+    $legacyIngressEnabled = 'false'
+    $agcEnabled = 'false'
+  }
+  default {
+    throw "Unsupported PUBLICATION_MODE '$publicationMode'. Expected one of legacy, agc, dual, none."
+  }
+}
+
+if ($agcEnabled -eq 'true' -and -not $env:AGC_SHARED_RESOURCES_CREATE -and $ServiceName -eq 'crud-service') {
+  $agcSharedResourcesCreate = 'true'
 }
 
 $serviceImageVarName = "SERVICE_$($ServiceName.ToUpper().Replace('-', '_'))_IMAGE_NAME"
@@ -77,9 +110,23 @@ $helmArgs = @(
   '--set',
   "keda.enabled=$kedaEnabled",
   '--set',
-  "ingress.enabled=$ingressEnabled",
+  "ingress.enabled=$legacyIngressEnabled",
   '--set-string',
-  "ingress.className=$ingressClassName",
+  "ingress.className=$legacyIngressClassName",
+  '--set',
+  "agc.enabled=$agcEnabled",
+  '--set-string',
+  "agc.gatewayClassName=$agcGatewayClassName",
+  '--set',
+  "agc.sharedResources.create=$agcSharedResourcesCreate",
+  '--set-string',
+  "agc.sharedResources.namespace=$agcSharedNamespace",
+  '--set-string',
+  "agc.sharedResources.gatewayName=$agcSharedGatewayName",
+  '--set-string',
+  "agc.sharedResources.applicationLoadBalancerName=$agcSharedAlbName",
+  '--set-string',
+  "agc.sharedResources.subnetId=$agcSubnetId",
   '--set',
   "canary.enabled=$canaryEnabled",
   '--set',
@@ -101,6 +148,22 @@ if ($ServiceName -eq "crud-service") {
   $helmArgs += @('--set', 'ingress.paths[0].pathType=Prefix')
   $helmArgs += @('--set', 'ingress.paths[1].path=/api')
   $helmArgs += @('--set', 'ingress.paths[1].pathType=Prefix')
+  $helmArgs += @('--set', 'agc.paths[0].path=/health')
+  $helmArgs += @('--set', 'agc.paths[0].pathType=PathPrefix')
+  $helmArgs += @('--set', 'agc.paths[1].path=/api')
+  $helmArgs += @('--set', 'agc.paths[1].pathType=PathPrefix')
+} else {
+  $helmArgs += @('--set', 'agc.paths[0].path=/health')
+  $helmArgs += @('--set', 'agc.paths[0].pathType=PathPrefix')
+  $helmArgs += @('--set', 'agc.paths[1].path=/invoke')
+  $helmArgs += @('--set', 'agc.paths[1].pathType=PathPrefix')
+  $helmArgs += @('--set', 'agc.paths[2].path=/mcp')
+  $helmArgs += @('--set', 'agc.paths[2].pathType=PathPrefix')
+}
+
+if ($agcHostname) {
+  $helmArgs += @('--set-string', "agc.hostnames[0]=$agcHostname")
+  $helmArgs += @('--set-string', "agc.sharedResources.listeners[0].hostname=$agcHostname")
 }
 
 if ($replicaCount) {

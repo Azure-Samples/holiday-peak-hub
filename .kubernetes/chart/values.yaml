@@ -7,10 +7,10 @@ service:
   targetPort: 8000
   annotations: {}
 
-# Ingress configuration for AKS Web Application Routing (NGINX-based add-on)
+# Legacy ingress configuration for transitional coexistence during AGC migration.
 ingress:
   enabled: true
-  className: "webapprouting.kubernetes.azure.com"
+  className: ""
   host: ""  # Leave empty for path-based routing, or set hostname for host-based
   path: ""  # Defaults to /{serviceName}
   paths: []  # Optional explicit ingress paths, e.g. [{ path: /health, pathType: Prefix }, { path: /api, pathType: Prefix }]
@@ -18,6 +18,25 @@ ingress:
   requestTimeout: 30
   tls: []
   annotations: {}
+
+# Application Gateway for Containers publication.
+agc:
+  enabled: false
+  gatewayClassName: ""
+  hostnames: []
+  paths: []
+  parentRefs: []
+  sharedResources:
+    create: false
+    namespace: ""
+    applicationLoadBalancerName: "holiday-peak-agc"
+    gatewayName: "holiday-peak-agc"
+    subnetId: ""
+    listeners:
+      - name: http
+        protocol: HTTP
+        port: 80
+        hostname: ""
 
 # Container image
 image:
