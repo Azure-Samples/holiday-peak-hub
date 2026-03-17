@@ -33,6 +33,7 @@
 
 ### Runtime Hotfix Notes (2026-03-17)
 - **AGC Subnet Drift Realignment**: Shared infra defaults now pin the delegated `agc` subnet to `10.0.12.0/24` so `azd provision` matches the live dev VNet layout and stops attempting a destructive subnet replacement during canonical deploy runs.
+- **GitHub OIDC Hook Refresh**: Root POSIX `azd` `postprovision` and `postdeploy` hooks now refresh Azure CLI login from the live GitHub Actions OIDC token immediately before Azure/AKS operations, preventing remote deploy failures caused by expired federated assertions during long-running provision/deploy steps.
 
 ### Merged PRs (v1.1.0)
 | # | Title | Category |
