@@ -77,6 +77,7 @@ All resources use AVM (Azure Verified Modules) and deploy to **eastus2** by defa
 | Resource | AVM Module | Purpose |
 |----------|-----------|---------|
 | AKS (3 node pools) | `avm/res/container-service/managed-cluster:0.12.0` | Compute for all services |
+| AGC controller identity | Native | Workload identity principal for the ALB controller |
 | ACR (Premium) | `avm/res/container-registry/registry:0.9.3` | Container image registry |
 | PostgreSQL Flexible Server | `avm/res/db-for-postgre-sql/flexible-server:0.15.0` | CRUD transactional operations |
 | Cosmos DB | `avm/res/document-db/database-account:0.18.0` | Agent warm memory |
@@ -86,8 +87,8 @@ All resources use AVM (Azure Verified Modules) and deploy to **eastus2** by defa
 | Key Vault (Premium) | `avm/res/key-vault/vault:0.13.3` | Secrets + certificates |
 | API Management | `avm/res/api-management/service:0.14.0` | API gateway |
 | AI Foundry Project | `avm/ptn/ai-ml/ai-foundry:0.6.0` | AI/ML model management (pinned to `westus3`, public network enabled) |
-| VNet (5 subnets) | `avm/res/network/virtual-network:0.7.2` | Network isolation |
-| 5 NSGs | `avm/res/network/network-security-group:0.5.2` | Subnet-level security |
+| VNet (5-6 subnets) | `avm/res/network/virtual-network:0.7.2` | Network isolation |
+| 5-6 NSGs | `avm/res/network/network-security-group:0.5.2` | Subnet-level security |
 | 8 Private DNS Zones | `avm/res/network/private-dns-zone:0.8.0` | Private endpoint DNS resolution |
 | Log Analytics | `avm/res/operational-insights/workspace:0.15.0` | Centralized logging |
 | App Insights | `avm/res/insights/component:0.7.1` | Application monitoring |
@@ -118,6 +119,7 @@ All resources use AVM (Azure Verified Modules) and deploy to **eastus2** by defa
 | `aks-crud` | `10.0.8.0/24` | AKS CRUD node pool |
 | `apim` | `10.0.9.0/24` | API Management (prod: Internal VNet) |
 | `private-endpoints` | `10.0.10.0/24` | Private endpoint NICs |
+| `agc` | `10.0.11.0/24` by default | Delegated subnet for Application Gateway for Containers |
 
 ### RBAC Assignments (6)
 
@@ -155,6 +157,8 @@ az deployment sub create \
 ```
 
 **What this creates**: AKS cluster (3 pools), ACR, PostgreSQL (CRUD), Cosmos DB (agent warm memory), Event Hubs (5 topics), Redis, Storage, Key Vault, APIM, AI Foundry Project, VNet (5 subnets + 5 NSGs), 8 Private DNS Zones with Private Endpoints, App Insights, Log Analytics, 6 RBAC assignments
+
+When `agcSupportEnabled` is on, shared infrastructure also creates the delegated AGC subnet, the ALB controller workload identity, and the RBAC required for later AGC route publication. The `azd` postprovision flow then installs the ALB controller into AKS without cutting over any workloads.
 
 **Duration**: ~25 minutes | **Cost**: see [Cost Estimates](#-cost-estimates)
 

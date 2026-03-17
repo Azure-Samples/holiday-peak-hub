@@ -6,8 +6,12 @@ param environment string = 'dev' // dev, staging, prod
 param projectName string = 'holidaypeakhub'
 @description('Optional override for Key Vault name (3-24 chars, lowercase letters, numbers, and hyphens). Leave empty to use default naming.')
 param keyVaultNameOverride string = ''
-@description('Enable AKS Web App Routing addon. Keep disabled for AGIC/App Gateway-first ingress topology.')
+@description('Enable the legacy AKS Web App Routing addon. Keep disabled for the AGC target edge posture.')
 param aksWebApplicationRoutingEnabled bool = false
+@description('Enable Application Gateway for Containers shared-infrastructure prerequisites for the dev environment.')
+param agcSupportEnabled bool = environment == 'dev'
+@description('CIDR prefix for the delegated AGC subnet. Must provide at least 256 available IPs.')
+param agcSubnetAddressPrefix string = '10.0.11.0/24'
 @secure()
 @description('Optional PostgreSQL administrator password for CRUD database.')
 param postgresAdminPassword string = ''
@@ -34,6 +38,8 @@ module sharedInfra './shared-infrastructure.bicep' = {
     projectName: projectName
     keyVaultNameOverride: keyVaultNameOverride
     aksWebApplicationRoutingEnabled: aksWebApplicationRoutingEnabled
+    agcSupportEnabled: agcSupportEnabled
+    agcSubnetAddressPrefix: agcSubnetAddressPrefix
     postgresAdminPassword: postgresAdminPassword
   }
   dependsOn: [
@@ -67,3 +73,16 @@ output aiSearchName string = sharedInfra.outputs.aiSearchName
 output aiSearchEndpoint string = sharedInfra.outputs.aiSearchEndpoint
 output aiSearchIndexName string = sharedInfra.outputs.aiSearchIndexName
 output aiSearchAuthMode string = sharedInfra.outputs.aiSearchAuthMode
+output agcSupportEnabled bool = sharedInfra.outputs.agcSupportEnabled
+output agcSubnetId string = sharedInfra.outputs.agcSubnetId
+output agcSubnetName string = sharedInfra.outputs.agcSubnetName
+output agcSubnetAddressPrefix string = sharedInfra.outputs.agcSubnetAddressPrefix
+output agcControllerDeploymentMode string = sharedInfra.outputs.agcControllerDeploymentMode
+output agcGatewayClass string = sharedInfra.outputs.agcGatewayClass
+output agcControllerIdentityName string = sharedInfra.outputs.agcControllerIdentityName
+output agcControllerIdentityClientId string = sharedInfra.outputs.agcControllerIdentityClientId
+output agcControllerIdentityPrincipalId string = sharedInfra.outputs.agcControllerIdentityPrincipalId
+output agcFrontendHostname string = sharedInfra.outputs.agcFrontendHostname
+output agcFrontendReference string = sharedInfra.outputs.agcFrontendReference
+output aksOidcIssuerUrl string = sharedInfra.outputs.aksOidcIssuerUrl
+output aksNodeResourceGroup string = sharedInfra.outputs.aksNodeResourceGroup

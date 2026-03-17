@@ -124,7 +124,15 @@ azd provision -e dev
 | 13 | AI Foundry Project | `avm/ptn/ai-ml/ai-foundry:0.6.0` | AI/ML models |
 | 14 | AKS (3 pools) | `avm/res/container-service/managed-cluster:0.12.0` | Compute |
 | 15 | APIM | `avm/res/api-management/service:0.14.0` | API gateway |
-| — | 6 RBAC assignments | Native | Identity permissions |
+| 16 | AGC controller identity | Native | ALB controller workload identity |
+| — | 6-9 RBAC assignments | Native | Identity permissions |
+
+If `agcSupportEnabled` is enabled for the environment, the shared stack also provisions:
+- a delegated `agc` subnet sized for AGC association capacity,
+- workload identity federation for `azure-alb-system/alb-controller-sa`,
+- RBAC for AGC controller access to the AKS node resource group and delegated subnet.
+
+During `azd provision`, the `postprovision` hook installs the ALB controller Helm chart and validates that GatewayClass `azure-alb-external` is present. No `ApplicationLoadBalancer` or workload route is created in this step.
 
 **Private endpoints** are created for: ACR, Cosmos DB, Redis, Storage, Event Hubs, Key Vault, AI Services.
 
@@ -184,6 +192,10 @@ Key outputs:
 - `apimGatewayUrl` — APIM gateway URL
 - `appInsightsConnectionString` — App Insights connection string
 - `aiProjectName` — AI Foundry project name
+- `agcSubnetId` — Delegated subnet reserved for AGC associations
+- `agcControllerDeploymentMode` — Controller installation mode for downstream automation
+- `agcGatewayClass` — GatewayClass to target in later Kubernetes routing issues
+- `agcFrontendReference` — Equivalent frontend reference exported before any real AGC frontend exists
 
 ---
 
