@@ -11,12 +11,6 @@ on:
   pull_request:
     branches:
       - main
-    paths:
-      - apps/ui/**
-      - .github/workflows/deploy-ui-swa.yml
-      - .github/workflows/deploy-azd.yml
-      - .github/workflows/ui-contract-gate.yml
-      - scripts/ci/validate_swa_hybrid_contract.py
 
 permissions:
   contents: read
