@@ -78,6 +78,7 @@ flowchart LR
 - CRUD and at least one agent can be published through AGC
 - All migrated services remain `ClusterIP`
 - APIM sync resolves a stable AGC hostname instead of pod, node, or service IPs
+- APIM sync consumes `APIM_APPROVED_BACKEND_HOSTNAMES` from `AGC_FRONTEND_HOSTNAME` and fails closed on IP literals, `ClusterIP`, node IPs, endpoint IPs, and `*.svc.cluster.local` targets
 
 ### Phase 3: Validation and Cutover
 
