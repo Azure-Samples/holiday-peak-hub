@@ -1,7 +1,7 @@
 # Infrastructure Governance and Compliance Guidelines
 
-**Version**: 2.1  
-**Last Updated**: 2026-03-12  
+**Version**: 2.2  
+**Last Updated**: 2026-03-17  
 **Owner**: Infrastructure Team
 
 ## Scope
@@ -53,16 +53,21 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 
 ## Runtime Deployment Controls
 
+- Canonical AKS edge posture is **APIM -> AGC -> AKS** as defined by ADR-027; AGC is the only supported ingress target state for APIM-published AKS workloads.
+- APIM is the only supported public API facade for AKS-hosted services.
+- APIM backends for AKS workloads must target approved AGC hostnames or listeners only.
+- APIM backends must not target pod IPs, node IPs, `ClusterIP` addresses, or `*.svc.cluster.local` names.
+- AKS services published through APIM must remain `ClusterIP` unless a newer accepted ADR documents an exception.
 - CRUD-first sequencing before dependent agent rollouts.
 - Changed-service detection to reduce blast radius and deployment duration.
 - Push-event changed-service detection must diff `${{ github.event.before }}...${{ github.sha }}` to avoid empty comparisons against `origin/main` after merge.
 - APIM sync/smoke checks for API path health after relevant changes.
-- APIM sync determinism is required: ingress sync must resolve against an explicit Application Gateway target in workflow execution.
-- Reusable deploy workflow ingress-class detection must prioritize `azure-application-gateway` before other classes in AGIC-first environments.
+- APIM sync determinism is required: ingress sync must resolve against an explicit AGC target in workflow execution.
+- Transitional workflow or manifest logic may still detect legacy ingress classes during migration, but AGC is the canonical target state and must take precedence in governance and cutover planning.
 - APIM sync filtering must always include `crud-service` when CRUD sync is enabled, even under changed-services filtering.
-- For App Gateway-backed CRUD routing, ingress must expose app-native paths (`/health`, `/api`) and APIM CRUD backend must target App Gateway root (no `/crud-service` suffix).
-- Path translation must not be split across AGIC and APIM for CRUD. APIM keeps health rewrite (`/api/health -> /health`), while `/api/*` routes are forwarded as-is.
-- AKS IaC defaults to AGIC/App Gateway-first ingress by setting Web App Routing addon disabled unless explicitly enabled (`aksWebApplicationRoutingEnabled`).
+- For AGC-backed CRUD routing, ingress must expose app-native paths (`/health`, `/api`) and APIM CRUD backend must target the AGC listener root with no workload-specific suffix.
+- Path translation must not be split across AGC and APIM for CRUD. APIM keeps health rewrite (`/api/health -> /health`), while `/api/*` routes are forwarded as-is.
+- During migration, legacy AGIC or Web App Routing configuration may exist only as transitional state and must not be described as the target architecture.
 - Optional UI-only deployment path constrained by SWA token flow and health checks.
 - ACR network-rule temporary exceptions may be applied/removed automatically when enabled.
 
@@ -97,3 +102,5 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 - ADR-021 azd-first deployment
 - ADR-022 branch naming convention
 - ADR-023 enterprise resilience patterns
+- ADR-026 historical AGIC traffic-management record
+- ADR-027 canonical APIM -> AGC -> AKS edge

@@ -31,6 +31,8 @@ This document indexes all architectural decisions for the Holiday Peak Hub accel
 | [ADR-023](adrs/adr-023-enterprise-resilience-patterns.md) | Enterprise Resilience Patterns | Accepted | 2026-03 |
 | [ADR-024](adrs/adr-024-connector-registry-pattern.md) | Connector Registry Pattern | Accepted | 2026-03 |
 | [ADR-025](adrs/adr-025-product-truth-layer.md) | Product Truth Layer Architecture | Accepted | 2026-03 |
+| [ADR-026](adrs/adr-026-agic-traffic-management.md) | Application Gateway Ingress Controller (AGIC) for Traffic Management | Superseded by ADR-027 | 2025-01 |
+| [ADR-027](adrs/adr-027-apim-agc-edge.md) | APIM + Application Gateway for Containers as Canonical AKS Edge | Accepted | 2026-03 |
 
 ## How to Use ADRs
 
@@ -88,6 +90,8 @@ Each ADR follows a standard template:
 - Three-tier memory for latency/cost optimization ([ADR-008](adrs/adr-008-memory-tiers.md))
 - AKS with KEDA for elastic scaling, 3 node pools ([ADR-009](adrs/adr-009-aks-deployment.md))
 - azd-first deployment with GitHub Actions CI/CD ([ADR-021](adrs/adr-021-azd-first-deployment.md))
+- AGIC/classic Application Gateway approach retained as historical context only ([ADR-026](adrs/adr-026-agic-traffic-management.md))
+- APIM + AGC as the canonical AKS edge ([ADR-027](adrs/adr-027-apim-agc-edge.md))
 
 ### Governance
 - Git branch naming convention ([ADR-022](adrs/adr-022-branch-naming-convention.md))

@@ -1,12 +1,14 @@
 # ADR-026: Application Gateway Ingress Controller (AGIC) for Traffic Management
 
 ## Status
-Accepted
+Superseded by ADR-027
 
 ## Date
 2025-01-25
 
 ## Context
+
+This ADR remains part of the repository's architecture history. Its original problem statement and intent to unify ingress and keep workloads behind `ClusterIP` services still matter, but its implementation guidance is no longer the target state.
 
 The original AKS deployment architecture used individual **LoadBalancer** services for each of the 22 microservices. This approach had several critical issues:
 
@@ -28,9 +30,21 @@ The deployment review revealed:
 
 Implement **Azure Application Gateway Ingress Controller (AGIC)** as the unified ingress layer for all AKS services.
 
+## Historical Status
+
+ADR-027 supersedes the implementation strategy in this document. Specifically, the platform no longer treats AGIC or classic Application Gateway as the canonical ingress target state for APIM-published AKS services. Use this ADR as background on the original ingress consolidation effort, not as current implementation policy.
+
 ### Architecture
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {
+    'primaryColor':'#FFB3BA',
+    'primaryTextColor':'#000',
+    'primaryBorderColor':'#FF8B94',
+    'lineColor':'#BAE1FF',
+    'secondaryColor':'#BAE1FF',
+    'tertiaryColor':'#FFFFFF'
+}}}%%
 flowchart TB
     subgraph Internet
         Client[Client Traffic]
@@ -106,6 +120,14 @@ APIM keeps the CRUD public surface under `/api/*` and only rewrites the health p
 ### Canary Deployment Flow
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {
+    'primaryColor':'#FFB3BA',
+    'primaryTextColor':'#000',
+    'primaryBorderColor':'#FF8B94',
+    'lineColor':'#BAE1FF',
+    'secondaryColor':'#BAE1FF',
+    'tertiaryColor':'#FFFFFF'
+}}}%%
 sequenceDiagram
     participant Dev as Developer
     participant GHA as GitHub Actions
@@ -173,5 +195,6 @@ AGIC was chosen as the best balance of Azure-native integration, cost efficiency
 ## References
 
 - [ADR-009: AKS Deployment Architecture](adr-009-aks-deployment.md)
+- [ADR-027: APIM + Application Gateway for Containers as Canonical AKS Edge](adr-027-apim-agc-edge.md)
 - [AGIC Documentation](https://learn.microsoft.com/azure/application-gateway/ingress-controller-overview)
 - [AGIC Annotations](https://azure.github.io/application-gateway-kubernetes-ingress/annotations/)
