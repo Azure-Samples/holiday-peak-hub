@@ -1519,6 +1519,78 @@ jobs:
           tenant-id: ${{ env.AZURE_TENANT_ID }}
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Validate CRUD APIM backend stability
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          RG_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+          APIM_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-apim"
+          AKS_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-aks"
+          K8S_NAMESPACE="holiday-peak"
+
+          fetch_crud_endpoint_ips() {
+            local logs
+            logs=$(az aks command invoke \
+              --resource-group "$RG_NAME" \
+              --name "$AKS_NAME" \
+              --command "kubectl get endpoints crud-service -n $K8S_NAMESPACE -o jsonpath='{.subsets[*].addresses[*].ip}'" \
+              --query logs -o tsv)
+
+            printf '%s' "$logs" | awk 'NF{line=$0} END{print line}'
+          }
+
+          resolve_crud_api_id() {
+            if az apim api show --resource-group "$RG_NAME" --service-name "$APIM_NAME" --api-id "crud-service" --only-show-errors >/dev/null 2>&1; then
+              printf 'crud-service'
+              return 0
+            fi
+
+            if az apim api show --resource-group "$RG_NAME" --service-name "$APIM_NAME" --api-id "crud" --only-show-errors >/dev/null 2>&1; then
+              printf 'crud'
+              return 0
+            fi
+
+            echo "Neither APIM API id 'crud-service' nor 'crud' exists in '$APIM_NAME'." >&2
+            return 1
+          }
+
+          extract_host() {
+            local url="$1"
+            python3 -c "from urllib.parse import urlparse; import sys; print(urlparse(sys.argv[1]).hostname or '')" "$url"
+          }
+
+          CRUD_ENDPOINT_IPS_RAW="$(fetch_crud_endpoint_ips)"
+          CRUD_ENDPOINT_IPS="$(printf '%s\n' "$CRUD_ENDPOINT_IPS_RAW" | tr ' ' '\n' | sed '/^[[:space:]]*$/d' | sort -u)"
+
+          if [ -z "$CRUD_ENDPOINT_IPS" ]; then
+            echo "Failed to resolve current endpoint IPs for crud-service in namespace '$K8S_NAMESPACE'." >&2
+            exit 1
+          fi
+
+          API_ID="$(resolve_crud_api_id)"
+          SERVICE_URL="$(az apim api show --resource-group "$RG_NAME" --service-name "$APIM_NAME" --api-id "$API_ID" --query serviceUrl -o tsv --only-show-errors)"
+          SERVICE_URL="$(printf '%s' "$SERVICE_URL" | xargs)"
+
+          if [ -z "$SERVICE_URL" ]; then
+            echo "APIM CRUD API '$API_ID' has an empty serviceUrl." >&2
+            exit 1
+          fi
+
+          SERVICE_HOST="$(extract_host "$SERVICE_URL")"
+          if [ -z "$SERVICE_HOST" ]; then
+            echo "Unable to parse host from APIM CRUD serviceUrl '$SERVICE_URL'." >&2
+            exit 1
+          fi
+
+          if printf '%s\n' "$CRUD_ENDPOINT_IPS" | grep -Fxq "$SERVICE_HOST"; then
+            echo "Unstable APIM backend detected: API '$API_ID' serviceUrl '$SERVICE_URL' points to current crud-service endpoint IP '$SERVICE_HOST'." >&2
+            echo "Current crud-service endpoint IPs: $(printf '%s\n' "$CRUD_ENDPOINT_IPS" | paste -sd ',' -)" >&2
+            exit 1
+          fi
+
+          echo "Validated APIM CRUD backend stability: API '$API_ID' serviceUrl host '$SERVICE_HOST' is not a current crud-service endpoint IP."
+
       - name: Resolve APIM gateway URL
         id: apim
         shell: bash

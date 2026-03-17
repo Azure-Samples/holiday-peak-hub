@@ -510,12 +510,12 @@ hooks:
     windows:
       shell: pwsh
       run: |
-        ./.infra/azd/hooks/sync-apim-agents.ps1 -Namespace holiday-peak -ApiPathPrefix agents -IncludeCrudService:$true -RequireLoadBalancer:$true
+        ./.infra/azd/hooks/sync-apim-agents.ps1 -Namespace holiday-peak -ApiPathPrefix agents -UseIngress -IncludeCrudService:$true
         ./.infra/azd/hooks/ensure-foundry-agents.ps1 -UsePortForward -FailOnError:$false
       interactive: false
     posix:
       shell: sh
       run: |
-        ./.infra/azd/hooks/sync-apim-agents.sh --namespace holiday-peak --api-path-prefix agents --require-load-balancer
+        ./.infra/azd/hooks/sync-apim-agents.sh --namespace holiday-peak --api-path-prefix agents --use-ingress
         ./.infra/azd/hooks/ensure-foundry-agents.sh --port-forward --non-blocking
       interactive: false

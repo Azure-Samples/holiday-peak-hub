@@ -544,6 +544,62 @@ function Resolve-ServiceBackendUrl {
     return "http://$Service-$Service.$Namespace.svc.cluster.local:$servicePort"
 }
 
+function Get-ServiceEndpointIps {
+    param(
+        [Parameter(Mandatory = $true)][string]$Service,
+        [Parameter(Mandatory = $true)][string]$Namespace
+    )
+
+    $endpointIps = @()
+
+    if (Get-Command kubectl -ErrorAction SilentlyContinue) {
+        $ipsFromKubectl = kubectl get endpoints $Service -n $Namespace -o jsonpath="{.subsets[*].addresses[*].ip}" 2>$null
+        if ($LASTEXITCODE -eq 0 -and $ipsFromKubectl) {
+            $endpointIps += @($ipsFromKubectl -split '\s+' | Where-Object { $_ })
+        }
+    }
+
+    if (($endpointIps.Count -eq 0) -and $script:resolvedAksClusterName -and $script:resolvedResourceGroup) {
+        $ipsFromAksCommand = Invoke-AksKubectlJsonPath -Rg $script:resolvedResourceGroup -ClusterName $script:resolvedAksClusterName -KubectlArgs "get endpoints $Service -n $Namespace -o jsonpath='{.subsets[*].addresses[*].ip}'"
+        if ($ipsFromAksCommand) {
+            $endpointIps += @($ipsFromAksCommand -split '\s+' | Where-Object { $_ })
+        }
+    }
+
+    return @($endpointIps | Sort-Object -Unique)
+}
+
+function Get-UrlHost {
+    param([Parameter(Mandatory = $true)][string]$Url)
+
+    try {
+        return ([uri]$Url).Host
+    }
+    catch {
+        return ''
+    }
+}
+
+function Assert-StableCrudBackendTarget {
+    param(
+        [Parameter(Mandatory = $true)][string]$BackendUrl,
+        [Parameter(Mandatory = $true)][string]$Namespace
+    )
+
+    $backendHost = Get-UrlHost -Url $BackendUrl
+    if (-not $backendHost) {
+        throw "Unable to parse host from CRUD APIM backend URL '$BackendUrl'."
+    }
+
+    $endpointIps = Get-ServiceEndpointIps -Service 'crud-service' -Namespace $Namespace
+    if ($endpointIps -contains $backendHost) {
+        $joinedIps = $endpointIps -join ', '
+        throw "Refusing to set unstable CRUD APIM backend '$BackendUrl': host '$backendHost' matches current crud-service endpoint IP(s): $joinedIps"
+    }
+
+    Write-Host "Validated stable CRUD APIM backend host '$backendHost'."
+}
+
 function Ensure-AgentApi {
     param(
         [Parameter(Mandatory = $true)][string]$Rg,
@@ -628,6 +684,7 @@ function Update-CrudApi {
     }
 
     $backend = Resolve-ServiceBackendUrl -Service $service -Namespace $Ns -RequireLb:$RequireLoadBalancer -Retries $BackendResolveRetries -DelaySeconds $BackendResolveDelaySeconds
+    Assert-StableCrudBackendTarget -BackendUrl $backend -Namespace $Ns
 
     $apiExists = $false
     az apim api show --resource-group $Rg --service-name $Apim --api-id 'crud-service' --only-show-errors *> $null
