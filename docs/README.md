@@ -283,7 +283,7 @@ az acr update -n <acrName> --public-network-enabled false
 - **[Architecture Overview](architecture/architecture.md)** - System context and high-level design
 - **[Business Summary](architecture/business-summary.md)** - Business requirements and use cases
 - **[Components Documentation](architecture/components.md)** - All framework and service components
-- **[ADRs (Architecture Decision Records)](architecture/ADRs.md)** - Index of all 20 ADRs
+- **[ADRs (Architecture Decision Records)](architecture/ADRs.md)** - Index of architectural decisions
 
 ---
 

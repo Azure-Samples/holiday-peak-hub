@@ -18,6 +18,7 @@ This folder tracks corrections, gaps, and planned enhancements discovered during
 | 7 | [Payments fully stubbed](007-payments-stubbed.md) | Medium | Backend | [#31](https://github.com/Azure-Samples/holiday-peak-hub/issues/31) |
 | 8 | [AI Search not provisioned](008-ai-search-not-provisioned.md) | Medium | Infrastructure | [#32](https://github.com/Azure-Samples/holiday-peak-hub/issues/32) |
 | 9 | [Route protection middleware implemented (resolved)](009-missing-middleware-ts.md) | Medium | Frontend | [#33](https://github.com/Azure-Samples/holiday-peak-hub/issues/33) |
+| 13 | [AGC edge migration plan](013-agc-edge-migration.md) | High | Infrastructure | [#282](https://github.com/Azure-Samples/holiday-peak-hub/issues/282) - [#287](https://github.com/Azure-Samples/holiday-peak-hub/issues/287) |
 
 ### Feature Requests
 
