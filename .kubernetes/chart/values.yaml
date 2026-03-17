@@ -7,9 +7,9 @@ service:
   targetPort: 8000
   annotations: {}
 
-# Legacy ingress configuration for transitional coexistence during AGC migration.
+# Legacy ingress configuration for explicit rollback-only publication.
 ingress:
-  enabled: true
+  enabled: false
   className: ""
   host: ""  # Leave empty for path-based routing, or set hostname for host-based
   path: ""  # Defaults to /{serviceName}
