@@ -8,8 +8,12 @@ param projectName string = 'holidaypeakhub'
 param keyVaultNameOverride string = ''
 @description('AKS Kubernetes version; leave empty to use Azure default')
 param aksKubernetesVersion string = ''
-@description('Enable AKS Web App Routing addon. Keep disabled for AGIC/App Gateway-first ingress topology.')
+@description('Enable the legacy AKS Web App Routing addon. Keep disabled for the AGC target edge posture.')
 param aksWebApplicationRoutingEnabled bool = false
+@description('Enable Application Gateway for Containers shared-infrastructure prerequisites for the dev environment.')
+param agcSupportEnabled bool = environment == 'dev'
+@description('CIDR prefix for the delegated AGC subnet. Must provide at least 256 available IPs.')
+param agcSubnetAddressPrefix string = '10.0.11.0/24'
 @secure()
 @description('PostgreSQL administrator password for CRUD transactional database. Leave empty to auto-generate a deterministic dev password.')
 param postgresAdminPassword string = ''
@@ -52,6 +56,11 @@ var aiProjectFriendlyName = '${projectName}${envSuffix} Foundry Project'
 var aiProjectDescription = 'Holiday Peak Hub Foundry project for ${environment}.'
 var aiFoundryBaseName = take('${safeProjectName}${replace(envSuffix, '-', '')}', 12)
 var aiFoundryLocation = 'westus3'
+var agcSubnetName = 'agc'
+var agcControllerIdentityName = '${projectName}${envSuffix}-agc-controller'
+var agcControllerNamespace = 'azure-alb-system'
+var agcControllerServiceAccount = 'alb-controller-sa'
+var agcGatewayClassName = 'azure-alb-external'
 var tags = {
   Project: projectName
   Environment: environment
@@ -95,6 +104,16 @@ module aksCrudNsg 'br/public:avm/res/network/network-security-group:0.5.2' = {
   name: 'nsg-aks-crud'
   params: {
     name: 'aks-crud-nsg'
+    location: location
+    securityRules: []
+    tags: tags
+  }
+}
+
+module agcNsg 'br/public:avm/res/network/network-security-group:0.5.2' = if (agcSupportEnabled) {
+  name: 'nsg-agc'
+  params: {
+    name: 'agc-nsg'
     location: location
     securityRules: []
     tags: tags
@@ -159,7 +178,7 @@ module vnet 'br/public:avm/res/network/virtual-network:0.7.2' = {
     addressPrefixes: [
       '10.0.0.0/16'
     ]
-    subnets: [
+    subnets: concat([
       {
         name: 'aks-system'
         addressPrefix: '10.0.0.0/22'
@@ -186,7 +205,14 @@ module vnet 'br/public:avm/res/network/virtual-network:0.7.2' = {
         networkSecurityGroupResourceId: privateEndpointsNsg.outputs.resourceId
         privateEndpointNetworkPolicies: 'Disabled'
       }
-    ]
+    ], agcSupportEnabled ? [
+      {
+        name: agcSubnetName
+        addressPrefix: agcSubnetAddressPrefix
+        networkSecurityGroupResourceId: agcNsg!.outputs.resourceId
+        delegation: 'Microsoft.ServiceNetworking/trafficControllers'
+      }
+    ] : [])
     tags: tags
   }
 }
@@ -197,6 +223,7 @@ var aksAgentsSubnetId = subnetResourceIds[1]
 var aksCrudSubnetId = subnetResourceIds[2]
 var apimSubnetId = subnetResourceIds[3]
 var peSubnetId = subnetResourceIds[4]
+var agcSubnetId = agcSupportEnabled ? subnetResourceIds[5] : ''
 
 // Private DNS Zones (AVM) — required for private endpoints
 module acrPrivateDnsZone 'br/public:avm/res/network/private-dns-zone:0.8.0' = {
@@ -777,6 +804,11 @@ module aks 'br/public:avm/res/container-service/managed-cluster:0.12.0' = {
     omsAgentEnabled: true
     enableKeyvaultSecretsProvider: true
     enableOidcIssuerProfile: true
+    securityProfile: agcSupportEnabled ? {
+      workloadIdentity: {
+        enabled: true
+      }
+    } : null
     webApplicationRoutingEnabled: aksWebApplicationRoutingEnabled
     primaryAgentPoolProfiles: [
       {
@@ -822,6 +854,28 @@ module aks 'br/public:avm/res/container-service/managed-cluster:0.12.0' = {
       }
     ]
     tags: tags
+  }
+}
+
+resource agcControllerIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = if (agcSupportEnabled) {
+  name: agcControllerIdentityName
+  location: location
+  tags: tags
+}
+
+resource aksClusterResource 'Microsoft.ContainerService/managedClusters@2025-09-01' existing = {
+  name: aksClusterName
+}
+
+resource agcControllerFederatedCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2025-01-31-preview' = if (agcSupportEnabled) {
+  parent: agcControllerIdentity
+  name: 'aks-agc-controller'
+  properties: {
+    audiences: [
+      'api://AzureADTokenExchange'
+    ]
+    issuer: aks.outputs.?oidcIssuerUrl ?? ''
+    subject: 'system:serviceaccount:${agcControllerNamespace}:${agcControllerServiceAccount}'
   }
 }
 
@@ -1007,3 +1061,16 @@ output appInsightsConnectionString string = appInsights.outputs.connectionString
 output appInsightsInstrumentationKey string = appInsights.outputs.instrumentationKey
 output vnetId string = vnet.outputs.resourceId
 output vnetName string = vnet.outputs.name
+output agcSupportEnabled bool = agcSupportEnabled
+output agcSubnetId string = agcSubnetId
+output agcSubnetName string = agcSupportEnabled ? agcSubnetName : ''
+output agcSubnetAddressPrefix string = agcSupportEnabled ? agcSubnetAddressPrefix : ''
+output agcControllerDeploymentMode string = agcSupportEnabled ? 'helm-workload-identity' : ''
+output agcGatewayClass string = agcSupportEnabled ? agcGatewayClassName : ''
+output agcControllerIdentityName string = agcSupportEnabled ? agcControllerIdentity.name : ''
+output agcControllerIdentityClientId string = agcSupportEnabled ? agcControllerIdentity!.properties.clientId : ''
+output agcControllerIdentityPrincipalId string = agcSupportEnabled ? agcControllerIdentity!.properties.principalId : ''
+output agcFrontendHostname string = ''
+output agcFrontendReference string = agcSupportEnabled ? 'gateway-class:${agcGatewayClassName}' : ''
+output aksOidcIssuerUrl string = aks.outputs.?oidcIssuerUrl ?? ''
+output aksNodeResourceGroup string = aksClusterResource.properties.nodeResourceGroup ?? ''

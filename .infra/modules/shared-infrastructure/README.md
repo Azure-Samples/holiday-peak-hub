@@ -58,9 +58,17 @@ This module creates **ONE instance** of each resource, shared across all service
   - `aks-crud` - 10.0.8.0/24 (CRUD node pool)
   - `apim` - 10.0.9.0/24 (API Management)
   - `private-endpoints` - 10.0.10.0/24 (Private endpoints for PaaS services)
-  - `appgw` - 10.0.11.0/24 (Application Gateway subnet, delegated to `Microsoft.Network/applicationGateways`)
-- **Network Security Groups** - One per subnet
+  - `agc` - 10.0.11.0/24 by default (Application Gateway for Containers delegated subnet, delegated to `Microsoft.ServiceNetworking/trafficControllers`)
+- **Network Security Groups** - One per subnet, including the delegated AGC subnet when AGC support is enabled
 - **Private Endpoints** - PaaS services are private by default; Azure AI Foundry is the intentional public-access exception
+
+### AGC Controller Prerequisites
+
+- **AGC delegated subnet** - Created in shared infrastructure for dev by default and exported for downstream routing work
+- **ALB controller identity** - User-assigned managed identity with workload identity federation for `azure-alb-system/alb-controller-sa`
+- **AGC RBAC** - Reader and AppGw for Containers Configuration Manager on the AKS node resource group, plus Network Contributor on the delegated AGC subnet
+- **Deployment mode** - ALB controller is installed through the supported Helm + workload identity path during `azd provision` postprovision hooks
+- **Scope boundary** - This module does not create `ApplicationLoadBalancer`, `Gateway`, `HTTPRoute`, or `Ingress` resources
 
 ### API Gateway
 
@@ -68,6 +76,7 @@ This module creates **ONE instance** of each resource, shared across all service
   - Consumption tier (dev/staging)
   - StandardV2 tier (prod)
   - VNet integration in prod
+- **Application Gateway for Containers prerequisites** - Prepared in dev without forcing any workload cutover; downstream issues publish routes and perform migration
 
 ### AI Platform
 
