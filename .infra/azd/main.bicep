@@ -8,7 +8,7 @@ param deployStatic bool = false
 
 param location string = 'eastus2'
 param environment string = 'dev'
-param projectName string = 'holidaypeakhub'
+param projectName string = 'holidaypeakhub405'
 @description('Optional override for Key Vault name (3-24 chars, lowercase letters, numbers, and hyphens).')
 param keyVaultNameOverride string = ''
 @description('Enable the legacy AKS Web App Routing addon. Keep disabled for the AGC target edge posture.')
@@ -22,13 +22,15 @@ param agcSubnetAddressPrefix string = '10.0.12.0/24'
 param postgresAdminPassword string = ''
 param resourceGroupName string = '${projectName}-${environment}-rg'
 
-param appName string = 'holidaypeakhub-ui'
+@description('Optional override for the Static Web App base name. Defaults to projectName-ui.')
+param appName string = ''
 param repositoryUrl string = 'https://github.com/Azure-Samples/holiday-peak-hub'
 param branch string = 'main'
 
 // Keep deployment-facing auth/user outputs explicit and deterministic.
 var postgresAuthMode = 'password'
 var postgresWorkloadUser = 'crud_workload'
+var staticWebAppBaseName = empty(appName) ? '${projectName}-ui' : appName
 
 module sharedInfra '../modules/shared-infrastructure/shared-infrastructure-main.bicep' = if (deployShared) {
   name: 'shared-infrastructure-azd'
@@ -50,7 +52,8 @@ module staticWebApp '../modules/static-web-app/static-web-app-main.bicep' = if (
   params: {
     location: location
     environment: environment
-    appName: appName
+    projectName: projectName
+    appName: staticWebAppBaseName
     repositoryUrl: repositoryUrl
     branch: branch
     resourceGroupName: resourceGroupName
@@ -58,6 +61,7 @@ module staticWebApp '../modules/static-web-app/static-web-app-main.bicep' = if (
 }
 
 output resourceGroupName string = resourceGroupName
+output staticWebAppName string = deployStatic ? staticWebApp!.outputs.staticWebAppName : ''
 output staticWebAppDefaultHostname string = deployStatic ? staticWebApp!.outputs.staticWebAppDefaultHostname : ''
 output APIM_NAME string = deployShared ? sharedInfra!.outputs.apimName : ''
 output AKS_CLUSTER_NAME string = deployShared ? sharedInfra!.outputs.aksClusterName : ''

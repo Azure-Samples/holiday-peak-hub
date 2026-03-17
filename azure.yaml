@@ -511,18 +511,3 @@ hooks:
         ./.infra/azd/hooks/ensure-ai-search-index.sh
         ./.infra/azd/hooks/deploy-foundry-models.sh
       interactive: false
-  postdeploy:
-    windows:
-      shell: pwsh
-      run: |
-        $env:APIM_APPROVED_BACKEND_HOSTNAMES = $env:AGC_FRONTEND_HOSTNAME
-        ./.infra/azd/hooks/sync-apim-agents.ps1 -Namespace holiday-peak -ApiPathPrefix agents -IncludeCrudService:$true
-        ./.infra/azd/hooks/ensure-foundry-agents.ps1 -UsePortForward -FailOnError:$false
-      interactive: false
-    posix:
-      shell: sh
-      run: |
-        ./.infra/azd/hooks/refresh-azure-oidc.sh
-        APIM_APPROVED_BACKEND_HOSTNAMES="$AGC_FRONTEND_HOSTNAME" ./.infra/azd/hooks/sync-apim-agents.sh --namespace holiday-peak --api-path-prefix agents
-        ./.infra/azd/hooks/ensure-foundry-agents.sh --port-forward --non-blocking
-      interactive: false

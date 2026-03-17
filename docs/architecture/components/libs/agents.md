@@ -54,7 +54,7 @@ agent = (
     .with_tool("check_inventory", inventory_tool)
     .with_models(
         slm=ModelTarget(name="slm", model="gpt-5-nano", invoker=fast_invoker),
-        llm=ModelTarget(name="llm", model="gpt-5.2", invoker=rich_invoker),
+        llm=ModelTarget(name="llm", model="gpt-5", invoker=rich_invoker),
         complexity_threshold=0.6,
     )
     .build()
@@ -165,7 +165,7 @@ response = await agent.handle({"query": "Find Nike shoes", "requires_multi_tool"
 - `PROJECT_NAME` (or `FOUNDRY_PROJECT_NAME`): Azure AI Foundry project name (optional)
 - `FOUNDRY_AGENT_ID_FAST` / `FOUNDRY_AGENT_ID_RICH`: Agent IDs created in Foundry
 - `FOUNDRY_AGENT_NAME_FAST` / `FOUNDRY_AGENT_NAME_RICH`: Agent names (used for V2 lookup/creation)
-- `MODEL_DEPLOYMENT_NAME_FAST` / `MODEL_DEPLOYMENT_NAME_RICH` (optional): Deployment backing the Agent (defaults to `gpt-5-nano` / `gpt-5.2`)
+- `MODEL_DEPLOYMENT_NAME_FAST` / `MODEL_DEPLOYMENT_NAME_RICH` (optional): Deployment backing the Agent (defaults to `gpt-5-nano` / `gpt-5`)
 - `FOUNDRY_STREAM` (optional): `true` to aggregate streaming deltas per target
 - `FOUNDRY_STRICT_ENFORCEMENT` (optional): `true` to require successful ensure before serving `/invoke`
 - `FOUNDRY_AUTO_ENSURE_ON_STARTUP` (optional): `true` to auto-ensure agents on app startup
@@ -243,7 +243,7 @@ once when missing (via Foundry SDK). Typical request:
     "create_if_missing": true,
     "names": {"fast": "catalog-fast", "rich": "catalog-rich"},
     "instructions": {"fast": "...", "rich": "..."},
-    "models": {"fast": "gpt-5-nano", "rich": "gpt-5.2"}
+    "models": {"fast": "gpt-5-nano", "rich": "gpt-5"}
 }
 ```
 
@@ -258,7 +258,7 @@ The service updates in-memory model targets with resolved/created Foundry agent 
 Default deployment models in this repo are:
 
 - SLM (`fast`): `gpt-5-nano`
-- LLM (`rich`): `gpt-5.2`
+- LLM (`rich`): `gpt-5`
 
 Use **GlobalStandard** (global deployment) SKU in Azure AI Foundry to maximize
 regional compatibility and avoid runtime dependency errors.

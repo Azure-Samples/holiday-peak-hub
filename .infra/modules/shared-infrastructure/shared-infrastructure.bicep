@@ -3,7 +3,7 @@ targetScope = 'resourceGroup'
 param location string = resourceGroup().location
 param environment string = 'dev' // dev, staging, prod
 @minLength(5)
-param projectName string = 'holidaypeakhub'
+param projectName string = 'holidaypeakhub405'
 @description('Optional override for Key Vault name (3-24 chars, lowercase letters, numbers, and hyphens). Leave empty to use default naming.')
 param keyVaultNameOverride string = ''
 @description('AKS Kubernetes version; leave empty to use Azure default')

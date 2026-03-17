@@ -1,6 +1,6 @@
 param(
     [string]$BaseUrl,
-    [string]$AzdEnvironment = "dev",
+    [string]$AzdEnvironment = $(if ($env:AZURE_ENV_NAME) { $env:AZURE_ENV_NAME } else { '' }),
     [string]$BearerToken = $env:CRUD_BEARER_TOKEN,
     [int]$TimeoutSec = 30,
     [switch]$UsePortForward = $false,
@@ -9,6 +9,10 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+if ([string]::IsNullOrWhiteSpace($BaseUrl) -and [string]::IsNullOrWhiteSpace($AzdEnvironment)) {
+    throw "Provide -BaseUrl or set -AzdEnvironment/AZURE_ENV_NAME so the script can resolve APIM_GATEWAY_URL."
+}
 
 function Resolve-BaseUrl {
     param([string]$Provided, [string]$EnvName)

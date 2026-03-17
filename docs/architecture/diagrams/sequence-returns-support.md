@@ -19,7 +19,7 @@ sequenceDiagram
     participant API as FastAPI App
     participant Agent as Returns Support Agent
     participant Router as Model Router
-    participant LLM as GPT-5.2
+    participant LLM as GPT-5
     participant Logistics as Logistics Adapter
     participant CRM as CRM Adapter
     participant Funnel as Funnel Adapter
@@ -389,7 +389,7 @@ async def handle_returns_accepted(event: ReturnsAcceptedEvent):
 |------|----------------|--------------|
 | Order fetch | < 200ms | Cached |
 | Shipment validation | < 500ms | Carrier API |
-| LLM guidance | < 3s | GPT-5.2 |
+| LLM guidance | < 3s | GPT-5 |
 | Label generation | < 1s | Carrier API |
 | Event publishing | < 100ms | Async |
 | **Total (P95)** | **< 5s** | |

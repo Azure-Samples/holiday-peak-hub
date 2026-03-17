@@ -3,7 +3,7 @@ targetScope = 'subscription'
 param subscriptionId string = subscription().subscriptionId
 param location string = 'eastus2'
 param environment string = 'dev' // dev, staging, prod
-param projectName string = 'holidaypeakhub'
+param projectName string = 'holidaypeakhub405'
 @description('Optional override for Key Vault name (3-24 chars, lowercase letters, numbers, and hyphens). Leave empty to use default naming.')
 param keyVaultNameOverride string = ''
 @description('Enable the legacy AKS Web App Routing addon. Keep disabled for the AGC target edge posture.')

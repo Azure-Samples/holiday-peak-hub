@@ -54,6 +54,7 @@ Shared resolver module: `app/api/_shared/base-url-resolver.ts`
 
 - CRUD env precedence: `NEXT_PUBLIC_CRUD_API_URL` → `NEXT_PUBLIC_API_URL` → `NEXT_PUBLIC_API_BASE_URL` → `CRUD_API_URL`
 - Agent env precedence: `NEXT_PUBLIC_AGENT_API_URL` → `AGENT_API_URL` → CRUD aliases above with `/agents` suffix
+- CRUD/API base values may be configured either as the APIM gateway root or with a trailing `/api`; the shared resolver normalizes both to the gateway root before proxying.
 - Browser runtime:
   - CRUD client (`lib/api/client.ts`) always uses `/api/*` proxy route
   - Agent client (`lib/api/agentClient.ts`) uses `/agent-api/*`

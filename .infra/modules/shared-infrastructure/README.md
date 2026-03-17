@@ -159,17 +159,11 @@ kubectl get nodes
 ### Deploy Shared Infrastructure
 
 ```bash
-# Dev environment
+# Target environment
 az deployment sub create \
   --location eastus \
   --template-file .infra/modules/shared-infrastructure/shared-infrastructure-main.bicep \
-  --parameters environment=dev
-
-# Production environment
-az deployment sub create \
-  --location eastus \
-  --template-file .infra/modules/shared-infrastructure/shared-infrastructure-main.bicep \
-  --parameters environment=prod
+  --parameters environment=<environment>
 ```
 
 ### Connect to AKS
@@ -177,8 +171,8 @@ az deployment sub create \
 ```bash
 # Get credentials
 az aks get-credentials \
-  --resource-group holidaypeakhub-dev-rg \
-  --name holidaypeakhub-dev-aks
+  --resource-group holidaypeakhub405-<environment>-rg \
+  --name holidaypeakhub405-<environment>-aks
 
 # Verify connection
 kubectl get nodes

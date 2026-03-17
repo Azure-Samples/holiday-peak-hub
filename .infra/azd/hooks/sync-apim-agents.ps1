@@ -51,7 +51,8 @@ function Split-HostnameList {
         return @()
     }
 
-    return @($Value -split '[,\s]+' | ForEach-Object { $_.Trim() } | Where-Object { $_ } | Select-Object -Unique)
+    $items = @($Value -split '[,\s]+' | ForEach-Object { $_.Trim() } | Where-Object { $_ } | Select-Object -Unique)
+    return ,$items
 }
 
 function Convert-ToXmlEscapedValue {
@@ -158,7 +159,7 @@ function Get-ApprovedBackendHosts {
 
     $candidates = Split-HostnameList -Value $ApprovedBackendHostnames
     if ($candidates.Count -gt 0) {
-        return $candidates
+        return ,@($candidates)
     }
 
     if ($env:AZURE_ENV_NAME) {
@@ -166,13 +167,13 @@ function Get-ApprovedBackendHosts {
         $value = Get-EnvValueFromFile -FilePath $envFile -Key 'APIM_APPROVED_BACKEND_HOSTNAMES'
         $candidates = Split-HostnameList -Value $value
         if ($candidates.Count -gt 0) {
-            return $candidates
+            return ,@($candidates)
         }
 
         $value = Get-EnvValueFromFile -FilePath $envFile -Key 'AGC_FRONTEND_HOSTNAME'
         $candidates = Split-HostnameList -Value $value
         if ($candidates.Count -gt 0) {
-            return $candidates
+            return ,@($candidates)
         }
     }
 
@@ -335,7 +336,7 @@ function Resolve-ApprovedBackendHost {
         throw "No approved AGC backend hostname was provided. Set APIM_APPROVED_BACKEND_HOSTNAMES or AGC_FRONTEND_HOSTNAME before running APIM sync$referenceText."
     }
 
-    $script:resolvedApprovedBackendHost = $script:resolvedApprovedBackendHosts[0]
+    $script:resolvedApprovedBackendHost = @($script:resolvedApprovedBackendHosts)[0]
     return $script:resolvedApprovedBackendHost
 }
 
@@ -814,7 +815,7 @@ if (-not $resolvedApimName) {
 
 $script:resolvedResourceGroup = $resolvedResourceGroup
 $script:resolvedAksClusterName = Get-AksClusterName -Rg $resolvedResourceGroup -RepoRoot $repoRoot
-$script:resolvedApprovedBackendHosts = Get-ApprovedBackendHosts -RepoRoot $repoRoot
+$script:resolvedApprovedBackendHosts = @(Get-ApprovedBackendHosts -RepoRoot $repoRoot)
 $script:resolvedApprovedBackendScheme = Get-ApprovedBackendScheme -RepoRoot $repoRoot
 $script:resolvedApprovedBackendReference = Get-ApprovedBackendReference -RepoRoot $repoRoot
 

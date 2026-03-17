@@ -1,13 +1,16 @@
 targetScope = 'resourceGroup'
 
 param location string = resourceGroup().location
-param appName string = 'holidaypeakhub-ui'
+param projectName string = 'holidaypeakhub405'
+param appName string = ''
 param environment string = 'dev' // dev, staging, prod
 param repositoryUrl string = 'https://github.com/Azure-Samples/holiday-peak-hub'
 param branch string = 'main'
 
 // Resource names
-var staticWebAppName = '${appName}-${environment}'
+var staticWebAppBaseName = empty(appName) ? '${projectName}-ui' : appName
+var staticWebAppName = '${staticWebAppBaseName}-${environment}'
+var apimBaseUrl = 'https://${projectName}-${environment}-apim.azure-api.net'
 
 // Azure Static Web Apps
 resource staticWebApp 'Microsoft.Web/staticSites@2023-01-01' = {
@@ -52,7 +55,9 @@ resource appSettings 'Microsoft.Web/staticSites/config@2023-01-01' = {
   parent: staticWebApp
   name: 'appsettings'
   properties: {
-    NEXT_PUBLIC_API_BASE_URL: environment == 'prod' ? 'https://api.holidaypeakhub.com' : 'https://holidaypeakhub-dev-apim.azure-api.net'
+    NEXT_PUBLIC_API_BASE_URL: apimBaseUrl
+    NEXT_PUBLIC_API_URL: apimBaseUrl
+    NEXT_PUBLIC_CRUD_API_URL: apimBaseUrl
     NEXT_PUBLIC_ENVIRONMENT: environment
   }
 }

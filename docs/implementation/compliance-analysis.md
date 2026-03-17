@@ -433,7 +433,7 @@ The Holiday Peak Hub architecture is **97.75% compliant** with the recommended A
 - MCP adapter layer implemented for CRUD and 3rd party API operations
 - Resilience patterns (circuit breakers, retries, fallbacks) fully configured
 - **V2 Agents API migration complete** — 42 prompt agents provisioned in Foundry project `aipholidaris`
-- **Model defaults updated**: `gpt-5-nano` (SLM) and `gpt-5.2` (LLM) via `azure-ai-projects>=2.0.0b4`
+- **Model defaults updated**: `gpt-5-nano` (SLM) and `gpt-5` (LLM) via `azure-ai-projects>=2.0.0b4`
 
 ⚠️ **Remaining Enhancement** (Optional):
 - API Gateway exposure for direct semantic search access (2.25% gap)

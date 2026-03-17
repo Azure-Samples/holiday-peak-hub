@@ -97,7 +97,7 @@ Every agent-produced value includes:
   "value": "Premium wireless headphones with active noise cancellation...",
   "confidence": 0.92,
   "source": "enrichment-agent",
-  "model": "gpt-5.2",
+  "model": "gpt-5",
   "generated_at": "2026-03-01T10:00:00Z",
   "evidence": ["product_title", "category_context", "similar_products"],
   "requires_review": true

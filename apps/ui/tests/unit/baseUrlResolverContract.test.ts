@@ -30,6 +30,17 @@ describe('base URL resolver contract', () => {
         sourceKey: 'NEXT_PUBLIC_CRUD_API_URL',
       });
     });
+
+    it('normalizes a trailing api path segment from CRUD aliases', () => {
+      const resolved = resolveCrudApiBaseUrl({
+        NEXT_PUBLIC_CRUD_API_URL: 'https://primary.example.net/api/',
+      } as NodeJS.ProcessEnv);
+
+      expect(resolved).toEqual({
+        baseUrl: 'https://primary.example.net',
+        sourceKey: 'NEXT_PUBLIC_CRUD_API_URL',
+      });
+    });
   });
 
   describe('resolveAgentApiBaseUrl', () => {
@@ -46,7 +57,7 @@ describe('base URL resolver contract', () => {
       });
 
       const fallbackResolution = resolveAgentApiBaseUrl({
-        NEXT_PUBLIC_API_BASE_URL: 'https://crud-base.example.net/',
+        NEXT_PUBLIC_API_BASE_URL: 'https://crud-base.example.net/api/',
       } as NodeJS.ProcessEnv);
 
       expect(fallbackResolution).toEqual({

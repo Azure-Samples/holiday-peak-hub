@@ -1,10 +1,14 @@
 param(
-    [string]$Environment = "dev",
+    [string]$Environment = $(if ($env:AZURE_ENV_NAME) { $env:AZURE_ENV_NAME } else { '' }),
     [string]$Location = "centralus",
     [string]$ProjectName = "holidaypeakhub405"
 )
 
 $ErrorActionPreference = "Stop"
+
+if ([string]::IsNullOrWhiteSpace($Environment)) {
+    throw "Environment must be provided via -Environment or AZURE_ENV_NAME."
+}
 
 $resourceGroup = "$ProjectName-$Environment-rg"
 

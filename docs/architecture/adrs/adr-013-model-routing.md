@@ -25,7 +25,7 @@ Running all requests through large language models (LLMs) is expensive and slow.
 graph TD
     Request[User Request] --> Assessment[Complexity Assessor]
     Assessment --> |Simple/Moderate| SLM[SLM: GPT-5-nano]
-    Assessment --> |Complex| LLM[LLM: GPT-5.2]
+    Assessment --> |Complex| LLM[LLM: GPT-5]
     SLM --> Confidence[Confidence Check]
     Confidence --> |High| Response[Return Response]
     Confidence --> |Low| Escalate[Escalate to LLM]
@@ -124,7 +124,7 @@ agent = (AgentBuilder()
             temperature=0.3
         ),
         llm=ModelTarget(
-            deployment_name="gpt-5.2",
+            deployment_name="gpt-5",
             endpoint=os.getenv("FOUNDRY_ENDPOINT"),
             agent_id=os.getenv("FOUNDRY_AGENT_ID_RICH"),
             max_tokens=2000,
@@ -177,7 +177,7 @@ MODEL_DEPLOYMENT_NAME_FAST=gpt-5-nano
 
 # LLM Configuration
 FOUNDRY_AGENT_ID_RICH=agent-llm-prod
-MODEL_DEPLOYMENT_NAME_RICH=gpt-5.2
+MODEL_DEPLOYMENT_NAME_RICH=gpt-5
 
 # Routing Tuning
 SLM_CONFIDENCE_THRESHOLD=0.8

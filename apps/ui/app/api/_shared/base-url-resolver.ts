@@ -29,6 +29,15 @@ function normalizeBaseUrl(candidate: string | undefined): string | null {
   return trimmed.replace(/\/+$/, '');
 }
 
+function normalizeCrudBaseUrl(candidate: string | undefined): string | null {
+  const normalized = normalizeBaseUrl(candidate);
+  if (!normalized) {
+    return null;
+  }
+
+  return normalized.replace(/\/api$/i, '');
+}
+
 // Strategy pattern: evaluate candidate env keys in priority order and pick the first valid URL.
 function resolveBaseUrl(strategies: ResolutionStrategy[], env: EnvMap = process.env): ResolutionResult {
   for (const strategy of strategies) {
@@ -50,19 +59,19 @@ function resolveBaseUrl(strategies: ResolutionStrategy[], env: EnvMap = process.
 const CRUD_BASE_URL_STRATEGIES: ResolutionStrategy[] = [
   {
     key: 'NEXT_PUBLIC_CRUD_API_URL',
-    resolve: (env) => env.NEXT_PUBLIC_CRUD_API_URL,
+    resolve: (env) => normalizeCrudBaseUrl(env.NEXT_PUBLIC_CRUD_API_URL) ?? undefined,
   },
   {
     key: 'NEXT_PUBLIC_API_URL',
-    resolve: (env) => env.NEXT_PUBLIC_API_URL,
+    resolve: (env) => normalizeCrudBaseUrl(env.NEXT_PUBLIC_API_URL) ?? undefined,
   },
   {
     key: 'NEXT_PUBLIC_API_BASE_URL',
-    resolve: (env) => env.NEXT_PUBLIC_API_BASE_URL,
+    resolve: (env) => normalizeCrudBaseUrl(env.NEXT_PUBLIC_API_BASE_URL) ?? undefined,
   },
   {
     key: 'CRUD_API_URL',
-    resolve: (env) => env.CRUD_API_URL,
+    resolve: (env) => normalizeCrudBaseUrl(env.CRUD_API_URL) ?? undefined,
   },
 ];
 
@@ -78,28 +87,28 @@ const AGENT_BASE_URL_STRATEGIES: ResolutionStrategy[] = [
   {
     key: 'NEXT_PUBLIC_CRUD_API_URL',
     resolve: (env) => {
-      const crudBase = normalizeBaseUrl(env.NEXT_PUBLIC_CRUD_API_URL);
+      const crudBase = normalizeCrudBaseUrl(env.NEXT_PUBLIC_CRUD_API_URL);
       return crudBase ? `${crudBase}/agents` : undefined;
     },
   },
   {
     key: 'NEXT_PUBLIC_API_URL',
     resolve: (env) => {
-      const apiBase = normalizeBaseUrl(env.NEXT_PUBLIC_API_URL);
+      const apiBase = normalizeCrudBaseUrl(env.NEXT_PUBLIC_API_URL);
       return apiBase ? `${apiBase}/agents` : undefined;
     },
   },
   {
     key: 'NEXT_PUBLIC_API_BASE_URL',
     resolve: (env) => {
-      const apiBase = normalizeBaseUrl(env.NEXT_PUBLIC_API_BASE_URL);
+      const apiBase = normalizeCrudBaseUrl(env.NEXT_PUBLIC_API_BASE_URL);
       return apiBase ? `${apiBase}/agents` : undefined;
     },
   },
   {
     key: 'CRUD_API_URL',
     resolve: (env) => {
-      const crudBase = normalizeBaseUrl(env.CRUD_API_URL);
+      const crudBase = normalizeCrudBaseUrl(env.CRUD_API_URL);
       return crudBase ? `${crudBase}/agents` : undefined;
     },
   },

@@ -1,7 +1,7 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Deploys AI model deployments (gpt-5-nano, gpt-5.2) to the AI Services account
+    Deploys AI model deployments (gpt-5-nano, gpt-5) to the AI Services account
     after Bicep provisions the AI Foundry project.
 
 .DESCRIPTION
@@ -77,14 +77,14 @@ $models = @(
     @{
         Name       = 'gpt-5-nano'
         Model      = 'gpt-5-nano'
-        Version    = '2026-02-01'
+        Version    = '2025-08-07'
         SkuName    = 'GlobalStandard'
         Capacity   = 30
     },
     @{
-        Name       = 'gpt-5-2'
-        Model      = 'gpt-5.2'
-        Version    = '2026-02-01'
+        Name       = 'gpt-5'
+        Model      = 'gpt-5'
+        Version    = '2025-08-07'
         SkuName    = 'GlobalStandard'
         Capacity   = 30
     }

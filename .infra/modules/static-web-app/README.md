@@ -80,64 +80,39 @@ module.exports = nextConfig
 
 ## Deployment
 
-### Option 1: Bicep Deployment
+### Provision the Static Web App resource
 
 ```bash
-# Deploy to dev environment
+# Provision the Static Web App resource for a target environment
 az deployment sub create \
   --location eastus2 \
   --template-file .infra/modules/static-web-app/static-web-app-main.bicep \
-  --parameters environment=dev \
-               repositoryUrl='https://github.com/Azure-Samples/holiday-peak-hub' \
-               branch='main'
-
-# Deploy to production
-az deployment sub create \
-  --location eastus2 \
-  --template-file .infra/modules/static-web-app/static-web-app-main.bicep \
-  --parameters environment=prod \
+  --parameters environment=<environment> \
+               projectName=holidaypeakhub405 \
                repositoryUrl='https://github.com/Azure-Samples/holiday-peak-hub' \
                branch='main'
 ```
 
-### Option 2: Manual Deployment
+### Publish the UI
+
+Use the repository workflow in `.github/workflows/deploy-ui-swa.yml` for UI publication. Do not use `azd deploy --service ui` or ad hoc `swa deploy` commands for the canonical environment because the repo enforces exact Static Web App ownership and pre-publish API smoke gates.
+
+### Deployment token retrieval
 
 ```bash
-# Install Azure Static Web Apps CLI
-npm install -g @azure/static-web-apps-cli
-
-# Build Next.js app
-cd apps/ui
-npm run build
-
-# Deploy to Azure
-swa deploy \
-  --app-name holidaypeakhub-ui-dev \
-  --resource-group holidaypeakhub-dev-rg \
-  --app-location ./apps/ui \
-  --output-location out
-```
-
-## GitHub Actions Integration
-
-The Bicep deployment automatically creates a GitHub Actions workflow. Retrieve the deployment token directly from the Static Web App resource (do not output it from IaC deployment outputs).
-
-### Store Deployment Token in GitHub Secrets
-
-```bash
-# Get deployment token from the Static Web App resource
+# Get deployment token from the exact Static Web App resource
 DEPLOYMENT_TOKEN=$(az staticwebapp secrets list \
-  --name holidaypeakhub-ui-dev \
-  --resource-group holidaypeakhub-dev-rg \
+  --name holidaypeakhub405-ui-<environment> \
+  --resource-group holidaypeakhub405-<environment>-rg \
   --query properties.apiKey -o tsv)
 
 # Store in GitHub secrets (requires GitHub CLI)
 gh secret set AZURE_STATIC_WEB_APPS_API_TOKEN --body "$DEPLOYMENT_TOKEN"
 ```
 
-### GitHub Actions Workflow (auto-generated)
+### GitHub Actions workflow
 
-Azure Static Web Apps automatically creates `.github/workflows/azure-static-web-apps-<name>.yml`:
+The repository-managed workflow is `.github/workflows/deploy-ui-swa.yml`:
 
 ```yaml
 name: Azure Static Web Apps CI/CD
@@ -341,8 +316,8 @@ Configured in `staticwebapp.config.json`:
 
 ```bash
 az staticwebapp show \
-  --name holidaypeakhub-ui-dev \
-  --resource-group holidaypeakhub-dev-rg
+  --name holidaypeakhub405-ui-<environment> \
+  --resource-group holidaypeakhub405-<environment>-rg
 ```
 
 ### View Application Insights

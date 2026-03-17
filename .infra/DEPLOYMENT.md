@@ -13,9 +13,10 @@ Comprehensive deployment guide for Holiday Peak Hub infrastructure.
 | [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) | ≥ 2.60 | Azure resource management |
 | [azd](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd) | ≥ 1.10 | Provisioning + deployment |
 | [Bicep CLI](https://learn.microsoft.com/azure/azure-resource-manager/bicep/install) | ≥ 0.30 | Infrastructure-as-code (bundled with Azure CLI) |
-| [kubectl](https://kubernetes.io/docs/tasks/tools/) | ≥ 1.28 | Kubernetes cluster management |
-| [Helm](https://helm.sh/docs/intro/install/) | ≥ 3.14 | Kubernetes package management |
-| [Python](https://www.python.org/downloads/) | ≥ 3.11 | CLI tooling |
+azd env set deployShared true -e <environment>
+azd env set environment <environment> -e <environment>
+azd env set location <location> -e <environment>
+azd provision -e <environment>
 | [Docker](https://docs.docker.com/get-docker/) | ≥ 24 | Container image builds |
 
 ### Azure Subscription Requirements
@@ -24,54 +25,53 @@ Comprehensive deployment guide for Holiday Peak Hub infrastructure.
 - **Resource Providers**: Ensure the following providers are registered:
   - `Microsoft.ContainerService` (AKS)
   - `Microsoft.DocumentDB` (Cosmos DB)
-  - `Microsoft.Cache` (Redis)
-  - `Microsoft.Storage` (Storage)
+  --name static-web-app-<environment> \
+  --location <location> \
   - `Microsoft.EventHub` (Event Hubs)
-  - `Microsoft.KeyVault` (Key Vault)
-  - `Microsoft.ApiManagement` (APIM)
+  --parameters environment=<environment> \
+               projectName=holidaypeakhub405 \
+               resourceGroupName=holidaypeakhub405-<environment>-rg
   - `Microsoft.CognitiveServices` (AI Foundry)
   - `Microsoft.ContainerRegistry` (ACR)
   - `Microsoft.Web` (Static Web Apps)
-  - `Microsoft.Network` (VNet, NSG, Private DNS, Private Endpoints)
-  - `Microsoft.OperationalInsights` (Log Analytics)
-  - `Microsoft.Insights` (Application Insights)
 
 Register missing providers:
 
 ```bash
 az provider register --namespace Microsoft.ContainerService
-az provider register --namespace Microsoft.DocumentDB
-az provider register --namespace Microsoft.Cache
+  --resource-group holidaypeakhub405-<environment>-rg \
+  --name holidaypeakhub405-<environment>-aks
 az provider register --namespace Microsoft.EventHub
 az provider register --namespace Microsoft.ApiManagement
 az provider register --namespace Microsoft.CognitiveServices
-```
+azd deploy --service crud-service -e <environment>
 
 ### Quota Requirements (Dev)
-
+azd deploy --all -e <environment>
 | Resource | Required | SKU |
 |----------|----------|-----|
 | vCPUs (Ddsv5) | 32 | Standard_D8ds_v5 × 4 nodes |
 | Cosmos DB (Serverless) | 1 account | — |
-| Redis Cache | 1 instance | Premium P1 |
-| Event Hubs | 1 namespace | Standard |
+  --name static-web-app-<environment> \
+  --location <location> \
 | APIM | 1 instance | Consumption |
-
-### Authentication
+  --parameters environment=<environment> \
+               projectName=holidaypeakhub405 \
+               resourceGroupName=holidaypeakhub405-<environment>-rg
 
 ```bash
 az login
 az account set --subscription <SUBSCRIPTION_ID>
 ```
 
----
-
+  --resource-group holidaypeakhub405-<environment>-rg \
+  --name holidaypeakhub405-<environment>-aks
 ## Deployment Strategy 1: Shared Infrastructure (Recommended)
 
-### Overview
+FORCE=true ./.infra/azd/hooks/generate-crud-env.sh <environment>
 
-Deploy a single shared resource stack, then deploy all services as AKS workloads.
-
+azd deploy --service crud-service -e <environment>
+azd deploy --all -e <environment>
 **Deployment order**: Shared Infrastructure → CRUD Service + Agent Services → AGC Readiness Gate → APIM Sync + APIM Smoke Gate → Static Web App
 
 Release gate notes:
@@ -83,6 +83,10 @@ Release gate notes:
 - APIM sync consumes the approved AGC hostname contract from azd outputs and fails closed if the backend drifts to IP-based or cluster-local targets.
 - UI deployment runs pre/post smoke checks to ensure API health and SWA hostname reachability.
 
+azd env set deployShared true -e <environment>
+azd env set deployStatic true -e <environment>
+azd env set location <location> -e <environment>
+azd up -e <environment>
 ### Step 1: Deploy Shared Infrastructure
 
 The shared infrastructure module creates all platform resources using AVM.
@@ -91,19 +95,19 @@ The shared infrastructure module creates all platform resources using AVM.
 cd .infra/modules/shared-infrastructure
 
 az deployment sub create \
-  --name shared-infra-dev \
-  --location eastus2 \
+  --name shared-infra-<environment> \
+  --location <location> \
   --template-file shared-infrastructure-main.bicep \
-  --parameters environment=dev location=eastus2
+  --parameters environment=<environment> location=<location>
 ```
 
 **Or with azd**:
 
 ```bash
-azd env set deployShared true -e dev
-azd env set environment dev -e dev
-azd env set location eastus2 -e dev
-azd provision -e dev
+azd env set deployShared true -e <environment>
+azd env set environment <environment> -e <environment>
+azd env set location <location> -e <environment>
+azd provision -e <environment>
 ```
 
 **Resources created** (all AVM, ~25 minutes):
@@ -137,30 +141,32 @@ During `azd provision`, the `postprovision` hook installs the ALB controller Hel
 
 **Private endpoints** are created for: ACR, Cosmos DB, Redis, Storage, Event Hubs, Key Vault, AI Services.
 
-### Step 2: Deploy Static Web App
+### Step 2: Provision Static Web App
 
 ```bash
 cd .infra/modules/static-web-app
 
 az deployment sub create \
-  --name static-web-app-dev \
-  --location eastus2 \
+  --name static-web-app-<environment> \
+  --location <location> \
   --template-file static-web-app-main.bicep \
-  --parameters environment=dev \
-               resourceGroupName=holidaypeakhub-dev-rg
+  --parameters environment=<environment> \
+               projectName=holidaypeakhub405 \
+               resourceGroupName=holidaypeakhub405-<environment>-rg
 ```
 
 **Resources created** (~5 minutes):
-- Azure Static Web Apps (Free tier for dev, Standard for prod)
-- GitHub Actions workflow (auto-generated)
+- Azure Static Web Apps (Free tier for non-prod, Standard for prod)
 - Custom domain (prod only)
+
+Publish the UI with `.github/workflows/deploy-ui-swa.yml`. The canonical path is workflow-driven and validates the exact Static Web App identity before publishing.
 
 ### Step 3: Connect to AKS
 
 ```bash
 az aks get-credentials \
-  --resource-group holidaypeakhub-dev-rg \
-  --name holidaypeakhub-dev-aks
+  --resource-group holidaypeakhub405-<environment>-rg \
+  --name holidaypeakhub405-<environment>-aks
 
 kubectl get nodes
 ```
@@ -169,10 +175,10 @@ kubectl get nodes
 
 ```bash
 # CRUD service first
-azd deploy --service crud-service -e dev
+azd deploy --service crud-service -e <environment>
 
 # All agent services
-azd deploy --all -e dev
+azd deploy --all -e <environment>
 ```
 
 ### Outputs
@@ -181,7 +187,7 @@ After deployment, retrieve outputs:
 
 ```bash
 az deployment sub show \
-  --name shared-infra-dev \
+  --name shared-infra-<environment> \
   --query properties.outputs -o json
 ```
 
@@ -299,18 +305,18 @@ python cli.py deploy-all --location eastus2
 {projectName}-{environment}-rg
 ```
 
-Examples: `holidaypeakhub-dev-rg`, `holidaypeakhub-prod-rg`
+Examples: `holidaypeakhub405-dev-rg`, `holidaypeakhub405-prod-rg`
 
 ### azd Environment Variables
 
 ```bash
-azd env set deployShared true -e dev
-azd env set deployStatic true -e dev
-azd env set environment dev -e dev
-azd env set location eastus2 -e dev
-azd env set K8S_NAMESPACE holiday-peak -e dev
-azd env set IMAGE_PREFIX ghcr.io/azure-samples -e dev
-azd env set IMAGE_TAG latest -e dev
+azd env set deployShared true -e <environment>
+azd env set deployStatic true -e <environment>
+azd env set environment <environment> -e <environment>
+azd env set location <location> -e <environment>
+azd env set K8S_NAMESPACE holiday-peak -e <environment>
+azd env set IMAGE_PREFIX ghcr.io/azure-samples -e <environment>
+azd env set IMAGE_TAG latest -e <environment>
 ```
 
 ---
@@ -331,15 +337,15 @@ kubectl run test-cosmos --image=mcr.microsoft.com/azure-cli --restart=Never --rm
 
 # Private endpoint DNS resolution
 kubectl run test-dns --image=busybox --restart=Never --rm -it \
-  --command -- nslookup holidaypeakhub-dev-cosmos.documents.azure.com
+  --command -- nslookup holidaypeakhub405-<environment>-cosmos.documents.azure.com
 ```
 
 ### Static Web App
 
 ```bash
 az staticwebapp show \
-  --name holidaypeakhub-ui-dev \
-  --resource-group holidaypeakhub-dev-rg \
+  --name holidaypeakhub405-ui-<environment> \
+  --resource-group holidaypeakhub405-<environment>-rg \
   --query defaultHostname -o tsv
 ```
 
@@ -373,27 +379,27 @@ Preflight remediation guardrails:
 
 ```bash
 # Check deployment status
-az deployment sub show --name shared-infra-dev --query properties.provisioningState
+az deployment sub show --name shared-infra-<environment> --query properties.provisioningState
 
 # View deployment operations (find failures)
-az deployment sub operation list --name shared-infra-dev --query "[?properties.provisioningState=='Failed']"
+az deployment sub operation list --name shared-infra-<environment> --query "[?properties.provisioningState=='Failed']"
 
 # AKS diagnostics
 kubectl describe nodes
 kubectl get events --sort-by='.lastTimestamp' -A
 
 # Check RBAC assignments
-az role assignment list --scope /subscriptions/<SUB_ID>/resourceGroups/holidaypeakhub-dev-rg -o table
+az role assignment list --scope /subscriptions/<SUB_ID>/resourceGroups/holidaypeakhub405-<environment>-rg -o table
 ```
 
 ### Cleanup
 
 ```bash
 # Delete entire resource group
-az group delete --name holidaypeakhub-dev-rg --yes --no-wait
+az group delete --name holidaypeakhub405-<environment>-rg --yes --no-wait
 
 # Or delete specific deployment
-az deployment sub delete --name shared-infra-dev
+az deployment sub delete --name shared-infra-<environment>
 ```
 
 ---
@@ -433,5 +439,5 @@ jobs:
             --name shared-infra-${{ github.run_number }} \
             --location eastus2 \
             --template-file .infra/modules/shared-infrastructure/shared-infrastructure-main.bicep \
-            --parameters environment=dev location=eastus2
+            --parameters environment=${{ github.environment }} location=eastus2
 ```

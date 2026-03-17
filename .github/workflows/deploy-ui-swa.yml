@@ -121,11 +121,50 @@ jobs:
           smoke_endpoint "${API_BASE_URL}/api/products?limit=1" "Products"
           smoke_endpoint "${API_BASE_URL}/api/categories" "Categories"
 
+      - name: Resolve SWA deployment token
+        id: swa
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          RESOURCE_GROUP="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+          SWA_NAME="${{ inputs.projectName }}-ui-${{ inputs.environment }}"
+
+          mapfile -t AZD_UI_SWAS < <(az resource list \
+            --resource-group "$RESOURCE_GROUP" \
+            --resource-type Microsoft.Web/staticSites \
+            --tag azd-service-name=ui \
+            --query "[].name" -o tsv)
+
+          if [ "${#AZD_UI_SWAS[@]}" -ne 1 ] || [ "${AZD_UI_SWAS[0]}" != "$SWA_NAME" ]; then
+            echo "UI resource ownership contract violation in $RESOURCE_GROUP." >&2
+            echo "Expected exactly one azd-owned SWA named $SWA_NAME." >&2
+            echo "Found: ${AZD_UI_SWAS[*]:-<none>}" >&2
+            exit 1
+          fi
+
+          az staticwebapp show --name "$SWA_NAME" --resource-group "$RESOURCE_GROUP" >/dev/null
+
+          SWA_TOKEN=$(az staticwebapp secrets list \
+            --name "$SWA_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query "properties.apiKey" -o tsv)
+
+          SWA_TOKEN="$(echo "$SWA_TOKEN" | xargs)"
+          if [ -z "$SWA_TOKEN" ]; then
+            echo "Failed to resolve deployment token for canonical SWA $SWA_NAME in $RESOURCE_GROUP." >&2
+            exit 1
+          fi
+
+          echo "::add-mask::$SWA_TOKEN"
+          echo "swa_name=$SWA_NAME" >> "$GITHUB_OUTPUT"
+          echo "swa_token=$SWA_TOKEN" >> "$GITHUB_OUTPUT"
+
       - name: Deploy UI to Azure Static Web Apps
         uses: Azure/static-web-apps-deploy@v1
         with:
           action: upload
-          azure_static_web_apps_api_token: ${{ secrets.SWA_DEPLOYMENT_TOKEN }}
+          azure_static_web_apps_api_token: ${{ steps.swa.outputs.swa_token }}
           app_location: apps/ui
           output_location: ''
           skip_api_build: true
@@ -140,30 +179,7 @@ jobs:
           set -euo pipefail
 
           RESOURCE_GROUP="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
-          EXPECTED_SWA_NAME="${{ inputs.projectName }}-ui-${{ inputs.environment }}"
-          SWA_NAME=""
-
-          if az staticwebapp show --name "$EXPECTED_SWA_NAME" --resource-group "$RESOURCE_GROUP" >/dev/null 2>&1; then
-            SWA_NAME="$EXPECTED_SWA_NAME"
-          else
-            SWA_NAME=$(az staticwebapp list \
-              --resource-group "$RESOURCE_GROUP" \
-              --query "[?starts_with(defaultHostname, '${EXPECTED_SWA_NAME}.')].name | [0]" -o tsv)
-
-            if [ -z "$SWA_NAME" ]; then
-              COUNT=$(az staticwebapp list --resource-group "$RESOURCE_GROUP" --query "length(@)" -o tsv)
-              if [ "$COUNT" = "1" ]; then
-                SWA_NAME=$(az staticwebapp list --resource-group "$RESOURCE_GROUP" --query "[0].name" -o tsv)
-              fi
-            fi
-          fi
-
-          SWA_NAME="$(echo "$SWA_NAME" | xargs)"
-          if [ -z "$SWA_NAME" ]; then
-            echo "Could not deterministically resolve Static Web App in resource group $RESOURCE_GROUP." >&2
-            echo "Expected name: $EXPECTED_SWA_NAME" >&2
-            exit 1
-          fi
+          SWA_NAME="${{ steps.swa.outputs.swa_name }}"
 
           SWA_HOSTNAME=$(az staticwebapp show \
             --name "$SWA_NAME" \
