@@ -47,7 +47,6 @@ var appInsightsName = '${projectName}${envSuffix}-insights'
 var logAnalyticsName = '${projectName}${envSuffix}-logs'
 var vnetName = '${projectName}${envSuffix}-vnet'
 var aiServicesName = take('${safeProjectName}${replace(envSuffix, '-', '')}ais', 24)
-var aiSearchName = take('${safeProjectName}${replace(envSuffix, '-', '')}search', 60)
 var aiSearchIndexName = 'catalog-products'
 var aiSearchAuthMode = 'managed_identity'
 var aiProjectSuffix = substring(uniqueString(resourceGroup().id), 0, 3)
@@ -672,24 +671,8 @@ module keyVault 'br/public:avm/res/key-vault/vault:0.13.3' = {
   }
 }
 
-// Shared Azure AI Search service for catalog search retrieval
-resource aiSearch 'Microsoft.Search/searchServices@2022-09-01' = {
-  name: aiSearchName
-  location: location
-  sku: {
-    name: environment == 'prod' ? 'standard' : 'basic'
-  }
-  identity: {
-    type: 'SystemAssigned'
-  }
-  properties: {
-    replicaCount: 1
-    partitionCount: 1
-  }
-  tags: tags
-}
-
 // Azure AI Foundry Project (AVM)
+// The AVM module creates the AI Search service internally (includeAssociatedResources: true).
 module aiFoundry 'br/public:avm/ptn/ai-ml/ai-foundry:0.6.0' = {
   name: 'ai-foundry'
   params: {
@@ -716,10 +699,12 @@ module aiFoundry 'br/public:avm/ptn/ai-ml/ai-foundry:0.6.0' = {
     cosmosDbConfiguration: {
       existingResourceId: cosmos.outputs.resourceId
     }
-    aiSearchConfiguration: {
-      existingResourceId: aiSearch.id
-    }
   }
+}
+
+// Reference the AI Search service created by the AVM ai-foundry module for role assignments.
+resource aiSearchFromFoundry 'Microsoft.Search/searchServices@2022-09-01' existing = {
+  name: aiFoundry.outputs.aiSearchName
 }
 
 // Azure Kubernetes Service (AVM)
@@ -965,8 +950,8 @@ resource aksStorageRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
 
 // AKS workload identity -> Azure AI Search (index data query + document upsert/delete)
 resource aksSearchIndexDataContributorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, aksClusterName, aiSearchName, 'SearchIndexDataContributor')
-  scope: aiSearch
+  name: guid(resourceGroup().id, aksClusterName, aiFoundry.outputs.aiSearchName, 'SearchIndexDataContributor')
+  scope: aiSearchFromFoundry
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8ebe5a00-799e-43f5-93ac-243d3dce84a7') // Search Index Data Contributor
     principalId: aks.outputs.?kubeletIdentityObjectId ?? ''
@@ -996,8 +981,8 @@ output apimName string = apim.outputs.name
 output apimGatewayUrl string = 'https://${apimName}.azure-api.net'
 output aiServicesName string = aiFoundry.outputs.aiServicesName
 output aiProjectName string = aiFoundry.outputs.aiProjectName
-output aiSearchName string = aiSearch.name
-output aiSearchEndpoint string = 'https://${aiSearch.name}.search.windows.net'
+output aiSearchName string = aiFoundry.outputs.aiSearchName
+output aiSearchEndpoint string = 'https://${aiFoundry.outputs.aiSearchName}.search.windows.net'
 output aiSearchIndexName string = aiSearchIndexName
 output aiSearchAuthMode string = aiSearchAuthMode
 output appInsightsConnectionString string = appInsights.outputs.connectionString
