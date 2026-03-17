@@ -7,9 +7,9 @@ NAMESPACE="${K8S_NAMESPACE:-holiday-peak}"
 IMAGE_PREFIX="${IMAGE_PREFIX:-ghcr.io/azure-samples}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 KEDA_ENABLED="${KEDA_ENABLED:-false}"
-PUBLICATION_MODE="${PUBLICATION_MODE:-legacy}"
+PUBLICATION_MODE="${PUBLICATION_MODE:-agc}"
 LEGACY_INGRESS_ENABLED="false"
-LEGACY_INGRESS_CLASS_NAME="${LEGACY_INGRESS_CLASS_NAME:-${INGRESS_CLASS_NAME:-webapprouting.kubernetes.azure.com}}"
+LEGACY_INGRESS_CLASS_NAME="${LEGACY_INGRESS_CLASS_NAME:-${INGRESS_CLASS_NAME:-}}"
 AGC_ENABLED="false"
 AGC_GATEWAY_CLASS_NAME="${AGC_GATEWAY_CLASS:-azure-alb-external}"
 AGC_SUBNET_ID="${AGC_SUBNET_ID:-}"
@@ -43,6 +43,11 @@ case "$PUBLICATION_MODE" in
     exit 1
     ;;
 esac
+
+if [ "$LEGACY_INGRESS_ENABLED" = "true" ] && [ -z "$LEGACY_INGRESS_CLASS_NAME" ]; then
+  echo "LEGACY_INGRESS_CLASS_NAME or INGRESS_CLASS_NAME must be set when PUBLICATION_MODE is legacy or dual." >&2
+  exit 1
+fi
 
 # Determine workload type (crud-service goes to crud pool, others to agents pool)
 if [ "$SERVICE_NAME" = "crud-service" ]; then

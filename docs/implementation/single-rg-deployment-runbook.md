@@ -32,7 +32,7 @@ This configures azd environment values for `holidaypeakhub405-dev-rg` and runs `
 ./scripts/ops/demo-recover-and-seed.ps1
 ```
 
-This starts AKS, Application Gateway, and PostgreSQL, validates APIM CRUD endpoints, and runs CRUD demo seed job.
+This starts AKS and PostgreSQL, validates direct AGC CRUD health plus APIM CRUD endpoints, and runs CRUD demo seed job.
 
 ### 3. Pause (Cost Save)
 
@@ -58,6 +58,31 @@ This deletes `holidaypeakhub405-dev-rg` asynchronously.
 - CRUD seed hooks now support both PostgreSQL auth modes:
   - `POSTGRES_AUTH_MODE=password`
   - `POSTGRES_AUTH_MODE=entra`
+- Default AKS publication is now `PUBLICATION_MODE=agc`.
+- Legacy ingress publication is rollback-only and must be requested explicitly with:
+  - `PUBLICATION_MODE=legacy` or `PUBLICATION_MODE=dual`
+  - `LEGACY_INGRESS_CLASS_NAME=<explicit-class>`
+
+## CRUD Cutover And Rollback
+
+The dev cutover path is now `APIM -> AGC -> AKS` for CRUD.
+
+- Normal validation target:
+  - direct AGC `GET /health`
+  - APIM `GET /api/health`
+  - APIM `GET /api/products?limit=1`
+- Soak expectation:
+  - no dependency on nginx or Web App Routing for successful CRUD traffic
+
+If rollback is required during the soak window, use an explicit legacy override for the affected deploy only.
+
+```powershell
+$env:PUBLICATION_MODE = 'legacy'
+$env:LEGACY_INGRESS_CLASS_NAME = 'webapprouting.kubernetes.azure.com'
+azd deploy --service crud-service -e dev
+```
+
+Use `dual` instead of `legacy` if you need temporary side-by-side rollback validation before restoring AGC-only publication.
 
 ## UI Runtime Clarification (SWA)
 

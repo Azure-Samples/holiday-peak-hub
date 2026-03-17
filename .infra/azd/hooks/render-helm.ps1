@@ -7,9 +7,9 @@ $namespace = if ($env:K8S_NAMESPACE) { $env:K8S_NAMESPACE } else { "holiday-peak
 $imagePrefix = if ($env:IMAGE_PREFIX) { $env:IMAGE_PREFIX } else { "ghcr.io/azure-samples" }
 $imageTag = if ($env:IMAGE_TAG) { $env:IMAGE_TAG } else { "latest" }
 $kedaEnabled = if ($env:KEDA_ENABLED) { $env:KEDA_ENABLED } else { "false" }
-$publicationMode = if ($env:PUBLICATION_MODE) { $env:PUBLICATION_MODE } else { "legacy" }
+$publicationMode = if ($env:PUBLICATION_MODE) { $env:PUBLICATION_MODE } else { "agc" }
 $legacyIngressEnabled = "false"
-$legacyIngressClassName = if ($env:LEGACY_INGRESS_CLASS_NAME) { $env:LEGACY_INGRESS_CLASS_NAME } elseif ($env:INGRESS_CLASS_NAME) { $env:INGRESS_CLASS_NAME } else { "webapprouting.kubernetes.azure.com" }
+$legacyIngressClassName = if ($env:LEGACY_INGRESS_CLASS_NAME) { $env:LEGACY_INGRESS_CLASS_NAME } elseif ($env:INGRESS_CLASS_NAME) { $env:INGRESS_CLASS_NAME } else { "" }
 $agcEnabled = "false"
 $agcGatewayClassName = if ($env:AGC_GATEWAY_CLASS) { $env:AGC_GATEWAY_CLASS } else { "azure-alb-external" }
 $agcSubnetId = if ($env:AGC_SUBNET_ID) { $env:AGC_SUBNET_ID } else { "" }
@@ -67,6 +67,10 @@ switch ($publicationMode.ToLowerInvariant()) {
   default {
     throw "Unsupported PUBLICATION_MODE '$publicationMode'. Expected one of legacy, agc, dual, none."
   }
+}
+
+if ($legacyIngressEnabled -eq 'true' -and -not $legacyIngressClassName) {
+  throw "LEGACY_INGRESS_CLASS_NAME or INGRESS_CLASS_NAME must be set when PUBLICATION_MODE is legacy or dual."
 }
 
 if ($agcEnabled -eq 'true' -and -not $env:AGC_SHARED_RESOURCES_CREATE -and $ServiceName -eq 'crud-service') {

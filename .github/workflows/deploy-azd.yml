@@ -693,7 +693,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          echo "PUBLICATION_MODE=dual" >> "$GITHUB_ENV"
+          echo "PUBLICATION_MODE=agc" >> "$GITHUB_ENV"
           echo "AGC_SUPPORT_ENABLED=${{ needs.provision.outputs.AGC_SUPPORT_ENABLED || 'false' }}" >> "$GITHUB_ENV"
           echo "AGC_GATEWAY_CLASS=${{ needs.provision.outputs.AGC_GATEWAY_CLASS || 'azure-alb-external' }}" >> "$GITHUB_ENV"
           echo "AGC_SUBNET_ID=${{ needs.provision.outputs.AGC_SUBNET_ID }}" >> "$GITHUB_ENV"
@@ -708,24 +708,7 @@ jobs:
           else
             echo "AGC gateway class '${{ needs.provision.outputs.AGC_GATEWAY_CLASS || 'azure-alb-external' }}' is not ready yet. APIM sync will be blocked later by the AGC readiness gate if this remains unresolved." >&2
           fi
-
-          if [ -n "${INGRESS_CLASS_NAME:-}" ] && kubectl get ingressclass "${INGRESS_CLASS_NAME}" >/dev/null 2>&1; then
-            echo "Using preconfigured legacy ingress class: ${INGRESS_CLASS_NAME}"
-            echo "LEGACY_INGRESS_CLASS_NAME=${INGRESS_CLASS_NAME}" >> "$GITHUB_ENV"
-            echo "INGRESS_CLASS_NAME=${INGRESS_CLASS_NAME}" >> "$GITHUB_ENV"
-            exit 0
-          fi
-
-          for cls in webapprouting.kubernetes.azure.com nginx azure-application-gateway; do
-            if kubectl get ingressclass "$cls" >/dev/null 2>&1; then
-              echo "Using transitional legacy ingress class: $cls"
-              echo "LEGACY_INGRESS_CLASS_NAME=$cls" >> "$GITHUB_ENV"
-              echo "INGRESS_CLASS_NAME=$cls" >> "$GITHUB_ENV"
-              exit 0
-            fi
-          done
-
-          echo "No legacy ingress class detected. Continuing with AGC publication as the canonical workflow path."
+          echo "Legacy ingress classes are ignored by default. Use PUBLICATION_MODE=legacy or dual with an explicit LEGACY_INGRESS_CLASS_NAME only for rollback."
 
       - name: Preflight ACR data-plane accessibility
         id: acr_preflight
@@ -1404,7 +1387,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          echo "PUBLICATION_MODE=dual" >> "$GITHUB_ENV"
+          echo "PUBLICATION_MODE=agc" >> "$GITHUB_ENV"
           echo "AGC_SUPPORT_ENABLED=${{ needs.provision.outputs.AGC_SUPPORT_ENABLED || 'false' }}" >> "$GITHUB_ENV"
           echo "AGC_GATEWAY_CLASS=${{ needs.provision.outputs.AGC_GATEWAY_CLASS || 'azure-alb-external' }}" >> "$GITHUB_ENV"
           echo "AGC_SUBNET_ID=${{ needs.provision.outputs.AGC_SUBNET_ID }}" >> "$GITHUB_ENV"
