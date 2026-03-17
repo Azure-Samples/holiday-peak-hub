@@ -1069,8 +1069,7 @@ jobs:
           mapfile -t AZD_UI_SWAS < <(az resource list \
             --resource-group "$RESOURCE_GROUP" \
             --resource-type Microsoft.Web/staticSites \
-            --tag azd-service-name=ui \
-            --query "[].name" -o tsv)
+            --query "[?tags.\"azd-service-name\"=='ui'].name" -o tsv)
 
           if [ "${#AZD_UI_SWAS[@]}" -ne 1 ] || [ "${AZD_UI_SWAS[0]}" != "$SWA_NAME" ]; then
             echo "UI resource ownership contract violation in $RESOURCE_GROUP." >&2
@@ -1291,8 +1290,7 @@ jobs:
           mapfile -t AZD_UI_SWAS < <(az resource list \
             --resource-group "$RESOURCE_GROUP" \
             --resource-type Microsoft.Web/staticSites \
-            --tag azd-service-name=ui \
-            --query "[].name" -o tsv)
+            --query "[?tags.\"azd-service-name\"=='ui'].name" -o tsv)
 
           if [ "${#AZD_UI_SWAS[@]}" -ne 1 ] || [ "${AZD_UI_SWAS[0]}" != "$SWA_NAME" ]; then
             echo "UI resource ownership contract violation in $RESOURCE_GROUP." >&2
