@@ -6,14 +6,9 @@ param(
     [string]$AzureYamlPath,
     [string]$ChangedServices = $env:CHANGED_SERVICES,
     [string]$ApiPathPrefix = 'agents',
-    [switch]$UseIngress,
-    [string]$IngressHost,
-    [string]$AppGatewayName,
-    [string]$AppGatewayIp,
+    [string]$ApprovedBackendHostnames = $(if ($env:APIM_APPROVED_BACKEND_HOSTNAMES) { $env:APIM_APPROVED_BACKEND_HOSTNAMES } elseif ($env:AGC_FRONTEND_HOSTNAME) { $env:AGC_FRONTEND_HOSTNAME } else { '' }),
+    [string]$ApprovedBackendScheme = $(if ($env:APIM_APPROVED_BACKEND_SCHEME) { $env:APIM_APPROVED_BACKEND_SCHEME } elseif ($env:AGC_FRONTEND_SCHEME) { $env:AGC_FRONTEND_SCHEME } else { 'http' }),
     [bool]$IncludeCrudService = $true,
-    [bool]$RequireLoadBalancer = $true,
-    [int]$BackendResolveRetries = 24,
-    [int]$BackendResolveDelaySeconds = 5,
     [switch]$Preview
 )
 
@@ -24,16 +19,11 @@ if (-not $AzureYamlPath) {
     $AzureYamlPath = Join-Path $repoRoot 'azure.yaml'
 }
 
-$script:resolvedIngressGatewayHost = ''
-$script:useIngressMode = $UseIngress.IsPresent -or $env:USE_INGRESS -eq 'true'
-$script:resolvedAppGatewayName = if ($AppGatewayName) { $AppGatewayName } elseif ($env:APP_GW_NAME) { $env:APP_GW_NAME } else { '' }
-$script:resolvedAppGatewayIp = if ($AppGatewayIp) { $AppGatewayIp } elseif ($env:APP_GW_IP) { $env:APP_GW_IP } else { '' }
-$script:resolvedIngressHostOverride = if ($IngressHost) { $IngressHost } elseif ($env:INGRESS_HOST) { $env:INGRESS_HOST } else { '' }
-$script:ingressValidated = $false
-
-if ($script:useIngressMode) {
-    $RequireLoadBalancer = $false
-}
+$script:resolvedApprovedBackendHosts = @()
+$script:resolvedApprovedBackendHost = ''
+$script:resolvedApprovedBackendScheme = ''
+$script:resolvedApprovedBackendReference = ''
+$script:approvedBackendValidated = $false
 
 function Get-EnvValueFromFile {
     param(
@@ -52,6 +42,16 @@ function Get-EnvValueFromFile {
     }
 
     return ''
+}
+
+function Split-HostnameList {
+    param([string]$Value)
+
+    if (-not $Value) {
+        return @()
+    }
+
+    return @($Value -split '[,\s]+' | ForEach-Object { $_.Trim() } | Where-Object { $_ } | Select-Object -Unique)
 }
 
 function Convert-ToXmlEscapedValue {
@@ -153,6 +153,73 @@ function Get-AksClusterName {
     return ''
 }
 
+function Get-ApprovedBackendHosts {
+    param([string]$RepoRoot)
+
+    $candidates = Split-HostnameList -Value $ApprovedBackendHostnames
+    if ($candidates.Count -gt 0) {
+        return $candidates
+    }
+
+    if ($env:AZURE_ENV_NAME) {
+        $envFile = Join-Path $RepoRoot ".azure\$($env:AZURE_ENV_NAME)\.env"
+        $value = Get-EnvValueFromFile -FilePath $envFile -Key 'APIM_APPROVED_BACKEND_HOSTNAMES'
+        $candidates = Split-HostnameList -Value $value
+        if ($candidates.Count -gt 0) {
+            return $candidates
+        }
+
+        $value = Get-EnvValueFromFile -FilePath $envFile -Key 'AGC_FRONTEND_HOSTNAME'
+        $candidates = Split-HostnameList -Value $value
+        if ($candidates.Count -gt 0) {
+            return $candidates
+        }
+    }
+
+    return @()
+}
+
+function Get-ApprovedBackendScheme {
+    param([string]$RepoRoot)
+
+    if ($ApprovedBackendScheme) {
+        return $ApprovedBackendScheme.ToLowerInvariant()
+    }
+
+    if ($env:AZURE_ENV_NAME) {
+        $envFile = Join-Path $RepoRoot ".azure\$($env:AZURE_ENV_NAME)\.env"
+        $value = Get-EnvValueFromFile -FilePath $envFile -Key 'APIM_APPROVED_BACKEND_SCHEME'
+        if ($value) {
+            return $value.ToLowerInvariant()
+        }
+
+        $value = Get-EnvValueFromFile -FilePath $envFile -Key 'AGC_FRONTEND_SCHEME'
+        if ($value) {
+            return $value.ToLowerInvariant()
+        }
+    }
+
+    return 'http'
+}
+
+function Get-ApprovedBackendReference {
+    param([string]$RepoRoot)
+
+    if ($env:AGC_FRONTEND_REFERENCE) {
+        return $env:AGC_FRONTEND_REFERENCE
+    }
+
+    if ($env:AZURE_ENV_NAME) {
+        $envFile = Join-Path $RepoRoot ".azure\$($env:AZURE_ENV_NAME)\.env"
+        $value = Get-EnvValueFromFile -FilePath $envFile -Key 'AGC_FRONTEND_REFERENCE'
+        if ($value) {
+            return $value
+        }
+    }
+
+    return ''
+}
+
 function Ensure-AksCredentials {
     param(
         [string]$Rg,
@@ -165,7 +232,7 @@ function Ensure-AksCredentials {
     }
 
     if (-not (Get-Command kubectl -ErrorAction SilentlyContinue)) {
-        throw 'kubectl is required to resolve APIM backends. Install kubectl or run with -RequireLoadBalancer:$false.'
+        throw 'kubectl is required to validate APIM backend targets. Install kubectl before running APIM sync.'
     }
 
     if (-not (Get-Command az -ErrorAction SilentlyContinue)) {
@@ -251,129 +318,34 @@ function Get-AksServicesFromAzureYaml {
     return $services
 }
 
-function Resolve-IngressGatewayHost {
-    param(
-        [Parameter(Mandatory = $true)][string]$Rg,
-        [string]$GatewayName
-    )
+function Test-IsIpLiteral {
+    param([Parameter(Mandatory = $true)][string]$Value)
 
-    if ($script:resolvedIngressGatewayHost) {
-        return $script:resolvedIngressGatewayHost
-    }
-
-    if ($script:resolvedIngressHostOverride) {
-        $script:resolvedIngressGatewayHost = $script:resolvedIngressHostOverride
-        return $script:resolvedIngressGatewayHost
-    }
-
-    if ($script:resolvedAppGatewayIp) {
-        $script:resolvedIngressGatewayHost = $script:resolvedAppGatewayIp
-        return $script:resolvedIngressGatewayHost
-    }
-
-    function Resolve-PublicHostFromGateway {
-        param([Parameter(Mandatory = $true)][string]$Gateway)
-
-        $pipId = az network application-gateway show --resource-group $Rg --name $Gateway --query 'frontendIPConfigurations[0].publicIPAddress.id' -o tsv 2>$null
-        if (-not $pipId) {
-            return ''
-        }
-
-        $publicHost = az network public-ip show --ids $pipId --query ipAddress -o tsv 2>$null
-        if ($publicHost) {
-            return $publicHost
-        }
-
-        $publicHost = az network public-ip show --ids $pipId --query dnsSettings.fqdn -o tsv 2>$null
-        if ($publicHost) {
-            return $publicHost
-        }
-
-        return ''
-    }
-
-    function Add-UniqueHostCandidate {
-        param(
-            [System.Collections.Generic.List[string]]$Collection,
-            [string]$Candidate
-        )
-
-        if (-not $Candidate) {
-            return
-        }
-
-        $trimmed = $Candidate.Trim()
-        if (-not $trimmed) {
-            return
-        }
-
-        if (-not $Collection.Contains($trimmed)) {
-            $Collection.Add($trimmed)
-        }
-    }
-
-    $resolvedHost = ''
-
-    $effectiveGatewayName = if ($GatewayName) { $GatewayName } else { $script:resolvedAppGatewayName }
-    if ($effectiveGatewayName) {
-        $resolvedHost = Resolve-PublicHostFromGateway -Gateway $effectiveGatewayName
-        if (-not $resolvedHost) {
-            throw "Failed to resolve ingress host from explicit application gateway '$effectiveGatewayName'."
-        }
-
-        $script:resolvedIngressGatewayHost = $resolvedHost
-        return $script:resolvedIngressGatewayHost
-    }
-
-    $autoGateways = @(az network application-gateway list --resource-group $Rg --query '[].name' -o tsv 2>$null | Where-Object { $_.Trim() })
-    if ($autoGateways.Count -gt 1) {
-        $appGatewayCandidates = @($autoGateways | Where-Object { $_ -match 'appgw' })
-        if ($appGatewayCandidates.Count -eq 1) {
-            $autoGateways = $appGatewayCandidates
-        }
-        else {
-            throw "Multiple application gateways detected in '$Rg'. Provide -AppGatewayName, -AppGatewayIp, or -IngressHost."
-        }
-    }
-
-    if ($autoGateways.Count -eq 1) {
-        $resolvedHost = Resolve-PublicHostFromGateway -Gateway $autoGateways[0]
-        if (-not $resolvedHost) {
-            throw "Failed to resolve ingress host from detected application gateway '$($autoGateways[0])'."
-        }
-    }
-
-    if (-not $resolvedHost) {
-        $ingressCandidates = [System.Collections.Generic.List[string]]::new()
-        Add-UniqueHostCandidate -Collection $ingressCandidates -Candidate (kubectl get svc -A -l 'app.kubernetes.io/name=nginx' -o jsonpath="{.items[0].status.loadBalancer.ingress[0].ip}" 2>$null)
-        Add-UniqueHostCandidate -Collection $ingressCandidates -Candidate (kubectl get svc -A -l 'app.kubernetes.io/name=nginx' -o jsonpath="{.items[0].status.loadBalancer.ingress[0].hostname}" 2>$null)
-        Add-UniqueHostCandidate -Collection $ingressCandidates -Candidate (kubectl get svc nginx -n app-routing-system -o jsonpath="{.status.loadBalancer.ingress[0].ip}" 2>$null)
-        Add-UniqueHostCandidate -Collection $ingressCandidates -Candidate (kubectl get svc nginx -n app-routing-system -o jsonpath="{.status.loadBalancer.ingress[0].hostname}" 2>$null)
-        Add-UniqueHostCandidate -Collection $ingressCandidates -Candidate (kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath="{.status.loadBalancer.ingress[0].ip}" 2>$null)
-        Add-UniqueHostCandidate -Collection $ingressCandidates -Candidate (kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath="{.status.loadBalancer.ingress[0].hostname}" 2>$null)
-
-        if ($ingressCandidates.Count -gt 1) {
-            throw 'Ambiguous ingress host candidates detected. Provide -AppGatewayName, -AppGatewayIp, or -IngressHost.'
-        }
-
-        if ($ingressCandidates.Count -eq 1) {
-            $resolvedHost = $ingressCandidates[0]
-        }
-    }
-
-    if ($resolvedHost) {
-        $script:resolvedIngressGatewayHost = $resolvedHost
-    }
-
-    return $script:resolvedIngressGatewayHost
+    $ip = $null
+    return [System.Net.IPAddress]::TryParse($Value, [ref]$ip)
 }
 
-function Test-IngressCrudHealth {
+function Resolve-ApprovedBackendHost {
+    if ($script:resolvedApprovedBackendHost) {
+        return $script:resolvedApprovedBackendHost
+    }
+
+    if (-not $script:resolvedApprovedBackendHosts -or $script:resolvedApprovedBackendHosts.Count -eq 0) {
+        $referenceText = if ($script:resolvedApprovedBackendReference) { " (AGC frontend reference: $($script:resolvedApprovedBackendReference))" } else { '' }
+        throw "No approved AGC backend hostname was provided. Set APIM_APPROVED_BACKEND_HOSTNAMES or AGC_FRONTEND_HOSTNAME before running APIM sync$referenceText."
+    }
+
+    $script:resolvedApprovedBackendHost = $script:resolvedApprovedBackendHosts[0]
+    return $script:resolvedApprovedBackendHost
+}
+
+function Test-ApprovedBackendCrudHealth {
     param(
-        [Parameter(Mandatory = $true)][string]$GatewayHost
+        [Parameter(Mandatory = $true)][string]$BackendHost,
+        [Parameter(Mandatory = $true)][string]$Scheme
     )
 
-    $probeUrl = "http://$GatewayHost/health"
+    $probeUrl = "${Scheme}://$BackendHost/health"
     $lastStatus = ''
     $lastBody = ''
 
@@ -381,7 +353,7 @@ function Test-IngressCrudHealth {
         try {
             $response = Invoke-WebRequest -Uri $probeUrl -Method GET -TimeoutSec 10 -UseBasicParsing
             if ($response.StatusCode -eq 200) {
-                Write-Host "Validated ingress host '$GatewayHost' via $probeUrl"
+                Write-Host "Validated approved AGC backend host '$BackendHost' via $probeUrl"
                 return
             }
 
@@ -393,7 +365,7 @@ function Test-IngressCrudHealth {
             if ($statusCode) {
                 $lastStatus = [string]$statusCode
                 if ($statusCode -eq 404) {
-                    Write-Host "Validated ingress host '$GatewayHost' via $probeUrl (404 indicates reachable ingress path without rewrite)"
+                    Write-Host "Validated approved AGC backend host '$BackendHost' via $probeUrl (404 indicates reachable path without CRUD health publication)"
                     return
                 }
             }
@@ -403,145 +375,86 @@ function Test-IngressCrudHealth {
         Start-Sleep -Seconds 5
     }
 
-    throw "Ingress validation failed for '$GatewayHost' (last status: $lastStatus) using $probeUrl. Last response: $lastBody"
+    throw "AGC backend validation failed for '$BackendHost' (last status: $lastStatus) using $probeUrl. Last response: $lastBody"
 }
 
-function Ensure-IngressReady {
-    if ($script:ingressValidated) {
+function Ensure-ApprovedBackendReady {
+    if ($script:approvedBackendValidated) {
         return
     }
 
-    $resolvedHost = Resolve-IngressGatewayHost -Rg $script:resolvedResourceGroup -GatewayName $script:resolvedAppGatewayName
-    if (-not $resolvedHost) {
-        throw 'Ingress endpoint could not be resolved for APIM backend sync. Refusing to fall back to cluster-local addresses that APIM cannot reach.'
-    }
+    $resolvedHost = Resolve-ApprovedBackendHost
 
     if (-not $Preview) {
-        Test-IngressCrudHealth -GatewayHost $resolvedHost
+        Test-ApprovedBackendCrudHealth -BackendHost $resolvedHost -Scheme $script:resolvedApprovedBackendScheme
     }
 
-    $script:ingressValidated = $true
+    $script:approvedBackendValidated = $true
 }
 
 function Resolve-ServiceBackendUrl {
     param(
         [Parameter(Mandatory = $true)][string]$Service,
-        [Parameter(Mandatory = $true)][string]$Namespace,
-        [bool]$RequireLb = $true,
-        [int]$Retries = 24,
-        [int]$DelaySeconds = 5
+        [Parameter(Mandatory = $true)][string]$Namespace
     )
 
-    $serviceName = ''
-    $servicePort = '80'
-    $lbHost = ''
+    Ensure-ApprovedBackendReady
+    $backendHost = Resolve-ApprovedBackendHost
+    $baseUrl = "$($script:resolvedApprovedBackendScheme)://$backendHost"
 
-    if ($script:useIngressMode) {
-        Ensure-IngressReady
-        if ($Service -eq 'crud-service') {
-            return "http://$($script:resolvedIngressGatewayHost)"
-        }
-        return "http://$($script:resolvedIngressGatewayHost)/$Service"
+    if ($Service -eq 'crud-service') {
+        return $baseUrl
     }
+
+    return "$baseUrl/$Service"
+}
+
+function Get-ServiceName {
+    param(
+        [Parameter(Mandatory = $true)][string]$Service,
+        [Parameter(Mandatory = $true)][string]$Namespace
+    )
 
     if (Get-Command kubectl -ErrorAction SilentlyContinue) {
         $serviceName = kubectl get svc -n $Namespace -l "app=$Service" -o jsonpath="{.items[0].metadata.name}" 2>$null
         if ($LASTEXITCODE -eq 0 -and $serviceName) {
-            $servicePortCandidate = kubectl get svc $serviceName -n $Namespace -o jsonpath="{.spec.ports[0].port}" 2>$null
-            if ($LASTEXITCODE -eq 0 -and $servicePortCandidate) {
-                $servicePort = $servicePortCandidate
-            }
-
-            for ($attempt = 1; $attempt -le $Retries; $attempt++) {
-                $lbIp = kubectl get svc $serviceName -n $Namespace -o jsonpath="{.status.loadBalancer.ingress[0].ip}" 2>$null
-                if ($LASTEXITCODE -eq 0 -and $lbIp) {
-                    $lbHost = $lbIp
-                    break
-                }
-
-                $lbDns = kubectl get svc $serviceName -n $Namespace -o jsonpath="{.status.loadBalancer.ingress[0].hostname}" 2>$null
-                if ($LASTEXITCODE -eq 0 -and $lbDns) {
-                    $lbHost = $lbDns
-                    break
-                }
-
-                if ($attempt -lt $Retries) {
-                    Start-Sleep -Seconds $DelaySeconds
-                }
-            }
-
-            if ($lbHost) {
-                return "http://${lbHost}:$servicePort"
-            }
-
-            if (-not $RequireLb) {
-                $clusterIp = kubectl get svc $serviceName -n $Namespace -o jsonpath="{.spec.clusterIP}" 2>$null
-                if ($LASTEXITCODE -eq 0 -and $clusterIp) {
-                    return "http://${clusterIp}:$servicePort"
-                }
-                return "http://$serviceName.$Namespace.svc.cluster.local:$servicePort"
-            }
+            return $serviceName
         }
     }
 
     if ($script:resolvedAksClusterName -and $script:resolvedResourceGroup) {
         $serviceName = Invoke-AksKubectlJsonPath -Rg $script:resolvedResourceGroup -ClusterName $script:resolvedAksClusterName -KubectlArgs "get svc -n $Namespace -l app=$Service -o jsonpath='{.items[0].metadata.name}'"
         if ($serviceName) {
-            $servicePortCandidate = Invoke-AksKubectlJsonPath -Rg $script:resolvedResourceGroup -ClusterName $script:resolvedAksClusterName -KubectlArgs "get svc $serviceName -n $Namespace -o jsonpath='{.spec.ports[0].port}'"
-            if ($servicePortCandidate) {
-                $servicePort = $servicePortCandidate
-            }
-
-            for ($attempt = 1; $attempt -le $Retries; $attempt++) {
-                $lbIp = Invoke-AksKubectlJsonPath -Rg $script:resolvedResourceGroup -ClusterName $script:resolvedAksClusterName -KubectlArgs "get svc $serviceName -n $Namespace -o jsonpath='{.status.loadBalancer.ingress[0].ip}'"
-                if ($lbIp) {
-                    $lbHost = $lbIp
-                    break
-                }
-
-                $lbDns = Invoke-AksKubectlJsonPath -Rg $script:resolvedResourceGroup -ClusterName $script:resolvedAksClusterName -KubectlArgs "get svc $serviceName -n $Namespace -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'"
-                if ($lbDns) {
-                    $lbHost = $lbDns
-                    break
-                }
-
-                if ($attempt -lt $Retries) {
-                    Start-Sleep -Seconds $DelaySeconds
-                }
-            }
-
-            if ($lbHost) {
-                return "http://${lbHost}:$servicePort"
-            }
-
-            if (-not $RequireLb) {
-                $clusterIp = Invoke-AksKubectlJsonPath -Rg $script:resolvedResourceGroup -ClusterName $script:resolvedAksClusterName -KubectlArgs "get svc $serviceName -n $Namespace -o jsonpath='{.spec.clusterIP}'"
-                if ($clusterIp) {
-                    return "http://${clusterIp}:$servicePort"
-                }
-            }
+            return $serviceName
         }
     }
 
-    if ($RequireLb -and $Service -eq 'crud-service') {
-        try {
-            $fallbackHost = Resolve-IngressGatewayHost -Rg $script:resolvedResourceGroup -GatewayName $script:resolvedAppGatewayName
-            if (-not $Preview) {
-                Test-IngressCrudHealth -GatewayHost $fallbackHost
-            }
-            Write-Host "Using ingress fallback host '$fallbackHost' for CRUD APIM backend because no load balancer endpoint was resolved."
-            return "http://$fallbackHost"
-        }
-        catch {
-            throw "Service '$Service' has no resolvable load balancer backend and ingress fallback failed in namespace '$Namespace'. $($_.Exception.Message)"
+    return $Service
+}
+
+function Get-ServiceClusterIp {
+    param(
+        [Parameter(Mandatory = $true)][string]$Service,
+        [Parameter(Mandatory = $true)][string]$Namespace
+    )
+
+    $serviceName = Get-ServiceName -Service $Service -Namespace $Namespace
+
+    if (Get-Command kubectl -ErrorAction SilentlyContinue) {
+        $clusterIp = kubectl get svc $serviceName -n $Namespace -o jsonpath="{.spec.clusterIP}" 2>$null
+        if ($LASTEXITCODE -eq 0 -and $clusterIp) {
+            return $clusterIp
         }
     }
 
-    if ($RequireLb) {
-        throw "Service '$Service' has no resolvable load balancer backend in namespace '$Namespace'."
+    if ($script:resolvedAksClusterName -and $script:resolvedResourceGroup) {
+        $clusterIp = Invoke-AksKubectlJsonPath -Rg $script:resolvedResourceGroup -ClusterName $script:resolvedAksClusterName -KubectlArgs "get svc $serviceName -n $Namespace -o jsonpath='{.spec.clusterIP}'"
+        if ($clusterIp) {
+            return $clusterIp
+        }
     }
 
-    return "http://$Service-$Service.$Namespace.svc.cluster.local:$servicePort"
+    return ''
 }
 
 function Get-ServiceEndpointIps {
@@ -569,6 +482,26 @@ function Get-ServiceEndpointIps {
     return @($endpointIps | Sort-Object -Unique)
 }
 
+function Get-NodeIps {
+    $nodeIps = @()
+
+    if (Get-Command kubectl -ErrorAction SilentlyContinue) {
+        $ipsFromKubectl = kubectl get nodes -o jsonpath="{.items[*].status.addresses[?(@.type=='InternalIP')].address} {.items[*].status.addresses[?(@.type=='ExternalIP')].address}" 2>$null
+        if ($LASTEXITCODE -eq 0 -and $ipsFromKubectl) {
+            $nodeIps += @($ipsFromKubectl -split '\s+' | Where-Object { $_ })
+        }
+    }
+
+    if (($nodeIps.Count -eq 0) -and $script:resolvedAksClusterName -and $script:resolvedResourceGroup) {
+        $ipsFromAksCommand = Invoke-AksKubectlJsonPath -Rg $script:resolvedResourceGroup -ClusterName $script:resolvedAksClusterName -KubectlArgs "get nodes -o jsonpath='{.items[*].status.addresses[?(@.type==\"InternalIP\")].address} {.items[*].status.addresses[?(@.type==\"ExternalIP\")].address}'"
+        if ($ipsFromAksCommand) {
+            $nodeIps += @($ipsFromAksCommand -split '\s+' | Where-Object { $_ })
+        }
+    }
+
+    return @($nodeIps | Sort-Object -Unique)
+}
+
 function Get-UrlHost {
     param([Parameter(Mandatory = $true)][string]$Url)
 
@@ -580,24 +513,49 @@ function Get-UrlHost {
     }
 }
 
-function Assert-StableCrudBackendTarget {
+function Assert-ApprovedBackendTarget {
     param(
         [Parameter(Mandatory = $true)][string]$BackendUrl,
+        [Parameter(Mandatory = $true)][string]$Service,
         [Parameter(Mandatory = $true)][string]$Namespace
     )
 
     $backendHost = Get-UrlHost -Url $BackendUrl
     if (-not $backendHost) {
-        throw "Unable to parse host from CRUD APIM backend URL '$BackendUrl'."
+        throw "Unable to parse host from APIM backend URL '$BackendUrl'."
     }
 
-    $endpointIps = Get-ServiceEndpointIps -Service 'crud-service' -Namespace $Namespace
+    if (-not ($script:resolvedApprovedBackendHosts -contains $backendHost)) {
+        $allowedHosts = $script:resolvedApprovedBackendHosts -join ', '
+        throw "Refusing to set APIM backend '$BackendUrl': host '$backendHost' is not in the approved AGC hostname list: $allowedHosts"
+    }
+
+    if (Test-IsIpLiteral -Value $backendHost) {
+        throw "Refusing to set APIM backend '$BackendUrl': approved target '$backendHost' is an IP literal. APIM backends must target AGC hostnames only."
+    }
+
+    if ($backendHost.EndsWith('.svc.cluster.local', [System.StringComparison]::OrdinalIgnoreCase) -or $backendHost.EndsWith('.svc', [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Refusing to set APIM backend '$BackendUrl': host '$backendHost' is cluster-local."
+    }
+
+    $clusterIp = Get-ServiceClusterIp -Service $Service -Namespace $Namespace
+    if ($clusterIp -and $backendHost -eq $clusterIp) {
+        throw "Refusing to set APIM backend '$BackendUrl': host '$backendHost' matches the '$Service' ClusterIP."
+    }
+
+    $endpointIps = Get-ServiceEndpointIps -Service $Service -Namespace $Namespace
     if ($endpointIps -contains $backendHost) {
         $joinedIps = $endpointIps -join ', '
-        throw "Refusing to set unstable CRUD APIM backend '$BackendUrl': host '$backendHost' matches current crud-service endpoint IP(s): $joinedIps"
+        throw "Refusing to set APIM backend '$BackendUrl': host '$backendHost' matches current '$Service' endpoint IP(s): $joinedIps"
     }
 
-    Write-Host "Validated stable CRUD APIM backend host '$backendHost'."
+    $nodeIps = Get-NodeIps
+    if ($nodeIps -contains $backendHost) {
+        $joinedIps = $nodeIps -join ', '
+        throw "Refusing to set APIM backend '$BackendUrl': host '$backendHost' matches AKS node IP(s): $joinedIps"
+    }
+
+    Write-Host "Validated approved APIM backend host '$backendHost' for service '$Service'."
 }
 
 function Ensure-AgentApi {
@@ -619,7 +577,8 @@ function Ensure-AgentApi {
         return
     }
 
-    $backend = Resolve-ServiceBackendUrl -Service $Service -Namespace $Ns -RequireLb:$RequireLoadBalancer -Retries $BackendResolveRetries -DelaySeconds $BackendResolveDelaySeconds
+    $backend = Resolve-ServiceBackendUrl -Service $Service -Namespace $Ns
+    Assert-ApprovedBackendTarget -BackendUrl $backend -Service $Service -Namespace $Ns
 
     az apim api show --resource-group $Rg --service-name $Apim --api-id $apiId --only-show-errors *> $null
     if ($LASTEXITCODE -eq 0) {
@@ -683,8 +642,8 @@ function Update-CrudApi {
         return
     }
 
-    $backend = Resolve-ServiceBackendUrl -Service $service -Namespace $Ns -RequireLb:$RequireLoadBalancer -Retries $BackendResolveRetries -DelaySeconds $BackendResolveDelaySeconds
-    Assert-StableCrudBackendTarget -BackendUrl $backend -Namespace $Ns
+    $backend = Resolve-ServiceBackendUrl -Service $service -Namespace $Ns
+    Assert-ApprovedBackendTarget -BackendUrl $backend -Service $service -Namespace $Ns
 
     $apiExists = $false
     az apim api show --resource-group $Rg --service-name $Apim --api-id 'crud-service' --only-show-errors *> $null
@@ -855,6 +814,13 @@ if (-not $resolvedApimName) {
 
 $script:resolvedResourceGroup = $resolvedResourceGroup
 $script:resolvedAksClusterName = Get-AksClusterName -Rg $resolvedResourceGroup -RepoRoot $repoRoot
+$script:resolvedApprovedBackendHosts = Get-ApprovedBackendHosts -RepoRoot $repoRoot
+$script:resolvedApprovedBackendScheme = Get-ApprovedBackendScheme -RepoRoot $repoRoot
+$script:resolvedApprovedBackendReference = Get-ApprovedBackendReference -RepoRoot $repoRoot
+
+if ($script:resolvedApprovedBackendScheme -notin @('http', 'https')) {
+    throw "Unsupported APIM approved backend scheme '$($script:resolvedApprovedBackendScheme)'. Supported values are 'http' and 'https'."
+}
 
 Ensure-AksCredentials -Rg $resolvedResourceGroup -RepoRoot $repoRoot -SkipForPreview:$Preview
 
