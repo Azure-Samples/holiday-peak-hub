@@ -61,7 +61,7 @@ Wraps product + inventory connectors and maps results to ACP fields.
 ✅ FastAPI app structure with `/invoke` and `/health` endpoints  
 ✅ MCP tool registration for `/catalog/search` and `/catalog/product`  
 ✅ ACP-aligned product mapping (required feed fields + eligibility flags)  
-✅ Shared infra provisioning of Azure AI Search + `catalog-products` index  
+✅ Shared infra provisioning of Azure AI Search service with `catalog-products` ensured during `azd` `postprovision`
 ✅ Deployment output/env propagation for `AI_SEARCH_ENDPOINT`, `AI_SEARCH_INDEX`, and `AI_SEARCH_AUTH_MODE`  
 ✅ Runtime AI Search query path with graceful fallback when unconfigured/unavailable/empty  
 ✅ Product event-driven AI Search document upsert/delete hooks  

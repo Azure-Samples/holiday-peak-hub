@@ -499,6 +499,7 @@ hooks:
       run: |
         ./.infra/azd/hooks/ensure-entra-ui-app.ps1 -FailOnError:$false
         ./.infra/azd/hooks/ensure-agc-controller.ps1
+        ./.infra/azd/hooks/ensure-ai-search-index.ps1
         ./.infra/azd/hooks/deploy-foundry-models.ps1
       interactive: false
     posix:
@@ -506,6 +507,7 @@ hooks:
       run: |
         FAIL_ON_ERROR=false ./.infra/azd/hooks/ensure-entra-ui-app.sh
         ./.infra/azd/hooks/ensure-agc-controller.sh
+        ./.infra/azd/hooks/ensure-ai-search-index.sh
         ./.infra/azd/hooks/deploy-foundry-models.sh
       interactive: false
   postdeploy:

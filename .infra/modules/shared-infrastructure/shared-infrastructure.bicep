@@ -13,7 +13,7 @@ param aksWebApplicationRoutingEnabled bool = false
 @description('Enable Application Gateway for Containers shared-infrastructure prerequisites for the dev environment.')
 param agcSupportEnabled bool = environment == 'dev'
 @description('CIDR prefix for the delegated AGC subnet. Must provide at least 256 available IPs.')
-param agcSubnetAddressPrefix string = '10.0.11.0/24'
+param agcSubnetAddressPrefix string = '10.0.12.0/24'
 @secure()
 @description('PostgreSQL administrator password for CRUD transactional database. Leave empty to auto-generate a deterministic dev password.')
 param postgresAdminPassword string = ''
@@ -687,66 +687,6 @@ resource aiSearch 'Microsoft.Search/searchServices@2022-09-01' = {
     partitionCount: 1
   }
   tags: tags
-}
-
-resource aiSearchCatalogIndex 'Microsoft.Search/searchServices/indexes@2022-09-01' = {
-  parent: aiSearch
-  name: aiSearchIndexName
-  properties: {
-    fields: [
-      {
-        name: 'id'
-        type: 'Edm.String'
-        key: true
-        filterable: true
-        searchable: false
-      }
-      {
-        name: 'sku'
-        type: 'Edm.String'
-        searchable: true
-        filterable: true
-      }
-      {
-        name: 'title'
-        type: 'Edm.String'
-        searchable: true
-      }
-      {
-        name: 'description'
-        type: 'Edm.String'
-        searchable: true
-      }
-      {
-        name: 'content'
-        type: 'Edm.String'
-        searchable: true
-      }
-      {
-        name: 'category'
-        type: 'Edm.String'
-        searchable: true
-        filterable: true
-      }
-      {
-        name: 'brand'
-        type: 'Edm.String'
-        searchable: true
-        filterable: true
-      }
-      {
-        name: 'availability'
-        type: 'Edm.String'
-        filterable: true
-      }
-      {
-        name: 'price'
-        type: 'Edm.Double'
-        filterable: true
-        sortable: true
-      }
-    ]
-  }
 }
 
 // Azure AI Foundry Project (AVM)

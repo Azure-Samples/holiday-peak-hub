@@ -12,9 +12,9 @@ The `ecommerce-catalog-search` agent depends on Azure AI Search for vector/hybri
 
 - `apps/ecommerce-catalog-search/` has settings and dependencies for Azure AI Search
 - `lib/src/holiday_peak_lib/config/settings.py` includes AI Search configuration fields
-- `.infra/modules/shared-infrastructure/` Bicep does **not** include an `Microsoft.Search/searchServices` resource
-- No AI Search index schema has been deployed
-- The catalog-search agent cannot fulfill its primary purpose without this resource
+- `.infra/modules/shared-infrastructure/` Bicep provisions the shared `Microsoft.Search/searchServices` resource
+- `azd` `postprovision` ensures the `catalog-products` index after the service is reachable
+- The catalog-search agent can query the shared index when configured and degrade safely when Search is unavailable
 
 ## Expected Behavior
 
@@ -23,23 +23,25 @@ The `ecommerce-catalog-search` agent depends on Azure AI Search for vector/hybri
 - The catalog-search agent should populate and query the index
 - Vector search embeddings should be generated using Azure OpenAI
 
-## Suggested Fix
+## Resolution
 
-1. Add Azure AI Search Bicep module to `.infra/modules/shared-infrastructure/`
-2. Define index schema for product catalog (fields: name, description, category, price, embedding vector)
-3. Add indexer or push-based indexing from the CRUD service product events
-4. Configure the catalog-search agent with AI Search endpoint and key
-5. Update `deploy-azd.yml` to include AI Search provisioning
+1. Shared infrastructure provisions the Azure AI Search service.
+2. `azd` `postprovision` ensures the `catalog-products` index after service readiness.
+3. The catalog-search runtime consumes `AI_SEARCH_ENDPOINT`, `AI_SEARCH_INDEX`, and `AI_SEARCH_AUTH_MODE` from deploy outputs.
+4. Product event handlers maintain Search documents when Search configuration is present.
 
-## Files to Modify
+## Files Updated
 
-- `.infra/modules/shared-infrastructure/shared-infrastructure-main.bicep` — Add AI Search resource
-- `apps/ecommerce-catalog-search/src/` — Ensure AI Search client is configured
-- `.github/workflows/deploy-azd.yml` — Add index schema deployment step
+- `.infra/modules/shared-infrastructure/shared-infrastructure.bicep` — Shared AI Search service provisioning
+- `.infra/azd/hooks/ensure-ai-search-index.ps1` — Windows postprovision index ensure hook
+- `.infra/azd/hooks/ensure-ai-search-index.sh` — POSIX postprovision index ensure hook
+- `azure.yaml` — Postprovision orchestration for index ensure
+- `apps/ecommerce-catalog-search/src/` — AI Search client/runtime usage
 
 ## Implementation Notes (Issue #32)
 
-- Shared infra now provisions a single Azure AI Search service and `catalog-products` index in `.infra/modules/shared-infrastructure/shared-infrastructure.bicep`.
+- Shared infra now provisions a single Azure AI Search service in `.infra/modules/shared-infrastructure/shared-infrastructure.bicep`.
+- The `catalog-products` index is ensured after resource creation by `azd` `postprovision` hooks.
 - Outputs now propagate through `.infra/modules/shared-infrastructure/shared-infrastructure-main.bicep` and `.infra/azd/main.bicep`:
 	- `AI_SEARCH_ENDPOINT`
 	- `AI_SEARCH_INDEX`

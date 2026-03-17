@@ -119,7 +119,7 @@ All resources use AVM (Azure Verified Modules) and deploy to **eastus2** by defa
 | `aks-crud` | `10.0.8.0/24` | AKS CRUD node pool |
 | `apim` | `10.0.9.0/24` | API Management (prod: Internal VNet) |
 | `private-endpoints` | `10.0.10.0/24` | Private endpoint NICs |
-| `agc` | `10.0.11.0/24` by default | Delegated subnet for Application Gateway for Containers |
+| `agc` | `10.0.12.0/24` by default | Delegated subnet for Application Gateway for Containers |
 
 ### RBAC Assignments (6)
 
@@ -156,9 +156,11 @@ az deployment sub create \
   --parameters environment=dev location=eastus2
 ```
 
-**What this creates**: AKS cluster (3 pools), ACR, PostgreSQL (CRUD), Cosmos DB (agent warm memory), Event Hubs (5 topics), Redis, Storage, Key Vault, APIM, AI Foundry Project, VNet (5 subnets + 5 NSGs), 8 Private DNS Zones with Private Endpoints, App Insights, Log Analytics, 6 RBAC assignments
+**What this creates**: AKS cluster (3 pools), ACR, PostgreSQL (CRUD), Cosmos DB (agent warm memory), Event Hubs (5 topics), Redis, Storage, Key Vault, APIM, Azure AI Search service, AI Foundry Project, VNet (5 subnets + 5 NSGs), 8 Private DNS Zones with Private Endpoints, App Insights, Log Analytics, 6 RBAC assignments
 
 When `agcSupportEnabled` is on, shared infrastructure also creates the delegated AGC subnet, the ALB controller workload identity, and the RBAC required for later AGC route publication. The `azd` postprovision flow then installs the ALB controller into AKS without cutting over any workloads.
+
+The `catalog-products` Azure AI Search index is ensured during `azd` `postprovision`, after the search service is reachable, to avoid nested ARM child-resource timing conflicts during `azd provision`.
 
 **Duration**: ~25 minutes | **Cost**: see [Cost Estimates](#-cost-estimates)
 

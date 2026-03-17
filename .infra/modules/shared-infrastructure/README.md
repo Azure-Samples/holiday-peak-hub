@@ -58,7 +58,7 @@ This module creates **ONE instance** of each resource, shared across all service
   - `aks-crud` - 10.0.8.0/24 (CRUD node pool)
   - `apim` - 10.0.9.0/24 (API Management)
   - `private-endpoints` - 10.0.10.0/24 (Private endpoints for PaaS services)
-  - `agc` - 10.0.11.0/24 by default (Application Gateway for Containers delegated subnet, delegated to `Microsoft.ServiceNetworking/trafficControllers`)
+  - `agc` - 10.0.12.0/24 by default (Application Gateway for Containers delegated subnet, delegated to `Microsoft.ServiceNetworking/trafficControllers`)
 - **Network Security Groups** - One per subnet, including the delegated AGC subnet when AGC support is enabled
 - **Private Endpoints** - PaaS services are private by default; Azure AI Foundry is the intentional public-access exception
 
@@ -83,6 +83,8 @@ This module creates **ONE instance** of each resource, shared across all service
 - **Azure AI Foundry** - Shared Foundry resource and hub for agents and model deployments
   - Deployed in **West US 3** (`westus3`) for Azure AI Agent Service compatibility
   - **Public network access enabled** for agent service operations
+- **Azure AI Search** - Shared search service for catalog retrieval
+  - The `catalog-products` index is ensured during `azd` `postprovision` after the service becomes reachable
 
 ### Observability
 

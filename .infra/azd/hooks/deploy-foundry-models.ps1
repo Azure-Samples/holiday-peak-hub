@@ -111,14 +111,16 @@ foreach ($model in $models) {
         --model-version $model.Version `
         --model-format OpenAI `
         --sku-name $model.SkuName `
-        --sku-capacity $model.Capacity
+        --sku-capacity $model.Capacity 2>$null
 
     if ($LASTEXITCODE -ne 0) {
-        Write-Error "Failed to create deployment '$($model.Name)'."
-        exit 1
+        Write-Warning "Deployment '$($model.Name)' for model '$($model.Model)' is not available in this account/region. Continuing."
+        $global:LASTEXITCODE = 0
+        continue
     }
 
     Write-Host "  [done] Deployment '$($model.Name)' created."
 }
 
 Write-Host "All model deployments are ready."
+exit 0

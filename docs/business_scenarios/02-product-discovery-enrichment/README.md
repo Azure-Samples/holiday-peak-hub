@@ -50,7 +50,7 @@ flowchart LR
 
 Implemented and operational in platform deployment/runtime paths:
 
-- **Provisioning**: Shared infrastructure now provisions Azure AI Search and a `catalog-products` index.
+- **Provisioning**: Shared infrastructure provisions Azure AI Search, and `azd` `postprovision` ensures the `catalog-products` index after the service is reachable.
 - **Environment propagation**: `AI_SEARCH_ENDPOINT`, `AI_SEARCH_INDEX`, and `AI_SEARCH_AUTH_MODE` flow from Bicep outputs through `azd`/workflow outputs into Helm-rendered service environment variables.
 - **Runtime query path**: `ecommerce-catalog-search` queries Azure AI Search when configured.
 - **Runtime fallback**: If AI Search is unconfigured/unavailable or returns no usable SKU set, catalog search falls back to the existing adapter-based retrieval path to preserve response continuity.
