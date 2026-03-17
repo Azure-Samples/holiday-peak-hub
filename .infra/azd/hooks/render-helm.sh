@@ -7,12 +7,42 @@ NAMESPACE="${K8S_NAMESPACE:-holiday-peak}"
 IMAGE_PREFIX="${IMAGE_PREFIX:-ghcr.io/azure-samples}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 KEDA_ENABLED="${KEDA_ENABLED:-false}"
-INGRESS_ENABLED="${INGRESS_ENABLED:-true}"
-INGRESS_CLASS_NAME="${INGRESS_CLASS_NAME:-webapprouting.kubernetes.azure.com}"
+PUBLICATION_MODE="${PUBLICATION_MODE:-legacy}"
+LEGACY_INGRESS_ENABLED="false"
+LEGACY_INGRESS_CLASS_NAME="${LEGACY_INGRESS_CLASS_NAME:-${INGRESS_CLASS_NAME:-webapprouting.kubernetes.azure.com}}"
+AGC_ENABLED="false"
+AGC_GATEWAY_CLASS_NAME="${AGC_GATEWAY_CLASS:-azure-alb-external}"
+AGC_SUBNET_ID="${AGC_SUBNET_ID:-}"
+AGC_SHARED_NAMESPACE="${AGC_SHARED_NAMESPACE:-$NAMESPACE}"
+AGC_SHARED_GATEWAY_NAME="${AGC_SHARED_GATEWAY_NAME:-holiday-peak-agc}"
+AGC_SHARED_ALB_NAME="${AGC_SHARED_ALB_NAME:-$AGC_SHARED_GATEWAY_NAME}"
+AGC_SHARED_RESOURCES_CREATE="${AGC_SHARED_RESOURCES_CREATE:-false}"
+AGC_HOSTNAME="${AGC_HOSTNAME:-}"
 CANARY_ENABLED="${CANARY_ENABLED:-false}"
 READINESS_PATH="/ready"
 REPLICA_COUNT=""
 DEPLOY_ENV="${DEPLOY_ENV:-${AZURE_ENV_NAME:-}}"
+
+case "$PUBLICATION_MODE" in
+  legacy)
+    LEGACY_INGRESS_ENABLED="true"
+    ;;
+  agc)
+    AGC_ENABLED="true"
+    ;;
+  dual)
+    LEGACY_INGRESS_ENABLED="true"
+    AGC_ENABLED="true"
+    ;;
+  none)
+    LEGACY_INGRESS_ENABLED="false"
+    AGC_ENABLED="false"
+    ;;
+  *)
+    echo "Unsupported PUBLICATION_MODE '$PUBLICATION_MODE'. Expected one of legacy, agc, dual, none." >&2
+    exit 1
+    ;;
+esac
 
 # Determine workload type (crud-service goes to crud pool, others to agents pool)
 if [ "$SERVICE_NAME" = "crud-service" ]; then
@@ -44,6 +74,10 @@ else
   ROLLING_MAX_SURGE=""
 fi
 
+if [ "$AGC_ENABLED" = "true" ] && [ -z "${AGC_SHARED_RESOURCES_CREATE:-}" ] && [ "$SERVICE_NAME" = "crud-service" ]; then
+  AGC_SHARED_RESOURCES_CREATE="true"
+fi
+
 SERVICE_IMAGE_VAR_NAME="SERVICE_$(printf '%s' "$SERVICE_NAME" | tr '[:lower:]-' '[:upper:]_')_IMAGE_NAME"
 SERVICE_IMAGE="$(printenv "$SERVICE_IMAGE_VAR_NAME" || true)"
 
@@ -70,13 +104,35 @@ HELM_ARGS="$HELM_ARGS --set serviceName=$SERVICE_NAME"
 HELM_ARGS="$HELM_ARGS --set image.repository=$IMAGE_PREFIX"
 HELM_ARGS="$HELM_ARGS --set image.tag=$IMAGE_TAG"
 HELM_ARGS="$HELM_ARGS --set keda.enabled=$KEDA_ENABLED"
-HELM_ARGS="$HELM_ARGS --set ingress.enabled=$INGRESS_ENABLED"
-HELM_ARGS="$HELM_ARGS --set-string ingress.className=$INGRESS_CLASS_NAME"
+HELM_ARGS="$HELM_ARGS --set ingress.enabled=$LEGACY_INGRESS_ENABLED"
+HELM_ARGS="$HELM_ARGS --set-string ingress.className=$LEGACY_INGRESS_CLASS_NAME"
+HELM_ARGS="$HELM_ARGS --set agc.enabled=$AGC_ENABLED"
+HELM_ARGS="$HELM_ARGS --set-string agc.gatewayClassName=$AGC_GATEWAY_CLASS_NAME"
+HELM_ARGS="$HELM_ARGS --set agc.sharedResources.create=$AGC_SHARED_RESOURCES_CREATE"
+HELM_ARGS="$HELM_ARGS --set-string agc.sharedResources.namespace=$AGC_SHARED_NAMESPACE"
+HELM_ARGS="$HELM_ARGS --set-string agc.sharedResources.gatewayName=$AGC_SHARED_GATEWAY_NAME"
+HELM_ARGS="$HELM_ARGS --set-string agc.sharedResources.applicationLoadBalancerName=$AGC_SHARED_ALB_NAME"
+HELM_ARGS="$HELM_ARGS --set-string agc.sharedResources.subnetId=$AGC_SUBNET_ID"
 if [ "$SERVICE_NAME" = "crud-service" ]; then
   HELM_ARGS="$HELM_ARGS --set ingress.paths[0].path=/health"
   HELM_ARGS="$HELM_ARGS --set ingress.paths[0].pathType=Prefix"
   HELM_ARGS="$HELM_ARGS --set ingress.paths[1].path=/api"
   HELM_ARGS="$HELM_ARGS --set ingress.paths[1].pathType=Prefix"
+  HELM_ARGS="$HELM_ARGS --set agc.paths[0].path=/health"
+  HELM_ARGS="$HELM_ARGS --set agc.paths[0].pathType=PathPrefix"
+  HELM_ARGS="$HELM_ARGS --set agc.paths[1].path=/api"
+  HELM_ARGS="$HELM_ARGS --set agc.paths[1].pathType=PathPrefix"
+else
+  HELM_ARGS="$HELM_ARGS --set agc.paths[0].path=/health"
+  HELM_ARGS="$HELM_ARGS --set agc.paths[0].pathType=PathPrefix"
+  HELM_ARGS="$HELM_ARGS --set agc.paths[1].path=/invoke"
+  HELM_ARGS="$HELM_ARGS --set agc.paths[1].pathType=PathPrefix"
+  HELM_ARGS="$HELM_ARGS --set agc.paths[2].path=/mcp"
+  HELM_ARGS="$HELM_ARGS --set agc.paths[2].pathType=PathPrefix"
+fi
+if [ -n "$AGC_HOSTNAME" ]; then
+  HELM_ARGS="$HELM_ARGS --set-string agc.hostnames[0]=$AGC_HOSTNAME"
+  HELM_ARGS="$HELM_ARGS --set-string agc.sharedResources.listeners[0].hostname=$AGC_HOSTNAME"
 fi
 HELM_ARGS="$HELM_ARGS --set canary.enabled=$CANARY_ENABLED"
 HELM_ARGS="$HELM_ARGS --set probes.readiness.path=$READINESS_PATH"
