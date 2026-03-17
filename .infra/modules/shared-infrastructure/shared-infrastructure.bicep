@@ -716,6 +716,9 @@ module aiFoundry 'br/public:avm/ptn/ai-ml/ai-foundry:0.6.0' = {
     cosmosDbConfiguration: {
       existingResourceId: cosmos.outputs.resourceId
     }
+    aiSearchConfiguration: {
+      existingResourceId: aiSearch.id
+    }
   }
 }
 
