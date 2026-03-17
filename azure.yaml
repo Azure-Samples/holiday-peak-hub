@@ -505,6 +505,7 @@ hooks:
     posix:
       shell: sh
       run: |
+        ./.infra/azd/hooks/refresh-azure-oidc.sh
         FAIL_ON_ERROR=false ./.infra/azd/hooks/ensure-entra-ui-app.sh
         ./.infra/azd/hooks/ensure-agc-controller.sh
         ./.infra/azd/hooks/ensure-ai-search-index.sh
@@ -521,6 +522,7 @@ hooks:
     posix:
       shell: sh
       run: |
+        ./.infra/azd/hooks/refresh-azure-oidc.sh
         APIM_APPROVED_BACKEND_HOSTNAMES="$AGC_FRONTEND_HOSTNAME" ./.infra/azd/hooks/sync-apim-agents.sh --namespace holiday-peak --api-path-prefix agents
         ./.infra/azd/hooks/ensure-foundry-agents.sh --port-forward --non-blocking
       interactive: false
