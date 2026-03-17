@@ -62,7 +62,9 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 - Changed-service detection to reduce blast radius and deployment duration.
 - Push-event changed-service detection must diff `${{ github.event.before }}...${{ github.sha }}` to avoid empty comparisons against `origin/main` after merge.
 - APIM sync/smoke checks for API path health after relevant changes.
+- Deployment workflows must validate AGC GatewayClass readiness and direct CRUD `/health` reachability on the approved AGC frontend hostname before APIM sync.
 - APIM sync determinism is required: ingress sync must resolve against an explicit AGC target in workflow execution.
+- APIM smoke coverage must include direct AGC CRUD health, APIM CRUD health, CRUD CORS preflight behavior, and at least one negative CRUD path that proves failures are not masked as upstream 5xx responses.
 - Transitional workflow or manifest logic may still detect legacy ingress classes during migration, but AGC is the canonical target state and must take precedence in governance and cutover planning.
 - APIM sync filtering must always include `crud-service` when CRUD sync is enabled, even under changed-services filtering.
 - For AGC-backed CRUD routing, ingress must expose app-native paths (`/health`, `/api`) and APIM CRUD backend must target the AGC listener root with no workload-specific suffix.

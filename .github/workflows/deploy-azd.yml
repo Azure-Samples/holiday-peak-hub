@@ -270,6 +270,11 @@ jobs:
       POSTGRES_ADMIN_USER: ${{ steps.outputs.outputs.POSTGRES_ADMIN_USER }}
       POSTGRES_AUTH_MODE: ${{ steps.outputs.outputs.POSTGRES_AUTH_MODE }}
       POSTGRES_DATABASE: ${{ steps.outputs.outputs.POSTGRES_DATABASE }}
+      AGC_SUPPORT_ENABLED: ${{ steps.outputs.outputs.AGC_SUPPORT_ENABLED }}
+      AGC_GATEWAY_CLASS: ${{ steps.outputs.outputs.AGC_GATEWAY_CLASS }}
+      AGC_SUBNET_ID: ${{ steps.outputs.outputs.AGC_SUBNET_ID }}
+      AGC_FRONTEND_HOSTNAME: ${{ steps.outputs.outputs.AGC_FRONTEND_HOSTNAME }}
+      AGC_FRONTEND_REFERENCE: ${{ steps.outputs.outputs.AGC_FRONTEND_REFERENCE }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -576,6 +581,11 @@ jobs:
             echo "POSTGRES_ADMIN_USER=${POSTGRES_ADMIN_USER}"
             echo "POSTGRES_AUTH_MODE=${POSTGRES_AUTH_MODE}"
             echo "POSTGRES_DATABASE=${POSTGRES_DATABASE}"
+            echo "AGC_SUPPORT_ENABLED=${AGC_SUPPORT_ENABLED}"
+            echo "AGC_GATEWAY_CLASS=${AGC_GATEWAY_CLASS}"
+            echo "AGC_SUBNET_ID=${AGC_SUBNET_ID}"
+            echo "AGC_FRONTEND_HOSTNAME=${AGC_FRONTEND_HOSTNAME}"
+            echo "AGC_FRONTEND_REFERENCE=${AGC_FRONTEND_REFERENCE}"
           } >> "$GITHUB_OUTPUT"
 
   deploy-foundry-models:
@@ -678,28 +688,44 @@ jobs:
             --query "identityProfile.kubeletidentity.clientId" -o tsv)
           echo "WORKLOAD_AZURE_CLIENT_ID=${AKS_MI_CLIENT_ID}" >> "$GITHUB_ENV"
 
-      - name: Resolve ingress class
+      - name: Resolve publication context
         shell: bash
         run: |
           set -euo pipefail
+
+          echo "PUBLICATION_MODE=dual" >> "$GITHUB_ENV"
+          echo "AGC_SUPPORT_ENABLED=${{ needs.provision.outputs.AGC_SUPPORT_ENABLED || 'false' }}" >> "$GITHUB_ENV"
+          echo "AGC_GATEWAY_CLASS=${{ needs.provision.outputs.AGC_GATEWAY_CLASS || 'azure-alb-external' }}" >> "$GITHUB_ENV"
+          echo "AGC_SUBNET_ID=${{ needs.provision.outputs.AGC_SUBNET_ID }}" >> "$GITHUB_ENV"
+          echo "AGC_HOSTNAME=${{ needs.provision.outputs.AGC_FRONTEND_HOSTNAME }}" >> "$GITHUB_ENV"
+          echo "AGC_FRONTEND_HOSTNAME=${{ needs.provision.outputs.AGC_FRONTEND_HOSTNAME }}" >> "$GITHUB_ENV"
+
+          kubectl get gatewayclass -o wide || true
           kubectl get ingressclass -o wide || true
 
+          if [ "${{ needs.provision.outputs.AGC_SUPPORT_ENABLED || 'false' }}" = "true" ] && kubectl get gatewayclass "${{ needs.provision.outputs.AGC_GATEWAY_CLASS || 'azure-alb-external' }}" >/dev/null 2>&1; then
+            echo "Using AGC gateway class: ${{ needs.provision.outputs.AGC_GATEWAY_CLASS || 'azure-alb-external' }}"
+          else
+            echo "AGC gateway class '${{ needs.provision.outputs.AGC_GATEWAY_CLASS || 'azure-alb-external' }}' is not ready yet. APIM sync will be blocked later by the AGC readiness gate if this remains unresolved." >&2
+          fi
+
           if [ -n "${INGRESS_CLASS_NAME:-}" ] && kubectl get ingressclass "${INGRESS_CLASS_NAME}" >/dev/null 2>&1; then
-            echo "Using preconfigured ingress class: ${INGRESS_CLASS_NAME}"
+            echo "Using preconfigured legacy ingress class: ${INGRESS_CLASS_NAME}"
+            echo "LEGACY_INGRESS_CLASS_NAME=${INGRESS_CLASS_NAME}" >> "$GITHUB_ENV"
             echo "INGRESS_CLASS_NAME=${INGRESS_CLASS_NAME}" >> "$GITHUB_ENV"
             exit 0
           fi
 
-          for cls in azure-application-gateway webapprouting.kubernetes.azure.com nginx; do
+          for cls in webapprouting.kubernetes.azure.com nginx azure-application-gateway; do
             if kubectl get ingressclass "$cls" >/dev/null 2>&1; then
-              echo "Using detected ingress class: $cls"
+              echo "Using transitional legacy ingress class: $cls"
+              echo "LEGACY_INGRESS_CLASS_NAME=$cls" >> "$GITHUB_ENV"
               echo "INGRESS_CLASS_NAME=$cls" >> "$GITHUB_ENV"
               exit 0
             fi
           done
 
-          echo "No supported IngressClass found. Enable AKS Web App Routing or provide INGRESS_CLASS_NAME." >&2
-          exit 1
+          echo "No legacy ingress class detected. Continuing with AGC publication as the canonical workflow path."
 
       - name: Preflight ACR data-plane accessibility
         id: acr_preflight
@@ -816,7 +842,6 @@ jobs:
           exit 1
         env:
           DEPLOY_ENV: ${{ inputs.environment }}
-          INGRESS_CLASS_NAME: ${{ env.INGRESS_CLASS_NAME }}
           AZURE_TENANT_ID: ${{ env.AZURE_TENANT_ID }}
           AI_SEARCH_ENDPOINT: ${{ needs.provision.outputs.AI_SEARCH_ENDPOINT }}
           AI_SEARCH_INDEX: ${{ needs.provision.outputs.AI_SEARCH_INDEX }}
@@ -1374,6 +1399,18 @@ jobs:
             --query "identityProfile.kubeletidentity.clientId" -o tsv)
           echo "WORKLOAD_AZURE_CLIENT_ID=${AKS_MI_CLIENT_ID}" >> "$GITHUB_ENV"
 
+      - name: Resolve publication context
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "PUBLICATION_MODE=dual" >> "$GITHUB_ENV"
+          echo "AGC_SUPPORT_ENABLED=${{ needs.provision.outputs.AGC_SUPPORT_ENABLED || 'false' }}" >> "$GITHUB_ENV"
+          echo "AGC_GATEWAY_CLASS=${{ needs.provision.outputs.AGC_GATEWAY_CLASS || 'azure-alb-external' }}" >> "$GITHUB_ENV"
+          echo "AGC_SUBNET_ID=${{ needs.provision.outputs.AGC_SUBNET_ID }}" >> "$GITHUB_ENV"
+          echo "AGC_HOSTNAME=${{ needs.provision.outputs.AGC_FRONTEND_HOSTNAME }}" >> "$GITHUB_ENV"
+          echo "AGC_FRONTEND_HOSTNAME=${{ needs.provision.outputs.AGC_FRONTEND_HOSTNAME }}" >> "$GITHUB_ENV"
+
       - name: Preflight ACR data-plane accessibility
         id: acr_preflight_agents
         shell: bash
@@ -1461,19 +1498,129 @@ jobs:
             --resource-group "${{ steps.acr_preflight_agents.outputs.rg_name }}" \
             --ip-address "${{ steps.acr_preflight_agents.outputs.runner_ip }}" >/dev/null || true
 
-  sync-apim:
+  validate-agc-readiness:
     runs-on: ubuntu-latest
     if: ${{ !inputs.uiOnly && (inputs.forceApimSync || needs.detect-changes.outputs.agents_changed == 'true' || needs.detect-changes.outputs.crud_changed == 'true' || needs.detect-changes.outputs.ui_changed == 'true') && (needs.deploy-crud.result == 'success' || needs.deploy-crud.result == 'skipped') && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') }}
+    needs:
+      - provision
+      - deploy-crud
+      - deploy-agents
+      - detect-changes
+    environment: ${{ inputs.environment }}
+    outputs:
+      approved_backend_hostnames: ${{ steps.resolve.outputs.approved_backend_hostnames }}
+      approved_backend_scheme: ${{ steps.resolve.outputs.approved_backend_scheme }}
+      agc_gateway_class: ${{ steps.resolve.outputs.agc_gateway_class }}
+      agc_frontend_url: ${{ steps.resolve.outputs.agc_frontend_url }}
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup azd
+        uses: Azure/setup-azd@v2
+
+      - name: Resolve AGC readiness inputs
+        id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+          AGC_ENABLED="${{ needs.provision.outputs.AGC_SUPPORT_ENABLED || 'false' }}"
+          AGC_GATEWAY_CLASS_VALUE="${{ needs.provision.outputs.AGC_GATEWAY_CLASS || 'azure-alb-external' }}"
+          AGC_FRONTEND_HOST_VALUE="${{ needs.provision.outputs.AGC_FRONTEND_HOSTNAME }}"
+          AGC_FRONTEND_SCHEME_VALUE="http"
+
+          if [ "$AGC_ENABLED" != "true" ]; then
+            echo "AGC support is not enabled for environment '${{ inputs.environment }}'. APIM sync cannot proceed without the canonical AGC edge." >&2
+            exit 1
+          fi
+
+          if [ -z "$AGC_FRONTEND_HOST_VALUE" ]; then
+            echo "AGC_FRONTEND_HOSTNAME is empty. APIM sync cannot proceed without an approved AGC hostname." >&2
+            exit 1
+          fi
+
+          if [ -z "$AGC_GATEWAY_CLASS_VALUE" ]; then
+            echo "AGC_GATEWAY_CLASS is empty. AGC readiness cannot be validated." >&2
+            exit 1
+          fi
+
+          case "$AGC_FRONTEND_SCHEME_VALUE" in
+            http|https)
+              ;;
+            *)
+              echo "Unsupported AGC frontend scheme '$AGC_FRONTEND_SCHEME_VALUE'." >&2
+              exit 1
+              ;;
+          esac
+
+          echo "approved_backend_hostnames=$AGC_FRONTEND_HOST_VALUE" >> "$GITHUB_OUTPUT"
+          echo "approved_backend_scheme=$AGC_FRONTEND_SCHEME_VALUE" >> "$GITHUB_OUTPUT"
+          echo "agc_gateway_class=$AGC_GATEWAY_CLASS_VALUE" >> "$GITHUB_OUTPUT"
+          echo "agc_frontend_url=${AGC_FRONTEND_SCHEME_VALUE}://${AGC_FRONTEND_HOST_VALUE}" >> "$GITHUB_OUTPUT"
+
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
+            --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
+            --overwrite-existing
+
+      - name: Validate AGC gateway class and direct CRUD health
+        shell: bash
+        run: |
+          set -euo pipefail
+          AGC_GATEWAY_CLASS="${{ steps.resolve.outputs.agc_gateway_class }}"
+          AGC_FRONTEND_URL="${{ steps.resolve.outputs.agc_frontend_url }}"
+
+          kubectl get gatewayclass "$AGC_GATEWAY_CLASS" >/dev/null 2>&1 || {
+            echo "GatewayClass '$AGC_GATEWAY_CLASS' is not available in the cluster." >&2
+            exit 1
+          }
+
+          for attempt in $(seq 1 20); do
+            if ! STATUS_CODE=$(curl -sS -o /tmp/agc-health.json -w "%{http_code}" "${AGC_FRONTEND_URL%/}/health"); then
+              STATUS_CODE="000"
+            fi
+
+            if [ "$STATUS_CODE" = "200" ]; then
+              echo "Validated direct AGC CRUD health via ${AGC_FRONTEND_URL%/}/health"
+              exit 0
+            fi
+
+            echo "Attempt $attempt/20 failed for direct AGC health with HTTP $STATUS_CODE"
+            sleep 10
+          done
+
+          echo "AGC readiness validation failed for ${AGC_FRONTEND_URL%/}/health" >&2
+          cat /tmp/agc-health.json 2>/dev/null || true
+          exit 1
+
+  sync-apim:
+    runs-on: ubuntu-latest
+    if: ${{ !inputs.uiOnly && (inputs.forceApimSync || needs.detect-changes.outputs.agents_changed == 'true' || needs.detect-changes.outputs.crud_changed == 'true' || needs.detect-changes.outputs.ui_changed == 'true') && (needs.deploy-crud.result == 'success' || needs.deploy-crud.result == 'skipped') && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') && needs.validate-agc-readiness.result == 'success' }}
     needs:
       - deploy-crud
       - deploy-agents
       - detect-changes
+      - validate-agc-readiness
     environment: ${{ inputs.environment }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       CHANGED_SERVICES: ${{ needs.detect-changes.outputs.changed_aks_services_csv != '' && needs.detect-changes.outputs.changed_aks_services_csv || (needs.detect-changes.outputs.ui_changed == 'true' && 'crud-service' || '') }}
+      APIM_APPROVED_BACKEND_HOSTNAMES: ${{ needs.validate-agc-readiness.outputs.approved_backend_hostnames }}
+      APIM_APPROVED_BACKEND_SCHEME: ${{ needs.validate-agc-readiness.outputs.approved_backend_scheme }}
     steps:
       - uses: actions/checkout@v4
 
@@ -1493,24 +1640,25 @@ jobs:
 
       - name: Sync APIM agent APIs
         run: |
-          bash .infra/azd/hooks/sync-apim-agents.sh --use-ingress \
-            --app-gw-name "${{ inputs.projectName }}-${{ inputs.environment }}-appgw"
+          bash .infra/azd/hooks/sync-apim-agents.sh
         env:
           AZURE_RESOURCE_GROUP: ${{ inputs.projectName }}-${{ inputs.environment }}-rg
 
   smoke-apim:
     runs-on: ubuntu-latest
-    if: ${{ !inputs.uiOnly && (inputs.forceApimSync || needs.detect-changes.outputs.agents_changed == 'true' || needs.detect-changes.outputs.crud_changed == 'true' || needs.detect-changes.outputs.ui_changed == 'true') && (needs.sync-apim.result == 'success' || needs.sync-apim.result == 'skipped') && (needs.ensure-foundry-agents.result == 'success' || needs.ensure-foundry-agents.result == 'skipped') }}
+    if: ${{ !inputs.uiOnly && (inputs.forceApimSync || needs.detect-changes.outputs.agents_changed == 'true' || needs.detect-changes.outputs.crud_changed == 'true' || needs.detect-changes.outputs.ui_changed == 'true') && needs.validate-agc-readiness.result == 'success' && (needs.sync-apim.result == 'success' || needs.sync-apim.result == 'skipped') && (needs.ensure-foundry-agents.result == 'success' || needs.ensure-foundry-agents.result == 'skipped') }}
     needs:
       - detect-changes
       - sync-apim
       - ensure-foundry-agents
+      - validate-agc-readiness
     environment: ${{ inputs.environment }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       CHANGED_AGENT_SERVICES: ${{ needs.detect-changes.outputs.changed_agent_services_csv }}
+      APPROVED_BACKEND_HOSTNAMES: ${{ needs.validate-agc-readiness.outputs.approved_backend_hostnames }}
     steps:
       - name: Azure login (OIDC)
         uses: azure/login@v2
@@ -1583,6 +1731,23 @@ jobs:
             exit 1
           fi
 
+          APPROVED_HOSTS="$(printf '%s' "$APPROVED_BACKEND_HOSTNAMES" | tr ',' '\n' | sed '/^[[:space:]]*$/d')"
+          if [ -z "$APPROVED_HOSTS" ]; then
+            echo "No approved AGC backend hostnames were provided to smoke validation." >&2
+            exit 1
+          fi
+
+          if ! printf '%s\n' "$APPROVED_HOSTS" | grep -Fxq "$SERVICE_HOST"; then
+            echo "APIM CRUD backend drift detected: API '$API_ID' serviceUrl '$SERVICE_URL' does not target an approved AGC hostname." >&2
+            echo "Approved AGC hostnames: $(printf '%s\n' "$APPROVED_HOSTS" | paste -sd ',' -)" >&2
+            exit 1
+          fi
+
+              if python3 -c "import ipaddress, sys; ipaddress.ip_address(sys.argv[1])" "$SERVICE_HOST" >/dev/null 2>&1; then
+            echo "APIM CRUD backend drift detected: API '$API_ID' serviceUrl '$SERVICE_URL' resolves to IP literal '$SERVICE_HOST'." >&2
+            exit 1
+          fi
+
           if printf '%s\n' "$CRUD_ENDPOINT_IPS" | grep -Fxq "$SERVICE_HOST"; then
             echo "Unstable APIM backend detected: API '$API_ID' serviceUrl '$SERVICE_URL' points to current crud-service endpoint IP '$SERVICE_HOST'." >&2
             echo "Current crud-service endpoint IPs: $(printf '%s\n' "$CRUD_ENDPOINT_IPS" | paste -sd ',' -)" >&2
@@ -1590,6 +1755,31 @@ jobs:
           fi
 
           echo "Validated APIM CRUD backend stability: API '$API_ID' serviceUrl host '$SERVICE_HOST' is not a current crud-service endpoint IP."
+
+      - name: Smoke test direct AGC CRUD health
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          AGC_BASE="${{ needs.validate-agc-readiness.outputs.agc_frontend_url }}"
+
+          for attempt in $(seq 1 20); do
+            if ! STATUS_CODE=$(curl -sS -o /tmp/agc-smoke-response.json -w "%{http_code}" "${AGC_BASE%/}/health"); then
+              STATUS_CODE="000"
+            fi
+
+            if [ "$STATUS_CODE" = "200" ]; then
+              echo "[OK] direct-agc-crud-health: ${AGC_BASE%/}/health"
+              exit 0
+            fi
+
+            echo "Attempt $attempt/20 failed for direct AGC CRUD health with HTTP $STATUS_CODE"
+            sleep 10
+          done
+
+          echo "[FAIL] direct-agc-crud-health: ${AGC_BASE%/}/health" >&2
+          cat /tmp/agc-smoke-response.json 2>/dev/null || true
+          exit 1
 
       - name: Resolve APIM gateway URL
         id: apim
@@ -1643,6 +1833,42 @@ jobs:
           smoke_health "${API_BASE}/api/health" "crud-health"
           smoke_health "${API_BASE}/api/products?limit=1" "crud-products"
           smoke_health "${API_BASE}/api/categories" "crud-categories"
+
+          CORS_HEADERS_FILE="/tmp/apim-cors-headers.txt"
+          CORS_BODY_FILE="/tmp/apim-cors-body.txt"
+          CORS_STATUS=$(curl -sS -D "$CORS_HEADERS_FILE" -o "$CORS_BODY_FILE" -w "%{http_code}" \
+            -X OPTIONS "${API_BASE}/api/products?limit=1" \
+            -H "Origin: http://localhost:3000" \
+            -H "Access-Control-Request-Method: GET") || CORS_STATUS="000"
+
+          if [ "$CORS_STATUS" != "200" ] && [ "$CORS_STATUS" != "204" ]; then
+            echo "[FAIL] crud-cors-preflight: ${API_BASE}/api/products?limit=1 returned HTTP $CORS_STATUS" >&2
+            cat "$CORS_HEADERS_FILE" 2>/dev/null || true
+            cat "$CORS_BODY_FILE" 2>/dev/null || true
+            exit 1
+          fi
+
+          if ! grep -Eiq '^Access-Control-Allow-Origin: http://localhost:3000\r?$' "$CORS_HEADERS_FILE"; then
+            echo "[FAIL] crud-cors-preflight: missing expected Access-Control-Allow-Origin header" >&2
+            cat "$CORS_HEADERS_FILE" 2>/dev/null || true
+            exit 1
+          fi
+
+          if ! grep -Eiq '^Access-Control-Allow-Methods: .*GET' "$CORS_HEADERS_FILE"; then
+            echo "[FAIL] crud-cors-preflight: missing expected Access-Control-Allow-Methods header" >&2
+            cat "$CORS_HEADERS_FILE" 2>/dev/null || true
+            exit 1
+          fi
+
+          NEGATIVE_STATUS=$(curl -sS -o /tmp/apim-negative-response.json -w "%{http_code}" "${API_BASE}/api/does-not-exist") || NEGATIVE_STATUS="000"
+          if [ "$NEGATIVE_STATUS" = "500" ] || [ "$NEGATIVE_STATUS" = "502" ] || [ "$NEGATIVE_STATUS" = "503" ] || [ "$NEGATIVE_STATUS" = "000" ]; then
+            echo "[FAIL] crud-negative-path: ${API_BASE}/api/does-not-exist returned unexpected HTTP $NEGATIVE_STATUS" >&2
+            cat /tmp/apim-negative-response.json 2>/dev/null || true
+            exit 1
+          fi
+
+          echo "[OK] crud-cors-preflight: ${API_BASE}/api/products?limit=1"
+          echo "[OK] crud-negative-path: ${API_BASE}/api/does-not-exist returned HTTP $NEGATIVE_STATUS"
 
           if [ -n "${CHANGED_AGENT_SERVICES}" ]; then
             IFS=',' read -r -a agent_services <<< "${CHANGED_AGENT_SERVICES}"
