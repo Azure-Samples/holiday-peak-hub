@@ -430,6 +430,60 @@ resolve_backend_url() {
   printf 'http://%s-%s.%s.svc.cluster.local:80' "$svc" "$svc" "$NAMESPACE"
 }
 
+get_service_endpoint_ips() {
+  svc="$1"
+  ns="$2"
+  endpoint_ips=""
+
+  if command -v kubectl >/dev/null 2>&1; then
+    endpoint_ips="$(kubectl get endpoints "$svc" -n "$ns" -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null || true)"
+  fi
+
+  if [ -z "$endpoint_ips" ] && [ -n "$AKS_CLUSTER_NAME" ] && [ -n "$RESOURCE_GROUP" ]; then
+    aks_logs="$(az aks command invoke \
+      --resource-group "$RESOURCE_GROUP" \
+      --name "$AKS_CLUSTER_NAME" \
+      --command "kubectl get endpoints $svc -n $ns -o jsonpath='{.subsets[*].addresses[*].ip}'" \
+      --query logs -o tsv 2>/dev/null || true)"
+
+    endpoint_ips="$(printf '%s' "$aks_logs" | awk 'NF{line=$0} END{print line}')"
+  fi
+
+  printf '%s' "$endpoint_ips"
+}
+
+get_url_host() {
+  url="$1"
+
+  python3 - "$url" <<'PY'
+import sys
+from urllib.parse import urlparse
+
+value = sys.argv[1]
+parsed = urlparse(value)
+print(parsed.hostname or "")
+PY
+}
+
+assert_stable_crud_backend_target() {
+  backend_url="$1"
+  backend_host="$(get_url_host "$backend_url")"
+
+  if [ -z "$backend_host" ]; then
+    echo "Unable to parse host from CRUD APIM backend URL '$backend_url'." >&2
+    return 1
+  fi
+
+  endpoint_ips="$(get_service_endpoint_ips crud-service "$NAMESPACE")"
+  if [ -n "$endpoint_ips" ] && printf '%s\n' "$endpoint_ips" | tr ' ' '\n' | sed '/^[[:space:]]*$/d' | grep -Fxq "$backend_host"; then
+    endpoint_list="$(printf '%s\n' "$endpoint_ips" | tr ' ' '\n' | sed '/^[[:space:]]*$/d' | paste -sd ',' -)"
+    echo "Refusing to set unstable CRUD APIM backend '$backend_url': host '$backend_host' matches current crud-service endpoint IP(s): $endpoint_list" >&2
+    return 1
+  fi
+
+  echo "Validated stable CRUD APIM backend host '$backend_host'."
+}
+
 ensure_crud_api() {
   API_ID="crud"
   DISPLAY_NAME="CRUD Service"
@@ -441,6 +495,7 @@ ensure_crud_api() {
   fi
 
   BACKEND_URL="$(resolve_backend_url crud-service)"
+  assert_stable_crud_backend_target "$BACKEND_URL"
 
   if az apim api show --resource-group "$RESOURCE_GROUP" --service-name "$APIM_NAME" --api-id "crud-service" >/dev/null 2>&1; then
     API_ID="crud-service"

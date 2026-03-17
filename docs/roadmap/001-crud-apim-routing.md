@@ -41,14 +41,15 @@ The `sync-apim-agents` deployment job was designed for agent services only. The 
   - `/api` and `/api/{*path}`
   - `/acp/{*path}`
 - This enables frontend calls proxied as `/api/*` to resolve through APIM to the CRUD backend.
-- `azure.yaml` postdeploy now enforces CRUD inclusion explicitly in APIM sync for `azd up`.
+- `.github/workflows/deploy-azd.yml` is the official APIM reconciliation source of truth and runs ingress/App Gateway-first sync.
+- `azure.yaml` postdeploy now mirrors that same ingress/App Gateway-first APIM sync model for `azd up`, while still forcing CRUD inclusion.
 - `.infra/azd/main.bicep` now exports `APIM_NAME` and `AKS_CLUSTER_NAME` to strengthen hook resolution in fresh environments.
 
 ## Validation Snapshot (2026-02-28, env: `dev` / `405`)
 
 - `GET https://holidaypeakhub405-dev-apim.azure-api.net/api/health` returns `200`.
 - `GET https://holidaypeakhub405-dev-apim.azure-api.net/api/products?limit=1` reaches CRUD auth flow (returns `401` when unauthenticated), confirming APIM route-to-backend correctness.
-- CRUD remains included in strict postdeploy APIM sync (`-IncludeCrudService:$true -RequireLoadBalancer:$true`) and stays healthy in full 22-service sweep.
+- CRUD remains included in strict postdeploy APIM sync (`-UseIngress -IncludeCrudService:$true`) and stays healthy in full 22-service sweep.
 
 ## Recurrence Hardening (Mar 2026)
 
@@ -72,6 +73,9 @@ These controls reduce the chance that frontend `/api/products` or `/api/categori
   - Auto-resolution is allowed only when a single unambiguous candidate exists.
   - Ambiguous routing candidates now fail fast.
 - Before any APIM update in ingress mode, hooks probe `http://<resolved-ingress-host>/health` and abort on unhealthy/invalid resolution.
+- APIM sync hooks now include a CRUD backend stability guard that fails if resolved CRUD `serviceUrl` host matches a current `crud-service` endpoint IP.
+- Reusable deploy workflow now validates APIM CRUD `serviceUrl` (`crud-service` fallback `crud`) against live `crud-service` endpoint IPs via `az aks command invoke`, and fails before smoke tests on unstable target detection.
+- Demo recovery now explicitly re-runs ingress/App Gateway-first APIM reconciliation before validating APIM CRUD endpoints or reseeding demo data.
 
 ## Closure Status Update (2026-03-06, PR #198)
 

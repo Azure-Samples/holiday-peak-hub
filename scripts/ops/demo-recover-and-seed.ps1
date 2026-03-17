@@ -12,6 +12,7 @@ $aksName = "$ProjectName-$Environment-aks"
 $appGwName = "$ProjectName-$Environment-appgw"
 $postgresName = "$ProjectName-$Environment-postgres"
 $apimBase = "https://$ProjectName-$Environment-apim.azure-api.net"
+$apimName = "$ProjectName-$Environment-apim"
 
 Write-Host "Starting AKS, Application Gateway, and PostgreSQL in '$resourceGroup'..."
 az aks start -g "$resourceGroup" -n "$aksName" | Out-Null
@@ -24,6 +25,9 @@ for ($i = 0; $i -lt 30; $i++) {
     if ($state -eq "Running") { break }
     Start-Sleep -Seconds 20
 }
+
+Write-Host "Re-running APIM reconciliation through App Gateway before validation..."
+.\.infra\azd\hooks\sync-apim-agents.ps1 -ResourceGroup $resourceGroup -ApimName $apimName -Namespace $Namespace -ApiPathPrefix agents -UseIngress -AppGatewayName $appGwName -IncludeCrudService:$true
 
 Write-Host "Validating APIM CRUD endpoints..."
 $paths = @("/api/health", "/api/products?limit=1", "/api/categories")
