@@ -195,7 +195,7 @@ class AgentClient:
 
     async def validate_reservation(self, sku: str, quantity: int) -> dict[str, Any] | None:
         """Validate stock reservation via the reservation agent."""
-        return await self.call_endpoint(
+        result = await self.call_endpoint(
             agent_url=self._resolve_agent_url(
                 settings.inventory_reservation_agent_url,
                 "inventory-reservation-validation",
@@ -204,6 +204,12 @@ class AgentClient:
             data={"sku": sku, "request_qty": quantity},
             fallback_value=None,
         )
+        if isinstance(result, dict):
+            if "approved" not in result and "valid" in result:
+                result["approved"] = bool(result.get("valid"))
+            if "valid" not in result and "approved" in result:
+                result["valid"] = bool(result.get("approved"))
+        return result
 
     # ── Logistics ───────────────────────────────────────────────────
 
