@@ -57,13 +57,21 @@ class CanonicalProduct(BaseModel):
             return value
 
         payload = dict(value)
-        payload.setdefault("sku", payload.get("item_id") or payload.get("id") or payload.get("product_id"))
-        payload.setdefault("id", payload.get("sku") or payload.get("item_id") or payload.get("product_id"))
+        payload.setdefault(
+            "sku", payload.get("item_id") or payload.get("id") or payload.get("product_id")
+        )
+        payload.setdefault(
+            "id", payload.get("sku") or payload.get("item_id") or payload.get("product_id")
+        )
         payload.setdefault("name", payload.get("title"))
-        payload.setdefault("category_id", payload.get("category") or payload.get("category_id") or "uncategorized")
+        payload.setdefault(
+            "category_id", payload.get("category") or payload.get("category_id") or "uncategorized"
+        )
 
         raw_price = payload.get("price")
-        is_acp_shape = bool(payload.get("item_id") or payload.get("title") or payload.get("protocol_version"))
+        is_acp_shape = bool(
+            payload.get("item_id") or payload.get("title") or payload.get("protocol_version")
+        )
         if isinstance(raw_price, str) and is_acp_shape:
             numeric = raw_price.split()[0].strip()
             payload["price"] = float(numeric)

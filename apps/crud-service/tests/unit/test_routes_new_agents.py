@@ -418,7 +418,9 @@ class TestProductSemanticSearch:
         assert data[0]["name"] == "Basic Widget"
 
     @pytest.mark.asyncio
-    async def test_accepts_acp_shape_and_normalizes(self, client, monkeypatch, override_auth_optional):
+    async def test_accepts_acp_shape_and_normalizes(
+        self, client, monkeypatch, override_auth_optional
+    ):
         """ACP-shaped result payloads should normalize to CRUD ProductResponse."""
 
         class FakeAgent:
