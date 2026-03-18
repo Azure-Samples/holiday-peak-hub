@@ -41,7 +41,10 @@ def build_event_handlers() -> dict[str, EventHandler]:
             status=plan.get("status"),
         )
 
-    return {"order-events": handle_order_event}
+    return {
+        "order-events": handle_order_event,
+        "return-events": handle_order_event,
+    }
 
 
 def _resolve_tracking_id(data: dict[str, object]) -> str | None:
