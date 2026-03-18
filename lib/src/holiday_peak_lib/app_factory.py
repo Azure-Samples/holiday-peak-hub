@@ -5,15 +5,16 @@ from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator, Callable, Optional
 
 from fastapi import FastAPI, HTTPException
+
 from holiday_peak_lib.agents import AgentBuilder, BaseRetailAgent, FoundryAgentConfig
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.agents.foundry import (
     build_foundry_model_target,
     ensure_foundry_agent,
 )
-from holiday_peak_lib.agents.prompt_loader import load_service_prompt_instructions
 from holiday_peak_lib.agents.memory import ColdMemory, HotMemory, WarmMemory
 from holiday_peak_lib.agents.orchestration.router import RoutingStrategy
+from holiday_peak_lib.agents.prompt_loader import load_service_prompt_instructions
 from holiday_peak_lib.connectors.registry import ConnectorRegistry
 from holiday_peak_lib.utils.logging import configure_logging, log_async_operation
 
@@ -234,9 +235,8 @@ def build_service_app(
         role = str(body.get("role", "both")).lower()
         create_if_missing = bool(body.get("create_if_missing", True))
         allow_instruction_override = (
-            (os.getenv("FOUNDRY_ALLOW_INSTRUCTION_OVERRIDE") or "").lower()
-            in {"1", "true", "yes"}
-        )
+            os.getenv("FOUNDRY_ALLOW_INSTRUCTION_OVERRIDE") or ""
+        ).lower() in {"1", "true", "yes"}
         raw_instructions = body.get("instructions")
         if raw_instructions is not None and not allow_instruction_override:
             raise HTTPException(
@@ -246,7 +246,9 @@ def build_service_app(
                     "Set FOUNDRY_ALLOW_INSTRUCTION_OVERRIDE=true for controlled workflows."
                 ),
             )
-        instructions: dict[str, Any] = raw_instructions if isinstance(raw_instructions, dict) else {}
+        instructions: dict[str, Any] = (
+            raw_instructions if isinstance(raw_instructions, dict) else {}
+        )
         default_instructions = load_service_prompt_instructions(service_name)
         raw_names = body.get("names")
         names: dict[str, Any] = raw_names if isinstance(raw_names, dict) else {}
