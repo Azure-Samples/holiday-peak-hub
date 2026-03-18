@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Iterable, Mapping, Protocol
 
-
 NAMESPACE_VERSION = "v1"
 DEFAULT_TENANT_ID = "public"
 DEFAULT_SESSION_ID = "anonymous"
