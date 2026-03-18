@@ -280,6 +280,47 @@ class TestCrmProfile:
         assert data["personalization"] is None
 
 
+class TestUserEventPublishing:
+    """PATCH /users/me emits UserUpdated event."""
+
+    @pytest.mark.asyncio
+    async def test_update_profile_publishes_user_updated(self, client, monkeypatch, override_auth):
+        async def fake_get_by_entra_id(_entra_id):
+            return {
+                "id": "user-1",
+                "entra_id": "user-1",
+                "email": "user@example.com",
+                "name": "Old Name",
+                "phone": None,
+                "created_at": "2025-01-01T00:00:00Z",
+            }
+
+        async def fake_update(user):
+            return {
+                **user,
+                "updated_at": "2025-01-02T00:00:00Z",
+            }
+
+        published_events: list[tuple[str, str, dict]] = []
+
+        class FakePublisher:
+            async def publish(self, topic, event_type, data):
+                published_events.append((topic, event_type, data))
+
+        monkeypatch.setattr(users_routes.user_repo, "get_by_entra_id", fake_get_by_entra_id)
+        monkeypatch.setattr(users_routes.user_repo, "update", fake_update)
+        monkeypatch.setattr(users_routes, "event_publisher", FakePublisher())
+
+        response = client.patch("/api/users/me", json={"name": "New Name", "phone": "555-0000"})
+        assert response.status_code == 200
+        assert response.json()["name"] == "New Name"
+        assert published_events
+        topic, event_type, payload = published_events[0]
+        assert topic == "user-events"
+        assert event_type == "UserUpdated"
+        assert payload["user_id"] == "user-1"
+
+
 # ── Cart Routes ─────────────────────────────────────────────────────
 
 
@@ -302,14 +343,24 @@ class TestCartReservationValidation:
             async def validate_reservation(self, sku, quantity):
                 return {"valid": True}
 
+        published_reservations: list[dict] = []
+
+        class FakePublisher:
+            async def publish_inventory_reserved(self, reservation):
+                published_reservations.append(reservation)
+
         monkeypatch.setattr(cart_routes.product_repo, "get_by_id", fake_product)
         monkeypatch.setattr(cart_routes.cart_repo, "get_by_user", fake_cart)
         monkeypatch.setattr(cart_routes.cart_repo, "update", fake_update)
         monkeypatch.setattr(cart_routes, "agent_client", FakeAgent())
+        monkeypatch.setattr(cart_routes, "event_publisher", FakePublisher())
 
         response = client.post("/api/cart/items", json={"product_id": "p1", "quantity": 2})
         assert response.status_code == 200
         assert response.json()["message"] == "Item added to cart"
+        assert published_reservations
+        assert published_reservations[0]["user_id"] == "user-1"
+        assert published_reservations[0]["sku"] == "p1"
 
     @pytest.mark.asyncio
     async def test_rejects_invalid_reservation(self, client, monkeypatch, override_auth):

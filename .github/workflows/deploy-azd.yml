@@ -219,7 +219,7 @@ jobs:
 
           if [ ${#CHANGED_AGENTS[@]} -gt 0 ]; then
             AGENTS_CHANGED=true
-            MATRIX=$(printf '%s\n' "${CHANGED_AGENTS[@]}" | jq -R . | jq -s 'map({service: .})')
+            MATRIX=$(printf '%s\n' "${CHANGED_AGENTS[@]}" | jq -R . | jq -cs 'map({service: .})')
           fi
 
           CHANGED_AGENT_SERVICES_CSV=""
@@ -993,11 +993,6 @@ jobs:
           RESOURCE_GROUP="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
           EXPECTED_APIM_URL="${{ needs.provision.outputs.APIM_GATEWAY_URL }}"
 
-          if [ -z "$EXPECTED_APIM_URL" ]; then
-            echo "Provision output APIM_GATEWAY_URL is empty. Cannot safely propagate API URL to UI build." >&2
-            exit 1
-          fi
-
           APIM_URL=$(az apim show \
             --name "${{ inputs.projectName }}-${{ inputs.environment }}-apim" \
             --resource-group "$RESOURCE_GROUP" \
@@ -1014,15 +1009,33 @@ jobs:
             exit 1
           fi
 
-          if [ "$APIM_URL" != "$EXPECTED_APIM_URL" ]; then
+          RESOLVED_API_URL="$APIM_URL"
+
+          if [ -z "$EXPECTED_APIM_URL" ]; then
+            echo "::warning::Provision output APIM_GATEWAY_URL is empty; using live APIM gateway URL '$APIM_URL' for UI build."
+          elif [ "$APIM_URL" != "$EXPECTED_APIM_URL" ]; then
             echo "APIM URL drift detected between provision output and live APIM gateway URL." >&2
             echo "Expected: $EXPECTED_APIM_URL" >&2
             echo "Actual:   $APIM_URL" >&2
             exit 1
           fi
 
-          echo "api_url=$EXPECTED_APIM_URL" >> "$GITHUB_OUTPUT"
-          echo "crud_api_url=$EXPECTED_APIM_URL" >> "$GITHUB_OUTPUT"
+          if [ -n "${{ inputs.apiBaseUrl }}" ]; then
+            OVERRIDE_API_URL="$(echo "${{ inputs.apiBaseUrl }}" | xargs)"
+            OVERRIDE_API_URL="${OVERRIDE_API_URL%/}"
+
+            if [ "$OVERRIDE_API_URL" != "$APIM_URL" ]; then
+              echo "apiBaseUrl override drift detected. Provided URL does not match live APIM gateway URL." >&2
+              echo "Provided: $OVERRIDE_API_URL" >&2
+              echo "Expected: $APIM_URL" >&2
+              exit 1
+            fi
+
+            RESOLVED_API_URL="$OVERRIDE_API_URL"
+          fi
+
+          echo "api_url=$RESOLVED_API_URL" >> "$GITHUB_OUTPUT"
+          echo "crud_api_url=$RESOLVED_API_URL" >> "$GITHUB_OUTPUT"
 
       - name: Smoke test APIM API health before UI deploy
         shell: bash

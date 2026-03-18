@@ -1,5 +1,7 @@
 """Checkout routes."""
 
+import logging
+
 from crud_service.auth import User, get_current_user
 from crud_service.config import get_settings
 from crud_service.integrations import get_agent_client
@@ -11,6 +13,7 @@ router = APIRouter()
 cart_repo = CartRepository()
 agent_client = get_agent_client()
 settings = get_settings()
+logger = logging.getLogger(__name__)
 DEFAULT_SHIPPING_FEE = 9.99
 DEFAULT_TAX_RATE = 0.08
 
@@ -86,6 +89,11 @@ async def validate_checkout(current_user: User = Depends(get_current_user)):
                         f"only {inventory.get('quantity')} available"
                     )
             except Exception:
+                logger.warning(
+                    "Checkout inventory verification failed for product_id=%s; continuing with warning",
+                    item["product_id"],
+                    exc_info=True,
+                )
                 warnings.append(f"Could not verify inventory for {item['product_id']}")
 
     # Calculate totals

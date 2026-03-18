@@ -1,7 +1,7 @@
 """User routes."""
 
 from crud_service.auth import User, get_current_user
-from crud_service.integrations import get_agent_client
+from crud_service.integrations import get_agent_client, get_event_publisher
 from crud_service.repositories import UserRepository
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -9,6 +9,7 @@ from pydantic import BaseModel
 router = APIRouter()
 user_repo = UserRepository()
 agent_client = get_agent_client()
+event_publisher = get_event_publisher()
 
 
 class UserProfileResponse(BaseModel):
@@ -59,6 +60,19 @@ async def update_my_profile(
         user["phone"] = request.phone
 
     updated = await user_repo.update(user)
+    await event_publisher.publish(
+        "user-events",
+        "UserUpdated",
+        {
+            "id": updated.get("id"),
+            "user_id": updated.get("id"),
+            "entra_id": updated.get("entra_id"),
+            "email": updated.get("email"),
+            "name": updated.get("name"),
+            "phone": updated.get("phone"),
+            "timestamp": updated.get("updated_at") or updated.get("created_at"),
+        },
+    )
     return UserProfileResponse(**updated)
 
 
