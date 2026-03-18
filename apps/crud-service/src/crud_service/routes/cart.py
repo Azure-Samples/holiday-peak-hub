@@ -94,23 +94,27 @@ async def add_to_cart(
         reservation = await agent_client.validate_reservation(
             sku=request.product_id, quantity=request.quantity
         )
-        if isinstance(reservation, dict) and reservation.get("valid") is False:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=reservation.get("reason", "Insufficient stock"),
-            )
-        if isinstance(reservation, dict) and reservation.get("valid") is True:
-            try:
-                await event_publisher.publish_inventory_reserved(
-                    {
-                        "user_id": current_user.user_id,
-                        "sku": request.product_id,
-                        "quantity": request.quantity,
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                    }
+        if isinstance(reservation, dict):
+            is_approved = reservation.get("approved")
+            if is_approved is None:
+                is_approved = reservation.get("valid")
+            if is_approved is False:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=reservation.get("reason", "Insufficient stock"),
                 )
-            except Exception:
-                pass
+            if is_approved is True:
+                try:
+                    await event_publisher.publish_inventory_reserved(
+                        {
+                            "user_id": current_user.user_id,
+                            "sku": request.product_id,
+                            "quantity": request.quantity,
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                        }
+                    )
+                except Exception:
+                    pass
     except HTTPException:
         raise
     except Exception:
