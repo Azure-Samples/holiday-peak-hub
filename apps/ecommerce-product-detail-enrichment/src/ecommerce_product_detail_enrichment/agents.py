@@ -10,6 +10,11 @@ from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.agents.guardrails import EnrichmentGuardrail
+from holiday_peak_lib.agents.memory import (
+    build_canonical_memory_key,
+    read_hot_with_compatibility,
+    resolve_namespace_context,
+)
 
 from .adapters import (
     EnrichmentAdapters,
@@ -35,6 +40,24 @@ class ProductDetailEnrichmentAgent(BaseRetailAgent):
         related_limit = int(request.get("related_limit", 4))
         if not sku:
             return {"error": "sku is required"}
+        cache_ttl_seconds = int(request.get("cache_ttl", 300))
+
+        namespace_context = resolve_namespace_context(
+            request,
+            self.service_name or "product-detail-enrichment",
+            session_fallback=str(request.get("user_id")) if request.get("user_id") else None,
+        )
+        canonical_cache_key = build_canonical_memory_key(
+            namespace_context,
+            f"pdp:{sku}",
+        )
+        if self.hot_memory:
+            await read_hot_with_compatibility(
+                self.hot_memory,
+                canonical_cache_key,
+                [f"pdp:{sku}"],
+                ttl_seconds=cache_ttl_seconds,
+            )
 
         product_task = self.adapters.products.get_product(str(sku))
         related_task = self.adapters.products.get_related(str(sku), limit=related_limit)
@@ -75,9 +98,9 @@ class ProductDetailEnrichmentAgent(BaseRetailAgent):
 
         if self.hot_memory:
             await self.hot_memory.set(
-                key=f"pdp:{sku}",
+                key=canonical_cache_key,
                 value=enriched,
-                ttl_seconds=int(request.get("cache_ttl", 300)),
+                ttl_seconds=cache_ttl_seconds,
             )
 
         if self.slm or self.llm:
