@@ -10,12 +10,12 @@ from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.agents.guardrails import EnrichmentGuardrail
-from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
 from holiday_peak_lib.agents.memory import (
     build_canonical_memory_key,
     read_hot_with_compatibility,
     resolve_namespace_context,
 )
+from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
 
 from .adapters import (
     EnrichmentAdapters,
