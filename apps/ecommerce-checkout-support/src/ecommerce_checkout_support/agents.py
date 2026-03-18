@@ -9,6 +9,7 @@ from typing import Any
 from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
+from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
 
 from .adapters import (
     CheckoutAdapters,
@@ -189,10 +190,4 @@ def _build_acp_checkout_payload(items: list[dict[str, object]]) -> dict[str, obj
 
 
 def _checkout_instructions(service_name: str) -> str:
-    return (
-        f"You are the {service_name} agent. "
-        "Be proactive about checkout readiness. "
-        "Validate pricing and availability, summarize blockers, and propose fixes. "
-        "Always include a monitoring note: what to track next (e.g., price changes, "
-        "stock volatility, or failed validations) and any anomalies to watch."
-    )
+    return load_prompt_instructions(__file__, service_name)

@@ -9,6 +9,7 @@ from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.adapters.acp_mapper import AcpCatalogMapper
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
+from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
 
 from .adapters import ProductNormalizationAdapters, build_normalization_adapters
 
@@ -97,8 +98,4 @@ def _register_crud_tools(mcp: FastAPIMCPServer) -> None:
 
 
 def _normalization_instructions() -> str:
-    return (
-        "You are a product normalization agent. "
-        "Normalize names, categories, and tags, and assign a classification. "
-        "Highlight any missing attributes needed for accurate categorization."
-    )
+    return load_prompt_instructions(__file__, "product-management-normalization-classification")

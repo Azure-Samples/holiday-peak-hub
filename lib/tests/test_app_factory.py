@@ -280,6 +280,110 @@ class TestBuildServiceApp:
         assert payload["service"] == "test-service"
         assert payload["results"]["fast"]["agent_id"] == "agent-fast-123"
 
+    def test_foundry_ensure_uses_structured_default_instructions(
+        self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
+    ):
+        """Test ensure endpoint passes structured defaults when request has no instructions."""
+        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-fast-123")
+
+        app = build_service_app(
+            service_name="test-service",
+            agent_class=SampleServiceAgent,
+            hot_memory=mock_hot_memory,
+            warm_memory=mock_warm_memory,
+            cold_memory=mock_cold_memory,
+        )
+        client = TestClient(app)
+
+        with patch(
+            "holiday_peak_lib.app_factory.load_service_prompt_instructions",
+            return_value="## Identity and Role\nStructured prompt",
+        ):
+            with patch("holiday_peak_lib.app_factory.ensure_foundry_agent") as mock_ensure:
+                mock_ensure.return_value = {
+                    "status": "exists",
+                    "agent_id": "agent-fast-123",
+                    "agent_name": "test-service-fast",
+                    "created": False,
+                }
+                response = client.post(
+                    "/foundry/agents/ensure",
+                    json={"role": "fast", "create_if_missing": True},
+                )
+
+        assert response.status_code == 200
+        assert mock_ensure.call_args.kwargs["instructions"] == "## Identity and Role\nStructured prompt"
+
+    def test_foundry_ensure_rejects_instruction_override_by_default(
+        self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
+    ):
+        """Test request instruction override is blocked unless explicitly enabled."""
+        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-fast-123")
+        monkeypatch.delenv("FOUNDRY_ALLOW_INSTRUCTION_OVERRIDE", raising=False)
+
+        app = build_service_app(
+            service_name="test-service",
+            agent_class=SampleServiceAgent,
+            hot_memory=mock_hot_memory,
+            warm_memory=mock_warm_memory,
+            cold_memory=mock_cold_memory,
+        )
+        client = TestClient(app)
+
+        response = client.post(
+            "/foundry/agents/ensure",
+            json={
+                "role": "fast",
+                "create_if_missing": True,
+                "instructions": {"fast": "## Identity and Role\nOverride prompt"},
+            },
+        )
+
+        assert response.status_code == 403
+        assert "Instruction overrides are disabled" in response.json()["detail"]
+
+    def test_foundry_ensure_allows_instruction_override_when_enabled(
+        self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
+    ):
+        """Test request instructions override defaults when explicitly enabled."""
+        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-fast-123")
+        monkeypatch.setenv("FOUNDRY_ALLOW_INSTRUCTION_OVERRIDE", "true")
+
+        app = build_service_app(
+            service_name="test-service",
+            agent_class=SampleServiceAgent,
+            hot_memory=mock_hot_memory,
+            warm_memory=mock_warm_memory,
+            cold_memory=mock_cold_memory,
+        )
+        client = TestClient(app)
+
+        with patch(
+            "holiday_peak_lib.app_factory.load_service_prompt_instructions",
+            return_value="## Identity and Role\nDefault prompt",
+        ):
+            with patch("holiday_peak_lib.app_factory.ensure_foundry_agent") as mock_ensure:
+                mock_ensure.return_value = {
+                    "status": "exists",
+                    "agent_id": "agent-fast-123",
+                    "agent_name": "test-service-fast",
+                    "created": False,
+                }
+                response = client.post(
+                    "/foundry/agents/ensure",
+                    json={
+                        "role": "fast",
+                        "create_if_missing": True,
+                        "instructions": {"fast": "## Identity and Role\nOverride prompt"},
+                    },
+                )
+
+        assert response.status_code == 200
+        assert mock_ensure.call_args.kwargs["instructions"] == "## Identity and Role\nOverride prompt"
+
     def test_ready_endpoint_returns_ok_when_not_strict(
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):

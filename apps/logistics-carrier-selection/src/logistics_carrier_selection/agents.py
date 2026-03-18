@@ -8,6 +8,7 @@ from typing import Any
 from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
+from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
 
 from .adapters import (
     CarrierSelectionAdapters,
@@ -95,8 +96,4 @@ def _register_crud_tools(mcp: FastAPIMCPServer) -> None:
 
 
 def _carrier_instructions() -> str:
-    return (
-        "You are a logistics carrier selection agent. "
-        "Recommend the best carrier based on service level and constraints. "
-        "Explain trade-offs and risks."
-    )
+    return load_prompt_instructions(__file__, "logistics-carrier-selection")
