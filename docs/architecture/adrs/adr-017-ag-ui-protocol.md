@@ -28,6 +28,12 @@ The Holiday Peak Hub must support AI agent interactions with the UI, enabling ag
 
 We will implement the **AG-UI (Agentic GUI) Protocol** throughout the frontend application.
 
+## Implementation Status (2026-03-18)
+
+- **Deferred**: The current `apps/ui` codebase does not yet contain AG-UI action registry/state exposure primitives from this ADR (for example `window.__AG_UI_STATE__` and `data-ag-*` annotations are not present).
+- **Diverged in schedule**: This ADR remains accepted as target architecture, but implementation is pending a dedicated frontend execution track.
+- **Decision rationale retained**: No superseding ADR currently replaces this UI protocol direction.
+
 **Specification**: https://docs.ag-ui.com/concepts/generative-ui-specs
 
 ### Core Concepts

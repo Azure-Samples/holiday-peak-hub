@@ -15,6 +15,12 @@ Need standardized agent orchestration with support for:
 
 **Use Microsoft Agent Framework with Foundry SDK** for all agent logic.
 
+## Implementation Status (2026-03-18)
+
+- **Implemented**: Agent services consistently use the shared `BaseRetailAgent`/`AgentBuilder` pattern with `FoundryAgentConfig` wiring from environment variables.
+- **Partially diverged**: The exact `azure.ai.agents.AgentClient` usage shown here is no longer the dominant integration surface in app code; the repository standard is the `holiday_peak_lib.agents` abstraction layer.
+- **Implemented with fallback behavior**: Foundry-targeted configuration is first-class, but local/test execution paths can run without fully provisioned Foundry dependencies.
+
 ### Rationale
 - **Standards Compliance**: Aligned with Microsoft AI strategy
 - **Foundry Integration**: Native support for deployed models

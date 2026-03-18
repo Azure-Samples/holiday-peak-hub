@@ -19,6 +19,13 @@ Need container orchestration with:
 
 **Deploy on Azure Kubernetes Service with Helm charts, KEDA for scaling, and weight-based canary deployments.**
 
+## Implementation Status (2026-03-18)
+
+- **Implemented**: AKS remains the deployment target, with Helm-based rendering, azd deployment orchestration, and KEDA templates present in `.kubernetes/chart`.
+- **Implemented in part**: Ordered rollout and environment-scoped deployment workflows are active in GitHub Actions.
+- **Superseded in ingress details**: North-south ingress assumptions from this ADR are now governed by [ADR-027](adr-027-apim-agc-edge.md), which sets APIM -> AGC -> AKS as canonical.
+- **Deferred/diverged**: Service-mesh-level canary traffic control is not a universal runtime baseline across all services.
+
 ### Components
 - **AKS**: Managed Kubernetes control plane (Azure RBAC enabled, OIDC issuer profile)
 - **Helm 3**: Package manager for K8s manifests (template + apply workflow)

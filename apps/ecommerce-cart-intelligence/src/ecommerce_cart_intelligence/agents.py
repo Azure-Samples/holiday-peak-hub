@@ -9,6 +9,11 @@ from typing import Any
 from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
+from holiday_peak_lib.agents.memory import (
+    build_canonical_memory_key,
+    read_hot_with_compatibility,
+    resolve_namespace_context,
+)
 
 from .adapters import CartAdapters, build_cart_adapters
 
@@ -29,6 +34,22 @@ class CartIntelligenceAgent(BaseRetailAgent):
         user_id = request.get("user_id")
         related_limit = int(request.get("related_limit", 3))
         price_limit = int(request.get("price_limit", 5))
+        cart_ttl_seconds = int(request.get("cart_ttl", 600))
+
+        namespace_context = resolve_namespace_context(
+            request,
+            self.service_name or "cart-intelligence",
+            session_fallback=str(user_id) if user_id else None,
+        )
+        canonical_cache_key = build_canonical_memory_key(namespace_context, "cart")
+        legacy_cache_keys = [f"cart:{user_id}"] if user_id else []
+        if self.hot_memory:
+            await read_hot_with_compatibility(
+                self.hot_memory,
+                canonical_cache_key,
+                legacy_cache_keys,
+                ttl_seconds=cart_ttl_seconds,
+            )
 
         product_tasks = [
             self.adapters.products.build_product_context(item["sku"], related_limit=related_limit)
@@ -54,9 +75,9 @@ class CartIntelligenceAgent(BaseRetailAgent):
 
         if self.hot_memory and user_id:
             await self.hot_memory.set(
-                key=f"cart:{user_id}",
+                key=canonical_cache_key,
                 value={"items": items, "risk": risk},
-                ttl_seconds=int(request.get("cart_ttl", 600)),
+                ttl_seconds=cart_ttl_seconds,
             )
 
         if self.slm or self.llm:

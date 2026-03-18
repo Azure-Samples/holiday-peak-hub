@@ -160,6 +160,144 @@ class TestCartIntelligenceAgent:
             assert "acp" in result
             assert result["acp"]["domain"] == "cart"
 
+    @pytest.mark.asyncio
+    async def test_handle_caches_with_canonical_namespace_key(
+        self, agent_config, sample_cart_items
+    ):
+        """Test cart cache writes use canonical namespace keys."""
+        mock_hot_memory = AsyncMock()
+        mock_hot_memory.get = AsyncMock(return_value=None)
+        mock_hot_memory.set = AsyncMock()
+
+        mock_product_ctx = ProductContext(
+            sku="SKU-001",
+            product=CatalogProduct(
+                sku="SKU-001",
+                name="Test",
+                description="Desc",
+                amount=99.99,
+                category="test",
+                brand="TestBrand",
+            ),
+            related=[],
+        )
+        mock_pricing_ctx = PriceContext(
+            sku="SKU-001",
+            active=PriceEntry(sku="SKU-001", amount=99.99, currency="USD", promotional=True),
+            offers=[],
+        )
+        mock_inventory_ctx = InventoryContext(
+            sku="SKU-001",
+            item=InventoryItem(sku="SKU-001", available=10, reserved=0, warehouse_id="WH1"),
+            warehouses=[],
+        )
+
+        with patch("ecommerce_cart_intelligence.agents.build_cart_adapters") as mock_build:
+            mock_products = AsyncMock()
+            mock_products.build_product_context = AsyncMock(return_value=mock_product_ctx)
+
+            mock_pricing = AsyncMock()
+            mock_pricing.build_price_context = AsyncMock(return_value=mock_pricing_ctx)
+
+            mock_inventory = AsyncMock()
+            mock_inventory.build_inventory_context = AsyncMock(return_value=mock_inventory_ctx)
+
+            mock_analytics = AsyncMock()
+            mock_analytics.estimate_abandonment_risk = AsyncMock(
+                return_value={"risk_score": 0.2, "drivers": []}
+            )
+
+            mock_build.return_value = CartAdapters(
+                products=mock_products,
+                pricing=mock_pricing,
+                inventory=mock_inventory,
+                analytics=mock_analytics,
+            )
+
+            agent = CartIntelligenceAgent(config=agent_config)
+            agent.hot_memory = mock_hot_memory
+
+            await agent.handle({"items": sample_cart_items, "user_id": "user-1", "cart_ttl": 600})
+
+            assert mock_hot_memory.set.await_count == 1
+            assert mock_hot_memory.set.await_args_list[0].kwargs["key"] == (
+                "v1|svc=test-cart-intelligence|ten=public|ses=user-1|key=cart"
+            )
+            assert mock_hot_memory.set.await_args_list[0].kwargs["ttl_seconds"] == 600
+
+    @pytest.mark.asyncio
+    async def test_handle_reads_legacy_cache_and_promotes_to_canonical(
+        self,
+        agent_config,
+        sample_cart_items,
+    ):
+        """Test cart compatibility read from legacy key and promotion."""
+        mock_hot_memory = AsyncMock()
+        mock_hot_memory.get = AsyncMock(side_effect=[None, {"legacy": True}])
+        mock_hot_memory.set = AsyncMock()
+
+        mock_product_ctx = ProductContext(
+            sku="SKU-001",
+            product=CatalogProduct(
+                sku="SKU-001",
+                name="Test",
+                description="Desc",
+                amount=99.99,
+                category="test",
+                brand="TestBrand",
+            ),
+            related=[],
+        )
+        mock_pricing_ctx = PriceContext(
+            sku="SKU-001",
+            active=PriceEntry(sku="SKU-001", amount=99.99, currency="USD", promotional=True),
+            offers=[],
+        )
+        mock_inventory_ctx = InventoryContext(
+            sku="SKU-001",
+            item=InventoryItem(sku="SKU-001", available=10, reserved=0, warehouse_id="WH1"),
+            warehouses=[],
+        )
+
+        with patch("ecommerce_cart_intelligence.agents.build_cart_adapters") as mock_build:
+            mock_products = AsyncMock()
+            mock_products.build_product_context = AsyncMock(return_value=mock_product_ctx)
+
+            mock_pricing = AsyncMock()
+            mock_pricing.build_price_context = AsyncMock(return_value=mock_pricing_ctx)
+
+            mock_inventory = AsyncMock()
+            mock_inventory.build_inventory_context = AsyncMock(return_value=mock_inventory_ctx)
+
+            mock_analytics = AsyncMock()
+            mock_analytics.estimate_abandonment_risk = AsyncMock(
+                return_value={"risk_score": 0.2, "drivers": []}
+            )
+
+            mock_build.return_value = CartAdapters(
+                products=mock_products,
+                pricing=mock_pricing,
+                inventory=mock_inventory,
+                analytics=mock_analytics,
+            )
+
+            agent = CartIntelligenceAgent(config=agent_config)
+            agent.hot_memory = mock_hot_memory
+
+            await agent.handle({"items": sample_cart_items, "user_id": "user-1", "cart_ttl": 600})
+
+            assert mock_hot_memory.get.await_count == 2
+            assert mock_hot_memory.get.await_args_list[0].args[0] == (
+                "v1|svc=test-cart-intelligence|ten=public|ses=user-1|key=cart"
+            )
+            assert mock_hot_memory.get.await_args_list[1].args[0] == "cart:user-1"
+            assert mock_hot_memory.set.await_count == 2
+            assert mock_hot_memory.set.await_args_list[0].kwargs == {
+                "key": "v1|svc=test-cart-intelligence|ten=public|ses=user-1|key=cart",
+                "value": {"legacy": True},
+                "ttl_seconds": 600,
+            }
+
 
 class TestCartAnalyticsAdapter:
     """Tests for CartAnalyticsAdapter."""
