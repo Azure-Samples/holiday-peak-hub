@@ -510,7 +510,7 @@ describe('Page rendering smoke tests', () => {
   it('renders the home page hero', () => {
     render(<HomePage />);
     expect(
-      screen.getByText('Plan Your Peak Weekend Cart')
+      screen.getByText('Product Graph Surface')
     ).toBeInTheDocument();
   });
 

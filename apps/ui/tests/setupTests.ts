@@ -52,6 +52,20 @@ if (!window.matchMedia) {
 	});
 }
 
+if (!(global as any).ResizeObserver) {
+	class ResizeObserverMock {
+		observe = jest.fn();
+		unobserve = jest.fn();
+		disconnect = jest.fn();
+	}
+
+	Object.defineProperty(global, 'ResizeObserver', {
+		writable: true,
+		configurable: true,
+		value: ResizeObserverMock,
+	});
+}
+
 jest.mock('@stripe/stripe-js', () => ({
 	__esModule: true,
 	loadStripe: jest.fn(async () => ({
