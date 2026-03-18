@@ -20,6 +20,12 @@ Requirements:
 
 **Use FastAPI for REST and fastapi-mcp for MCP server exposition.**
 
+## Implementation Status (2026-03-18)
+
+- **Implemented**: FastAPI is the service framework in active apps, and agent services register MCP tools via `FastAPIMCPServer` in `holiday_peak_lib`.
+- **Partially diverged**: The original wording implies uniform dual exposition; in practice, MCP is concentrated in agent services while some services (for example, CRUD) remain REST-only.
+- **No supersession**: This ADR remains active for service exposition mechanics; ingress and edge policy changes are tracked separately in [ADR-027](adr-027-apim-agc-edge.md).
+
 ### Structure
 ```python
 from fastapi import FastAPI
