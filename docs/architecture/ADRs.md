@@ -34,6 +34,7 @@ This document indexes all architectural decisions for the Holiday Peak Hub accel
 | [ADR-026](adrs/adr-026-agic-traffic-management.md) | Application Gateway Ingress Controller (AGIC) for Traffic Management | Superseded by ADR-027 | 2025-01 |
 | [ADR-027](adrs/adr-027-apim-agc-edge.md) | APIM + Application Gateway for Containers as Canonical AKS Edge | Accepted | 2026-03 |
 | [ADR-028](adrs/adr-028-memory-namespace-isolation-contract.md) | Memory Namespace Isolation Contract | Accepted | 2026-03 |
+| [ADR-029](adrs/adr-029-mcp-internal-communication-policy.md) | MCP Internal Communication Policy Addendum | Accepted | 2026-03 |
 
 ## How to Use ADRs
 
@@ -97,6 +98,7 @@ Each ADR follows a standard template:
 
 ### Governance
 - Git branch naming convention ([ADR-022](adrs/adr-022-branch-naming-convention.md))
+- MCP internal communication policy and rollout gates ([ADR-029](adrs/adr-029-mcp-internal-communication-policy.md))
 
 ### Enterprise Integration
 - Enterprise resilience patterns (Circuit Breaker, Bulkhead, Rate Limiter) ([ADR-023](adrs/adr-023-enterprise-resilience-patterns.md))
