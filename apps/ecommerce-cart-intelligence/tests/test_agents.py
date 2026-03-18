@@ -161,7 +161,9 @@ class TestCartIntelligenceAgent:
             assert result["acp"]["domain"] == "cart"
 
     @pytest.mark.asyncio
-    async def test_handle_caches_with_canonical_namespace_key(self, agent_config, sample_cart_items):
+    async def test_handle_caches_with_canonical_namespace_key(
+        self, agent_config, sample_cart_items
+    ):
         """Test cart cache writes use canonical namespace keys."""
         mock_hot_memory = AsyncMock()
         mock_hot_memory.get = AsyncMock(return_value=None)

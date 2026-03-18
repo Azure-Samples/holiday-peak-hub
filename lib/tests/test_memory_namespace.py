@@ -24,10 +24,7 @@ class TestNamespaceContract:
 
         key = build_canonical_memory_key(context, "cart")
 
-        assert (
-            key
-            == "v1|svc=ecommerce-cart-intelligence|ten=tenant-a|ses=session-1|key=cart"
-        )
+        assert key == "v1|svc=ecommerce-cart-intelligence|ten=tenant-a|ses=session-1|key=cart"
 
     def test_collision_prevention_across_service_tenant_session(self):
         """Different service/tenant/session combinations produce unique keys."""
