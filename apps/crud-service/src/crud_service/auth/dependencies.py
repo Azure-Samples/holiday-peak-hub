@@ -251,7 +251,9 @@ async def get_current_user_optional(
             )
         return None
     except Exception as exc:
-        logger.error("Optional auth runtime failure; continuing anonymously: %s", exc, exc_info=True)
+        logger.error(
+            "Optional auth runtime failure; continuing anonymously: %s", exc, exc_info=True
+        )
         return None
 
 

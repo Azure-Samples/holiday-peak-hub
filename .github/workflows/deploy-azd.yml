@@ -219,7 +219,7 @@ jobs:
 
           if [ ${#CHANGED_AGENTS[@]} -gt 0 ]; then
             AGENTS_CHANGED=true
-            MATRIX=$(printf '%s\n' "${CHANGED_AGENTS[@]}" | jq -R . | jq -s 'map({service: .})')
+            MATRIX=$(printf '%s\n' "${CHANGED_AGENTS[@]}" | jq -R . | jq -cs 'map({service: .})')
           fi
 
           CHANGED_AGENT_SERVICES_CSV=""
