@@ -7,6 +7,7 @@ from crud_service.auth import User, get_current_user_optional
 from crud_service.integrations import get_agent_client
 from crud_service.repositories import ProductRepository
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from holiday_peak_lib.schemas import CanonicalProduct
 from pydantic import BaseModel, ValidationError
 
 router = APIRouter()
@@ -33,6 +34,15 @@ class ProductResponse(BaseModel):
     related: list[dict[str, object]] | None = None
 
 
+def _to_canonical_product(product: dict) -> dict | None:
+    if not isinstance(product, dict):
+        return None
+    try:
+        return CanonicalProduct.model_validate(product).to_crud_record()
+    except ValidationError:
+        return None
+
+
 async def _fetch_products(
     *,
     search: str | None,
@@ -46,14 +56,11 @@ async def _fetch_products(
         try:
             agent_results = await agent_client.semantic_search(search, limit=limit)
             if isinstance(agent_results, list):
-                canonical_results = [
-                    product
-                    for product in agent_results
-                    if isinstance(product, dict)
-                    and product.get("id")
-                    and product.get("name")
-                    and product.get("category_id")
-                ]
+                canonical_results = []
+                for product in agent_results:
+                    normalized = _to_canonical_product(product)
+                    if normalized is not None:
+                        canonical_results.append(normalized)
                 if canonical_results:
                     products = canonical_results
         except Exception:
@@ -125,6 +132,9 @@ async def list_products(
     # No GoF pattern applies - straightforward record validation and filtering.
     validated_products: list[ProductResponse] = []
     for product in products:
+        normalized = _to_canonical_product(product)
+        if normalized is not None:
+            product = normalized
         try:
             validated_products.append(ProductResponse.model_validate(product))
         except ValidationError as exc:

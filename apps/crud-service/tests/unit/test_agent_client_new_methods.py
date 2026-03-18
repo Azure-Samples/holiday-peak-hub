@@ -130,6 +130,7 @@ class TestValidateReservation:
         client = AgentClient()
         result = await client.validate_reservation("SKU-1", 5)
         assert result["valid"] is True
+        assert result["approved"] is True
 
     @pytest.mark.asyncio
     async def test_returns_invalid_reservation(self, monkeypatch):
@@ -147,6 +148,25 @@ class TestValidateReservation:
         client = AgentClient()
         result = await client.validate_reservation("SKU-1", 100)
         assert result["valid"] is False
+        assert result["approved"] is False
+
+    @pytest.mark.asyncio
+    async def test_preserves_approved_and_backfills_valid(self, monkeypatch):
+
+        async def fake_call(self, agent_url=None, endpoint=None, data=None, fallback_value=None):
+            return {"approved": True, "reason": None}
+
+        monkeypatch.setattr(
+            agent_client_module.settings,
+            "inventory_reservation_agent_url",
+            "http://agent",
+        )
+        monkeypatch.setattr(AgentClient, "call_endpoint", fake_call)
+
+        client = AgentClient()
+        result = await client.validate_reservation("SKU-1", 2)
+        assert result["approved"] is True
+        assert result["valid"] is True
 
     @pytest.mark.asyncio
     async def test_returns_none_when_no_url(self, monkeypatch):

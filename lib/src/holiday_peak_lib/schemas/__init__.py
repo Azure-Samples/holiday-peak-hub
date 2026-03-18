@@ -9,7 +9,7 @@ from .funnel import FunnelContext, FunnelMetric
 from .inventory import InventoryContext, InventoryItem, WarehouseStock
 from .logistics import LogisticsContext, Shipment, ShipmentEvent
 from .pricing import PriceContext, PriceEntry
-from .product import CatalogProduct, ProductContext
+from .product import CanonicalProduct, CatalogProduct, ProductContext
 from .truth import (
     AssetMetadata,
     AttributeSource,
@@ -43,6 +43,7 @@ __all__ = [
     "CRMContext",
     "CRMInteraction",
     "CatalogProduct",
+    "CanonicalProduct",
     "ProductContext",
     "InventoryItem",
     "WarehouseStock",
