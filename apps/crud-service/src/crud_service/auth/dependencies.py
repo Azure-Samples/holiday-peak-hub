@@ -71,9 +71,9 @@ class JWTConfig:
                 logger.info("Refreshed JWKS from %s", self.jwks_uri)
         except Exception:
             if self._jwks_cache:
-                logger.warning("JWKS refresh failed; using cached keys")
+                logger.warning("JWKS refresh failed; using cached keys", exc_info=True)
             else:
-                logger.error("JWKS fetch failed and no cached keys available")
+                logger.error("JWKS fetch failed and no cached keys available", exc_info=True)
                 raise
 
         return self._jwks_cache
@@ -197,7 +197,7 @@ async def get_current_user(
         return User(user_id=user_id, email=email, name=name, roles=roles)
 
     except JWTError as e:
-        logger.warning("JWT validation error: %s", e)
+        logger.error("JWT validation error: %s", e, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication token",
@@ -244,9 +244,16 @@ async def get_current_user_optional(
     try:
         return await get_current_user(request, credentials)
     except HTTPException:
+        if credentials is not None:
+            logger.warning(
+                "Optional auth rejected provided credentials; continuing anonymously",
+                exc_info=True,
+            )
         return None
     except Exception as exc:
-        logger.warning("Optional auth runtime failure; continuing anonymously: %s", exc)
+        logger.error(
+            "Optional auth runtime failure; continuing anonymously: %s", exc, exc_info=True
+        )
         return None
 
 
