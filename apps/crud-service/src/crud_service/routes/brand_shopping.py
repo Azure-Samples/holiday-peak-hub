@@ -313,10 +313,20 @@ async def get_customer_profile(
     try:
         crm_profile = await agent_client.get_customer_profile(customer_id)
     except Exception:
+        logger.warning(
+            "CRM profile enrichment unavailable for customer_id=%s",
+            customer_id,
+            exc_info=True,
+        )
         crm_profile = None
     try:
         personalization = await agent_client.get_personalization(customer_id)
     except Exception:
+        logger.warning(
+            "Personalization enrichment unavailable for customer_id=%s",
+            customer_id,
+            exc_info=True,
+        )
         personalization = None
 
     tier = _normalize_tier(
@@ -402,6 +412,11 @@ async def get_pricing_offers(
     try:
         crm_profile = await agent_client.get_customer_profile(request.customer_id)
     except Exception:
+        logger.warning(
+            "Loyalty profile enrichment unavailable for customer_id=%s",
+            request.customer_id,
+            exc_info=True,
+        )
         crm_profile = None
     tier = str((crm_profile or {}).get("tier") or user.get("tier") or "standard").lower()
     if tier == "gold":
@@ -423,6 +438,11 @@ async def get_pricing_offers(
     try:
         dynamic_unit_price = await agent_client.calculate_dynamic_pricing(request.sku)
     except Exception:
+        logger.warning(
+            "Dynamic pricing unavailable for sku=%s",
+            request.sku,
+            exc_info=True,
+        )
         dynamic_unit_price = None
     if isinstance(dynamic_unit_price, (int, float)):
         dynamic_unit_price = _round_money(dynamic_unit_price)
@@ -487,6 +507,11 @@ async def rank_recommendations(
                     if str(category).strip()
                 }
     except Exception:
+        logger.warning(
+            "Recommendation personalization unavailable for customer_id=%s",
+            request.customer_id,
+            exc_info=True,
+        )
         preferred_categories = set()
 
     unique_candidates = _dedupe_candidates(request.candidates)
@@ -500,6 +525,11 @@ async def rank_recommendations(
         try:
             product = await product_repo.get_by_id(candidate.sku)
         except Exception:
+            logger.warning(
+                "Recommendation product lookup failed for sku=%s; continuing without product context",
+                candidate.sku,
+                exc_info=True,
+            )
             product = None
 
         if isinstance(product, dict):
@@ -559,6 +589,11 @@ async def compose_recommendations(
         try:
             product = await product_repo.get_by_id(candidate.sku)
         except Exception:
+            logger.warning(
+                "Recommendation composition product lookup failed for sku=%s; using SKU as title",
+                candidate.sku,
+                exc_info=True,
+            )
             product = None
         if isinstance(product, dict) and product.get("name"):
             title = str(product["name"])

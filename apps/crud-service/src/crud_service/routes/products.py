@@ -57,7 +57,11 @@ async def _fetch_products(
                 if canonical_results:
                     products = canonical_results
         except Exception:
-            pass
+            logger.warning(
+                "Semantic search unavailable; falling back to keyword search for search=%s",
+                search,
+                exc_info=True,
+            )
         if not products:
             products = await product_repo.search_by_name(search, limit=limit)
     elif category:
@@ -81,7 +85,11 @@ async def _fetch_products(
                     rest = [p for p in products if p.get("id") not in sku_set]
                     products = boosted + rest
         except Exception:
-            pass
+            logger.warning(
+                "Personalized product ordering unavailable for user_id=%s",
+                current_user.user_id,
+                exc_info=True,
+            )
 
     return products
 
@@ -152,7 +160,11 @@ async def get_product(product_id: str):
             product["inventory"] = enrichment.get("inventory")
             product["related"] = enrichment.get("related")
     except Exception:
-        pass  # Use base product data
+        logger.warning(
+            "Product enrichment unavailable for product_id=%s; using base product data",
+            product_id,
+            exc_info=True,
+        )
 
     # Optionally get dynamic pricing
     try:
@@ -160,6 +172,10 @@ async def get_product(product_id: str):
         if dynamic_price:
             product["price"] = dynamic_price
     except Exception:
-        pass  # Use base price
+        logger.warning(
+            "Dynamic pricing unavailable for product_id=%s; using base price",
+            product_id,
+            exc_info=True,
+        )
 
     return ProductResponse(**product)
