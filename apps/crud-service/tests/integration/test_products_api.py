@@ -42,6 +42,11 @@ def _mock_product_repo():
     """Mock product repository so integration tests don't need a live database."""
     with (
         patch(
+            "crud_service.routes.products.product_repo.get_by_id",
+            new_callable=AsyncMock,
+            return_value=_SAMPLE_PRODUCT,
+        ),
+        patch(
             "crud_service.routes.products.product_repo.query",
             new_callable=AsyncMock,
             return_value=[_SAMPLE_PRODUCT],
@@ -77,10 +82,11 @@ def test_list_products_anonymous(client):
 
 def test_get_product_by_id(client):
     """Test getting product by ID."""
-    # TODO: Create test product first
-    # response = client.get("/api/products/test-product-id")
-    # assert response.status_code == 200
-    pass
+    response = client.get("/api/products/prod-1")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["id"] == _SAMPLE_PRODUCT["id"]
+    assert payload["name"] == _SAMPLE_PRODUCT["name"]
 
 
 def test_list_products_with_search(client):
