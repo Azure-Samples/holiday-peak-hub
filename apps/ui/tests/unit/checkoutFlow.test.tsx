@@ -252,4 +252,53 @@ describe('CheckoutPage flow', () => {
       expect(checkoutService.createPaymentIntent).not.toHaveBeenCalled();
     });
   });
+
+  it('shows explicit required and optional semantics with phone rationale text', () => {
+    render(<CheckoutPage />);
+
+    expect(screen.getByText('First Name (Required)')).toBeInTheDocument();
+    expect(screen.getByText('Last Name (Required)')).toBeInTheDocument();
+    expect(screen.getByText('Email Address (Required)')).toBeInTheDocument();
+    expect(screen.getByText('Phone Number (Required)')).toBeInTheDocument();
+    expect(screen.getByText('Street Address (Required)')).toBeInTheDocument();
+    expect(screen.getByText('City (Required)')).toBeInTheDocument();
+    expect(screen.getByText('State (Required)')).toBeInTheDocument();
+    expect(screen.getByText('ZIP Code (Required)')).toBeInTheDocument();
+    expect(screen.getByText('Save this address for future orders (Optional)')).toBeInTheDocument();
+    expect(
+      screen.getByText('Used only for delivery updates or if the carrier needs help finding your address.')
+    ).toBeInTheDocument();
+  });
+
+  it('shows actionable adaptive validation messages and blocks checkout setup until fields are valid', async () => {
+    (checkoutService.validate as jest.Mock).mockResolvedValue({
+      valid: true,
+      errors: [],
+      warnings: [],
+      estimated_total: 20,
+      estimated_shipping: 0,
+      estimated_tax: 0,
+    });
+
+    render(<CheckoutPage />);
+
+    fireEvent.change(screen.getByLabelText('First Name (Required)'), { target: { value: 'Ada' } });
+    fireEvent.change(screen.getByLabelText('Last Name (Required)'), { target: { value: 'Lovelace' } });
+    fireEvent.change(screen.getByLabelText('Email Address (Required)'), { target: { value: 'invalid-email' } });
+    fireEvent.change(screen.getByLabelText('Phone Number (Required)'), { target: { value: '12345' } });
+    fireEvent.change(screen.getByLabelText('Street Address (Required)'), { target: { value: '123 Main St' } });
+    fireEvent.change(screen.getByLabelText('City (Required)'), { target: { value: 'Sao Paulo' } });
+    fireEvent.change(screen.getByLabelText('State (Required)'), { target: { value: 'SP' } });
+    fireEvent.change(screen.getByLabelText('ZIP Code (Required)'), { target: { value: '01000-000' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to Payment' }));
+
+    expect(
+      screen.getByText('Enter a valid email address so we can send your order confirmation.')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Enter a valid phone number with area code in case the carrier needs delivery coordination.')
+    ).toBeInTheDocument();
+    expect(checkoutService.validate).not.toHaveBeenCalled();
+  });
 });

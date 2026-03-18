@@ -27,6 +27,78 @@ interface CheckoutItem {
   price: number;
 }
 
+interface ShippingFormData {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  address: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  country: string;
+  saveAddress: boolean;
+}
+
+type ShippingFieldKey = keyof Pick<ShippingFormData,
+  'firstName' | 'lastName' | 'email' | 'phone' | 'address' | 'city' | 'state' | 'zipCode'>;
+
+const shippingFieldLabels: Record<ShippingFieldKey, string> = {
+  firstName: 'First Name',
+  lastName: 'Last Name',
+  email: 'Email Address',
+  phone: 'Phone Number',
+  address: 'Street Address',
+  city: 'City',
+  state: 'State',
+  zipCode: 'ZIP Code',
+};
+
+function validateShippingField(field: ShippingFieldKey, value: string): string | undefined {
+  const trimmedValue = value.trim();
+
+  if (trimmedValue.length === 0) {
+    return `${shippingFieldLabels[field]} is required to continue to payment.`;
+  }
+
+  if (field === 'email') {
+    const isEmailLike = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedValue);
+    if (!isEmailLike) {
+      return 'Enter a valid email address so we can send your order confirmation.';
+    }
+  }
+
+  if (field === 'phone') {
+    const digitsOnlyPhone = trimmedValue.replace(/\D/g, '');
+    if (digitsOnlyPhone.length < 10) {
+      return 'Enter a valid phone number with area code in case the carrier needs delivery coordination.';
+    }
+  }
+
+  return undefined;
+}
+
+function validateShippingForm(data: ShippingFormData): Partial<Record<ShippingFieldKey, string>> {
+  const fieldsToValidate: ShippingFieldKey[] = [
+    'firstName',
+    'lastName',
+    'email',
+    'phone',
+    'address',
+    'city',
+    'state',
+    'zipCode',
+  ];
+
+  return fieldsToValidate.reduce<Partial<Record<ShippingFieldKey, string>>>((errors, field) => {
+    const validationMessage = validateShippingField(field, data[field]);
+    if (validationMessage) {
+      errors[field] = validationMessage;
+    }
+    return errors;
+  }, {});
+}
+
 interface StripePaymentFormProps {
   onSuccess: (paymentIntentId?: string) => Promise<void>;
   onBack: () => void;
@@ -147,7 +219,7 @@ export default function CheckoutPage() {
   } = useInventoryHealth();
 
   const [currentStep, setCurrentStep] = useState(1);
-  const [shippingData, setShippingData] = useState({
+  const [shippingData, setShippingData] = useState<ShippingFormData>({
     firstName: '',
     lastName: '',
     email: '',
@@ -159,6 +231,9 @@ export default function CheckoutPage() {
     country: 'US',
     saveAddress: false,
   });
+  const [shippingFieldErrors, setShippingFieldErrors] = useState<
+    Partial<Record<ShippingFieldKey, string>>
+  >({});
   const [shippingMethod, setShippingMethod] = useState('standard');
   const [orderId, setOrderId] = useState<string | null>(null);
   const [orderTotal, setOrderTotal] = useState<number | null>(null);
@@ -206,6 +281,19 @@ export default function CheckoutPage() {
     zipCode: 'checkout-zip',
   };
 
+  const fieldErrorIds: Record<ShippingFieldKey, string> = {
+    firstName: 'checkout-first-name-error',
+    lastName: 'checkout-last-name-error',
+    email: 'checkout-email-error',
+    phone: 'checkout-phone-error',
+    address: 'checkout-address-error',
+    city: 'checkout-city-error',
+    state: 'checkout-state-error',
+    zipCode: 'checkout-zip-error',
+  };
+
+  const phoneHelpTextId = 'checkout-phone-help';
+
   const liveCartItems: CheckoutItem[] = useMemo(
     () =>
       (cart?.items ?? []).map((item) => ({
@@ -241,6 +329,23 @@ export default function CheckoutPage() {
 
   const retryReservationOutcomes = () => {
     void Promise.allSettled(reservationOutcomeQueries.map((query) => query.refetch()));
+  };
+
+  const updateShippingField = (field: ShippingFieldKey, value: string) => {
+    setShippingData((previous) => ({ ...previous, [field]: value }));
+    setShippingFieldErrors((previous) => {
+      const nextErrors = { ...previous };
+      const validationMessage = validateShippingField(field, value);
+      if (validationMessage) {
+        nextErrors[field] = validationMessage;
+      } else {
+        delete nextErrors[field];
+      }
+      return nextErrors;
+    });
+    if (setupError) {
+      setSetupError(null);
+    }
   };
 
   const createReservationsForItems = async (items: CheckoutItem[]): Promise<string[]> => {
@@ -297,6 +402,13 @@ export default function CheckoutPage() {
 
   const handleShippingSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+
+    const nextFieldErrors = validateShippingForm(shippingData);
+    setShippingFieldErrors(nextFieldErrors);
+    if (Object.keys(nextFieldErrors).length > 0) {
+      setSetupError('Please fix the highlighted shipping fields to continue to payment.');
+      return;
+    }
 
     if (!orderId && summaryItems.length === 0) {
       setSetupError('Your cart is empty. Add items before checking out.');
@@ -470,32 +582,54 @@ export default function CheckoutPage() {
                       htmlFor={fieldIds.firstName}
                       className="block text-sm font-semibold text-gray-900 dark:text-white mb-2"
                     >
-                      First Name *
+                      First Name (Required)
                     </label>
                     <Input
                       id={fieldIds.firstName}
                       type="text"
                       autoComplete="given-name"
                       value={shippingData.firstName}
-                      onChange={(e) => setShippingData({ ...shippingData, firstName: e.target.value })}
+                      onChange={(e) => updateShippingField('firstName', e.target.value)}
+                      aria-describedby={shippingFieldErrors.firstName ? fieldErrorIds.firstName : undefined}
                       required
                     />
+                    {shippingFieldErrors.firstName ? (
+                      <p
+                        id={fieldErrorIds.firstName}
+                        className="mt-1 text-xs text-red-600 dark:text-red-400"
+                        role="alert"
+                        aria-live="polite"
+                      >
+                        {shippingFieldErrors.firstName}
+                      </p>
+                    ) : null}
                   </div>
                   <div>
                     <label
                       htmlFor={fieldIds.lastName}
                       className="block text-sm font-semibold text-gray-900 dark:text-white mb-2"
                     >
-                      Last Name *
+                      Last Name (Required)
                     </label>
                     <Input
                       id={fieldIds.lastName}
                       type="text"
                       autoComplete="family-name"
                       value={shippingData.lastName}
-                      onChange={(e) => setShippingData({ ...shippingData, lastName: e.target.value })}
+                      onChange={(e) => updateShippingField('lastName', e.target.value)}
+                      aria-describedby={shippingFieldErrors.lastName ? fieldErrorIds.lastName : undefined}
                       required
                     />
+                    {shippingFieldErrors.lastName ? (
+                      <p
+                        id={fieldErrorIds.lastName}
+                        className="mt-1 text-xs text-red-600 dark:text-red-400"
+                        role="alert"
+                        aria-live="polite"
+                      >
+                        {shippingFieldErrors.lastName}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
 
@@ -504,16 +638,27 @@ export default function CheckoutPage() {
                     htmlFor={fieldIds.email}
                     className="block text-sm font-semibold text-gray-900 dark:text-white mb-2"
                   >
-                    Email Address *
+                    Email Address (Required)
                   </label>
                   <Input
                     id={fieldIds.email}
                     type="email"
                     autoComplete="email"
                     value={shippingData.email}
-                    onChange={(e) => setShippingData({ ...shippingData, email: e.target.value })}
+                    onChange={(e) => updateShippingField('email', e.target.value)}
+                    aria-describedby={shippingFieldErrors.email ? fieldErrorIds.email : undefined}
                     required
                   />
+                  {shippingFieldErrors.email ? (
+                    <p
+                      id={fieldErrorIds.email}
+                      className="mt-1 text-xs text-red-600 dark:text-red-400"
+                      role="alert"
+                      aria-live="polite"
+                    >
+                      {shippingFieldErrors.email}
+                    </p>
+                  ) : null}
                 </div>
 
                 <div>
@@ -521,16 +666,34 @@ export default function CheckoutPage() {
                     htmlFor={fieldIds.phone}
                     className="block text-sm font-semibold text-gray-900 dark:text-white mb-2"
                   >
-                    Phone Number *
+                    Phone Number (Required)
                   </label>
                   <Input
                     id={fieldIds.phone}
                     type="tel"
                     autoComplete="tel"
                     value={shippingData.phone}
-                    onChange={(e) => setShippingData({ ...shippingData, phone: e.target.value })}
+                    onChange={(e) => updateShippingField('phone', e.target.value)}
+                    aria-describedby={
+                      shippingFieldErrors.phone
+                        ? `${phoneHelpTextId} ${fieldErrorIds.phone}`
+                        : phoneHelpTextId
+                    }
                     required
                   />
+                  <p id={phoneHelpTextId} className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                    Used only for delivery updates or if the carrier needs help finding your address.
+                  </p>
+                  {shippingFieldErrors.phone ? (
+                    <p
+                      id={fieldErrorIds.phone}
+                      className="mt-1 text-xs text-red-600 dark:text-red-400"
+                      role="alert"
+                      aria-live="polite"
+                    >
+                      {shippingFieldErrors.phone}
+                    </p>
+                  ) : null}
                 </div>
 
                 <div>
@@ -538,16 +701,27 @@ export default function CheckoutPage() {
                     htmlFor={fieldIds.address}
                     className="block text-sm font-semibold text-gray-900 dark:text-white mb-2"
                   >
-                    Street Address *
+                    Street Address (Required)
                   </label>
                   <Input
                     id={fieldIds.address}
                     type="text"
                     autoComplete="street-address"
                     value={shippingData.address}
-                    onChange={(e) => setShippingData({ ...shippingData, address: e.target.value })}
+                    onChange={(e) => updateShippingField('address', e.target.value)}
+                    aria-describedby={shippingFieldErrors.address ? fieldErrorIds.address : undefined}
                     required
                   />
+                  {shippingFieldErrors.address ? (
+                    <p
+                      id={fieldErrorIds.address}
+                      className="mt-1 text-xs text-red-600 dark:text-red-400"
+                      role="alert"
+                      aria-live="polite"
+                    >
+                      {shippingFieldErrors.address}
+                    </p>
+                  ) : null}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -556,53 +730,86 @@ export default function CheckoutPage() {
                       htmlFor={fieldIds.city}
                       className="block text-sm font-semibold text-gray-900 dark:text-white mb-2"
                     >
-                      City *
+                      City (Required)
                     </label>
                     <Input
                       id={fieldIds.city}
                       type="text"
                       autoComplete="address-level2"
                       value={shippingData.city}
-                      onChange={(e) => setShippingData({ ...shippingData, city: e.target.value })}
+                      onChange={(e) => updateShippingField('city', e.target.value)}
+                      aria-describedby={shippingFieldErrors.city ? fieldErrorIds.city : undefined}
                       required
                     />
+                    {shippingFieldErrors.city ? (
+                      <p
+                        id={fieldErrorIds.city}
+                        className="mt-1 text-xs text-red-600 dark:text-red-400"
+                        role="alert"
+                        aria-live="polite"
+                      >
+                        {shippingFieldErrors.city}
+                      </p>
+                    ) : null}
                   </div>
                   <div>
                     <label
                       htmlFor={fieldIds.state}
                       className="block text-sm font-semibold text-gray-900 dark:text-white mb-2"
                     >
-                      State *
+                      State (Required)
                     </label>
                     <Input
                       id={fieldIds.state}
                       type="text"
                       autoComplete="address-level1"
                       value={shippingData.state}
-                      onChange={(e) => setShippingData({ ...shippingData, state: e.target.value })}
+                      onChange={(e) => updateShippingField('state', e.target.value)}
+                      aria-describedby={shippingFieldErrors.state ? fieldErrorIds.state : undefined}
                       required
                     />
+                    {shippingFieldErrors.state ? (
+                      <p
+                        id={fieldErrorIds.state}
+                        className="mt-1 text-xs text-red-600 dark:text-red-400"
+                        role="alert"
+                        aria-live="polite"
+                      >
+                        {shippingFieldErrors.state}
+                      </p>
+                    ) : null}
                   </div>
                   <div>
                     <label
                       htmlFor={fieldIds.zipCode}
                       className="block text-sm font-semibold text-gray-900 dark:text-white mb-2"
                     >
-                      ZIP Code *
+                      ZIP Code (Required)
                     </label>
                     <Input
                       id={fieldIds.zipCode}
                       type="text"
                       autoComplete="postal-code"
                       value={shippingData.zipCode}
-                      onChange={(e) => setShippingData({ ...shippingData, zipCode: e.target.value })}
+                      onChange={(e) => updateShippingField('zipCode', e.target.value)}
+                      aria-describedby={shippingFieldErrors.zipCode ? fieldErrorIds.zipCode : undefined}
                       required
                     />
+                    {shippingFieldErrors.zipCode ? (
+                      <p
+                        id={fieldErrorIds.zipCode}
+                        className="mt-1 text-xs text-red-600 dark:text-red-400"
+                        role="alert"
+                        aria-live="polite"
+                      >
+                        {shippingFieldErrors.zipCode}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
 
                 <Checkbox
-                  label="Save this address for future orders"
+                  label="Save this address for future orders (Optional)"
                   checked={shippingData.saveAddress}
                   onChange={(e) => setShippingData({ ...shippingData, saveAddress: e.target.checked })}
                 />
