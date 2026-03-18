@@ -8,6 +8,7 @@ from typing import Any
 from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
+from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
 
 from .adapters import InventoryAlertsAdapters, build_inventory_alerts_adapters
 
@@ -92,8 +93,4 @@ def _register_crud_tools(mcp: FastAPIMCPServer) -> None:
 
 
 def _alerts_instructions() -> str:
-    return (
-        "You are an inventory alerts agent. "
-        "Identify low stock, reservation pressure, and trigger conditions. "
-        "Recommend immediate actions (expedite, reallocate, or notify)."
-    )
+    return load_prompt_instructions(__file__, "inventory-alerts-triggers")

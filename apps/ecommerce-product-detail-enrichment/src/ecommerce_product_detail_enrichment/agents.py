@@ -15,6 +15,7 @@ from holiday_peak_lib.agents.memory import (
     read_hot_with_compatibility,
     resolve_namespace_context,
 )
+from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
 
 from .adapters import (
     EnrichmentAdapters,
@@ -172,11 +173,4 @@ def _register_crud_tools(mcp: FastAPIMCPServer) -> None:
 
 
 def _enrichment_instructions(service_name: str) -> str:
-    return (
-        f"You are the {service_name} agent. "
-        "Be proactive when enriching product details. "
-        "Combine catalog, ACP content, reviews, and inventory into a concise summary. "
-        "Highlight anything that could impact conversion (low stock, missing media, low ratings). "
-        "Always include a monitoring note: which signals to track next (e.g., stock, ratings, "
-        "content completeness) and any anomalies to watch."
-    )
+    return load_prompt_instructions(__file__, service_name)

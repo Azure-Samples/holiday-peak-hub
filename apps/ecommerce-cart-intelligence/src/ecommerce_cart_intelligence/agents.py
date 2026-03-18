@@ -14,6 +14,7 @@ from holiday_peak_lib.agents.memory import (
     read_hot_with_compatibility,
     resolve_namespace_context,
 )
+from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
 
 from .adapters import CartAdapters, build_cart_adapters
 
@@ -251,12 +252,4 @@ def _build_acp_cart_payload(items: list[dict[str, object]]) -> dict[str, object]
 
 
 def _cart_instructions(service_name: str) -> str:
-    return (
-        f"You are the {service_name} agent. "
-        "Be proactive on every request tied to cart evaluation and abandonment prevention. "
-        "Use product, pricing, and inventory context to summarize cart health, "
-        "flag risks, and recommend next actions to improve conversion. "
-        "Always include a monitoring note: what to track next (e.g., stock levels, "
-        "promotion uptake, or segment risk), and any anomalies to watch. "
-        "If data is missing, call it out and propose safe assumptions."
-    )
+    return load_prompt_instructions(__file__, service_name)

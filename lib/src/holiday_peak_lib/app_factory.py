@@ -2,7 +2,7 @@
 
 import os
 from contextlib import asynccontextmanager
-from typing import AsyncIterator, Callable, Optional
+from typing import Any, AsyncIterator, Callable, Optional
 
 from fastapi import FastAPI, HTTPException
 from holiday_peak_lib.agents import AgentBuilder, BaseRetailAgent, FoundryAgentConfig
@@ -13,6 +13,7 @@ from holiday_peak_lib.agents.foundry import (
 )
 from holiday_peak_lib.agents.memory import ColdMemory, HotMemory, WarmMemory
 from holiday_peak_lib.agents.orchestration.router import RoutingStrategy
+from holiday_peak_lib.agents.prompt_loader import load_service_prompt_instructions
 from holiday_peak_lib.connectors.registry import ConnectorRegistry
 from holiday_peak_lib.utils.logging import configure_logging, log_async_operation
 
@@ -102,9 +103,11 @@ def build_service_app(
     async def _ensure_role(selected_role: str, config: FoundryAgentConfig, service: str) -> dict:
         target_name = config.agent_name or f"{service}-{selected_role}"
         target_model = config.deployment_name or DEFAULT_FOUNDY_MODELS[selected_role]
+        default_instructions = load_service_prompt_instructions(service)
         ensure_result = await ensure_foundry_agent(
             config,
             agent_name=target_name,
+            instructions=default_instructions,
             create_if_missing=True,
             model=target_model,
         )
@@ -230,11 +233,26 @@ def build_service_app(
         body = payload or {}
         role = str(body.get("role", "both")).lower()
         create_if_missing = bool(body.get("create_if_missing", True))
-        instructions = (
-            body.get("instructions") if isinstance(body.get("instructions"), dict) else {}
+        allow_instruction_override = (
+            os.getenv("FOUNDRY_ALLOW_INSTRUCTION_OVERRIDE") or ""
+        ).lower() in {"1", "true", "yes"}
+        raw_instructions = body.get("instructions")
+        if raw_instructions is not None and not allow_instruction_override:
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "Instruction overrides are disabled by policy. "
+                    "Set FOUNDRY_ALLOW_INSTRUCTION_OVERRIDE=true for controlled workflows."
+                ),
+            )
+        instructions: dict[str, Any] = (
+            raw_instructions if isinstance(raw_instructions, dict) else {}
         )
-        names = body.get("names") if isinstance(body.get("names"), dict) else {}
-        models = body.get("models") if isinstance(body.get("models"), dict) else {}
+        default_instructions = load_service_prompt_instructions(service_name)
+        raw_names = body.get("names")
+        names: dict[str, Any] = raw_names if isinstance(raw_names, dict) else {}
+        raw_models = body.get("models")
+        models: dict[str, Any] = raw_models if isinstance(raw_models, dict) else {}
 
         role_to_config: dict[str, FoundryAgentConfig | None] = {
             "fast": slm_config,
@@ -270,7 +288,11 @@ def build_service_app(
             ensure_result = await ensure_foundry_agent(
                 config,
                 agent_name=config.agent_name,
-                instructions=instructions.get(selected_role),
+                instructions=(
+                    instructions.get(selected_role)
+                    if selected_role in instructions
+                    else default_instructions
+                ),
                 create_if_missing=create_if_missing,
                 model=config.deployment_name,
             )
