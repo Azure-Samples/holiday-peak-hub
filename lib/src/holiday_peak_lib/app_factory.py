@@ -5,7 +5,6 @@ from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator, Callable, Optional
 
 from fastapi import FastAPI, HTTPException
-
 from holiday_peak_lib.agents import AgentBuilder, BaseRetailAgent, FoundryAgentConfig
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.agents.foundry import (

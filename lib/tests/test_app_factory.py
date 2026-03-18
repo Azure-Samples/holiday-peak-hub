@@ -313,7 +313,10 @@ class TestBuildServiceApp:
                 )
 
         assert response.status_code == 200
-        assert mock_ensure.call_args.kwargs["instructions"] == "## Identity and Role\nStructured prompt"
+        assert (
+            mock_ensure.call_args.kwargs["instructions"]
+            == "## Identity and Role\nStructured prompt"
+        )
 
     def test_foundry_ensure_rejects_instruction_override_by_default(
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
@@ -382,7 +385,9 @@ class TestBuildServiceApp:
                 )
 
         assert response.status_code == 200
-        assert mock_ensure.call_args.kwargs["instructions"] == "## Identity and Role\nOverride prompt"
+        assert (
+            mock_ensure.call_args.kwargs["instructions"] == "## Identity and Role\nOverride prompt"
+        )
 
     def test_ready_endpoint_returns_ok_when_not_strict(
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
