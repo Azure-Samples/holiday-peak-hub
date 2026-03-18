@@ -50,4 +50,7 @@ def build_event_handlers() -> dict[str, EventHandler]:
             next_steps=len(brief.get("next_best_actions", [])),
         )
 
-    return {"order-events": handle_order_event}
+    return {
+        "order-events": handle_order_event,
+        "return-events": handle_order_event,
+    }

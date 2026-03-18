@@ -1,7 +1,9 @@
 """Cart routes."""
 
+from datetime import datetime, timezone
+
 from crud_service.auth import User, get_current_user
-from crud_service.integrations import get_agent_client
+from crud_service.integrations import get_agent_client, get_event_publisher
 from crud_service.repositories import CartRepository, ProductRepository
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -10,6 +12,7 @@ router = APIRouter()
 cart_repo = CartRepository()
 product_repo = ProductRepository()
 agent_client = get_agent_client()
+event_publisher = get_event_publisher()
 
 
 class AddToCartRequest(BaseModel):
@@ -94,6 +97,18 @@ async def add_to_cart(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=reservation.get("reason", "Insufficient stock"),
             )
+        if isinstance(reservation, dict) and reservation.get("valid") is True:
+            try:
+                await event_publisher.publish_inventory_reserved(
+                    {
+                        "user_id": current_user.user_id,
+                        "sku": request.product_id,
+                        "quantity": request.quantity,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    }
+                )
+            except Exception:
+                pass
     except HTTPException:
         raise
     except Exception:

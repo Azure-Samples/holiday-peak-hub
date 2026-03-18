@@ -71,6 +71,7 @@ app = build_service_app(
         service_name=SERVICE_NAME,
         subscriptions=[
             EventHubSubscription("order-events", "returns-group"),
+            EventHubSubscription("return-events", "returns-group"),
         ],
         handlers=build_event_handlers(),
     ),
