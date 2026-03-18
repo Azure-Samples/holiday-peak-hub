@@ -171,6 +171,7 @@ export default function CheckoutPage() {
   const [isPreparingCheckout, setIsPreparingCheckout] = useState(false);
   const [isFinalizingPayment, setIsFinalizingPayment] = useState(false);
   const [isOrderPaymentConfirmed, setIsOrderPaymentConfirmed] = useState(false);
+  const [continueWithoutHelperSignals, setContinueWithoutHelperSignals] = useState(false);
 
   const hasCompletedCheckoutRef = useRef(false);
   const reservationIdsRef = useRef<string[]>([]);
@@ -234,6 +235,13 @@ export default function CheckoutPage() {
   const hasReservationQueries = reservationOutcomeQueries.length > 0;
   const areReservationSignalsLoading = reservationOutcomeQueries.some((query) => query.isLoading);
   const areReservationSignalsFetching = reservationOutcomeQueries.some((query) => query.isFetching);
+  const hasHelperSignalsError = isInventoryHealthError || Boolean(reservationSignalsError);
+
+  useEffect(() => {
+    if (!hasHelperSignalsError) {
+      setContinueWithoutHelperSignals(false);
+    }
+  }, [hasHelperSignalsError]);
 
   const retryInventoryHealth = () => {
     void refetchInventoryHealth();
@@ -241,6 +249,18 @@ export default function CheckoutPage() {
 
   const retryReservationOutcomes = () => {
     void Promise.allSettled(reservationOutcomeQueries.map((query) => query.refetch()));
+  };
+
+  const retryHelperSignals = () => {
+    if (isInventoryHealthError) {
+      retryInventoryHealth();
+    }
+
+    if (reservationSignalsError) {
+      retryReservationOutcomes();
+    }
+
+    setContinueWithoutHelperSignals(false);
   };
 
   const createReservationsForItems = async (items: CheckoutItem[]): Promise<string[]> => {
@@ -781,13 +801,46 @@ export default function CheckoutPage() {
                 </p>
               ) : null}
 
+              {hasHelperSignalsError ? (
+                <div className="space-y-2" role="alert" aria-live="assertive">
+                  <p className="text-sm text-red-600 dark:text-red-400">
+                    Live inventory assistant signals are temporarily unavailable.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={retryHelperSignals}
+                      disabled={isInventoryHealthFetching || areReservationSignalsFetching}
+                    >
+                      Retry signal checks
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setContinueWithoutHelperSignals(true)}
+                    >
+                      Continue without live signals
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+
+              {continueWithoutHelperSignals ? (
+                <p className="text-sm text-gray-700 dark:text-gray-300" role="status" aria-live="polite">
+                  Continuing without live assistant signals. Checkout remains available.
+                </p>
+              ) : null}
+
               {isInventoryHealthLoading ? (
                 <p className="text-sm text-gray-600 dark:text-gray-400" role="status" aria-live="polite">
                   Checking inventory health signals…
                 </p>
               ) : null}
 
-              {isInventoryHealthError ? (
+              {isInventoryHealthError && !continueWithoutHelperSignals ? (
                 <div className="space-y-2" role="alert" aria-live="assertive">
                   <p className="text-sm text-red-600 dark:text-red-400">
                     Inventory health signals are temporarily unavailable. Retry to refresh current stock risk.
@@ -806,7 +859,7 @@ export default function CheckoutPage() {
                 </div>
               ) : null}
 
-              {reservationSignalsError ? (
+              {reservationSignalsError && !continueWithoutHelperSignals ? (
                 <div className="space-y-2" role="alert" aria-live="assertive">
                   <p className="text-sm text-red-600 dark:text-red-400">
                     Reservation outcomes are temporarily unavailable. Retry to confirm hold status before payment.
