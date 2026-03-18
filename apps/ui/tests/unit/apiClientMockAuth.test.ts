@@ -34,7 +34,7 @@ describe('api client dev mock auth headers', () => {
     process.env.NODE_ENV = 'development';
     process.env.NEXT_PUBLIC_CRUD_API_URL = 'https://apim.example.azure-api.net/';
 
-    await expect(getApiClientBaseUrl()).resolves.toBe('/api');
+    await expect(getApiClientBaseUrl()).resolves.toBe('');
   });
 
   it('keeps browser CRUD proxy base URL when no public CRUD URL is configured', async () => {
@@ -43,7 +43,7 @@ describe('api client dev mock auth headers', () => {
     delete process.env.NEXT_PUBLIC_API_URL;
     delete process.env.NEXT_PUBLIC_API_BASE_URL;
 
-    await expect(getApiClientBaseUrl()).resolves.toBe('/api');
+    await expect(getApiClientBaseUrl()).resolves.toBe('');
   });
 
   it('adds bearer authorization when auth token exists', async () => {

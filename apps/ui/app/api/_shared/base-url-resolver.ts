@@ -139,7 +139,7 @@ export function resolveCrudApiClientBaseUrl(params?: {
 
   if (runtime === 'browser') {
     return {
-      baseUrl: '/api',
+      baseUrl: '',
       sourceKey: 'BROWSER_PROXY_ROUTE',
       runtime,
     };

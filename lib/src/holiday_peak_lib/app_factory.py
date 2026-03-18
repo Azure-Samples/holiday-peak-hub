@@ -18,7 +18,7 @@ from holiday_peak_lib.utils.logging import configure_logging, log_async_operatio
 
 DEFAULT_FOUNDY_MODELS = {
     "fast": "gpt-5-nano",
-    "rich": "gpt-5.2",
+    "rich": "gpt-5",
 }
 
 
