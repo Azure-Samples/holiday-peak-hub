@@ -11,6 +11,12 @@ Services must coordinate across domains (e.g., order placement → inventory res
 
 **Use SAGA choreography pattern with Azure Event Hubs** for async service coordination.
 
+## Implementation Status (2026-03-18)
+
+- **Implemented**: Event-driven pub/sub is active across CRUD and agent services through Azure Event Hubs producers, subscriptions, and lifespan wiring.
+- **Implemented in part**: Choreography is used for cross-service propagation and async processing.
+- **Deferred/diverged**: Full end-to-end business sagas with uniform compensating transactions are not consistently implemented across domains; compensation remains service-specific.
+
 ### Pattern
 Each service:
 1. Publishes domain events to Event Hubs topic

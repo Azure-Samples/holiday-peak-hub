@@ -33,6 +33,8 @@ This document indexes all architectural decisions for the Holiday Peak Hub accel
 | [ADR-025](adrs/adr-025-product-truth-layer.md) | Product Truth Layer Architecture | Accepted | 2026-03 |
 | [ADR-026](adrs/adr-026-agic-traffic-management.md) | Application Gateway Ingress Controller (AGIC) for Traffic Management | Superseded by ADR-027 | 2025-01 |
 | [ADR-027](adrs/adr-027-apim-agc-edge.md) | APIM + Application Gateway for Containers as Canonical AKS Edge | Accepted | 2026-03 |
+| [ADR-028](adrs/adr-028-memory-namespace-isolation-contract.md) | Memory Namespace Isolation Contract | Accepted | 2026-03 |
+| [ADR-029](adrs/adr-029-mcp-internal-communication-policy.md) | MCP Internal Communication Policy Addendum | Accepted | 2026-03 |
 
 ## How to Use ADRs
 
@@ -81,6 +83,7 @@ Each ADR follows a standard template:
 ### Memory & State
 - Three-tier memory (Hot/Warm/Cold) ([ADR-008](adrs/adr-008-memory-tiers.md))
 - Memory partitioning and data placement ([ADR-014](adrs/adr-014-memory-partitioning.md))
+- Memory namespace isolation contract ([ADR-028](adrs/adr-028-memory-namespace-isolation-contract.md))
 - Builder pattern for memory configuration ([ADR-004](adrs/adr-004-builder-pattern-memory.md))
 - Microsoft Agent Framework for standardization ([ADR-006](adrs/adr-006-agent-framework.md))
 - MCP servers for tool exposure ([ADR-010](adrs/adr-010-rest-and-mcp-exposition.md))
@@ -95,6 +98,7 @@ Each ADR follows a standard template:
 
 ### Governance
 - Git branch naming convention ([ADR-022](adrs/adr-022-branch-naming-convention.md))
+- MCP internal communication policy and rollout gates ([ADR-029](adrs/adr-029-mcp-internal-communication-policy.md))
 
 ### Enterprise Integration
 - Enterprise resilience patterns (Circuit Breaker, Bulkhead, Rate Limiter) ([ADR-023](adrs/adr-023-enterprise-resilience-patterns.md))

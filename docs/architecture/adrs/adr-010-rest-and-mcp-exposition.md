@@ -13,6 +13,12 @@ Apps must support two client types:
 
 **Expose both REST endpoints and MCP tool servers from every app.**
 
+## Implementation Status (2026-03-18)
+
+- **Implemented**: Agent services commonly expose REST and MCP from shared business logic paths.
+- **Partially diverged**: Dual exposition is not universal across every app; CRUD service remains primarily REST-focused and does not expose MCP tools.
+- **Boundary clarified**: Public API exposure and approved backend ingress hostnames are enforced through APIM + AGC policy in [ADR-027](adr-027-apim-agc-edge.md).
+
 ### Rationale
 - **REST for Humans**: Human-readable JSON, browser DevTools, Postman testing
 - **MCP for Agents**: Automatic tool discovery, streaming support, Foundry native

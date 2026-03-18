@@ -5,6 +5,8 @@ import checkoutService from '../../lib/services/checkoutService';
 import inventoryService from '../../lib/services/inventoryService';
 
 const push = jest.fn();
+const mockUseInventoryHealth = jest.fn();
+const mockUseReservationOutcomeQueries = jest.fn();
 
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ push }),
@@ -29,18 +31,8 @@ jest.mock('../../lib/hooks/useCart', () => ({
 }));
 
 jest.mock('../../lib/hooks/useInventory', () => ({
-  useInventoryHealth: () => ({
-    data: {
-      total_skus: 1,
-      healthy: 1,
-      low_stock: 0,
-      out_of_stock: 0,
-      items: [],
-    },
-    isLoading: false,
-    isError: false,
-  }),
-  useReservationOutcomeQueries: () => [],
+  useInventoryHealth: (...args: unknown[]) => mockUseInventoryHealth(...args),
+  useReservationOutcomeQueries: (...args: unknown[]) => mockUseReservationOutcomeQueries(...args),
 }));
 
 jest.mock('../../lib/services/checkoutService', () => ({
@@ -77,6 +69,21 @@ function fillShippingForm(container: HTMLElement) {
 describe('CheckoutPage flow', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockUseInventoryHealth.mockReturnValue({
+      data: {
+        total_skus: 1,
+        healthy: 1,
+        low_stock: 0,
+        out_of_stock: 0,
+        items: [],
+      },
+      isLoading: false,
+      isError: false,
+      isFetching: false,
+      refetch: jest.fn(),
+    });
+    mockUseReservationOutcomeQueries.mockReturnValue([]);
+
     (inventoryService.createReservation as jest.Mock).mockResolvedValue({
       id: 'res-1',
       sku: 'sku-1',
@@ -251,5 +258,94 @@ describe('CheckoutPage flow', () => {
       });
       expect(checkoutService.createPaymentIntent).not.toHaveBeenCalled();
     });
+  });
+
+  it('supports continue-without-helper-signals and retry recovery actions when helper data fails', () => {
+    const refetchInventoryHealth = jest.fn();
+    const refetchReservationOutcome = jest.fn();
+
+    mockUseInventoryHealth.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      isFetching: false,
+      refetch: refetchInventoryHealth,
+    });
+
+    mockUseReservationOutcomeQueries.mockReturnValue([
+      {
+        data: undefined,
+        isError: true,
+        error: new Error('reservation signal failure'),
+        isLoading: false,
+        isFetching: false,
+        refetch: refetchReservationOutcome,
+      },
+    ]);
+
+    render(<CheckoutPage />);
+
+    expect(screen.getByText('Live inventory assistant signals are temporarily unavailable.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Continue to Payment' })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continue without live signals' }));
+
+    expect(screen.getByText('Continuing without live assistant signals. Checkout remains available.')).toBeInTheDocument();
+    expect(screen.queryByText('Inventory health signals are temporarily unavailable. Retry to refresh current stock risk.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Reservation outcomes are temporarily unavailable. Retry to confirm hold status before payment.')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry signal checks' }));
+
+    expect(refetchInventoryHealth).toHaveBeenCalledTimes(1);
+    expect(refetchReservationOutcome).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows explicit required and optional semantics with phone rationale text', () => {
+    render(<CheckoutPage />);
+
+    expect(screen.getByText('First Name (Required)')).toBeInTheDocument();
+    expect(screen.getByText('Last Name (Required)')).toBeInTheDocument();
+    expect(screen.getByText('Email Address (Required)')).toBeInTheDocument();
+    expect(screen.getByText('Phone Number (Required)')).toBeInTheDocument();
+    expect(screen.getByText('Street Address (Required)')).toBeInTheDocument();
+    expect(screen.getByText('City (Required)')).toBeInTheDocument();
+    expect(screen.getByText('State (Required)')).toBeInTheDocument();
+    expect(screen.getByText('ZIP Code (Required)')).toBeInTheDocument();
+    expect(screen.getByText('Save this address for future orders (Optional)')).toBeInTheDocument();
+    expect(
+      screen.getByText('Used only for delivery updates or if the carrier needs help finding your address.')
+    ).toBeInTheDocument();
+  });
+
+  it('shows actionable adaptive validation messages and blocks checkout setup until fields are valid', async () => {
+    (checkoutService.validate as jest.Mock).mockResolvedValue({
+      valid: true,
+      errors: [],
+      warnings: [],
+      estimated_total: 20,
+      estimated_shipping: 0,
+      estimated_tax: 0,
+    });
+
+    render(<CheckoutPage />);
+
+    fireEvent.change(screen.getByLabelText('First Name (Required)'), { target: { value: 'Ada' } });
+    fireEvent.change(screen.getByLabelText('Last Name (Required)'), { target: { value: 'Lovelace' } });
+    fireEvent.change(screen.getByLabelText('Email Address (Required)'), { target: { value: 'invalid-email' } });
+    fireEvent.change(screen.getByLabelText('Phone Number (Required)'), { target: { value: '12345' } });
+    fireEvent.change(screen.getByLabelText('Street Address (Required)'), { target: { value: '123 Main St' } });
+    fireEvent.change(screen.getByLabelText('City (Required)'), { target: { value: 'Sao Paulo' } });
+    fireEvent.change(screen.getByLabelText('State (Required)'), { target: { value: 'SP' } });
+    fireEvent.change(screen.getByLabelText('ZIP Code (Required)'), { target: { value: '01000-000' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to Payment' }));
+
+    expect(
+      screen.getByText('Enter a valid email address so we can send your order confirmation.')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Enter a valid phone number with area code in case the carrier needs delivery coordination.')
+    ).toBeInTheDocument();
+    expect(checkoutService.validate).not.toHaveBeenCalled();
   });
 });

@@ -327,5 +327,62 @@ class TestProductDetailEnrichmentAgent:
 
             mock_hot_memory.set.assert_called_once()
             call_args = mock_hot_memory.set.call_args
-            assert call_args.kwargs["key"] == "pdp:SKU-001"
+            assert (
+                call_args.kwargs["key"]
+                == "v1|svc=test-product-enrichment|ten=public|ses=anonymous|key=pdp:SKU-001"
+            )
             assert call_args.kwargs["ttl_seconds"] == 600
+
+    @pytest.mark.asyncio
+    async def test_handle_reads_legacy_cache_and_promotes_to_canonical(
+        self,
+        agent_config,
+        mock_catalog_product,
+        mock_inventory_context,
+        mock_acp_content,
+        mock_review_summary,
+    ):
+        """Test compatibility read from legacy key and canonical promotion."""
+        mock_hot_memory = AsyncMock()
+        mock_hot_memory.get = AsyncMock(side_effect=[None, {"legacy": True}])
+        mock_hot_memory.set = AsyncMock()
+
+        with patch(
+            "ecommerce_product_detail_enrichment.agents.build_enrichment_adapters"
+        ) as mock_build:
+            mock_products = AsyncMock()
+            mock_products.get_product = AsyncMock(return_value=mock_catalog_product)
+            mock_products.get_related = AsyncMock(return_value=[])
+
+            mock_inventory = AsyncMock()
+            mock_inventory.build_inventory_context = AsyncMock(return_value=mock_inventory_context)
+
+            mock_acp = AsyncMock()
+            mock_acp.get_content = AsyncMock(return_value=mock_acp_content)
+
+            mock_reviews = AsyncMock()
+            mock_reviews.get_summary = AsyncMock(return_value=mock_review_summary)
+
+            mock_build.return_value = EnrichmentAdapters(
+                products=mock_products,
+                inventory=mock_inventory,
+                acp=mock_acp,
+                reviews=mock_reviews,
+            )
+
+            agent = ProductDetailEnrichmentAgent(config=agent_config)
+            agent.hot_memory = mock_hot_memory
+
+            await agent.handle({"sku": "SKU-001", "cache_ttl": 600})
+
+            assert mock_hot_memory.get.await_count == 2
+            assert mock_hot_memory.get.await_args_list[0].args[0] == (
+                "v1|svc=test-product-enrichment|ten=public|ses=anonymous|key=pdp:SKU-001"
+            )
+            assert mock_hot_memory.get.await_args_list[1].args[0] == "pdp:SKU-001"
+            assert mock_hot_memory.set.await_count == 2
+            assert mock_hot_memory.set.await_args_list[0].kwargs == {
+                "key": "v1|svc=test-product-enrichment|ten=public|ses=anonymous|key=pdp:SKU-001",
+                "value": {"legacy": True},
+                "ttl_seconds": 600,
+            }
