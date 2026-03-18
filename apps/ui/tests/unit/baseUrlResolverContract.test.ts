@@ -74,7 +74,7 @@ describe('base URL resolver contract', () => {
       const browser = resolveCrudApiClientBaseUrl({ runtime: 'browser' });
 
       expect(browser).toEqual({
-        baseUrl: '/api',
+        baseUrl: '',
         sourceKey: 'BROWSER_PROXY_ROUTE',
         runtime: 'browser',
       });
@@ -88,14 +88,14 @@ describe('base URL resolver contract', () => {
         } as NodeJS.ProcessEnv,
       });
       expect(browser).toEqual({
-        baseUrl: '/api',
+        baseUrl: '',
         sourceKey: 'BROWSER_PROXY_ROUTE',
         runtime: 'browser',
       });
 
       const browserFallback = resolveCrudApiClientBaseUrl({ runtime: 'browser', env: {} as NodeJS.ProcessEnv });
       expect(browserFallback).toEqual({
-        baseUrl: '/api',
+        baseUrl: '',
         sourceKey: 'BROWSER_PROXY_ROUTE',
         runtime: 'browser',
       });
