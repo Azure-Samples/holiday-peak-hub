@@ -9,7 +9,6 @@ from datetime import datetime, timedelta
 import httpx
 import pytest
 from azure.core.credentials import AccessToken
-
 from holiday_peak_lib.mcp.ai_search_indexing import (
     AISearchIndexingClient,
     AISearchIndexingSettings,

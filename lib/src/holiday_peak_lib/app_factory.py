@@ -265,6 +265,7 @@ def build_service_app(
             "fast": slm_config,
             "rich": llm_config,
         }
+        default_instructions = load_service_prompt_instructions(service_name)
         selected_roles = ["fast", "rich"] if role == "both" else [role]
         results: dict[str, dict] = {}
 

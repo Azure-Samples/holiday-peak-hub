@@ -13,8 +13,8 @@ from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
 from holiday_peak_lib.schemas.product import CatalogProduct
-from pydantic import ValidationError
 from holiday_peak_lib.schemas.truth import IntentClassification
+from pydantic import ValidationError
 
 from .adapters import (
     CatalogAdapters,

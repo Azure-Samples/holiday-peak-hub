@@ -12,8 +12,8 @@ from holiday_peak_lib.mcp.ai_search_indexing import (
     build_ai_search_indexing_client_from_env,
 )
 from holiday_peak_lib.schemas.truth import SearchEnrichedProduct
-from holiday_peak_lib.utils.rate_limiter import RateLimitExceededError, RateLimiter
 from holiday_peak_lib.utils.logging import configure_logging
+from holiday_peak_lib.utils.rate_limiter import RateLimiter, RateLimitExceededError
 
 logger = configure_logging(app_name="search-enrichment-agent")
 
