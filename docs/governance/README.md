@@ -74,6 +74,11 @@ Detailed policy is defined in [Infrastructure Governance](infrastructure-governa
 - Minimize bypass actors to explicit break-glass identities only
 - Revalidate protections after any GitHub ruleset/permission change
 
+### Required checks baseline for `main`
+
+- Required checks should be limited to `lint` and `test` in strict mode to reduce merge queue pressure while preserving core quality gates.
+- Additional workflows (for example CodeQL and non-blocking governance audits) remain recommended but should not be configured as required merge checks unless explicitly approved.
+
 ## Verification Procedure (PR-only governance)
 
 Use both checks below for governance hardening and drift detection:
@@ -94,6 +99,14 @@ Use both checks below for governance hardening and drift detection:
 	  - force pushes blocked
 	  - branch deletion blocked
 	  - bypass actors minimized to explicit allowlist
+
+#### Admin enforcement command (GitHub API)
+
+For repositories using branch protection (instead of organization-level rulesets), an admin can enforce the baseline with:
+
+`gh api -X PUT repos/<owner>/<repo>/branches/main/protection -H "Accept: application/vnd.github+json" --input <payload.json>`
+
+Where `<payload.json>` sets strict required checks to `lint` and `test` and keeps PR-only protections enabled.
 
 ### Current External Governance Gap
 

@@ -27,6 +27,8 @@ Get-ChildItem apps | ForEach-Object {
 - Format/lint: `python -m isort --check lib apps` then `python -m black --check lib apps` and `python -m pylint lib/src apps/*/src`
 - Tests: `pytest lib/tests apps/**/tests --maxfail=1 --cov=. --cov-report=term-missing --cov-fail-under=75`
 - Coverage floor is 75% to match CI.
+- Optional (recommended) push gate setup: `git config core.hooksPath .githooks`
+- With push gate enabled, every push runs `scripts/ops/pre_push_gate.py`, which mirrors CI lint/test gate commands used by `.github/workflows/lint.yml` and `.github/workflows/test.yml`.
 - Run a service locally (example): `uvicorn main:app --reload --app-dir apps/ecommerce-catalog-search/src --port 8000`
 - Keep README and docs in sync when adding adapters, agents, or services.
 
