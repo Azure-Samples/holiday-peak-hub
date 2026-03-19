@@ -17,6 +17,11 @@ param agcSubnetAddressPrefix string = '10.0.12.0/24'
 @secure()
 @description('PostgreSQL administrator password for CRUD transactional database. Leave empty to auto-generate a deterministic dev password.')
 param postgresAdminPassword string = ''
+@description('Optional email receiver for infrastructure alerts action group.')
+param alertNotificationEmail string = ''
+@secure()
+@description('Optional Microsoft Teams incoming webhook URL for infrastructure alerts action group.')
+param alertTeamsWebhookUrl string = ''
 
 // Naming convention with environment suffix
 var envSuffix = environment == 'prod' ? '' : '-${environment}'
@@ -867,6 +872,23 @@ module apim 'br/public:avm/res/api-management/service:0.14.0' = {
   }
 }
 
+module monitoring '../monitoring/monitoring.bicep' = {
+  name: 'monitoring'
+  params: {
+    projectName: projectName
+    environment: environment
+    location: location
+    alertEmailAddress: alertNotificationEmail
+    teamsWebhookUrl: alertTeamsWebhookUrl
+    cosmosResourceId: cosmos.outputs.resourceId
+    redisResourceId: redis.outputs.resourceId
+    postgresResourceId: postgres.outputs.resourceId
+    eventHubsNamespaceResourceId: eventHubs.outputs.resourceId
+    aksResourceId: aks.outputs.resourceId
+    apimResourceId: apim.outputs.resourceId
+  }
+}
+
 resource acrResource 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = {
   #disable-next-line BCP334 // projectName @minLength(5) ensures acrName >= 8 chars
   name: acrName
@@ -1120,3 +1142,5 @@ output agcFrontendHostname string = ''
 output agcFrontendReference string = agcSupportEnabled ? 'gateway-class:${agcGatewayClassName}' : ''
 output aksOidcIssuerUrl string = aks.outputs.?oidcIssuerUrl ?? ''
 output aksNodeResourceGroup string = aksClusterResource.properties.nodeResourceGroup ?? ''
+output monitoringActionGroupId string = monitoring.outputs.actionGroupId
+output monitoringActionGroupName string = monitoring.outputs.actionGroupName

@@ -6,6 +6,7 @@ from typing import Any
 
 import httpx
 from holiday_peak_lib.adapters.mcp_adapter import BaseMCPAdapter
+from holiday_peak_lib.utils.correlation import CORRELATION_HEADER, get_correlation_id
 
 
 class BaseCRUDAdapter(BaseMCPAdapter):
@@ -56,10 +57,15 @@ class BaseCRUDAdapter(BaseMCPAdapter):
         json_payload: dict[str, Any] | None = None,
         params: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        headers = dict(self._headers)
+        correlation_id = get_correlation_id()
+        if correlation_id:
+            headers[CORRELATION_HEADER] = correlation_id
+
         async with httpx.AsyncClient(
             base_url=self._crud_base_url,
             timeout=self._timeout,
-            headers=self._headers,
+            headers=headers,
             transport=self._transport,
         ) as client:
             response = await client.request(method, endpoint, json=json_payload, params=params)
