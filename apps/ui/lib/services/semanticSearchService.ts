@@ -19,22 +19,33 @@ const AGENT_API_BASE_URL = resolveAgentApiClientBaseUrl().baseUrl || '';
 export interface SemanticSearchRequest {
   query: string;
   limit?: number;
+  mode?: 'keyword' | 'intelligent';
   filters?: {
     category?: string;
     priceRange?: { min: number; max: number };
   };
 }
 
+export interface SemanticSearchIntent {
+  intent?: string;
+  confidence?: number;
+  entities?: Record<string, unknown>;
+  reasoning?: string;
+}
+
 export interface SemanticSearchResponse {
   items: UiProduct[];
   source: 'agent' | 'crud';
+  mode: 'keyword' | 'intelligent';
+  intent?: SemanticSearchIntent | null;
+  subqueries?: string[];
 }
 
 export const semanticSearchService = {
   async search(request: SemanticSearchRequest): Promise<SemanticSearchResponse> {
     const trimmed = request.query.trim();
     if (!trimmed) {
-      return { items: [], source: 'crud' };
+      return { items: [], source: 'crud', mode: request.mode || 'keyword' };
     }
 
     if (AGENT_API_BASE_URL) {
@@ -42,7 +53,16 @@ export const semanticSearchService = {
         const response = await agentApiClient.post('/ecommerce-catalog-search/invoke', request);
         const payload = response.data || {};
         const results = (payload.results || payload.items || []) as AcpProduct[];
-        return { items: mapAcpProductsToUi(results), source: 'agent' };
+        const mode = payload.mode === 'intelligent' ? 'intelligent' : 'keyword';
+        return {
+          items: mapAcpProductsToUi(results),
+          source: 'agent',
+          mode,
+          intent: (payload.intent as SemanticSearchIntent | undefined) || null,
+          subqueries: Array.isArray(payload.subqueries)
+            ? payload.subqueries.filter((value: unknown): value is string => typeof value === 'string')
+            : [],
+        };
       } catch (error) {
         console.error('Semantic search failed:', error);
         // Fall back to CRUD search
@@ -50,7 +70,7 @@ export const semanticSearchService = {
     }
 
     const fallback = await productService.search(trimmed, request.limit || 20);
-    return { items: mapApiProductsToUi(fallback), source: 'crud' };
+    return { items: mapApiProductsToUi(fallback), source: 'crud', mode: 'keyword' };
   },
 };
 

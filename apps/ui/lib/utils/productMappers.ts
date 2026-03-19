@@ -9,6 +9,16 @@ export interface AcpProduct {
   item_id: string;
   title: string;
   description?: string;
+  enriched_description?: string;
+  use_cases?: string[];
+  complementary_products?: string[];
+  substitute_products?: string[];
+  extended_attributes?: {
+    use_cases?: string[];
+    complementary_products?: string[];
+    substitute_products?: string[];
+    enriched_description?: string;
+  };
   image_url?: string;
   image?: string;
   category?: string;
@@ -54,6 +64,10 @@ export const mapApiProductToUiProduct = (product: ApiProduct): UiProduct => {
     reviewCount: product.review_count,
     inStock: product.in_stock,
     tags: product.features,
+    useCases: product.use_cases,
+    complementaryProducts: product.complementary_products,
+    substituteProducts: product.substitute_products,
+    enrichedDescription: product.enriched_description,
   };
 };
 
@@ -72,6 +86,13 @@ export const mapAcpProductToUiProduct = (product: AcpProduct): UiProduct => {
     images: [thumbnail],
     thumbnail,
     inStock: availability !== 'out_of_stock',
+    useCases: product.use_cases || product.extended_attributes?.use_cases || [],
+    complementaryProducts:
+      product.complementary_products || product.extended_attributes?.complementary_products || [],
+    substituteProducts:
+      product.substitute_products || product.extended_attributes?.substitute_products || [],
+    enrichedDescription:
+      product.enriched_description || product.extended_attributes?.enriched_description || undefined,
   };
 };
 

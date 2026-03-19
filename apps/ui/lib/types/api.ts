@@ -113,6 +113,7 @@ export interface Product {
   id: string;
   name: string;
   description: string;
+  enriched_description?: string;
   price: number;
   category_id: string;
   image_url?: string;
@@ -120,6 +121,9 @@ export interface Product {
   rating?: number;
   review_count?: number;
   features?: string[];
+  use_cases?: string[];
+  complementary_products?: string[];
+  substitute_products?: string[];
   media?: Array<{ url: string; type?: string }>;
   inventory?: Record<string, unknown>;
   related?: Array<Record<string, unknown>>;
@@ -546,7 +550,13 @@ export interface ProposedAttribute {
   proposed_value: string;
   confidence: number;
   source: string;
+  source_type?: string;
   evidence: string[];
+  image_evidence?: string[];
+  source_assets?: string[];
+  reasoning?: string;
+  intent?: string;
+  intent_confidence?: number;
   proposed_at: string;
   status: ReviewStatus;
 }
@@ -583,6 +593,178 @@ export interface ReviewStatsResponse {
   approved_today: number;
   rejected_today: number;
   avg_confidence: number;
+}
+
+export type EnrichmentJobStatus =
+  | 'pending'
+  | 'queued'
+  | 'running'
+  | 'completed'
+  | 'approved'
+  | 'rejected'
+  | 'failed';
+
+export interface EnrichmentMonitorStatusCard {
+  label: string;
+  value: number;
+  trend?: 'up' | 'down' | 'neutral';
+}
+
+export interface EnrichmentActiveJob {
+  id: string;
+  entity_id: string;
+  status: EnrichmentJobStatus;
+  source_type: string;
+  confidence: number;
+  updated_at: string;
+}
+
+export interface EnrichmentErrorLogItem {
+  id: string;
+  entity_id?: string;
+  message: string;
+  timestamp: string;
+}
+
+export interface EnrichmentThroughput {
+  per_minute: number;
+  last_10m: number;
+  failed_last_10m: number;
+}
+
+export interface EnrichmentMonitorDashboard {
+  status_cards: EnrichmentMonitorStatusCard[];
+  active_jobs: EnrichmentActiveJob[];
+  error_log: EnrichmentErrorLogItem[];
+  throughput: EnrichmentThroughput;
+}
+
+export interface EnrichmentAttributeDiff {
+  field_name: string;
+  original_value: string | null;
+  enriched_value: string;
+  confidence: number;
+  source_type: string;
+  intent?: string;
+  intent_confidence?: number;
+  reasoning?: string;
+}
+
+export interface EnrichmentEntityDetail {
+  entity_id: string;
+  title: string;
+  status: EnrichmentJobStatus;
+  confidence: number;
+  source_assets: string[];
+  image_evidence: string[];
+  reasoning: string;
+  diffs: EnrichmentAttributeDiff[];
+}
+
+export interface EnrichmentDecisionRequest {
+  action: 'approve' | 'reject';
+}
+
+export type AgentHealthStatus = 'healthy' | 'degraded' | 'down' | 'unknown';
+export type AgentTraceStatus = 'ok' | 'warning' | 'error' | 'unknown';
+export type AgentModelTier = 'slm' | 'llm' | 'unknown';
+export type AgentMonitorTimeRange = '15m' | '1h' | '6h' | '24h' | '7d';
+
+export interface AgentHealthCardMetric {
+  id: string;
+  label: string;
+  status: AgentHealthStatus;
+  latency_ms: number;
+  error_rate: number;
+  throughput_rpm: number;
+  updated_at: string;
+}
+
+export interface AgentTraceSummary {
+  trace_id: string;
+  agent_name: string;
+  operation: string;
+  status: AgentTraceStatus;
+  started_at: string;
+  duration_ms: number;
+  model_tier: AgentModelTier;
+  error_count: number;
+}
+
+export interface AgentTraceSpan {
+  span_id: string;
+  parent_span_id?: string | null;
+  name: string;
+  service: string;
+  status: AgentTraceStatus;
+  started_at: string;
+  ended_at: string;
+  duration_ms: number;
+  model_tier?: AgentModelTier;
+  error_message?: string;
+}
+
+export interface AgentModelUsageRow {
+  model_name: string;
+  model_tier: AgentModelTier;
+  requests: number;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  avg_latency_ms: number;
+  cost_usd: number;
+}
+
+export interface AgentMonitorDashboard {
+  tracing_enabled: boolean;
+  generated_at: string;
+  health_cards: AgentHealthCardMetric[];
+  trace_feed: AgentTraceSummary[];
+  model_usage: AgentModelUsageRow[];
+}
+
+export interface AgentTraceDetail {
+  tracing_enabled: boolean;
+  trace_id: string;
+  root_agent_name: string;
+  status: AgentTraceStatus;
+  started_at: string;
+  duration_ms: number;
+  spans: AgentTraceSpan[];
+}
+
+export interface AgentEvaluationTrend {
+  metric: string;
+  latest: number;
+  change_pct: number;
+  points: Array<{
+    timestamp: string;
+    value: number;
+  }>;
+}
+
+export interface AgentEvaluationComparisonRow {
+  model_name: string;
+  model_tier: AgentModelTier;
+  dataset: string;
+  score: number;
+  pass_rate: number;
+  avg_latency_ms: number;
+  cost_per_1k_tokens: number;
+}
+
+export interface AgentEvaluationSummary {
+  overall_score: number;
+  pass_rate: number;
+  total_runs: number;
+}
+
+export interface AgentEvaluationsPayload {
+  tracing_enabled: boolean;
+  generated_at: string;
+  summary: AgentEvaluationSummary;
+  trends: AgentEvaluationTrend[];
+  comparison: AgentEvaluationComparisonRow[];
 }
 
 // API Response wrappers

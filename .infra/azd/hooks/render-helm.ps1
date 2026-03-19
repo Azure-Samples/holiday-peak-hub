@@ -219,8 +219,11 @@ $envMappings = @{
   # Azure AI Search
   AI_SEARCH_ENDPOINT = $env:AI_SEARCH_ENDPOINT
   AI_SEARCH_INDEX = $env:AI_SEARCH_INDEX
+  AI_SEARCH_VECTOR_INDEX = $env:AI_SEARCH_VECTOR_INDEX
+  AI_SEARCH_INDEXER_NAME = $env:AI_SEARCH_INDEXER_NAME
   AI_SEARCH_AUTH_MODE = $env:AI_SEARCH_AUTH_MODE
   AI_SEARCH_KEY = $env:AI_SEARCH_KEY
+  EMBEDDING_DEPLOYMENT_NAME = $env:EMBEDDING_DEPLOYMENT_NAME
 
   # Memory tiers
   REDIS_URL = $env:REDIS_URL
@@ -259,6 +262,21 @@ if ($isTruthService) {
   if ($missingTruthEnv.Count -gt 0) {
     throw "Missing required environment variables for ${ServiceName}: $($missingTruthEnv -join ', ')"
   }
+}
+
+if ($ServiceName -eq "ecommerce-catalog-search") {
+  $searchEnrichmentEventHubName = $env:SEARCH_ENRICHMENT_EVENT_HUB_NAME
+  if ([string]::IsNullOrWhiteSpace($searchEnrichmentEventHubName)) {
+    $searchEnrichmentEventHubName = "search-enrichment-jobs"
+  }
+
+  $searchEnrichmentConsumerGroup = $env:SEARCH_ENRICHMENT_EVENT_HUB_CONSUMER_GROUP
+  if ([string]::IsNullOrWhiteSpace($searchEnrichmentConsumerGroup)) {
+    $searchEnrichmentConsumerGroup = "search-enrichment-agent"
+  }
+
+  $envMappings["SEARCH_ENRICHMENT_EVENT_HUB_NAME"] = $searchEnrichmentEventHubName
+  $envMappings["SEARCH_ENRICHMENT_EVENT_HUB_CONSUMER_GROUP"] = $searchEnrichmentConsumerGroup
 }
 
 foreach ($key in $envMappings.Keys) {

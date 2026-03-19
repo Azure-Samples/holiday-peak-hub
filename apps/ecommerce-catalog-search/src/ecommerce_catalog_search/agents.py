@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 from typing import Any
@@ -12,9 +13,20 @@ from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
 from holiday_peak_lib.schemas.product import CatalogProduct
+from pydantic import ValidationError
+from holiday_peak_lib.schemas.truth import IntentClassification
 
-from .adapters import CatalogAdapters, build_catalog_adapters
-from .ai_search import search_catalog_skus_detailed
+from .adapters import (
+    CatalogAdapters,
+    build_catalog_adapters,
+    merge_enriched_fields,
+    normalize_search_mode,
+)
+from .ai_search import (
+    AISearchDocumentResult,
+    multi_query_search,
+    search_catalog_skus_detailed,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -30,14 +42,92 @@ class CatalogSearchAgent(BaseRetailAgent):
     def adapters(self) -> CatalogAdapters:
         return self._adapters
 
+    def _assess_complexity(self, request: dict[str, Any]) -> float:
+        query = str(request.get("query") or "").strip()
+        if not query:
+            return 0.0
+
+        sku_like = query.upper().startswith("SKU-") or query.replace("-", "").isalnum()
+        if sku_like and len(query.split()) <= 2:
+            return 0.1
+
+        token_count = len(query.split())
+        complexity = min(token_count / 12.0, 1.0)
+        hints = (
+            "compare",
+            "best",
+            "recommend",
+            "difference",
+            "instead",
+            "for",
+            "with",
+        )
+        if any(hint in query.lower() for hint in hints):
+            complexity += 0.25
+        if "?" in query or "," in query:
+            complexity += 0.15
+        return min(complexity, 1.0)
+
+    def assess_complexity(self, query: str) -> float:
+        """Public wrapper for complexity scoring used by MCP handlers/helpers."""
+        return self._assess_complexity({"query": query})
+
+    async def classify_intent(self, query: str) -> IntentClassification:
+        """Classify query intent for intelligent path routing."""
+        baseline = IntentClassification(intent="keyword_lookup", confidence=0.0, entities={})
+        if not query.strip() or not (self.slm or self.llm):
+            return baseline
+
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "Classify ecommerce search intent and return strict JSON with keys: "
+                    "intent (string), confidence (0..1), entities (object), reasoning (string)."
+                ),
+            },
+            {
+                "role": "user",
+                "content": {"query": query},
+            },
+        ]
+
+        try:
+            response = await self.invoke_model(
+                request={"query": query, "requires_multi_tool": True},
+                messages=messages,
+            )
+            parsed = _parse_intent_response(response)
+            return parsed or baseline
+        except (RuntimeError, ValueError, TypeError, ValidationError):
+            logger.warning(
+                "catalog_intent_classification_failed",
+                extra={"query_length": len(query)},
+                exc_info=True,
+            )
+            return baseline
+
     async def handle(self, request: dict[str, Any]) -> dict[str, Any]:
         query = request.get("query", "")
         limit = int(request.get("limit", 5))
+        mode = normalize_search_mode(str(request.get("mode") or "keyword"))
+        filters = request.get("filters")
+        filter_payload = filters if isinstance(filters, dict) else None
 
-        products = await _search_products(self.adapters, query=query, limit=limit)
+        products, enrichment_by_sku, intent = await _search_products(
+            self,
+            self.adapters,
+            query=query,
+            limit=limit,
+            mode=mode,
+            filters=filter_payload,
+        )
         availability = await _resolve_availability(self.adapters, products)
         acp_products = [
-            self.adapters.mapping.to_acp_product(product, availability=availability[idx])
+            merge_enriched_fields(
+                self.adapters.mapping.to_acp_product(product, availability=availability[idx]),
+                enrichment_by_sku.get(product.sku),
+            )
             for idx, product in enumerate(products)
         ]
 
@@ -57,7 +147,13 @@ class CatalogSearchAgent(BaseRetailAgent):
             ]
             return await self.invoke_model(request=request, messages=messages)
 
-        return {"service": self.service_name, "query": query, "results": acp_products}
+        return {
+            "service": self.service_name,
+            "query": query,
+            "mode": mode,
+            "results": acp_products,
+            "intent": intent.model_dump(mode="json") if intent is not None else None,
+        }
 
 
 def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
@@ -67,13 +163,50 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
     async def search_catalog(payload: dict[str, Any]) -> dict[str, Any]:
         query = payload.get("query", "")
         limit = int(payload.get("limit", 5))
-        products = await _search_products(adapters, query=query, limit=limit)
+        mode = normalize_search_mode(str(payload.get("mode") or "keyword"))
+        filters = payload.get("filters")
+        filter_payload = filters if isinstance(filters, dict) else None
+
+        search_agent = agent if isinstance(agent, CatalogSearchAgent) else None
+        products, enrichment_by_sku, intent = await _search_products(
+            search_agent,
+            adapters,
+            query=query,
+            limit=limit,
+            mode=mode,
+            filters=filter_payload,
+        )
         availability = await _resolve_availability(adapters, products)
         results = [
-            adapters.mapping.to_acp_product(product, availability=availability[idx])
+            merge_enriched_fields(
+                adapters.mapping.to_acp_product(product, availability=availability[idx]),
+                enrichment_by_sku.get(product.sku),
+            )
             for idx, product in enumerate(products)
         ]
-        return {"query": query, "results": results}
+        return {
+            "query": query,
+            "mode": mode,
+            "intent": intent.model_dump(mode="json") if intent is not None else None,
+            "results": results,
+        }
+
+    async def classify_catalog_intent(payload: dict[str, Any]) -> dict[str, Any]:
+        query = str(payload.get("query") or "")
+        if not query:
+            return {"error": "query is required"}
+
+        if isinstance(agent, CatalogSearchAgent):
+            intent = await agent.classify_intent(query)
+            complexity = agent.assess_complexity(query)
+        else:
+            intent = IntentClassification(intent="keyword_lookup", confidence=0.0, entities={})
+            complexity = 0.0
+        return {
+            "query": query,
+            "complexity": complexity,
+            "intent": intent.model_dump(mode="json"),
+        }
 
     async def get_product_details(payload: dict[str, Any]) -> dict[str, Any]:
         sku = payload.get("sku")
@@ -88,6 +221,7 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
         }
 
     mcp.add_tool("/catalog/search", search_catalog)
+    mcp.add_tool("/catalog/intent", classify_catalog_intent)
     mcp.add_tool("/catalog/product", get_product_details)
     _register_crud_tools(mcp)
 
@@ -110,7 +244,32 @@ def _coerce_query_to_sku(query: str) -> str:
 
 
 async def _search_products(
-    adapters: CatalogAdapters, *, query: str, limit: int
+    agent: CatalogSearchAgent | None,
+    adapters: CatalogAdapters,
+    *,
+    query: str,
+    limit: int,
+    mode: str,
+    filters: dict[str, Any] | None,
+) -> tuple[list[CatalogProduct], dict[str, dict[str, Any]], IntentClassification | None]:
+    if mode == "intelligent":
+        return await _search_products_intelligent(
+            agent,
+            adapters,
+            query=query,
+            limit=limit,
+            filters=filters,
+        )
+
+    products = await _search_products_keyword(adapters, query=query, limit=limit)
+    return products, {}, None
+
+
+async def _search_products_keyword(
+    adapters: CatalogAdapters,
+    *,
+    query: str,
+    limit: int,
 ) -> list[CatalogProduct]:
     ai_search_result = await search_catalog_skus_detailed(query=query, limit=limit)
     ai_search_skus = ai_search_result.skus
@@ -137,6 +296,118 @@ async def _search_products(
     related = await adapters.products.get_related(primary_sku, limit=max(limit - 1, 0))
     products = [p for p in [primary] if p is not None] + related
     return products[:limit]
+
+
+async def _search_products_intelligent(
+    agent: CatalogSearchAgent | None,
+    adapters: CatalogAdapters,
+    *,
+    query: str,
+    limit: int,
+    filters: dict[str, Any] | None,
+) -> tuple[list[CatalogProduct], dict[str, dict[str, Any]], IntentClassification | None]:
+    if agent is None:
+        products = await _search_products_keyword(adapters, query=query, limit=limit)
+        return products, {}, None
+
+    complexity = agent.assess_complexity(query)
+    if complexity < agent.complexity_threshold:
+        products = await _search_products_keyword(adapters, query=query, limit=limit)
+        return products, {}, IntentClassification(
+            intent="keyword_lookup",
+            confidence=1.0,
+            entities={"reason": "low_complexity"},
+        )
+
+    intent = await agent.classify_intent(query)
+    if intent.confidence < 0.6:
+        products = await _search_products_keyword(adapters, query=query, limit=limit)
+        return products, {}, intent
+
+    sub_queries = _build_sub_queries(query=query, intent=intent)
+    ranked = await multi_query_search(sub_queries=sub_queries, filters=filters, top_k=limit)
+    intelligent_products, enrichment_by_sku = await _resolve_ranked_products(
+        adapters,
+        ranked,
+        limit,
+    )
+    if intelligent_products:
+        return intelligent_products, enrichment_by_sku, intent
+
+    products = await _search_products_keyword(adapters, query=query, limit=limit)
+    return products, {}, intent
+
+
+def _build_sub_queries(query: str, intent: IntentClassification) -> list[str]:
+    sub_queries = [query.strip()] if query.strip() else []
+    entities = intent.entities if isinstance(intent.entities, dict) else {}
+    for key in ("category", "brand", "use_case", "features", "keywords"):
+        value = entities.get(key)
+        if isinstance(value, str) and value.strip():
+            sub_queries.append(value.strip())
+        elif isinstance(value, list):
+            sub_queries.extend(
+                item.strip()
+                for item in value
+                if isinstance(item, str) and item.strip()
+            )
+    unique: list[str] = []
+    seen: set[str] = set()
+    for candidate in sub_queries:
+        normalized = candidate.lower()
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        unique.append(candidate)
+    return unique
+
+
+async def _resolve_ranked_products(
+    adapters: CatalogAdapters,
+    ranked_results: list[AISearchDocumentResult],
+    limit: int,
+) -> tuple[list[CatalogProduct], dict[str, dict[str, Any]]]:
+    if not ranked_results:
+        return [], {}
+
+    products: list[CatalogProduct] = []
+    enrichment_by_sku: dict[str, dict[str, Any]] = {}
+    for result in ranked_results[:limit]:
+        product = await adapters.products.get_product(result.sku)
+        if product is None:
+            continue
+        products.append(product)
+        enrichment_by_sku[result.sku] = result.enriched_fields
+    return products[:limit], enrichment_by_sku
+
+
+def _parse_intent_response(response: dict[str, Any]) -> IntentClassification | None:
+    payload: Any = response
+    if isinstance(response, dict):
+        for key in ("intent", "confidence"):
+            if key in response:
+                payload = response
+                break
+        else:
+            payload = response.get("content") or response.get("output") or response
+
+    if isinstance(payload, str):
+        normalized = payload.strip()
+        if normalized.startswith("```"):
+            normalized = normalized.strip("`")
+            normalized = normalized.replace("json", "", 1).strip()
+        try:
+            payload = json.loads(normalized)
+        except json.JSONDecodeError:
+            return None
+
+    if not isinstance(payload, dict):
+        return None
+
+    try:
+        return IntentClassification.model_validate(payload)
+    except ValidationError:
+        return None
 
 
 async def _resolve_availability(

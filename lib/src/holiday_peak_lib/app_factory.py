@@ -2,7 +2,7 @@
 
 import os
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator, Callable, Optional
+from typing import AsyncContextManager, AsyncIterator, Callable, Optional
 
 from fastapi import FastAPI, HTTPException
 from holiday_peak_lib.agents import AgentBuilder, BaseRetailAgent, FoundryAgentConfig
@@ -15,6 +15,7 @@ from holiday_peak_lib.agents.memory import ColdMemory, HotMemory, WarmMemory
 from holiday_peak_lib.agents.orchestration.router import RoutingStrategy
 from holiday_peak_lib.agents.prompt_loader import load_service_prompt_instructions
 from holiday_peak_lib.connectors.registry import ConnectorRegistry
+from holiday_peak_lib.utils import get_foundry_tracer
 from holiday_peak_lib.utils.logging import configure_logging, log_async_operation
 
 DEFAULT_FOUNDY_MODELS = {
@@ -54,7 +55,7 @@ def build_service_app(
     llm_config: FoundryAgentConfig | None = None,
     connector_registry: ConnectorRegistry | None = None,
     mcp_setup: Optional[Callable[[FastAPIMCPServer, BaseRetailAgent], None]] = None,
-    lifespan: Callable[[FastAPI], AsyncIterator[None]] | None = None,
+    lifespan: Callable[[FastAPI], AsyncContextManager[None]] | None = None,
 ) -> FastAPI:
     """Return a FastAPI app pre-wired with MCP and required memory tiers."""
     logger = configure_logging(app_name=service_name)
@@ -77,6 +78,7 @@ def build_service_app(
     if slm_config or llm_config:
         builder = builder.with_foundry_models(slm_config=slm_config, llm_config=llm_config)
     agent = builder.build()
+    tracer = get_foundry_tracer(service_name)
     if hasattr(agent, "connector_registry"):
         agent.connector_registry = registry
     app.state.agent = agent
@@ -227,32 +229,37 @@ def build_service_app(
             },
         )
 
+    @app.get("/agent/traces")
+    async def agent_traces(limit: int = 50):
+        return {
+            "service": service_name,
+            "traces": tracer.get_traces(limit=limit),
+        }
+
+    @app.get("/agent/metrics")
+    async def agent_metrics():
+        return tracer.get_metrics()
+
+    @app.get("/agent/evaluation/latest")
+    async def agent_evaluation_latest():
+        latest = tracer.get_latest_evaluation()
+        return {
+            "service": service_name,
+            "latest": latest,
+        }
+
     @app.post("/foundry/agents/ensure")
     async def ensure_agents(payload: dict | None = None):
         nonlocal foundry_ready
-        body = payload or {}
+        body: dict = payload if isinstance(payload, dict) else {}
         role = str(body.get("role", "both")).lower()
         create_if_missing = bool(body.get("create_if_missing", True))
-        allow_instruction_override = (
-            os.getenv("FOUNDRY_ALLOW_INSTRUCTION_OVERRIDE") or ""
-        ).lower() in {"1", "true", "yes"}
-        raw_instructions = body.get("instructions")
-        if raw_instructions is not None and not allow_instruction_override:
-            raise HTTPException(
-                status_code=403,
-                detail=(
-                    "Instruction overrides are disabled by policy. "
-                    "Set FOUNDRY_ALLOW_INSTRUCTION_OVERRIDE=true for controlled workflows."
-                ),
-            )
-        instructions: dict[str, Any] = (
-            raw_instructions if isinstance(raw_instructions, dict) else {}
-        )
-        default_instructions = load_service_prompt_instructions(service_name)
-        raw_names = body.get("names")
-        names: dict[str, Any] = raw_names if isinstance(raw_names, dict) else {}
-        raw_models = body.get("models")
-        models: dict[str, Any] = raw_models if isinstance(raw_models, dict) else {}
+        instructions_raw = body.get("instructions")
+        names_raw = body.get("names")
+        models_raw = body.get("models")
+        instructions: dict = instructions_raw if isinstance(instructions_raw, dict) else {}
+        names: dict = names_raw if isinstance(names_raw, dict) else {}
+        models: dict = models_raw if isinstance(models_raw, dict) else {}
 
         role_to_config: dict[str, FoundryAgentConfig | None] = {
             "fast": slm_config,

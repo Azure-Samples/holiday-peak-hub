@@ -1,7 +1,7 @@
 ---
 title: "Security Audit"
 description: "Full-stack security audit across code, infrastructure, dependencies, secrets, and cloud configuration."
-mode: "TechLeadOrchestrator"
+agent: "TechLeadOrchestrator"
 input: "Specify the scope: entire repo, specific service, or specific concern (OWASP category, dependency CVE, secret leak). Include compliance targets if applicable (SOC2, HIPAA, PCI-DSS)."
 ---
 
@@ -42,4 +42,3 @@ Coordinate a comprehensive security audit by delegating to all relevant speciali
    - Critical/high findings requiring immediate action
    - Compliance gap analysis (against specified standards)
    - Remediation backlog with effort estimates
-

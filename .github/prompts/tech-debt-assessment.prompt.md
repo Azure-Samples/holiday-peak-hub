@@ -1,7 +1,7 @@
 ---
 title: "Tech Debt Assessment"
 description: "Inventory technical debt across the codebase, score by business impact, and create a prioritized remediation backlog."
-mode: "TechLeadOrchestrator"
+agent: "TechLeadOrchestrator"
 input: "Specify scope: entire repo or specific areas. Optionally include known pain points or recent incidents caused by tech debt."
 ---
 
@@ -44,4 +44,3 @@ Coordinate a systematic tech debt inventory:
    - Quick wins (< 1 day effort, high impact) highlighted separately
    - Estimated total remediation effort (in engineering days)
    - Recommended cadence for debt reduction (e.g., 20% of each sprint)
-

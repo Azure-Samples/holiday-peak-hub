@@ -49,3 +49,17 @@ def test_enrich_status_not_found(client):
     resp = client.get("/enrich/status/nonexistent-job-id")
     assert resp.status_code == 200
     assert resp.json()["status"] == "not_found"
+
+
+def test_agent_activity_endpoints(client):
+    traces_response = client.get("/agent/traces")
+    assert traces_response.status_code == 200
+    assert "traces" in traces_response.json()
+
+    metrics_response = client.get("/agent/metrics")
+    assert metrics_response.status_code == 200
+    assert metrics_response.json()["service"] == "truth-enrichment"
+
+    evaluation_response = client.get("/agent/evaluation/latest")
+    assert evaluation_response.status_code == 200
+    assert "latest" in evaluation_response.json()

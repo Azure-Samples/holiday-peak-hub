@@ -4,42 +4,64 @@ from __future__ import annotations
 
 import json
 import uuid
+from typing import Any
 
 from holiday_peak_lib.utils.event_hub import EventHandler
 from holiday_peak_lib.utils.logging import configure_logging
 
-from .adapters import build_truth_export_adapters
+from .adapters import TruthExportAdapters, build_truth_export_adapters
 from .export_engine import ExportEngine
 
 
-def build_event_handlers() -> dict[str, EventHandler]:
+def build_event_handlers(
+    *,
+    adapters: TruthExportAdapters | None = None,
+    engine: ExportEngine | None = None,
+) -> dict[str, EventHandler]:
     """Build event handlers for the export-jobs Event Hub subscription."""
     logger = configure_logging(app_name="truth-export-events")
-    adapters = build_truth_export_adapters()
-    engine = ExportEngine()
+    adapters = adapters or build_truth_export_adapters()
+    engine = engine or ExportEngine()
 
     async def handle_export_job(partition_context, event) -> None:  # noqa: ANN001
+        _ = partition_context
         payload = json.loads(event.body_as_str())
         data = payload.get("data", {}) if isinstance(payload, dict) else {}
 
         entity_id = data.get("entity_id") or data.get("product_id")
-        protocol = data.get("protocol", "ucp")
+        protocol = str(data.get("protocol", "ucp")).lower()
 
         if not entity_id:
             logger.info(
-                "export_job_skipped",
-                event_type=payload.get("event_type"),
-                reason="missing entity_id",
+                "export_job_skipped event_type=%s reason=missing_entity_id",
+                payload.get("event_type"),
+            )
+            return
+
+        if _is_hitl_writeback_event(payload, data, protocol):
+            result = await engine.writeback_entity(
+                adapters.writeback_manager,
+                str(entity_id),
+                dry_run=bool(data.get("dry_run", False)),
+            )
+            await adapters.truth_store.save_export_result(result)
+            audit = engine.build_writeback_audit_event(
+                entity_id=str(entity_id),
+                result=result,
+                trigger="event:export-jobs",
+            )
+            await adapters.truth_store.save_audit_event(audit.model_dump())
+            logger.info(
+                "export_job_writeback_processed entity_id=%s protocol=%s status=%s",
+                entity_id,
+                protocol,
+                result.get("status"),
             )
             return
 
         product = await adapters.truth_store.get_product_style(str(entity_id))
         if product is None:
-            logger.info(
-                "export_job_missing_product",
-                entity_id=entity_id,
-                protocol=protocol,
-            )
+            logger.info("export_job_missing_product entity_id=%s protocol=%s", entity_id, protocol)
             return
 
         attributes = await adapters.truth_store.get_truth_attributes(str(entity_id))
@@ -61,11 +83,28 @@ def build_event_handlers() -> dict[str, EventHandler]:
         await adapters.truth_store.save_audit_event(audit.model_dump())
 
         logger.info(
-            "export_job_processed",
-            job_id=job_id,
-            entity_id=entity_id,
-            protocol=protocol,
-            status=result.status,
+            "export_job_processed job_id=%s entity_id=%s protocol=%s status=%s",
+            job_id,
+            entity_id,
+            protocol,
+            result.status,
         )
 
     return {"export-jobs": handle_export_job}
+
+
+def _is_hitl_writeback_event(
+    payload: dict[str, Any],
+    data: dict[str, Any],
+    protocol: str,
+) -> bool:
+    if protocol == "pim":
+        return True
+
+    event_type = str(payload.get("event_type", "")).lower()
+    decision = str(data.get("decision") or data.get("status") or data.get("review_status") or "")
+    source = str(data.get("source") or payload.get("source") or "").lower()
+
+    is_approved = decision.lower() == "approved" or "approved" in event_type
+    is_hitl = "hitl" in event_type or source == "truth-hitl"
+    return is_approved and is_hitl

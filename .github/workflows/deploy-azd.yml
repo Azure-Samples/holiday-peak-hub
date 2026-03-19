@@ -254,6 +254,9 @@ jobs:
       AI_SEARCH_NAME: ${{ steps.outputs.outputs.AI_SEARCH_NAME }}
       AI_SEARCH_ENDPOINT: ${{ steps.outputs.outputs.AI_SEARCH_ENDPOINT }}
       AI_SEARCH_INDEX: ${{ steps.outputs.outputs.AI_SEARCH_INDEX }}
+      AI_SEARCH_VECTOR_INDEX: ${{ steps.outputs.outputs.AI_SEARCH_VECTOR_INDEX }}
+      AI_SEARCH_INDEXER_NAME: ${{ steps.outputs.outputs.AI_SEARCH_INDEXER_NAME }}
+      EMBEDDING_DEPLOYMENT_NAME: ${{ steps.outputs.outputs.EMBEDDING_DEPLOYMENT_NAME }}
       AI_SEARCH_AUTH_MODE: ${{ steps.outputs.outputs.AI_SEARCH_AUTH_MODE }}
       PROJECT_ENDPOINT: ${{ steps.outputs.outputs.PROJECT_ENDPOINT }}
       PROJECT_NAME: ${{ steps.outputs.outputs.PROJECT_NAME }}
@@ -499,14 +502,14 @@ jobs:
           BICEP_FILE=".infra/modules/shared-infrastructure/shared-infrastructure.bicep"
           MISSING=0
 
-          for hub in ingest-jobs enrichment-jobs export-jobs hitl-jobs; do
+          for hub in ingest-jobs enrichment-jobs export-jobs hitl-jobs search-enrichment-jobs; do
             if ! grep -q "'$hub'" "$BICEP_FILE"; then
               echo "Missing required truth Event Hub declaration in $BICEP_FILE: $hub" >&2
               MISSING=1
             fi
           done
 
-          for group in ingestion-group enrichment-engine export-engine hitl-service; do
+          for group in ingestion-group enrichment-engine export-engine hitl-service search-enrichment-agent; do
             if ! grep -q "'$group'" "$BICEP_FILE"; then
               echo "Missing required truth consumer group declaration in $BICEP_FILE: $group" >&2
               MISSING=1
@@ -565,6 +568,9 @@ jobs:
             echo "AI_SEARCH_NAME=${AI_SEARCH_NAME}"
             echo "AI_SEARCH_ENDPOINT=${AI_SEARCH_ENDPOINT}"
             echo "AI_SEARCH_INDEX=${AI_SEARCH_INDEX}"
+            echo "AI_SEARCH_VECTOR_INDEX=${AI_SEARCH_VECTOR_INDEX}"
+            echo "AI_SEARCH_INDEXER_NAME=${AI_SEARCH_INDEXER_NAME}"
+            echo "EMBEDDING_DEPLOYMENT_NAME=${EMBEDDING_DEPLOYMENT_NAME}"
             echo "AI_SEARCH_AUTH_MODE=${AI_SEARCH_AUTH_MODE}"
             echo "PROJECT_ENDPOINT=${PROJECT_ENDPOINT}"
             echo "PROJECT_NAME=${PROJECT_NAME}"
@@ -827,6 +833,9 @@ jobs:
           AZURE_TENANT_ID: ${{ env.AZURE_TENANT_ID }}
           AI_SEARCH_ENDPOINT: ${{ needs.provision.outputs.AI_SEARCH_ENDPOINT }}
           AI_SEARCH_INDEX: ${{ needs.provision.outputs.AI_SEARCH_INDEX }}
+          AI_SEARCH_VECTOR_INDEX: ${{ needs.provision.outputs.AI_SEARCH_VECTOR_INDEX }}
+          AI_SEARCH_INDEXER_NAME: ${{ needs.provision.outputs.AI_SEARCH_INDEXER_NAME }}
+          EMBEDDING_DEPLOYMENT_NAME: ${{ needs.provision.outputs.EMBEDDING_DEPLOYMENT_NAME }}
           AI_SEARCH_AUTH_MODE: ${{ needs.provision.outputs.AI_SEARCH_AUTH_MODE }}
           PROJECT_ENDPOINT: ${{ needs.provision.outputs.PROJECT_ENDPOINT }}
           PROJECT_NAME: ${{ needs.provision.outputs.PROJECT_NAME }}
@@ -1495,6 +1504,9 @@ jobs:
           AZURE_TENANT_ID: ${{ env.AZURE_TENANT_ID }}
           AI_SEARCH_ENDPOINT: ${{ needs.provision.outputs.AI_SEARCH_ENDPOINT }}
           AI_SEARCH_INDEX: ${{ needs.provision.outputs.AI_SEARCH_INDEX }}
+          AI_SEARCH_VECTOR_INDEX: ${{ needs.provision.outputs.AI_SEARCH_VECTOR_INDEX }}
+          AI_SEARCH_INDEXER_NAME: ${{ needs.provision.outputs.AI_SEARCH_INDEXER_NAME }}
+          EMBEDDING_DEPLOYMENT_NAME: ${{ needs.provision.outputs.EMBEDDING_DEPLOYMENT_NAME }}
           AI_SEARCH_AUTH_MODE: ${{ needs.provision.outputs.AI_SEARCH_AUTH_MODE }}
           PROJECT_ENDPOINT: ${{ needs.provision.outputs.PROJECT_ENDPOINT }}
           PROJECT_NAME: ${{ needs.provision.outputs.PROJECT_NAME }}

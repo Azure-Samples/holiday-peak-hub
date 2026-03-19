@@ -53,6 +53,11 @@ def build_event_handlers() -> dict[str, EventHandler]:
             product_title=data.get("product_title", ""),
             category_label=data.get("category_label", ""),
             status="pending_review",
+            original_data=data.get("original_data"),
+            enriched_data=data.get("enriched_data"),
+            reasoning=data.get("reasoning"),
+            source_assets=data.get("source_assets"),
+            source_type=data.get("source_type"),
         )
 
         adapters.review_manager.enqueue(item)

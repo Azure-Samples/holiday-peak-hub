@@ -26,8 +26,11 @@ from .truth import (
     ProductVariant,
     ProposedAttribute,
     Provenance,
+    SearchEnrichedProduct,
     SharePolicy,
+    SourceType,
     TruthAttribute,
+    IntentClassification,
 )
 from .ucp import UcpCompliance, UcpImage, UcpMetadata, UcpPricing, UcpProduct
 
@@ -78,6 +81,9 @@ __all__ = [
     "ProductVariant",
     "ProposedAttribute",
     "Provenance",
+    "SearchEnrichedProduct",
     "SharePolicy",
+    "SourceType",
     "TruthAttribute",
+    "IntentClassification",
 ]

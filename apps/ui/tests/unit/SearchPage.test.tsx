@@ -14,51 +14,82 @@ jest.mock('next/navigation', () => ({
   }),
 }));
 
-const mockUseSemanticSearch = jest.fn();
+const mockUseIntelligentSearch = jest.fn();
 
-jest.mock('../../lib/hooks/useSemanticSearch', () => ({
-  useSemanticSearch: (...args: unknown[]) => mockUseSemanticSearch(...args),
+jest.mock('../../lib/hooks/useIntelligentSearch', () => ({
+  useIntelligentSearch: (...args: unknown[]) => mockUseIntelligentSearch(...args),
 }));
 
 jest.mock('../../components/atoms/ThemeToggle', () => ({
   ThemeToggle: () => <div data-testid="theme-toggle" />,
 }));
 
-jest.mock('../../components/organisms/ProductGrid', () => ({
-  ProductGrid: ({ emptyMessage }: { emptyMessage: string }) => (
-    <div>{emptyMessage}</div>
-  ),
-}));
-
 describe('SearchPage', () => {
+  const setPreference = jest.fn();
+
   beforeEach(() => {
     push.mockClear();
+    setPreference.mockClear();
     getParam.mockReturnValue('headphones');
-    mockUseSemanticSearch.mockReturnValue({
-      data: { items: [], source: 'agent' },
+    mockUseIntelligentSearch.mockReturnValue({
+      data: {
+        items: [],
+        source: 'agent',
+        mode: 'keyword',
+        intent: null,
+        subqueries: [],
+      },
       isLoading: false,
+      error: null,
+      isFetching: false,
+      refetch: jest.fn(),
+      preference: 'auto',
+      setPreference,
+      resolvedMode: 'keyword',
     });
   });
 
-  it('prefills the query from the URL and shows source badge', () => {
+  it('prefills the query from the URL and shows mode badge', () => {
     render(<SearchPage />);
 
     expect(screen.getByDisplayValue('headphones')).toBeInTheDocument();
-    expect(screen.getByText('Search source: Catalog Search Agent')).toBeInTheDocument();
-    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.getByText('keyword')).toBeInTheDocument();
+    expect(screen.getByText('No products matched your search.')).toBeInTheDocument();
   });
 
-  it('shows CRUD fallback source badge when semantic source is unavailable', () => {
-    mockUseSemanticSearch.mockReturnValue({
-      data: { items: [], source: 'crud' },
+  it('shows intent panel details in intelligent mode when available', () => {
+    mockUseIntelligentSearch.mockReturnValue({
+      data: {
+        items: [],
+        source: 'agent',
+        mode: 'intelligent',
+        intent: {
+          intent: 'use_case_lookup',
+          confidence: 0.88,
+          entities: { category: 'audio' },
+        },
+        subqueries: ['wireless noise cancelling'],
+      },
       isLoading: false,
+      error: null,
+      isFetching: false,
+      refetch: jest.fn(),
+      preference: 'intelligent',
+      setPreference,
+      resolvedMode: 'intelligent',
     });
 
     render(<SearchPage />);
 
-    expect(
-      screen.getByText('Search source: Catalog Search fallback (agent unavailable)')
-    ).toBeInTheDocument();
+    expect(screen.getByText('Intent details')).toBeInTheDocument();
+    expect(screen.getByText('use_case_lookup')).toBeInTheDocument();
+    expect(screen.getByText('wireless noise cancelling')).toBeInTheDocument();
+  });
+
+  it('changes search mode preference from toggle', () => {
+    render(<SearchPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Search mode Intelligent' }));
+    expect(setPreference).toHaveBeenCalledWith('intelligent');
   });
 
   it('updates the URL when searching', () => {
@@ -78,8 +109,8 @@ describe('SearchPage', () => {
 
   it('shows a recoverable proxy error with retry affordance on 502 failures', () => {
     const refetch = jest.fn();
-    mockUseSemanticSearch.mockReturnValue({
-      data: { items: [], source: 'crud' },
+    mockUseIntelligentSearch.mockReturnValue({
+      data: { items: [], source: 'crud', mode: 'keyword', intent: null, subqueries: [] },
       isLoading: false,
       isFetching: false,
       error: {
@@ -91,6 +122,9 @@ describe('SearchPage', () => {
         },
       },
       refetch,
+      preference: 'auto',
+      setPreference,
+      resolvedMode: 'keyword',
     });
 
     render(<SearchPage />);

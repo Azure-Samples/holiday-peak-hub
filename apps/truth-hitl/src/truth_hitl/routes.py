@@ -3,14 +3,41 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 from truth_hitl.adapters import HITLAdapters
 from truth_hitl.review_manager import ReviewDecision, ReviewItem
 
-router = APIRouter(prefix="/review", tags=["hitl-review"])
+
+class BatchReviewItemDecision(BaseModel):
+    """Single batch decision entry for an entity."""
+
+    entity_id: str
+    attr_ids: list[str] | None = None
+    reason: str | None = None
+    reviewed_by: str | None = None
+
+
+class BatchReviewDecisionRequest(BaseModel):
+    """Batch request for approve/reject over multiple entities."""
+
+    decisions: list[BatchReviewItemDecision]
 
 
 def build_review_router(adapters: HITLAdapters) -> APIRouter:
     """Return an APIRouter wired to the provided adapters."""
+    router = APIRouter(prefix="/review", tags=["hitl-review"])
+
+    def execute_review_action(entity_id: str, decision: ReviewDecision, action: str) -> list[ReviewItem]:
+        """Execute a review action and keep single-action response semantics."""
+        action_map = {
+            "approve": adapters.review_manager.approve,
+            "reject": adapters.review_manager.reject,
+            "edit": adapters.review_manager.edit_and_approve,
+        }
+        items = action_map[action](entity_id, decision)
+        if not items:
+            raise HTTPException(status_code=404, detail="No pending proposals found")
+        return items
 
     @router.get("/queue")
     async def list_queue(
@@ -42,9 +69,7 @@ def build_review_router(adapters: HITLAdapters) -> APIRouter:
     @router.post("/{entity_id}/approve")
     async def approve(entity_id: str, decision: ReviewDecision) -> dict:
         """Approve proposed attribute(s) for an entity."""
-        approved = adapters.review_manager.approve(entity_id, decision)
-        if not approved:
-            raise HTTPException(status_code=404, detail="No pending proposals found")
+        approved = execute_review_action(entity_id, decision, "approve")
         return {
             "entity_id": entity_id,
             "approved": len(approved),
@@ -54,9 +79,7 @@ def build_review_router(adapters: HITLAdapters) -> APIRouter:
     @router.post("/{entity_id}/reject")
     async def reject(entity_id: str, decision: ReviewDecision) -> dict:
         """Reject proposed attribute(s) with an optional reason."""
-        rejected = adapters.review_manager.reject(entity_id, decision)
-        if not rejected:
-            raise HTTPException(status_code=404, detail="No pending proposals found")
+        rejected = execute_review_action(entity_id, decision, "reject")
         return {
             "entity_id": entity_id,
             "rejected": len(rejected),
@@ -66,13 +89,63 @@ def build_review_router(adapters: HITLAdapters) -> APIRouter:
     @router.post("/{entity_id}/edit")
     async def edit_and_approve(entity_id: str, decision: ReviewDecision) -> dict:
         """Edit a proposed value and approve it (source becomes 'human')."""
-        edited = adapters.review_manager.edit_and_approve(entity_id, decision)
-        if not edited:
-            raise HTTPException(status_code=404, detail="No pending proposals found")
+        edited = execute_review_action(entity_id, decision, "edit")
         return {
             "entity_id": entity_id,
             "edited": len(edited),
             "items": [i.model_dump() for i in edited],
+        }
+
+    @router.post("/approve/batch")
+    async def batch_approve(request: BatchReviewDecisionRequest) -> dict:
+        """Approve proposals for multiple entities in one request."""
+        results: list[dict] = []
+        for entry in request.decisions:
+            decision = ReviewDecision(
+                attr_ids=entry.attr_ids,
+                reason=entry.reason,
+                reviewed_by=entry.reviewed_by,
+            )
+            approved = adapters.review_manager.approve(entry.entity_id, decision)
+            if not approved:
+                continue
+            results.append(
+                {
+                    "entity_id": entry.entity_id,
+                    "approved": len(approved),
+                    "items": [i.model_dump() for i in approved],
+                }
+            )
+        return {
+            "processed": len(results),
+            "requested": len(request.decisions),
+            "results": results,
+        }
+
+    @router.post("/reject/batch")
+    async def batch_reject(request: BatchReviewDecisionRequest) -> dict:
+        """Reject proposals for multiple entities in one request."""
+        results: list[dict] = []
+        for entry in request.decisions:
+            decision = ReviewDecision(
+                attr_ids=entry.attr_ids,
+                reason=entry.reason,
+                reviewed_by=entry.reviewed_by,
+            )
+            rejected = adapters.review_manager.reject(entry.entity_id, decision)
+            if not rejected:
+                continue
+            results.append(
+                {
+                    "entity_id": entry.entity_id,
+                    "rejected": len(rejected),
+                    "items": [i.model_dump() for i in rejected],
+                }
+            )
+        return {
+            "processed": len(results),
+            "requested": len(request.decisions),
+            "results": results,
         }
 
     return router

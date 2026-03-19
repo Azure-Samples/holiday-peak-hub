@@ -57,9 +57,9 @@ The following shared agent files are currently enabled for export by `repos/asse
 - `azure-redis.agent.md`
 - `azure-swa.agent.md`
 - `business-strategy-agent.agent.md`
-- `cataldi-librarian.agent.md`
 - `code-guidelines-agent.agent.md`
 - `competitive-intelligence-agent.agent.md`
+- `content-librarian.agent.md`
 - `enterprise-connectors.agent.md`
 - `financial-modeling-agent.agent.md`
 - `platform-quality.agent.md`

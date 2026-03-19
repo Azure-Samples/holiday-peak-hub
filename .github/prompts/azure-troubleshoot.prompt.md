@@ -1,7 +1,7 @@
 ---
 title: "Azure: Troubleshoot Service"
 description: "Debug a failing Azure service by coordinating the relevant Azure specialist with platform diagnostics."
-mode: "TechLeadOrchestrator"
+agent: "TechLeadOrchestrator"
 input: "Describe the issue: which Azure service, error messages, affected endpoints, and when it started. Include resource group and service name."
 ---
 

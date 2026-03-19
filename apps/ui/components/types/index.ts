@@ -88,6 +88,7 @@ export interface Product {
   sku: string;
   title: string;
   description: string;
+  enrichedDescription?: string;
   brand: string;
   category: string;
   price: number;
@@ -103,6 +104,9 @@ export interface Product {
   availableSizes?: string[];
   availableColors?: string[];
   tags?: string[];
+  useCases?: string[];
+  complementaryProducts?: string[];
+  substituteProducts?: string[];
 }
 
 export interface CartItem {

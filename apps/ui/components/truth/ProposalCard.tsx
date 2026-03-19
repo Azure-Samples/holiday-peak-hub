@@ -3,6 +3,9 @@
 import React, { useState } from 'react';
 import { cn } from '../utils';
 import { ConfidenceBadge } from './ConfidenceBadge';
+import { Badge } from '../atoms/Badge';
+import { IntentClassificationDisplay } from '../enrichment/IntentClassificationDisplay';
+import { ImageEvidenceGallery } from '../enrichment/ImageEvidenceGallery';
 import type { ProposedAttribute } from '../../lib/types/api';
 
 export interface ProposalCardProps {
@@ -74,25 +77,44 @@ export const ProposalCard: React.FC<ProposalCardProps> = ({
       </div>
 
       {/* Values comparison */}
-      <div className="grid grid-cols-2 gap-3 text-sm">
-        <div>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Current Value</p>
-          <p className="text-gray-700 dark:text-gray-300 italic">
-            {proposal.current_value ?? <span className="text-gray-400">(empty)</span>}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+        <div className="rounded-md border border-gray-200 dark:border-gray-700 p-3">
+          <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Original value</p>
+          <p className="text-gray-700 dark:text-gray-300">
+            {proposal.current_value ?? <span className="text-gray-400">—</span>}
           </p>
         </div>
-        <div>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Proposed Value</p>
+        <div className="rounded-md border border-blue-200 dark:border-blue-900 bg-blue-50/40 dark:bg-blue-950/20 p-3">
+          <p className="text-xs uppercase tracking-wide text-blue-700 dark:text-blue-300 mb-1">Enriched value</p>
           <p className="text-gray-900 dark:text-white font-medium">
             {proposal.proposed_value}
           </p>
         </div>
       </div>
 
-      {/* Source */}
-      <p className="text-xs text-gray-500 dark:text-gray-400">
-        Source: <span className="font-medium">{proposal.source}</span>
-      </p>
+      <div className="flex items-center gap-2 flex-wrap">
+        <Badge className="bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200 text-xs">
+          Source: {proposal.source}
+        </Badge>
+        {(proposal.source_type || proposal.source) && (
+          <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 text-xs">
+            Type: {proposal.source_type || proposal.source}
+          </Badge>
+        )}
+      </div>
+
+      <IntentClassificationDisplay
+        intent={proposal.intent}
+        confidence={proposal.intent_confidence}
+      />
+
+      {proposal.reasoning && (
+        <p className="text-sm text-gray-700 dark:text-gray-300">{proposal.reasoning}</p>
+      )}
+
+      {(proposal.image_evidence?.length ?? 0) > 0 && (
+        <ImageEvidenceGallery images={proposal.image_evidence || []} title="Evidence" />
+      )}
 
       {/* Actions */}
       {!isReviewed && !disabled && (

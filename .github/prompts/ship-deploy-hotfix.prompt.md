@@ -1,7 +1,7 @@
 ---
 title: "Ship: Deploy and Hotfix"
 description: "End-to-end deployment workflow: issue → branch → PR → merge → deploy → monitor → hotfix. Delegates to all relevant specialists."
-mode: "TechLeadOrchestrator"
+agent: "TechLeadOrchestrator"
 input: "Describe the change to ship. Include the triggering issue/PR number if it exists, or describe the change so an issue can be created."
 ---
 
@@ -86,4 +86,3 @@ After deployment, actively monitor for regressions:
 - [ ] Deployment successful with health checks passing
 - [ ] No P1/P2 regressions within monitoring window
 - [ ] Any hotfixes completed and documented
-

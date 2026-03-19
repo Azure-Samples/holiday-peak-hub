@@ -8,6 +8,7 @@ from holiday_peak_lib.utils.event_hub import EventHandler
 from holiday_peak_lib.utils.logging import configure_logging
 
 from .adapters import build_enrichment_adapters
+from .agents import _detect_gaps
 from .enrichment_engine import EnrichmentEngine
 
 
@@ -32,8 +33,7 @@ def build_event_handlers() -> dict[str, EventHandler]:
 
         category = product.get("category", "")
         schema = await adapters.products.get_schema(category)
-        required_fields: list[str] = (schema or {}).get("required_fields", [])
-        gaps = [f for f in required_fields if not product.get(f)]
+        gaps = _detect_gaps(product, schema)
 
         proposed_count = 0
         hitl_count = 0

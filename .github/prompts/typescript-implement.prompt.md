@@ -1,7 +1,7 @@
 ---
 title: "TypeScript: Implement Feature"
 description: "Implement a TypeScript/React feature with strict types, React Server Components, and accessibility compliance."
-mode: "TypeScriptDeveloper"
+agent: "TypeScriptDeveloper"
 input: "Describe the feature or component to implement. Include API contracts, UI wireframe description, or data requirements."
 ---
 

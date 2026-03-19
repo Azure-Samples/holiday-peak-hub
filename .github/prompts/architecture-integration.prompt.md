@@ -1,7 +1,7 @@
 ---
 title: "Architecture: Design Integration"
 description: "Design a cross-service integration with event contracts, API versioning, and failure handling."
-mode: "SystemArchitect"
+agent: "SystemArchitect"
 input: "Describe the services to integrate, data flows, and consistency requirements (eventual vs strong)."
 ---
 

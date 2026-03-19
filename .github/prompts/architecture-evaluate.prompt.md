@@ -1,7 +1,7 @@
 ---
 title: "Architecture: Evaluate Design"
 description: "Evaluate a proposed architecture or system design for pattern correctness, integration safety, and scalability."
-mode: "SystemArchitect"
+agent: "SystemArchitect"
 input: "Describe the system or component being designed. Include context on scale, integration points, and constraints."
 ---
 

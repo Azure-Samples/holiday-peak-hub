@@ -1,7 +1,7 @@
 ---
 title: "Tech Lead: Plan Feature"
 description: "Decompose a feature request into sequenced, agent-assignable tasks with acceptance criteria and risk assessment."
-mode: "TechLeadOrchestrator"
+agent: "TechLeadOrchestrator"
 input: "Describe the feature or initiative. Include business context, scope boundaries, and any known constraints."
 ---
 
@@ -23,4 +23,3 @@ Plan the requested feature:
 7. **Acceptance Criteria** — Define "done" for each sub-task and for the feature as a whole.
 
 Deliver a plan as a structured table with task ID, title, agent name, dependencies, acceptance criteria, and risk level. Then execute the plan by invoking each agent via `#runSubagent` in dependency order.
-

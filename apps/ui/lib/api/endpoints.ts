@@ -137,6 +137,21 @@ export const API_ENDPOINTS = {
     },
   },
 
+  // Admin
+  admin: {
+    enrichmentMonitor: {
+      dashboard: '/api/admin/enrichment-monitor',
+      detail: (entityId: string) => `/api/admin/enrichment-monitor/${entityId}`,
+      decision: (entityId: string) => `/api/admin/enrichment-monitor/${entityId}/decision`,
+    },
+    agentActivity: {
+      dashboard: '/api/admin/agent-activity',
+      health: '/api/admin/agent-activity/health',
+      traceDetail: (traceId: string) => `/api/admin/agent-activity/traces/${traceId}`,
+      evaluations: '/api/admin/agent-activity/evaluations',
+    },
+  },
+
   // Truth Layer Admin
   truth: {
     schemas: {
