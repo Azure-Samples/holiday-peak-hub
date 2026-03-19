@@ -60,7 +60,9 @@ def test_eval_runner_fallback_without_sdk() -> None:
     def evaluator(dataset):
         return {"items": len(dataset), "quality": 0.8}
 
-    result = run_evaluation(dataset=[{"id": 1}, {"id": 2}], evaluator=evaluator, run_name="test-run")
+    result = run_evaluation(
+        dataset=[{"id": 1}, {"id": 2}], evaluator=evaluator, run_name="test-run"
+    )
     assert result.status in {"ok", "degraded"}
     assert result.metrics["items"] == 2
     assert result.backend in {"local-fallback", "azure-ai-evaluation"}

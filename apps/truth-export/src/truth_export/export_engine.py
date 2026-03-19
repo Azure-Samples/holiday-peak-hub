@@ -109,7 +109,9 @@ class ExportEngine:
 
         This command-style method is reused by REST routes and event handlers.
         """
-        result = await (manager.dry_run(entity_id) if dry_run else manager.writeback_product(entity_id))
+        result = await (
+            manager.dry_run(entity_id) if dry_run else manager.writeback_product(entity_id)
+        )
         summary = result.model_dump()
         summary["dry_run"] = dry_run
         summary["status"] = self._resolve_writeback_status(summary)
