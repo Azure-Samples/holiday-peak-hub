@@ -20,10 +20,16 @@ def test_build_prompt_returns_two_messages(engine):
 
 
 def test_parse_ai_response_dict(engine):
-    raw = {"value": "red", "confidence": 0.9, "evidence": "product description mentions red"}
+    raw = {
+        "value": "red",
+        "confidence": 0.9,
+        "evidence": "product description mentions red",
+        "metadata": {"source": "image_analysis"},
+    }
     parsed = engine.parse_ai_response(raw)
     assert parsed["value"] == "red"
     assert parsed["confidence"] == 0.9
+    assert parsed["metadata"]["source"] == "image_analysis"
 
 
 def test_parse_ai_response_fallback(engine):
@@ -39,18 +45,88 @@ def test_score_confidence_clamps(engine):
 
 
 def test_build_proposed_attribute_auto_approve(engine):
-    parsed = {"value": "blue", "confidence": 0.97, "evidence": "high confidence"}
+    parsed = {
+        "value": "blue",
+        "confidence": 0.97,
+        "evidence": "high confidence",
+        "reasoning": "hybrid merge selected image value",
+        "source_type": "hybrid",
+        "source_assets": ["https://cdn.example.com/a.jpg"],
+        "original_data": {"color": None},
+        "enriched_data": {"color": "blue"},
+        "metadata": {"source": "image_analysis", "assets_count": 2},
+    }
     proposed = engine.build_proposed_attribute("sku-1", "color", parsed, model_id="gpt-5")
     assert proposed["status"] == "auto_approved"
     assert proposed["entity_id"] == "sku-1"
     assert proposed["field_name"] == "color"
     assert proposed["source_model"] == "gpt-5"
+    assert proposed["source_type"] == "hybrid"
+    assert proposed["source_assets"] == ["https://cdn.example.com/a.jpg"]
+    assert proposed["original_data"] == {"color": None}
+    assert proposed["enriched_data"] == {"color": "blue"}
+    assert proposed["reasoning"] == "hybrid merge selected image value"
+    assert proposed["confidence_metadata"]["source"] == "image_analysis"
 
 
 def test_build_proposed_attribute_pending(engine):
     parsed = {"value": "blue", "confidence": 0.7, "evidence": "medium confidence"}
     proposed = engine.build_proposed_attribute("sku-2", "color", parsed)
     assert proposed["status"] == "pending"
+    assert proposed["source_type"] == "text_enrichment"
+    assert proposed["source_assets"] == []
+    assert proposed["original_data"] == {"color": None}
+    assert proposed["enriched_data"] == {"color": "blue"}
+
+
+def test_merge_enrichment_candidates_hybrid(engine):
+    merged = engine.merge_enrichment_candidates(
+        field_name="material",
+        original_data={"material": None},
+        image_parsed={
+            "value": "cotton",
+            "confidence": 0.91,
+            "evidence": "image texture",
+            "metadata": {"assets": ["https://cdn.example.com/a.jpg"]},
+        },
+        text_parsed={
+            "value": "cotton blend",
+            "confidence": 0.82,
+            "evidence": "title suggests blend",
+            "metadata": {"source": "text_enrichment"},
+        },
+    )
+
+    assert merged["source_type"] == "hybrid"
+    assert merged["value"] == "cotton"
+    assert merged["source_assets"] == ["https://cdn.example.com/a.jpg"]
+    assert merged["original_data"] == {"material": None}
+    assert merged["enriched_data"] == {"material": "cotton"}
+    assert merged["metadata"]["sources_used"] == ["image_analysis", "text_enrichment"]
+
+
+def test_merge_enrichment_candidates_text_only(engine):
+    merged = engine.merge_enrichment_candidates(
+        field_name="pattern",
+        original_data={"pattern": None},
+        image_parsed={
+            "value": None,
+            "confidence": 0.0,
+            "evidence": "no usable image",
+            "metadata": {"fallback_reason": "no_assets"},
+        },
+        text_parsed={
+            "value": "striped",
+            "confidence": 0.78,
+            "evidence": "description mentions striped",
+            "metadata": {"source": "text_enrichment"},
+        },
+    )
+
+    assert merged["source_type"] == "text_enrichment"
+    assert merged["value"] == "striped"
+    assert merged["source_assets"] == []
+    assert merged["enriched_data"] == {"pattern": "striped"}
 
 
 def test_needs_hitl_pending(engine):

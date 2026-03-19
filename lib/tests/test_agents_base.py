@@ -268,6 +268,43 @@ class TestBaseRetailAgent:
         await agent.invoke_model({"query": "hello"}, original)
         assert captured_messages[0] == original
 
+    @pytest.mark.asyncio
+    async def test_tracing_pipeline_with_mock_tracer(self, slm_target):
+        """Test tracing pipeline emits decision/model/tool events."""
+
+        captured_events = []
+
+        class _MockTracer:
+            def trace_decision(self, **kwargs):
+                captured_events.append(("decision", kwargs))
+
+            def trace_model_invocation(self, **kwargs):
+                captured_events.append(("model", kwargs))
+
+            def trace_tool_call(self, **kwargs):
+                captured_events.append(("tool", kwargs))
+
+        deps = AgentDependencies(slm=slm_target, llm=None, service_name="trace-test")
+        agent = SimpleTestAgent(config=deps)
+
+        import holiday_peak_lib.agents.base_agent as base_agent_mod
+
+        monkeypatch = pytest.MonkeyPatch()
+        monkeypatch.setattr(base_agent_mod, "get_foundry_tracer", lambda _service: _MockTracer())
+        try:
+            await agent.invoke_model(
+                {"query": "test"},
+                "test message",
+                tools={"inventory_lookup": lambda payload: payload},
+            )
+        finally:
+            monkeypatch.undo()
+
+        event_types = {event[0] for event in captured_events}
+        assert "decision" in event_types
+        assert "model" in event_types
+        assert "tool" in event_types
+
     def test_attach_memory(self, agent_deps):
         """Test attaching memory to agent."""
         agent = SimpleTestAgent(config=agent_deps)

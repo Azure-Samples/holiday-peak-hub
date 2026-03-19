@@ -20,6 +20,7 @@ import { ThemeToggle } from '../atoms/ThemeToggle';
 import { SearchInput } from '../molecules/SearchInput';
 import { Dropdown, DropdownItem } from '../molecules/Dropdown';
 import type { BaseComponentProps } from '../types';
+import { useAgentGlobalHealth } from '@/lib/hooks/useAgentMonitor';
 
 export interface NavigationProps extends BaseComponentProps {
   /** Logo component or image */
@@ -79,6 +80,24 @@ export const Navigation: React.FC<NavigationProps> = ({
   testId,
   ariaLabel,
 }) => {
+  let globalHealth: 'healthy' | 'degraded' | 'down' | 'unknown' | undefined;
+
+  try {
+    const healthQuery = useAgentGlobalHealth();
+    globalHealth = healthQuery.data;
+  } catch {
+    globalHealth = 'unknown';
+  }
+
+  const healthIndicatorClass =
+    globalHealth === 'healthy'
+      ? 'bg-green-500'
+      : globalHealth === 'degraded'
+        ? 'bg-yellow-500'
+        : globalHealth === 'down'
+          ? 'bg-red-500'
+          : 'bg-gray-500';
+
   const navBackground = transparent
     ? 'bg-transparent'
     : 'bg-[var(--hp-surface)]/95 backdrop-blur border-b border-[var(--hp-border)]';
@@ -150,6 +169,15 @@ export const Navigation: React.FC<NavigationProps> = ({
           </div>
 
           <div className="flex items-center gap-1 sm:gap-2">
+            <Link
+              href="/admin/agent-activity"
+              className="hidden items-center gap-1 rounded-full border border-[var(--hp-border)] bg-[var(--hp-surface-strong)] px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-[var(--hp-text)] md:inline-flex"
+              aria-label="Open agent activity dashboard"
+            >
+              <span aria-hidden="true" className={`h-2 w-2 rounded-full ${healthIndicatorClass}`} />
+              Agent Health
+            </Link>
+
             <Link
               href="/agents/product-enrichment-chat"
               className="hidden rounded-full border border-[var(--hp-border)] bg-[var(--hp-surface-strong)] px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-[var(--hp-primary)] md:inline-flex"

@@ -22,9 +22,9 @@ Canonical shared-agent registry generated from enabled agent families in `repos/
 | `azure-redis` | `.github/agents/azure-redis.agent.md` |
 | `azure-swa` | `.github/agents/azure-swa.agent.md` |
 | `business-strategy-agent` | `.github/agents/business-strategy-agent.agent.md` |
-| `cataldi-librarian` | `.github/agents/cataldi-librarian.agent.md` |
 | `code-guidelines-agent` | `.github/agents/code-guidelines-agent.agent.md` |
 | `competitive-intelligence-agent` | `.github/agents/competitive-intelligence-agent.agent.md` |
+| `content-librarian` | `.github/agents/content-librarian.agent.md` |
 | `enterprise-connectors` | `.github/agents/enterprise-connectors.agent.md` |
 | `financial-modeling-agent` | `.github/agents/financial-modeling-agent.agent.md` |
 | `platform-quality` | `.github/agents/platform-quality.agent.md` |

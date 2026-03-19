@@ -1,7 +1,7 @@
 ---
 title: "Azure: Architecture Review"
 description: "Review Azure resource topology for high availability, security, cost efficiency, and Well-Architected Framework alignment."
-mode: "TechLeadOrchestrator"
+agent: "TechLeadOrchestrator"
 input: "Specify the Azure resource group, subscription, or architecture diagram to review. Include SLA targets and compliance requirements."
 ---
 

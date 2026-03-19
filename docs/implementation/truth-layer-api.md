@@ -239,16 +239,41 @@ Base URL: `http://<enrichment-host>`
 
 ## 4) Review / HITL
 
-- Dedicated Truth HITL service endpoints are planned but not currently present in this repository.
-- Current interim review APIs are available on CRUD service:
+- Dedicated Truth HITL service is available in this repository and provides review queue APIs.
 
-Base URL: `http://<crud-host>`
+Base URL: `http://<truth-hitl-host>`
 
 | Method | Path | Description |
 | --- | --- | --- |
-| GET | `/api/reviews?product_id=<id>` | List product reviews |
-| POST | `/api/reviews` | Create review (auth required) |
-| DELETE | `/api/reviews/{review_id}` | Delete review (author/admin) |
+| GET | `/review/queue` | List pending review items (filter + pagination) |
+| GET | `/review/stats` | Queue status counts |
+| GET | `/review/{entity_id}` | Pending proposals for one entity |
+| POST | `/review/{entity_id}/approve` | Approve one or more pending proposals |
+| POST | `/review/{entity_id}/reject` | Reject one or more pending proposals |
+| POST | `/review/{entity_id}/edit` | Edit proposed value, then approve |
+| POST | `/review/approve/batch` | Batch approve across multiple entities |
+| POST | `/review/reject/batch` | Batch reject across multiple entities |
+
+### MCP tools (Truth HITL)
+
+| Tool | Description |
+| --- | --- |
+| `/hitl/queue` | List pending queue items |
+| `/hitl/stats` | Return queue stats |
+| `/hitl/audit` | Return audit trail entries |
+| `/review/get_proposal` | Return proposal detail for an entity (optional `attr_id`) |
+
+### Review proposal payload extensions
+
+When available, proposal payloads include enrichment context fields for reviewer decisioning:
+
+- `original_data`
+- `enriched_data`
+- `reasoning`
+- `source_assets`
+- `source_type`
+
+These fields are optional for backward compatibility with older proposals.
 
 ### HITL Decision Gate in the Notebook
 

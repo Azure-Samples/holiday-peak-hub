@@ -1,7 +1,7 @@
 ---
 title: "Codebase Onboarding"
 description: "Fast repository orientation: understand architecture, entry points, conventions, and how to run/test/deploy."
-mode: "TechLeadOrchestrator"
+agent: "TechLeadOrchestrator"
 input: "Optionally specify focus areas (backend, frontend, infra, a specific service). Otherwise, the full repo is scanned."
 ---
 
@@ -42,4 +42,3 @@ Coordinate a multi-agent codebase onboarding scan:
    - Key files and directories to know
    - Common gotchas and pitfalls
    - Suggested first tasks for new contributors
-

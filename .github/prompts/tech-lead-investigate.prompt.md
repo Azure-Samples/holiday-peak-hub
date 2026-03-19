@@ -1,7 +1,7 @@
 ---
 title: "Tech Lead: Investigate Issue"
 description: "Investigate a bug or production issue by coordinating diagnostic agents across the stack."
-mode: "TechLeadOrchestrator"
+agent: "TechLeadOrchestrator"
 input: "Describe the issue: symptoms, reproduction steps, affected users/systems, and any error messages or logs."
 ---
 
@@ -20,4 +20,3 @@ Investigate the reported issue:
 6. **Prevention** — Delegate to `PlatformEngineer` to recommend test/monitoring additions to prevent recurrence.
 
 Deliver an investigation report with root cause, fix plan, and prevention recommendations.
-

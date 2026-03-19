@@ -162,6 +162,8 @@ When `agcSupportEnabled` is on, shared infrastructure also creates the delegated
 
 The `catalog-products` Azure AI Search index is ensured during `azd` `postprovision`, after the search service is reachable, to avoid nested ARM child-resource timing conflicts during `azd provision`.
 
+The vector indexing pipeline (`product_search_index` + datasource/skillset/indexer) is also ensured during `azd` `postprovision`. The current hook path uses a Cosmos DB connection string from the management plane for the AI Search datasource, so no additional AI Search managed-identity Cosmos RBAC assignment is required for this flow.
+
 **Duration**: ~25 minutes | **Cost**: see [Cost Estimates](#-cost-estimates)
 
 ### 2. Provision Frontend (Static Web App)
@@ -568,6 +570,7 @@ azd deploy --all -e {env}
 
 ```bash
 azd deploy --service ecommerce-catalog-search -e {env}
+azd deploy --service search-enrichment-agent -e {env}
 ```
 
 #### Deploy a Single Agent via Helm (manual)

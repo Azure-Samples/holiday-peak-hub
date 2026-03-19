@@ -294,7 +294,7 @@ See §4.7 above. The existing service is refactored into the Completeness Engine
 | Component | Details |
 |-----------|---------|
 | **Service type** | FastAPI app via `build_service_app()` |
-| **Endpoints** | `GET /v1/products/{id}` (internal canonical), `GET /ucp/{version}/products/{id}`, `GET /acp/{version}/products/{id}`, `POST /exports/batch`, `GET /completeness/{id}` |
+| **Endpoints** | `GET /v1/products/{id}` (internal canonical), `GET /ucp/{version}/products/{id}`, `GET /acp/{version}/products/{id}`, `POST /exports/batch`, `GET /completeness/{id}`, `POST /export/pim/{entity_id}`, `POST /export/pim/batch` |
 | **Logic** | 1) Read from `attributes_truth` only (unless `include_proposed=true` for sandbox), 2) Load mapping from Cosmos `mappings` container, 3) Apply partner profile policy, 4) Transform via `ProtocolMapper` subclass |
 | **Partner profiles** | Config-driven: partner A gets fields X/Y, partner B gets X only |
 | **Versioning** | Protocol version in URL path (`/ucp/v1/`, `/acp/v1/`) |

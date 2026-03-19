@@ -18,8 +18,13 @@ Usage::
 
 from __future__ import annotations
 
+import os
+from collections import Counter, deque
+from datetime import datetime, timezone
 import logging
+from threading import Lock
 from typing import Any, Optional
+from weakref import WeakKeyDictionary
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +35,160 @@ try:
     _OTEL_AVAILABLE = True
 except ImportError:  # pragma: no cover
     pass
+
+
+def _is_truthy(value: str | None, *, default: bool = True) -> bool:
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+class FoundryTracer:
+    """Facade for Foundry tracing with env-gated no-op behavior.
+
+    Implements a minimal in-memory activity store for trace events, aggregate
+    counters, and latest evaluation payload.
+    """
+
+    def __init__(
+        self,
+        service_name: str,
+        *,
+        enabled: bool | None = None,
+        connection_string: str | None = None,
+        max_events: int | None = None,
+    ) -> None:
+        self.service_name = service_name
+        self.enabled = (
+            _is_truthy(os.getenv("FOUNDRY_TRACING_ENABLED"), default=True)
+            if enabled is None
+            else enabled
+        )
+        self.connection_string = (
+            connection_string
+            or os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING")
+            or os.getenv("APPINSIGHTS_CONNECTION_STRING")
+        )
+        configured_max = int(os.getenv("FOUNDRY_TRACING_MAX_EVENTS", "500"))
+        self.max_events = max_events if max_events is not None else configured_max
+        self._events: deque[dict[str, Any]] = deque(maxlen=self.max_events)
+        self._counts: Counter[str] = Counter()
+        self._latest_evaluation: dict[str, Any] | None = None
+        self._lock = Lock()
+
+    def _record(self, event_type: str, name: str, outcome: str, metadata: dict[str, Any]) -> None:
+        if not self.enabled:
+            return
+        event = {
+            "timestamp": _now_iso(),
+            "service": self.service_name,
+            "type": event_type,
+            "name": name,
+            "outcome": outcome,
+            "metadata": metadata,
+        }
+        with self._lock:
+            self._events.append(event)
+            self._counts[event_type] += 1
+            self._counts[f"{event_type}:{outcome}"] += 1
+
+    def trace_model_invocation(
+        self,
+        *,
+        model: str,
+        target: str,
+        outcome: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        self._record(
+            "model_invocation",
+            target,
+            outcome,
+            {
+                "model": model,
+                **(metadata or {}),
+            },
+        )
+
+    def trace_tool_call(
+        self,
+        *,
+        tool_name: str,
+        outcome: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        self._record("tool_call", tool_name, outcome, metadata or {})
+
+    def trace_decision(
+        self,
+        *,
+        decision: str,
+        outcome: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        self._record("decision", decision, outcome, metadata or {})
+
+    def record_evaluation(self, payload: dict[str, Any]) -> None:
+        if not self.enabled:
+            return
+        enriched_payload = {
+            "timestamp": _now_iso(),
+            "service": self.service_name,
+            **payload,
+        }
+        with self._lock:
+            self._latest_evaluation = enriched_payload
+            self._counts["evaluation_updates"] += 1
+
+    def get_traces(self, limit: int = 50) -> list[dict[str, Any]]:
+        resolved_limit = max(1, min(limit, self.max_events))
+        with self._lock:
+            events = list(self._events)
+        return events[-resolved_limit:][::-1]
+
+    def get_metrics(self) -> dict[str, Any]:
+        with self._lock:
+            counts = dict(self._counts)
+            traces_buffered = len(self._events)
+        return {
+            "service": self.service_name,
+            "enabled": self.enabled,
+            "app_insights_configured": bool(self.connection_string),
+            "traces_buffered": traces_buffered,
+            "counts": counts,
+        }
+
+    def get_latest_evaluation(self) -> dict[str, Any] | None:
+        with self._lock:
+            if self._latest_evaluation is None:
+                return None
+            return dict(self._latest_evaluation)
+
+    def clear(self) -> None:
+        with self._lock:
+            self._events.clear()
+            self._counts.clear()
+            self._latest_evaluation = None
+
+
+_TRACERS: dict[str, FoundryTracer] = {}
+_TRACERS_LOCK = Lock()
+_METER_INSTRUMENT_CACHE: WeakKeyDictionary[Any, dict[str, Any]] = WeakKeyDictionary()
+_METER_INSTRUMENT_CACHE_BY_ID: dict[int, dict[str, Any]] = {}
+
+
+def get_foundry_tracer(service_name: str) -> FoundryTracer:
+    """Return a service-scoped :class:`FoundryTracer` singleton."""
+    with _TRACERS_LOCK:
+        tracer = _TRACERS.get(service_name)
+        if tracer is None:
+            tracer = FoundryTracer(service_name)
+            _TRACERS[service_name] = tracer
+        return tracer
 
 
 def get_tracer(name: str) -> Any:
@@ -94,9 +253,13 @@ def record_metric(
         )
         return
 
-    instrument_cache: dict[str, Any] = getattr(meter, "_hph_cache", {})
-    if not hasattr(meter, "_hph_cache"):
-        meter._hph_cache = instrument_cache  # type: ignore[attr-defined]
+    instrument_cache = _METER_INSTRUMENT_CACHE.get(meter)
+    if instrument_cache is None:
+        try:
+            _METER_INSTRUMENT_CACHE[meter] = {}
+            instrument_cache = _METER_INSTRUMENT_CACHE[meter]
+        except TypeError:
+            instrument_cache = _METER_INSTRUMENT_CACHE_BY_ID.setdefault(id(meter), {})
 
     if instrument_name not in instrument_cache:
         if kind == "histogram":

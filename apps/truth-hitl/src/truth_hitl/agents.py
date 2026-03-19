@@ -54,6 +54,25 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
         events = adapters.review_manager.audit_log(entity_id=entity_id)
         return {"events": [e.model_dump() for e in events], "count": len(events)}
 
+    async def get_proposal(payload: dict[str, Any]) -> dict[str, Any]:
+        entity_id = payload.get("entity_id")
+        if not entity_id:
+            return {"error": "entity_id is required"}
+
+        attr_id = payload.get("attr_id")
+        items = adapters.review_manager.get_by_entity(entity_id)
+        if attr_id:
+            items = [item for item in items if item.attr_id == attr_id]
+
+        if not items:
+            return {"entity_id": entity_id, "proposal": None}
+
+        return {
+            "entity_id": entity_id,
+            "proposal": items[0].model_dump(),
+        }
+
     mcp.add_tool("/hitl/queue", get_review_queue)
     mcp.add_tool("/hitl/stats", get_review_stats)
     mcp.add_tool("/hitl/audit", get_audit_log)
+    mcp.add_tool("/review/get_proposal", get_proposal)

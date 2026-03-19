@@ -29,7 +29,8 @@ graph LR
 - `GET /health` — Health check
 
 **MCP Tools**:
-- `/catalog/search` — Search products (ACP-aligned)
+- `/catalog/search` — Search products (ACP-aligned), optional `mode` (`keyword` default, `intelligent` for dual-path intent-aware retrieval)
+- `/catalog/intent` — Classify search intent and complexity for diagnostics/routing
 - `/catalog/product` — Fetch product details (ACP-aligned)
 
 ### 2. Catalog Agent (`agents.py`)

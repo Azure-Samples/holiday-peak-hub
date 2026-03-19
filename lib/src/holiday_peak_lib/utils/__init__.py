@@ -11,7 +11,7 @@ from .event_hub import (
 from .logging import configure_logging
 from .rate_limiter import RateLimiter, RateLimitExceededError
 from .retry import async_retry
-from .telemetry import get_meter, get_tracer, record_metric
+from .telemetry import FoundryTracer, get_foundry_tracer, get_meter, get_tracer, record_metric
 
 __all__ = [
     "Bulkhead",
@@ -27,6 +27,8 @@ __all__ = [
     "RateLimiter",
     "RateLimitExceededError",
     "async_retry",
+    "FoundryTracer",
+    "get_foundry_tracer",
     "get_meter",
     "get_tracer",
     "record_metric",

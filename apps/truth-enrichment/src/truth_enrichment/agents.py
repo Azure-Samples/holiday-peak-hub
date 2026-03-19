@@ -20,6 +20,7 @@ class TruthEnrichmentAgent(BaseRetailAgent):
     def __init__(self, config, *args: Any, **kwargs: Any) -> None:
         super().__init__(config, *args, **kwargs)
         self._adapters = build_enrichment_adapters()
+        self._adapters.image_analysis.set_vision_invoker(self.invoke_model)
         self._engine = EnrichmentEngine()
 
     @property
@@ -70,15 +71,28 @@ class TruthEnrichmentAgent(BaseRetailAgent):
         job_id = str(uuid.uuid4())
         messages = self.engine.build_prompt(product, field_name, field_definition)
 
+        image_raw = await self.adapters.image_analysis.analyze_attribute_from_images(
+            entity_id=entity_id,
+            field_name=field_name,
+            product=product,
+            field_definition=field_definition,
+        )
+        image_parsed = self.engine.parse_ai_response(image_raw)
+
+        text_parsed: dict[str, Any] | None = None
         if self.slm or self.llm:
-            raw = await self.invoke_model(
+            text_raw = await self.invoke_model(
                 request={"entity_id": entity_id, "field_name": field_name},
                 messages=messages,
             )
-        else:
-            raw = {"value": None, "confidence": 0.0, "evidence": "no model available"}
+            text_parsed = self.engine.parse_ai_response(text_raw)
 
-        parsed = self.engine.parse_ai_response(raw)
+        parsed = self.engine.merge_enrichment_candidates(
+            field_name=field_name,
+            original_data={field_name: product.get(field_name)},
+            image_parsed=image_parsed,
+            text_parsed=text_parsed,
+        )
         proposed = self.engine.build_proposed_attribute(
             entity_id=entity_id,
             field_name=field_name,
@@ -150,13 +164,53 @@ def _detect_gaps(product: dict[str, Any], schema: dict[str, Any] | None) -> list
     """Return field names that are required by the schema but missing from the product."""
     if schema is None:
         return []
-    required_fields: list[str] = schema.get("required_fields", [])
-    return [f for f in required_fields if not product.get(f)]
+
+    required_fields: list[str] = []
+    seen: set[str] = set()
+
+    for field_name in schema.get("required_fields", []):
+        if isinstance(field_name, str) and field_name not in seen:
+            required_fields.append(field_name)
+            seen.add(field_name)
+
+    fields = schema.get("fields", {})
+    if isinstance(fields, list):
+        for field in fields:
+            if not isinstance(field, dict) or not field.get("required"):
+                continue
+            field_name = field.get("name")
+            if isinstance(field_name, str) and field_name not in seen:
+                required_fields.append(field_name)
+                seen.add(field_name)
+    elif isinstance(fields, dict):
+        for field_name, definition in fields.items():
+            if (
+                isinstance(field_name, str)
+                and isinstance(definition, dict)
+                and definition.get("required")
+                and field_name not in seen
+            ):
+                required_fields.append(field_name)
+                seen.add(field_name)
+
+    return [field_name for field_name in required_fields if _is_missing(product.get(field_name))]
+
+
+def _is_missing(value: Any) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, str):
+        return not value.strip()
+    if isinstance(value, (list, dict, tuple, set)):
+        return len(value) == 0
+    return False
 
 
 def _model_id(agent: BaseRetailAgent) -> str:
-    if agent.llm and hasattr(agent.llm, "deployment_name"):
-        return agent.llm.deployment_name or "llm"
-    if agent.slm and hasattr(agent.slm, "deployment_name"):
-        return agent.slm.deployment_name or "slm"
+    if agent.llm:
+        deployment_name = getattr(agent.llm, "deployment_name", None)
+        return deployment_name or "llm"
+    if agent.slm:
+        deployment_name = getattr(agent.slm, "deployment_name", None)
+        return deployment_name or "slm"
     return "unknown"

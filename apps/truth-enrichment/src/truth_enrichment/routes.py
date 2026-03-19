@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import uuid
 from typing import Any
 
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
+
+from .agents import _detect_gaps
 
 router = APIRouter(prefix="/enrich", tags=["enrichment"])
 
@@ -71,10 +72,3 @@ async def get_status(job_id: str, request: Request) -> dict[str, Any]:
     if result is None:
         return {"job_id": job_id, "status": "not_found"}
     return {"job_id": job_id, "status": result.get("status"), "attribute": result}
-
-
-def _detect_gaps(product: dict[str, Any], schema: dict[str, Any] | None) -> list[str]:
-    if schema is None:
-        return []
-    required_fields: list[str] = schema.get("required_fields", [])
-    return [f for f in required_fields if not product.get(f)]

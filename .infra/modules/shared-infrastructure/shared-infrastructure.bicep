@@ -49,6 +49,9 @@ var vnetName = '${projectName}${envSuffix}-vnet'
 var aiServicesName = take('${safeProjectName}${replace(envSuffix, '-', '')}ais', 24)
 var aiSearchName = take('${safeProjectName}${replace(envSuffix, '-', '')}search', 60)
 var aiSearchIndexName = 'catalog-products'
+var aiSearchVectorIndexName = 'product_search_index'
+var aiSearchIndexerName = 'search-enriched-products-indexer'
+var embeddingDeploymentName = 'text-embedding-3-large'
 var aiSearchAuthMode = 'managed_identity'
 var aiProjectSuffix = substring(uniqueString(resourceGroup().id), 0, 3)
 var aiProjectInstanceName = 'aip${take(safeProjectName, 6)}${aiProjectSuffix}'
@@ -393,6 +396,10 @@ var cosmosContainers = [
     paths: ['/categoryId']
   }
   {
+    name: 'search_enriched_products'
+    paths: ['/categoryId']
+  }
+  {
     name: 'attributes_truth'
     paths: ['/entityId']
   }
@@ -631,6 +638,11 @@ module eventHubs 'br/public:avm/res/event-hub/namespace:0.14.0' = {
         partitionCount: 4
       }
       {
+        name: 'search-enrichment-jobs'
+        messageRetentionInDays: 7
+        partitionCount: 4
+      }
+      {
         name: 'user-events'
         messageRetentionInDays: 7
         partitionCount: 2
@@ -848,6 +860,20 @@ resource eventHubsNamespaceResource 'Microsoft.EventHub/namespaces@2023-01-01-pr
   name: eventHubsNamespaceName
 }
 
+resource searchEnrichmentJobsEventHub 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' existing = {
+  parent: eventHubsNamespaceResource
+  name: 'search-enrichment-jobs'
+}
+
+resource searchEnrichmentAgentConsumerGroup 'Microsoft.EventHub/namespaces/eventhubs/consumergroups@2023-01-01-preview' = {
+  parent: searchEnrichmentJobsEventHub
+  name: 'search-enrichment-agent'
+  properties: {}
+  dependsOn: [
+    eventHubs
+  ]
+}
+
 resource keyVaultResource 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
   name: keyVaultName
 }
@@ -988,6 +1014,9 @@ output aiProjectName string = aiFoundry.outputs.aiProjectName
 output aiSearchName string = aiSearchName
 output aiSearchEndpoint string = 'https://${aiSearchName}.search.windows.net'
 output aiSearchIndexName string = aiSearchIndexName
+output aiSearchVectorIndexName string = aiSearchVectorIndexName
+output aiSearchIndexerName string = aiSearchIndexerName
+output embeddingDeploymentName string = embeddingDeploymentName
 output aiSearchAuthMode string = aiSearchAuthMode
 output appInsightsConnectionString string = appInsights.outputs.connectionString
 output appInsightsInstrumentationKey string = appInsights.outputs.instrumentationKey

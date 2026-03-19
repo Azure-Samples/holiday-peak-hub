@@ -6,6 +6,7 @@ from time import perf_counter
 from typing import Any, Awaitable, Callable
 
 from agent_framework import BaseAgent
+from holiday_peak_lib.utils.telemetry import get_foundry_tracer
 from pydantic import BaseModel, ConfigDict, Field
 
 from .provider_policy import (
@@ -230,6 +231,43 @@ class BaseRetailAgent(BaseAgent, ABC):
     def attach_mcp(self, mcp_server: Any) -> None:
         self.mcp_server = mcp_server
 
+    def _get_foundry_tracer(self):
+        service = self.service_name or type(self).__name__
+        return get_foundry_tracer(service)
+
+    def _trace_decision(self, decision: str, outcome: str, metadata: dict[str, Any]) -> None:
+        try:
+            self._get_foundry_tracer().trace_decision(
+                decision=decision,
+                outcome=outcome,
+                metadata=metadata,
+            )
+        except (AttributeError, TypeError, ValueError, RuntimeError):
+            return
+
+    def _trace_tools(self, payload_tools: Any, outcome: str, metadata: dict[str, Any]) -> None:
+        tool_names: list[str] = []
+        if isinstance(payload_tools, dict):
+            tool_names = [str(name) for name in payload_tools.keys()]
+        elif isinstance(payload_tools, (list, tuple, set)):
+            tool_names = [str(name) for name in payload_tools]
+        elif payload_tools is not None:
+            tool_names = [str(payload_tools)]
+
+        if not tool_names:
+            return
+
+        tracer = self._get_foundry_tracer()
+        for tool_name in tool_names:
+            try:
+                tracer.trace_tool_call(
+                    tool_name=tool_name,
+                    outcome=outcome,
+                    metadata=metadata,
+                )
+            except (AttributeError, TypeError, ValueError, RuntimeError):
+                continue
+
     def _assess_complexity(self, request: dict[str, Any]) -> float:
         """Crude complexity heuristic using token-ish count and tool hints.
 
@@ -274,8 +312,33 @@ class BaseRetailAgent(BaseAgent, ABC):
             "tools": payload_tools,
         }
         started = perf_counter()
-        result = await target.invoker(**payload)
-        elapsed_ms = (perf_counter() - started) * 1000
+        outcome = "success"
+        error_text: str | None = None
+        try:
+            result = await target.invoker(**payload)
+        except Exception as exc:
+            outcome = "error"
+            error_text = str(exc)
+            raise
+        finally:
+            elapsed_ms = (perf_counter() - started) * 1000
+            trace_metadata = {
+                "elapsed_ms": elapsed_ms,
+                "stream": payload.get("stream", target.stream),
+                "temperature": target.temperature,
+                "top_p": target.top_p,
+                "error": error_text,
+            }
+            try:
+                self._get_foundry_tracer().trace_model_invocation(
+                    model=target.model,
+                    target=target.name,
+                    outcome=outcome,
+                    metadata=trace_metadata,
+                )
+                self._trace_tools(payload_tools, outcome, trace_metadata)
+            except (AttributeError, TypeError, ValueError, RuntimeError):
+                pass
 
         if isinstance(result, dict):
             existing_meta: dict[str, Any] = {}
@@ -329,6 +392,15 @@ class BaseRetailAgent(BaseAgent, ABC):
             provider=self._shared_provider_for_routing(),
             enforce_prompt_governance=self.enforce_foundry_prompt_governance,
         )
+        self._trace_decision(
+            decision="invoke_model",
+            outcome="start",
+            metadata={
+                "has_slm": bool(self.slm),
+                "has_llm": bool(self.llm),
+                "complexity_threshold": self.complexity_threshold,
+            },
+        )
 
         if self.slm and self.llm:
             return await self._evaluate_with_slm_routing(request, messages, payload_tools, **kwargs)
@@ -344,12 +416,25 @@ class BaseRetailAgent(BaseAgent, ABC):
     ) -> dict[str, Any]:
         """Evaluate request complexity with SLM and optionally upgrade to LLM."""
 
+        if self.slm is None:
+            raise RuntimeError("SLM target is required for routed model evaluation")
+
         if not should_use_local_routing_prompt(
             provider=self._shared_provider_for_routing(),
             enforce_prompt_governance=self.enforce_foundry_prompt_governance,
         ):
+            self._trace_decision(
+                decision="routing_strategy",
+                outcome="provider_controlled",
+                metadata={"enforce_prompt_governance": self.enforce_foundry_prompt_governance},
+            )
             slm_result = await self.__invoke_target(self.slm, messages, payload_tools, **kwargs)
             if self.llm and self._assess_complexity(request) >= self.complexity_threshold:
+                self._trace_decision(
+                    decision="model_upgrade",
+                    outcome="llm_by_complexity",
+                    metadata={"complexity_threshold": self.complexity_threshold},
+                )
                 return await self.__invoke_target(self.llm, messages, payload_tools, **kwargs)
             return slm_result
 
@@ -372,6 +457,13 @@ class BaseRetailAgent(BaseAgent, ABC):
             )
 
         if evaluation_text.strip().lower() == UPGRADE_TOKEN:
+            if self.llm is None:
+                raise RuntimeError("LLM target is required for model upgrade")
+            self._trace_decision(
+                decision="model_upgrade",
+                outcome="llm_by_slm_upgrade",
+                metadata={"upgrade_token": UPGRADE_TOKEN},
+            )
             if isinstance(messages, list):
                 upgraded_messages = [
                     {
@@ -395,6 +487,11 @@ class BaseRetailAgent(BaseAgent, ABC):
                 )
             return await self.__invoke_target(self.llm, upgraded_messages, payload_tools, **kwargs)
 
+        self._trace_decision(
+            decision="model_selection",
+            outcome="slm",
+            metadata={"reason": "no_upgrade"},
+        )
         return await self.__invoke_target(self.slm, messages, payload_tools, **kwargs)
 
     async def _direct_model_selection(
@@ -407,6 +504,11 @@ class BaseRetailAgent(BaseAgent, ABC):
         """Fallback path when SLM/LLM combo is not available: select a single model and invoke it."""
 
         target = self._select_model(request)
+        self._trace_decision(
+            decision="model_selection",
+            outcome=target.name,
+            metadata={"mode": "direct"},
+        )
         return await self.__invoke_target(target, messages, payload_tools, **kwargs)
 
     @abstractmethod

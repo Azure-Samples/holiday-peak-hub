@@ -13,6 +13,8 @@ import { useCategories } from '@/lib/hooks/useCategories';
 import { mapApiProductToUiProduct } from '@/lib/utils/productMappers';
 import { formatAgentResponse, type AgentMessageView } from '@/lib/utils/agentResponseCards';
 import AgentMessageDisplay from '@/components/organisms/AgentMessageDisplay';
+import { UseCaseTags } from '@/components/enrichment/UseCaseTags';
+import { RelatedProductsRail } from '@/components/enrichment/RelatedProductsRail';
 import agentApiClient from '@/lib/api/agentClient';
 import { trackEcommerceEvent } from '@/lib/utils/telemetry';
 import { FiArrowRight, FiShoppingCart, FiTruck, FiShield, FiRotateCcw } from 'react-icons/fi';
@@ -391,6 +393,21 @@ export function ProductPageClient({ productId }: { productId: string }) {
 
                   <h1 className="mb-2 text-3xl font-black text-[var(--hp-text)]">{product.name}</h1>
                   <p className="mb-6 text-[var(--hp-text-muted)]">{product.description}</p>
+
+                  {uiProduct.enrichedDescription ? (
+                    <Card className="mb-6 border border-[var(--hp-border)] bg-[var(--hp-surface)] p-4">
+                      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--hp-text-muted)]">
+                        Enriched description
+                      </p>
+                      <p className="text-sm text-[var(--hp-text)]">{uiProduct.enrichedDescription}</p>
+                    </Card>
+                  ) : null}
+
+                  <div className="mb-6 space-y-4">
+                    <UseCaseTags useCases={uiProduct.useCases} />
+                    <RelatedProductsRail title="Complements" items={uiProduct.complementaryProducts} />
+                    <RelatedProductsRail title="Alternatives" items={uiProduct.substituteProducts} />
+                  </div>
 
                   <div className="mb-6 flex items-end gap-3">
                     <span className="text-4xl font-black text-[var(--hp-primary)]">${product.price.toFixed(2)}</span>

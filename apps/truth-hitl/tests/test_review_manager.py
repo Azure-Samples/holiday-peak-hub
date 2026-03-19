@@ -93,6 +93,11 @@ def test_audit_log_records_actions(manager):
     log = manager.audit_log()
     assert len(log) == 2
     assert all(e.action == "approved" for e in log)
+    assert all(e.original_data is None for e in log)
+    assert all(e.enriched_data is None for e in log)
+    assert all(e.reasoning is None for e in log)
+    assert all(e.source_assets is None for e in log)
+    assert all(e.source_type is None for e in log)
 
 
 def test_audit_log_filtered_by_entity(manager):
@@ -109,3 +114,27 @@ def test_pagination(manager):
     assert len(items_page1) == 1
     assert len(items_page2) == 1
     assert items_page1[0].attr_id != items_page2[0].attr_id
+
+
+def test_audit_log_preserves_enrichment_context(sample_review_item):
+    manager = ReviewManager()
+    sample_review_item.original_data = {"color": "Blue"}
+    sample_review_item.enriched_data = {"color": "Midnight Blue"}
+    sample_review_item.reasoning = "Confidence high from source consistency"
+    sample_review_item.source_assets = [{"asset_id": "dam-001", "type": "image"}]
+    sample_review_item.source_type = "dam"
+    manager.enqueue(sample_review_item)
+
+    manager.reject(
+        "prod-001",
+        ReviewDecision(attr_ids=["attr-001"], reason="needs manual confirmation"),
+    )
+
+    log = manager.audit_log()
+    assert len(log) == 1
+    event = log[0]
+    assert event.original_data == {"color": "Blue"}
+    assert event.enriched_data == {"color": "Midnight Blue"}
+    assert event.reasoning == "Confidence high from source consistency"
+    assert event.source_assets == [{"asset_id": "dam-001", "type": "image"}]
+    assert event.source_type == "dam"

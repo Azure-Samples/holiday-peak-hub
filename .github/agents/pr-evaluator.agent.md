@@ -410,8 +410,8 @@ Follow ADR-022: `<prefix>/<issue-id>-<short-description>`
 
 ## References
 
-- [`docs/README.md`](../../docs/README.md) — Merge and release workflows
-- [`docs/governance/README.md`](../../docs/governance/README.md) — Repository governance
+- [`docs/OPERATIONAL-WORKFLOWS.md`](docs/OPERATIONAL-WORKFLOWS.md) — Merge and release workflows
+- [`.github/governance-map.md`](.github/governance-map.md) — Repository governance
 - [GitHub PR Documentation](https://docs.github.com/en/pull-requests)
 
 ---

@@ -3,8 +3,10 @@
 import sys
 
 from holiday_peak_lib.utils.telemetry import (
+    FoundryTracer,
     _NoopMeter,
     _NoopTracer,
+    get_foundry_tracer,
     get_meter,
     get_tracer,
     record_metric,
@@ -80,3 +82,45 @@ class TestRecordMetric:
         record_metric(meter, "my.counter", 1)
         # Second call should reuse cached instrument — no error
         record_metric(meter, "my.counter", 2)
+
+
+class TestFoundryTracer:
+    def test_disabled_via_env(self, monkeypatch):
+        monkeypatch.setenv("FOUNDRY_TRACING_ENABLED", "false")
+        tracer = FoundryTracer("svc")
+        tracer.trace_decision(decision="route", outcome="slm", metadata={"x": 1})
+        assert tracer.get_traces(limit=10) == []
+        assert tracer.get_metrics()["enabled"] is False
+
+    def test_records_traces_and_metrics(self, monkeypatch):
+        monkeypatch.setenv("FOUNDRY_TRACING_ENABLED", "true")
+        tracer = FoundryTracer("svc", max_events=5)
+        tracer.trace_decision(decision="route", outcome="slm", metadata={"x": 1})
+        tracer.trace_tool_call(tool_name="inventory_lookup", outcome="success", metadata={})
+        tracer.trace_model_invocation(
+            model="gpt-5",
+            target="rich",
+            outcome="success",
+            metadata={"elapsed_ms": 12.3},
+        )
+        tracer.record_evaluation({"score": 0.9})
+
+        traces = tracer.get_traces(limit=10)
+        assert len(traces) == 3
+        assert traces[0]["type"] == "model_invocation"
+        assert traces[1]["type"] == "tool_call"
+        assert traces[2]["type"] == "decision"
+
+        metrics = tracer.get_metrics()
+        assert metrics["counts"]["decision"] == 1
+        assert metrics["counts"]["tool_call"] == 1
+        assert metrics["counts"]["model_invocation"] == 1
+        assert metrics["counts"]["evaluation_updates"] == 1
+        latest = tracer.get_latest_evaluation()
+        assert latest is not None
+        assert latest["score"] == 0.9
+
+    def test_get_foundry_tracer_returns_singleton(self):
+        tracer_a = get_foundry_tracer("svc-singleton")
+        tracer_b = get_foundry_tracer("svc-singleton")
+        assert tracer_a is tracer_b

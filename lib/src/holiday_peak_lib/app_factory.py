@@ -2,7 +2,7 @@
 
 import os
 from contextlib import asynccontextmanager
-from typing import AsyncIterator, Callable, Optional
+from typing import AsyncContextManager, AsyncIterator, Callable, Optional
 
 from fastapi import FastAPI, HTTPException
 from holiday_peak_lib.agents import AgentBuilder, BaseRetailAgent, FoundryAgentConfig
@@ -14,6 +14,7 @@ from holiday_peak_lib.agents.foundry import (
 from holiday_peak_lib.agents.memory import ColdMemory, HotMemory, WarmMemory
 from holiday_peak_lib.agents.orchestration.router import RoutingStrategy
 from holiday_peak_lib.connectors.registry import ConnectorRegistry
+from holiday_peak_lib.utils import get_foundry_tracer
 from holiday_peak_lib.utils.logging import configure_logging, log_async_operation
 
 DEFAULT_FOUNDY_MODELS = {
@@ -53,7 +54,7 @@ def build_service_app(
     llm_config: FoundryAgentConfig | None = None,
     connector_registry: ConnectorRegistry | None = None,
     mcp_setup: Optional[Callable[[FastAPIMCPServer, BaseRetailAgent], None]] = None,
-    lifespan: Callable[[FastAPI], AsyncIterator[None]] | None = None,
+    lifespan: Callable[[FastAPI], AsyncContextManager[None]] | None = None,
 ) -> FastAPI:
     """Return a FastAPI app pre-wired with MCP and required memory tiers."""
     logger = configure_logging(app_name=service_name)
@@ -76,6 +77,7 @@ def build_service_app(
     if slm_config or llm_config:
         builder = builder.with_foundry_models(slm_config=slm_config, llm_config=llm_config)
     agent = builder.build()
+    tracer = get_foundry_tracer(service_name)
     if hasattr(agent, "connector_registry"):
         agent.connector_registry = registry
     app.state.agent = agent
@@ -224,17 +226,37 @@ def build_service_app(
             },
         )
 
+    @app.get("/agent/traces")
+    async def agent_traces(limit: int = 50):
+        return {
+            "service": service_name,
+            "traces": tracer.get_traces(limit=limit),
+        }
+
+    @app.get("/agent/metrics")
+    async def agent_metrics():
+        return tracer.get_metrics()
+
+    @app.get("/agent/evaluation/latest")
+    async def agent_evaluation_latest():
+        latest = tracer.get_latest_evaluation()
+        return {
+            "service": service_name,
+            "latest": latest,
+        }
+
     @app.post("/foundry/agents/ensure")
     async def ensure_agents(payload: dict | None = None):
         nonlocal foundry_ready
-        body = payload or {}
+        body: dict = payload if isinstance(payload, dict) else {}
         role = str(body.get("role", "both")).lower()
         create_if_missing = bool(body.get("create_if_missing", True))
-        instructions = (
-            body.get("instructions") if isinstance(body.get("instructions"), dict) else {}
-        )
-        names = body.get("names") if isinstance(body.get("names"), dict) else {}
-        models = body.get("models") if isinstance(body.get("models"), dict) else {}
+        instructions_raw = body.get("instructions")
+        names_raw = body.get("names")
+        models_raw = body.get("models")
+        instructions: dict = instructions_raw if isinstance(instructions_raw, dict) else {}
+        names: dict = names_raw if isinstance(names_raw, dict) else {}
+        models: dict = models_raw if isinstance(models_raw, dict) else {}
 
         role_to_config: dict[str, FoundryAgentConfig | None] = {
             "fast": slm_config,

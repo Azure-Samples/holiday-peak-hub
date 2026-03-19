@@ -34,6 +34,8 @@ This document indexes all architectural decisions for the Holiday Peak Hub accel
 | [ADR-026](adrs/adr-026-agic-traffic-management.md) | Application Gateway Ingress Controller (AGIC) for Traffic Management | Superseded by ADR-027 | 2025-01 |
 | [ADR-027](adrs/adr-027-apim-agc-edge.md) | APIM + Application Gateway for Containers as Canonical AKS Edge | Accepted | 2026-03 |
 | [ADR-028](adrs/adr-028-memory-namespace-isolation-contract.md) | Memory Namespace Isolation Contract | Accepted | 2026-03 |
+| [ADR-029](adrs/adr-029-dam-image-analysis-enrichment-pipeline-boundary.md) | DAM Image Analysis as an Enrichment Pipeline within Truth Boundaries | Accepted | 2026-03 |
+| [ADR-030](adrs/adr-030-search-enrichment-bounded-context.md) | Search Enrichment as an Isolated Bounded Context | Accepted | 2026-03 |
 
 ## How to Use ADRs
 

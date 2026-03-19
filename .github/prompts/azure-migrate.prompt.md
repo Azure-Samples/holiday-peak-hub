@@ -1,7 +1,7 @@
 ---
 title: "Azure: Migration Plan"
 description: "Plan migration between Azure services, from on-premises, or from other cloud providers with risk assessment and staged rollout."
-mode: "TechLeadOrchestrator"
+agent: "TechLeadOrchestrator"
 input: "Describe the source (current service/provider) and target (desired Azure service). Include data volumes, latency requirements, and downtime tolerance."
 ---
 

@@ -13,10 +13,14 @@ import { parsePriceString, type AcpProduct } from '../utils/productMappers';
 type AgentEnrichmentPayload = {
   title?: string;
   description?: string;
+  enriched_description?: string;
   rating?: number;
   review_count?: number;
   reviewCount?: number;
   features?: string[];
+  use_cases?: string[];
+  complementary_products?: string[];
+  substitute_products?: string[];
   media?: Array<{ url: string; type?: string }>;
   inventory?: Record<string, unknown>;
   related?: Array<Record<string, unknown>>;
@@ -118,6 +122,7 @@ export const productService = {
       id,
       name: baseProduct?.name || enrichment?.title || id,
       description: enrichment?.description || baseProduct?.description || '',
+      enriched_description: enrichment?.enriched_description || baseProduct?.enriched_description,
       price: baseProduct?.price || 0,
       category_id: baseProduct?.category_id || 'catalog',
       image_url: baseProduct?.image_url,
@@ -126,6 +131,9 @@ export const productService = {
       review_count:
         enrichment?.review_count ?? enrichment?.reviewCount ?? baseProduct?.review_count,
       features: enrichment?.features ?? baseProduct?.features,
+      use_cases: enrichment?.use_cases ?? baseProduct?.use_cases,
+      complementary_products: enrichment?.complementary_products ?? baseProduct?.complementary_products,
+      substitute_products: enrichment?.substitute_products ?? baseProduct?.substitute_products,
       media: enrichment?.media ?? baseProduct?.media,
       inventory: enrichment?.inventory ?? baseProduct?.inventory,
       related: enrichment?.related ?? baseProduct?.related,

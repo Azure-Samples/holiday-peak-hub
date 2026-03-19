@@ -213,8 +213,11 @@ add_env_arg "FOUNDRY_AUTO_ENSURE_ON_STARTUP" "${FOUNDRY_AUTO_ENSURE_ON_STARTUP:-
 # Azure AI Search
 add_env_arg "AI_SEARCH_ENDPOINT" "${AI_SEARCH_ENDPOINT:-}"
 add_env_arg "AI_SEARCH_INDEX" "${AI_SEARCH_INDEX:-}"
+add_env_arg "AI_SEARCH_VECTOR_INDEX" "${AI_SEARCH_VECTOR_INDEX:-}"
+add_env_arg "AI_SEARCH_INDEXER_NAME" "${AI_SEARCH_INDEXER_NAME:-}"
 add_env_arg "AI_SEARCH_AUTH_MODE" "${AI_SEARCH_AUTH_MODE:-}"
 add_env_arg "AI_SEARCH_KEY" "${AI_SEARCH_KEY:-}"
+add_env_arg "EMBEDDING_DEPLOYMENT_NAME" "${EMBEDDING_DEPLOYMENT_NAME:-}"
 
 # Memory tiers
 add_env_arg "REDIS_URL" "${REDIS_URL:-}"
@@ -226,6 +229,11 @@ add_env_arg "BLOB_CONTAINER" "${BLOB_CONTAINER:-}"
 
 # Observability
 add_env_arg "APPLICATIONINSIGHTS_CONNECTION_STRING" "${APPLICATIONINSIGHTS_CONNECTION_STRING:-}"
+
+if [ "$SERVICE_NAME" = "ecommerce-catalog-search" ]; then
+  add_env_arg "SEARCH_ENRICHMENT_EVENT_HUB_NAME" "${SEARCH_ENRICHMENT_EVENT_HUB_NAME:-search-enrichment-jobs}"
+  add_env_arg "SEARCH_ENRICHMENT_EVENT_HUB_CONSUMER_GROUP" "${SEARCH_ENRICHMENT_EVENT_HUB_CONSUMER_GROUP:-search-enrichment-agent}"
+fi
 
 if is_truth_service; then
   case "$SERVICE_NAME" in

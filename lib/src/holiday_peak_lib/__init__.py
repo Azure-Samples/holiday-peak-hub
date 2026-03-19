@@ -10,6 +10,7 @@ __all__ = [
     "agents",
     "events",
     "integrations",
+    "mcp",
     "schemas",
     "utils",
     "config",

@@ -1,7 +1,7 @@
 ---
 title: "Tech Lead: Execute Issue"
 description: "Pick up a GitHub issue and drive it to completion — analyze requirements, decompose into tasks, delegate to specialists, verify, and close."
-mode: "TechLeadOrchestrator"
+agent: "TechLeadOrchestrator"
 input: "Paste the GitHub issue URL, number, or full description. Include any additional context such as related PRs, blockers, or stakeholder constraints."
 ---
 

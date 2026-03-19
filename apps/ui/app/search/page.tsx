@@ -1,14 +1,16 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { MainLayout } from '@/components/templates/MainLayout';
 import { SearchInput } from '@/components/molecules/SearchInput';
-import { ProductGrid } from '@/components/organisms/ProductGrid';
-import { Badge } from '@/components/atoms/Badge';
 import { Alert } from '@/components/molecules/Alert';
 import { Button } from '@/components/atoms/Button';
-import { useSemanticSearch } from '@/lib/hooks/useSemanticSearch';
+import { SearchModeToggle } from '@/components/enrichment/SearchModeToggle';
+import { IntentPanel } from '@/components/enrichment/IntentPanel';
+import { SearchResultCard } from '@/components/enrichment/SearchResultCard';
+import { useIntelligentSearch } from '@/lib/hooks/useIntelligentSearch';
 
 type ProxyErrorShape = {
   status?: number;
@@ -39,12 +41,17 @@ export default function SearchPage() {
   const initialQuery = searchParams.get('q') ?? '';
   const [query, setQuery] = useState(initialQuery);
 
-  const { data, isLoading, error, refetch, isFetching } = useSemanticSearch(query, 20);
+  const {
+    data,
+    isLoading,
+    error,
+    refetch,
+    isFetching,
+    preference,
+    setPreference,
+    resolvedMode,
+  } = useIntelligentSearch(query, 20);
   const products = data?.items ?? [];
-  const sourceLabel =
-    data?.source === 'agent'
-      ? 'Catalog Search Agent'
-      : 'Catalog Search fallback (agent unavailable)';
   const proxyFailure = getProxyFailureError(error);
 
   const proxyFailureLabelByKind: Record<'config' | 'network' | 'upstream', string> = {
@@ -73,6 +80,12 @@ export default function SearchPage() {
     >
       <div className="mb-8 space-y-4">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Search</h1>
+        <Link
+          href="/admin/agent-activity"
+          className="inline-flex text-sm text-blue-600 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-blue-400"
+        >
+          View Agent Activity
+        </Link>
         <SearchInput
           placeholder="Search products..."
           value={query}
@@ -80,16 +93,31 @@ export default function SearchPage() {
           onSearch={handleSearch}
           size="lg"
         />
-        <div role="status" aria-live="polite" aria-atomic="true">
-          <Badge className="bg-ocean-500 text-white">Search source: {sourceLabel}</Badge>
-        </div>
+        <SearchModeToggle
+          preference={preference}
+          resolvedMode={resolvedMode}
+          onChange={setPreference}
+        />
+        <IntentPanel mode={resolvedMode} intent={data?.intent} subqueries={data?.subqueries} />
       </div>
 
-      <ProductGrid
-        products={products}
-        loading={isLoading}
-        emptyMessage={query ? 'No products matched your search.' : 'Search for products above.'}
-      />
+      {isLoading ? (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <div key={`search-skeleton-${index}`} className="h-80 animate-pulse rounded-2xl bg-[var(--hp-surface-strong)]" />
+          ))}
+        </div>
+      ) : products.length === 0 ? (
+        <p className="py-10 text-center text-lg text-[var(--hp-text-muted)]">
+          {query ? 'No products matched your search.' : 'Search for products above.'}
+        </p>
+      ) : (
+        <section className="space-y-4" aria-label="Search results">
+          {products.map((product) => (
+            <SearchResultCard key={product.sku} product={product} />
+          ))}
+        </section>
+      )}
 
       {proxyFailure && query && (
         <Alert

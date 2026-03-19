@@ -25,6 +25,11 @@ class ReviewItem(BaseModel):
     rejected_reason: str | None = None
     reviewed_at: datetime | None = None
     reviewed_by: str | None = None
+    original_data: dict[str, Any] | None = None
+    enriched_data: dict[str, Any] | None = None
+    reasoning: str | None = None
+    source_assets: list[dict[str, Any]] | None = None
+    source_type: str | None = None
 
 
 class ReviewDecision(BaseModel):
@@ -48,6 +53,11 @@ class AuditEvent(BaseModel):
     reason: str | None
     reviewed_by: str | None
     timestamp: datetime
+    original_data: dict[str, Any] | None = None
+    enriched_data: dict[str, Any] | None = None
+    reasoning: str | None = None
+    source_assets: list[dict[str, Any]] | None = None
+    source_type: str | None = None
 
 
 class ReviewManager:
@@ -125,6 +135,7 @@ class ReviewManager:
                 new_value=item.proposed_value,
                 reason=None,
                 reviewed_by=decision.reviewed_by,
+                item=item,
             )
             approved.append(item)
         return approved
@@ -149,6 +160,7 @@ class ReviewManager:
                 new_value=None,
                 reason=decision.reason,
                 reviewed_by=decision.reviewed_by,
+                item=item,
             )
             rejected.append(item)
         return rejected
@@ -174,6 +186,7 @@ class ReviewManager:
                 new_value=decision.edited_value,
                 reason=decision.reason,
                 reviewed_by=decision.reviewed_by,
+                item=item,
             )
             edited.append(item)
         return edited
@@ -205,6 +218,7 @@ class ReviewManager:
         new_value: Any,
         reason: str | None,
         reviewed_by: str | None,
+        item: ReviewItem,
     ) -> None:
         import uuid
 
@@ -219,5 +233,10 @@ class ReviewManager:
                 reason=reason,
                 reviewed_by=reviewed_by,
                 timestamp=datetime.now(timezone.utc),
+                original_data=item.original_data,
+                enriched_data=item.enriched_data,
+                reasoning=item.reasoning,
+                source_assets=item.source_assets,
+                source_type=item.source_type,
             )
         )

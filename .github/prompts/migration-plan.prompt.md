@@ -1,7 +1,7 @@
 ---
 title: "Migration Plan"
 description: "Plan a framework upgrade, major dependency bump, language version migration, or service migration with risk assessment and staged rollout."
-mode: "TechLeadOrchestrator"
+agent: "TechLeadOrchestrator"
 input: "Describe the migration: source version/framework → target version/framework. Include the reason for migrating and any deadline."
 ---
 
@@ -43,4 +43,3 @@ Coordinate a multi-agent migration plan:
    - **Stage 5: Cleanup** — Remove compatibility shims, deprecated code paths, and old config
    - Rollback trigger criteria and procedure for each stage
    - Estimated timeline per stage
-

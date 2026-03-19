@@ -17,8 +17,11 @@ from holiday_peak_lib.schemas.truth import (
     ProductVariant,
     ProposedAttribute,
     Provenance,
+    SearchEnrichedProduct,
     SharePolicy,
+    SourceType,
     TruthAttribute,
+    IntentClassification,
 )
 
 
@@ -263,6 +266,111 @@ class TestProposedAttribute:
         data = pa.model_dump()
         assert data["confidence"] == 0.8
 
+    def test_extended_fields_defaults_are_backward_compatible(self):
+        pa = ProposedAttribute(
+            entityType="style",
+            entityId="S1",
+            attributeKey="k",
+            value="v",
+            source="PIM",
+            confidence=0.8,
+            modelRunId="run-1",
+        )
+        assert pa.source_type is None
+        assert pa.source_assets == []
+        assert pa.original_data == {}
+        assert pa.enriched_data == {}
+        assert pa.reasoning is None
+
+    def test_extended_fields_json_roundtrip(self):
+        pa = ProposedAttribute(
+            entityType="style",
+            entityId="S1",
+            attributeKey="k",
+            value="v",
+            source="PIM",
+            confidence=0.8,
+            modelRunId="run-1",
+            sourceType="ai_reasoning",
+            sourceAssets=["asset-1"],
+            originalData={"title": "Original"},
+            enrichedData={"title": "Enriched"},
+            reasoning="Matched product title semantics.",
+        )
+        payload = pa.model_dump_json(by_alias=True)
+        restored = ProposedAttribute.model_validate_json(payload)
+        assert restored.source_type == SourceType.AI_REASONING
+        assert restored.source_assets == ["asset-1"]
+        assert restored.original_data["title"] == "Original"
+        assert restored.enriched_data["title"] == "Enriched"
+        assert restored.reasoning == "Matched product title semantics."
+
+
+class TestIntentClassification:
+    """Tests for IntentClassification model."""
+
+    def test_required_and_optional_fields(self):
+        model = IntentClassification(intent="product_search", confidence=0.92)
+        assert model.intent == "product_search"
+        assert model.confidence == 0.92
+        assert model.entities == {}
+        assert model.reasoning is None
+
+    def test_confidence_bounds(self):
+        with pytest.raises(Exception):
+            IntentClassification(intent="x", confidence=1.1)
+        with pytest.raises(Exception):
+            IntentClassification(intent="x", confidence=-0.1)
+
+    def test_json_roundtrip(self):
+        model = IntentClassification(
+            intent="product_search",
+            confidence=0.81,
+            entities={"brand": "Acme"},
+            reasoning="Contains product-like tokens.",
+        )
+        payload = model.model_dump_json()
+        restored = IntentClassification.model_validate_json(payload)
+        assert restored.intent == "product_search"
+        assert restored.entities["brand"] == "Acme"
+
+
+class TestSearchEnrichedProduct:
+    """Tests for SearchEnrichedProduct model."""
+
+    def test_required_and_optional_fields(self):
+        result = SearchEnrichedProduct(sku="SKU-1")
+        assert result.sku == "SKU-1"
+        assert result.score is None
+        assert result.source_type is None
+        assert result.source_assets == []
+        assert result.original_data == {}
+        assert result.enriched_data == {}
+        assert result.intent_classification is None
+        assert result.reasoning is None
+
+    def test_json_roundtrip(self):
+        result = SearchEnrichedProduct(
+            sku="SKU-1",
+            score=0.74,
+            sourceType="product_context",
+            sourceAssets=["asset-1", "asset-2"],
+            originalData={"name": "Original Name"},
+            enrichedData={"name": "Enriched Name"},
+            intentClassification={
+                "intent": "product_search",
+                "confidence": 0.88,
+                "entities": {"color": "red"},
+            },
+            reasoning="Matched query and preferred attributes.",
+        )
+        payload = result.model_dump_json(by_alias=True)
+        restored = SearchEnrichedProduct.model_validate_json(payload)
+        assert restored.source_type == SourceType.PRODUCT_CONTEXT
+        assert restored.intent_classification is not None
+        assert restored.intent_classification.intent == "product_search"
+        assert restored.enriched_data["name"] == "Enriched Name"
+
 
 class TestGapReport:
     """Tests for GapReport model."""
@@ -432,5 +540,8 @@ class TestSchemaExports:
             "AttributeStatus",
             "AuditAction",
             "GapReportTarget",
+            "SourceType",
+            "SearchEnrichedProduct",
+            "IntentClassification",
         ]:
             assert hasattr(schemas, name), f"{name} not exported from schemas"

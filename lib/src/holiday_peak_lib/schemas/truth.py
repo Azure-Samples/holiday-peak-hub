@@ -76,6 +76,15 @@ class GapReportTarget(str, Enum):
     ACP = "ACP"
 
 
+class SourceType(str, Enum):
+    """Origin category for enrichment/search contextual data."""
+
+    AI_REASONING = "ai_reasoning"
+    PRODUCT_CONTEXT = "product_context"
+    CATEGORY_INFERENCE = "category_inference"
+    IMAGE_ANALYSIS = "image_analysis"
+
+
 # ---------------------------------------------------------------------------
 # Shared value objects
 # ---------------------------------------------------------------------------
@@ -244,6 +253,40 @@ class ProposedAttribute(BaseModel):
     model_run_id: str = Field(alias="modelRunId")
     evidence_refs: list[str] = Field(default_factory=list, alias="evidenceRefs")
     validation_errors: list[str] = Field(default_factory=list, alias="validationErrors")
+    source_type: Optional[SourceType] = Field(None, alias="sourceType")
+    source_assets: list[str] = Field(default_factory=list, alias="sourceAssets")
+    original_data: dict[str, Any] = Field(default_factory=dict, alias="originalData")
+    enriched_data: dict[str, Any] = Field(default_factory=dict, alias="enrichedData")
+    reasoning: Optional[str] = None
+
+
+class IntentClassification(BaseModel):
+    """Intent classification result for a search/enrichment request."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    intent: str
+    confidence: float = Field(..., ge=0.0, le=1.0)
+    entities: dict[str, Any] = Field(default_factory=dict)
+    reasoning: Optional[str] = None
+
+
+class SearchEnrichedProduct(BaseModel):
+    """Shared search result enriched with context for downstream UI/services."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    sku: str
+    score: Optional[float] = Field(None, ge=0.0, le=1.0)
+    source_type: Optional[SourceType] = Field(None, alias="sourceType")
+    source_assets: list[str] = Field(default_factory=list, alias="sourceAssets")
+    original_data: dict[str, Any] = Field(default_factory=dict, alias="originalData")
+    enriched_data: dict[str, Any] = Field(default_factory=dict, alias="enrichedData")
+    intent_classification: Optional[IntentClassification] = Field(
+        None,
+        alias="intentClassification",
+    )
+    reasoning: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------

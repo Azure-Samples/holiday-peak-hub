@@ -1,7 +1,7 @@
 ---
 title: "Platform: Dependency Audit"
 description: "Audit project dependencies for vulnerabilities, currency, and license compliance."
-mode: "PlatformEngineer"
+agent: "PlatformEngineer"
 input: "Specify the project or lockfile to audit (package.json, Cargo.toml, pyproject.toml, etc.)."
 ---
 
