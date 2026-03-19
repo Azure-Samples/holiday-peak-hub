@@ -7,10 +7,21 @@ from ecommerce_checkout_support.adapters import (
     CheckoutAdapters,
     CheckoutValidationAdapter,
 )
-from ecommerce_checkout_support.agents import CheckoutSupportAgent, _coerce_items
+from ecommerce_checkout_support.agents import (
+    CheckoutSupportAgent,
+    _checkout_instructions,
+    _coerce_items,
+)
 from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.schemas.inventory import InventoryContext, InventoryItem
 from holiday_peak_lib.schemas.pricing import PriceContext, PriceEntry
+
+
+def test_checkout_instructions_load_structured_sections():
+    text = _checkout_instructions("ecommerce-checkout-support")
+    assert "## Identity and Role" in text
+    assert "## Data Sources and Tools" in text
+    assert "## Integration Points" in text
 
 
 @pytest.fixture

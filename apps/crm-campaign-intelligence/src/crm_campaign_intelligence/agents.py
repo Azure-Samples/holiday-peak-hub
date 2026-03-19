@@ -8,6 +8,7 @@ from typing import Any
 from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
+from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
 
 from .adapters import CampaignAdapters, build_campaign_adapters
 
@@ -119,12 +120,4 @@ def _register_crud_tools(mcp: FastAPIMCPServer) -> None:
 
 
 def _campaign_instructions(service_name: str) -> str:
-    return (
-        f"You are the {service_name} agent. "
-        "Be proactive on every request tied to campaign evaluation. "
-        "Use CRM context and funnel metrics to summarize performance, "
-        "identify drop-off stages, and recommend next actions to improve ROI. "
-        "Always include a lightweight monitoring note: what to track next (e.g., "
-        "key funnel stage, segment, or channel), and any risks or anomalies to watch. "
-        "If data is missing, call it out and propose safe assumptions."
-    )
+    return load_prompt_instructions(__file__, service_name)

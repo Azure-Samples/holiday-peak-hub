@@ -99,6 +99,7 @@ Each ADR follows a standard template:
 
 ### Governance
 - Git branch naming convention ([ADR-022](adrs/adr-022-branch-naming-convention.md))
+- MCP internal communication policy and rollout gates ([ADR-029](adrs/adr-029-mcp-internal-communication-policy.md))
 
 ### Enterprise Integration
 - Enterprise resilience patterns (Circuit Breaker, Bulkhead, Rate Limiter) ([ADR-023](adrs/adr-023-enterprise-resilience-patterns.md))

@@ -13,6 +13,7 @@ from holiday_peak_lib.agents.foundry import (
 )
 from holiday_peak_lib.agents.memory import ColdMemory, HotMemory, WarmMemory
 from holiday_peak_lib.agents.orchestration.router import RoutingStrategy
+from holiday_peak_lib.agents.prompt_loader import load_service_prompt_instructions
 from holiday_peak_lib.connectors.registry import ConnectorRegistry
 from holiday_peak_lib.utils import get_foundry_tracer
 from holiday_peak_lib.utils.logging import configure_logging, log_async_operation
@@ -104,9 +105,11 @@ def build_service_app(
     async def _ensure_role(selected_role: str, config: FoundryAgentConfig, service: str) -> dict:
         target_name = config.agent_name or f"{service}-{selected_role}"
         target_model = config.deployment_name or DEFAULT_FOUNDY_MODELS[selected_role]
+        default_instructions = load_service_prompt_instructions(service)
         ensure_result = await ensure_foundry_agent(
             config,
             agent_name=target_name,
+            instructions=default_instructions,
             create_if_missing=True,
             model=target_model,
         )
@@ -292,7 +295,11 @@ def build_service_app(
             ensure_result = await ensure_foundry_agent(
                 config,
                 agent_name=config.agent_name,
-                instructions=instructions.get(selected_role),
+                instructions=(
+                    instructions.get(selected_role)
+                    if selected_role in instructions
+                    else default_instructions
+                ),
                 create_if_missing=create_if_missing,
                 model=config.deployment_name,
             )

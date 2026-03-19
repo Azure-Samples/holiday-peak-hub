@@ -5,11 +5,22 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from ecommerce_cart_intelligence.adapters import CartAdapters, CartAnalyticsAdapter
-from ecommerce_cart_intelligence.agents import CartIntelligenceAgent, _coerce_cart_items
+from ecommerce_cart_intelligence.agents import (
+    CartIntelligenceAgent,
+    _cart_instructions,
+    _coerce_cart_items,
+)
 from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.schemas.inventory import InventoryContext, InventoryItem
 from holiday_peak_lib.schemas.pricing import PriceContext, PriceEntry
 from holiday_peak_lib.schemas.product import CatalogProduct, ProductContext
+
+
+def test_cart_instructions_load_structured_sections():
+    text = _cart_instructions("ecommerce-cart-intelligence")
+    assert "## Identity and Role" in text
+    assert "## Domain Scope" in text
+    assert "## Integration Points" in text
 
 
 @pytest.fixture

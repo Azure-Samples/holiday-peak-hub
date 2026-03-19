@@ -8,6 +8,7 @@ from typing import Any
 from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
+from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
 
 from .adapters import (
     ReturnsSupportAdapters,
@@ -95,8 +96,4 @@ def _register_crud_tools(mcp: FastAPIMCPServer) -> None:
 
 
 def _returns_instructions() -> str:
-    return (
-        "You are a logistics returns support agent. "
-        "Summarize eligibility and next steps for returns. "
-        "Highlight policy constraints and risks."
-    )
+    return load_prompt_instructions(__file__, "logistics-returns-support")

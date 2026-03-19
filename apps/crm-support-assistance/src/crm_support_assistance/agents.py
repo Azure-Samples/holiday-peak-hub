@@ -8,6 +8,7 @@ from typing import Any
 from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
+from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
 
 from .adapters import SupportAdapters, build_support_adapters
 
@@ -118,9 +119,4 @@ def _register_crud_tools(mcp: FastAPIMCPServer) -> None:
 
 
 def _support_instructions() -> str:
-    return (
-        "You are a CRM support assistance agent. "
-        "Summarize the customer situation, prioritize next steps, "
-        "and suggest escalation criteria when risk is high. "
-        "Keep responses concise and action-oriented."
-    )
+    return load_prompt_instructions(__file__, "crm-support-assistance")

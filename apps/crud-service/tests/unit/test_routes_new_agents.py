@@ -469,6 +469,39 @@ class TestProductSemanticSearch:
         assert data[0]["name"] == "Basic Widget"
 
     @pytest.mark.asyncio
+    async def test_accepts_acp_shape_and_normalizes(
+        self, client, monkeypatch, override_auth_optional
+    ):
+        """ACP-shaped result payloads should normalize to CRUD ProductResponse."""
+
+        class FakeAgent:
+            async def semantic_search(self, query, limit=20):
+                return [
+                    {
+                        "item_id": "sku-77",
+                        "title": "ACP Widget",
+                        "description": "ACP enriched",
+                        "price": "11.50 usd",
+                        "category": "cat-acp",
+                        "image_url": "https://example.com/widget.png",
+                    }
+                ]
+
+            async def get_user_recommendations(self, user_id=None):
+                return None
+
+        monkeypatch.setattr(products_routes, "agent_client", FakeAgent())
+
+        response = client.get("/api/products", params={"search": "widget"})
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["id"] == "sku-77"
+        assert data[0]["name"] == "ACP Widget"
+        assert data[0]["price"] == 11.5
+        assert data[0]["category_id"] == "cat-acp"
+
+    @pytest.mark.asyncio
     async def test_agent_failure_falls_back_to_keyword(
         self, client, monkeypatch, override_auth_optional
     ):

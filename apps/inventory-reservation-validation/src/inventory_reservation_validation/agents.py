@@ -8,6 +8,7 @@ from typing import Any
 from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
+from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
 
 from .adapters import (
     ReservationValidationAdapters,
@@ -97,8 +98,4 @@ def _register_crud_tools(mcp: FastAPIMCPServer) -> None:
 
 
 def _reservation_instructions() -> str:
-    return (
-        "You are an inventory reservation validation agent. "
-        "Validate requested quantities and suggest alternatives when stock is low. "
-        "Provide a clear approval decision and backorder details."
-    )
+    return load_prompt_instructions(__file__, "inventory-reservation-validation")
