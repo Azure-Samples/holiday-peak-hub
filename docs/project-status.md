@@ -35,6 +35,11 @@
 - **AGC Subnet Drift Realignment**: Shared infra defaults now pin the delegated `agc` subnet to `10.0.12.0/24` so `azd provision` matches the live dev VNet layout and stops attempting a destructive subnet replacement during canonical deploy runs.
 - **GitHub OIDC Hook Refresh**: Root POSIX `azd` `postprovision` and `postdeploy` hooks now refresh Azure CLI login from the live GitHub Actions OIDC token immediately before Azure/AKS operations, retrying empty or malformed token responses explicitly so remote deploy failures surface as actionable OIDC refresh errors instead of opaque JSON parsing crashes.
 
+### Runtime Hotfix Notes (2026-03-19)
+- **Dependency Management Hardening (Issue #316)**: Agent service `pyproject.toml` dependencies now use minimum version constraints for key runtime libraries and include a local editable `holiday-peak-lib` source mapping for development workflows.
+- **Lockfile and Build Reproducibility**: App `.dockerignore` files now include `uv.lock` in Docker build context, service Dockerfiles use frozen `uv` sync installs, and CI validates `yarn.lock` / `uv.lock` freshness before linting.
+- **Infrastructure Secret and Region Hygiene**: Shared infrastructure now uses a random `newGuid()`-seeded fallback for PostgreSQL admin password generation and parameterizes Azure AI Foundry location instead of hardcoding the region.
+
 ### Merged PRs (v1.1.0)
 | # | Title | Category |
 |---|-------|----------|
