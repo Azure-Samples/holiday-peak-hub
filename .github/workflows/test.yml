@@ -2,6 +2,7 @@ name: test
 
 permissions:
   contents: read
+  checks: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -36,7 +37,7 @@ jobs:
       - name: Install lib
         run: uv pip install --system -e ./lib/src
       - name: Install test dependencies
-        run: uv pip install --system pytest pytest-cov pytest-asyncio httpx requests
+        run: uv pip install --system pytest pytest-cov pytest-asyncio httpx requests pip-audit
       - name: Install apps
         run: |
           set -e
@@ -50,7 +51,55 @@ jobs:
       - name: Run lib tests with coverage
         working-directory: lib
         run: |
-          pytest tests/ --maxfail=1
+          pytest tests/ --maxfail=1 --cov=src --cov-report=xml:../coverage-lib.xml --cov-fail-under=75 --junitxml=../test-results-lib.xml
       - name: Run app tests
         run: |
-          pytest apps/*/tests --ignore=apps/ui/tests
+          pytest apps/*/tests --ignore=apps/ui/tests --cov=apps --cov-report=xml:coverage-apps.xml --cov-fail-under=60 --junitxml=test-results-apps.xml
+      - name: Run Python dependency vulnerability audit
+        run: pip-audit --progress-spinner off --ignore-vuln CVE-2024-23342
+      - name: Upload Python test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-test-results
+          path: |
+            test-results-lib.xml
+            test-results-apps.xml
+            coverage-lib.xml
+            coverage-apps.xml
+      - name: Publish Python test summary
+        if: always() && github.event_name == 'pull_request'
+        uses: dorny/test-reporter@v1
+        with:
+          name: Python Tests
+          path: test-results-*.xml
+          reporter: java-junit
+
+  ui-quality:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/ui
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: yarn
+          cache-dependency-path: apps/ui/yarn.lock
+      - name: Install UI dependencies
+        run: yarn install --frozen-lockfile
+      - name: Run UI unit tests
+        run: yarn test --ci --coverage --testPathIgnorePatterns=tests/unit/pagesRender.test.tsx
+      - name: Run UI dependency vulnerability audit
+        run: |
+          yarn audit --json > yarn-audit.json || true
+          node -e "const fs=require('fs'); const lines=fs.readFileSync('yarn-audit.json','utf8').split(/\r?\n/).filter(Boolean); let high=0,critical=0; for (const line of lines){ try{const obj=JSON.parse(line); if(obj.type==='auditAdvisory'){const sev=(obj.data.advisory.severity||'').toLowerCase(); if(sev==='high') high++; if(sev==='critical') critical++; }}catch(_){} } console.log('Yarn advisories => high='+high+', critical='+critical); process.exit(high+critical>0?1:0);"
+      - name: Upload UI test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-test-results
+          path: |
+            apps/ui/coverage/**

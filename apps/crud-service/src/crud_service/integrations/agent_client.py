@@ -6,6 +6,7 @@ from typing import Any
 import httpx
 from circuitbreaker import CircuitBreakerError, circuit
 from crud_service.config import get_settings
+from holiday_peak_lib.utils import CORRELATION_HEADER, get_correlation_id
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 logger = logging.getLogger(__name__)
@@ -46,11 +47,16 @@ class AgentClient:
         reraise=True,
     )
     async def _call_endpoint(self, agent_url: str, endpoint: str, data: dict[str, Any]) -> Any:
+        request_headers = {"Content-Type": "application/json"}
+        correlation_id = get_correlation_id()
+        if correlation_id:
+            request_headers[CORRELATION_HEADER] = correlation_id
+
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             response = await client.post(
                 f"{agent_url}{endpoint}",
                 json=data,
-                headers={"Content-Type": "application/json"},
+                headers=request_headers,
             )
             response.raise_for_status()
             return response.json()
