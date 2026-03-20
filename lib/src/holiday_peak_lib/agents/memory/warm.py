@@ -1,6 +1,6 @@
 """Warm memory layer using Azure Cosmos DB."""
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from azure.cosmos.aio import CosmosClient
 from azure.identity import DefaultAzureCredential
@@ -19,14 +19,14 @@ class WarmMemory:
         container: str,
         *,
         connection_limit: int | None = None,
-        client_kwargs: Optional[dict[str, Any]] = None,
+        client_kwargs: dict[str, Any] | None = None,
     ) -> None:
         self.account_uri = account_uri
         self.database = database
         self.container = container
         self.connection_limit = connection_limit
         self.client_kwargs = client_kwargs or {}
-        self.client: Optional[CosmosClient] = None
+        self.client: CosmosClient | None = None
 
     async def connect(self) -> None:
         async def _connect():
@@ -44,7 +44,7 @@ class WarmMemory:
             metadata={"account_uri": self.account_uri},
         )
 
-    async def upsert(self, item: Dict[str, Any]) -> Dict[str, Any]:
+    async def upsert(self, item: dict[str, Any]) -> dict[str, Any]:
         if not self.client:
             await self.connect()
         database = self.client.get_database_client(self.database)
@@ -59,7 +59,7 @@ class WarmMemory:
         )
         return item
 
-    async def read(self, item_id: str, partition_key: str) -> Optional[Dict[str, Any]]:
+    async def read(self, item_id: str, partition_key: str) -> dict[str, Any] | None:
         if not self.client:
             await self.connect()
         database = self.client.get_database_client(self.database)

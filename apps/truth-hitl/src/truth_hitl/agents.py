@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from holiday_peak_lib.agents import BaseRetailAgent
+from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 
 from .adapters import HITLAdapters, build_hitl_adapters
@@ -13,7 +14,7 @@ from .adapters import HITLAdapters, build_hitl_adapters
 class TruthHITLAgent(BaseRetailAgent):
     """Agent that manages the human-in-the-loop review queue for AI-proposed attributes."""
 
-    def __init__(self, config: Any, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, config: AgentDependencies, *args: Any, **kwargs: Any) -> None:
         super().__init__(config, *args, **kwargs)
         self._adapters = build_hitl_adapters()
 
