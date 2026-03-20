@@ -326,23 +326,41 @@ For enhanced review UI support, `reasoning` and `source_assets` accept richer sh
 
 ## 5) Export Service
 
-Base URL: `http://<acp-transformation-host>`
+Base URL: `http://<truth-export-host>`
 
 | Method | Path | Description |
 | --- | --- | --- |
 | GET | `/health` | Liveness |
 | GET | `/ready` | Readiness |
-| POST | `/invoke` | Export SKU as ACP payload |
+| POST | `/export/ucp/{entity_id}` | Export approved entity payload as UCP |
+| POST | `/export/acp/{entity_id}` | Export approved entity payload as ACP |
+| POST | `/export/pim/{entity_id}` | Trigger PIM writeback for one approved entity |
+| POST | `/export/pim/batch` | Trigger bounded-concurrency PIM writeback for up to 100 entities |
+| GET | `/export/protocols` | List supported export protocols |
 
-### Example request: `POST /invoke` (export)
+### Example request: `POST /export/pim/prod-001` (single writeback)
 
 ```json
 {
-  "sku": "prd-001",
-  "availability": "in_stock",
-  "currency": "usd"
+  "dry_run": false,
+  "approved_fields": ["title", "description"],
+  "trigger": "api"
 }
 ```
+
+### HITL approval event trigger
+
+When a reviewer approves or edits-and-approves in `truth-hitl`, the service publishes an
+`export-jobs` message (`event_type=hitl.approved`) to trigger `truth-export` writeback.
+
+Event payload (`data`) includes:
+
+- `entity_id`
+- `approved_fields`
+- `reviewer_id`
+- `decision_timestamp`
+- `protocol` (`pim`)
+- `status` (`approved`)
 
 ## 6) CRUD Endpoints Used in Truth Workflows
 
@@ -366,9 +384,10 @@ Base URL: `http://<crud-host>`
 3. Enrich product details:
    - `POST <enrichment>/invoke` with SKU
 4. Review workflow:
-   - Use CRUD review endpoints (current) or dedicated HITL service (planned)
+  - Approve via `truth-hitl` `/review/{entity_id}/approve` (or batch approve)
 5. Export:
-   - `POST <acp-transformation>/invoke`
+  - `truth-hitl` emits `export-jobs` approval event
+  - `truth-export` consumes event and runs PIM writeback via `/export/pim/*` flow
 
 ## Governance Demonstration: Intentional Non-Compliant Candidate
 
