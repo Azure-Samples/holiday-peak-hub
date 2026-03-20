@@ -79,7 +79,9 @@ class HITLAdapters:
     """Container for Truth HITL service adapters."""
 
     review_manager: ReviewManager = field(default_factory=ReviewManager)
-    export_publisher: EventHubPublisher = field(default_factory=lambda: EventHubPublisher("export-jobs"))
+    export_publisher: EventHubPublisher = field(
+        default_factory=lambda: EventHubPublisher("export-jobs")
+    )
 
 
 def build_hitl_adapters(

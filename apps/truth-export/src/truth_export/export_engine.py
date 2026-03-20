@@ -109,7 +109,9 @@ class ExportEngine:
 
         This command-style method is reused by REST routes and event handlers.
         """
-        result = await (manager.dry_run(entity_id) if dry_run else manager.writeback_product(entity_id))
+        result = await (
+            manager.dry_run(entity_id) if dry_run else manager.writeback_product(entity_id)
+        )
         summary = result.model_dump()
         summary["dry_run"] = dry_run
         summary["status"] = self._resolve_writeback_status(summary)
@@ -154,7 +156,9 @@ class ExportEngine:
                 "dry_run": False,
                 "status": "skipped",
             }
-            skipped_summary["pim_response_summary"] = self._build_pim_response_summary(skipped_summary)
+            skipped_summary["pim_response_summary"] = self._build_pim_response_summary(
+                skipped_summary
+            )
             return skipped_summary
 
         async def _write_one(attr: dict[str, Any]) -> WritebackResult:
@@ -294,8 +298,7 @@ class ExportEngine:
             [
                 r
                 for r in filtered_results
-                if r.get("status")
-                in {WritebackStatus.SKIPPED.value, WritebackStatus.DRY_RUN.value}
+                if r.get("status") in {WritebackStatus.SKIPPED.value, WritebackStatus.DRY_RUN.value}
             ]
         )
         filtered["conflicts"] = len(

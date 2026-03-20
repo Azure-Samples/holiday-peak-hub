@@ -367,7 +367,9 @@ async def test_writeback_to_pim_uses_approved_fields_only(engine, adapters):
         def __init__(self):
             self.called_fields: list[str] = []
 
-        async def writeback_attribute(self, entity_id: str, field: str, value, *, truth_version=None):
+        async def writeback_attribute(
+            self, entity_id: str, field: str, value, *, truth_version=None
+        ):
             _ = entity_id
             _ = value
             _ = truth_version

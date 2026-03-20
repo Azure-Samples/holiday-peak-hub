@@ -119,7 +119,9 @@ async def export_pim_batch(
                     dry_run=request.dry_run,
                 )
 
-        results = list(await asyncio.gather(*[_run_one(entity_id) for entity_id in request.entity_ids]))
+        results = list(
+            await asyncio.gather(*[_run_one(entity_id) for entity_id in request.entity_ids])
+        )
     else:
         results = await engine.writeback_batch(
             adapters.writeback_manager,
