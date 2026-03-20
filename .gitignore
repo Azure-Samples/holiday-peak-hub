@@ -446,6 +446,7 @@ htmlcov/
 package-lock.json
 *.lock
 !apps/ui/yarn.lock
+!apps/*/src/uv.lock
 
 # testing
 /coverage

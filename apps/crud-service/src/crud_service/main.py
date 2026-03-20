@@ -4,7 +4,6 @@ This is NOT an agent service - it's a pure REST API microservice
 for transactional data operations and user-facing endpoints.
 """
 
-import logging
 import os
 from contextlib import asynccontextmanager
 
@@ -45,21 +44,21 @@ from crud_service.routes import (
 from crud_service.routes.staff import analytics
 from crud_service.routes.staff import returns as staff_returns
 from crud_service.routes.staff import shipments, tickets
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from holiday_peak_lib.connectors.registry import ConnectorRegistry
-from opentelemetry import trace
-
-# Configure structured logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+from holiday_peak_lib.utils import (
+    CORRELATION_HEADER,
+    clear_correlation_id,
+    configure_logging,
+    set_correlation_id,
 )
-logger = logging.getLogger(__name__)
+from opentelemetry import trace
 
 # Get settings
 settings = get_settings()
+logger = configure_logging(app_name=settings.service_name)
 
 
 @asynccontextmanager
@@ -164,6 +163,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def correlation_middleware(request: Request, call_next):
+    incoming_correlation = (
+        request.headers.get(CORRELATION_HEADER)
+        or request.headers.get("X-Correlation-ID")
+        or request.headers.get("x-request-id")
+    )
+    correlation_id = set_correlation_id(incoming_correlation)
+    try:
+        response = await call_next(request)
+    finally:
+        clear_correlation_id()
+    response.headers["X-Correlation-ID"] = correlation_id
+    return response
 
 
 # Exception handlers

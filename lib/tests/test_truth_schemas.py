@@ -14,6 +14,7 @@ from holiday_peak_lib.schemas.truth import (
     GapReport,
     GapReportTarget,
     IntentClassification,
+    ProductEnrichmentProposal,
     ProductStyle,
     ProductVariant,
     ProposedAttribute,
@@ -335,6 +336,49 @@ class TestIntentClassification:
         assert restored.entities["brand"] == "Acme"
 
 
+class TestProductEnrichmentProposal:
+    """Tests for ProductEnrichmentProposal compatibility model."""
+
+    @pytest.mark.parametrize(
+        "source_type",
+        ["text_enrichment", "image_analysis", "hybrid", "ai_reasoning"],
+    )
+    def test_compatible_payload_and_source_type_variants(self, source_type: str):
+        model = ProductEnrichmentProposal(
+            entityType="style",
+            entityId="S1",
+            attributeKey="material",
+            value="leather",
+            source="SYSTEM",
+            confidence=0.81,
+            modelRunId="run-1",
+            sourceType=source_type,
+            sourceAssets=["asset-1"],
+            originalData={"name": "Original"},
+            enrichedData={"name": "Enriched"},
+            reasoning="Context and evidence support the proposal.",
+        )
+        assert model.source_type is not None
+        assert model.source_type.value == source_type
+        assert model.source_assets == ["asset-1"]
+
+    def test_roundtrip_json(self):
+        model = ProductEnrichmentProposal(
+            entityType="style",
+            entityId="S2",
+            attributeKey="title",
+            value="Trail Shoe",
+            source="PIM",
+            confidence=0.77,
+            modelRunId="run-2",
+            sourceType="text_enrichment",
+        )
+        payload = model.model_dump_json(by_alias=True)
+        restored = ProductEnrichmentProposal.model_validate_json(payload)
+        assert restored.model_run_id == "run-2"
+        assert restored.source_type == SourceType.TEXT_ENRICHMENT
+
+
 class TestSearchEnrichedProduct:
     """Tests for SearchEnrichedProduct model."""
 
@@ -527,6 +571,7 @@ class TestSchemaExports:
         for name in [
             "ProductStyle",
             "ProductVariant",
+            "ProductEnrichmentProposal",
             "TruthAttribute",
             "ProposedAttribute",
             "GapReport",

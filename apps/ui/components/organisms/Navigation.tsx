@@ -170,12 +170,12 @@ export const Navigation: React.FC<NavigationProps> = ({
 
           <div className="flex items-center gap-1 sm:gap-2">
             <Link
-              href="/admin/agent-activity"
+              href="/admin/enrichment-monitor"
               className="hidden items-center gap-1 rounded-full border border-[var(--hp-border)] bg-[var(--hp-surface-strong)] px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-[var(--hp-text)] md:inline-flex"
-              aria-label="Open agent activity dashboard"
+              aria-label="Open enrichment pipeline monitor"
             >
               <span aria-hidden="true" className={`h-2 w-2 rounded-full ${healthIndicatorClass}`} />
-              Agent Health
+              Pipeline Status
             </Link>
 
             <Link
