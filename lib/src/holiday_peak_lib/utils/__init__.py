@@ -2,6 +2,12 @@
 
 from .bulkhead import Bulkhead, BulkheadFullError
 from .circuit_breaker import CircuitBreaker, CircuitBreakerOpenError, CircuitState
+from .correlation import (
+    CORRELATION_HEADER,
+    clear_correlation_id,
+    get_correlation_id,
+    set_correlation_id,
+)
 from .event_hub import (
     EventHubSubscriber,
     EventHubSubscriberConfig,
@@ -19,13 +25,17 @@ __all__ = [
     "CircuitBreaker",
     "CircuitBreakerOpenError",
     "CircuitState",
+    "CORRELATION_HEADER",
+    "clear_correlation_id",
     "EventHubSubscriber",
     "EventHubSubscriberConfig",
     "EventHubSubscription",
     "create_eventhub_lifespan",
     "configure_logging",
+    "get_correlation_id",
     "RateLimiter",
     "RateLimitExceededError",
+    "set_correlation_id",
     "async_retry",
     "FoundryTracer",
     "get_foundry_tracer",

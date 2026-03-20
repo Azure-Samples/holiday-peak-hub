@@ -10,6 +10,10 @@ from .inventory import InventoryContext, InventoryItem, WarehouseStock
 from .logistics import LogisticsContext, Shipment, ShipmentEvent
 from .pricing import PriceContext, PriceEntry
 from .product import CanonicalProduct, CatalogProduct, ProductContext
+from .search import (
+    IntentClassification,
+    SearchEnrichedProduct,
+)
 from .truth import (
     AssetMetadata,
     AttributeSource,
@@ -22,12 +26,17 @@ from .truth import (
     ExportResult,
     GapReport,
     GapReportTarget,
-    IntentClassification,
+)
+from .truth import IntentClassification as LegacyIntentClassification
+from .truth import (
+    ProductEnrichmentProposal,
     ProductStyle,
     ProductVariant,
     ProposedAttribute,
     Provenance,
-    SearchEnrichedProduct,
+)
+from .truth import SearchEnrichedProduct as LegacySearchEnrichedProduct
+from .truth import (
     SharePolicy,
     SourceType,
     TruthAttribute,
@@ -79,11 +88,14 @@ __all__ = [
     "GapReportTarget",
     "ProductStyle",
     "ProductVariant",
+    "ProductEnrichmentProposal",
     "ProposedAttribute",
     "Provenance",
     "SearchEnrichedProduct",
+    "LegacySearchEnrichedProduct",
     "SharePolicy",
     "SourceType",
     "TruthAttribute",
     "IntentClassification",
+    "LegacyIntentClassification",
 ]

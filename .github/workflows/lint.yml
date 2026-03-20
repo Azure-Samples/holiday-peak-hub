@@ -33,6 +33,15 @@ jobs:
           python-version: '3.13'
       - name: Set up uv
         uses: astral-sh/setup-uv@v5
+      - name: Verify lockfiles are committed and current
+        run: |
+          test -f apps/ui/yarn.lock
+          yarn --cwd apps/ui install --frozen-lockfile --check-files --non-interactive
+          for d in apps/*/src; do
+            [ -f "$d/pyproject.toml" ] || continue
+            [ -f "$d/uv.lock" ] || { echo "Missing uv.lock in $d"; exit 1; }
+            (cd "$d" && uv lock --check)
+          done
       - name: Install lib
         run: uv pip install --system -e ./lib/src
       - name: Install lint dependencies
