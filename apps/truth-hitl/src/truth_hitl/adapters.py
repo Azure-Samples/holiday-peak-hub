@@ -9,7 +9,6 @@ from datetime import datetime, timezone
 from typing import Any
 
 from holiday_peak_lib.utils.logging import configure_logging
-
 from truth_hitl.review_manager import ReviewManager
 
 logger = configure_logging(app_name="truth-hitl")
