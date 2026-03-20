@@ -37,42 +37,46 @@ export const IntentPanel: React.FC<IntentPanelProps> = ({ mode, intent, subqueri
   return (
     <div role="region" aria-label="Search intent details">
       <Card className="border border-[var(--hp-border)] bg-[var(--hp-surface)] p-4">
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--hp-text-muted)]">Intent details</h2>
+        <details>
+          <summary className="cursor-pointer list-none text-sm font-semibold uppercase tracking-wide text-[var(--hp-text-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hp-focus)]">
+            Intent details
+          </summary>
 
-      <div className="space-y-3 text-sm text-[var(--hp-text)]">
-        {intent?.intent ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-semibold">Intent:</span>
-            <span>{intent.intent}</span>
-            {typeof intent.confidence === 'number' ? <ConfidenceBadge value={intent.confidence} /> : null}
-          </div>
-        ) : null}
+          <div className="mt-3 space-y-3 text-sm text-[var(--hp-text)]">
+            {intent?.intent ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-semibold">Intent:</span>
+                <span>{intent.intent}</span>
+                {typeof intent.confidence === 'number' ? <ConfidenceBadge value={intent.confidence} /> : null}
+              </div>
+            ) : null}
 
-        {entities.length > 0 ? (
-          <div>
-            <p className="mb-1 font-semibold">Entities</p>
-            <ul className="grid grid-cols-1 gap-1 sm:grid-cols-2" aria-label="Intent entities">
-              {entities.map(([key, value]) => (
-                <li key={key} className="rounded-lg border border-[var(--hp-border)] bg-[var(--hp-surface-strong)] px-2 py-1">
-                  <span className="font-medium">{key}: </span>
-                  <span>{formatEntityValue(value)}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
+            {entities.length > 0 ? (
+              <div>
+                <p className="mb-1 font-semibold">Entities</p>
+                <ul className="grid grid-cols-1 gap-1 sm:grid-cols-2" aria-label="Intent entities">
+                  {entities.map(([key, value]) => (
+                    <li key={key} className="rounded-lg border border-[var(--hp-border)] bg-[var(--hp-surface-strong)] px-2 py-1">
+                      <span className="font-medium">{key}: </span>
+                      <span>{formatEntityValue(value)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
 
-        {subqueries.length > 0 ? (
-          <div>
-            <p className="mb-1 font-semibold">Subqueries</p>
-            <ul className="list-disc space-y-1 pl-5" aria-label="Generated subqueries">
-              {subqueries.map((subquery) => (
-                <li key={subquery}>{subquery}</li>
-              ))}
-            </ul>
+            {subqueries.length > 0 ? (
+              <div>
+                <p className="mb-1 font-semibold">Subqueries</p>
+                <ul className="list-disc space-y-1 pl-5" aria-label="Generated subqueries">
+                  {subqueries.map((subquery) => (
+                    <li key={subquery}>{subquery}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
           </div>
-        ) : null}
-      </div>
+        </details>
       </Card>
     </div>
   );
