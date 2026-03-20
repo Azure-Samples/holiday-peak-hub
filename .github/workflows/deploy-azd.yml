@@ -509,7 +509,7 @@ jobs:
             fi
           done
 
-          for group in ingestion-group enrichment-engine export-engine hitl-service search-enrichment-agent; do
+          for group in ingestion-group enrichment-engine export-engine hitl-service search-enrichment-consumer search-enrichment-agent; do
             if ! grep -q "'$group'" "$BICEP_FILE"; then
               echo "Missing required truth consumer group declaration in $BICEP_FILE: $group" >&2
               MISSING=1

@@ -52,7 +52,7 @@ test = [
 lint = [
     "pylint",
     "isort",
-    "black[jupyter]>=25.1.0",
+    "black[jupyter]>=26.3.1",
 ]
 docs = [
     "mkdocs",
