@@ -1100,6 +1100,36 @@ resource aksSearchIndexDataContributorRole 'Microsoft.Authorization/roleAssignme
   }
 }
 
+// Azure AI Search managed identity -> Cosmos DB (control plane)
+resource aiSearchCosmosAccountReaderRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, aiSearchName, cosmosAccountName, 'CosmosAccountReader')
+  scope: cosmosAccount
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'fbdf93bf-df7d-467e-a4d2-9458aa1360c8') // Cosmos DB Account Reader Role
+    principalId: aiSearchFromFoundry.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+  dependsOn: [
+    aiFoundry
+    cosmos
+  ]
+}
+
+// Azure AI Search managed identity -> Cosmos DB (data plane)
+resource aiSearchCosmosDataReaderRole 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2023-11-15' = {
+  parent: cosmosAccount
+  name: guid(resourceGroup().id, aiSearchName, cosmosAccountName, 'CosmosDataReader')
+  properties: {
+    roleDefinitionId: '${cosmosAccount.id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000001' // Built-in Data Reader
+    principalId: aiSearchFromFoundry.identity.principalId
+    scope: cosmosAccount.id
+  }
+  dependsOn: [
+    aiFoundry
+    cosmos
+  ]
+}
+
 // Outputs
 output aksClusterName string = aks.outputs.name
 output acrLoginServer string = acr.outputs.loginServer

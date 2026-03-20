@@ -131,11 +131,13 @@ if (-not $cosmosAccountName) {
     exit 1
 }
 
-$cosmosConnectionString = az cosmosdb keys list --resource-group $ResourceGroup --name $cosmosAccountName --type connection-strings --query 'connectionStrings[0].connectionString' -o tsv
-if (-not $cosmosConnectionString) {
-    Write-Error "Failed to resolve Cosmos DB connection string for account '$cosmosAccountName'."
+$cosmosAccountId = az cosmosdb show --resource-group $ResourceGroup --name $cosmosAccountName --query id -o tsv 2>$null
+if (-not $cosmosAccountId) {
+    Write-Error "Failed to resolve Cosmos DB resource ID for account '$cosmosAccountName'."
     exit 1
 }
+
+$cosmosConnectionString = "ResourceId=$cosmosAccountId;Database=$cosmosDatabase;IdentityAuthType=AccessToken"
 
 $projectEndpoint = Resolve-FromAzdEnv -Keys @('PROJECT_ENDPOINT')
 if (-not $projectEndpoint) {
@@ -217,13 +219,14 @@ $indexDefinition = @{
         @{ name = 'search_keywords'; type = 'Collection(Edm.String)'; searchable = $true }
         @{ name = 'enriched_description'; type = 'Edm.String'; searchable = $true }
         @{ name = 'description_vector'; type = 'Collection(Edm.Single)'; searchable = $true; retrievable = $true; dimensions = 3072; vectorSearchProfile = 'default-vector-profile' }
+        @{ name = 'content_vector'; type = 'Collection(Edm.Single)'; searchable = $true; retrievable = $true; dimensions = 3072; vectorSearchProfile = 'default-vector-profile' }
     )
     vectorSearch = @{
         algorithms = @(
             @{ name = 'hnsw-algo'; kind = 'hnsw'; hnswParameters = @{ m = 4; efConstruction = 400; efSearch = 500; metric = 'cosine' } }
         )
         profiles = @(
-            @{ name = 'default-vector-profile'; algorithmConfigurationName = 'hnsw-algo'; vectorizer = 'text-embedding-vectorizer' }
+            @{ name = 'default-vector-profile'; algorithm = 'hnsw-algo'; vectorizer = 'text-embedding-vectorizer' }
         )
         vectorizers = @(
             @{ name = 'text-embedding-vectorizer'; kind = 'azureOpenAI'; azureOpenAIParameters = @{ modelName = $EmbeddingDeploymentName; deploymentId = $EmbeddingDeploymentName; resourceUri = $projectEndpoint } }
@@ -231,7 +234,7 @@ $indexDefinition = @{
     }
     semantic = @{
         configurations = @(
-            @{ name = 'default-semantic'; prioritizedFields = @{ titleField = @{ fieldName = 'name' }; contentFields = @(@{ fieldName = 'enriched_description' }, @{ fieldName = 'description' }); keywordsFields = @(@{ fieldName = 'search_keywords' }, @{ fieldName = 'use_cases' }) } }
+            @{ name = 'default-semantic'; prioritizedFields = @{ titleField = @{ fieldName = 'name' }; prioritizedContentFields = @(@{ fieldName = 'enriched_description' }, @{ fieldName = 'description' }); prioritizedKeywordsFields = @(@{ fieldName = 'search_keywords' }, @{ fieldName = 'use_cases' }) } }
         )
     }
 } | ConvertTo-Json -Depth 20 -Compress
@@ -246,10 +249,6 @@ $indexerDefinition = @{
         batchSize = 100
         maxFailedItems = 10
         maxFailedItemsPerBatch = 5
-        configuration = @{
-            parsingMode = 'json'
-            dataToExtract = 'contentAndMetadata'
-        }
     }
     fieldMappings = @(
         @{ sourceFieldName = 'entity_id'; targetFieldName = 'entity_id' }
@@ -267,6 +266,7 @@ $indexerDefinition = @{
     )
     outputFieldMappings = @(
         @{ sourceFieldName = '/document/description_vector'; targetFieldName = 'description_vector' }
+        @{ sourceFieldName = '/document/description_vector'; targetFieldName = 'content_vector' }
     )
 } | ConvertTo-Json -Depth 16 -Compress
 
@@ -275,18 +275,19 @@ $headers = @{ 'api-key' = $adminKey; 'Content-Type' = 'application/json' }
 function Invoke-SearchPut {
     param([string]$Name, [string]$Uri, [string]$Body)
     for ($attempt = 1; $attempt -le 12; $attempt++) {
-        try {
-            Invoke-RestMethod -Method Put -Uri $Uri -Headers $headers -Body $Body | Out-Null
+        $response = Invoke-WebRequest -Method Put -Uri $Uri -Headers $headers -Body $Body -SkipHttpErrorCheck
+        if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 300) {
             Write-Host "Azure AI Search resource '$Name' is ready."
             return
         }
-        catch {
-            if ($attempt -eq 12) {
-                Write-Error "Failed to create or update Azure AI Search resource '$Name': $($_.Exception.Message)"
-                exit 1
-            }
-            Start-Sleep -Seconds 10
+
+        if ($attempt -eq 12) {
+            $detail = if ($response.Content) { " Details: $($response.Content)" } else { '' }
+            Write-Error "Failed to create or update Azure AI Search resource '$Name' (HTTP $($response.StatusCode)).$detail"
+            exit 1
         }
+
+        Start-Sleep -Seconds 10
     }
 }
 
