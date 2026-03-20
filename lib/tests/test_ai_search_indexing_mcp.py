@@ -9,7 +9,6 @@ from datetime import datetime, timedelta
 import httpx
 import pytest
 from azure.core.credentials import AccessToken
-
 from holiday_peak_lib.mcp.ai_search_indexing import (
     AISearchIndexingClient,
     AISearchIndexingSettings,
@@ -122,7 +121,9 @@ async def test_ai_search_mcp_tools_return_structured_http_errors() -> None:
     mcp = _DummyMCP()
     register_ai_search_indexing_tools(mcp, client=client)
 
-    status_result = await mcp.tools["/ai-search-indexing/get_indexer_status"]({"indexer_name": "idx"})
+    status_result = await mcp.tools["/ai-search-indexing/get_indexer_status"](
+        {"indexer_name": "idx"}
+    )
     reset_result = await mcp.tools["/ai-search-indexing/reset_indexer"]({"indexer_name": "idx"})
     run_result = await mcp.tools["/ai-search-indexing/trigger_indexer_run"]({"indexer_name": "idx"})
 

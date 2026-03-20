@@ -22,6 +22,7 @@ from .truth import (
     ExportResult,
     GapReport,
     GapReportTarget,
+    IntentClassification,
     ProductStyle,
     ProductVariant,
     ProposedAttribute,
@@ -30,7 +31,6 @@ from .truth import (
     SharePolicy,
     SourceType,
     TruthAttribute,
-    IntentClassification,
 )
 from .ucp import UcpCompliance, UcpImage, UcpMetadata, UcpPricing, UcpProduct
 

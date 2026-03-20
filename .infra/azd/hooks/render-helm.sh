@@ -232,7 +232,12 @@ add_env_arg "APPLICATIONINSIGHTS_CONNECTION_STRING" "${APPLICATIONINSIGHTS_CONNE
 
 if [ "$SERVICE_NAME" = "ecommerce-catalog-search" ]; then
   add_env_arg "SEARCH_ENRICHMENT_EVENT_HUB_NAME" "${SEARCH_ENRICHMENT_EVENT_HUB_NAME:-search-enrichment-jobs}"
-  add_env_arg "SEARCH_ENRICHMENT_EVENT_HUB_CONSUMER_GROUP" "${SEARCH_ENRICHMENT_EVENT_HUB_CONSUMER_GROUP:-search-enrichment-agent}"
+  add_env_arg "SEARCH_ENRICHMENT_EVENT_HUB_CONSUMER_GROUP" "${SEARCH_ENRICHMENT_EVENT_HUB_CONSUMER_GROUP:-search-enrichment-consumer}"
+fi
+
+if [ "$SERVICE_NAME" = "search-enrichment-agent" ]; then
+  add_env_arg "SEARCH_ENRICHMENT_EVENT_HUB_NAME" "${SEARCH_ENRICHMENT_EVENT_HUB_NAME:-search-enrichment-jobs}"
+  add_env_arg "SEARCH_ENRICHMENT_EVENT_HUB_CONSUMER_GROUP" "${SEARCH_ENRICHMENT_EVENT_HUB_CONSUMER_GROUP:-search-enrichment-consumer}"
 fi
 
 if is_truth_service; then
