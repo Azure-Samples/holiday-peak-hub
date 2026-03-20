@@ -10,7 +10,7 @@ const nextConfig = {
   reactStrictMode: true,
   output: 'standalone', // For Azure Static Web Apps deployment
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
 
   // Image optimization configuration
