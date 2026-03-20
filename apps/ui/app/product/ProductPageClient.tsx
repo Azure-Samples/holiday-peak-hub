@@ -15,6 +15,7 @@ import { formatAgentResponse, type AgentMessageView } from '@/lib/utils/agentRes
 import AgentMessageDisplay from '@/components/organisms/AgentMessageDisplay';
 import { UseCaseTags } from '@/components/enrichment/UseCaseTags';
 import { RelatedProductsRail } from '@/components/enrichment/RelatedProductsRail';
+import { useRelatedProducts } from '@/lib/hooks/useRelatedProducts';
 import agentApiClient from '@/lib/api/agentClient';
 import { trackEcommerceEvent } from '@/lib/utils/telemetry';
 import { FiArrowRight, FiShoppingCart, FiTruck, FiShield, FiRotateCcw } from 'react-icons/fi';
@@ -200,6 +201,16 @@ export function ProductPageClient({ productId }: { productId: string }) {
   const [fitAssessment, setFitAssessment] = useState<FitAssessment | null>(null);
 
   const uiProduct = useMemo(() => (product ? mapApiProductToUiProduct(product) : null), [product]);
+  const relatedProductIds = useMemo(() => {
+    if (!uiProduct) {
+      return [];
+    }
+
+    return Array.from(
+      new Set([...(uiProduct.complementaryProducts || []), ...(uiProduct.substituteProducts || [])]),
+    );
+  }, [uiProduct]);
+  const { data: relatedProductMap = {} } = useRelatedProducts(relatedProductIds);
 
   useEffect(() => {
     if (!product?.category_id) {
@@ -405,8 +416,16 @@ export function ProductPageClient({ productId }: { productId: string }) {
 
                   <div className="mb-6 space-y-4">
                     <UseCaseTags useCases={uiProduct.useCases} />
-                    <RelatedProductsRail title="Complements" items={uiProduct.complementaryProducts} />
-                    <RelatedProductsRail title="Alternatives" items={uiProduct.substituteProducts} />
+                    <RelatedProductsRail
+                      title="Complements"
+                      items={uiProduct.complementaryProducts}
+                      productMap={relatedProductMap}
+                    />
+                    <RelatedProductsRail
+                      title="Alternatives"
+                      items={uiProduct.substituteProducts}
+                      productMap={relatedProductMap}
+                    />
                   </div>
 
                   <div className="mb-6 flex items-end gap-3">
