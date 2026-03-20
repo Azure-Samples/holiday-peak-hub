@@ -101,11 +101,13 @@ if [ -z "$COSMOS_ACCOUNT_NAME" ]; then
   exit 1
 fi
 
-COSMOS_CONNECTION_STRING="$(az cosmosdb keys list --resource-group "$RESOURCE_GROUP" --name "$COSMOS_ACCOUNT_NAME" --type connection-strings --query 'connectionStrings[0].connectionString' -o tsv)"
-if [ -z "$COSMOS_CONNECTION_STRING" ]; then
-  echo "Failed to resolve Cosmos DB connection string for account '${COSMOS_ACCOUNT_NAME}'." >&2
+COSMOS_ACCOUNT_ID="$(az cosmosdb show --resource-group "$RESOURCE_GROUP" --name "$COSMOS_ACCOUNT_NAME" --query id -o tsv 2>/dev/null || true)"
+if [ -z "$COSMOS_ACCOUNT_ID" ]; then
+  echo "Failed to resolve Cosmos DB resource ID for account '${COSMOS_ACCOUNT_NAME}'." >&2
   exit 1
 fi
+
+COSMOS_CONNECTION_STRING="ResourceId=${COSMOS_ACCOUNT_ID};Database=${COSMOS_DATABASE};IdentityAuthType=AccessToken"
 
 PROJECT_ENDPOINT_VALUE="$(resolve_from_azd_env 'PROJECT_ENDPOINT')"
 if [ -z "$PROJECT_ENDPOINT_VALUE" ]; then
@@ -135,12 +137,12 @@ EOF
 )
 
 INDEX_DEFINITION=$(cat <<EOF
-{"name":"${VECTOR_INDEX_NAME}","fields":[{"name":"id","type":"Edm.String","key":true,"filterable":true},{"name":"entity_id","type":"Edm.String","filterable":true},{"name":"sku","type":"Edm.String","filterable":true,"searchable":true},{"name":"name","type":"Edm.String","searchable":true,"analyzer":"en.microsoft"},{"name":"brand","type":"Edm.String","filterable":true,"facetable":true,"searchable":true},{"name":"category","type":"Edm.String","filterable":true,"facetable":true},{"name":"description","type":"Edm.String","searchable":true,"analyzer":"en.microsoft"},{"name":"price","type":"Edm.Double","filterable":true,"sortable":true,"facetable":true},{"name":"use_cases","type":"Collection(Edm.String)","filterable":true,"searchable":true},{"name":"complementary_products","type":"Collection(Edm.String)","filterable":true},{"name":"substitute_products","type":"Collection(Edm.String)","filterable":true},{"name":"search_keywords","type":"Collection(Edm.String)","searchable":true},{"name":"enriched_description","type":"Edm.String","searchable":true},{"name":"description_vector","type":"Collection(Edm.Single)","searchable":true,"retrievable":true,"dimensions":3072,"vectorSearchProfile":"default-vector-profile"}],"vectorSearch":{"algorithms":[{"name":"hnsw-algo","kind":"hnsw","hnswParameters":{"m":4,"efConstruction":400,"efSearch":500,"metric":"cosine"}}],"profiles":[{"name":"default-vector-profile","algorithmConfigurationName":"hnsw-algo","vectorizer":"text-embedding-vectorizer"}],"vectorizers":[{"name":"text-embedding-vectorizer","kind":"azureOpenAI","azureOpenAIParameters":{"modelName":"${EMBEDDING_DEPLOYMENT_NAME}","deploymentId":"${EMBEDDING_DEPLOYMENT_NAME}","resourceUri":"${PROJECT_ENDPOINT_VALUE}"}}]},"semantic":{"configurations":[{"name":"default-semantic","prioritizedFields":{"titleField":{"fieldName":"name"},"contentFields":[{"fieldName":"enriched_description"},{"fieldName":"description"}],"keywordsFields":[{"fieldName":"search_keywords"},{"fieldName":"use_cases"}]}}]}}
+{"name":"${VECTOR_INDEX_NAME}","fields":[{"name":"id","type":"Edm.String","key":true,"filterable":true},{"name":"entity_id","type":"Edm.String","filterable":true},{"name":"sku","type":"Edm.String","filterable":true,"searchable":true},{"name":"name","type":"Edm.String","searchable":true,"analyzer":"en.microsoft"},{"name":"brand","type":"Edm.String","filterable":true,"facetable":true,"searchable":true},{"name":"category","type":"Edm.String","filterable":true,"facetable":true},{"name":"description","type":"Edm.String","searchable":true,"analyzer":"en.microsoft"},{"name":"price","type":"Edm.Double","filterable":true,"sortable":true,"facetable":true},{"name":"use_cases","type":"Collection(Edm.String)","filterable":true,"searchable":true},{"name":"complementary_products","type":"Collection(Edm.String)","filterable":true},{"name":"substitute_products","type":"Collection(Edm.String)","filterable":true},{"name":"search_keywords","type":"Collection(Edm.String)","searchable":true},{"name":"enriched_description","type":"Edm.String","searchable":true},{"name":"description_vector","type":"Collection(Edm.Single)","searchable":true,"retrievable":true,"dimensions":3072,"vectorSearchProfile":"default-vector-profile"},{"name":"content_vector","type":"Collection(Edm.Single)","searchable":true,"retrievable":true,"dimensions":3072,"vectorSearchProfile":"default-vector-profile"}],"vectorSearch":{"algorithms":[{"name":"hnsw-algo","kind":"hnsw","hnswParameters":{"m":4,"efConstruction":400,"efSearch":500,"metric":"cosine"}}],"profiles":[{"name":"default-vector-profile","algorithm":"hnsw-algo","vectorizer":"text-embedding-vectorizer"}],"vectorizers":[{"name":"text-embedding-vectorizer","kind":"azureOpenAI","azureOpenAIParameters":{"modelName":"${EMBEDDING_DEPLOYMENT_NAME}","deploymentId":"${EMBEDDING_DEPLOYMENT_NAME}","resourceUri":"${PROJECT_ENDPOINT_VALUE}"}}]},"semantic":{"configurations":[{"name":"default-semantic","prioritizedFields":{"titleField":{"fieldName":"name"},"prioritizedContentFields":[{"fieldName":"enriched_description"},{"fieldName":"description"}],"prioritizedKeywordsFields":[{"fieldName":"search_keywords"},{"fieldName":"use_cases"}]}}]}}
 EOF
 )
 
 INDEXER_DEFINITION=$(cat <<EOF
-{"name":"${INDEXER_NAME}","dataSourceName":"${DATA_SOURCE_NAME}","targetIndexName":"${VECTOR_INDEX_NAME}","skillsetName":"${SKILLSET_NAME}","schedule":{"interval":"PT5M"},"parameters":{"batchSize":100,"maxFailedItems":10,"maxFailedItemsPerBatch":5,"configuration":{"parsingMode":"json","dataToExtract":"contentAndMetadata"}},"fieldMappings":[{"sourceFieldName":"entity_id","targetFieldName":"entity_id"},{"sourceFieldName":"sku","targetFieldName":"sku"},{"sourceFieldName":"name","targetFieldName":"name"},{"sourceFieldName":"brand","targetFieldName":"brand"},{"sourceFieldName":"category","targetFieldName":"category"},{"sourceFieldName":"description","targetFieldName":"description"},{"sourceFieldName":"price","targetFieldName":"price"},{"sourceFieldName":"use_cases","targetFieldName":"use_cases"},{"sourceFieldName":"complementary_products","targetFieldName":"complementary_products"},{"sourceFieldName":"substitute_products","targetFieldName":"substitute_products"},{"sourceFieldName":"search_keywords","targetFieldName":"search_keywords"},{"sourceFieldName":"enriched_description","targetFieldName":"enriched_description"}],"outputFieldMappings":[{"sourceFieldName":"/document/description_vector","targetFieldName":"description_vector"}]}
+{"name":"${INDEXER_NAME}","dataSourceName":"${DATA_SOURCE_NAME}","targetIndexName":"${VECTOR_INDEX_NAME}","skillsetName":"${SKILLSET_NAME}","schedule":{"interval":"PT5M"},"parameters":{"batchSize":100,"maxFailedItems":10,"maxFailedItemsPerBatch":5},"fieldMappings":[{"sourceFieldName":"entity_id","targetFieldName":"entity_id"},{"sourceFieldName":"sku","targetFieldName":"sku"},{"sourceFieldName":"name","targetFieldName":"name"},{"sourceFieldName":"brand","targetFieldName":"brand"},{"sourceFieldName":"category","targetFieldName":"category"},{"sourceFieldName":"description","targetFieldName":"description"},{"sourceFieldName":"price","targetFieldName":"price"},{"sourceFieldName":"use_cases","targetFieldName":"use_cases"},{"sourceFieldName":"complementary_products","targetFieldName":"complementary_products"},{"sourceFieldName":"substitute_products","targetFieldName":"substitute_products"},{"sourceFieldName":"search_keywords","targetFieldName":"search_keywords"},{"sourceFieldName":"enriched_description","targetFieldName":"enriched_description"}],"outputFieldMappings":[{"sourceFieldName":"/document/description_vector","targetFieldName":"description_vector"},{"sourceFieldName":"/document/description_vector","targetFieldName":"content_vector"}]}
 EOF
 )
 
@@ -151,15 +153,22 @@ put_with_retry() {
 
   attempt=1
   while [ "$attempt" -le 12 ]; do
-    if curl -fsS -X PUT -H "api-key: ${ADMIN_KEY}" -H 'Content-Type: application/json' --data "$RESOURCE_BODY" "$RESOURCE_URI" >/dev/null; then
+    RESPONSE_FILE="$(mktemp)"
+    HTTP_CODE="$(curl -sS -o "$RESPONSE_FILE" -w '%{http_code}' -X PUT -H "api-key: ${ADMIN_KEY}" -H 'Content-Type: application/json' --data "$RESOURCE_BODY" "$RESOURCE_URI" || true)"
+    if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+      rm -f "$RESPONSE_FILE"
       echo "Azure AI Search resource '${RESOURCE_NAME}' is ready."
       return 0
     fi
 
     if [ "$attempt" -eq 12 ]; then
-      echo "Failed to create or update Azure AI Search resource '${RESOURCE_NAME}'." >&2
+      echo "Failed to create or update Azure AI Search resource '${RESOURCE_NAME}' (HTTP ${HTTP_CODE})." >&2
+      cat "$RESPONSE_FILE" >&2 || true
+      rm -f "$RESPONSE_FILE"
       exit 1
     fi
+
+    rm -f "$RESPONSE_FILE"
 
     attempt=$((attempt + 1))
     sleep 10

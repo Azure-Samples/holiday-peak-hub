@@ -1,0 +1,793 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.40.2.10011",
+      "templateHash": "11669937548830340223"
+    }
+  },
+  "parameters": {
+    "projectName": {
+      "type": "string",
+      "metadata": {
+        "description": "Project name used for alert naming."
+      }
+    },
+    "environment": {
+      "type": "string",
+      "metadata": {
+        "description": "Environment name used for alert naming."
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Azure region for alerts resources."
+      }
+    },
+    "alertEmailAddress": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional email receiver for action group notifications."
+      }
+    },
+    "teamsWebhookUrl": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional Microsoft Teams incoming webhook URL for action group notifications."
+      }
+    },
+    "cosmosResourceId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of Azure Cosmos DB account."
+      }
+    },
+    "redisResourceId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of Azure Cache for Redis."
+      }
+    },
+    "postgresResourceId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of PostgreSQL Flexible Server."
+      }
+    },
+    "eventHubsNamespaceResourceId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of Event Hubs namespace."
+      }
+    },
+    "aksResourceId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of AKS cluster."
+      }
+    },
+    "apimResourceId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of API Management service."
+      }
+    }
+  },
+  "variables": {
+    "actionGroupShortName": "[take(replace(format('{0}{1}', parameters('projectName'), parameters('environment')), '-', ''), 12)]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Insights/actionGroups",
+      "apiVersion": "2023-01-01",
+      "name": "[format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment'))]",
+      "location": "global",
+      "properties": {
+        "enabled": true,
+        "groupShortName": "[variables('actionGroupShortName')]",
+        "emailReceivers": "[if(empty(parameters('alertEmailAddress')), createArray(), createArray(createObject('name', 'platform-email', 'emailAddress', parameters('alertEmailAddress'), 'useCommonAlertSchema', true())))]",
+        "webhookReceivers": "[if(empty(parameters('teamsWebhookUrl')), createArray(), createArray(createObject('name', 'teams-webhook', 'serviceUri', parameters('teamsWebhookUrl'), 'useCommonAlertSchema', true())))]"
+      }
+    },
+    {
+      "type": "Microsoft.Insights/metricAlerts",
+      "apiVersion": "2018-03-01",
+      "name": "[format('{0}-{1}-cosmos-ru-high', parameters('projectName'), parameters('environment'))]",
+      "location": "global",
+      "properties": {
+        "description": "Cosmos RU consumption exceeded baseline threshold.",
+        "severity": 2,
+        "enabled": true,
+        "scopes": [
+          "[parameters('cosmosResourceId')]"
+        ],
+        "evaluationFrequency": "PT5M",
+        "windowSize": "PT15M",
+        "criteria": {
+          "odata.type": "Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria",
+          "allOf": [
+            {
+              "criterionType": "StaticThresholdCriterion",
+              "name": "CosmosRUConsumption",
+              "metricNamespace": "Microsoft.DocumentDB/databaseAccounts",
+              "metricName": "TotalRequestUnits",
+              "operator": "GreaterThan",
+              "threshold": 80,
+              "timeAggregation": "Average"
+            }
+          ]
+        },
+        "actions": [
+          {
+            "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/metricAlerts",
+      "apiVersion": "2018-03-01",
+      "name": "[format('{0}-{1}-cosmos-5xx-high', parameters('projectName'), parameters('environment'))]",
+      "location": "global",
+      "properties": {
+        "description": "Cosmos 5xx responses exceeded baseline threshold.",
+        "severity": 2,
+        "enabled": true,
+        "scopes": [
+          "[parameters('cosmosResourceId')]"
+        ],
+        "evaluationFrequency": "PT5M",
+        "windowSize": "PT15M",
+        "criteria": {
+          "odata.type": "Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria",
+          "allOf": [
+            {
+              "criterionType": "StaticThresholdCriterion",
+              "name": "CosmosServerErrors",
+              "metricNamespace": "Microsoft.DocumentDB/databaseAccounts",
+              "metricName": "ServerSideRequests",
+              "operator": "GreaterThan",
+              "threshold": 5,
+              "timeAggregation": "Total"
+            }
+          ]
+        },
+        "actions": [
+          {
+            "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/metricAlerts",
+      "apiVersion": "2018-03-01",
+      "name": "[format('{0}-{1}-cosmos-latency-high', parameters('projectName'), parameters('environment'))]",
+      "location": "global",
+      "properties": {
+        "description": "Cosmos request latency exceeded baseline threshold.",
+        "severity": 3,
+        "enabled": true,
+        "scopes": [
+          "[parameters('cosmosResourceId')]"
+        ],
+        "evaluationFrequency": "PT5M",
+        "windowSize": "PT15M",
+        "criteria": {
+          "odata.type": "Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria",
+          "allOf": [
+            {
+              "criterionType": "StaticThresholdCriterion",
+              "name": "CosmosLatency",
+              "metricNamespace": "Microsoft.DocumentDB/databaseAccounts",
+              "metricName": "TotalRequestLatency",
+              "operator": "GreaterThan",
+              "threshold": 200,
+              "timeAggregation": "Average"
+            }
+          ]
+        },
+        "actions": [
+          {
+            "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/metricAlerts",
+      "apiVersion": "2018-03-01",
+      "name": "[format('{0}-{1}-redis-memory-high', parameters('projectName'), parameters('environment'))]",
+      "location": "global",
+      "properties": {
+        "description": "Redis memory utilization exceeded baseline threshold.",
+        "severity": 2,
+        "enabled": true,
+        "scopes": [
+          "[parameters('redisResourceId')]"
+        ],
+        "evaluationFrequency": "PT5M",
+        "windowSize": "PT15M",
+        "criteria": {
+          "odata.type": "Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria",
+          "allOf": [
+            {
+              "criterionType": "StaticThresholdCriterion",
+              "name": "RedisMemoryUsage",
+              "metricNamespace": "Microsoft.Cache/Redis",
+              "metricName": "usedmemorypercentage",
+              "operator": "GreaterThan",
+              "threshold": 80,
+              "timeAggregation": "Average"
+            }
+          ]
+        },
+        "actions": [
+          {
+            "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/metricAlerts",
+      "apiVersion": "2018-03-01",
+      "name": "[format('{0}-{1}-redis-connections-failed', parameters('projectName'), parameters('environment'))]",
+      "location": "global",
+      "properties": {
+        "description": "Redis connection failures detected.",
+        "severity": 2,
+        "enabled": true,
+        "scopes": [
+          "[parameters('redisResourceId')]"
+        ],
+        "evaluationFrequency": "PT5M",
+        "windowSize": "PT15M",
+        "criteria": {
+          "odata.type": "Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria",
+          "allOf": [
+            {
+              "criterionType": "StaticThresholdCriterion",
+              "name": "RedisErrors",
+              "metricNamespace": "Microsoft.Cache/Redis",
+              "metricName": "errors",
+              "operator": "GreaterThan",
+              "threshold": 1,
+              "timeAggregation": "Total"
+            }
+          ]
+        },
+        "actions": [
+          {
+            "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/metricAlerts",
+      "apiVersion": "2018-03-01",
+      "name": "[format('{0}-{1}-redis-evictions-high', parameters('projectName'), parameters('environment'))]",
+      "location": "global",
+      "properties": {
+        "description": "Redis key eviction activity exceeded baseline threshold.",
+        "severity": 3,
+        "enabled": true,
+        "scopes": [
+          "[parameters('redisResourceId')]"
+        ],
+        "evaluationFrequency": "PT5M",
+        "windowSize": "PT15M",
+        "criteria": {
+          "odata.type": "Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria",
+          "allOf": [
+            {
+              "criterionType": "StaticThresholdCriterion",
+              "name": "RedisEvictedKeys",
+              "metricNamespace": "Microsoft.Cache/Redis",
+              "metricName": "evictedkeys",
+              "operator": "GreaterThan",
+              "threshold": 0,
+              "timeAggregation": "Total"
+            }
+          ]
+        },
+        "actions": [
+          {
+            "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/metricAlerts",
+      "apiVersion": "2018-03-01",
+      "name": "[format('{0}-{1}-postgres-cpu-high', parameters('projectName'), parameters('environment'))]",
+      "location": "global",
+      "properties": {
+        "description": "PostgreSQL CPU utilization exceeded baseline threshold.",
+        "severity": 2,
+        "enabled": true,
+        "scopes": [
+          "[parameters('postgresResourceId')]"
+        ],
+        "evaluationFrequency": "PT5M",
+        "windowSize": "PT15M",
+        "criteria": {
+          "odata.type": "Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria",
+          "allOf": [
+            {
+              "criterionType": "StaticThresholdCriterion",
+              "name": "PostgresCPUPercent",
+              "metricNamespace": "Microsoft.DBforPostgreSQL/flexibleServers",
+              "metricName": "cpu_percent",
+              "operator": "GreaterThan",
+              "threshold": 80,
+              "timeAggregation": "Average"
+            }
+          ]
+        },
+        "actions": [
+          {
+            "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/metricAlerts",
+      "apiVersion": "2018-03-01",
+      "name": "[format('{0}-{1}-postgres-storage-high', parameters('projectName'), parameters('environment'))]",
+      "location": "global",
+      "properties": {
+        "description": "PostgreSQL storage utilization exceeded baseline threshold.",
+        "severity": 2,
+        "enabled": true,
+        "scopes": [
+          "[parameters('postgresResourceId')]"
+        ],
+        "evaluationFrequency": "PT5M",
+        "windowSize": "PT15M",
+        "criteria": {
+          "odata.type": "Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria",
+          "allOf": [
+            {
+              "criterionType": "StaticThresholdCriterion",
+              "name": "PostgresStoragePercent",
+              "metricNamespace": "Microsoft.DBforPostgreSQL/flexibleServers",
+              "metricName": "storage_percent",
+              "operator": "GreaterThan",
+              "threshold": 85,
+              "timeAggregation": "Average"
+            }
+          ]
+        },
+        "actions": [
+          {
+            "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/metricAlerts",
+      "apiVersion": "2018-03-01",
+      "name": "[format('{0}-{1}-postgres-long-queries', parameters('projectName'), parameters('environment'))]",
+      "location": "global",
+      "properties": {
+        "description": "PostgreSQL long-running query count exceeded baseline threshold.",
+        "severity": 3,
+        "enabled": true,
+        "scopes": [
+          "[parameters('postgresResourceId')]"
+        ],
+        "evaluationFrequency": "PT5M",
+        "windowSize": "PT15M",
+        "criteria": {
+          "odata.type": "Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria",
+          "allOf": [
+            {
+              "criterionType": "StaticThresholdCriterion",
+              "name": "PostgresLongRunningQueries",
+              "metricNamespace": "Microsoft.DBforPostgreSQL/flexibleServers",
+              "metricName": "long_running_queries",
+              "operator": "GreaterThan",
+              "threshold": 5,
+              "timeAggregation": "Average"
+            }
+          ]
+        },
+        "actions": [
+          {
+            "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/metricAlerts",
+      "apiVersion": "2018-03-01",
+      "name": "[format('{0}-{1}-eventhubs-throttled', parameters('projectName'), parameters('environment'))]",
+      "location": "global",
+      "properties": {
+        "description": "Event Hubs throttled requests exceeded baseline threshold.",
+        "severity": 2,
+        "enabled": true,
+        "scopes": [
+          "[parameters('eventHubsNamespaceResourceId')]"
+        ],
+        "evaluationFrequency": "PT5M",
+        "windowSize": "PT15M",
+        "criteria": {
+          "odata.type": "Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria",
+          "allOf": [
+            {
+              "criterionType": "StaticThresholdCriterion",
+              "name": "EventHubsThrottledRequests",
+              "metricNamespace": "Microsoft.EventHub/namespaces",
+              "metricName": "ThrottledRequests",
+              "operator": "GreaterThan",
+              "threshold": 0,
+              "timeAggregation": "Total"
+            }
+          ]
+        },
+        "actions": [
+          {
+            "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/metricAlerts",
+      "apiVersion": "2018-03-01",
+      "name": "[format('{0}-{1}-eventhubs-abandoned', parameters('projectName'), parameters('environment'))]",
+      "location": "global",
+      "properties": {
+        "description": "Event Hubs abandoned messages exceeded baseline threshold.",
+        "severity": 3,
+        "enabled": true,
+        "scopes": [
+          "[parameters('eventHubsNamespaceResourceId')]"
+        ],
+        "evaluationFrequency": "PT5M",
+        "windowSize": "PT15M",
+        "criteria": {
+          "odata.type": "Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria",
+          "allOf": [
+            {
+              "criterionType": "StaticThresholdCriterion",
+              "name": "EventHubsAbandonedMessages",
+              "metricNamespace": "Microsoft.EventHub/namespaces",
+              "metricName": "OutgoingMessages",
+              "operator": "LessThan",
+              "threshold": 1,
+              "timeAggregation": "Average"
+            }
+          ]
+        },
+        "actions": [
+          {
+            "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/metricAlerts",
+      "apiVersion": "2018-03-01",
+      "name": "[format('{0}-{1}-eventhubs-consumer-lag', parameters('projectName'), parameters('environment'))]",
+      "location": "global",
+      "properties": {
+        "description": "Event Hubs consumer lag proxy metric exceeded baseline threshold.",
+        "severity": 2,
+        "enabled": true,
+        "scopes": [
+          "[parameters('eventHubsNamespaceResourceId')]"
+        ],
+        "evaluationFrequency": "PT5M",
+        "windowSize": "PT15M",
+        "criteria": {
+          "odata.type": "Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria",
+          "allOf": [
+            {
+              "criterionType": "StaticThresholdCriterion",
+              "name": "EventHubsIncomingMessagesHigh",
+              "metricNamespace": "Microsoft.EventHub/namespaces",
+              "metricName": "IncomingMessages",
+              "operator": "GreaterThan",
+              "threshold": 100000,
+              "timeAggregation": "Total"
+            }
+          ]
+        },
+        "actions": [
+          {
+            "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/metricAlerts",
+      "apiVersion": "2018-03-01",
+      "name": "[format('{0}-{1}-aks-node-cpu-high', parameters('projectName'), parameters('environment'))]",
+      "location": "global",
+      "properties": {
+        "description": "AKS node CPU utilization exceeded baseline threshold.",
+        "severity": 2,
+        "enabled": true,
+        "scopes": [
+          "[parameters('aksResourceId')]"
+        ],
+        "evaluationFrequency": "PT5M",
+        "windowSize": "PT15M",
+        "criteria": {
+          "odata.type": "Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria",
+          "allOf": [
+            {
+              "criterionType": "StaticThresholdCriterion",
+              "name": "AksNodeCPUUsage",
+              "metricNamespace": "Microsoft.ContainerService/managedClusters",
+              "metricName": "node_cpu_usage_percentage",
+              "operator": "GreaterThan",
+              "threshold": 80,
+              "timeAggregation": "Average"
+            }
+          ]
+        },
+        "actions": [
+          {
+            "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/metricAlerts",
+      "apiVersion": "2018-03-01",
+      "name": "[format('{0}-{1}-aks-pod-restarts-high', parameters('projectName'), parameters('environment'))]",
+      "location": "global",
+      "properties": {
+        "description": "AKS pod restart activity exceeded baseline threshold.",
+        "severity": 3,
+        "enabled": true,
+        "scopes": [
+          "[parameters('aksResourceId')]"
+        ],
+        "evaluationFrequency": "PT5M",
+        "windowSize": "PT15M",
+        "criteria": {
+          "odata.type": "Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria",
+          "allOf": [
+            {
+              "criterionType": "StaticThresholdCriterion",
+              "name": "AksPodRestartCount",
+              "metricNamespace": "Microsoft.ContainerService/managedClusters",
+              "metricName": "pod_restart_count",
+              "operator": "GreaterThan",
+              "threshold": 5,
+              "timeAggregation": "Total"
+            }
+          ]
+        },
+        "actions": [
+          {
+            "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/metricAlerts",
+      "apiVersion": "2018-03-01",
+      "name": "[format('{0}-{1}-aks-image-pull-failures', parameters('projectName'), parameters('environment'))]",
+      "location": "global",
+      "properties": {
+        "description": "AKS image pull failures exceeded baseline threshold.",
+        "severity": 2,
+        "enabled": true,
+        "scopes": [
+          "[parameters('aksResourceId')]"
+        ],
+        "evaluationFrequency": "PT5M",
+        "windowSize": "PT15M",
+        "criteria": {
+          "odata.type": "Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria",
+          "allOf": [
+            {
+              "criterionType": "StaticThresholdCriterion",
+              "name": "AksImagePullFailed",
+              "metricNamespace": "Microsoft.ContainerService/managedClusters",
+              "metricName": "image_pull_failed_count",
+              "operator": "GreaterThan",
+              "threshold": 0,
+              "timeAggregation": "Total"
+            }
+          ]
+        },
+        "actions": [
+          {
+            "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/metricAlerts",
+      "apiVersion": "2018-03-01",
+      "name": "[format('{0}-{1}-apim-failed-requests', parameters('projectName'), parameters('environment'))]",
+      "location": "global",
+      "properties": {
+        "description": "APIM failed request count exceeded baseline threshold.",
+        "severity": 2,
+        "enabled": true,
+        "scopes": [
+          "[parameters('apimResourceId')]"
+        ],
+        "evaluationFrequency": "PT5M",
+        "windowSize": "PT15M",
+        "criteria": {
+          "odata.type": "Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria",
+          "allOf": [
+            {
+              "criterionType": "StaticThresholdCriterion",
+              "name": "ApimFailedRequests",
+              "metricNamespace": "Microsoft.ApiManagement/service",
+              "metricName": "FailedRequests",
+              "operator": "GreaterThan",
+              "threshold": 10,
+              "timeAggregation": "Total"
+            }
+          ]
+        },
+        "actions": [
+          {
+            "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/metricAlerts",
+      "apiVersion": "2018-03-01",
+      "name": "[format('{0}-{1}-apim-latency-p95', parameters('projectName'), parameters('environment'))]",
+      "location": "global",
+      "properties": {
+        "description": "APIM request duration exceeded baseline threshold.",
+        "severity": 2,
+        "enabled": true,
+        "scopes": [
+          "[parameters('apimResourceId')]"
+        ],
+        "evaluationFrequency": "PT5M",
+        "windowSize": "PT15M",
+        "criteria": {
+          "odata.type": "Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria",
+          "allOf": [
+            {
+              "criterionType": "StaticThresholdCriterion",
+              "name": "ApimDurationP95",
+              "metricNamespace": "Microsoft.ApiManagement/service",
+              "metricName": "Duration",
+              "operator": "GreaterThan",
+              "threshold": 2000,
+              "timeAggregation": "Average"
+            }
+          ]
+        },
+        "actions": [
+          {
+            "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/metricAlerts",
+      "apiVersion": "2018-03-01",
+      "name": "[format('{0}-{1}-apim-5xx-rate', parameters('projectName'), parameters('environment'))]",
+      "location": "global",
+      "properties": {
+        "description": "APIM 5xx error rate proxy exceeded baseline threshold.",
+        "severity": 2,
+        "enabled": true,
+        "scopes": [
+          "[parameters('apimResourceId')]"
+        ],
+        "evaluationFrequency": "PT5M",
+        "windowSize": "PT15M",
+        "criteria": {
+          "odata.type": "Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria",
+          "allOf": [
+            {
+              "criterionType": "StaticThresholdCriterion",
+              "name": "ApimGateway5xxProxy",
+              "metricNamespace": "Microsoft.ApiManagement/service",
+              "metricName": "FailedRequests",
+              "operator": "GreaterThan",
+              "threshold": 1,
+              "timeAggregation": "Average"
+            }
+          ]
+        },
+        "actions": [
+          {
+            "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "actionGroupId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+    },
+    "actionGroupName": {
+      "type": "string",
+      "value": "[format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment'))]"
+    }
+  }
+}

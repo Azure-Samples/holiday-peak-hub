@@ -7,7 +7,15 @@ import { EnrichmentPipelineStatus } from '@/components/enrichment/EnrichmentPipe
 import { useEnrichmentMonitorDashboard } from '@/lib/hooks/useEnrichmentMonitor';
 
 export default function EnrichmentMonitorPage() {
-  const { data, isLoading, isError } = useEnrichmentMonitorDashboard();
+  const { data, isLoading, isError, refetch, isFetching } = useEnrichmentMonitorDashboard();
+
+  const approvedCount = data?.status_cards.find((card) => card.label.toLowerCase().includes('approved'))?.value ?? 0;
+  const reviewCount = data?.status_cards.find((card) => card.label.toLowerCase().includes('review'))?.value ?? 0;
+  const rejectedCount = data?.status_cards.find((card) => card.label.toLowerCase().includes('rejected'))?.value ?? 0;
+  const decisionTotal = approvedCount + reviewCount + rejectedCount;
+  const approvalRate = decisionTotal > 0 ? Math.round((approvedCount / decisionTotal) * 100) : 0;
+  const enrichmentsPerHour = data ? data.throughput.per_minute * 60 : 0;
+  const enrichmentsPerHourBar = Math.min(100, Math.max(0, Math.round((enrichmentsPerHour / 500) * 100)));
 
   return (
     <MainLayout>
@@ -29,7 +37,18 @@ export default function EnrichmentMonitorPage() {
 
         {isError && (
           <Card className="p-6 border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400">
-            Failed to load enrichment monitor data.
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <span>Failed to load enrichment monitor data.</span>
+              <button
+                onClick={() => {
+                  void refetch();
+                }}
+                className="px-3 py-1.5 rounded-md text-xs font-semibold border border-red-300 dark:border-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                disabled={isFetching}
+              >
+                Retry
+              </button>
+            </div>
           </Card>
         )}
 
@@ -93,6 +112,26 @@ export default function EnrichmentMonitorPage() {
 
               <Card className="p-4 space-y-3">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Throughput</h2>
+                <div className="space-y-2" aria-label="Throughput chart">
+                  <div>
+                    <div className="mb-1 flex items-center justify-between text-xs text-gray-600 dark:text-gray-400">
+                      <span>Enrichments/hour</span>
+                      <span className="font-semibold text-gray-900 dark:text-white">{enrichmentsPerHour}</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-gray-200 dark:bg-gray-700" role="progressbar" aria-valuemin={0} aria-valuemax={500} aria-valuenow={Math.min(enrichmentsPerHour, 500)} aria-label="Enrichments per hour">
+                      <div className="h-full rounded-full bg-blue-500" style={{ width: `${enrichmentsPerHourBar}%` }} />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="mb-1 flex items-center justify-between text-xs text-gray-600 dark:text-gray-400">
+                      <span>Approval rate</span>
+                      <span className="font-semibold text-gray-900 dark:text-white">{approvalRate}%</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-gray-200 dark:bg-gray-700" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={approvalRate} aria-label="Approval rate">
+                      <div className="h-full rounded-full bg-green-500" style={{ width: `${approvalRate}%` }} />
+                    </div>
+                  </div>
+                </div>
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center justify-between">
                     <span className="text-gray-600 dark:text-gray-400">Per minute</span>
@@ -119,11 +158,24 @@ export default function EnrichmentMonitorPage() {
                   <ul className="space-y-2" role="list">
                     {data.error_log.map((entry) => (
                       <li key={entry.id} className="rounded-md border border-red-200 dark:border-red-900 p-3">
-                        <p className="text-sm text-red-700 dark:text-red-300">{entry.message}</p>
-                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                          {entry.entity_id ? `Entity ${entry.entity_id} · ` : ''}
-                          {new Date(entry.timestamp).toLocaleString()}
-                        </p>
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm text-red-700 dark:text-red-300">{entry.message}</p>
+                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                              {entry.entity_id ? `Entity ${entry.entity_id} · ` : ''}
+                              {new Date(entry.timestamp).toLocaleString()}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => {
+                              void refetch();
+                            }}
+                            className="px-2.5 py-1 rounded-md text-xs font-semibold border border-red-300 dark:border-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                            disabled={isFetching}
+                          >
+                            Retry
+                          </button>
+                        </div>
                       </li>
                     ))}
                   </ul>

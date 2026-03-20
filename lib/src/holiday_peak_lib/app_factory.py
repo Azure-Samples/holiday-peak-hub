@@ -4,7 +4,7 @@ import os
 from contextlib import asynccontextmanager
 from typing import AsyncContextManager, AsyncIterator, Callable, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from holiday_peak_lib.agents import AgentBuilder, BaseRetailAgent, FoundryAgentConfig
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.agents.foundry import (
@@ -15,7 +15,12 @@ from holiday_peak_lib.agents.memory import ColdMemory, HotMemory, WarmMemory
 from holiday_peak_lib.agents.orchestration.router import RoutingStrategy
 from holiday_peak_lib.agents.prompt_loader import load_service_prompt_instructions
 from holiday_peak_lib.connectors.registry import ConnectorRegistry
-from holiday_peak_lib.utils import get_foundry_tracer
+from holiday_peak_lib.utils import (
+    CORRELATION_HEADER,
+    clear_correlation_id,
+    get_foundry_tracer,
+    set_correlation_id,
+)
 from holiday_peak_lib.utils.logging import configure_logging, log_async_operation
 
 DEFAULT_FOUNDY_MODELS = {
@@ -101,6 +106,21 @@ def build_service_app(
         agent.service_name = service_name
     if mcp_setup:
         mcp_setup(mcp, agent)
+
+    @app.middleware("http")
+    async def correlation_middleware(request: Request, call_next):
+        incoming_correlation = (
+            request.headers.get(CORRELATION_HEADER)
+            or request.headers.get("X-Correlation-ID")
+            or request.headers.get("x-request-id")
+        )
+        correlation_id = set_correlation_id(incoming_correlation)
+        try:
+            response = await call_next(request)
+        finally:
+            clear_correlation_id()
+        response.headers["X-Correlation-ID"] = correlation_id
+        return response
 
     async def _ensure_role(selected_role: str, config: FoundryAgentConfig, service: str) -> dict:
         target_name = config.agent_name or f"{service}-{selected_role}"
@@ -267,7 +287,6 @@ def build_service_app(
             "true",
             "yes",
         }
-
         if instructions and not allow_instruction_override:
             raise HTTPException(
                 status_code=403,
