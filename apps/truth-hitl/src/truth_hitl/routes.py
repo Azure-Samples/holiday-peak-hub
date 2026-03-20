@@ -27,7 +27,9 @@ def build_review_router(adapters: HITLAdapters) -> APIRouter:
     """Return an APIRouter wired to the provided adapters."""
     router = APIRouter(prefix="/review", tags=["hitl-review"])
 
-    def execute_review_action(entity_id: str, decision: ReviewDecision, action: str) -> list[ReviewItem]:
+    def execute_review_action(
+        entity_id: str, decision: ReviewDecision, action: str
+    ) -> list[ReviewItem]:
         """Execute a review action and keep single-action response semantics."""
         action_map = {
             "approve": adapters.review_manager.approve,
