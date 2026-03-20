@@ -12,7 +12,7 @@ from truth_enrichment.adapters import DAMImageAnalysisAdapter, build_enrichment_
 @pytest.mark.asyncio
 async def test_dam_image_analysis_success() -> None:
     dam_connector = AsyncMock()
-    dam_connector.fetch_assets.return_value = [
+    dam_connector.get_assets_by_product.return_value = [
         {"url": "https://cdn.example.com/a.jpg"},
         {"url": "https://cdn.example.com/b.jpg"},
     ]
@@ -21,6 +21,11 @@ async def test_dam_image_analysis_success() -> None:
         assert request["entity_id"] == "sku-1"
         assert request["field_name"] == "color"
         assert len(messages) == 2
+        content = messages[1]["content"]
+        assert isinstance(content, list)
+        assert content[0]["type"] == "text"
+        assert content[1]["type"] == "image_url"
+        assert content[2]["type"] == "image_url"
         return {
             "value": "red",
             "confidence": 0.92,
@@ -48,7 +53,7 @@ async def test_dam_image_analysis_success() -> None:
 @pytest.mark.asyncio
 async def test_dam_image_analysis_graceful_when_assets_missing() -> None:
     dam_connector = AsyncMock()
-    dam_connector.fetch_assets.return_value = []
+    dam_connector.get_assets_by_product.return_value = []
 
     adapter = DAMImageAnalysisAdapter(
         dam_connector=dam_connector,
@@ -69,7 +74,7 @@ async def test_dam_image_analysis_graceful_when_assets_missing() -> None:
 @pytest.mark.asyncio
 async def test_dam_image_analysis_graceful_when_vision_unavailable() -> None:
     dam_connector = AsyncMock()
-    dam_connector.fetch_assets.return_value = [{"url": "https://cdn.example.com/a.jpg"}]
+    dam_connector.get_assets_by_product.return_value = [{"url": "https://cdn.example.com/a.jpg"}]
 
     async def failing_vision_invoker(*, request, messages):  # noqa: ANN001
         raise RuntimeError("foundry unavailable")
@@ -93,3 +98,4 @@ async def test_dam_image_analysis_graceful_when_vision_unavailable() -> None:
 def test_build_enrichment_adapters_includes_image_analysis() -> None:
     adapters = build_enrichment_adapters()
     assert isinstance(adapters.image_analysis, DAMImageAnalysisAdapter)
+    assert adapters.image_analysis.resilience_status()["threshold"] == 5

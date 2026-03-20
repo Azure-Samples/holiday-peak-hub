@@ -48,6 +48,51 @@ class EnrichmentEngine:
             {"role": "user", "content": str(user_msg)},
         ]
 
+    def build_vision_prompt(
+        self,
+        *,
+        product: dict[str, Any],
+        field_name: str,
+        field_definition: Optional[dict[str, Any]] = None,
+        image_urls: list[str],
+    ) -> list[dict[str, Any]]:
+        """Build a Foundry vision prompt using text + image_url content parts."""
+        field_hint = ""
+        if field_definition:
+            field_hint = (
+                f" Field type: {field_definition.get('type', 'string')}."
+                f" Description: {field_definition.get('description', '')}."
+            )
+
+        instruction = (
+            "Infer the missing attribute from product context and images. "
+            f"Target field: {field_name}.{field_hint} "
+            "Return ONLY JSON with keys: value, confidence, evidence, metadata."
+        )
+        content_parts: list[dict[str, Any]] = [
+            {
+                "type": "text",
+                "text": str(
+                    {
+                        "instruction": instruction,
+                        "missing_field": field_name,
+                        "product": product,
+                    }
+                ),
+            }
+        ]
+        content_parts.extend(
+            {"type": "image_url", "image_url": {"url": image_url}} for image_url in image_urls
+        )
+
+        return [
+            {
+                "role": "system",
+                "content": "You are a vision enrichment assistant for product catalog data.",
+            },
+            {"role": "user", "content": content_parts},
+        ]
+
     def parse_ai_response(self, raw: Any) -> dict[str, Any]:
         """Parse AI response into structured proposed attribute fields."""
         if isinstance(raw, dict):

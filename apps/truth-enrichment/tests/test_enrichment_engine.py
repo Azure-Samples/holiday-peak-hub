@@ -19,6 +19,23 @@ def test_build_prompt_returns_two_messages(engine):
     assert messages[1]["role"] == "user"
 
 
+def test_build_vision_prompt_uses_image_url_content_parts(engine):
+    messages = engine.build_vision_prompt(
+        product={"id": "p1", "name": "Widget"},
+        field_name="material",
+        field_definition={"type": "string", "description": "Fabric composition"},
+        image_urls=["https://cdn.example.com/a.jpg", "https://cdn.example.com/b.jpg"],
+    )
+
+    assert messages[0]["role"] == "system"
+    assert messages[1]["role"] == "user"
+    content = messages[1]["content"]
+    assert isinstance(content, list)
+    assert content[0]["type"] == "text"
+    assert content[1] == {"type": "image_url", "image_url": {"url": "https://cdn.example.com/a.jpg"}}
+    assert content[2] == {"type": "image_url", "image_url": {"url": "https://cdn.example.com/b.jpg"}}
+
+
 def test_parse_ai_response_dict(engine):
     raw = {
         "value": "red",

@@ -19,9 +19,10 @@ class TruthEnrichmentAgent(BaseRetailAgent):
 
     def __init__(self, config, *args: Any, **kwargs: Any) -> None:
         super().__init__(config, *args, **kwargs)
+        self._engine = EnrichmentEngine()
         self._adapters = build_enrichment_adapters()
         self._adapters.image_analysis.set_vision_invoker(self.invoke_model)
-        self._engine = EnrichmentEngine()
+        self._adapters.image_analysis.set_vision_prompt_builder(self._engine.build_vision_prompt)
 
     @property
     def adapters(self) -> EnrichmentAdapters:
