@@ -9,9 +9,10 @@ import type { Product } from '../types';
 
 export interface SearchResultCardProps {
   product: Product;
+  relatedProductMap?: Record<string, Product>;
 }
 
-export const SearchResultCard: React.FC<SearchResultCardProps> = ({ product }) => {
+export const SearchResultCard: React.FC<SearchResultCardProps> = ({ product, relatedProductMap }) => {
   return (
     <Card className="overflow-hidden border border-[var(--hp-border)] bg-[var(--hp-surface)] p-4">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-[120px_1fr]">
@@ -44,8 +45,16 @@ export const SearchResultCard: React.FC<SearchResultCardProps> = ({ product }) =
 
           <div className="space-y-3">
             <UseCaseTags useCases={product.useCases} />
-            <RelatedProductsRail title="Complements" items={product.complementaryProducts} />
-            <RelatedProductsRail title="Alternatives" items={product.substituteProducts} />
+            <RelatedProductsRail
+              title="Complements"
+              items={product.complementaryProducts}
+              productMap={relatedProductMap}
+            />
+            <RelatedProductsRail
+              title="Alternatives"
+              items={product.substituteProducts}
+              productMap={relatedProductMap}
+            />
           </div>
         </div>
       </div>
