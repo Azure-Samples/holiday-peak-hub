@@ -67,9 +67,7 @@ class SearchEnrichmentOrchestrator:
             sku=entity_id,
             score=1.0 if strategy == "complex" else 0.75,
             sourceType=(
-                SourceType.AI_REASONING
-                if strategy == "complex"
-                else SourceType.PRODUCT_CONTEXT
+                SourceType.AI_REASONING if strategy == "complex" else SourceType.PRODUCT_CONTEXT
             ),
             sourceAssets=[],
             originalData=approved,

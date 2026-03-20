@@ -12,8 +12,8 @@ from holiday_peak_lib.mcp.ai_search_indexing import (
     build_ai_search_indexing_client_from_env,
 )
 from holiday_peak_lib.schemas.truth import SearchEnrichedProduct
-from holiday_peak_lib.utils.rate_limiter import RateLimitExceededError, RateLimiter
 from holiday_peak_lib.utils.logging import configure_logging
+from holiday_peak_lib.utils.rate_limiter import RateLimiter, RateLimitExceededError
 
 logger = configure_logging(app_name="search-enrichment-agent")
 
@@ -113,7 +113,9 @@ class FoundryEnrichmentAdapter:
         parsed["_status"] = "ok"
         return parsed
 
-    def _build_messages(self, *, entity_id: str, approved_truth: dict[str, Any]) -> list[dict[str, Any]]:
+    def _build_messages(
+        self, *, entity_id: str, approved_truth: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         instruction = (
             "Generate search enrichment fields from approved truth data. "
             "Return a JSON object with keys: use_cases, complementary_products, "
@@ -159,7 +161,9 @@ class SearchIndexingAdapter:
             document = enriched.model_dump(mode="json", by_alias=True)
             document.setdefault("id", entity_id)
             document.setdefault("sku", entity_id)
-            return await self._client.index_documents(self._client.settings.default_index_name, [document])
+            return await self._client.index_documents(
+                self._client.settings.default_index_name, [document]
+            )
 
         indexer_name = self._client.settings.default_indexer_name
         if not indexer_name:

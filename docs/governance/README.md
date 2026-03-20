@@ -22,6 +22,10 @@ This folder is the governance source of truth for engineering standards, runtime
 **Audience**: DevOps/SRE/Cloud engineers  
 **Scope**: Azure IaC, AKS/SWA deployment, CI/CD and environment gates
 
+### [Wave0 Dependency Audit](dependency-audit-wave0.md)
+**Audience**: Platform/DevSecOps engineers  
+**Scope**: pip-audit baseline evidence, remediation status, and vulnerability exception tracking
+
 ## Repository Source-of-Truth Map
 
 | Governance topic | Canonical source | Notes |
