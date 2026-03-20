@@ -20,6 +20,11 @@ param agcSubnetAddressPrefix string = '10.0.12.0/24'
 @secure()
 @description('Optional PostgreSQL admin password for CRUD database. Leave empty to auto-generate.')
 param postgresAdminPassword string = ''
+@description('Optional email receiver for infrastructure alerts action group.')
+param alertNotificationEmail string = ''
+@secure()
+@description('Optional Microsoft Teams incoming webhook URL for infrastructure alerts action group.')
+param alertTeamsWebhookUrl string = ''
 param resourceGroupName string = '${projectName}-${environment}-rg'
 
 @description('Optional override for the Static Web App base name. Defaults to projectName-ui.')
@@ -43,6 +48,8 @@ module sharedInfra '../modules/shared-infrastructure/shared-infrastructure-main.
     agcSupportEnabled: agcSupportEnabled
     agcSubnetAddressPrefix: agcSubnetAddressPrefix
     postgresAdminPassword: postgresAdminPassword
+    alertNotificationEmail: alertNotificationEmail
+    alertTeamsWebhookUrl: alertTeamsWebhookUrl
     resourceGroupName: resourceGroupName
   }
 }
@@ -102,3 +109,5 @@ output AGC_FRONTEND_HOSTNAME string = deployShared ? sharedInfra!.outputs.agcFro
 output AGC_FRONTEND_REFERENCE string = deployShared ? sharedInfra!.outputs.agcFrontendReference : ''
 output AKS_OIDC_ISSUER_URL string = deployShared ? sharedInfra!.outputs.aksOidcIssuerUrl : ''
 output AKS_NODE_RESOURCE_GROUP string = deployShared ? sharedInfra!.outputs.aksNodeResourceGroup : ''
+output MONITORING_ACTION_GROUP_ID string = deployShared ? sharedInfra!.outputs.monitoringActionGroupId : ''
+output MONITORING_ACTION_GROUP_NAME string = deployShared ? sharedInfra!.outputs.monitoringActionGroupName : ''

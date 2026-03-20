@@ -36,6 +36,25 @@ export const enrichmentMonitorService = {
       throw handleApiError(error);
     }
   },
+
+  async getEnrichmentPipelineStats(): Promise<
+    Pick<EnrichmentMonitorDashboard, 'status_cards' | 'throughput'>
+  > {
+    const dashboard = await this.getDashboard();
+    return {
+      status_cards: dashboard.status_cards,
+      throughput: dashboard.throughput,
+    };
+  },
+
+  async getActiveEnrichmentJobs(): Promise<EnrichmentMonitorDashboard['active_jobs']> {
+    const dashboard = await this.getDashboard();
+    return dashboard.active_jobs;
+  },
+
+  async getEnrichmentDetail(entityId: string): Promise<EnrichmentEntityDetail> {
+    return this.getEntityDetail(entityId);
+  },
 };
 
 export default enrichmentMonitorService;

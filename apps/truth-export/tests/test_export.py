@@ -339,3 +339,59 @@ async def test_conflict_handling_blocks_writeback(engine):
     assert result["status"] == "conflict"
     assert result["conflicts"] == 1
     pim.push_enrichment.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_writeback_to_pim_uses_approved_fields_only(engine, adapters):
+    adapters.truth_store.seed_attributes(
+        "STYLE-001",
+        [
+            TruthAttribute(
+                entityType="style",
+                entityId="STYLE-001",
+                attributeKey="title",
+                value="Approved title",
+                source="SYSTEM",
+            ),
+            TruthAttribute(
+                entityType="style",
+                entityId="STYLE-001",
+                attributeKey="description",
+                value="Should not be written",
+                source="SYSTEM",
+            ),
+        ],
+    )
+
+    class _StubManager:
+        def __init__(self):
+            self.called_fields: list[str] = []
+
+        async def writeback_attribute(
+            self, entity_id: str, field: str, value, *, truth_version=None
+        ):
+            _ = entity_id
+            _ = value
+            _ = truth_version
+            self.called_fields.append(field)
+
+            from holiday_peak_lib.integrations import WritebackResult, WritebackStatus
+
+            return WritebackResult(
+                entity_id="STYLE-001",
+                field=field,
+                status=WritebackStatus.SUCCESS,
+                message="Writeback succeeded",
+            )
+
+    manager = _StubManager()
+    result = await engine.writeback_to_pim(
+        manager,
+        adapters.truth_store,
+        "STYLE-001",
+        approved_attributes=["title"],
+    )
+
+    assert manager.called_fields == ["title"]
+    assert result["status"] == "completed"
+    assert result["total"] == 1

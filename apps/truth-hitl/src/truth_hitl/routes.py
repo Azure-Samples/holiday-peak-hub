@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from truth_hitl.adapters import HITLAdapters
+from truth_hitl.adapters import HITLAdapters, build_hitl_approval_event
 from truth_hitl.review_manager import ReviewDecision, ReviewItem
 
 
@@ -26,6 +28,25 @@ class BatchReviewDecisionRequest(BaseModel):
 def build_review_router(adapters: HITLAdapters) -> APIRouter:
     """Return an APIRouter wired to the provided adapters."""
     router = APIRouter(prefix="/review", tags=["hitl-review"])
+
+    async def publish_approval_event(
+        *,
+        entity_id: str,
+        approved_items: list[ReviewItem],
+        reviewed_by: str | None,
+    ) -> None:
+        if not approved_items:
+            return
+
+        approved_fields = [item.field_name for item in approved_items if item.field_name]
+        decision_timestamp = datetime.now(timezone.utc)
+        payload = build_hitl_approval_event(
+            entity_id=entity_id,
+            approved_fields=approved_fields,
+            reviewer_id=reviewed_by,
+            decision_timestamp=decision_timestamp,
+        )
+        await adapters.export_publisher.publish(payload)
 
     def execute_review_action(
         entity_id: str, decision: ReviewDecision, action: str
@@ -72,6 +93,11 @@ def build_review_router(adapters: HITLAdapters) -> APIRouter:
     async def approve(entity_id: str, decision: ReviewDecision) -> dict:
         """Approve proposed attribute(s) for an entity."""
         approved = execute_review_action(entity_id, decision, "approve")
+        await publish_approval_event(
+            entity_id=entity_id,
+            approved_items=approved,
+            reviewed_by=decision.reviewed_by,
+        )
         return {
             "entity_id": entity_id,
             "approved": len(approved),
@@ -92,6 +118,11 @@ def build_review_router(adapters: HITLAdapters) -> APIRouter:
     async def edit_and_approve(entity_id: str, decision: ReviewDecision) -> dict:
         """Edit a proposed value and approve it (source becomes 'human')."""
         edited = execute_review_action(entity_id, decision, "edit")
+        await publish_approval_event(
+            entity_id=entity_id,
+            approved_items=edited,
+            reviewed_by=decision.reviewed_by,
+        )
         return {
             "entity_id": entity_id,
             "edited": len(edited),
@@ -111,6 +142,11 @@ def build_review_router(adapters: HITLAdapters) -> APIRouter:
             approved = adapters.review_manager.approve(entry.entity_id, decision)
             if not approved:
                 continue
+            await publish_approval_event(
+                entity_id=entry.entity_id,
+                approved_items=approved,
+                reviewed_by=entry.reviewed_by,
+            )
             results.append(
                 {
                     "entity_id": entry.entity_id,

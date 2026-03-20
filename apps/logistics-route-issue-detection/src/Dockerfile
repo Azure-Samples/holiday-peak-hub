@@ -9,22 +9,23 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app/src
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential libpq-dev git curl \
     && rm -rf /var/lib/apt/lists/*
+RUN python -m pip install --no-cache-dir --upgrade pip uv
 
 FROM base AS dev
 ENV APP_ENV=dev
-COPY pyproject.toml ./pyproject.toml
+COPY pyproject.toml uv.lock ./
 COPY . ./
 # COPY tests /app/tests  # tests are outside build context
 ENV PYTHONPATH=/app/src
-RUN python -m pip install --upgrade pip && \
-    python -m pip install --no-cache-dir -e .[dev,test,lint]
+ENV PATH="/app/src/.venv/bin:$PATH"
+RUN uv sync --frozen --all-extras --no-sources
 CMD ["uvicorn", "logistics_route_issue_detection.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
 FROM base AS prod
 ENV APP_ENV=prod
-COPY pyproject.toml ./pyproject.toml
+COPY pyproject.toml uv.lock ./
 COPY . ./
 ENV PYTHONPATH=/app/src
-RUN python -m pip install --upgrade pip && \
-    python -m pip install --no-cache-dir .
+ENV PATH="/app/src/.venv/bin:$PATH"
+RUN uv sync --frozen --no-dev --no-sources
 CMD ["uvicorn", "logistics_route_issue_detection.main:app", "--host", "0.0.0.0", "--port", "8000"]
