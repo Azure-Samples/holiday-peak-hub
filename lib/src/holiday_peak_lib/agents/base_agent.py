@@ -8,6 +8,7 @@ from typing import Any, Awaitable, Callable
 try:
     from agent_framework import BaseAgent
 except Exception:
+
     class BaseAgent:  # type: ignore[too-many-ancestors]
         """Fallback base to keep local/test imports resilient.
 
@@ -20,6 +21,8 @@ except Exception:
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             _ = args
             _ = kwargs
+
+
 from holiday_peak_lib.utils.telemetry import get_foundry_tracer
 from pydantic import BaseModel, ConfigDict, Field
 
