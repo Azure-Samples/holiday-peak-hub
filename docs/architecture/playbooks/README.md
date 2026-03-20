@@ -19,6 +19,7 @@ Index of operational playbooks for the Holiday Peak Hub accelerator.
 | [Blob throttling](playbook-blob-throttling.md) | Memory/Cold | 503s or slow downloads/uploads |
 | [Connection pool exhaustion](playbook-connection-pool-exhaustion.md) | Memory | Connection timeouts/too many connections |
 | [TTL not expiring](playbook-ttl-not-expiring.md) | Memory | Stale data or unbounded growth |
+| [Observability query templates](playbook-observability-queries.md) | Platform/Observability | Correlated triage across APIM, AKS, data, and agent services |
 
 ## Playbook Policy Checklist
 
