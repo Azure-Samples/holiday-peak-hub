@@ -391,5 +391,7 @@ class TestCatalogSearchAgent:
             assert first["complementary_products"] == ["SKU-321"]
             assert first["substitute_products"] == ["SKU-654"]
             assert "extended_attributes" in first
-            assert first["extended_attributes"]["enriched_description"].startswith("Noise-canceling")
+            assert first["extended_attributes"]["enriched_description"].startswith(
+                "Noise-canceling"
+            )
             mock_multi.assert_awaited_once()
