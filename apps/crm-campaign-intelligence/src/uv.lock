@@ -1013,11 +1013,14 @@ dependencies = [
     { name = "azure-eventhub" },
     { name = "azure-identity" },
     { name = "azure-keyvault-secrets" },
+    { name = "azure-monitor-opentelemetry" },
     { name = "azure-search-documents" },
     { name = "azure-storage-blob" },
     { name = "fastapi" },
     { name = "fastapi-mcp" },
     { name = "httpx" },
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-sdk" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "python-dotenv" },
@@ -1037,7 +1040,7 @@ requires-dist = [
     { name = "azure-eventhub" },
     { name = "azure-identity" },
     { name = "azure-keyvault-secrets" },
-    { name = "azure-monitor-opentelemetry", marker = "extra == 'monitor'", specifier = ">=1.7.0" },
+    { name = "azure-monitor-opentelemetry", specifier = ">=1.7.0" },
     { name = "azure-search-documents" },
     { name = "azure-storage-blob" },
     { name = "black", extras = ["jupyter"], marker = "extra == 'lint'", specifier = ">=26.3.1" },
@@ -1049,8 +1052,8 @@ requires-dist = [
     { name = "httpx", marker = "extra == 'test'" },
     { name = "isort", marker = "extra == 'lint'" },
     { name = "mkdocs", marker = "extra == 'docs'" },
-    { name = "opentelemetry-api", marker = "extra == 'monitor'", specifier = ">=1.27.0" },
-    { name = "opentelemetry-sdk", marker = "extra == 'monitor'", specifier = ">=1.27.0" },
+    { name = "opentelemetry-api", specifier = ">=1.27.0" },
+    { name = "opentelemetry-sdk", specifier = ">=1.27.0" },
     { name = "pre-commit", marker = "extra == 'dev'" },
     { name = "pydantic", specifier = ">=2" },
     { name = "pydantic-settings", specifier = ">=2" },
@@ -1066,7 +1069,7 @@ requires-dist = [
     { name = "typing-extensions" },
     { name = "uvicorn" },
 ]
-provides-extras = ["monitor", "dev", "test", "lint", "docs"]
+provides-extras = ["dev", "test", "lint", "docs"]
 
 [[package]]
 name = "httpcore"
