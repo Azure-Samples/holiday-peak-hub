@@ -204,7 +204,9 @@ class CatalogSearchAgent(BaseRetailAgent):
         ]
         baseline_products: list[CatalogProduct] = []
         if mode == "intelligent":
-            baseline_products = await _search_products_keyword(self.adapters, query=query, limit=limit)
+            baseline_products = await _search_products_keyword(
+                self.adapters, query=query, limit=limit
+            )
 
         _record_search_evaluation(
             self,
@@ -538,17 +540,16 @@ def _record_search_evaluation(
     baseline_skus = [product.sku for product in baseline_products]
 
     top_k = max(1, min(10, max(len(ranked_skus), 1), max(limit, 1)))
-    relevance = {
-        sku: float(max(top_k - index, 1))
-        for index, sku in enumerate(ranked_skus[:top_k])
-    }
+    relevance = {sku: float(max(top_k - index, 1)) for index, sku in enumerate(ranked_skus[:top_k])}
 
     anchor_relevant = {ranked_skus[0]} if ranked_skus else set()
     overlap = len(set(ranked_skus[:top_k]) & set(baseline_skus[:top_k]))
     overlap_ratio = overlap / max(1, min(top_k, len(ranked_skus), len(baseline_skus) or 1))
 
     expected_intent = (
-        "keyword_lookup" if mode != "intelligent" else (intent.intent if intent else "keyword_lookup")
+        "keyword_lookup"
+        if mode != "intelligent"
+        else (intent.intent if intent else "keyword_lookup")
     )
     predicted_intent = intent.intent if intent else "keyword_lookup"
 

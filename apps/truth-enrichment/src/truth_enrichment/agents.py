@@ -108,7 +108,9 @@ class TruthEnrichmentAgent(BaseRetailAgent):
                 ],
             },
         )
-        _record_enrichment_evaluation(self, entity_id=str(entity_id), gaps=gaps, proposed=proposed_list)
+        _record_enrichment_evaluation(
+            self, entity_id=str(entity_id), gaps=gaps, proposed=proposed_list
+        )
         return {
             "service": self.service_name,
             "entity_id": entity_id,

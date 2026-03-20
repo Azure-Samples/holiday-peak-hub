@@ -151,7 +151,10 @@ class FoundryTracer:
                         exc_info=True,
                     )
 
-            if _INFERENCE_TELEMETRY_AVAILABLE and not _FOUNDRY_INSTRUMENTATION_STATE["ai_inference"]:
+            if (
+                _INFERENCE_TELEMETRY_AVAILABLE
+                and not _FOUNDRY_INSTRUMENTATION_STATE["ai_inference"]
+            ):
                 try:
                     AIInferenceInstrumentor().instrument()
                     _FOUNDRY_INSTRUMENTATION_STATE["ai_inference"] = True
