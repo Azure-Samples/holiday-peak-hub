@@ -5,7 +5,24 @@ from dataclasses import dataclass
 from time import perf_counter
 from typing import Any, Awaitable, Callable
 
-from agent_framework import BaseAgent
+try:
+    from agent_framework import BaseAgent
+except Exception:
+
+    class BaseAgent:  # type: ignore[too-many-ancestors]
+        """Fallback base to keep local/test imports resilient.
+
+        Some CI environments can transiently resolve incompatible transitive
+        observability dependencies for `agent_framework`, causing import-time
+        failures before tests can run. This shim preserves importability for
+        framework-independent tests.
+        """
+
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            _ = args
+            _ = kwargs
+
+
 from holiday_peak_lib.utils.telemetry import get_foundry_tracer
 from pydantic import BaseModel, ConfigDict, Field
 

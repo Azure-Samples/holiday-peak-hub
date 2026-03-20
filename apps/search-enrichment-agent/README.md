@@ -1,36 +1,27 @@
-# search-enrichment-agent
-
-Search enrichment producer service for Issue #347.
+# Search Enrichment Agent
 
 ## Purpose
+Enriches search-oriented product data and processing outputs for discovery workflows.
 
-- Consumes approved truth data and generates search-ready enrichment fields.
-- Handles event-driven jobs from `search-enrichment-jobs`.
-- Exposes MCP tools:
-  - `/search-enrichment/enrich`
-  - `/search-enrichment/status`
-  - `/ai-search-indexing/trigger_indexer_run`
-  - `/ai-search-indexing/get_indexer_status`
-  - `/ai-search-indexing/reset_indexer`
-  - `/ai-search-indexing/index_documents`
-  - `/ai-search-indexing/get_index_stats`
-- Upserts `SearchEnrichedProduct` records into logical container `search_enriched_products`.
-- `get_indexer_status` returns normalized summary fields (`execution_status`, `last_run_time`, `document_count`, `failed_document_count`) plus raw status payload.
+## Responsibilities
+- Process search enrichment tasks from asynchronous jobs.
+- Improve product search representation quality.
+- Provide enrichment outputs for downstream indexing and retrieval.
 
-## Required environment (optional for local tests)
+## Key endpoints or interfaces
+- `POST /invoke` for synchronous service requests.
+- MCP interfaces under `/mcp/*` for agent-to-agent usage.
+- Event Hub subscription for asynchronous processing.
 
-- `PROJECT_ENDPOINT` / `FOUNDRY_ENDPOINT`
-- `FOUNDRY_AGENT_ID_FAST`
-- `FOUNDRY_AGENT_ID_RICH`
-- `MODEL_DEPLOYMENT_NAME_FAST`
-- `MODEL_DEPLOYMENT_NAME_RICH`
-- `EVENTHUB_CONNECTION_STRING`
-- `AI_SEARCH_ENDPOINT`
-- `AI_SEARCH_ADMIN_KEY` (optional fallback when managed identity is unavailable)
-- `AI_SEARCH_VECTOR_INDEX` (default: `product_search_index`)
-- `AI_SEARCH_INDEXER_NAME` (default: `product-search-indexer`)
-- `AI_SEARCH_PUSH_IMMEDIATE` (`true|false`, default `false`)
+## Run/Test commands
+```bash
+cd apps/search-enrichment-agent/src
+uv sync
+uv run uvicorn search_enrichment_agent.main:app --reload
+python -m pytest ../tests
+```
 
-## Local test command
-
-`python -m pytest apps/search-enrichment-agent/tests -q`
+## Configuration notes
+- Uses Foundry model settings (`PROJECT_ENDPOINT` or `FOUNDRY_ENDPOINT`, fast/rich model identifiers).
+- Supports Redis/Cosmos/Blob memory configuration via shared memory settings.
+- Requires Event Hub namespace and consumer configuration for background jobs.
