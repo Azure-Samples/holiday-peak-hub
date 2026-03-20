@@ -87,8 +87,9 @@ describe('SearchPage', () => {
 
     render(<SearchPage />);
 
+    expect(screen.getByText('Search mode: Agent enrichment')).toBeInTheDocument();
     expect(screen.getByText('Intent details')).toBeInTheDocument();
-    expect(screen.getByText('use_case_lookup')).toBeInTheDocument();
+    expect(screen.getAllByText('use_case_lookup').length).toBeGreaterThan(0);
     expect(screen.getByText('wireless noise cancelling')).toBeInTheDocument();
   });
 

@@ -443,9 +443,10 @@ htmlcov/
 /node_modules
 /.pnp
 .pnp.js
-yarn.lock
 package-lock.json
 *.lock
+!apps/ui/yarn.lock
+!apps/*/src/uv.lock
 
 # testing
 /coverage

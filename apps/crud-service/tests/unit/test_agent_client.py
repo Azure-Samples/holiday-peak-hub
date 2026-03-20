@@ -3,6 +3,7 @@
 import crud_service.integrations.agent_client as agent_client_module
 import httpx
 import pytest
+from holiday_peak_lib.utils import clear_correlation_id, set_correlation_id
 
 AgentClient = agent_client_module.AgentClient
 
@@ -33,6 +34,7 @@ class DummyClient:
         return None
 
     async def post(self, *args, **kwargs):
+        self.last_headers = kwargs.get("headers", {})
         return DummyResponse(self._payload)
 
 
@@ -59,6 +61,38 @@ async def test_call_endpoint_success(monkeypatch):
     client = AgentClient()
     result = await client.call_endpoint("http://agent", "/invoke", {"sku": "A"})
     assert result == {"ok": True}
+
+
+@pytest.mark.asyncio
+async def test_call_endpoint_includes_correlation_header(monkeypatch):
+    """Agent calls include x-correlation-id when request context has one."""
+    captured: dict = {}
+
+    class CapturingClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def post(self, *args, **kwargs):
+            captured["headers"] = kwargs.get("headers", {})
+            return DummyResponse({"ok": True})
+
+    monkeypatch.setattr(agent_client_module.httpx, "AsyncClient", CapturingClient)
+
+    set_correlation_id("corr-xyz")
+    try:
+        client = AgentClient()
+        result = await client.call_endpoint("http://agent", "/invoke", {"sku": "A"})
+    finally:
+        clear_correlation_id()
+
+    assert result == {"ok": True}
+    assert captured["headers"]["x-correlation-id"] == "corr-xyz"
 
 
 @pytest.mark.asyncio
