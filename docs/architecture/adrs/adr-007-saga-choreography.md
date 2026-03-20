@@ -18,6 +18,14 @@ Services must coordinate across domains (e.g., order placement → inventory res
 - **Canonical coverage contract**: Topic-level topology status and wiring gaps are maintained in [Event Hub topology matrix](../eventhub-topology-matrix.md) and governed by issue #299.
 - **Deferred/diverged**: Full end-to-end business sagas with uniform compensating transactions are not consistently implemented across domains; compensation remains service-specific.
 
+## Gap Tracking (2026-03-20)
+
+The following implementation gaps are explicitly tracked as separate issues:
+
+- Product-events publisher coverage: #448
+- Shipment-events subscriber wiring: #449
+- Compensating transaction consistency framework: #450
+
 ### Pattern
 Each service:
 1. Publishes domain events to Event Hubs topic

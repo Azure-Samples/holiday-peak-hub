@@ -26,17 +26,11 @@ from .truth import (
     ExportResult,
     GapReport,
     GapReportTarget,
-)
-from .truth import IntentClassification as LegacyIntentClassification
-from .truth import (
     ProductEnrichmentProposal,
     ProductStyle,
     ProductVariant,
     ProposedAttribute,
     Provenance,
-)
-from .truth import SearchEnrichedProduct as LegacySearchEnrichedProduct
-from .truth import (
     SharePolicy,
     SourceType,
     TruthAttribute,
@@ -92,10 +86,8 @@ __all__ = [
     "ProposedAttribute",
     "Provenance",
     "SearchEnrichedProduct",
-    "LegacySearchEnrichedProduct",
     "SharePolicy",
     "SourceType",
     "TruthAttribute",
     "IntentClassification",
-    "LegacyIntentClassification",
 ]

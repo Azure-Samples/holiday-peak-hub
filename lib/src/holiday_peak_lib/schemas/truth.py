@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -273,22 +273,54 @@ class ProductEnrichmentProposal(ProposedAttribute):
 
 
 class IntentClassification(BaseModel):
-    """Intent classification result for a search/enrichment request."""
+    """Canonical intent classification model used across search and truth flows."""
 
     model_config = ConfigDict(populate_by_name=True)
 
-    intent: str
+    query_type: Literal["simple", "complex"] | None = Field(None, alias="queryType")
+    category: Optional[str] = None
+    attributes: list[str] = Field(default_factory=list)
+    use_case: Optional[str] = Field(None, alias="useCase")
+    brand: Optional[str] = None
+    price_range: tuple[float | None, float | None] = Field(
+        default=(None, None),
+        alias="priceRange",
+    )
+    filters: dict[str, Any] = Field(default_factory=dict)
+    sub_queries: list[str] = Field(default_factory=list, alias="subQueries")
+    intent: Optional[str] = None
     confidence: float = Field(..., ge=0.0, le=1.0)
     entities: dict[str, Any] = Field(default_factory=dict)
     reasoning: Optional[str] = None
 
 
 class SearchEnrichedProduct(BaseModel):
-    """Shared search result enriched with context for downstream UI/services."""
+    """Canonical search enriched product model used across search and truth flows."""
 
     model_config = ConfigDict(populate_by_name=True)
 
     sku: str
+    id: Optional[str] = None
+    entity_id: Optional[str] = Field(None, alias="entityId")
+    name: Optional[str] = None
+    brand: Optional[str] = None
+    category: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[float] = None
+    use_cases: list[str] = Field(default_factory=list, alias="useCases")
+    complementary_products: list[str] = Field(
+        default_factory=list,
+        alias="complementaryProducts",
+    )
+    substitute_products: list[str] = Field(default_factory=list, alias="substituteProducts")
+    search_keywords: list[str] = Field(default_factory=list, alias="searchKeywords")
+    enriched_description: Optional[str] = Field(None, alias="enrichedDescription")
+    enriched_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        alias="enrichedAt",
+    )
+    enrichment_model: Optional[str] = Field(None, alias="enrichmentModel")
+    source_approval_version: Optional[int] = Field(None, alias="sourceApprovalVersion")
     score: Optional[float] = Field(None, ge=0.0, le=1.0)
     source_type: Optional[SourceType] = Field(None, alias="sourceType")
     source_assets: list[str] = Field(default_factory=list, alias="sourceAssets")
