@@ -36,6 +36,21 @@ def test_build_vision_prompt_uses_image_url_content_parts(engine):
     assert content[2] == {"type": "image_url", "image_url": {"url": "https://cdn.example.com/b.jpg"}}
 
 
+def test_build_vision_prompt_accepts_single_image_url_and_missing_fields(engine):
+    messages = engine.build_vision_prompt(
+        product={"id": "p2", "name": "Pack"},
+        image_url="https://cdn.example.com/single.jpg",
+        missing_fields=["material"],
+    )
+
+    content = messages[1]["content"]
+    assert content[0]["type"] == "text"
+    assert content[1] == {
+        "type": "image_url",
+        "image_url": {"url": "https://cdn.example.com/single.jpg"},
+    }
+
+
 def test_parse_ai_response_dict(engine):
     raw = {
         "value": "red",
@@ -53,6 +68,19 @@ def test_parse_ai_response_fallback(engine):
     parsed = engine.parse_ai_response("just a string")
     assert parsed["value"] == "just a string"
     assert parsed["confidence"] == 0.4
+
+
+def test_parse_vision_response_delegates_to_structured_parser(engine):
+    parsed = engine.parse_vision_response(
+        {
+            "value": "canvas",
+            "confidence": 0.81,
+            "evidence": "visual texture",
+            "metadata": {"source": "image_analysis"},
+        }
+    )
+    assert parsed["value"] == "canvas"
+    assert parsed["confidence"] == pytest.approx(0.81)
 
 
 def test_score_confidence_clamps(engine):

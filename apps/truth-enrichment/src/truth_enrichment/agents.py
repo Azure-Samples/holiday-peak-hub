@@ -17,12 +17,19 @@ from .enrichment_engine import EnrichmentEngine
 class TruthEnrichmentAgent(BaseRetailAgent):
     """Agent that enriches product attributes using Azure AI Foundry."""
 
-    def __init__(self, config, *args: Any, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        config,
+        *args: Any,
+        adapters: EnrichmentAdapters | None = None,
+        engine: EnrichmentEngine | None = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(config, *args, **kwargs)
-        self._engine = EnrichmentEngine()
-        self._adapters = build_enrichment_adapters()
-        self._adapters.image_analysis.set_vision_invoker(self.invoke_model)
-        self._adapters.image_analysis.set_vision_prompt_builder(self._engine.build_vision_prompt)
+        self._engine = engine or EnrichmentEngine()
+        self._adapters = adapters or build_enrichment_adapters()
+        self._adapters.dam.set_vision_invoker(self.invoke_model)
+        self._adapters.dam.set_vision_prompt_builder(self._engine.build_vision_prompt)
 
     @property
     def adapters(self) -> EnrichmentAdapters:
@@ -34,7 +41,7 @@ class TruthEnrichmentAgent(BaseRetailAgent):
 
     async def handle(self, request: dict[str, Any]) -> dict[str, Any]:
         """Enrich a product's missing fields on demand."""
-        entity_id = request.get("entity_id") or request.get("product_id")
+        entity_id = request.get("entity_id") or request.get("product_id") or request.get("sku")
         if not entity_id:
             return {"error": "entity_id is required"}
 
@@ -78,7 +85,7 @@ class TruthEnrichmentAgent(BaseRetailAgent):
             product=product,
             field_definition=field_definition,
         )
-        image_parsed = self.engine.parse_ai_response(image_raw)
+        image_parsed = self.engine.parse_vision_response(image_raw)
 
         text_parsed: dict[str, Any] | None = None
         if self.slm or self.llm:
@@ -127,9 +134,8 @@ class TruthEnrichmentAgent(BaseRetailAgent):
         schema: dict[str, Any] | None,
     ) -> list[dict[str, Any]]:
         results = []
-        field_defs = (schema or {}).get("fields", {})
         for field_name in gaps:
-            field_def = field_defs.get(field_name) if field_defs else None
+            field_def = _field_definition_for_name(schema, field_name)
             proposed = await self.enrich_field(entity_id, field_name, product, field_def)
             results.append(proposed)
         return results
@@ -162,39 +168,78 @@ def _register_crud_tools(mcp: FastAPIMCPServer) -> None:
 
 
 def _detect_gaps(product: dict[str, Any], schema: dict[str, Any] | None) -> list[str]:
-    """Return field names that are required by the schema but missing from the product."""
+    """Return field names from the full schema that are missing from the product."""
     if schema is None:
         return []
 
-    required_fields: list[str] = []
+    schema_fields: list[str] = []
     seen: set[str] = set()
 
-    for field_name in schema.get("required_fields", []):
-        if isinstance(field_name, str) and field_name not in seen:
-            required_fields.append(field_name)
+    for field_name in _iter_schema_field_names(schema):
+        if field_name not in seen:
+            schema_fields.append(field_name)
             seen.add(field_name)
+
+    return [field_name for field_name in schema_fields if _is_missing(product.get(field_name))]
+
+
+def _iter_schema_field_names(schema: dict[str, Any]) -> list[str]:
+    keys_to_expand = (
+        "required_fields",
+        "optional_fields",
+        "required_attributes",
+        "optional_attributes",
+        "requiredKeys",
+        "optionalKeys",
+    )
+    names: list[str] = []
+    for key in keys_to_expand:
+        value = schema.get(key, [])
+        if not isinstance(value, list):
+            continue
+        for field_name in value:
+            if isinstance(field_name, str):
+                names.append(field_name)
 
     fields = schema.get("fields", {})
     if isinstance(fields, list):
         for field in fields:
-            if not isinstance(field, dict) or not field.get("required"):
+            if not isinstance(field, dict):
                 continue
             field_name = field.get("name")
-            if isinstance(field_name, str) and field_name not in seen:
-                required_fields.append(field_name)
-                seen.add(field_name)
+            if isinstance(field_name, str):
+                names.append(field_name)
     elif isinstance(fields, dict):
-        for field_name, definition in fields.items():
-            if (
-                isinstance(field_name, str)
-                and isinstance(definition, dict)
-                and definition.get("required")
-                and field_name not in seen
-            ):
-                required_fields.append(field_name)
-                seen.add(field_name)
+        for field_name in fields:
+            if isinstance(field_name, str):
+                names.append(field_name)
 
-    return [field_name for field_name in required_fields if _is_missing(product.get(field_name))]
+    attribute_types = schema.get("attribute_types", {})
+    if isinstance(attribute_types, dict):
+        for field_name in attribute_types:
+            if isinstance(field_name, str):
+                names.append(field_name)
+
+    return names
+
+
+def _field_definition_for_name(
+    schema: dict[str, Any] | None,
+    field_name: str,
+) -> dict[str, Any] | None:
+    if schema is None:
+        return None
+    fields = schema.get("fields", {})
+    if isinstance(fields, dict):
+        definition = fields.get(field_name)
+        return definition if isinstance(definition, dict) else None
+    if isinstance(fields, list):
+        for definition in fields:
+            if not isinstance(definition, dict):
+                continue
+            if definition.get("name") == field_name:
+                return definition
+    return None
 
 
 def _is_missing(value: Any) -> bool:

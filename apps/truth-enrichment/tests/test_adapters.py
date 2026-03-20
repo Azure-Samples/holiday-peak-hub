@@ -97,5 +97,6 @@ async def test_dam_image_analysis_graceful_when_vision_unavailable() -> None:
 
 def test_build_enrichment_adapters_includes_image_analysis() -> None:
     adapters = build_enrichment_adapters()
+    assert isinstance(adapters.dam, DAMImageAnalysisAdapter)
     assert isinstance(adapters.image_analysis, DAMImageAnalysisAdapter)
     assert adapters.image_analysis.resilience_status()["threshold"] == 5

@@ -110,10 +110,22 @@ class EnrichmentAdapters:
     proposed: ProposedAttributeStoreAdapter = field(default_factory=ProposedAttributeStoreAdapter)
     truth: TruthAttributeStoreAdapter = field(default_factory=TruthAttributeStoreAdapter)
     audit: AuditStoreAdapter = field(default_factory=AuditStoreAdapter)
-    image_analysis: DAMImageAnalysisAdapter = field(default_factory=DAMImageAnalysisAdapter)
+    dam: DAMImageAnalysisAdapter = field(default_factory=DAMImageAnalysisAdapter)
+    image_analysis: DAMImageAnalysisAdapter | None = None
     hitl_publisher: EventHubPublisher = field(default_factory=EventHubPublisher)
+
+    def __post_init__(self) -> None:
+        if self.image_analysis is not None:
+            self.dam = self.image_analysis
+        self.image_analysis = self.dam
 
 
 def build_enrichment_adapters() -> EnrichmentAdapters:
     """Construct the default adapter set for the enrichment service."""
-    return EnrichmentAdapters()
+    max_images_raw = os.getenv("DAM_MAX_IMAGES", "4")
+    try:
+        max_images = max(1, int(max_images_raw))
+    except ValueError:
+        max_images = 4
+
+    return EnrichmentAdapters(dam=DAMImageAnalysisAdapter(max_images=max_images))

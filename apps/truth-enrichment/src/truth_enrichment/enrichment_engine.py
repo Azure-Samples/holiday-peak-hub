@@ -52,11 +52,18 @@ class EnrichmentEngine:
         self,
         *,
         product: dict[str, Any],
-        field_name: str,
+        field_name: str | None = None,
         field_definition: Optional[dict[str, Any]] = None,
-        image_urls: list[str],
+        image_urls: list[str] | None = None,
+        image_url: str | None = None,
+        missing_fields: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         """Build a Foundry vision prompt using text + image_url content parts."""
+        target_field = field_name or (missing_fields[0] if missing_fields else "unknown_field")
+        resolved_image_urls = list(image_urls or [])
+        if image_url:
+            resolved_image_urls.append(image_url)
+
         field_hint = ""
         if field_definition:
             field_hint = (
@@ -66,7 +73,7 @@ class EnrichmentEngine:
 
         instruction = (
             "Infer the missing attribute from product context and images. "
-            f"Target field: {field_name}.{field_hint} "
+            f"Target field: {target_field}.{field_hint} "
             "Return ONLY JSON with keys: value, confidence, evidence, metadata."
         )
         content_parts: list[dict[str, Any]] = [
@@ -75,14 +82,14 @@ class EnrichmentEngine:
                 "text": str(
                     {
                         "instruction": instruction,
-                        "missing_field": field_name,
+                        "missing_field": target_field,
                         "product": product,
                     }
                 ),
             }
         ]
         content_parts.extend(
-            {"type": "image_url", "image_url": {"url": image_url}} for image_url in image_urls
+            {"type": "image_url", "image_url": {"url": url}} for url in resolved_image_urls
         )
 
         return [
@@ -109,6 +116,10 @@ class EnrichmentEngine:
             "evidence": "unstructured response",
             "metadata": {},
         }
+
+    def parse_vision_response(self, response: Any) -> dict[str, Any]:
+        """Parse a vision-model response payload into the enrichment shape."""
+        return self.parse_ai_response(response)
 
     def score_confidence(self, parsed: dict[str, Any]) -> float:
         """Return the confidence score from a parsed AI response."""
