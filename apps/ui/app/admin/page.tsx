@@ -34,6 +34,7 @@ export default function AdminPortalPage() {
         { name: 'Checkout Support', icon: FiCheckSquare, url: '/admin/ecommerce/checkout' },
         { name: 'Order Status', icon: FiPackage, url: '/admin/ecommerce/orders' },
         { name: 'Product Enrichment', icon: FiTag, url: '/admin/ecommerce/products' },
+        { name: 'Truth Analytics', icon: FiBarChart2, url: '/admin/truth-analytics' },
         { name: 'Enrichment Monitor', icon: FiBarChart2, url: '/admin/enrichment-monitor' },
         { name: 'Agent Activity', icon: FiActivity, url: '/admin/agent-activity' },
       ],

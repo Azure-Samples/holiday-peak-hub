@@ -219,7 +219,7 @@ jobs:
 
           if [ ${#CHANGED_AGENTS[@]} -gt 0 ]; then
             AGENTS_CHANGED=true
-            MATRIX=$(printf '%s\n' "${CHANGED_AGENTS[@]}" | jq -R . | jq -cs 'map({service: .})')
+            MATRIX=$(printf '%s\n' "${CHANGED_AGENTS[@]}" | jq -Rcs 'split("\n")[:-1] | map(select(length > 0)) | map({service: .})')
           fi
 
           CHANGED_AGENT_SERVICES_CSV=""
@@ -239,7 +239,7 @@ jobs:
           echo "crud_changed=$CRUD_CHANGED" >> "$GITHUB_OUTPUT"
           echo "ui_changed=$UI_CHANGED" >> "$GITHUB_OUTPUT"
           echo "agents_changed=$AGENTS_CHANGED" >> "$GITHUB_OUTPUT"
-          echo "changed_agents_matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+          printf 'changed_agents_matrix=%s\n' "$MATRIX" >> "$GITHUB_OUTPUT"
           echo "changed_agent_services_csv=$CHANGED_AGENT_SERVICES_CSV" >> "$GITHUB_OUTPUT"
           echo "changed_aks_services_csv=$CHANGED_AKS_SERVICES_CSV" >> "$GITHUB_OUTPUT"
           echo "lib_changed=$LIB_CHANGED" >> "$GITHUB_OUTPUT"
@@ -563,6 +563,9 @@ jobs:
         run: |
           eval "$(azd env get-values -e '${{ inputs.environment }}' | sed 's/^/export /')"
           APIM_GATEWAY_URL_VALUE="${APIM_GATEWAY_URL:-${apimGatewayUrl:-}}"
+          if [ "$APIM_GATEWAY_URL_VALUE" = "null" ]; then
+            APIM_GATEWAY_URL_VALUE=""
+          fi
           {
             echo "AI_SERVICES_NAME=${AI_SERVICES_NAME}"
             echo "AI_SEARCH_NAME=${AI_SEARCH_NAME}"
@@ -1012,6 +1015,10 @@ jobs:
 
           APIM_URL="${APIM_URL%/}"
           EXPECTED_APIM_URL="${EXPECTED_APIM_URL%/}"
+
+          if [ "$EXPECTED_APIM_URL" = "null" ]; then
+            EXPECTED_APIM_URL=""
+          fi
 
           if [ -z "$APIM_URL" ]; then
             echo "Failed to resolve APIM gatewayUrl for resource group $RESOURCE_GROUP. Ensure APIM exists and is provisioned before deploying UI." >&2
