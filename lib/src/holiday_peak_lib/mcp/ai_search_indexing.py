@@ -20,9 +20,8 @@ from uuid import uuid4
 import httpx
 from azure.core.credentials import AccessToken
 from azure.core.credentials_async import AsyncTokenCredential
-
 from holiday_peak_lib.utils.logging import configure_logging
-from holiday_peak_lib.utils.rate_limiter import RateLimitExceededError, RateLimiter
+from holiday_peak_lib.utils.rate_limiter import RateLimiter, RateLimitExceededError
 
 logger = configure_logging(app_name="ai-search-indexing-mcp")
 
@@ -39,8 +38,7 @@ class MCPToolServer(Protocol):
         self,
         path: str,
         handler: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]],
-    ) -> None:
-        ...
+    ) -> None: ...
 
 
 @dataclass(slots=True)

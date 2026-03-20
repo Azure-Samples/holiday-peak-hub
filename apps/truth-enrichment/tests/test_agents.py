@@ -13,6 +13,7 @@ from truth_enrichment.agents import TruthEnrichmentAgent, _detect_gaps
 @pytest.fixture()
 def agent_config_with_slm() -> AgentDependencies:
     """Create agent dependencies with an enabled fast-model route."""
+
     async def dummy_invoker(*, messages, tools=None, **kwargs):  # noqa: ANN001
         return {"value": "dummy", "confidence": 0.0, "evidence": "dummy"}
 
@@ -111,7 +112,9 @@ async def test_enrich_field_runs_image_before_text_and_marks_hybrid(
                 "metadata": {"source": "text_enrichment"},
             }
 
-        agent.adapters.image_analysis.analyze_attribute_from_images = AsyncMock(side_effect=fake_image)
+        agent.adapters.image_analysis.analyze_attribute_from_images = AsyncMock(
+            side_effect=fake_image
+        )
         agent.invoke_model = AsyncMock(side_effect=fake_model)
 
         proposed = await agent.enrich_field(

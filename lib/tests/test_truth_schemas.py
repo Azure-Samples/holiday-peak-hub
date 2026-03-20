@@ -13,6 +13,7 @@ from holiday_peak_lib.schemas.truth import (
     EntityType,
     GapReport,
     GapReportTarget,
+    IntentClassification,
     ProductStyle,
     ProductVariant,
     ProposedAttribute,
@@ -21,7 +22,6 @@ from holiday_peak_lib.schemas.truth import (
     SharePolicy,
     SourceType,
     TruthAttribute,
-    IntentClassification,
 )
 
 
