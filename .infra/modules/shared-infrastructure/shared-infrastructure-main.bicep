@@ -15,6 +15,11 @@ param agcSubnetAddressPrefix string = '10.0.12.0/24'
 @secure()
 @description('Optional PostgreSQL administrator password for CRUD database.')
 param postgresAdminPassword string = ''
+@description('Optional email receiver for infrastructure alerts action group.')
+param alertNotificationEmail string = ''
+@secure()
+@description('Optional Microsoft Teams incoming webhook URL for infrastructure alerts action group.')
+param alertTeamsWebhookUrl string = ''
 param resourceGroupName string = '${projectName}-${environment}-rg'
 
 // Create Resource Group
@@ -41,6 +46,8 @@ module sharedInfra './shared-infrastructure.bicep' = {
     agcSupportEnabled: agcSupportEnabled
     agcSubnetAddressPrefix: agcSubnetAddressPrefix
     postgresAdminPassword: postgresAdminPassword
+    alertNotificationEmail: alertNotificationEmail
+    alertTeamsWebhookUrl: alertTeamsWebhookUrl
   }
   dependsOn: [
     rg
@@ -89,3 +96,5 @@ output agcFrontendHostname string = sharedInfra.outputs.agcFrontendHostname
 output agcFrontendReference string = sharedInfra.outputs.agcFrontendReference
 output aksOidcIssuerUrl string = sharedInfra.outputs.aksOidcIssuerUrl
 output aksNodeResourceGroup string = sharedInfra.outputs.aksNodeResourceGroup
+output monitoringActionGroupId string = sharedInfra.outputs.monitoringActionGroupId
+output monitoringActionGroupName string = sharedInfra.outputs.monitoringActionGroupName
