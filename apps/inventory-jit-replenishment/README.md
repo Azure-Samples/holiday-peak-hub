@@ -1,12 +1,27 @@
-# Inventory JIT Replenishment Service
+# Inventory JIT Replenishment
 
-## Run
+## Purpose
+Recommends just-in-time replenishment actions for inventory continuity.
+
+## Responsibilities
+- Evaluate demand and stock posture.
+- Suggest timing and quantity for replenishment actions.
+- Provide rationale for replenishment prioritization.
+
+## Key endpoints or interfaces
+- `POST /invoke` for synchronous service requests.
+- MCP interfaces under `/mcp/*` for agent-to-agent usage.
+- Event Hub subscription for asynchronous processing.
+
+## Run/Test commands
 ```bash
-pip install -e .[test]
-uvicorn inventory_jit_replenishment.main:app --reload
+cd apps/inventory-jit-replenishment/src
+uv sync
+uv run uvicorn inventory_jit_replenishment.main:app --reload
+python -m pytest ../tests
 ```
 
-## Tests
-```bash
-pytest
-```
+## Configuration notes
+- Uses Foundry model settings (`PROJECT_ENDPOINT` or `FOUNDRY_ENDPOINT`, fast/rich model identifiers).
+- Supports Redis/Cosmos/Blob memory configuration via shared memory settings.
+- Requires Event Hub namespace and consumer configuration for background jobs.

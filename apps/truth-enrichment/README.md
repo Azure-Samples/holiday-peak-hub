@@ -1,33 +1,29 @@
-# Truth Enrichment Service
+# Truth Enrichment
 
-AI-powered product attribute enrichment service. Consumes `enrichment-jobs` from Event Hub, performs PIM schema gap detection (required + optional attributes), analyzes DAM images, and generates enrichment proposals for HITL review.
+## Purpose
+Generates proposed truth-layer attribute enrichments for products.
 
-## Enrichment Pipeline
+## Responsibilities
+- Detect enrichable product attribute gaps.
+- Generate candidate attribute values.
+- Persist and expose enrichment job status.
 
-1. Read product and category schema.
-2. Detect missing attributes using the full schema (`required` + `optional`).
-3. Retrieve DAM assets and run vision analysis per missing field.
-4. Run text enrichment when model routing is available.
-5. Merge image + text evidence into a proposal with `source_type`, `source_assets`, `original_data`, `enriched_data`, and `reasoning`.
-6. Store proposed attributes, append audit events, and publish pending items to `hitl-jobs`.
+## Key endpoints or interfaces
+- `POST /invoke` for synchronous agent requests.
+- `POST /enrich/product/{entity_id}` to enrich a product.
+- `POST /enrich/field` to enrich a specific field.
+- `GET /enrich/status/{job_id}` to read enrichment status.
+- Event Hub subscription: `enrichment-jobs`.
 
-## Run
-
+## Run/Test commands
 ```bash
-pip install -e .[test]
-uvicorn truth_enrichment.main:app --reload
+cd apps/truth-enrichment/src
+uv sync
+uv run uvicorn truth_enrichment.main:app --reload
+python -m pytest ../tests
 ```
 
-## Tests
-
-```bash
-pytest
-```
-
-## Key Endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/enrich/product/{entity_id}` | Trigger on-demand enrichment |
-| POST | `/enrich/field` | Enrich a specific field for a product |
-| GET | `/enrich/status/{job_id}` | Check enrichment job status |
+## Configuration notes
+- Uses Foundry model settings (`PROJECT_ENDPOINT` or `FOUNDRY_ENDPOINT`, fast/rich model identifiers).
+- Supports Redis/Cosmos/Blob memory configuration via shared memory settings.
+- Requires Event Hub namespace and consumer configuration for background jobs.

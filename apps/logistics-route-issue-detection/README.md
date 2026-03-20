@@ -1,12 +1,27 @@
-# Logistics Route Issue Detection Service
+# Logistics Route Issue Detection
 
-## Run
+## Purpose
+Detects route anomalies and suggests mitigation actions for shipment continuity.
+
+## Responsibilities
+- Monitor route-level disruption indicators.
+- Identify likely issue patterns and severity.
+- Return mitigation recommendations for operational teams.
+
+## Key endpoints or interfaces
+- `POST /invoke` for synchronous service requests.
+- MCP interfaces under `/mcp/*` for agent-to-agent usage.
+- Event Hub subscription for asynchronous processing.
+
+## Run/Test commands
 ```bash
-pip install -e .[test]
-uvicorn logistics_route_issue_detection.main:app --reload
+cd apps/logistics-route-issue-detection/src
+uv sync
+uv run uvicorn logistics_route_issue_detection.main:app --reload
+python -m pytest ../tests
 ```
 
-## Tests
-```bash
-pytest
-```
+## Configuration notes
+- Uses Foundry model settings (`PROJECT_ENDPOINT` or `FOUNDRY_ENDPOINT`, fast/rich model identifiers).
+- Supports Redis/Cosmos/Blob memory configuration via shared memory settings.
+- Requires Event Hub namespace and consumer configuration for background jobs.
