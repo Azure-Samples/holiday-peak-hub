@@ -2,8 +2,9 @@
 
 from typing import Any, Callable
 
+from holiday_peak_lib.mcp.server import FastAPIMCPServer
+
 from .base_agent import AgentDependencies, BaseRetailAgent, ModelTarget
-from .fastapi_mcp import FastAPIMCPServer
 from .foundry import FoundryAgentConfig, build_foundry_model_target
 from .memory.builder import MemoryBuilder
 from .memory.cold import ColdMemory
