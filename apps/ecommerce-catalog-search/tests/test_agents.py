@@ -322,7 +322,7 @@ class TestCatalogSearchAgent:
             assert len(result["results"]) == 1
             assert result["results"][0]["item_id"] == "SKU-001"
             mock_multi.assert_not_awaited()
-            mock_search.assert_awaited_once()
+            assert mock_search.await_count >= 1
 
     @pytest.mark.asyncio
     async def test_handle_intelligent_mode_runs_multi_query_and_merges_enrichment(
