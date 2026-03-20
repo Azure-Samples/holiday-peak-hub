@@ -1,7 +1,6 @@
 """Evaluation hooks for latency and quality."""
 
 from dataclasses import dataclass
-from typing import Dict
 
 
 @dataclass
@@ -22,7 +21,7 @@ class Evaluator:
         self.results.append(result)
         return result
 
-    def summary(self) -> Dict[str, float]:
+    def summary(self) -> dict[str, float]:
         if not self.results:
             return {"count": 0, "avg_latency_ms": 0.0, "success_rate": 0.0}
         count = len(self.results)
