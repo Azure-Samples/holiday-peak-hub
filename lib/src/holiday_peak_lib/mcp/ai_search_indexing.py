@@ -326,8 +326,8 @@ def build_ai_search_indexing_client_from_env(
     api_key = (os.getenv("AI_SEARCH_ADMIN_KEY") or "").strip() or None
     default_index_name = (os.getenv("AI_SEARCH_VECTOR_INDEX") or _DEFAULT_INDEX_NAME).strip()
     default_indexer_name = (
-        (os.getenv("AI_SEARCH_INDEXER_NAME") or _DEFAULT_INDEXER_NAME).strip() or None
-    )
+        os.getenv("AI_SEARCH_INDEXER_NAME") or _DEFAULT_INDEXER_NAME
+    ).strip() or None
 
     credential: AsyncTokenCredential | None = None
     if api_key is None:
@@ -541,9 +541,7 @@ def _extract_indexer_status_summary(payload: dict[str, Any]) -> dict[str, Any]:
         "itemsFailed",
     )
     last_run_time = (
-        last_result.get("endTime")
-        or last_result.get("startTime")
-        or payload.get("lastRunTime")
+        last_result.get("endTime") or last_result.get("startTime") or payload.get("lastRunTime")
     )
     execution_status = (
         last_result.get("status")

@@ -171,7 +171,9 @@ async def test_ai_search_mcp_tools_enforce_indexer_run_rate_limit() -> None:
     assert overflow["http_status"] == 429
 
 
-def test_build_client_uses_default_indexer_name_when_env_absent(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_build_client_uses_default_indexer_name_when_env_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("AI_SEARCH_ENDPOINT", "https://unit-test.search.windows.net")
     monkeypatch.delenv("AI_SEARCH_INDEXER_NAME", raising=False)
     monkeypatch.delenv("AI_SEARCH_ADMIN_KEY", raising=False)
