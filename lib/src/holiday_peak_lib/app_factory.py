@@ -6,7 +6,6 @@ from typing import Any, AsyncContextManager, AsyncIterator, Callable
 
 from fastapi import FastAPI, HTTPException, Request
 from holiday_peak_lib.agents import AgentBuilder, BaseRetailAgent, FoundryAgentConfig
-from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.agents.foundry import (
     build_foundry_model_target,
     ensure_foundry_agent,
@@ -16,6 +15,7 @@ from holiday_peak_lib.agents.orchestration.router import RoutingStrategy
 from holiday_peak_lib.agents.prompt_loader import load_service_prompt_instructions
 from holiday_peak_lib.config import MemorySettings
 from holiday_peak_lib.connectors.registry import ConnectorRegistry
+from holiday_peak_lib.mcp.server import FastAPIMCPServer
 from holiday_peak_lib.utils import (
     CORRELATION_HEADER,
     EventHubSubscription,

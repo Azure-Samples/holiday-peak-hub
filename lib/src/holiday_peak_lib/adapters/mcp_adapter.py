@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Awaitable, Callable
 
-from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
+from holiday_peak_lib.mcp.server import FastAPIMCPServer
 
 ToolHandler = Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]
 
