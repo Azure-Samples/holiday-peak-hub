@@ -1,4 +1,4 @@
-# ADR-029: MCP Internal Communication Policy Addendum
+# ADR-031: MCP Internal Communication Policy Addendum
 
 ## Status
 
