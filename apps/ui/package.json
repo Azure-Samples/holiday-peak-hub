@@ -38,13 +38,11 @@
     "@stripe/stripe-js": "^5.7.0",
     "@tanstack/react-query": "^5.90.20",
     "@tanstack/react-query-devtools": "^5.91.2",
-    "@types/accounting": "^0.4.5",
     "@types/nprogress": "^0.2.3",
     "@types/react": "^19.0.6",
     "@types/react-dom": "^19.0.2",
     "@types/react-star-ratings": "^2.3.3",
-    "accounting": "^0.4.1",
-    "axios": "^1.7.9",
+    "axios": "^1.13.5",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "next": "^16.2.0",
@@ -59,8 +57,7 @@
     "react-select": "^5.9.0",
     "react-star-ratings": "^2.3.0",
     "react-switch": "^7.0.0",
-    "recharts": "^2.15.3",
-    "swr": "^2.3.0"
+    "recharts": "^2.15.3"
   },
   "license": "ISC",
   "devDependencies": {
@@ -68,7 +65,7 @@
     "@commitlint/config-conventional": "^16.2.4",
     "@faker-js/faker": "^9.3.0",
     "@next/bundle-analyzer": "^15.1.6",
-    "@next/eslint-plugin-next": "^12.1.6",
+    "@next/eslint-plugin-next": "^16.2.0",
     "@tailwindcss/aspect-ratio": "^0.4.0",
     "@tailwindcss/forms": "^0.5.9",
     "@tailwindcss/typography": "^0.5.15",

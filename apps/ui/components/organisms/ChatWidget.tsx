@@ -79,7 +79,7 @@ export const ChatWidget: React.FC = () => {
           Catalog actions remain on page cards. Agent actions happen in this chat.
         </div>
 
-        <div className="flex-1 space-y-4 overflow-y-auto bg-[var(--hp-bg)] p-4" aria-live="polite">
+        <div className="flex-1 space-y-4 overflow-y-auto bg-[var(--hp-bg)] p-4" role="log" aria-live="polite" aria-relevant="additions text">
           {messages.map((m, idx) => (
             <div key={idx} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div

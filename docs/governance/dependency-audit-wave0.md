@@ -20,6 +20,7 @@ Wave0 baseline observed in issue #372:
 ## Remediation Applied
 
 - Added CI workflow `.github/workflows/dependency-audit.yml` to run `pip-audit` on every PR/push to `main`.
+- Added frontend dependency coverage in `.github/workflows/dependency-audit.yml` via `yarn audit --level high` in `apps/ui`.
 - Updated lint toolchain minimum version to `black[jupyter]>=26.3.1` in:
   - `.github/workflows/lint.yml`
   - `lib/src/pyproject.toml`
@@ -42,4 +43,4 @@ Repository-scoped clean environment scan after remediation:
 ## Follow-up Actions
 
 1. Re-check `ecdsa` on each dependency audit run and remove ignore immediately when fixed version is available.
-2. Keep dependency-audit workflow enabled as a PR gate recommendation for `main` branch governance.
+2. Keep dependency-audit workflow enabled as a PR gate recommendation for `main` branch governance (Python + frontend).

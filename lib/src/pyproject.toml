@@ -85,9 +85,7 @@ omit = [
     "*/adapters/logistics_adapter.py",
     "*/adapters/pricing_adapter.py",
     "*/adapters/product_adapter.py",
-    "*/adapters/mock_adapters.py",
-    "*/agents/service_agent.py",
-    "*/agents/memory/builder.py"
+    "*/adapters/mock_adapters.py"
 ]
 
 [tool.coverage.report]

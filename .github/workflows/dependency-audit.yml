@@ -59,3 +59,19 @@ jobs:
         with:
           name: pip-audit-report
           path: pip-audit-report.json
+
+  yarn-audit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/ui
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install frontend dependencies
+        run: yarn install --frozen-lockfile
+      - name: Run yarn audit (HIGH)
+        run: yarn audit --level high --groups dependencies

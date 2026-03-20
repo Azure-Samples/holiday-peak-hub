@@ -15,14 +15,72 @@ on:
         required: true
         type: boolean
         default: false
+  schedule:
+    - cron: '0 6 * * 1'
 
 permissions:
   contents: read
   packages: write
+  security-events: write
 
 jobs:
-  build-publish:
+  discover-services:
     runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.discover.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Discover service Dockerfiles
+        id: discover
+        run: |
+          matrix=$(python - <<'PY'
+          import json
+          from pathlib import Path
+
+          services = []
+          for app_dir in sorted(Path("apps").iterdir()):
+              if not app_dir.is_dir():
+                  continue
+
+              src_dockerfile = app_dir / "src" / "Dockerfile"
+              root_dockerfile = app_dir / "Dockerfile"
+
+              if src_dockerfile.exists():
+                  dockerfile = src_dockerfile.as_posix()
+                  context = (app_dir / "src").as_posix()
+              elif root_dockerfile.exists():
+                  dockerfile = root_dockerfile.as_posix()
+                  context = app_dir.as_posix()
+              else:
+                  continue
+
+              services.append(
+                  {
+                      "image_name": app_dir.name,
+                      "dockerfile": dockerfile,
+                      "context": context,
+                  }
+              )
+
+          print(json.dumps(services, separators=(",", ":")))
+          PY
+          )
+
+          if [ "$matrix" = "[]" ]; then
+            echo "No Dockerfiles discovered under apps/."
+            exit 1
+          fi
+
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  build-scan-publish:
+    if: ${{ github.event_name != 'schedule' }}
+    needs: discover-services
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJson(needs.discover-services.outputs.matrix) }}
     env:
       REGISTRY: ghcr.io/${{ github.repository_owner }}
     steps:
@@ -36,22 +94,95 @@ jobs:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build images (optional push)
+      - name: Resolve image reference
+        id: image
         run: |
           registry=$(echo "$REGISTRY" | tr '[:upper:]' '[:lower:]')
+          image_name="${{ matrix.service.image_name }}"
           image_tag="${{ inputs.imageTag }}"
-          push_images="${{ inputs.pushImages }}"
+
           if [ "${{ github.event_name }}" = "push" ]; then
             image_tag="${{ github.ref_name }}"
-            push_images="true"
           fi
 
-          for d in apps/*; do
-            [ -d "$d" ] || continue
-            [ -f "$d/src/Dockerfile" ] || continue
-            image_name=$(basename "$d")
-            docker build -t "$registry/$image_name:$image_tag" -f "$d/src/Dockerfile" "$d/src"
-            if [ "$push_images" = "true" ]; then
-              docker push "$registry/$image_name:$image_tag"
-            fi
-          done
+          echo "image_ref=$registry/$image_name:$image_tag" >> "$GITHUB_OUTPUT"
+
+      - name: Build image
+        run: |
+          docker build \
+            -t "${{ steps.image.outputs.image_ref }}" \
+            -f "${{ matrix.service.dockerfile }}" \
+            "${{ matrix.service.context }}"
+
+      - name: Trivy scan (HIGH/CRITICAL)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ steps.image.outputs.image_ref }}
+          format: sarif
+          output: trivy-${{ matrix.service.image_name }}.sarif
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+
+      - name: Upload Trivy SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-${{ matrix.service.image_name }}.sarif
+          category: trivy-${{ matrix.service.image_name }}
+
+      - name: Push image
+        if: ${{ github.event_name == 'push' || inputs.pushImages }}
+        run: |
+          docker push "${{ steps.image.outputs.image_ref }}"
+
+  scan-published-images:
+    if: ${{ github.event_name == 'schedule' }}
+    needs: discover-services
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJson(needs.discover-services.outputs.matrix) }}
+    env:
+      REGISTRY: ghcr.io/${{ github.repository_owner }}
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Resolve published image
+        id: image
+        run: |
+          registry=$(echo "$REGISTRY" | tr '[:upper:]' '[:lower:]')
+          image_ref="$registry/${{ matrix.service.image_name }}:latest"
+
+          if docker buildx imagetools inspect "$image_ref" > /dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "image_ref=$image_ref" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Published image not found, skipping: $image_ref"
+          fi
+
+      - name: Trivy scan published image (HIGH/CRITICAL)
+        if: steps.image.outputs.exists == 'true'
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ steps.image.outputs.image_ref }}
+          format: sarif
+          output: trivy-published-${{ matrix.service.image_name }}.sarif
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+
+      - name: Upload published-image Trivy SARIF
+        if: steps.image.outputs.exists == 'true' && always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-published-${{ matrix.service.image_name }}.sarif
+          category: trivy-published-${{ matrix.service.image_name }}

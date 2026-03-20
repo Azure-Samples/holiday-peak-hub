@@ -1,6 +1,6 @@
 import {ReactNode} from 'react'
 import {Metadata} from 'next'
-import ClientLayout from '@/components/ClientLayout'
+import ClientLayout from '@/components/utils/ClientLayout'
 
 import '@/css/tailwind.css'
 import '@/css/main.css'

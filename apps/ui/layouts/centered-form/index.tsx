@@ -1,4 +1,4 @@
-import NProgressHandler from '@/components/NprogressHandler';
+import NProgressHandler from '@/components/utils/NprogressHandler';
 
 export type CenteredFormProps = {
   title: string;

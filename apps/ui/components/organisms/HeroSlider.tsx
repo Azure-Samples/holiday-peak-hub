@@ -39,6 +39,7 @@ const SLIDES = [
 export const HeroSlider: React.FC = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [reducedMotion, setReducedMotion] = useState(false);
+  const [announceSlide, setAnnounceSlide] = useState(false);
 
   useEffect(() => {
     const media = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -60,11 +61,40 @@ export const HeroSlider: React.FC = () => {
     return () => clearInterval(timer);
   }, [reducedMotion]);
 
+  useEffect(() => {
+    setAnnounceSlide(true);
+  }, [currentSlide]);
+
+  const goToPreviousSlide = () => {
+    setCurrentSlide((prev) => (prev - 1 + SLIDES.length) % SLIDES.length);
+  };
+
+  const goToNextSlide = () => {
+    setCurrentSlide((prev) => (prev + 1) % SLIDES.length);
+  };
+
+  const handleCarouselKeyDown: React.KeyboardEventHandler<HTMLElement> = (event) => {
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      goToPreviousSlide();
+      return;
+    }
+
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      goToNextSlide();
+    }
+  };
+
   const active = SLIDES[currentSlide];
 
   return (
     <section
+      role="region"
+      aria-roledescription="carousel"
       aria-label="Holiday Peak showcase"
+      tabIndex={0}
+      onKeyDown={handleCarouselKeyDown}
       className="showcase-shell relative isolate w-full overflow-hidden"
     >
       <div className="absolute inset-0 bg-gradient-to-br from-[var(--hp-primary)]/15 via-transparent to-[var(--hp-accent)]/20" aria-hidden="true" />
@@ -84,11 +114,11 @@ export const HeroSlider: React.FC = () => {
               priority={index === 0}
             />
           </div>
-          <div className="absolute inset-0 bg-gradient-to-r from-[#0f0a06]/85 via-[#0f0a06]/55 to-[#0f0a06]/20" />
+          <div className="absolute inset-0 bg-gradient-to-r from-hp-hero-overlay/85 via-hp-hero-overlay/55 to-hp-hero-overlay/20" />
         </div>
       ))}
 
-      <div className="relative z-20 flex min-h-[22rem] flex-col justify-end p-5 sm:min-h-[26rem] sm:p-7 lg:min-h-[29rem] lg:p-10">
+      <div className="relative z-20 flex min-h-80 flex-col justify-end p-5 sm:min-h-96 sm:p-7 lg:p-10">
         <div className="max-w-2xl text-white showcase-enter">
           <span className="mb-3 inline-flex rounded-full border border-white/25 bg-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em]">
             {active.subtitle}
@@ -124,6 +154,10 @@ export const HeroSlider: React.FC = () => {
             />
           ))}
         </div>
+
+        <p className="sr-only" aria-live="polite" aria-atomic="true">
+          {announceSlide ? `Slide ${currentSlide + 1} of ${SLIDES.length}: ${active.title}` : ''}
+        </p>
       </div>
 
       {reducedMotion && (
