@@ -38,6 +38,41 @@ class CatalogHarness:
     inventory: AsyncMock
 
 
+class MockPIMConnector:
+    def __init__(self, *, fail_writeback: bool = False) -> None:
+        self.fail_writeback = fail_writeback
+        self.calls: list[tuple[str, str, object]] = []
+
+    async def get_product(self, sku: str) -> None:
+        _ = sku
+        return None
+
+    async def push_enrichment(self, sku: str, field_name: str, value: object) -> dict[str, object]:
+        self.calls.append((sku, field_name, value))
+        if self.fail_writeback:
+            raise RuntimeError("pim unavailable")
+        return {"status": "ok"}
+
+
+class MockAISearchIndex:
+    def __init__(self) -> None:
+        self.documents: dict[str, dict[str, Any]] = {}
+
+    def upsert(self, sku: str, payload: dict[str, Any]) -> None:
+        self.documents[sku] = payload
+
+    def query(self, text: str, *, limit: int = 10) -> list[str]:
+        tokens = {token.strip().lower() for token in text.split() if token.strip()}
+        ranked: list[tuple[str, int]] = []
+        for sku, payload in self.documents.items():
+            searchable = " ".join(str(value) for value in payload.values()).lower()
+            score = sum(1 for token in tokens if token in searchable)
+            if score > 0:
+                ranked.append((sku, score))
+        ranked.sort(key=lambda item: item[1], reverse=True)
+        return [sku for sku, _ in ranked[:limit]]
+
+
 @pytest.fixture(name="agent_config_with_slm")
 def fixture_agent_config_with_slm() -> AgentDependencies:
     async def dummy_invoker(*, messages, tools=None, **kwargs):  # noqa: ANN001
@@ -85,6 +120,82 @@ def fixture_raw_product_payload() -> dict[str, Any]:
             }
         ],
     }
+
+
+@pytest.fixture(name="sample_product")
+def fixture_sample_product(raw_product_payload: dict[str, Any]) -> dict[str, Any]:
+    return dict(raw_product_payload)
+
+
+@pytest.fixture(name="sample_images")
+def fixture_sample_images() -> list[dict[str, Any]]:
+    return [{"url": "https://cdn.example.com/style-100-front.jpg"}]
+
+
+@pytest.fixture(name="mock_pim_connector")
+def fixture_mock_pim_connector() -> MockPIMConnector:
+    return MockPIMConnector()
+
+
+@pytest.fixture(name="mock_dam_connector")
+def fixture_mock_dam_connector(sample_images: list[dict[str, Any]]) -> AsyncMock:
+    dam = AsyncMock()
+    dam.fetch_assets = AsyncMock(return_value=sample_images)
+    return dam
+
+
+@pytest.fixture(name="mock_foundry_client")
+def fixture_mock_foundry_client() -> Mock:
+    client = Mock()
+    client.classify_intent = AsyncMock(
+        return_value={
+            "intent": "semantic_search",
+            "confidence": 0.91,
+            "entities": {"use_case": "travel"},
+        }
+    )
+    client.enrich_text = AsyncMock(
+        return_value={
+            "value": "Navy",
+            "confidence": 0.85,
+            "evidence": "deterministic mock response",
+            "metadata": {"source": "text_enrichment"},
+        }
+    )
+    client.enrich_image = AsyncMock(
+        return_value={
+            "value": "Midnight Blue",
+            "confidence": 0.93,
+            "evidence": "deterministic vision mock response",
+            "metadata": {"source": "image_analysis"},
+        }
+    )
+    return client
+
+
+@pytest.fixture(name="mock_ai_search")
+def fixture_mock_ai_search() -> MockAISearchIndex:
+    return MockAISearchIndex()
+
+
+@pytest.fixture(name="enrichment_service_app")
+def fixture_enrichment_service_app():
+    from fastapi.testclient import TestClient
+
+    from truth_enrichment.main import app
+
+    with TestClient(app) as client:
+        yield client
+
+
+@pytest.fixture(name="search_service_app")
+def fixture_search_service_app():
+    from fastapi.testclient import TestClient
+
+    from ecommerce_catalog_search.main import app
+
+    with TestClient(app) as client:
+        yield client
 
 
 @pytest.fixture(name="build_ingestion_harness")

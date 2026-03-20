@@ -17,6 +17,7 @@ on:
     paths:
       - lib/**
       - apps/**
+      - tests/**
       - pyproject.toml
       - conftest.py
       - .github/workflows/test.yml
@@ -54,3 +55,6 @@ jobs:
       - name: Run app tests
         run: |
           pytest apps/*/tests --ignore=apps/ui/tests
+      - name: Run e2e tests
+        run: |
+          pytest tests/e2e -m e2e --maxfail=1
