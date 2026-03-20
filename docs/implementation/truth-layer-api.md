@@ -275,6 +275,45 @@ When available, proposal payloads include enrichment context fields for reviewer
 
 These fields are optional for backward compatibility with older proposals.
 
+For enhanced review UI support, `reasoning` and `source_assets` accept richer shapes:
+
+- `reasoning`: string, list of strings, or structured reasoning objects.
+- `source_assets`: list containing DAM image URLs and/or structured asset metadata objects.
+
+### Example MCP response: `/review/get_proposal`
+
+```json
+{
+  "entity_id": "prod-100",
+  "proposal": {
+    "entity_id": "prod-100",
+    "attr_id": "attr-200",
+    "field_name": "material",
+    "proposed_value": "Organic Cotton",
+    "current_value": null,
+    "original_data": {
+      "material": null
+    },
+    "enriched_data": {
+      "material": "Organic Cotton"
+    },
+    "reasoning": [
+      "Image texture suggests cotton",
+      "Catalog title includes 'cotton'"
+    ],
+    "source_assets": [
+      "https://cdn.example.com/products/prod-100/front.jpg",
+      {
+        "asset_id": "dam-200",
+        "url": "https://cdn.example.com/products/prod-100/zoom.jpg",
+        "kind": "image"
+      }
+    ],
+    "source_type": "hybrid"
+  }
+}
+```
+
 ### HITL Decision Gate in the Notebook
 
 - Queue observation occurs in `Stage 8 - HITL Queue Observation` using Truth HITL `stats` and `list` actions.
