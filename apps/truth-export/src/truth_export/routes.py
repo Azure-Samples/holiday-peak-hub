@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -39,12 +40,14 @@ class BulkExportRequest(BaseModel):
 class PIMWritebackRequest(BaseModel):
     dry_run: bool = False
     trigger: str = "api"
+    approved_fields: list[str] | None = None
 
 
 class PIMBatchWritebackRequest(BaseModel):
     entity_ids: list[str] = Field(min_length=1, max_length=100)
     dry_run: bool = False
     max_concurrency: int = Field(default=5, ge=1, le=20)
+    approved_fields: list[str] | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -103,12 +106,29 @@ async def export_pim_batch(
     if len(request.entity_ids) > 100:
         raise HTTPException(status_code=400, detail="Batch size cannot exceed 100 entities")
 
-    results = await engine.writeback_batch(
-        adapters.writeback_manager,
-        request.entity_ids,
-        dry_run=request.dry_run,
-        max_concurrency=request.max_concurrency,
-    )
+    if request.approved_fields:
+        semaphore = asyncio.Semaphore(max(1, request.max_concurrency))
+
+        async def _run_one(entity_id: str) -> dict[str, Any]:
+            async with semaphore:
+                return await engine.writeback_to_pim(
+                    adapters.writeback_manager,
+                    adapters.truth_store,
+                    entity_id,
+                    approved_attributes=request.approved_fields,
+                    dry_run=request.dry_run,
+                )
+
+        results = list(
+            await asyncio.gather(*[_run_one(entity_id) for entity_id in request.entity_ids])
+        )
+    else:
+        results = await engine.writeback_batch(
+            adapters.writeback_manager,
+            request.entity_ids,
+            dry_run=request.dry_run,
+            max_concurrency=request.max_concurrency,
+        )
 
     for entity_result in results:
         await adapters.truth_store.save_export_result(entity_result)
@@ -140,6 +160,14 @@ async def export_pim_single(
         entity_id,
         dry_run=request.dry_run,
     )
+    if request.approved_fields:
+        result = await engine.writeback_to_pim(
+            adapters.writeback_manager,
+            adapters.truth_store,
+            entity_id,
+            approved_attributes=request.approved_fields,
+            dry_run=request.dry_run,
+        )
     await adapters.truth_store.save_export_result(result)
     audit_event = engine.build_writeback_audit_event(
         entity_id=entity_id,

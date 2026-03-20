@@ -12,6 +12,7 @@ from azure.core.credentials import AccessToken
 from holiday_peak_lib.mcp.ai_search_indexing import (
     AISearchIndexingClient,
     AISearchIndexingSettings,
+    build_ai_search_indexing_client_from_env,
     register_ai_search_indexing_tools,
 )
 
@@ -62,7 +63,19 @@ async def test_ai_search_client_run_status_reset_and_stats() -> None:
         if request.url.path.endswith("/search.run"):
             return httpx.Response(202, json={})
         if request.url.path.endswith("/search.status"):
-            return httpx.Response(200, json={"status": "running"})
+            return httpx.Response(
+                200,
+                json={
+                    "status": "running",
+                    "lastResult": {
+                        "status": "success",
+                        "startTime": "2026-03-19T01:00:00Z",
+                        "endTime": "2026-03-19T01:01:00Z",
+                        "itemCount": 17,
+                        "failedItemCount": 1,
+                    },
+                },
+            )
         if request.url.path.endswith("/search.reset"):
             return httpx.Response(204, json={})
         if request.url.path.endswith("/stats"):
@@ -78,6 +91,10 @@ async def test_ai_search_client_run_status_reset_and_stats() -> None:
 
     assert run_result["status"] in {"accepted", "ok"}
     assert status_result["result"]["status"] == "running"
+    assert status_result["execution_status"] == "success"
+    assert status_result["last_run_time"] == "2026-03-19T01:01:00Z"
+    assert status_result["document_count"] == 17
+    assert status_result["failed_document_count"] == 1
     assert reset_result["status"] == "ok"
     assert stats_result["result"]["documentCount"] == 42
 
@@ -152,3 +169,16 @@ async def test_ai_search_mcp_tools_enforce_indexer_run_rate_limit() -> None:
     overflow = await tool({"indexer_name": "idx"})
     assert overflow["status"] == "error"
     assert overflow["http_status"] == 429
+
+
+def test_build_client_uses_default_indexer_name_when_env_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AI_SEARCH_ENDPOINT", "https://unit-test.search.windows.net")
+    monkeypatch.delenv("AI_SEARCH_INDEXER_NAME", raising=False)
+    monkeypatch.delenv("AI_SEARCH_ADMIN_KEY", raising=False)
+
+    client = build_ai_search_indexing_client_from_env()
+
+    assert client is not None
+    assert client.settings.default_indexer_name == "product-search-indexer"

@@ -27,6 +27,8 @@ def test_invoke_requires_entity_id() -> None:
 
 def test_agent_activity_endpoints() -> None:
     client = _build_client()
+    invoke_response = client.post("/invoke", json={"entity_id": "SKU-1"})
+    assert invoke_response.status_code == 200
 
     traces_response = client.get("/agent/traces")
     assert traces_response.status_code == 200
@@ -39,3 +41,4 @@ def test_agent_activity_endpoints() -> None:
     evaluation_response = client.get("/agent/evaluation/latest")
     assert evaluation_response.status_code == 200
     assert "latest" in evaluation_response.json()
+    assert evaluation_response.json()["latest"] is not None

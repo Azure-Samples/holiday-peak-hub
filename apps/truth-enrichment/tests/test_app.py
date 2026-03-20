@@ -52,6 +52,9 @@ def test_enrich_status_not_found(client):
 
 
 def test_agent_activity_endpoints(client):
+    invoke_response = client.post("/invoke", json={"entity_id": "sku-999"})
+    assert invoke_response.status_code == 200
+
     traces_response = client.get("/agent/traces")
     assert traces_response.status_code == 200
     assert "traces" in traces_response.json()
@@ -63,3 +66,4 @@ def test_agent_activity_endpoints(client):
     evaluation_response = client.get("/agent/evaluation/latest")
     assert evaluation_response.status_code == 200
     assert "latest" in evaluation_response.json()
+    assert evaluation_response.json()["latest"] is not None

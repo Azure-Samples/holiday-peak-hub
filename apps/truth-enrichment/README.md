@@ -1,6 +1,15 @@
 # Truth Enrichment Service
 
-AI-powered product attribute enrichment service. Consumes `enrichment-jobs` from Event Hub, uses Azure AI Foundry to generate missing attribute values, and writes proposed attributes for HITL review.
+AI-powered product attribute enrichment service. Consumes `enrichment-jobs` from Event Hub, performs PIM schema gap detection (required + optional attributes), analyzes DAM images, and generates enrichment proposals for HITL review.
+
+## Enrichment Pipeline
+
+1. Read product and category schema.
+2. Detect missing attributes using the full schema (`required` + `optional`).
+3. Retrieve DAM assets and run vision analysis per missing field.
+4. Run text enrichment when model routing is available.
+5. Merge image + text evidence into a proposal with `source_type`, `source_assets`, `original_data`, `enriched_data`, and `reasoning`.
+6. Store proposed attributes, append audit events, and publish pending items to `hitl-jobs`.
 
 ## Run
 

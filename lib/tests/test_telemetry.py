@@ -90,7 +90,14 @@ class TestFoundryTracer:
         tracer = FoundryTracer("svc")
         tracer.trace_decision(decision="route", outcome="slm", metadata={"x": 1})
         assert tracer.get_traces(limit=10) == []
-        assert tracer.get_metrics()["enabled"] is False
+        metrics = tracer.get_metrics()
+        assert metrics["enabled"] is False
+        assert "instrumentation" in metrics
+        assert set(metrics["instrumentation"].keys()) == {
+            "azure_monitor",
+            "ai_projects",
+            "ai_inference",
+        }
 
     def test_records_traces_and_metrics(self, monkeypatch):
         monkeypatch.setenv("FOUNDRY_TRACING_ENABLED", "true")
@@ -116,6 +123,7 @@ class TestFoundryTracer:
         assert metrics["counts"]["tool_call"] == 1
         assert metrics["counts"]["model_invocation"] == 1
         assert metrics["counts"]["evaluation_updates"] == 1
+        assert "instrumentation" in metrics
         latest = tracer.get_latest_evaluation()
         assert latest is not None
         assert latest["score"] == 0.9

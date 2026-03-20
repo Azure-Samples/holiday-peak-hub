@@ -7,6 +7,9 @@ from typing import Any
 
 from pydantic import BaseModel
 
+ReasoningPayload = str | list[str] | dict[str, Any] | list[dict[str, Any]]
+SourceAssetPayload = str | dict[str, Any]
+
 
 class ReviewItem(BaseModel):
     """A proposed attribute pending human review."""
@@ -27,8 +30,8 @@ class ReviewItem(BaseModel):
     reviewed_by: str | None = None
     original_data: dict[str, Any] | None = None
     enriched_data: dict[str, Any] | None = None
-    reasoning: str | None = None
-    source_assets: list[dict[str, Any]] | None = None
+    reasoning: ReasoningPayload | None = None
+    source_assets: list[SourceAssetPayload] | None = None
     source_type: str | None = None
 
 
@@ -55,8 +58,8 @@ class AuditEvent(BaseModel):
     timestamp: datetime
     original_data: dict[str, Any] | None = None
     enriched_data: dict[str, Any] | None = None
-    reasoning: str | None = None
-    source_assets: list[dict[str, Any]] | None = None
+    reasoning: ReasoningPayload | None = None
+    source_assets: list[SourceAssetPayload] | None = None
     source_type: str | None = None
 
 

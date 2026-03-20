@@ -39,16 +39,25 @@ def build_event_handlers(
             return
 
         if _is_hitl_writeback_event(payload, data, protocol):
-            result = await engine.writeback_entity(
+            approved_fields_raw = data.get("approved_fields")
+            approved_fields = (
+                [str(field) for field in approved_fields_raw if field]
+                if isinstance(approved_fields_raw, list)
+                else None
+            )
+
+            result = await engine.writeback_to_pim(
                 adapters.writeback_manager,
+                adapters.truth_store,
                 str(entity_id),
+                approved_attributes=approved_fields,
                 dry_run=bool(data.get("dry_run", False)),
             )
             await adapters.truth_store.save_export_result(result)
             audit = engine.build_writeback_audit_event(
                 entity_id=str(entity_id),
                 result=result,
-                trigger="event:export-jobs",
+                trigger="event:export-jobs:hitl-approved",
             )
             await adapters.truth_store.save_audit_event(audit.model_dump())
             logger.info(
