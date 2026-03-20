@@ -19,6 +19,7 @@ from holiday_peak_lib.utils import (
     CORRELATION_HEADER,
     clear_correlation_id,
     get_foundry_tracer,
+    get_tracer,
     set_correlation_id,
 )
 from holiday_peak_lib.utils.logging import configure_logging, log_async_operation
@@ -106,6 +107,7 @@ def build_service_app(
         agent.service_name = service_name
     if mcp_setup:
         mcp_setup(mcp, agent)
+    default_instructions = load_service_prompt_instructions(service_name)
 
     @app.middleware("http")
     async def correlation_middleware(request: Request, call_next):
@@ -125,7 +127,6 @@ def build_service_app(
     async def _ensure_role(selected_role: str, config: FoundryAgentConfig, service: str) -> dict:
         target_name = config.agent_name or f"{service}-{selected_role}"
         target_model = config.deployment_name or DEFAULT_FOUNDY_MODELS[selected_role]
-        default_instructions = load_service_prompt_instructions(service)
         ensure_result = await ensure_foundry_agent(
             config,
             agent_name=target_name,
@@ -237,11 +238,23 @@ def build_service_app(
         if not isinstance(request_payload, dict):
             request_payload = {"query": str(request_payload)}
 
+        otel_tracer = get_tracer(service_name)
+
+        async def _route_with_span():
+            with otel_tracer.start_as_current_span("agent.handle") as span:
+                try:
+                    span.set_attribute("agent.service", service_name)
+                    span.set_attribute("agent.intent", intent)
+                    span.set_attribute("agent.payload_size", len(str(request_payload)))
+                except (AttributeError, TypeError, ValueError):
+                    pass
+                return await router.route(intent, request_payload)
+
         return await log_async_operation(
             logger,
             name="service.invoke",
             intent=intent,
-            func=lambda: router.route(intent, request_payload),
+            func=_route_with_span,
             token_count=None,
             metadata={
                 "payload_size": len(str(request_payload)),
@@ -272,6 +285,7 @@ def build_service_app(
     async def ensure_agents(payload: dict | None = None):
         nonlocal foundry_ready
         body: dict = payload if isinstance(payload, dict) else {}
+        fallback_instructions = load_service_prompt_instructions(service_name)
         role = str(body.get("role", "both")).lower()
         create_if_missing = bool(body.get("create_if_missing", True))
         instructions_raw = body.get("instructions")
@@ -334,7 +348,7 @@ def build_service_app(
                 instructions=(
                     instructions.get(selected_role)
                     if selected_role in instructions
-                    else default_instructions
+                    else fallback_instructions
                 ),
                 create_if_missing=create_if_missing,
                 model=config.deployment_name,

@@ -314,7 +314,15 @@ async def run(self, payload: dict) -> dict:
     )
 ```
 
-### Distributed Tracing (NOT IMPLEMENTED)
+### Distributed Tracing (PARTIALLY IMPLEMENTED)
+
+✅ **Implemented in shared runtime**:
+- `FoundryTracer` now initializes Azure Monitor + Foundry/OpenTelemetry instrumentors when available.
+- `/invoke` wraps agent execution in explicit `agent.handle` spans with service/intent metadata.
+- Decision, model invocation, and tool-call events are exposed through `/agent/traces` and `/agent/metrics`.
+
+❌ **Still pending**:
+- End-to-end correlation IDs across every external downstream dependency.
 
 Add OpenTelemetry spans for end-to-end visibility:
 ```python
@@ -333,11 +341,16 @@ async def run(self, query: str, tools: list[Tool]) -> AgentResponse:
         return result
 ```
 
-## Evaluation Harness (NOT IMPLEMENTED)
+## Evaluation Harness (PARTIALLY IMPLEMENTED)
+
+✅ **Implemented in flow runtime**:
+- Deterministic enrichment and search evaluators are available in `holiday_peak_lib.evaluation`.
+- `run_evaluation()` integrates with `azure-ai-evaluation` when installed and degrades gracefully to local fallback.
+- Enrichment/search flows now persist latest run output to tracer state surfaced by `GET /agent/evaluation/latest`.
 
 ### Missing Capabilities
 
-❌ **Automated Quality Tests**: No scenario-based evaluation pipelines  
+❌ **Automated Quality Tests**: No scenario-based scheduled evaluation pipelines  
 ❌ **Latency Benchmarks**: No P95/P99 latency tracking per model  
 ❌ **Tool Call Accuracy**: No validation that tools return expected results  
 ❌ **Regression Tests**: No baseline comparisons when changing models  
