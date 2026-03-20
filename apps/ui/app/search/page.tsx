@@ -8,6 +8,8 @@ import { SearchInput } from '@/components/molecules/SearchInput';
 import { Alert } from '@/components/molecules/Alert';
 import { Button } from '@/components/atoms/Button';
 import { SearchModeToggle } from '@/components/enrichment/SearchModeToggle';
+import { SearchModeIndicator } from '@/components/enrichment/SearchModeIndicator';
+import { IntentClassificationDisplay } from '@/components/enrichment/IntentClassificationDisplay';
 import { IntentPanel } from '@/components/enrichment/IntentPanel';
 import { SearchResultCard } from '@/components/enrichment/SearchResultCard';
 import { useIntelligentSearch } from '@/lib/hooks/useIntelligentSearch';
@@ -34,7 +36,9 @@ function getProxyFailureError(error: unknown): ProxyFailureShape | null {
   }
 
   const proxyError = error as ProxyErrorShape;
-  if (proxyError.status !== 502 || !proxyError.details?.proxy?.failureKind) {
+  const proxyFailure = proxyError.details?.proxy;
+
+  if (proxyError.status !== 502 || !proxyFailure?.failureKind) {
     return null;
   }
 
@@ -120,6 +124,15 @@ export default function SearchPage() {
           resolvedMode={resolvedMode}
           onChange={setPreference}
         />
+        <div className="space-y-2" aria-label="Search mode and intent classification">
+          <SearchModeIndicator source={resolvedMode === 'intelligent' ? 'agent' : 'fallback'} />
+          {resolvedMode === 'intelligent' && (
+            <IntentClassificationDisplay
+              intent={data?.intent?.intent}
+              confidence={data?.intent?.confidence}
+            />
+          )}
+        </div>
         <IntentPanel mode={resolvedMode} intent={data?.intent} subqueries={data?.subqueries} />
       </div>
 

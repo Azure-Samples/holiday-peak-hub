@@ -35,6 +35,9 @@
 - **AGC Subnet Drift Realignment**: Shared infra defaults now pin the delegated `agc` subnet to `10.0.12.0/24` so `azd provision` matches the live dev VNet layout and stops attempting a destructive subnet replacement during canonical deploy runs.
 - **GitHub OIDC Hook Refresh**: Root POSIX `azd` `postprovision` and `postdeploy` hooks now refresh Azure CLI login from the live GitHub Actions OIDC token immediately before Azure/AKS operations, retrying empty or malformed token responses explicitly so remote deploy failures surface as actionable OIDC refresh errors instead of opaque JSON parsing crashes.
 
+### Runtime Hotfix Notes (2026-03-19)
+- **UI Product Enrichment Monitoring (Issue #352)**: Admin now exposes a dedicated enrichment monitoring route (`/admin/enrichment-monitor`) with real-time stage/job visibility, retry controls on monitor failures/log entries, and throughput + approval-rate visual indicators; search now surfaces explicit mode/intent signal chips; top navigation includes a pipeline status indicator that links directly to the monitor.
+
 ### Merged PRs (v1.1.0)
 | # | Title | Category |
 |---|-------|----------|
