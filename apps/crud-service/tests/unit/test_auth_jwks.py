@@ -350,11 +350,13 @@ class TestGetCurrentUserOptional:
     """Tests for optional auth dependency behavior."""
 
     @pytest.mark.asyncio
-    async def test_optional_auth_runtime_failure_returns_none(self, monkeypatch, caplog):
-        """Unexpected runtime errors in optional auth should degrade to anonymous."""
+    async def test_optional_auth_runtime_failure_surfaces_503(self, monkeypatch, caplog):
+        """Optional auth service failures should surface instead of being silently swallowed."""
 
-        async def _boom(_credentials):
-            raise RuntimeError("jwks runtime failure")
+        async def _boom(_request, _credentials):
+            raise HTTPException(
+                status_code=503, detail="Authentication service is temporarily unavailable"
+            )
 
         monkeypatch.setattr(deps_module, "get_current_user", _boom)
 
@@ -362,11 +364,12 @@ class TestGetCurrentUserOptional:
         creds.credentials = "fake.jwt.token"
         request = _build_request()
 
-        with caplog.at_level("WARNING"):
-            user = await get_current_user_optional(request, creds)
+        with caplog.at_level("ERROR"):
+            with pytest.raises(HTTPException) as exc_info:
+                await get_current_user_optional(request, creds)
 
-        assert user is None
-        assert "Optional auth runtime failure" in caplog.text
+        assert exc_info.value.status_code == 503
+        assert "Optional auth service failure" in caplog.text
 
     @pytest.mark.asyncio
     async def test_optional_auth_accepts_dev_mock_headers(self, monkeypatch):

@@ -1,5 +1,6 @@
 """Cold memory layer using Azure Blob Storage."""
 
+import asyncio
 from typing import Optional
 
 from azure.core.pipeline.transport import AioHttpTransport
@@ -28,37 +29,45 @@ class ColdMemory:
         self.connection_timeout = connection_timeout
         self.read_timeout = read_timeout
         self.client: Optional[BlobServiceClient] = None
+        self._connect_lock = asyncio.Lock()
 
     async def connect(self) -> None:
-        async def _connect():
-            credential = DefaultAzureCredential()
-            transport = None
-            if any(
-                value is not None
-                for value in (
-                    self.connection_pool_size,
-                    self.connection_timeout,
-                    self.read_timeout,
-                )
-            ):
-                transport = AioHttpTransport(
-                    connection_timeout=self.connection_timeout,
-                    read_timeout=self.read_timeout,
-                    connection_pool_size=self.connection_pool_size,
-                )
-            self.client = BlobServiceClient(
-                self.account_url,
-                credential=credential,
-                transport=transport,
-            )
+        if self.client is not None:
+            return
 
-        await log_async_operation(
-            logger,
-            name="cold_memory.connect",
-            intent=self.account_url,
-            func=_connect,
-            metadata={"account_url": self.account_url},
-        )
+        async with self._connect_lock:
+            if self.client is not None:
+                return
+
+            async def _connect():
+                credential = DefaultAzureCredential()
+                transport = None
+                if any(
+                    value is not None
+                    for value in (
+                        self.connection_pool_size,
+                        self.connection_timeout,
+                        self.read_timeout,
+                    )
+                ):
+                    transport = AioHttpTransport(
+                        connection_timeout=self.connection_timeout,
+                        read_timeout=self.read_timeout,
+                        connection_pool_size=self.connection_pool_size,
+                    )
+                self.client = BlobServiceClient(
+                    self.account_url,
+                    credential=credential,
+                    transport=transport,
+                )
+
+            await log_async_operation(
+                logger,
+                name="cold_memory.connect",
+                intent=self.account_url,
+                func=_connect,
+                metadata={"account_url": self.account_url},
+            )
 
     async def upload_text(self, blob_name: str, data: str) -> None:
         if not self.client:

@@ -69,11 +69,24 @@ class JWTConfig:
                 self._jwks_cache = response.json()
                 self._jwks_fetched_at = now
                 logger.info("Refreshed JWKS from %s", self.jwks_uri)
-        except Exception:
+        except (
+            httpx.TimeoutException,
+            httpx.ConnectError,
+            httpx.HTTPStatusError,
+            ValueError,
+        ) as exc:
             if self._jwks_cache:
-                logger.warning("JWKS refresh failed; using cached keys", exc_info=True)
+                logger.warning(
+                    "JWKS refresh failed; using cached keys",
+                    extra={"jwks_uri": self.jwks_uri, "error_type": type(exc).__name__},
+                    exc_info=True,
+                )
             else:
-                logger.error("JWKS fetch failed and no cached keys available", exc_info=True)
+                logger.error(
+                    "JWKS fetch failed and no cached keys available",
+                    extra={"jwks_uri": self.jwks_uri, "error_type": type(exc).__name__},
+                    exc_info=True,
+                )
                 raise
 
         return self._jwks_cache
@@ -203,6 +216,16 @@ async def get_current_user(
             detail="Invalid authentication token",
             headers={"WWW-Authenticate": "Bearer"},
         ) from e
+    except (httpx.TimeoutException, httpx.ConnectError, httpx.HTTPStatusError, ValueError) as exc:
+        logger.error(
+            "Authentication dependency unavailable",
+            extra={"error_type": type(exc).__name__},
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication service is temporarily unavailable",
+        ) from exc
 
 
 def require_role(required_role: str):
@@ -243,18 +266,21 @@ async def get_current_user_optional(
     """Get current user if authenticated, otherwise return None."""
     try:
         return await get_current_user(request, credentials)
-    except HTTPException:
-        if credentials is not None:
-            logger.warning(
-                "Optional auth rejected provided credentials; continuing anonymously",
-                exc_info=True,
-            )
-        return None
-    except Exception as exc:
+    except HTTPException as exc:
+        if exc.status_code in {status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN}:
+            if credentials is not None:
+                logger.warning(
+                    "Optional auth rejected provided credentials; continuing anonymously",
+                    extra={"status_code": exc.status_code},
+                    exc_info=True,
+                )
+            return None
         logger.error(
-            "Optional auth runtime failure; continuing anonymously: %s", exc, exc_info=True
+            "Optional auth service failure",
+            extra={"status_code": exc.status_code},
+            exc_info=True,
         )
-        return None
+        raise
 
 
 async def get_key_vault_secret(secret_name: str) -> str:

@@ -3,6 +3,8 @@
 import logging
 from datetime import datetime, timezone
 
+import httpx
+from circuitbreaker import CircuitBreakerError
 from crud_service.auth import User, get_current_user
 from crud_service.integrations import get_agent_client, get_event_publisher
 from crud_service.repositories import CartRepository, ProductRepository
@@ -15,6 +17,7 @@ product_repo = ProductRepository()
 agent_client = get_agent_client()
 logger = logging.getLogger(__name__)
 event_publisher = get_event_publisher()
+AGENT_FALLBACK_EXCEPTIONS = (httpx.HTTPError, CircuitBreakerError)
 
 
 class AddToCartRequest(BaseModel):
@@ -113,14 +116,21 @@ async def add_to_cart(
                             "timestamp": datetime.now(timezone.utc).isoformat(),
                         }
                     )
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning(
+                        "Inventory reservation publish failed for user_id=%s sku=%s",
+                        current_user.user_id,
+                        request.product_id,
+                        extra={"error_type": type(exc).__name__},
+                        exc_info=True,
+                    )
     except HTTPException:
         raise
-    except Exception:
+    except AGENT_FALLBACK_EXCEPTIONS as exc:
         logger.warning(
             "Inventory reservation validation unavailable for product_id=%s; continuing with optimistic add",
             request.product_id,
+            extra={"error_type": type(exc).__name__},
             exc_info=True,
         )
 

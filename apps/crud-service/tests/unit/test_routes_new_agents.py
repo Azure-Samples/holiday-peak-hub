@@ -1,5 +1,6 @@
 """Unit tests for newly wired CRUD routes (orders, users, cart, products)."""
 
+import httpx
 import pytest
 from crud_service.auth import User, get_current_user, get_current_user_optional
 from crud_service.main import app
@@ -131,13 +132,13 @@ class TestOrderGetWithTracking:
 
         class FailingAgent:
             async def get_order_status(self, order_id):
-                raise TimeoutError("agent timeout")
+                raise httpx.ConnectError("agent timeout")
 
             async def get_delivery_eta(self, tracking_id):
-                raise TimeoutError("agent timeout")
+                raise httpx.ConnectError("agent timeout")
 
             async def get_carrier_recommendation(self, tracking_id):
-                raise TimeoutError("agent timeout")
+                raise httpx.ConnectError("agent timeout")
 
         monkeypatch.setattr(orders_routes.order_repo, "get_by_id", fake_get_by_id)
         monkeypatch.setattr(orders_routes, "agent_client", FailingAgent())
@@ -148,6 +149,37 @@ class TestOrderGetWithTracking:
         assert data["tracking"] is None
         assert data["eta"] is None
         assert data["carrier"] is None
+
+    @pytest.mark.asyncio
+    async def test_order_unexpected_agent_error_surfaces(self, monkeypatch, override_auth):
+        """Unexpected enrichment failures should not be silently swallowed."""
+
+        async def fake_get_by_id(order_id, partition_key=None):
+            return {
+                "id": order_id,
+                "user_id": "user-1",
+                "items": [],
+                "total": 0.0,
+                "status": "pending",
+                "created_at": "2025-01-01T00:00:00",
+            }
+
+        class BrokenAgent:
+            async def get_order_status(self, order_id):
+                raise RuntimeError("unexpected mapping bug")
+
+            async def get_delivery_eta(self, tracking_id):
+                return None
+
+            async def get_carrier_recommendation(self, tracking_id):
+                return None
+
+        test_client = TestClient(app, raise_server_exceptions=False)
+        monkeypatch.setattr(orders_routes.order_repo, "get_by_id", fake_get_by_id)
+        monkeypatch.setattr(orders_routes, "agent_client", BrokenAgent())
+
+        response = test_client.get("/api/orders/order-1")
+        assert response.status_code == 500
 
     @pytest.mark.asyncio
     async def test_order_not_found(self, client, monkeypatch, override_auth):
@@ -394,7 +426,7 @@ class TestCartReservationValidation:
 
         class FakeAgent:
             async def validate_reservation(self, sku, quantity):
-                raise ConnectionError("agent down")
+                raise httpx.ConnectError("agent down")
 
         monkeypatch.setattr(cart_routes.product_repo, "get_by_id", fake_product)
         monkeypatch.setattr(cart_routes.cart_repo, "get_by_user", fake_cart)
@@ -403,6 +435,41 @@ class TestCartReservationValidation:
 
         response = client.post("/api/cart/items", json={"product_id": "p1", "quantity": 1})
         assert response.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_logs_publish_failure_but_still_succeeds(
+        self, client, monkeypatch, override_auth, caplog
+    ):
+        """Fire-and-forget reservation publish failures should be logged."""
+
+        async def fake_product(product_id):
+            return {"id": product_id, "name": "Widget", "price": 9.99}
+
+        async def fake_cart(user_id):
+            return None
+
+        async def fake_update(cart):
+            pass
+
+        class FakeAgent:
+            async def validate_reservation(self, sku, quantity):
+                return {"valid": True}
+
+        class FailingPublisher:
+            async def publish_inventory_reserved(self, reservation):
+                raise RuntimeError("event-hub unavailable")
+
+        monkeypatch.setattr(cart_routes.product_repo, "get_by_id", fake_product)
+        monkeypatch.setattr(cart_routes.cart_repo, "get_by_user", fake_cart)
+        monkeypatch.setattr(cart_routes.cart_repo, "update", fake_update)
+        monkeypatch.setattr(cart_routes, "agent_client", FakeAgent())
+        monkeypatch.setattr(cart_routes, "event_publisher", FailingPublisher())
+
+        with caplog.at_level("WARNING"):
+            response = client.post("/api/cart/items", json={"product_id": "p1", "quantity": 1})
+
+        assert response.status_code == 200
+        assert "Inventory reservation publish failed" in caplog.text
 
 
 # ── Product Routes ──────────────────────────────────────────────────
@@ -509,7 +576,7 @@ class TestProductSemanticSearch:
 
         class FakeAgent:
             async def semantic_search(self, query, limit=20):
-                raise ConnectionError("agent down")
+                raise httpx.ConnectError("agent down")
 
             async def get_user_recommendations(self, user_id=None):
                 return None
@@ -532,6 +599,37 @@ class TestProductSemanticSearch:
         assert response.status_code == 200
         data = response.json()
         assert data[0]["name"] == "Fallback Widget"
+
+
+class TestProductErrorSurfacing:
+    """Unexpected product enrichment errors should surface."""
+
+    @pytest.mark.asyncio
+    async def test_unexpected_enrichment_error_surfaces(self, monkeypatch, override_auth_optional):
+        async def fake_get_by_id(product_id: str):
+            return {
+                "id": product_id,
+                "name": "Test Product",
+                "description": "Base description",
+                "price": 20.0,
+                "category_id": "cat-1",
+                "image_url": None,
+                "in_stock": True,
+            }
+
+        class BrokenAgent:
+            async def get_product_enrichment(self, sku: str):
+                raise RuntimeError("unexpected enrichment bug")
+
+            async def calculate_dynamic_pricing(self, sku: str):
+                return None
+
+        test_client = TestClient(app, raise_server_exceptions=False)
+        monkeypatch.setattr(products_routes.product_repo, "get_by_id", fake_get_by_id)
+        monkeypatch.setattr(products_routes, "agent_client", BrokenAgent())
+
+        response = test_client.get("/api/products/prod-1")
+        assert response.status_code == 500
 
 
 class TestProductPersonalization:

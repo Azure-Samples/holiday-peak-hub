@@ -4,6 +4,8 @@ import logging
 import uuid
 from datetime import datetime, timezone
 
+import httpx
+from circuitbreaker import CircuitBreakerError
 from crud_service.auth import User, get_current_user
 from crud_service.integrations import get_agent_client, get_event_publisher
 from crud_service.repositories import CartRepository, OrderRepository
@@ -16,6 +18,7 @@ cart_repo = CartRepository()
 event_publisher = get_event_publisher()
 agent_client = get_agent_client()
 logger = logging.getLogger(__name__)
+AGENT_FALLBACK_EXCEPTIONS = (httpx.HTTPError, CircuitBreakerError)
 
 
 class OrderItem(BaseModel):
@@ -89,27 +92,30 @@ async def get_order(order_id: str, current_user: User = Depends(get_current_user
     carrier = None
     try:
         tracking = await agent_client.get_order_status(order_id)
-    except Exception:
+    except AGENT_FALLBACK_EXCEPTIONS as exc:
         logger.warning(
             "Order status enrichment failed for order_id=%s",
             order_id,
+            extra={"error_type": type(exc).__name__},
             exc_info=True,
         )
     tracking_id = order.get("tracking_id") or order_id
     try:
         eta = await agent_client.get_delivery_eta(tracking_id)
-    except Exception:
+    except AGENT_FALLBACK_EXCEPTIONS as exc:
         logger.warning(
             "Delivery ETA enrichment failed for tracking_id=%s",
             tracking_id,
+            extra={"error_type": type(exc).__name__},
             exc_info=True,
         )
     try:
         carrier = await agent_client.get_carrier_recommendation(tracking_id)
-    except Exception:
+    except AGENT_FALLBACK_EXCEPTIONS as exc:
         logger.warning(
             "Carrier enrichment failed for tracking_id=%s",
             tracking_id,
+            extra={"error_type": type(exc).__name__},
             exc_info=True,
         )
 

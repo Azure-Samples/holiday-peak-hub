@@ -3,6 +3,9 @@
 import logging
 from typing import Any, Literal
 
+import asyncpg
+import httpx
+from circuitbreaker import CircuitBreakerError
 from crud_service.auth import User, get_current_user
 from crud_service.integrations import get_agent_client
 from crud_service.repositories import ProductRepository, UserRepository
@@ -15,6 +18,8 @@ user_repo = UserRepository()
 agent_client = get_agent_client()
 logger = logging.getLogger(__name__)
 IDENTIFIER_PATTERN = r"^[A-Za-z0-9._-]+$"
+DATA_ACCESS_EXCEPTIONS = (RuntimeError, asyncpg.PostgresError)
+AGENT_FALLBACK_EXCEPTIONS = (httpx.HTTPError, CircuitBreakerError)
 
 
 def _round_money(value: float) -> float:
@@ -226,7 +231,7 @@ async def get_catalog_product(sku: str = Path(min_length=1, pattern=IDENTIFIER_P
     """Get canonical product contract by SKU."""
     try:
         product = await product_repo.get_by_id(sku)
-    except Exception as exc:
+    except DATA_ACCESS_EXCEPTIONS as exc:
         logger.warning("Catalog product lookup failed: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -277,7 +282,7 @@ async def get_customer_profile(
 
     try:
         user = await _resolve_user_profile(customer_id)
-    except Exception as exc:
+    except DATA_ACCESS_EXCEPTIONS as exc:
         logger.warning("Customer profile lookup failed: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -312,7 +317,7 @@ async def get_customer_profile(
     personalization = None
     try:
         crm_profile = await agent_client.get_customer_profile(customer_id)
-    except Exception:
+    except AGENT_FALLBACK_EXCEPTIONS:
         logger.warning(
             "CRM profile enrichment unavailable for customer_id=%s",
             customer_id,
@@ -321,7 +326,7 @@ async def get_customer_profile(
         crm_profile = None
     try:
         personalization = await agent_client.get_personalization(customer_id)
-    except Exception:
+    except AGENT_FALLBACK_EXCEPTIONS:
         logger.warning(
             "Personalization enrichment unavailable for customer_id=%s",
             customer_id,
@@ -357,7 +362,7 @@ async def get_pricing_offers(
     try:
         product = await product_repo.get_by_id(request.sku)
         user = await _resolve_user_profile(request.customer_id)
-    except Exception as exc:
+    except DATA_ACCESS_EXCEPTIONS as exc:
         logger.warning("Pricing offer lookup failed: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -411,7 +416,7 @@ async def get_pricing_offers(
     loyalty_multiplier = 0.0
     try:
         crm_profile = await agent_client.get_customer_profile(request.customer_id)
-    except Exception:
+    except AGENT_FALLBACK_EXCEPTIONS:
         logger.warning(
             "Loyalty profile enrichment unavailable for customer_id=%s",
             request.customer_id,
@@ -437,7 +442,7 @@ async def get_pricing_offers(
 
     try:
         dynamic_unit_price = await agent_client.calculate_dynamic_pricing(request.sku)
-    except Exception:
+    except AGENT_FALLBACK_EXCEPTIONS:
         logger.warning(
             "Dynamic pricing unavailable for sku=%s",
             request.sku,
@@ -482,7 +487,7 @@ async def rank_recommendations(
 
     try:
         user = await _resolve_user_profile(request.customer_id)
-    except Exception as exc:
+    except DATA_ACCESS_EXCEPTIONS as exc:
         logger.warning("Recommendation rank lookup failed: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -506,7 +511,7 @@ async def rank_recommendations(
                     for category in categories
                     if str(category).strip()
                 }
-    except Exception:
+    except AGENT_FALLBACK_EXCEPTIONS:
         logger.warning(
             "Recommendation personalization unavailable for customer_id=%s",
             request.customer_id,
@@ -524,7 +529,7 @@ async def rank_recommendations(
 
         try:
             product = await product_repo.get_by_id(candidate.sku)
-        except Exception:
+        except DATA_ACCESS_EXCEPTIONS:
             logger.warning(
                 "Recommendation product lookup failed for sku=%s; continuing without product context",
                 candidate.sku,
@@ -565,7 +570,7 @@ async def compose_recommendations(
 
     try:
         user = await _resolve_user_profile(request.customer_id)
-    except Exception as exc:
+    except DATA_ACCESS_EXCEPTIONS as exc:
         logger.warning("Recommendation compose lookup failed: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -588,7 +593,7 @@ async def compose_recommendations(
         title = candidate.sku
         try:
             product = await product_repo.get_by_id(candidate.sku)
-        except Exception:
+        except DATA_ACCESS_EXCEPTIONS:
             logger.warning(
                 "Recommendation composition product lookup failed for sku=%s; using SKU as title",
                 candidate.sku,

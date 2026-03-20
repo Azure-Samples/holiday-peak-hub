@@ -1,5 +1,6 @@
 """Tests for memory modules."""
 
+import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -82,6 +83,29 @@ class TestHotMemory:
             mock_connect.return_value = None
             memory.client = mock_redis_client
             await memory.get("key")
+
+    @pytest.mark.asyncio
+    async def test_connect_is_single_init_under_concurrency(self, mock_redis_client):
+        """Concurrent first-use connect should initialize once."""
+        memory = HotMemory("redis://localhost:6379")
+
+        async def delayed_log_operation(*_, **kwargs):
+            await asyncio.sleep(0.01)
+            return await kwargs["func"]()
+
+        with patch(
+            "holiday_peak_lib.agents.memory.hot.log_async_operation", new=delayed_log_operation
+        ):
+            with patch(
+                "holiday_peak_lib.agents.memory.hot.redis.ConnectionPool.from_url"
+            ) as mock_pool:
+                with patch("holiday_peak_lib.agents.memory.hot.redis.Redis") as mock_redis:
+                    mock_pool.return_value = object()
+                    mock_redis.return_value = mock_redis_client
+                    await asyncio.gather(memory.connect(), memory.connect())
+
+        assert memory.client is mock_redis_client
+        assert mock_redis.call_count == 1
 
 
 class TestWarmMemory:
@@ -180,6 +204,30 @@ class TestWarmMemory:
             memory.client = mock_cosmos_client
             await memory.read("test", "pk")
 
+    @pytest.mark.asyncio
+    async def test_connect_is_single_init_under_concurrency(self, mock_cosmos_client):
+        """Concurrent first-use connect should initialize once."""
+        memory = WarmMemory(
+            account_uri="https://test.documents.azure.com",
+            database="test_db",
+            container="test_container",
+        )
+
+        async def delayed_log_operation(*_, **kwargs):
+            await asyncio.sleep(0.01)
+            return await kwargs["func"]()
+
+        with patch(
+            "holiday_peak_lib.agents.memory.warm.log_async_operation",
+            new=delayed_log_operation,
+        ):
+            with patch("holiday_peak_lib.agents.memory.warm.CosmosClient") as mock_client_class:
+                mock_client_class.return_value = mock_cosmos_client
+                await asyncio.gather(memory.connect(), memory.connect())
+
+        assert memory.client is mock_cosmos_client
+        assert mock_client_class.call_count == 1
+
 
 class TestColdMemory:
     """Test ColdMemory (Blob Storage) functionality."""
@@ -270,6 +318,31 @@ class TestColdMemory:
             mock_connect.return_value = None
             memory.client = mock_blob_client
             await memory.download_text("test.txt")
+
+    @pytest.mark.asyncio
+    async def test_connect_is_single_init_under_concurrency(self, mock_blob_client):
+        """Concurrent first-use connect should initialize once."""
+        memory = ColdMemory(
+            account_url="https://test.blob.core.windows.net",
+            container_name="test_container",
+        )
+
+        async def delayed_log_operation(*_, **kwargs):
+            await asyncio.sleep(0.01)
+            return await kwargs["func"]()
+
+        with patch(
+            "holiday_peak_lib.agents.memory.cold.log_async_operation",
+            new=delayed_log_operation,
+        ):
+            with patch(
+                "holiday_peak_lib.agents.memory.cold.BlobServiceClient"
+            ) as mock_client_class:
+                mock_client_class.return_value = mock_blob_client
+                await asyncio.gather(memory.connect(), memory.connect())
+
+        assert memory.client is mock_blob_client
+        assert mock_client_class.call_count == 1
 
 
 class TestMemoryIntegration:

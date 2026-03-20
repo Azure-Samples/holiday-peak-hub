@@ -1,5 +1,6 @@
 """Warm memory layer using Azure Cosmos DB."""
 
+import asyncio
 from typing import Any, Dict, Optional
 
 from azure.cosmos.aio import CosmosClient
@@ -27,22 +28,30 @@ class WarmMemory:
         self.connection_limit = connection_limit
         self.client_kwargs = client_kwargs or {}
         self.client: Optional[CosmosClient] = None
+        self._connect_lock = asyncio.Lock()
 
     async def connect(self) -> None:
-        async def _connect():
-            credential = DefaultAzureCredential()
-            kwargs = dict(self.client_kwargs)
-            if self.connection_limit is not None:
-                kwargs["connection_limit"] = self.connection_limit
-            self.client = CosmosClient(self.account_uri, credential, **kwargs)
+        if self.client is not None:
+            return
 
-        await log_async_operation(
-            logger,
-            name="warm_memory.connect",
-            intent=self.account_uri,
-            func=_connect,
-            metadata={"account_uri": self.account_uri},
-        )
+        async with self._connect_lock:
+            if self.client is not None:
+                return
+
+            async def _connect():
+                credential = DefaultAzureCredential()
+                kwargs = dict(self.client_kwargs)
+                if self.connection_limit is not None:
+                    kwargs["connection_limit"] = self.connection_limit
+                self.client = CosmosClient(self.account_uri, credential, **kwargs)
+
+            await log_async_operation(
+                logger,
+                name="warm_memory.connect",
+                intent=self.account_uri,
+                func=_connect,
+                metadata={"account_uri": self.account_uri},
+            )
 
     async def upsert(self, item: Dict[str, Any]) -> Dict[str, Any]:
         if not self.client:

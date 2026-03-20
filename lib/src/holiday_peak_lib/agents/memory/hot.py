@@ -1,5 +1,6 @@
 """Hot memory layer using Redis."""
 
+import asyncio
 from typing import Any, Optional
 
 import redis.asyncio as redis
@@ -28,28 +29,36 @@ class HotMemory:
         self.health_check_interval = health_check_interval
         self.retry_on_timeout = retry_on_timeout
         self.client: Optional[redis.Redis] = None
+        self._connect_lock = asyncio.Lock()
 
     async def connect(self) -> None:
-        async def _connect():
-            pool = redis.ConnectionPool.from_url(
-                self.url,
-                encoding="utf-8",
-                decode_responses=True,
-                max_connections=self.max_connections,
-                socket_timeout=self.socket_timeout,
-                socket_connect_timeout=self.socket_connect_timeout,
-                health_check_interval=self.health_check_interval,
-                retry_on_timeout=self.retry_on_timeout,
-            )
-            self.client = redis.Redis(connection_pool=pool)
+        if self.client is not None:
+            return
 
-        await log_async_operation(
-            logger,
-            name="hot_memory.connect",
-            intent=self.url,
-            func=_connect,
-            metadata={"url": self.url},
-        )
+        async with self._connect_lock:
+            if self.client is not None:
+                return
+
+            async def _connect():
+                pool = redis.ConnectionPool.from_url(
+                    self.url,
+                    encoding="utf-8",
+                    decode_responses=True,
+                    max_connections=self.max_connections,
+                    socket_timeout=self.socket_timeout,
+                    socket_connect_timeout=self.socket_connect_timeout,
+                    health_check_interval=self.health_check_interval,
+                    retry_on_timeout=self.retry_on_timeout,
+                )
+                self.client = redis.Redis(connection_pool=pool)
+
+            await log_async_operation(
+                logger,
+                name="hot_memory.connect",
+                intent=self.url,
+                func=_connect,
+                metadata={"url": self.url},
+            )
 
     async def set(self, key: str, value: Any, ttl_seconds: int = 900) -> None:
         if not self.client:

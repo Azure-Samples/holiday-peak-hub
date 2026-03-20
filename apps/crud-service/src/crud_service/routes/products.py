@@ -3,6 +3,8 @@
 import logging
 from collections.abc import Iterable
 
+import httpx
+from circuitbreaker import CircuitBreakerError
 from crud_service.auth import User, get_current_user_optional
 from crud_service.integrations import get_agent_client
 from crud_service.repositories import ProductRepository
@@ -14,6 +16,7 @@ router = APIRouter()
 product_repo = ProductRepository()
 agent_client = get_agent_client()
 logger = logging.getLogger(__name__)
+AGENT_FALLBACK_EXCEPTIONS = (httpx.HTTPError, CircuitBreakerError)
 
 
 class ProductResponse(BaseModel):
@@ -63,10 +66,11 @@ async def _fetch_products(
                         canonical_results.append(normalized)
                 if canonical_results:
                     products = canonical_results
-        except Exception:
+        except AGENT_FALLBACK_EXCEPTIONS as exc:
             logger.warning(
                 "Semantic search unavailable; falling back to keyword search for search=%s",
                 search,
+                extra={"error_type": type(exc).__name__},
                 exc_info=True,
             )
         if not products:
@@ -91,10 +95,11 @@ async def _fetch_products(
                     boosted = [p for p in products if p.get("id") in sku_set]
                     rest = [p for p in products if p.get("id") not in sku_set]
                     products = boosted + rest
-        except Exception:
+        except AGENT_FALLBACK_EXCEPTIONS as exc:
             logger.warning(
                 "Personalized product ordering unavailable for user_id=%s",
                 current_user.user_id,
+                extra={"error_type": type(exc).__name__},
                 exc_info=True,
             )
 
@@ -169,10 +174,11 @@ async def get_product(product_id: str):
             product["media"] = enrichment.get("media")
             product["inventory"] = enrichment.get("inventory")
             product["related"] = enrichment.get("related")
-    except Exception:
+    except AGENT_FALLBACK_EXCEPTIONS as exc:
         logger.warning(
             "Product enrichment unavailable for product_id=%s; using base product data",
             product_id,
+            extra={"error_type": type(exc).__name__},
             exc_info=True,
         )
 
@@ -181,10 +187,11 @@ async def get_product(product_id: str):
         dynamic_price = await agent_client.calculate_dynamic_pricing(product_id)
         if dynamic_price:
             product["price"] = dynamic_price
-    except Exception:
+    except AGENT_FALLBACK_EXCEPTIONS as exc:
         logger.warning(
             "Dynamic pricing unavailable for product_id=%s; using base price",
             product_id,
+            extra={"error_type": type(exc).__name__},
             exc_info=True,
         )
 
