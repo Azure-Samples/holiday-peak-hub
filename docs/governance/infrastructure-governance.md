@@ -81,6 +81,8 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 ## Observability and Operational Policy
 
 - Health checks and smoke checks are required post-deploy for critical API paths.
+- Shared infrastructure must deploy baseline metric alerts for Cosmos DB, Redis, PostgreSQL, Event Hubs, AKS, and APIM via `.infra/modules/monitoring/monitoring.bicep`.
+- Action group notification targets for observability alerts are configured through azd/Bicep parameters `alertNotificationEmail` and `alertTeamsWebhookUrl`.
 - Required test/smoke gates in CI must not use permissive `|| true` patterns on transport calls; failures must be deterministic for both transport errors and non-200 responses.
 - Transport-layer failures in required checks must be normalized to explicit non-success outcomes and treated as hard failures.
 - Advisory diagnostics/telemetry checks must be modeled separately from required gates and may remain non-blocking only when explicitly marked non-gating.

@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 
 import pytest
-from truth_hitl.event_handlers import build_event_handlers
+import truth_hitl.event_handlers as event_handlers
+from truth_hitl.adapters import build_hitl_adapters
+from truth_hitl.review_manager import ReviewManager
 
 
 class FakeEvent:
@@ -20,7 +22,7 @@ class FakeEvent:
 
 @pytest.mark.asyncio
 async def test_handle_hitl_job_enqueues_item():
-    handlers = build_event_handlers()
+    handlers = event_handlers.build_event_handlers()
     handler = handlers["hitl-jobs"]
 
     payload = {
@@ -44,7 +46,7 @@ async def test_handle_hitl_job_enqueues_item():
 
 @pytest.mark.asyncio
 async def test_handle_hitl_job_skips_missing_entity_id():
-    handlers = build_event_handlers()
+    handlers = event_handlers.build_event_handlers()
     handler = handlers["hitl-jobs"]
 
     payload = {
@@ -57,7 +59,7 @@ async def test_handle_hitl_job_skips_missing_entity_id():
 
 @pytest.mark.asyncio
 async def test_handle_hitl_job_skips_missing_attr_id():
-    handlers = build_event_handlers()
+    handlers = event_handlers.build_event_handlers()
     handler = handlers["hitl-jobs"]
 
     payload = {
@@ -68,5 +70,62 @@ async def test_handle_hitl_job_skips_missing_attr_id():
 
 
 def test_build_event_handlers_includes_hitl_jobs():
-    handlers = build_event_handlers()
+    handlers = event_handlers.build_event_handlers()
     assert "hitl-jobs" in handlers
+
+
+@pytest.mark.asyncio
+async def test_handle_hitl_job_accepts_enhanced_ui_payload_shapes(monkeypatch):
+    review_manager = ReviewManager()
+
+    def _stub_build_hitl_adapters():
+        return build_hitl_adapters(review_manager=review_manager)
+
+    monkeypatch.setattr(event_handlers, "build_hitl_adapters", _stub_build_hitl_adapters)
+
+    handlers = event_handlers.build_event_handlers()
+    handler = handlers["hitl-jobs"]
+
+    payload = {
+        "event_type": "proposed_attribute",
+        "data": {
+            "entity_id": "prod-100",
+            "attr_id": "attr-200",
+            "field_name": "material",
+            "proposed_value": "Organic Cotton",
+            "confidence": 0.92,
+            "source": "ai",
+            "product_title": "Heritage Shirt",
+            "category_label": "Apparel",
+            "reasoning": [
+                "Image texture suggests cotton",
+                "Catalog title includes 'cotton'",
+            ],
+            "source_assets": [
+                "https://cdn.example.com/products/prod-100/front.jpg",
+                {
+                    "url": "https://cdn.example.com/products/prod-100/zoom.jpg",
+                    "asset_id": "dam-200",
+                    "kind": "image",
+                },
+            ],
+            "source_type": "hybrid",
+        },
+    }
+
+    await handler(None, FakeEvent(payload))
+
+    queued = review_manager.get_by_entity("prod-100")
+    assert len(queued) == 1
+    assert queued[0].reasoning == [
+        "Image texture suggests cotton",
+        "Catalog title includes 'cotton'",
+    ]
+    assert queued[0].source_assets == [
+        "https://cdn.example.com/products/prod-100/front.jpg",
+        {
+            "url": "https://cdn.example.com/products/prod-100/zoom.jpg",
+            "asset_id": "dam-200",
+            "kind": "image",
+        },
+    ]

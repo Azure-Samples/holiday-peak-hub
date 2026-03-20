@@ -166,9 +166,7 @@ class TestMCPToolExecution:
         assert result["error"] == "query is required"
 
     @pytest.mark.asyncio
-    async def test_catalog_intent_tool_returns_classification_for_real_agent(
-        self, mock_mcp_server
-    ):
+    async def test_catalog_intent_tool_returns_classification_for_real_agent(self, mock_mcp_server):
         """Intent MCP tool should call classify_intent when the bound agent supports it."""
         deps = AgentDependencies(
             service_name="test-catalog-search",
