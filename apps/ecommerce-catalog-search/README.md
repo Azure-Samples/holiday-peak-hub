@@ -55,8 +55,17 @@ ecommerce-catalog-search/
 ### 🤖 AI-Powered Intelligence
 - **SLM-First Routing**: Fast responses for simple product lookups
 - **LLM Escalation**: Complex queries requiring semantic understanding
+- **Dual-Path Search Modes**:
+  - `keyword`: deterministic SKU-oriented path on `AI_SEARCH_INDEX`
+  - `intelligent`: intent classification + multi-query hybrid retrieval on `AI_SEARCH_VECTOR_INDEX`
 - **Query Understanding**: Natural language to product mapping
 - **Missing Field Detection**: Flag incomplete products
+
+### 🧠 Vector/Hybrid Search Enrichment
+- **Vector Retrieval**: Uses `VectorizableTextQuery` against `product_search_index`
+- **Hybrid Retrieval**: Combines keyword text scoring with semantic vector similarity
+- **Intent Decomposition**: Breaks complex user intent into sub-queries and merges ranked results
+- **Extended Search Fields**: `use_cases`, `complementary_products`, `substitute_products`, `enriched_description`
 
 ### 📊 Real-Time Event Processing
 - **Product Events**: Process product create/update/delete events
@@ -91,6 +100,15 @@ EVENTHUB_CONNECTION_STRING=<connection-string>
 # Subscriptions: product-events
 # Consumer Group: catalog-search-group
 
+# Azure AI Search Configuration
+AI_SEARCH_ENDPOINT=https://<service>.search.windows.net
+AI_SEARCH_INDEX=catalog-products
+AI_SEARCH_VECTOR_INDEX=product_search_index
+AI_SEARCH_VECTOR_FIELD=content_vector            # Optional; defaults to content_vector
+AI_SEARCH_AUTH_MODE=managed_identity             # or api_key
+AI_SEARCH_KEY=<search-admin-key>                 # Required when auth mode is api_key
+EMBEDDING_DEPLOYMENT_NAME=<embedding-deployment> # Required for vectorizable query text
+
 # CRUD Service Integration (for MCP tools)
 CRUD_SERVICE_URL=http://localhost:8000
 ```
@@ -105,7 +123,8 @@ CRUD_SERVICE_URL=http://localhost:8000
 ```json
 {
   "query": "wireless mouse",
-  "limit": 5
+  "limit": 5,
+  "mode": "keyword"
 }
 ```
 
@@ -114,6 +133,7 @@ CRUD_SERVICE_URL=http://localhost:8000
 {
   "service": "ecommerce-catalog-search",
   "query": "wireless mouse",
+  "mode": "keyword",
   "results": [
     {
       "item_id": "SKU-001",
@@ -147,7 +167,8 @@ CRUD_SERVICE_URL=http://localhost:8000
 ```json
 {
   "query": "wireless mouse",
-  "limit": 5
+  "limit": 5,
+  "mode": "keyword"
 }
 ```
 
@@ -157,6 +178,8 @@ Returns ACP-compliant product results.
 ```json
 {
   "query": "wireless mouse",
+  "mode": "keyword",
+  "intent": null,
   "results": [
     {
       "item_id": "SKU-001",
@@ -169,7 +192,34 @@ Returns ACP-compliant product results.
 }
 ```
 
-#### 2. Get Product Details
+`mode` supports `keyword` (default) and `intelligent`.
+
+#### 2. Classify Catalog Intent
+**POST** `/mcp/catalog/intent`
+
+```json
+{
+  "query": "best headphones for long flights"
+}
+```
+
+**Response:**
+```json
+{
+  "query": "best headphones for long flights",
+  "complexity": 0.94,
+  "intent": {
+    "intent": "semantic_search",
+    "confidence": 0.92,
+    "entities": {
+      "use_case": "travel",
+      "features": ["noise cancellation", "wireless"]
+    }
+  }
+}
+```
+
+#### 3. Get Product Details
 **POST** `/mcp/catalog/product`
 
 ```json

@@ -74,6 +74,10 @@ class CatalogSearchAgent(BaseRetailAgent):
 
     async def classify_intent(self, query: str) -> IntentClassification:
         """Classify query intent for intelligent path routing."""
+        return await self._classify_intent(query)
+
+    async def _classify_intent(self, query: str) -> IntentClassification:
+        """Internal intent classification hook used by intelligent retrieval path."""
         baseline = IntentClassification(intent="keyword_lookup", confidence=0.0, entities={})
         if not query.strip() or not (self.slm or self.llm):
             return baseline
@@ -106,6 +110,58 @@ class CatalogSearchAgent(BaseRetailAgent):
                 exc_info=True,
             )
             return baseline
+
+    def _build_sub_queries(self, query: str, intent: IntentClassification) -> list[str]:
+        """Build unique sub-queries used for intelligent multi-query retrieval."""
+        return _build_sub_queries(query=query, intent=intent)
+
+    def build_sub_queries(self, query: str, intent: IntentClassification) -> list[str]:
+        """Public wrapper used by integration helpers and tests."""
+        return self._build_sub_queries(query, intent)
+
+    def _merge_results(
+        self,
+        results_list: list[list[AISearchDocumentResult]],
+        limit: int,
+    ) -> list[AISearchDocumentResult]:
+        """Merge ranked result batches by SKU and preserve strongest enrichment payloads."""
+        if limit <= 0:
+            return []
+
+        merged: dict[str, dict[str, Any]] = {}
+        for batch in results_list:
+            for rank, candidate in enumerate(batch, start=1):
+                entry = merged.setdefault(
+                    candidate.sku,
+                    {
+                        "candidate": candidate,
+                        "best_score": candidate.score,
+                        "hits": 0,
+                        "rank_bonus": 0.0,
+                    },
+                )
+                entry["hits"] += 1
+                entry["best_score"] = max(entry["best_score"], candidate.score)
+                entry["rank_bonus"] += max((limit - rank + 1) / max(limit, 1), 0.0)
+
+                merged_candidate: AISearchDocumentResult = entry["candidate"]
+                if len(candidate.enriched_fields) > len(merged_candidate.enriched_fields):
+                    entry["candidate"] = candidate
+
+        ranked = sorted(
+            merged.values(),
+            key=lambda item: (item["hits"], item["best_score"], item["rank_bonus"]),
+            reverse=True,
+        )
+        return [item["candidate"] for item in ranked[:limit]]
+
+    def merge_results(
+        self,
+        results_list: list[list[AISearchDocumentResult]],
+        limit: int,
+    ) -> list[AISearchDocumentResult]:
+        """Public wrapper used by integration helpers and tests."""
+        return self._merge_results(results_list, limit)
 
     async def handle(self, request: dict[str, Any]) -> dict[str, Any]:
         query = request.get("query", "")
@@ -328,8 +384,11 @@ async def _search_products_intelligent(
         products = await _search_products_keyword(adapters, query=query, limit=limit)
         return products, {}, intent
 
-    sub_queries = _build_sub_queries(query=query, intent=intent)
-    ranked = await multi_query_search(sub_queries=sub_queries, filters=filters, top_k=limit)
+    sub_queries = agent.build_sub_queries(query=query, intent=intent)
+    ranked_batches = [
+        await multi_query_search(sub_queries=sub_queries, filters=filters, top_k=limit)
+    ]
+    ranked = agent.merge_results(ranked_batches, limit)
     intelligent_products, enrichment_by_sku = await _resolve_ranked_products(
         adapters,
         ranked,
