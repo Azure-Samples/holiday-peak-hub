@@ -43,6 +43,7 @@ def agent_config_without_models() -> AgentDependencies:
 def _build_mock_adapters(image_response: dict[str, object]) -> EnrichmentAdapters:
     image_adapter = Mock()
     image_adapter.set_vision_invoker = Mock()
+    image_adapter.set_vision_prompt_builder = Mock()
     image_adapter.analyze_attribute_from_images = AsyncMock(return_value=image_response)
 
     proposed = AsyncMock()
@@ -196,7 +197,7 @@ async def test_enrich_field_uses_image_when_models_unavailable(
 
 
 def test_detect_gaps_uses_full_schema_fields_list() -> None:
-    """Gap detection supports full category schema field entries when required_fields is absent."""
+    """Gap detection supports required and optional fields from a full schema payload."""
     product = {"name": "Trail Jacket", "material": "nylon", "color": ""}
     schema = {
         "category_id": "outerwear",
@@ -209,4 +210,54 @@ def test_detect_gaps_uses_full_schema_fields_list() -> None:
 
     gaps = _detect_gaps(product, schema)
 
-    assert gaps == ["color"]
+    assert gaps == ["color", "fit"]
+
+
+@pytest.mark.asyncio
+async def test_handle_orchestrates_dam_plus_text_for_missing_fields(
+    agent_config_with_slm: AgentDependencies,
+) -> None:
+    """Handle() fetches product/schema and produces proposals for full-schema gaps."""
+    adapters = _build_mock_adapters(
+        {
+            "value": "slim",
+            "confidence": 0.88,
+            "evidence": "fit inferred from product imagery",
+            "metadata": {
+                "source": "image_analysis",
+                "assets": ["https://cdn.example.com/fit.jpg"],
+            },
+        }
+    )
+    adapters.products.get_product = AsyncMock(
+        return_value={"id": "sku-10", "name": "Trail Jacket", "category": "outerwear", "color": ""}
+    )
+    adapters.products.get_schema = AsyncMock(
+        return_value={
+            "category_id": "outerwear",
+            "required_attributes": ["color"],
+            "optional_attributes": ["fit"],
+            "fields": {
+                "color": {"type": "string", "required": True},
+                "fit": {"type": "string", "required": False},
+            },
+        }
+    )
+
+    with patch("truth_enrichment.agents.build_enrichment_adapters", return_value=adapters):
+        agent = TruthEnrichmentAgent(config=agent_config_with_slm)
+        agent.invoke_model = AsyncMock(
+            return_value={
+                "value": "black",
+                "confidence": 0.76,
+                "evidence": "description includes black shell",
+                "metadata": {"source": "text_enrichment"},
+            }
+        )
+
+        response = await agent.handle({"entity_id": "sku-10"})
+
+    assert response["entity_id"] == "sku-10"
+    assert len(response["proposed"]) == 2
+    proposed_fields = {item["field_name"] for item in response["proposed"]}
+    assert proposed_fields == {"color", "fit"}

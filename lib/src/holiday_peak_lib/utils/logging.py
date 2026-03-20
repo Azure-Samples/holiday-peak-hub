@@ -1,13 +1,38 @@
 """Logging helpers with Azure Monitor + OpenTelemetry integration."""
 
+import json
 import logging
 import os
 import tracemalloc
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from time import perf_counter
 from typing import Any, Awaitable, Callable, Optional
 
+from holiday_peak_lib.utils.correlation import get_correlation_id
+
 DEFAULT_APP_NAME = os.getenv("APP_NAME", "unknown-app")
+
+
+class _CorrelationIdFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.correlation_id = get_correlation_id() or ""
+        return True
+
+
+class _JsonLogFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        event = {
+            "timestamp": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "app": getattr(record, "app_name", DEFAULT_APP_NAME),
+            "correlation_id": getattr(record, "correlation_id", ""),
+            "message": record.getMessage(),
+        }
+        if record.exc_info:
+            event["exception"] = self.formatException(record.exc_info)
+        return json.dumps(event, ensure_ascii=False)
 
 
 def _ensure_tracemalloc() -> None:
@@ -50,7 +75,8 @@ def configure_logging(
 
     stream_handler = logging.StreamHandler()
     stream_handler.setLevel(logging.INFO)
-    formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s app=%(app_name)s %(message)s")
+    stream_handler.addFilter(_CorrelationIdFilter())
+    formatter = _JsonLogFormatter()
     stream_handler.setFormatter(formatter)
     base_logger.addHandler(stream_handler)
     base_logger.propagate = False

@@ -79,6 +79,8 @@ class GapReportTarget(str, Enum):
 class SourceType(str, Enum):
     """Origin category for enrichment/search contextual data."""
 
+    TEXT_ENRICHMENT = "text_enrichment"
+    HYBRID = "hybrid"
     AI_REASONING = "ai_reasoning"
     PRODUCT_CONTEXT = "product_context"
     CATEGORY_INFERENCE = "category_inference"
@@ -258,6 +260,16 @@ class ProposedAttribute(BaseModel):
     original_data: dict[str, Any] = Field(default_factory=dict, alias="originalData")
     enriched_data: dict[str, Any] = Field(default_factory=dict, alias="enrichedData")
     reasoning: Optional[str] = None
+
+
+class ProductEnrichmentProposal(ProposedAttribute):
+    """Compatibility model name for enrichment proposals.
+
+    Keeps the existing ``ProposedAttribute`` payload contract while exposing a
+    dedicated semantic type for enrichment/search pipelines.
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class IntentClassification(BaseModel):

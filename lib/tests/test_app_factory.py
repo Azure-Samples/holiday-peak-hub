@@ -126,6 +126,27 @@ class TestBuildServiceApp:
         assert response.json()["status"] == "ok"
         assert response.json()["service"] == "test-service"
 
+    def test_app_health_endpoint_echoes_correlation_id(
+        self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
+    ):
+        """Test correlation ID is propagated to response headers."""
+        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-123")
+
+        app = build_service_app(
+            service_name="test-service",
+            agent_class=SampleServiceAgent,
+            hot_memory=mock_hot_memory,
+            warm_memory=mock_warm_memory,
+            cold_memory=mock_cold_memory,
+        )
+
+        client = TestClient(app)
+        response = client.get("/health", headers={"X-Correlation-ID": "corr-123"})
+
+        assert response.status_code == 200
+        assert response.headers.get("x-correlation-id") == "corr-123"
+
     @pytest.mark.asyncio
     async def test_app_invoke_endpoint(
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch

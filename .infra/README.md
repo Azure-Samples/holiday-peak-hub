@@ -164,7 +164,7 @@ When `agcSupportEnabled` is on, shared infrastructure also creates the delegated
 
 The `catalog-products` Azure AI Search index is ensured during `azd` `postprovision`, after the search service is reachable, to avoid nested ARM child-resource timing conflicts during `azd provision`.
 
-The vector indexing pipeline (`product_search_index` + datasource/skillset/indexer) is also ensured during `azd` `postprovision`. The current hook path uses a Cosmos DB connection string from the management plane for the AI Search datasource, so no additional AI Search managed-identity Cosmos RBAC assignment is required for this flow.
+The vector indexing pipeline (`product_search_index` + datasource/skillset/indexer) is also ensured during `azd` `postprovision`. The datasource uses a managed-identity Cosmos DB connection string (`IdentityAuthType=AccessToken`), and shared infrastructure provisions both Cosmos control-plane and data-plane reader role assignments for the Azure AI Search managed identity.
 
 **Duration**: ~25 minutes | **Cost**: see [Cost Estimates](#-cost-estimates)
 
