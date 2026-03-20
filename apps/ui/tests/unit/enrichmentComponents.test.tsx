@@ -98,7 +98,26 @@ describe('enrichment components', () => {
     const { rerender } = render(<UseCaseTags useCases={['daily commute']} />);
     expect(screen.getByText('daily commute')).toBeInTheDocument();
 
-    rerender(<RelatedProductsRail title="Alternatives" items={['Compact Sleeve']} />);
+    rerender(
+      <RelatedProductsRail
+        title="Alternatives"
+        items={['sku-10']}
+        productMap={{
+          'sku-10': {
+            sku: 'sku-10',
+            title: 'Compact Sleeve',
+            description: 'Compact travel sleeve',
+            brand: 'Holiday Peak',
+            category: 'travel',
+            price: 49,
+            currency: 'USD',
+            images: ['/images/products/p1.jpg'],
+            thumbnail: '/images/products/p1.jpg',
+            inStock: true,
+          },
+        }}
+      />,
+    );
     expect(screen.getByText('Compact Sleeve')).toBeInTheDocument();
   });
 });

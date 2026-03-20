@@ -395,3 +395,66 @@ class TestCatalogSearchAgent:
                 "Noise-canceling"
             )
             mock_multi.assert_awaited_once()
+
+    def test_build_sub_queries_from_intent_entities(self, agent_dependencies):
+        """Private sub-query builder should include deduped intent entities."""
+        with patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build:
+            mock_build.return_value = CatalogAdapters(
+                products=AsyncMock(),
+                inventory=AsyncMock(),
+                mapping=AcpCatalogMapper(),
+            )
+            agent = CatalogSearchAgent(config=agent_dependencies)
+
+        intent = IntentClassification(
+            intent="semantic_search",
+            confidence=0.9,
+            entities={
+                "category": "audio",
+                "features": ["wireless", "noise cancellation"],
+                "keywords": ["wireless", "travel"],
+            },
+        )
+        sub_queries = agent.build_sub_queries("best travel headphones", intent)
+
+        assert "best travel headphones" in sub_queries
+        assert "audio" in sub_queries
+        assert "wireless" in sub_queries
+        assert sub_queries.count("wireless") == 1
+
+    def test_merge_results_dedupes_and_prefers_richer_enrichment(self, agent_dependencies):
+        """Private merger should dedupe by SKU and keep richest enriched payload."""
+        with patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build:
+            mock_build.return_value = CatalogAdapters(
+                products=AsyncMock(),
+                inventory=AsyncMock(),
+                mapping=AcpCatalogMapper(),
+            )
+            agent = CatalogSearchAgent(config=agent_dependencies)
+
+        first = AISearchDocumentResult(
+            sku="SKU-1",
+            score=0.82,
+            document={"sku": "SKU-1"},
+            enriched_fields={"use_cases": ["travel"]},
+        )
+        second = AISearchDocumentResult(
+            sku="SKU-2",
+            score=0.9,
+            document={"sku": "SKU-2"},
+            enriched_fields={},
+        )
+        duplicate_richer = AISearchDocumentResult(
+            sku="SKU-1",
+            score=0.8,
+            document={"sku": "SKU-1"},
+            enriched_fields={
+                "use_cases": ["travel", "office"],
+                "enriched_description": "Versatile headset.",
+            },
+        )
+
+        merged = agent.merge_results([[first, second], [duplicate_richer]], limit=5)
+
+        assert [item.sku for item in merged][:2] == ["SKU-1", "SKU-2"]
+        assert merged[0].enriched_fields["enriched_description"] == "Versatile headset."
