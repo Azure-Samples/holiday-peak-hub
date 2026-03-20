@@ -18,6 +18,8 @@ def test_invoke_returns_service():
 
 def test_agent_activity_endpoints():
     client = TestClient(app)
+    invoke_response = client.post("/invoke", json={"query": "running shoes", "limit": 3})
+    assert invoke_response.status_code == 200
 
     traces_response = client.get("/agent/traces")
     assert traces_response.status_code == 200
@@ -30,3 +32,4 @@ def test_agent_activity_endpoints():
     evaluation_response = client.get("/agent/evaluation/latest")
     assert evaluation_response.status_code == 200
     assert "latest" in evaluation_response.json()
+    assert evaluation_response.json()["latest"] is not None

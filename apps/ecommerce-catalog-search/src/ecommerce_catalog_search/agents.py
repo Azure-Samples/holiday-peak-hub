@@ -12,6 +12,13 @@ from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
+from holiday_peak_lib.evaluation import (
+    intent_accuracy,
+    mean_reciprocal_rank,
+    ndcg_at_k,
+    precision_at_k,
+    run_evaluation,
+)
 from holiday_peak_lib.schemas.product import CatalogProduct
 from pydantic import ValidationError
 from holiday_peak_lib.schemas.truth import IntentClassification
@@ -114,6 +121,15 @@ class CatalogSearchAgent(BaseRetailAgent):
         filters = request.get("filters")
         filter_payload = filters if isinstance(filters, dict) else None
 
+        self._trace_decision(
+            decision="search_mode_selection",
+            outcome=mode,
+            metadata={
+                "query_length": len(str(query)),
+                "limit": limit,
+            },
+        )
+
         products, enrichment_by_sku, intent = await _search_products(
             self,
             self.adapters,
@@ -130,6 +146,19 @@ class CatalogSearchAgent(BaseRetailAgent):
             )
             for idx, product in enumerate(products)
         ]
+        baseline_products: list[CatalogProduct] = []
+        if mode == "intelligent":
+            baseline_products = await _search_products_keyword(self.adapters, query=query, limit=limit)
+
+        _record_search_evaluation(
+            self,
+            query=str(query),
+            mode=mode,
+            products=products,
+            baseline_products=baseline_products,
+            intent=intent,
+            limit=limit,
+        )
 
         if self.slm or self.llm:
             messages = [
@@ -432,3 +461,59 @@ async def _availability_for_sku(adapters: CatalogAdapters, sku: str) -> str:
     if item is None:
         return "unknown"
     return "in_stock" if item.available > 0 else "out_of_stock"
+
+
+def _record_search_evaluation(
+    agent: CatalogSearchAgent,
+    *,
+    query: str,
+    mode: str,
+    products: list[CatalogProduct],
+    baseline_products: list[CatalogProduct],
+    intent: IntentClassification | None,
+    limit: int,
+) -> None:
+    ranked_skus = [product.sku for product in products]
+    baseline_skus = [product.sku for product in baseline_products]
+
+    top_k = max(1, min(10, max(len(ranked_skus), 1), max(limit, 1)))
+    relevance = {
+        sku: float(max(top_k - index, 1))
+        for index, sku in enumerate(ranked_skus[:top_k])
+    }
+
+    anchor_relevant = {ranked_skus[0]} if ranked_skus else set()
+    overlap = len(set(ranked_skus[:top_k]) & set(baseline_skus[:top_k]))
+    overlap_ratio = overlap / max(1, min(top_k, len(ranked_skus), len(baseline_skus) or 1))
+
+    expected_intent = (
+        "keyword_lookup" if mode != "intelligent" else (intent.intent if intent else "keyword_lookup")
+    )
+    predicted_intent = intent.intent if intent else "keyword_lookup"
+
+    def _evaluator(_dataset: list[dict[str, Any]]) -> dict[str, Any]:
+        return {
+            "query": query,
+            "mode": mode,
+            "results_count": float(len(ranked_skus)),
+            "ndcg_at_10": ndcg_at_k(ranked_skus, relevance, top_k),
+            "mrr": mean_reciprocal_rank([ranked_skus], anchor_relevant),
+            "precision_at_10": precision_at_k(ranked_skus, anchor_relevant, top_k),
+            "intent_accuracy": intent_accuracy([predicted_intent], [expected_intent]),
+            "agentic_keyword_overlap_at_10": float(overlap_ratio),
+        }
+
+    result = run_evaluation(
+        dataset=[{"query": query, "mode": mode, "top_k": top_k}],
+        evaluator=_evaluator,
+        run_name="ecommerce-catalog-search",
+    )
+    agent._get_foundry_tracer().record_evaluation(  # pylint: disable=protected-access
+        {
+            "domain": "search",
+            "backend": result.backend,
+            "status": result.status,
+            "metrics": result.metrics,
+            "details": result.details,
+        }
+    )

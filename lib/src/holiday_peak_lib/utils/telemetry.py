@@ -36,6 +36,37 @@ try:
 except ImportError:  # pragma: no cover
     pass
 
+_PROJECTS_TELEMETRY_AVAILABLE = False  # pylint: disable=invalid-name
+try:
+    from azure.ai.projects.telemetry import AIProjectInstrumentor  # type: ignore[import]
+
+    _PROJECTS_TELEMETRY_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    AIProjectInstrumentor = None  # type: ignore[assignment]
+
+_INFERENCE_TELEMETRY_AVAILABLE = False  # pylint: disable=invalid-name
+try:
+    from azure.ai.inference.tracing import AIInferenceInstrumentor  # type: ignore[import]
+
+    _INFERENCE_TELEMETRY_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    AIInferenceInstrumentor = None  # type: ignore[assignment]
+
+_AZURE_MONITOR_AVAILABLE = False  # pylint: disable=invalid-name
+try:
+    from azure.monitor.opentelemetry import configure_azure_monitor  # type: ignore[import]
+
+    _AZURE_MONITOR_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    configure_azure_monitor = None  # type: ignore[assignment]
+
+_FOUNDY_INSTRUMENTATION_LOCK = Lock()
+_FOUNDRY_INSTRUMENTATION_STATE: dict[str, bool] = {
+    "azure_monitor": False,
+    "ai_projects": False,
+    "ai_inference": False,
+}
+
 
 def _is_truthy(value: str | None, *, default: bool = True) -> bool:
     if value is None:
@@ -79,6 +110,59 @@ class FoundryTracer:
         self._counts: Counter[str] = Counter()
         self._latest_evaluation: dict[str, Any] | None = None
         self._lock = Lock()
+        self._instrumentation_status = {
+            "azure_monitor": False,
+            "ai_projects": False,
+            "ai_inference": False,
+        }
+        self._initialize_foundry_instrumentation()
+
+    def _initialize_foundry_instrumentation(self) -> None:
+        if not self.enabled:
+            return
+
+        os.environ.setdefault("AZURE_EXPERIMENTAL_ENABLE_GENAI_TRACING", "true")
+        os.environ.setdefault("AZURE_SDK_TRACING_IMPLEMENTATION", "opentelemetry")
+
+        with _FOUNDY_INSTRUMENTATION_LOCK:
+            if (
+                self.connection_string
+                and _AZURE_MONITOR_AVAILABLE
+                and not _FOUNDRY_INSTRUMENTATION_STATE["azure_monitor"]
+            ):
+                try:
+                    configure_azure_monitor(connection_string=self.connection_string)
+                    _FOUNDRY_INSTRUMENTATION_STATE["azure_monitor"] = True
+                except (TypeError, RuntimeError, ValueError):
+                    logger.debug(
+                        "Failed to configure Azure Monitor for service=%s",
+                        self.service_name,
+                        exc_info=True,
+                    )
+
+            if _PROJECTS_TELEMETRY_AVAILABLE and not _FOUNDRY_INSTRUMENTATION_STATE["ai_projects"]:
+                try:
+                    AIProjectInstrumentor().instrument()
+                    _FOUNDRY_INSTRUMENTATION_STATE["ai_projects"] = True
+                except (TypeError, RuntimeError, ValueError, AttributeError):
+                    logger.debug(
+                        "Failed to instrument azure.ai.projects telemetry for service=%s",
+                        self.service_name,
+                        exc_info=True,
+                    )
+
+            if _INFERENCE_TELEMETRY_AVAILABLE and not _FOUNDRY_INSTRUMENTATION_STATE["ai_inference"]:
+                try:
+                    AIInferenceInstrumentor().instrument()
+                    _FOUNDRY_INSTRUMENTATION_STATE["ai_inference"] = True
+                except (TypeError, RuntimeError, ValueError, AttributeError):
+                    logger.debug(
+                        "Failed to instrument azure.ai.inference telemetry for service=%s",
+                        self.service_name,
+                        exc_info=True,
+                    )
+
+            self._instrumentation_status = dict(_FOUNDRY_INSTRUMENTATION_STATE)
 
     def _record(self, event_type: str, name: str, outcome: str, metadata: dict[str, Any]) -> None:
         if not self.enabled:
@@ -159,6 +243,7 @@ class FoundryTracer:
             "enabled": self.enabled,
             "app_insights_configured": bool(self.connection_string),
             "traces_buffered": traces_buffered,
+            "instrumentation": dict(self._instrumentation_status),
             "counts": counts,
         }
 

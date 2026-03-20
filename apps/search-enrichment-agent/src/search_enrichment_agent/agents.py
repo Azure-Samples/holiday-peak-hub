@@ -10,6 +10,7 @@ import httpx
 from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
+from holiday_peak_lib.evaluation import confidence_calibration_bins, run_evaluation
 from holiday_peak_lib.mcp.ai_search_indexing import (
     AISearchIndexingClient,
     build_ai_search_indexing_client_from_env,
@@ -149,12 +150,32 @@ class SearchEnrichmentAgent(BaseRetailAgent):
     async def handle(self, request: dict[str, Any]) -> dict[str, Any]:
         entity_id = request.get("entity_id") or request.get("product_id") or request.get("sku")
         if not entity_id:
+            self._trace_decision(
+                decision="search_enrichment_validation",
+                outcome="missing_entity_id",
+                metadata={"service": self.service_name},
+            )
             return {"error": "entity_id is required"}
-        return await self._orchestrator.run(
+        result = await self._orchestrator.run(
             entity_id=str(entity_id),
             has_model_backend=bool(self.slm or self.llm),
             trigger="invoke",
         )
+        self._trace_decision(
+            decision="search_enrichment_strategy",
+            outcome=str(result.get("strategy", "unknown")),
+            metadata={
+                "entity_id": str(entity_id),
+                "status": str(result.get("status", "unknown")),
+                "reasoning": str(
+                    ((result.get("enriched") or {}).get("reasoning"))
+                    if isinstance(result.get("enriched"), dict)
+                    else ""
+                ),
+            },
+        )
+        _record_search_enrichment_evaluation(self, entity_id=str(entity_id), result=result)
+        return result
 
     async def enrich(self, entity_id: str, *, trigger: str) -> dict[str, Any]:
         return await self._orchestrator.run(
@@ -209,3 +230,44 @@ def _register_ai_search_tools(mcp: FastAPIMCPServer) -> None:
     if client is None:
         return
     register_ai_search_indexing_tools(mcp, client=client)
+
+
+def _record_search_enrichment_evaluation(
+    agent: BaseRetailAgent,
+    *,
+    entity_id: str,
+    result: dict[str, Any],
+) -> None:
+    enriched = result.get("enriched") if isinstance(result.get("enriched"), dict) else {}
+    confidence = float(enriched.get("score", 0.0))
+    status = str(result.get("status", "unknown"))
+    strategy = str(result.get("strategy", "unknown"))
+    calibration = confidence_calibration_bins([(confidence, status == "enriched")], bins=5)
+
+    def _evaluator(_dataset: list[dict[str, Any]]) -> dict[str, Any]:
+        return {
+            "entity_id": entity_id,
+            "status_enriched": 1.0 if status == "enriched" else 0.0,
+            "confidence": confidence,
+            "graceful_degradation": 1.0 if bool(result.get("graceful_degradation")) else 0.0,
+            "calibration_gap": float(
+                sum(abs(bin_row["avg_confidence"] - bin_row["accuracy"]) for bin_row in calibration)
+            ),
+            "strategy_simple": 1.0 if strategy == "simple" else 0.0,
+            "strategy_complex": 1.0 if strategy == "complex" else 0.0,
+        }
+
+    run = run_evaluation(
+        dataset=[{"entity_id": entity_id, "status": status, "strategy": strategy}],
+        evaluator=_evaluator,
+        run_name="search-enrichment-agent",
+    )
+    agent._get_foundry_tracer().record_evaluation(  # pylint: disable=protected-access
+        {
+            "domain": "search_enrichment",
+            "backend": run.backend,
+            "status": run.status,
+            "metrics": run.metrics,
+            "details": run.details,
+        }
+    )
