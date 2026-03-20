@@ -34,6 +34,7 @@ disable = [
 
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib"
+asyncio_mode = "auto"
 markers = [
     "e2e: marks end-to-end tests",
 ]

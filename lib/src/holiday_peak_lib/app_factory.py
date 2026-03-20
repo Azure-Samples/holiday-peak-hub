@@ -2,7 +2,7 @@
 
 import os
 from contextlib import asynccontextmanager
-from typing import AsyncContextManager, AsyncIterator, Callable, Optional
+from typing import Any, AsyncContextManager, AsyncIterator, Callable
 
 from fastapi import FastAPI, HTTPException, Request
 from holiday_peak_lib.agents import AgentBuilder, BaseRetailAgent, FoundryAgentConfig
@@ -13,18 +13,21 @@ from holiday_peak_lib.agents.foundry import (
 from holiday_peak_lib.agents.memory import ColdMemory, HotMemory, WarmMemory
 from holiday_peak_lib.agents.orchestration.router import RoutingStrategy
 from holiday_peak_lib.agents.prompt_loader import load_service_prompt_instructions
+from holiday_peak_lib.config import MemorySettings
 from holiday_peak_lib.connectors.registry import ConnectorRegistry
 from holiday_peak_lib.mcp.server import FastAPIMCPServer
 from holiday_peak_lib.utils import (
     CORRELATION_HEADER,
+    EventHubSubscription,
     clear_correlation_id,
+    create_eventhub_lifespan,
     get_foundry_tracer,
     get_tracer,
     set_correlation_id,
 )
 from holiday_peak_lib.utils.logging import configure_logging, log_async_operation
 
-DEFAULT_FOUNDY_MODELS = {
+DEFAULT_FOUNDRY_MODELS = {
     "fast": "gpt-5-nano",
     "rich": "gpt-5",
 }
@@ -36,7 +39,7 @@ def _build_foundry_config(agent_env: str, deployment_env: str) -> FoundryAgentCo
     role = "fast" if agent_env.endswith("FAST") else "rich"
     agent_id = os.getenv(agent_env)
     agent_name = os.getenv(f"FOUNDRY_AGENT_NAME_{role.upper()}")
-    deployment = os.getenv(deployment_env) or DEFAULT_FOUNDY_MODELS[role]
+    deployment = os.getenv(deployment_env) or DEFAULT_FOUNDRY_MODELS[role]
     stream = (os.getenv("FOUNDRY_STREAM") or "").lower() in {"1", "true", "yes"}
     if not endpoint:
         return None
@@ -50,6 +53,50 @@ def _build_foundry_config(agent_env: str, deployment_env: str) -> FoundryAgentCo
     )
 
 
+def create_standard_app(
+    service_name: str,
+    agent_class: type[BaseRetailAgent],
+    *,
+    mcp_setup: Callable[[FastAPIMCPServer, BaseRetailAgent], None] | None = None,
+    subscriptions: list[EventHubSubscription] | None = None,
+    handlers: dict[str, Any] | None = None,
+) -> FastAPI:
+    """Create a standard agent app with memory + default Foundry wiring."""
+    memory_settings = MemorySettings()
+    hot_memory = HotMemory(memory_settings.redis_url) if memory_settings.redis_url else None
+    warm_memory = (
+        WarmMemory(
+            memory_settings.cosmos_account_uri,
+            memory_settings.cosmos_database,
+            memory_settings.cosmos_container,
+        )
+        if memory_settings.cosmos_account_uri
+        else None
+    )
+    cold_memory = (
+        ColdMemory(memory_settings.blob_account_url, memory_settings.blob_container)
+        if memory_settings.blob_account_url
+        else None
+    )
+    lifespan = None
+    if subscriptions and handlers:
+        lifespan = create_eventhub_lifespan(
+            service_name=service_name,
+            subscriptions=subscriptions,
+            handlers=handlers,
+        )
+
+    return build_service_app(
+        service_name,
+        agent_class,
+        hot_memory=hot_memory,
+        warm_memory=warm_memory,
+        cold_memory=cold_memory,
+        mcp_setup=mcp_setup,
+        lifespan=lifespan,
+    )
+
+
 def build_service_app(
     service_name: str,
     agent_class: type[BaseRetailAgent],
@@ -60,7 +107,7 @@ def build_service_app(
     slm_config: FoundryAgentConfig | None = None,
     llm_config: FoundryAgentConfig | None = None,
     connector_registry: ConnectorRegistry | None = None,
-    mcp_setup: Optional[Callable[[FastAPIMCPServer, BaseRetailAgent], None]] = None,
+    mcp_setup: Callable[[FastAPIMCPServer, BaseRetailAgent], None] | None = None,
     lifespan: Callable[[FastAPI], AsyncContextManager[None]] | None = None,
 ) -> FastAPI:
     """Return a FastAPI app pre-wired with MCP and required memory tiers."""
@@ -126,7 +173,7 @@ def build_service_app(
 
     async def _ensure_role(selected_role: str, config: FoundryAgentConfig, service: str) -> dict:
         target_name = config.agent_name or f"{service}-{selected_role}"
-        target_model = config.deployment_name or DEFAULT_FOUNDY_MODELS[selected_role]
+        target_model = config.deployment_name or DEFAULT_FOUNDRY_MODELS[selected_role]
         ensure_result = await ensure_foundry_agent(
             config,
             agent_name=target_name,
@@ -339,7 +386,7 @@ def build_service_app(
             config.deployment_name = str(
                 models.get(selected_role)
                 or config.deployment_name
-                or DEFAULT_FOUNDY_MODELS[selected_role]
+                or DEFAULT_FOUNDRY_MODELS[selected_role]
             )
 
             ensure_result = await ensure_foundry_agent(

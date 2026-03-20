@@ -23,7 +23,7 @@ import os
 from collections import Counter, deque
 from datetime import datetime, timezone
 from threading import Lock
-from typing import Any, Optional
+from typing import Any
 from weakref import WeakKeyDictionary
 
 logger = logging.getLogger(__name__)
@@ -60,7 +60,7 @@ try:
 except ImportError:  # pragma: no cover
     configure_azure_monitor = None  # type: ignore[assignment]
 
-_FOUNDY_INSTRUMENTATION_LOCK = Lock()
+_FOUNDRY_INSTRUMENTATION_LOCK = Lock()
 _FOUNDRY_INSTRUMENTATION_STATE: dict[str, bool] = {
     "azure_monitor": False,
     "ai_projects": False,
@@ -124,7 +124,7 @@ class FoundryTracer:
         os.environ.setdefault("AZURE_EXPERIMENTAL_ENABLE_GENAI_TRACING", "true")
         os.environ.setdefault("AZURE_SDK_TRACING_IMPLEMENTATION", "opentelemetry")
 
-        with _FOUNDY_INSTRUMENTATION_LOCK:
+        with _FOUNDRY_INSTRUMENTATION_LOCK:
             if (
                 self.connection_string
                 and _AZURE_MONITOR_AVAILABLE
@@ -313,7 +313,7 @@ def record_metric(
     meter: Any,
     instrument_name: str,
     value: float,
-    attributes: Optional[dict[str, Any]] = None,
+    attributes: dict[str, Any] | None = None,
     *,
     kind: str = "counter",
 ) -> None:
@@ -407,7 +407,7 @@ class _NoopCounter:
     def __init__(self, name: str) -> None:
         self._name = name
 
-    def add(self, value: float, attributes: Optional[dict] = None) -> None:
+    def add(self, value: float, attributes: dict | None = None) -> None:
         logger.debug("metric counter=%s value=%s attributes=%s", self._name, value, attributes)
 
 
@@ -415,7 +415,7 @@ class _NoopHistogram:
     def __init__(self, name: str) -> None:
         self._name = name
 
-    def record(self, value: float, attributes: Optional[dict] = None) -> None:
+    def record(self, value: float, attributes: dict | None = None) -> None:
         logger.debug("metric histogram=%s value=%s attributes=%s", self._name, value, attributes)
 
 
@@ -423,7 +423,7 @@ class _NoopGauge:
     def __init__(self, name: str) -> None:
         self._name = name
 
-    def add(self, value: float, attributes: Optional[dict] = None) -> None:
+    def add(self, value: float, attributes: dict | None = None) -> None:
         logger.debug("metric gauge=%s value=%s attributes=%s", self._name, value, attributes)
 
 
