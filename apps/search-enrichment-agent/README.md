@@ -15,6 +15,7 @@ Search enrichment producer service for Issue #347.
   - `/ai-search-indexing/index_documents`
   - `/ai-search-indexing/get_index_stats`
 - Upserts `SearchEnrichedProduct` records into logical container `search_enriched_products`.
+- `get_indexer_status` returns normalized summary fields (`execution_status`, `last_run_time`, `document_count`, `failed_document_count`) plus raw status payload.
 
 ## Required environment (optional for local tests)
 
@@ -27,7 +28,7 @@ Search enrichment producer service for Issue #347.
 - `AI_SEARCH_ENDPOINT`
 - `AI_SEARCH_ADMIN_KEY` (optional fallback when managed identity is unavailable)
 - `AI_SEARCH_VECTOR_INDEX` (default: `product_search_index`)
-- `AI_SEARCH_INDEXER_NAME`
+- `AI_SEARCH_INDEXER_NAME` (default: `product-search-indexer`)
 - `AI_SEARCH_PUSH_IMMEDIATE` (`true|false`, default `false`)
 
 ## Local test command

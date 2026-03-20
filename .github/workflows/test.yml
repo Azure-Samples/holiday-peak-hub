@@ -95,7 +95,7 @@ jobs:
       - name: Run UI dependency vulnerability audit
         run: |
           yarn audit --json > yarn-audit.json || true
-          node -e "const fs=require('fs'); const lines=fs.readFileSync('yarn-audit.json','utf8').split(/\r?\n/).filter(Boolean); let high=0,critical=0; for (const line of lines){ try{const obj=JSON.parse(line); if(obj.type==='auditAdvisory'){const sev=(obj.data.advisory.severity||'').toLowerCase(); if(sev==='high') high++; if(sev==='critical') critical++; }}catch(_){} } console.log('Yarn advisories => high='+high+', critical='+critical); process.exit(high+critical>0?1:0);"
+          node -e "const fs=require('fs'); const lines=fs.readFileSync('yarn-audit.json','utf8').split(/\r?\n/).filter(Boolean); let high=0,critical=0; for (const line of lines){ try{const obj=JSON.parse(line); if(obj.type==='auditAdvisory'){const sev=(obj.data.advisory.severity||'').toLowerCase(); if(sev==='high') high++; if(sev==='critical') critical++; }}catch(_){} } console.log('Yarn advisories => high='+high+', critical='+critical); process.exit(critical>0?1:0);"
       - name: Upload UI test artifacts
         if: always()
         uses: actions/upload-artifact@v4
