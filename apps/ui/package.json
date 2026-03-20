@@ -67,7 +67,7 @@
     "@commitlint/cli": "^19.7.1",
     "@commitlint/config-conventional": "^16.2.4",
     "@faker-js/faker": "^9.3.0",
-    "@next/bundle-analyzer": "^15.1.6",
+    "@next/bundle-analyzer": "^16.2.0",
     "@next/eslint-plugin-next": "^12.1.6",
     "@tailwindcss/aspect-ratio": "^0.4.0",
     "@tailwindcss/forms": "^0.5.9",
