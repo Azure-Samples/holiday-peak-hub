@@ -73,6 +73,7 @@ jobs:
             coverage-apps.xml
       - name: Publish Python test summary
         if: always() && github.event_name == 'pull_request'
+        continue-on-error: true
         uses: dorny/test-reporter@v1
         with:
           name: Python Tests
