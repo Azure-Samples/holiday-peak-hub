@@ -68,7 +68,8 @@ async def test_export_jobs_hitl_approval_triggers_writeback_path() -> None:
     assert adapters.truth_store._results  # pylint: disable=protected-access
     assert adapters.truth_store._audit_events  # pylint: disable=protected-access
     assert (
-        adapters.truth_store._audit_events[-1]["details"]["writeback_status"] == "completed"  # pylint: disable=protected-access
+        adapters.truth_store._audit_events[-1]["details"]["writeback_status"]
+        == "completed"  # pylint: disable=protected-access
     )
 
 
@@ -101,4 +102,6 @@ async def test_export_jobs_protocol_export_uses_existing_path() -> None:
     await handler(MagicMock(), event)
 
     assert adapters.truth_store._results  # pylint: disable=protected-access
-    assert adapters.truth_store._results[-1]["protocol"] == "ucp"  # pylint: disable=protected-access
+    assert (
+        adapters.truth_store._results[-1]["protocol"] == "ucp"
+    )  # pylint: disable=protected-access
