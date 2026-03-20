@@ -37,6 +37,7 @@ export interface SemanticSearchResponse {
   items: UiProduct[];
   source: 'agent' | 'crud';
   mode: 'keyword' | 'intelligent';
+  trace_id?: string;
   intent?: SemanticSearchIntent | null;
   subqueries?: string[];
 }
@@ -58,6 +59,7 @@ export const semanticSearchService = {
           items: mapAcpProductsToUi(results),
           source: 'agent',
           mode,
+          trace_id: typeof payload.trace_id === 'string' ? payload.trace_id : undefined,
           intent: (payload.intent as SemanticSearchIntent | undefined) || null,
           subqueries: Array.isArray(payload.subqueries)
             ? payload.subqueries.filter((value: unknown): value is string => typeof value === 'string')

@@ -35,6 +35,9 @@
 - **AGC Subnet Drift Realignment**: Shared infra defaults now pin the delegated `agc` subnet to `10.0.12.0/24` so `azd provision` matches the live dev VNet layout and stops attempting a destructive subnet replacement during canonical deploy runs.
 - **GitHub OIDC Hook Refresh**: Root POSIX `azd` `postprovision` and `postdeploy` hooks now refresh Azure CLI login from the live GitHub Actions OIDC token immediately before Azure/AKS operations, retrying empty or malformed token responses explicitly so remote deploy failures surface as actionable OIDC refresh errors instead of opaque JSON parsing crashes.
 
+### Runtime Hotfix Notes (2026-03-19)
+- **UI Agent Activity Monitoring (Issue #354)**: Added Agent Activity dashboard coverage for error/retry logs, expanded trace-detail observability sections (tool calls, model invocations, decision outcome/confidence), and deep links from search/enrichment views to related trace details when trace IDs are available.
+
 ### Merged PRs (v1.1.0)
 | # | Title | Category |
 |---|-------|----------|

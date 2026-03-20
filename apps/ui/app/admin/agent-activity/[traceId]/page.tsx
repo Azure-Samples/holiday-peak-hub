@@ -27,6 +27,36 @@ export default function AgentActivityTraceDetailPage() {
     (data && !data.tracing_enabled) || (isError && isTracingUnavailableError(error))
   );
 
+  const toolCalls = data?.tool_calls ?? [];
+  const modelInvocations = data?.model_invocations ?? [];
+
+  const fallbackToolCalls =
+    toolCalls.length > 0
+      ? toolCalls
+      : (data?.spans ?? [])
+          .filter((span) => span.tool_name)
+          .map((span) => ({
+            span_id: span.span_id,
+            tool_name: span.tool_name ?? 'unknown-tool',
+            input: span.tool_input,
+            output: span.tool_output,
+            status: span.status,
+          }));
+
+  const fallbackModelInvocations =
+    modelInvocations.length > 0
+      ? modelInvocations
+      : (data?.spans ?? [])
+          .filter((span) => Boolean(span.model_name) || Boolean(span.prompt_excerpt) || Boolean(span.completion_excerpt))
+          .map((span) => ({
+            span_id: span.span_id,
+            model_name: span.model_name ?? span.service,
+            model_tier: span.model_tier ?? 'unknown',
+            prompt_excerpt: span.prompt_excerpt,
+            completion_excerpt: span.completion_excerpt,
+            latency_ms: span.duration_ms,
+          }));
+
   return (
     <MainLayout>
       <div className="space-y-6">
@@ -99,6 +129,79 @@ export default function AgentActivityTraceDetailPage() {
             <Card className="p-4">
               <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-white">Timing waterfall</h2>
               <TraceWaterfall spans={data.spans} />
+            </Card>
+
+            <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+              <Card className="p-4">
+                <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-white">Tool calls</h2>
+                {fallbackToolCalls.length === 0 ? (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">No tool call details available.</p>
+                ) : (
+                  <ul className="space-y-3" aria-label="Tool call list">
+                    {fallbackToolCalls.map((toolCall) => (
+                      <li key={`${toolCall.span_id}-${toolCall.tool_name}`} className="rounded-md border border-gray-200 p-3 dark:border-gray-700">
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">{toolCall.tool_name}</p>
+                        {toolCall.input && (
+                          <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                            Input: {toolCall.input.slice(0, 180)}
+                            {toolCall.input.length > 180 ? '…' : ''}
+                          </p>
+                        )}
+                        {toolCall.output && (
+                          <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                            Output: {toolCall.output.slice(0, 180)}
+                            {toolCall.output.length > 180 ? '…' : ''}
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Card>
+
+              <Card className="p-4">
+                <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-white">Model invocations</h2>
+                {fallbackModelInvocations.length === 0 ? (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">No model invocation details available.</p>
+                ) : (
+                  <ul className="space-y-3" aria-label="Model invocation list">
+                    {fallbackModelInvocations.map((invocation) => (
+                      <li key={`${invocation.span_id}-${invocation.model_name}`} className="rounded-md border border-gray-200 p-3 dark:border-gray-700">
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                          {invocation.model_name} ({invocation.model_tier})
+                        </p>
+                        {invocation.prompt_excerpt && (
+                          <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                            Prompt: {invocation.prompt_excerpt.slice(0, 220)}
+                            {invocation.prompt_excerpt.length > 220 ? '…' : ''}
+                          </p>
+                        )}
+                        {invocation.completion_excerpt && (
+                          <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                            Completion: {invocation.completion_excerpt.slice(0, 220)}
+                            {invocation.completion_excerpt.length > 220 ? '…' : ''}
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Card>
+            </section>
+
+            <Card className="p-4">
+              <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-white">Decision outcome</h2>
+              <p className="text-sm text-gray-700 dark:text-gray-300">
+                {data.decision_outcome ?? data.spans.find((span) => span.decision_outcome)?.decision_outcome ?? 'Not captured'}
+              </p>
+              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                Confidence:{' '}
+                {typeof data.decision_confidence === 'number'
+                  ? `${Math.round(data.decision_confidence * 100)}%`
+                  : typeof data.spans.find((span) => typeof span.confidence_score === 'number')?.confidence_score === 'number'
+                    ? `${Math.round((data.spans.find((span) => typeof span.confidence_score === 'number')?.confidence_score ?? 0) * 100)}%`
+                    : 'N/A'}
+              </p>
             </Card>
           </>
         )}

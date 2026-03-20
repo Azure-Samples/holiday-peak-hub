@@ -81,10 +81,10 @@ export default function SearchPage() {
       <div className="mb-8 space-y-4">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Search</h1>
         <Link
-          href="/admin/agent-activity"
+          href={data?.trace_id ? `/admin/agent-activity/${data.trace_id}` : '/admin/agent-activity'}
           className="inline-flex text-sm text-blue-600 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-blue-400"
         >
-          View Agent Activity
+          {data?.trace_id ? 'View search trace' : 'View Agent Activity'}
         </Link>
         <SearchInput
           placeholder="Search products..."

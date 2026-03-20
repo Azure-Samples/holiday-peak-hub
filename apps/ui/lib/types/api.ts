@@ -655,6 +655,7 @@ export interface EnrichmentEntityDetail {
   title: string;
   status: EnrichmentJobStatus;
   confidence: number;
+  trace_id?: string;
   source_assets: string[];
   image_evidence: string[];
   reasoning: string;
@@ -702,6 +703,34 @@ export interface AgentTraceSpan {
   duration_ms: number;
   model_tier?: AgentModelTier;
   error_message?: string;
+  tool_name?: string;
+  tool_input?: string;
+  tool_output?: string;
+  model_name?: string;
+  prompt_excerpt?: string;
+  completion_excerpt?: string;
+  decision_outcome?: string;
+  confidence_score?: number;
+}
+
+export interface AgentTraceToolCall {
+  span_id: string;
+  tool_name: string;
+  input?: string;
+  output?: string;
+  status?: AgentTraceStatus;
+}
+
+export interface AgentTraceModelInvocation {
+  span_id: string;
+  model_name: string;
+  model_tier: AgentModelTier;
+  prompt_excerpt?: string;
+  completion_excerpt?: string;
+  input_tokens?: number;
+  output_tokens?: number;
+  latency_ms?: number;
+  cost_usd?: number;
 }
 
 export interface AgentModelUsageRow {
@@ -731,6 +760,10 @@ export interface AgentTraceDetail {
   started_at: string;
   duration_ms: number;
   spans: AgentTraceSpan[];
+  tool_calls?: AgentTraceToolCall[];
+  model_invocations?: AgentTraceModelInvocation[];
+  decision_outcome?: string;
+  decision_confidence?: number;
 }
 
 export interface AgentEvaluationTrend {

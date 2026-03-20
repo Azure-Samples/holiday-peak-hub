@@ -34,10 +34,10 @@ export default function EnrichmentMonitorDetailPage() {
           <span className="text-gray-900 dark:text-white">{entityId}</span>
           <span className="mx-2" aria-hidden="true">·</span>
           <Link
-            href="/admin/agent-activity"
+            href={data?.trace_id ? `/admin/agent-activity/${data.trace_id}` : '/admin/agent-activity'}
             className="text-blue-600 dark:text-blue-400 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
           >
-            Agent Activity
+            {data?.trace_id ? 'Related Trace' : 'Agent Activity'}
           </Link>
         </nav>
 

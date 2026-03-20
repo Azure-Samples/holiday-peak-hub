@@ -33,7 +33,23 @@ export function useAgentMonitorDashboard(timeRange: AgentMonitorTimeRange) {
   return useQuery({
     queryKey: ['admin', 'agent-activity', 'dashboard', timeRange],
     queryFn: () => agentMonitorService.getDashboard(timeRange),
-    refetchInterval: 15_000,
+    refetchInterval: 10_000,
+  });
+}
+
+export function useAgentHealth(timeRange: AgentMonitorTimeRange) {
+  return useQuery({
+    queryKey: ['admin', 'agent-activity', 'health-cards', timeRange],
+    queryFn: () => agentMonitorService.getAgentHealth(timeRange),
+    refetchInterval: 30_000,
+  });
+}
+
+export function useRecentTraces(agentName: string | undefined, timeRange: AgentMonitorTimeRange, limit = 25) {
+  return useQuery({
+    queryKey: ['admin', 'agent-activity', 'recent-traces', agentName, limit, timeRange],
+    queryFn: () => agentMonitorService.getRecentTraces(agentName, limit, timeRange),
+    refetchInterval: 10_000,
   });
 }
 
@@ -42,14 +58,30 @@ export function useAgentTraceDetail(traceId: string, timeRange: AgentMonitorTime
     queryKey: ['admin', 'agent-activity', 'trace-detail', traceId, timeRange],
     queryFn: () => agentMonitorService.getTraceDetail(traceId, timeRange),
     enabled: Boolean(traceId),
-    refetchInterval: 30_000,
   });
 }
 
 export function useAgentEvaluations(timeRange: AgentMonitorTimeRange) {
   return useQuery({
     queryKey: ['admin', 'agent-activity', 'evaluations', timeRange],
-    queryFn: () => agentMonitorService.getEvaluations(timeRange),
+    queryFn: () => agentMonitorService.getLatestEvaluations(timeRange),
+    refetchInterval: 30_000,
+  });
+}
+
+export function useModelUsageStats(timeRange: AgentMonitorTimeRange) {
+  return useQuery({
+    queryKey: ['admin', 'agent-activity', 'model-usage', timeRange],
+    queryFn: () => agentMonitorService.getModelUsageStats(timeRange),
+    refetchInterval: 30_000,
+  });
+}
+
+export function useEvaluationTrends(timeRange: AgentMonitorTimeRange) {
+  return useQuery({
+    queryKey: ['admin', 'agent-activity', 'evaluation-trends', timeRange],
+    queryFn: () => agentMonitorService.getLatestEvaluations(timeRange),
+    select: (payload) => payload.trends,
     refetchInterval: 30_000,
   });
 }

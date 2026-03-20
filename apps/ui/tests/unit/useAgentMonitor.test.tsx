@@ -80,7 +80,7 @@ describe('useAgentMonitor hooks', () => {
     jest.useRealTimers();
   });
 
-  it('polls dashboard every 15 seconds', async () => {
+  it('polls dashboard every 10 seconds', async () => {
     renderHook(() => useAgentMonitorDashboard('1h'), {
       wrapper: createWrapper(),
     });
@@ -90,7 +90,7 @@ describe('useAgentMonitor hooks', () => {
     });
 
     await act(async () => {
-      jest.advanceTimersByTime(15_000);
+      jest.advanceTimersByTime(10_000);
     });
 
     await waitFor(() => {
@@ -98,7 +98,7 @@ describe('useAgentMonitor hooks', () => {
     });
   });
 
-  it('polls trace detail every 30 seconds', async () => {
+  it('loads trace detail once without polling', async () => {
     renderHook(() => useAgentTraceDetail('trace-1', '1h'), {
       wrapper: createWrapper(),
     });
@@ -111,9 +111,7 @@ describe('useAgentMonitor hooks', () => {
       jest.advanceTimersByTime(30_000);
     });
 
-    await waitFor(() => {
-      expect(getTraceDetail).toHaveBeenCalledTimes(2);
-    });
+    expect(getTraceDetail).toHaveBeenCalledTimes(1);
   });
 
   it('derives global health state', async () => {
