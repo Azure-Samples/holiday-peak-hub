@@ -19,6 +19,12 @@ The accelerator must support pluggable integrations without modifying agent or a
 
 **Implement Adapter Pattern for all retail system integrations.**
 
+## Implementation Status (2026-03-20)
+
+- **Implemented and expanded**: Runtime adapter taxonomy now includes `BaseAdapter`, `BaseMCPAdapter`, `BaseExternalAPIAdapter`, and `BaseCRUDAdapter` in `lib/src/holiday_peak_lib/adapters/`.
+- **Connector-aligned execution**: Adapter contracts are used alongside connector registration and routing from [ADR-024](adr-024-connector-registry-pattern.md).
+- **Legacy snippet note**: The decision example below is historical and intentionally simplified; current implementation favors composable adapter specializations over domain-specific abstract methods in the base contract.
+
 ### Structure
 ```python
 # lib/src/holiday_peak_lib/adapters/base.py
