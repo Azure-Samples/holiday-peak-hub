@@ -564,7 +564,7 @@ python -m .infra.cli deploy_all --location <region> --version <release>
 - **GitHub Actions**: Automated build, test, security scanning, and deployment
 - **Develop Branch**: Auto-deploy to dev environment
 - **Tags**: Canary deployment to production with gradual traffic shift
-- **Security Scanning**: Trivy for container image vulnerabilities
+- **Security Scanning**: Trivy image scans (HIGH/CRITICAL) before GHCR push and weekly scan of published images with SARIF upload
 
 ---
 
