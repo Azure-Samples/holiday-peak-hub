@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from holiday_peak_lib.agents import BaseRetailAgent
+from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 
 from .adapters import (
@@ -18,7 +19,7 @@ from .adapters import (
 class TruthIngestionAgent(BaseRetailAgent):
     """Agent that orchestrates product ingestion from PIM/DAM into the truth store."""
 
-    def __init__(self, config, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, config: AgentDependencies, *args: Any, **kwargs: Any) -> None:
         super().__init__(config, *args, **kwargs)
         self._adapters = build_ingestion_adapters()
 

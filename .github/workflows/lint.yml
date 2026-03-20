@@ -45,7 +45,7 @@ jobs:
       - name: Install lib
         run: uv pip install --system -e ./lib/src
       - name: Install lint dependencies
-        run: uv pip install --system pylint isort "black[jupyter]>=26.3.1"
+        run: uv pip install --system pylint isort mypy "black[jupyter]>=26.3.1"
       - name: Install apps
         run: |
           for d in apps/*/src; do
@@ -56,6 +56,9 @@ jobs:
           python -m isort --check-only lib apps
           python -m black --check lib apps
           python -m pylint lib/src apps/*/src
+      - name: Type check (mypy)
+        run: |
+          python -m mypy --config-file pyproject.toml --ignore-missing-imports --follow-imports=skip lib/src/holiday_peak_lib/agents/service_agent.py lib/src/holiday_peak_lib/agents/memory/builder.py
       - name: Validate governance and architecture docs links
         run: |
           python scripts/ops/check_markdown_links.py --roots docs/governance docs/architecture/README.md

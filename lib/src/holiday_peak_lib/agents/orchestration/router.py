@@ -1,7 +1,7 @@
 """Routing logic for intent handling with optional SLM-first escalation."""
 
 import inspect
-from typing import Any, Callable, Dict
+from typing import Any, Callable
 
 from holiday_peak_lib.utils.logging import configure_logging, log_async_operation
 
@@ -22,10 +22,10 @@ class RoutingStrategy:
     """
 
     def __init__(self, complexity_threshold: float = 0.5) -> None:
-        self._routes: Dict[str, dict[str, Callable[..., Any]]] = {}
+        self._routes: dict[str, dict[str, Callable[..., Any]]] = {}
         self._complexity_threshold = complexity_threshold
 
-    def _assess_complexity(self, payload: Dict[str, Any]) -> float:
+    def _assess_complexity(self, payload: dict[str, Any]) -> float:
         """Return a lightweight complexity score in the range [0, 1]."""
 
         text = str(payload.get("query") or payload)
@@ -42,14 +42,14 @@ class RoutingStrategy:
             )
         return str(result)
 
-    def _should_upgrade_from_slm(self, payload: Dict[str, Any], slm_result: Any) -> bool:
+    def _should_upgrade_from_slm(self, payload: dict[str, Any], slm_result: Any) -> bool:
         """Determine whether to escalate from SLM to LLM."""
 
         if self._assess_complexity(payload) >= self._complexity_threshold:
             return True
         return self._extract_result_text(slm_result).strip().lower() == "upgrade"
 
-    async def _invoke_handler(self, handler: Callable[..., Any], payload: Dict[str, Any]) -> Any:
+    async def _invoke_handler(self, handler: Callable[..., Any], payload: dict[str, Any]) -> Any:
         """Invoke sync or async handlers uniformly."""
 
         result = handler(payload)
@@ -80,7 +80,7 @@ class RoutingStrategy:
             llm_handler is not None,
         )
 
-    async def route(self, intent: str, payload: Dict[str, Any]) -> Any:
+    async def route(self, intent: str, payload: dict[str, Any]) -> Any:
         handlers = self._routes.get(intent)
         if not handlers:
             raise KeyError(f"No handler for intent {intent}")

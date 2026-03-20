@@ -8,6 +8,7 @@ from typing import Any
 
 from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
+from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.evaluation import (
     confidence_calibration_bins,
@@ -24,7 +25,7 @@ class TruthEnrichmentAgent(BaseRetailAgent):
 
     def __init__(
         self,
-        config,
+        config: AgentDependencies,
         *args: Any,
         adapters: EnrichmentAdapters | None = None,
         engine: EnrichmentEngine | None = None,
