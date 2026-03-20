@@ -103,7 +103,7 @@ export default function LoginPage() {
           <Button
             onClick={handleMicrosoftLogin}
             size="lg"
-            className="w-full bg-[#2F2F2F] hover:bg-[#1a1a1a] dark:bg-white dark:hover:bg-gray-100 text-white dark:text-gray-900 flex items-center justify-center gap-3"
+            className="w-full bg-hp-neutral-700 hover:bg-hp-neutral-800 dark:bg-white dark:hover:bg-gray-100 text-white dark:text-gray-900 flex items-center justify-center gap-3"
             disabled={isLoading || Boolean(authConfigError)}
           >
             <svg className="w-5 h-5" viewBox="0 0 23 23" fill="none">

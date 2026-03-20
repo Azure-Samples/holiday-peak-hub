@@ -3,7 +3,7 @@
 import { ReactNode } from "react";
 import { Provider } from "react-redux";
 import store from "@/store";
-import NProgressHandler from "@/components/NprogressHandler";
+import NProgressHandler from "@/components/utils/NprogressHandler";
 import Layouts from "@/layouts";
 
 interface ClientLayoutProps {

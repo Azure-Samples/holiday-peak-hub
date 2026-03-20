@@ -3,7 +3,7 @@ import {useAppSelector} from "@/store";
 import Navbar1 from "@/components/navbar-1";
 import LeftSidebar1 from "@/components/left-sidebar-1";
 import RightSidebar1 from "@/components/right-sidebar-1";
-import NProgressHandler from '@/components/NprogressHandler';
+import NProgressHandler from '@/components/utils/NprogressHandler';
 
 export type Layout1Props = {
   children: React.ReactNode;

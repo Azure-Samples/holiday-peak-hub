@@ -26,7 +26,7 @@ export default function Error({
           height={64}
           width={64}
           src="/images/illustration.svg"
-          alt="svg"
+          alt="Error illustration"
         />
         <h3 className="text-blue-500 mb-4">Oops!</h3>
         {error.digest && (
@@ -34,12 +34,12 @@ export default function Error({
         )}
 
         <div className="mb-8 text-center text-gray-900 dark:text-white">
-          Ooops! Houve um erro ao processar a sua requisição. Por favor, tente novamente mais tarde.
-          Caso o erro persista, entre em contato conosco.
+          Something went wrong while processing your request. Please try again later.
+          If the issue persists, contact support.
         </div>
         <div className="flex w-full">
           <Link href="/" className="w-full px-6 py-3 text-base font-bold text-white uppercase bg-blue-500 rounded-lg hover:bg-blue-600">
-            Voltar
+            Back Home
           </Link>
         </div>
       </div>

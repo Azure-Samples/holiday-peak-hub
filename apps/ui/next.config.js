@@ -37,7 +37,6 @@ const nextConfig = {
         hostname: 'picsum.photos',
       },
     ],
-    unoptimized: process.env.NODE_ENV === 'production', // For static export
   },
 
   // Environment variables
