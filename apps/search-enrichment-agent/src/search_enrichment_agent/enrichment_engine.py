@@ -83,7 +83,12 @@ class SearchEnrichmentEngine:
         merged = dict(simple)
         for key in _REQUIRED_FIELDS:
             candidate = model_output.get(key)
-            if key in {"use_cases", "complementary_products", "substitute_products", "search_keywords"}:
+            if key in {
+                "use_cases",
+                "complementary_products",
+                "substitute_products",
+                "search_keywords",
+            }:
                 normalized = self._normalize_string_list(candidate)
                 if normalized:
                     merged[key] = normalized

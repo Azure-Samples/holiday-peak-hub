@@ -1,5 +1,4 @@
 import React from 'react';
-import { Button } from '../atoms/Button';
 import { Badge } from '../atoms/Badge';
 import type { IntelligentSearchPreference } from '@/lib/hooks/useIntelligentSearch';
 
@@ -20,6 +19,8 @@ export const SearchModeToggle: React.FC<SearchModeToggleProps> = ({
   resolvedMode,
   onChange,
 }) => {
+  const modeLabel = resolvedMode === 'intelligent' ? 'Intelligent Search' : 'Keyword Search';
+
   return (
     <section
       className="rounded-2xl border border-[var(--hp-border)] bg-[var(--hp-surface)] p-3"
@@ -30,11 +31,11 @@ export const SearchModeToggle: React.FC<SearchModeToggleProps> = ({
         <Badge
           className={
             resolvedMode === 'intelligent'
-              ? 'bg-[var(--hp-accent)]/20 text-[var(--hp-accent)]'
+              ? 'bg-gradient-to-r from-[var(--hp-primary)] to-[var(--hp-accent)] text-white'
               : 'bg-[var(--hp-surface-strong)] text-[var(--hp-text-muted)]'
           }
         >
-          {resolvedMode}
+          {modeLabel}
         </Badge>
       </div>
 
@@ -42,17 +43,21 @@ export const SearchModeToggle: React.FC<SearchModeToggleProps> = ({
         {OPTIONS.map((option) => {
           const checked = option.value === preference;
           return (
-            <Button
+            <button
               key={option.value}
               type="button"
-              size="sm"
-              variant={checked ? 'primary' : 'outline'}
-              className="min-w-[88px]"
-              ariaLabel={`Search mode ${option.label}`}
+              className={`min-w-[88px] rounded-lg px-3 py-1.5 text-sm font-bold uppercase transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                checked
+                  ? 'bg-[var(--hp-primary)] text-white hover:bg-[var(--hp-primary-hover)]'
+                  : 'border border-[var(--hp-border)] bg-transparent text-[var(--hp-text)] hover:bg-[var(--hp-surface-strong)]'
+              }`}
+              aria-label={`Search mode ${option.label}`}
+              role="radio"
+              aria-checked={checked}
               onClick={() => onChange(option.value)}
             >
               {option.label}
-            </Button>
+            </button>
           );
         })}
       </div>

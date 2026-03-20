@@ -41,7 +41,18 @@ export interface SemanticSearchResponse {
   subqueries?: string[];
 }
 
+export type SearchModePreference = 'auto' | 'keyword' | 'intelligent';
+
 export const semanticSearchService = {
+  async searchWithMode(
+    query: string,
+    mode: SearchModePreference,
+    limit = 20,
+  ): Promise<SemanticSearchResponse> {
+    const requestedMode = mode === 'auto' ? undefined : mode;
+    return this.search({ query, limit, mode: requestedMode });
+  },
+
   async search(request: SemanticSearchRequest): Promise<SemanticSearchResponse> {
     const trimmed = request.query.trim();
     if (!trimmed) {

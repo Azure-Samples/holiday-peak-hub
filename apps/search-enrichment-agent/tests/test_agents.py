@@ -67,7 +67,10 @@ def _mock_adapters() -> SearchEnrichmentAdapters:
 @pytest.mark.asyncio
 async def test_handle_requires_entity_id() -> None:
     agent_config_without_models = _build_agent_config_without_models()
-    with patch("search_enrichment_agent.agents.build_search_enrichment_adapters", return_value=_mock_adapters()):
+    with patch(
+        "search_enrichment_agent.agents.build_search_enrichment_adapters",
+        return_value=_mock_adapters(),
+    ):
         agent = SearchEnrichmentAgent(config=agent_config_without_models)
 
     result = await agent.handle({})
@@ -78,7 +81,9 @@ async def test_handle_requires_entity_id() -> None:
 async def test_handle_enriches_with_simple_strategy_when_models_unavailable() -> None:
     agent_config_without_models = _build_agent_config_without_models()
     adapters = _mock_adapters()
-    with patch("search_enrichment_agent.agents.build_search_enrichment_adapters", return_value=adapters):
+    with patch(
+        "search_enrichment_agent.agents.build_search_enrichment_adapters", return_value=adapters
+    ):
         agent = SearchEnrichmentAgent(config=agent_config_without_models)
 
     result = await agent.handle({"entity_id": "SKU-1"})
@@ -101,7 +106,9 @@ async def test_register_mcp_tools_adds_required_paths() -> None:
     mcp.add_tool = add_tool
 
     adapters = _mock_adapters()
-    with patch("search_enrichment_agent.agents.build_search_enrichment_adapters", return_value=adapters):
+    with patch(
+        "search_enrichment_agent.agents.build_search_enrichment_adapters", return_value=adapters
+    ):
         agent = SearchEnrichmentAgent(config=agent_config_with_slm)
         register_mcp_tools(mcp, agent)
 
@@ -125,7 +132,9 @@ async def test_enrich_triggers_search_indexing_after_upsert() -> None:
     adapters.search_indexing = AsyncMock()
     adapters.search_indexing.sync_after_upsert = AsyncMock(return_value={"status": "accepted"})
 
-    with patch("search_enrichment_agent.agents.build_search_enrichment_adapters", return_value=adapters):
+    with patch(
+        "search_enrichment_agent.agents.build_search_enrichment_adapters", return_value=adapters
+    ):
         agent = SearchEnrichmentAgent(config=agent_config_without_models)
 
     result = await agent.enrich("SKU-1", trigger="test")
@@ -148,8 +157,13 @@ async def test_register_mcp_tools_adds_ai_search_indexing_paths_when_configured(
     fake_client = object()
     adapters = _mock_adapters()
     with (
-        patch("search_enrichment_agent.agents.build_search_enrichment_adapters", return_value=adapters),
-        patch("search_enrichment_agent.agents.build_ai_search_indexing_client_from_env", return_value=fake_client),
+        patch(
+            "search_enrichment_agent.agents.build_search_enrichment_adapters", return_value=adapters
+        ),
+        patch(
+            "search_enrichment_agent.agents.build_ai_search_indexing_client_from_env",
+            return_value=fake_client,
+        ),
         patch("search_enrichment_agent.agents.register_ai_search_indexing_tools") as register_tools,
     ):
         agent = SearchEnrichmentAgent(config=agent_config_with_slm)

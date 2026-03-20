@@ -1,6 +1,10 @@
 # Event Hub topology matrix
 
-_Last updated: 2026-03-18_
+_Last updated: 2026-03-19_
+
+## Purpose
+
+This document is the architecture coverage contract for Event Hubs topology alignment (issue #299). It records topic-level publisher/subscriber reality and expected wiring coverage.
 
 ## Active topology
 
@@ -12,6 +16,24 @@ _Last updated: 2026-03-18_
 | `inventory-events` | CRUD `cart` route (successful reservation publish path) | `ecommerce-checkout-support`, `inventory-health-check`, `inventory-alerts-triggers`, `inventory-jit-replenishment` |
 | `user-events` | CRUD `users` route (`PATCH /api/users/me` as `UserUpdated`) | `crm-campaign-intelligence`, `crm-profile-aggregation` |
 | `shipment-events` | Reserved publisher path in CRUD integration (`publish_shipment_created`) | _No direct subscribers currently wired_ |
+
+## Coverage contract status
+
+| Topic | Contract expectation | Current state | Coverage status | Implementation issue path |
+|---|---|---|---|---|
+| `order-events` | CRUD emits order lifecycle events and agents consume | Publisher/subscriber paths active | Aligned | Continue under feature work
+| `payment-events` | CRUD/webhook emits payment events and CRM campaign flow consumes | Publisher/subscriber paths active | Aligned | Continue under feature work
+| `return-events` | CRUD emits returns lifecycle and at least one returns-aware agent consumes | `logistics-returns-support` and `crm-support-assistance` subscribed | Aligned | Continue under feature work
+| `inventory-events` | CRUD emits reservation/release events and inventory/checkout agents consume | Reservation path active; broader inventory mutation paths still partial | Partially aligned | Follow-up implementation work from #299
+| `user-events` | CRUD emits user registration/profile update events and CRM agents consume | Profile update publish active (`PATCH /api/users/me`); explicit registration publish remains pending | Partially aligned | Follow-up implementation work from #299
+| `shipment-events` | CRUD emits shipment lifecycle and logistics/order-status agents consume | Publisher convenience method exists; no direct subscribers wired | Gap | Follow-up implementation work from #299
+| `product-events` | CRUD product mutations emit product lifecycle events for catalog/product-management agents | Subscribers exist; no CRUD mutation publisher path yet | Gap | Follow-up implementation work from #299
+
+## Cross-issue dependency notes
+
+- #340, #342, and #349 are not blocked by #299 because they target the intelligent-search bounded context (Cosmos + AI Search + MCP indexing), not the retail choreography topics above.
+- #341 introduces `search-enrichment-jobs` Event Hub infrastructure and should adopt the same publisher/subscriber coverage-contract pattern documented here.
+- #299 remains the architecture baseline for CRUD-to-agent topology truthfulness; implementation issues should reference this matrix when adding or wiring Event Hub topics.
 
 ## Notes
 

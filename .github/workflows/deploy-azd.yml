@@ -219,7 +219,7 @@ jobs:
 
           if [ ${#CHANGED_AGENTS[@]} -gt 0 ]; then
             AGENTS_CHANGED=true
-            MATRIX=$(printf '%s\n' "${CHANGED_AGENTS[@]}" | jq -R . | jq -cs 'map({service: .})')
+            MATRIX=$(printf '%s\n' "${CHANGED_AGENTS[@]}" | jq -Rcs 'split("\n")[:-1] | map(select(length > 0)) | map({service: .})')
           fi
 
           CHANGED_AGENT_SERVICES_CSV=""
@@ -239,7 +239,7 @@ jobs:
           echo "crud_changed=$CRUD_CHANGED" >> "$GITHUB_OUTPUT"
           echo "ui_changed=$UI_CHANGED" >> "$GITHUB_OUTPUT"
           echo "agents_changed=$AGENTS_CHANGED" >> "$GITHUB_OUTPUT"
-          echo "changed_agents_matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+          printf 'changed_agents_matrix=%s\n' "$MATRIX" >> "$GITHUB_OUTPUT"
           echo "changed_agent_services_csv=$CHANGED_AGENT_SERVICES_CSV" >> "$GITHUB_OUTPUT"
           echo "changed_aks_services_csv=$CHANGED_AKS_SERVICES_CSV" >> "$GITHUB_OUTPUT"
           echo "lib_changed=$LIB_CHANGED" >> "$GITHUB_OUTPUT"
@@ -509,7 +509,7 @@ jobs:
             fi
           done
 
-          for group in ingestion-group enrichment-engine export-engine hitl-service search-enrichment-agent; do
+          for group in ingestion-group enrichment-engine export-engine hitl-service search-enrichment-consumer search-enrichment-agent; do
             if ! grep -q "'$group'" "$BICEP_FILE"; then
               echo "Missing required truth consumer group declaration in $BICEP_FILE: $group" >&2
               MISSING=1
@@ -563,6 +563,9 @@ jobs:
         run: |
           eval "$(azd env get-values -e '${{ inputs.environment }}' | sed 's/^/export /')"
           APIM_GATEWAY_URL_VALUE="${APIM_GATEWAY_URL:-${apimGatewayUrl:-}}"
+          if [ "$APIM_GATEWAY_URL_VALUE" = "null" ]; then
+            APIM_GATEWAY_URL_VALUE=""
+          fi
           {
             echo "AI_SERVICES_NAME=${AI_SERVICES_NAME}"
             echo "AI_SEARCH_NAME=${AI_SEARCH_NAME}"
@@ -1012,6 +1015,10 @@ jobs:
 
           APIM_URL="${APIM_URL%/}"
           EXPECTED_APIM_URL="${EXPECTED_APIM_URL%/}"
+
+          if [ "$EXPECTED_APIM_URL" = "null" ]; then
+            EXPECTED_APIM_URL=""
+          fi
 
           if [ -z "$APIM_URL" ]; then
             echo "Failed to resolve APIM gatewayUrl for resource group $RESOURCE_GROUP. Ensure APIM exists and is provisioned before deploying UI." >&2
@@ -2013,4 +2020,100 @@ jobs:
             echo "$FAILED service(s) did not report status=ok during Foundry readiness checks." >&2
             exit 1
           fi
+
+  watchdog-apim-agc-swa-drift:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    if: ${{ always() && !inputs.uiOnly && inputs.environment == 'dev' && (needs.provision.result == 'success' || needs.provision.result == 'skipped') }}
+    needs:
+      - provision
+      - detect-changes
+      - deploy-crud
+      - deploy-agents
+      - sync-apim
+      - smoke-apim
+      - deploy-ui
+      - ensure-foundry-agents
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
+      issues: write
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup azd
+        uses: Azure/setup-azd@v2
+
+      - name: Run APIM/AGC/SWA drift watchdog
+        id: watchdog
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x scripts/ops/watchdog-apim-agc-swa-drift.sh
+          scripts/ops/watchdog-apim-agc-swa-drift.sh
+        env:
+          PROJECT_NAME: ${{ inputs.projectName }}
+          ENVIRONMENT: ${{ inputs.environment }}
+          RESOURCE_GROUP: ${{ inputs.projectName }}-${{ inputs.environment }}-rg
+          APIM_NAME: ${{ inputs.projectName }}-${{ inputs.environment }}-apim
+          AKS_NAME: ${{ inputs.projectName }}-${{ inputs.environment }}-aks
+          SWA_NAME: ${{ inputs.projectName }}-ui-${{ inputs.environment }}
+          APIM_GATEWAY_URL: ${{ needs.provision.outputs.APIM_GATEWAY_URL }}
+          AGC_FRONTEND_HOSTNAME: ${{ needs.provision.outputs.AGC_FRONTEND_HOSTNAME }}
+          AGC_SUPPORT_ENABLED: ${{ needs.provision.outputs.AGC_SUPPORT_ENABLED }}
+          REPORT_DIR: ${{ runner.temp }}/watchdog-drift
+
+      - name: Append watchdog summary
+        if: ${{ always() && steps.watchdog.outputs.summary_file != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat "${{ steps.watchdog.outputs.summary_file }}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload watchdog artifact
+        if: ${{ always() && steps.watchdog.outputs.results_file != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: watchdog-apim-agc-swa-drift-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/watchdog-drift
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Comment on issue #298 when drift is detected
+        if: ${{ always() && steps.watchdog.outputs.drift_detected == 'true' }}
+        uses: actions/github-script@v7
+        env:
+          DEPLOY_ENV: ${{ inputs.environment }}
+        with:
+          script: |
+            const failedChecks = `${{ steps.watchdog.outputs.failed_checks }}`;
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = [
+              '⚠️ Watchdog drift detected after deploy.',
+              '',
+              `- Environment: ${process.env.DEPLOY_ENV}`,
+              `- Failed checks: ${failedChecks || 'n/a'}`,
+              `- Run: ${runUrl}`,
+              '',
+              'Auto-generated by `watchdog-apim-agc-swa-drift` job.'
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: 298,
+              body,
+            });
 

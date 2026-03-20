@@ -20,14 +20,14 @@ from uuid import uuid4
 import httpx
 from azure.core.credentials import AccessToken
 from azure.core.credentials_async import AsyncTokenCredential
-
 from holiday_peak_lib.utils.logging import configure_logging
-from holiday_peak_lib.utils.rate_limiter import RateLimitExceededError, RateLimiter
+from holiday_peak_lib.utils.rate_limiter import RateLimiter, RateLimitExceededError
 
 logger = configure_logging(app_name="ai-search-indexing-mcp")
 
 _API_VERSION = "2025-09-01"
 _DEFAULT_INDEX_NAME = "product_search_index"
+_DEFAULT_INDEXER_NAME = "product-search-indexer"
 _DEFAULT_BATCH_LIMIT = 500
 _TRANSIENT_STATUS_CODES = {429, 500, 502, 503, 504}
 
@@ -39,8 +39,7 @@ class MCPToolServer(Protocol):
         self,
         path: str,
         handler: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]],
-    ) -> None:
-        ...
+    ) -> None: ...
 
 
 @dataclass(slots=True)
@@ -94,11 +93,16 @@ class AISearchIndexingClient:
         path = f"/indexers('{resolved_indexer}')/search.status"
         response = await self._request_with_retry("GET", path)
         data = self._safe_json(response)
+        status_summary = _extract_indexer_status_summary(data)
         return {
             "status": "ok",
             "operation": "get_indexer_status",
             "indexer_name": resolved_indexer,
             "http_status": response.status_code,
+            "execution_status": status_summary.get("execution_status"),
+            "last_run_time": status_summary.get("last_run_time"),
+            "document_count": status_summary.get("document_count"),
+            "failed_document_count": status_summary.get("failed_document_count"),
             "result": data,
         }
 
@@ -321,7 +325,9 @@ def build_ai_search_indexing_client_from_env(
 
     api_key = (os.getenv("AI_SEARCH_ADMIN_KEY") or "").strip() or None
     default_index_name = (os.getenv("AI_SEARCH_VECTOR_INDEX") or _DEFAULT_INDEX_NAME).strip()
-    default_indexer_name = (os.getenv("AI_SEARCH_INDEXER_NAME") or "").strip() or None
+    default_indexer_name = (
+        os.getenv("AI_SEARCH_INDEXER_NAME") or _DEFAULT_INDEXER_NAME
+    ).strip() or None
 
     credential: AsyncTokenCredential | None = None
     if api_key is None:
@@ -509,4 +515,43 @@ def _error_response(
             "kind": error_kind,
             "message": message,
         },
+    }
+
+
+def _extract_indexer_status_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    last_result: dict[str, Any] = {}
+    candidate = payload.get("lastResult")
+    if isinstance(candidate, dict):
+        last_result = candidate
+
+    def _first_number(*keys: str) -> int | None:
+        for key in keys:
+            value = last_result.get(key)
+            if isinstance(value, int):
+                return value
+        return None
+
+    document_count = _first_number(
+        "itemCount",
+        "itemsProcessed",
+        "outputItemCount",
+    )
+    failed_document_count = _first_number(
+        "failedItemCount",
+        "itemsFailed",
+    )
+    last_run_time = (
+        last_result.get("endTime") or last_result.get("startTime") or payload.get("lastRunTime")
+    )
+    execution_status = (
+        last_result.get("status")
+        if isinstance(last_result.get("status"), str)
+        else payload.get("status")
+    )
+
+    return {
+        "execution_status": execution_status,
+        "last_run_time": last_run_time,
+        "document_count": document_count,
+        "failed_document_count": failed_document_count,
     }
