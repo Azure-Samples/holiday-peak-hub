@@ -9,6 +9,7 @@ from typing import Any, Callable
 import httpx
 from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
+from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.evaluation import confidence_calibration_bins, run_evaluation
 from holiday_peak_lib.mcp.ai_search_indexing import (
@@ -127,7 +128,7 @@ class SearchEnrichmentOrchestrator:
 class SearchEnrichmentAgent(BaseRetailAgent):
     """Agent producing search-optimized enrichment fields from approved truth data."""
 
-    def __init__(self, config, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, config: AgentDependencies, *args: Any, **kwargs: Any) -> None:
         super().__init__(config, *args, **kwargs)
         self._adapters = build_search_enrichment_adapters()
         self._adapters.foundry.set_model_invoker(self.invoke_model)

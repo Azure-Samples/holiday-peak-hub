@@ -1,83 +1,22 @@
 """CRM campaign intelligence service."""
 
-import os
-
 from crm_campaign_intelligence.agents import (
     CampaignIntelligenceAgent,
     register_mcp_tools,
 )
 from crm_campaign_intelligence.event_handlers import build_event_handlers
-from holiday_peak_lib.agents import FoundryAgentConfig
-from holiday_peak_lib.agents.memory import ColdMemory, HotMemory, WarmMemory
-from holiday_peak_lib.app_factory import build_service_app
-from holiday_peak_lib.config import MemorySettings
-from holiday_peak_lib.utils import EventHubSubscription, create_eventhub_lifespan
+from holiday_peak_lib import create_standard_app
+from holiday_peak_lib.utils import EventHubSubscription
 
 SERVICE_NAME = "crm-campaign-intelligence"
-memory_settings = MemorySettings()
-endpoint = os.getenv("PROJECT_ENDPOINT") or os.getenv("FOUNDRY_ENDPOINT")
-project_name = os.getenv("PROJECT_NAME") or os.getenv("FOUNDRY_PROJECT_NAME")
-stream = (os.getenv("FOUNDRY_STREAM") or "").lower() in {"1", "true", "yes"}
-slm_agent_id = os.getenv("FOUNDRY_AGENT_ID_FAST")
-llm_agent_id = os.getenv("FOUNDRY_AGENT_ID_RICH")
-slm_deployment = os.getenv("MODEL_DEPLOYMENT_NAME_FAST")
-llm_deployment = os.getenv("MODEL_DEPLOYMENT_NAME_RICH")
-
-slm_config = (
-    FoundryAgentConfig(
-        endpoint=endpoint,
-        agent_id=slm_agent_id,
-        deployment_name=slm_deployment,
-        project_name=project_name,
-        stream=stream,
-    )
-    if endpoint and slm_agent_id
-    else None
-)
-
-llm_config = (
-    FoundryAgentConfig(
-        endpoint=endpoint,
-        agent_id=llm_agent_id,
-        deployment_name=llm_deployment,
-        project_name=project_name,
-        stream=stream,
-    )
-    if endpoint and llm_agent_id
-    else None
-)
-
-app = build_service_app(
-    SERVICE_NAME,
+app = create_standard_app(
+    service_name=SERVICE_NAME,
     agent_class=CampaignIntelligenceAgent,
-    hot_memory=(HotMemory(memory_settings.redis_url) if memory_settings.redis_url else None),
-    warm_memory=(
-        WarmMemory(
-            memory_settings.cosmos_account_uri,
-            memory_settings.cosmos_database,
-            memory_settings.cosmos_container,
-        )
-        if memory_settings.cosmos_account_uri
-        else None
-    ),
-    cold_memory=(
-        ColdMemory(
-            memory_settings.blob_account_url,
-            memory_settings.blob_container,
-        )
-        if memory_settings.blob_account_url
-        else None
-    ),
-    slm_config=slm_config,
-    llm_config=llm_config,
     mcp_setup=register_mcp_tools,
-    lifespan=create_eventhub_lifespan(
-        service_name=SERVICE_NAME,
-        subscriptions=[
-            EventHubSubscription("user-events", "campaign-intel-group"),
-            EventHubSubscription("order-events", "campaign-intel-group"),
-            EventHubSubscription("payment-events", "campaign-intel-group"),
-        ],
-        handlers=build_event_handlers(),
-    ),
+    subscriptions=[
+        EventHubSubscription("user-events", "campaign-intel-group"),
+        EventHubSubscription("order-events", "campaign-intel-group"),
+        EventHubSubscription("payment-events", "campaign-intel-group"),
+    ],
+    handlers=build_event_handlers(),
 )

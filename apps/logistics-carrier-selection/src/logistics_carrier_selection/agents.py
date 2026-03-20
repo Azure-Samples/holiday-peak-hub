@@ -7,6 +7,7 @@ from typing import Any
 
 from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
+from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
 
@@ -20,7 +21,7 @@ from .adapters import (
 class CarrierSelectionAgent(BaseRetailAgent):
     """Agent that recommends a carrier for a shipment."""
 
-    def __init__(self, config, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, config: AgentDependencies, *args: Any, **kwargs: Any) -> None:
         super().__init__(config, *args, **kwargs)
         self._adapters = build_carrier_selection_adapters()
 
