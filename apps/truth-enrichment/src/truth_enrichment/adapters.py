@@ -218,6 +218,7 @@ class DAMImageAnalysisAdapter(BaseAdapter):
             "metadata": {"source": "image_analysis", "fallback_reason": reason},
         }
 
+
 class ProposedAttributeStoreAdapter:
     """Write proposed attributes to the Cosmos DB `attributes_proposed` container."""
 

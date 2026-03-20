@@ -120,28 +120,27 @@ class EnrichmentEngine:
             source_type = "image_analysis"
             selected_value = image_value
             confidence = image_confidence
-            reasoning = (
-                f"Image analysis selected with confidence={image_confidence:.2f}."
-            )
+            reasoning = f"Image analysis selected with confidence={image_confidence:.2f}."
             evidence = str(image_parsed.get("evidence", ""))
         elif has_text_value:
             source_type = "text_enrichment"
             selected_value = text_value
             confidence = text_confidence
-            reasoning = (
-                f"Text enrichment selected with confidence={text_confidence:.2f}."
-            )
+            reasoning = f"Text enrichment selected with confidence={text_confidence:.2f}."
             evidence = str(text_parsed.get("evidence", ""))
         else:
             source_type = "text_enrichment" if text_parsed else "image_analysis"
             selected_value = None
             confidence = max(image_confidence, text_confidence)
             reasoning = "No reliable value extracted from available enrichment sources."
-            evidence = " | ".join(
-                str(part)
-                for part in [image_parsed.get("evidence", ""), text_parsed.get("evidence", "")]
-                if part
-            ) or "enrichment unavailable"
+            evidence = (
+                " | ".join(
+                    str(part)
+                    for part in [image_parsed.get("evidence", ""), text_parsed.get("evidence", "")]
+                    if part
+                )
+                or "enrichment unavailable"
+            )
 
         return {
             "value": selected_value,
