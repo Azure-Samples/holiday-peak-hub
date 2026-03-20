@@ -642,6 +642,26 @@ module eventHubs 'br/public:avm/res/event-hub/namespace:0.14.0' = {
         partitionCount: 4
       }
       {
+        name: 'ingest-jobs'
+        messageRetentionInDays: 7
+        partitionCount: 4
+      }
+      {
+        name: 'enrichment-jobs'
+        messageRetentionInDays: 7
+        partitionCount: 4
+      }
+      {
+        name: 'export-jobs'
+        messageRetentionInDays: 7
+        partitionCount: 4
+      }
+      {
+        name: 'hitl-jobs'
+        messageRetentionInDays: 7
+        partitionCount: 4
+      }
+      {
         name: 'search-enrichment-jobs'
         messageRetentionInDays: 7
         partitionCount: 4
@@ -869,9 +889,74 @@ resource searchEnrichmentJobsEventHub 'Microsoft.EventHub/namespaces/eventhubs@2
   name: 'search-enrichment-jobs'
 }
 
+resource ingestJobsEventHub 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' existing = {
+  parent: eventHubsNamespaceResource
+  name: 'ingest-jobs'
+}
+
+resource enrichmentJobsEventHub 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' existing = {
+  parent: eventHubsNamespaceResource
+  name: 'enrichment-jobs'
+}
+
+resource exportJobsEventHub 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' existing = {
+  parent: eventHubsNamespaceResource
+  name: 'export-jobs'
+}
+
+resource hitlJobsEventHub 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' existing = {
+  parent: eventHubsNamespaceResource
+  name: 'hitl-jobs'
+}
+
+resource ingestionGroupConsumerGroup 'Microsoft.EventHub/namespaces/eventhubs/consumergroups@2023-01-01-preview' = {
+  parent: ingestJobsEventHub
+  name: 'ingestion-group'
+  properties: {}
+  dependsOn: [
+    eventHubs
+  ]
+}
+
+resource enrichmentEngineConsumerGroup 'Microsoft.EventHub/namespaces/eventhubs/consumergroups@2023-01-01-preview' = {
+  parent: enrichmentJobsEventHub
+  name: 'enrichment-engine'
+  properties: {}
+  dependsOn: [
+    eventHubs
+  ]
+}
+
+resource exportEngineConsumerGroup 'Microsoft.EventHub/namespaces/eventhubs/consumergroups@2023-01-01-preview' = {
+  parent: exportJobsEventHub
+  name: 'export-engine'
+  properties: {}
+  dependsOn: [
+    eventHubs
+  ]
+}
+
+resource hitlServiceConsumerGroup 'Microsoft.EventHub/namespaces/eventhubs/consumergroups@2023-01-01-preview' = {
+  parent: hitlJobsEventHub
+  name: 'hitl-service'
+  properties: {}
+  dependsOn: [
+    eventHubs
+  ]
+}
+
 resource searchEnrichmentAgentConsumerGroup 'Microsoft.EventHub/namespaces/eventhubs/consumergroups@2023-01-01-preview' = {
   parent: searchEnrichmentJobsEventHub
   name: 'search-enrichment-agent'
+  properties: {}
+  dependsOn: [
+    eventHubs
+  ]
+}
+
+resource searchEnrichmentConsumerGroup 'Microsoft.EventHub/namespaces/eventhubs/consumergroups@2023-01-01-preview' = {
+  parent: searchEnrichmentJobsEventHub
+  name: 'search-enrichment-consumer'
   properties: {}
   dependsOn: [
     eventHubs

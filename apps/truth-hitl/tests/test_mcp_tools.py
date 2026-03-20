@@ -85,7 +85,9 @@ class TestMCPToolExecution:
         assert result["error"] == "entity_id is required"
 
     @pytest.mark.asyncio
-    async def test_get_proposal_returns_none_for_missing_proposal(self, mock_mcp_server, mock_agent):
+    async def test_get_proposal_returns_none_for_missing_proposal(
+        self, mock_mcp_server, mock_agent
+    ):
         register_mcp_tools(mock_mcp_server, mock_agent)
         tool = mock_mcp_server.tools["/review/get_proposal"]
 

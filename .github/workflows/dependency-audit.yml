@@ -1,0 +1,61 @@
+name: dependency-audit
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+    paths:
+      - lib/**
+      - apps/**
+      - pyproject.toml
+      - .github/workflows/dependency-audit.yml
+
+jobs:
+  pip-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+      - name: Install audit toolchain
+        run: |
+          uv pip install --system pip-audit "black[jupyter]>=26.3.1"
+      - name: Install lib
+        run: uv pip install --system -e ./lib/src
+      - name: Install apps
+        run: |
+          set -e
+          for d in apps/*/src; do
+            if [ -f "$d/pyproject.toml" ]; then
+              uv pip install --system -e "$d"
+            else
+              echo "Skipping $d (no pyproject.toml)"
+            fi
+          done
+      - name: Run pip-audit (Wave0)
+        run: |
+          python -m pip_audit --ignore-vuln CVE-2024-23342
+      - name: Export pip-audit report
+        if: always()
+        run: |
+          python -m pip_audit --format=json --ignore-vuln CVE-2024-23342 > pip-audit-report.json
+      - name: Upload pip-audit report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pip-audit-report
+          path: pip-audit-report.json
