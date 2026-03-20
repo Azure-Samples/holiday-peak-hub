@@ -18,6 +18,7 @@ on:
     paths:
       - lib/**
       - apps/**
+      - tests/**
       - pyproject.toml
       - conftest.py
       - .github/workflows/test.yml
@@ -55,6 +56,9 @@ jobs:
       - name: Run app tests
         run: |
           pytest apps/*/tests --ignore=apps/ui/tests --cov=apps --cov-report=xml:coverage-apps.xml --cov-fail-under=60 --junitxml=test-results-apps.xml
+      - name: Run e2e tests
+        run: |
+          pytest tests/e2e -m e2e --maxfail=1
       - name: Run Python dependency vulnerability audit
         run: pip-audit --progress-spinner off --ignore-vuln CVE-2024-23342
       - name: Upload Python test artifacts
