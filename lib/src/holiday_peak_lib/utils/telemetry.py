@@ -18,10 +18,10 @@ Usage::
 
 from __future__ import annotations
 
+import logging
 import os
 from collections import Counter, deque
 from datetime import datetime, timezone
-import logging
 from threading import Lock
 from typing import Any, Optional
 from weakref import WeakKeyDictionary
