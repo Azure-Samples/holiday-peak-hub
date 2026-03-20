@@ -66,7 +66,7 @@
   "devDependencies": {
     "@commitlint/cli": "^19.7.1",
     "@commitlint/config-conventional": "^16.2.4",
-    "@faker-js/faker": "^9.3.0",
+    "@faker-js/faker": "^10.3.0",
     "@next/bundle-analyzer": "^15.1.6",
     "@next/eslint-plugin-next": "^12.1.6",
     "@tailwindcss/aspect-ratio": "^0.4.0",
