@@ -232,9 +232,9 @@ class DAMImageAnalysisAdapter(BaseAdapter):
         config = DAMConnectionConfig(
             base_url=endpoint,
             auth_type="api_key" if api_key else "bearer",
-            auth_credentials={"header": "X-Api-Key", "key": api_key or ""}
-            if api_key
-            else {"token": ""},
+            auth_credentials=(
+                {"header": "X-Api-Key", "key": api_key or ""} if api_key else {"token": ""}
+            ),
         )
         return GenericDAMConnector(config)
 

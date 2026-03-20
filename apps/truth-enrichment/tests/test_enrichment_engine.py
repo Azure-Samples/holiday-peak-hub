@@ -32,8 +32,14 @@ def test_build_vision_prompt_uses_image_url_content_parts(engine):
     content = messages[1]["content"]
     assert isinstance(content, list)
     assert content[0]["type"] == "text"
-    assert content[1] == {"type": "image_url", "image_url": {"url": "https://cdn.example.com/a.jpg"}}
-    assert content[2] == {"type": "image_url", "image_url": {"url": "https://cdn.example.com/b.jpg"}}
+    assert content[1] == {
+        "type": "image_url",
+        "image_url": {"url": "https://cdn.example.com/a.jpg"},
+    }
+    assert content[2] == {
+        "type": "image_url",
+        "image_url": {"url": "https://cdn.example.com/b.jpg"},
+    }
 
 
 def test_build_vision_prompt_accepts_single_image_url_and_missing_fields(engine):

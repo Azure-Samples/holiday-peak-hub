@@ -33,7 +33,9 @@ def build_event_handlers() -> dict[str, EventHandler]:
     async def handle_enrichment_job(partition_context, event) -> None:  # noqa: ANN001
         payload = json.loads(event.body_as_str())
         data = payload.get("data", {}) if isinstance(payload, dict) else {}
-        entity_id = data.get("entity_id") or data.get("product_id") or data.get("sku") or data.get("id")
+        entity_id = (
+            data.get("entity_id") or data.get("product_id") or data.get("sku") or data.get("id")
+        )
         if not entity_id:
             logger.info(
                 "enrichment_event_skipped %s",
