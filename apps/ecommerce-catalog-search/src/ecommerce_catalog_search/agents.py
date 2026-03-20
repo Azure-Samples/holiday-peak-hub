@@ -20,8 +20,8 @@ from holiday_peak_lib.evaluation import (
     run_evaluation,
 )
 from holiday_peak_lib.schemas.product import CatalogProduct
-from pydantic import ValidationError
 from holiday_peak_lib.schemas.truth import IntentClassification
+from pydantic import ValidationError
 
 from .adapters import (
     CatalogAdapters,
@@ -342,10 +342,14 @@ async def _search_products_intelligent(
     complexity = agent.assess_complexity(query)
     if complexity < agent.complexity_threshold:
         products = await _search_products_keyword(adapters, query=query, limit=limit)
-        return products, {}, IntentClassification(
-            intent="keyword_lookup",
-            confidence=1.0,
-            entities={"reason": "low_complexity"},
+        return (
+            products,
+            {},
+            IntentClassification(
+                intent="keyword_lookup",
+                confidence=1.0,
+                entities={"reason": "low_complexity"},
+            ),
         )
 
     intent = await agent.classify_intent(query)
@@ -376,9 +380,7 @@ def _build_sub_queries(query: str, intent: IntentClassification) -> list[str]:
             sub_queries.append(value.strip())
         elif isinstance(value, list):
             sub_queries.extend(
-                item.strip()
-                for item in value
-                if isinstance(item, str) and item.strip()
+                item.strip() for item in value if isinstance(item, str) and item.strip()
             )
     unique: list[str] = []
     seen: set[str] = set()

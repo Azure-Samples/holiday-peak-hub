@@ -138,9 +138,7 @@ def _normalize_result_document(document: dict[str, Any]) -> AISearchDocumentResu
     if not sku:
         return None
     enriched_fields = {
-        field: document.get(field)
-        for field in _ENRICHED_FIELDS
-        if document.get(field) is not None
+        field: document.get(field) for field in _ENRICHED_FIELDS if document.get(field) is not None
     }
     return AISearchDocumentResult(
         sku=sku,

@@ -273,11 +273,28 @@ def build_service_app(
         instructions: dict = instructions_raw if isinstance(instructions_raw, dict) else {}
         names: dict = names_raw if isinstance(names_raw, dict) else {}
         models: dict = models_raw if isinstance(models_raw, dict) else {}
+        allow_instruction_override = (
+            os.getenv("FOUNDRY_ALLOW_INSTRUCTION_OVERRIDE") or ""
+        ).lower() in {
+            "1",
+            "true",
+            "yes",
+        }
+
+        if instructions and not allow_instruction_override:
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "Instruction overrides are disabled. "
+                    "Set FOUNDRY_ALLOW_INSTRUCTION_OVERRIDE=true to enable."
+                ),
+            )
 
         role_to_config: dict[str, FoundryAgentConfig | None] = {
             "fast": slm_config,
             "rich": llm_config,
         }
+        default_instructions = load_service_prompt_instructions(service_name)
         selected_roles = ["fast", "rich"] if role == "both" else [role]
         results: dict[str, dict] = {}
 
