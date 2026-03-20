@@ -15,9 +15,14 @@ jest.mock('next/navigation', () => ({
 }));
 
 const mockUseIntelligentSearch = jest.fn();
+const mockUseRelatedProducts = jest.fn();
 
 jest.mock('../../lib/hooks/useIntelligentSearch', () => ({
   useIntelligentSearch: (...args: unknown[]) => mockUseIntelligentSearch(...args),
+}));
+
+jest.mock('../../lib/hooks/useRelatedProducts', () => ({
+  useRelatedProducts: (...args: unknown[]) => mockUseRelatedProducts(...args),
 }));
 
 jest.mock('../../components/atoms/ThemeToggle', () => ({
@@ -31,6 +36,7 @@ describe('SearchPage', () => {
     push.mockClear();
     setPreference.mockClear();
     getParam.mockReturnValue('headphones');
+    mockUseRelatedProducts.mockReturnValue({ data: {} });
     mockUseIntelligentSearch.mockReturnValue({
       data: {
         items: [],
@@ -53,7 +59,7 @@ describe('SearchPage', () => {
     render(<SearchPage />);
 
     expect(screen.getByDisplayValue('headphones')).toBeInTheDocument();
-    expect(screen.getByText('keyword')).toBeInTheDocument();
+    expect(screen.getAllByText('Keyword Search').length).toBeGreaterThan(0);
     expect(screen.getByText('No products matched your search.')).toBeInTheDocument();
   });
 
@@ -88,7 +94,7 @@ describe('SearchPage', () => {
 
   it('changes search mode preference from toggle', () => {
     render(<SearchPage />);
-    fireEvent.click(screen.getByRole('button', { name: 'Search mode Intelligent' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Search mode Intelligent' }));
     expect(setPreference).toHaveBeenCalledWith('intelligent');
   });
 
