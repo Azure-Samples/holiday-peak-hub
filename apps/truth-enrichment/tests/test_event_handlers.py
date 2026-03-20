@@ -6,7 +6,6 @@ import json
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-
 from truth_enrichment.adapters import EnrichmentAdapters
 from truth_enrichment.event_handlers import build_event_handlers
 
