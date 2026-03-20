@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
-from .agents import _detect_gaps
+from .agents import _detect_gaps, _field_definition_for_name
 
 router = APIRouter(prefix="/enrich", tags=["enrichment"])
 
@@ -40,10 +40,9 @@ async def enrich_product(entity_id: str, request: Request) -> dict[str, Any]:
     if not gaps:
         return {"entity_id": entity_id, "message": "no enrichable gaps found", "proposed": []}
 
-    field_defs = (schema or {}).get("fields", {})
     proposed_list = []
     for field_name in gaps:
-        field_def = field_defs.get(field_name) if field_defs else None
+        field_def = _field_definition_for_name(schema, field_name)
         proposed = await agent.enrich_field(entity_id, field_name, product, field_def)
         proposed_list.append(proposed)
 

@@ -272,7 +272,22 @@ if ($ServiceName -eq "ecommerce-catalog-search") {
 
   $searchEnrichmentConsumerGroup = $env:SEARCH_ENRICHMENT_EVENT_HUB_CONSUMER_GROUP
   if ([string]::IsNullOrWhiteSpace($searchEnrichmentConsumerGroup)) {
-    $searchEnrichmentConsumerGroup = "search-enrichment-agent"
+    $searchEnrichmentConsumerGroup = "search-enrichment-consumer"
+  }
+
+  $envMappings["SEARCH_ENRICHMENT_EVENT_HUB_NAME"] = $searchEnrichmentEventHubName
+  $envMappings["SEARCH_ENRICHMENT_EVENT_HUB_CONSUMER_GROUP"] = $searchEnrichmentConsumerGroup
+}
+
+if ($ServiceName -eq "search-enrichment-agent") {
+  $searchEnrichmentEventHubName = $env:SEARCH_ENRICHMENT_EVENT_HUB_NAME
+  if ([string]::IsNullOrWhiteSpace($searchEnrichmentEventHubName)) {
+    $searchEnrichmentEventHubName = "search-enrichment-jobs"
+  }
+
+  $searchEnrichmentConsumerGroup = $env:SEARCH_ENRICHMENT_EVENT_HUB_CONSUMER_GROUP
+  if ([string]::IsNullOrWhiteSpace($searchEnrichmentConsumerGroup)) {
+    $searchEnrichmentConsumerGroup = "search-enrichment-consumer"
   }
 
   $envMappings["SEARCH_ENRICHMENT_EVENT_HUB_NAME"] = $searchEnrichmentEventHubName

@@ -48,6 +48,58 @@ class EnrichmentEngine:
             {"role": "user", "content": str(user_msg)},
         ]
 
+    def build_vision_prompt(
+        self,
+        *,
+        product: dict[str, Any],
+        field_name: str | None = None,
+        field_definition: Optional[dict[str, Any]] = None,
+        image_urls: list[str] | None = None,
+        image_url: str | None = None,
+        missing_fields: list[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Build a Foundry vision prompt using text + image_url content parts."""
+        target_field = field_name or (missing_fields[0] if missing_fields else "unknown_field")
+        resolved_image_urls = list(image_urls or [])
+        if image_url:
+            resolved_image_urls.append(image_url)
+
+        field_hint = ""
+        if field_definition:
+            field_hint = (
+                f" Field type: {field_definition.get('type', 'string')}."
+                f" Description: {field_definition.get('description', '')}."
+            )
+
+        instruction = (
+            "Infer the missing attribute from product context and images. "
+            f"Target field: {target_field}.{field_hint} "
+            "Return ONLY JSON with keys: value, confidence, evidence, metadata."
+        )
+        content_parts: list[dict[str, Any]] = [
+            {
+                "type": "text",
+                "text": str(
+                    {
+                        "instruction": instruction,
+                        "missing_field": target_field,
+                        "product": product,
+                    }
+                ),
+            }
+        ]
+        content_parts.extend(
+            {"type": "image_url", "image_url": {"url": url}} for url in resolved_image_urls
+        )
+
+        return [
+            {
+                "role": "system",
+                "content": "You are a vision enrichment assistant for product catalog data.",
+            },
+            {"role": "user", "content": content_parts},
+        ]
+
     def parse_ai_response(self, raw: Any) -> dict[str, Any]:
         """Parse AI response into structured proposed attribute fields."""
         if isinstance(raw, dict):
@@ -64,6 +116,10 @@ class EnrichmentEngine:
             "evidence": "unstructured response",
             "metadata": {},
         }
+
+    def parse_vision_response(self, response: Any) -> dict[str, Any]:
+        """Parse a vision-model response payload into the enrichment shape."""
+        return self.parse_ai_response(response)
 
     def score_confidence(self, parsed: dict[str, Any]) -> float:
         """Return the confidence score from a parsed AI response."""
@@ -120,28 +176,27 @@ class EnrichmentEngine:
             source_type = "image_analysis"
             selected_value = image_value
             confidence = image_confidence
-            reasoning = (
-                f"Image analysis selected with confidence={image_confidence:.2f}."
-            )
+            reasoning = f"Image analysis selected with confidence={image_confidence:.2f}."
             evidence = str(image_parsed.get("evidence", ""))
         elif has_text_value:
             source_type = "text_enrichment"
             selected_value = text_value
             confidence = text_confidence
-            reasoning = (
-                f"Text enrichment selected with confidence={text_confidence:.2f}."
-            )
+            reasoning = f"Text enrichment selected with confidence={text_confidence:.2f}."
             evidence = str(text_parsed.get("evidence", ""))
         else:
             source_type = "text_enrichment" if text_parsed else "image_analysis"
             selected_value = None
             confidence = max(image_confidence, text_confidence)
             reasoning = "No reliable value extracted from available enrichment sources."
-            evidence = " | ".join(
-                str(part)
-                for part in [image_parsed.get("evidence", ""), text_parsed.get("evidence", "")]
-                if part
-            ) or "enrichment unavailable"
+            evidence = (
+                " | ".join(
+                    str(part)
+                    for part in [image_parsed.get("evidence", ""), text_parsed.get("evidence", "")]
+                    if part
+                )
+                or "enrichment unavailable"
+            )
 
         return {
             "value": selected_value,
