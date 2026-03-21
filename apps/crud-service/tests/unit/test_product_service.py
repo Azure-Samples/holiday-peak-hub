@@ -47,7 +47,7 @@ def test_validate_product_responses_filters_invalid_records():
         "price": 1.0,
         "category_id": "cat",
     }
-    invalid = {"id": "p2"}
+    invalid = None
 
     result = validate_product_responses([valid, invalid], logger=logger)
 

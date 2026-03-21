@@ -11,9 +11,11 @@ from crud_service.integrations import get_agent_client
 from crud_service.repositories import ProductRepository
 from crud_service.schemas.api.products import ProductResponse
 from crud_service.schemas.domain.products import ProductQuery
+from crud_service.services.product_service import fetch_products as fetch_products_service
 from crud_service.services.product_service import (
-    fetch_products as fetch_products_service,
     to_canonical_product as to_canonical_product_service,
+)
+from crud_service.services.product_service import (
     validate_product_responses,
 )
 from fastapi import APIRouter, Depends, HTTPException, Query, status

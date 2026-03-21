@@ -31,6 +31,7 @@ from holiday_peak_lib.utils import (
 )
 from holiday_peak_lib.utils.logging import configure_logging
 
+
 def _build_foundry_config(agent_env: str, deployment_env: str) -> FoundryAgentConfig | None:
     """Backward-compatible alias for internal Foundry config builder."""
     return build_foundry_config(agent_env, deployment_env)

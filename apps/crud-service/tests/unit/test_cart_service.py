@@ -19,7 +19,12 @@ async def test_add_item_to_cart_raises_when_product_missing():
             AddCartItemCommand(
                 product_id="sku1",
                 quantity=1,
-                current_user=User(user_id="u1", roles=["customer"]),
+                current_user=User(
+                    user_id="u1",
+                    email="u1@example.com",
+                    name="User One",
+                    roles=["customer"],
+                ),
             ),
             product_repo=repo,
             cart_repo=AsyncMock(),
@@ -43,7 +48,12 @@ async def test_add_item_to_cart_creates_cart_when_missing():
         AddCartItemCommand(
             product_id="sku1",
             quantity=2,
-            current_user=User(user_id="u1", roles=["customer"]),
+            current_user=User(
+                user_id="u1",
+                email="u1@example.com",
+                name="User One",
+                roles=["customer"],
+            ),
         ),
         product_repo=product_repo,
         cart_repo=cart_repo,
