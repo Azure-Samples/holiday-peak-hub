@@ -527,7 +527,25 @@ jobs:
           echo "Truth Event Hub and consumer group declarations are present in IaC."
 
       - name: Provision infrastructure
-        run: azd provision --no-prompt -e "${{ inputs.environment }}"
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PROVISION_LOG="$(mktemp)"
+
+          if azd provision --no-prompt -e "${{ inputs.environment }}" 2>&1 | tee "$PROVISION_LOG"; then
+            exit 0
+          fi
+
+          if [ "${{ inputs.environment }}" != "prod" ] && [ "${{ inputs.environment }}" != "production" ] \
+            && grep -q "RoleAssignmentExists" "$PROVISION_LOG" \
+            && ! grep -q "BadRequest:" "$PROVISION_LOG"; then
+            echo "Non-prod provision hit an idempotent RoleAssignmentExists conflict; continuing." >&2
+            exit 0
+          fi
+
+          echo "Provision infrastructure failed with non-ignorable errors." >&2
+          exit 1
 
       - name: Ensure AKS identity can read Key Vault secrets
         run: |
