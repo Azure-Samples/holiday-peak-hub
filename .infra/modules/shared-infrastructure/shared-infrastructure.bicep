@@ -890,6 +890,9 @@ module monitoring '../monitoring/monitoring.bicep' = {
     eventHubsNamespaceResourceId: eventHubs.outputs.resourceId
     aksResourceId: aks.outputs.resourceId
     apimResourceId: apim.outputs.resourceId
+    aiSearchResourceId: aiSearchFromFoundry.id
+    storageAccountResourceId: storage.outputs.resourceId
+    aiSearchIndexerName: aiSearchIndexerName
   }
 }
 

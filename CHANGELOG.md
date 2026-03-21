@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Issue #456 monitoring expansion: added Azure Monitor alert definitions in `.infra/modules/monitoring/monitoring.bicep` for AI Search failed indexer document processing (`DocumentsProcessedCount` with `Failed=true`), Blob capacity/utilization pressure (`BlobCapacity`, `UsedCapacity`), and APIM tail-latency proxy (`Duration` with `Maximum`) with explicit threshold/window descriptions.
+
 - Dependabot remediation merged for security/tooling maintenance: PR #245 (`pyjwt` bump to `2.12.0`) and PR #222 (`black` bump to `26.3.1`) are now integrated on `main`, with lint/test checks revalidated after merge.
 
 - Issue #250 governance hardening started: documented strict PR-only `main` protection policy, bypass minimization expectations, and validation evidence requirements in governance docs.
