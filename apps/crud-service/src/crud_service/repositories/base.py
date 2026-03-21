@@ -7,7 +7,6 @@ from typing import Any, Generic, TypeVar
 
 import asyncpg
 from azure.identity.aio import DefaultAzureCredential
-
 from crud_service.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -102,7 +101,9 @@ class BaseRepository(Generic[T]):
         )
         if contains_match:
             field_name, param_name = contains_match.groups()
-            placeholder = cls._add_sql_param(sql_args, f"%{str(parameter_map.get(param_name, ''))}%")
+            placeholder = cls._add_sql_param(
+                sql_args, f"%{str(parameter_map.get(param_name, ''))}%"
+            )
             return f"LOWER(data->>'{field_name}') LIKE LOWER({placeholder})"
 
         not_defined_match = re.match(r"NOT IS_DEFINED\(c\.(\w+)\)", clause, re.IGNORECASE)
@@ -225,7 +226,9 @@ class BaseRepository(Generic[T]):
 
         sql_parts = [f"SELECT data FROM {self.table_name}"]
         if where_predicates:
-            sql_parts.append("WHERE " + " AND ".join(f"({predicate})" for predicate in where_predicates))
+            sql_parts.append(
+                "WHERE " + " AND ".join(f"({predicate})" for predicate in where_predicates)
+            )
 
         order_match = re.search(r"ORDER BY\s+c\.(\w+)\s+(ASC|DESC)", query, re.IGNORECASE)
         if order_match:
