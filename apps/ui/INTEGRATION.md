@@ -55,6 +55,10 @@ Shared resolver module: `app/api/_shared/base-url-resolver.ts`
 - CRUD env precedence: `NEXT_PUBLIC_CRUD_API_URL` → `NEXT_PUBLIC_API_URL` → `NEXT_PUBLIC_API_BASE_URL` → `CRUD_API_URL`
 - Agent env precedence: `NEXT_PUBLIC_AGENT_API_URL` → `AGENT_API_URL` → CRUD aliases above with `/agents` suffix
 - CRUD/API base values may be configured either as the APIM gateway root or with a trailing `/api`; the shared resolver normalizes both to the gateway root before proxying.
+- Proxy guard clause policy (server route handlers):
+  - Non-local runtime only accepts APIM upstream hosts (`*.azure-api.net`) for `/api/*` and `/agent-api/*` proxy forwarding.
+  - Local loopback hosts (`localhost`, `127.0.0.1`, `::1`) are allowed for development/test runtime.
+  - Optional local-only override: `UI_ALLOW_NON_APIM_PROXY_URL=true` (must remain disabled in production).
 - Browser runtime:
   - CRUD client (`lib/api/client.ts`) always uses `/api/*` proxy route
   - Agent client (`lib/api/agentClient.ts`) uses `/agent-api/*`
@@ -65,6 +69,10 @@ Shared resolver module: `app/api/_shared/base-url-resolver.ts`
   - Agent client derives from resolved CRUD base + `/agents` (fallback `/agents`)
 
 This contract is validated by unit tests in `tests/unit/baseUrlResolverContract.test.ts`.
+
+UI deployment workflows export explicit APIM-based env vars for both CRUD and agent APIs:
+- `NEXT_PUBLIC_CRUD_API_URL=<apim>/`
+- `NEXT_PUBLIC_AGENT_API_URL=<apim>/agents`
 
 ## Runtime Hosting Mode (Azure Static Web Apps + Next.js)
 

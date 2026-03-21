@@ -16,6 +16,12 @@ type ClientResolutionResult = ResolutionResult & {
   runtime: RuntimeKind;
 };
 
+export type ProxyBaseUrlPolicyResult = {
+  allowed: boolean;
+  violation: 'missing' | 'non-apim' | null;
+  policy: 'apim' | 'local-loopback' | 'local-override' | null;
+};
+
 function normalizeBaseUrl(candidate: string | undefined): string | null {
   if (!candidate) {
     return null;
@@ -36,6 +42,77 @@ function normalizeCrudBaseUrl(candidate: string | undefined): string | null {
   }
 
   return normalized.replace(/\/api$/i, '');
+}
+
+function isApimHostname(hostname: string): boolean {
+  return hostname.toLowerCase().endsWith('.azure-api.net');
+}
+
+function isLoopbackHostname(hostname: string): boolean {
+  const lowered = hostname.toLowerCase();
+  return lowered === 'localhost' || lowered === '127.0.0.1' || lowered === '::1';
+}
+
+function isLocalNodeRuntime(env: EnvMap): boolean {
+  return env.NODE_ENV !== 'production';
+}
+
+function allowNonApimOverride(env: EnvMap): boolean {
+  return isLocalNodeRuntime(env) && env.UI_ALLOW_NON_APIM_PROXY_URL === 'true';
+}
+
+export function validateProxyBaseUrlPolicy(
+  candidateBaseUrl: string | null,
+  env: EnvMap = process.env,
+): ProxyBaseUrlPolicyResult {
+  if (!candidateBaseUrl) {
+    return {
+      allowed: false,
+      violation: 'missing',
+      policy: null,
+    };
+  }
+
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(candidateBaseUrl);
+  } catch {
+    return {
+      allowed: false,
+      violation: 'non-apim',
+      policy: null,
+    };
+  }
+
+  if (isApimHostname(parsedUrl.hostname)) {
+    return {
+      allowed: true,
+      violation: null,
+      policy: 'apim',
+    };
+  }
+
+  if (isLocalNodeRuntime(env) && isLoopbackHostname(parsedUrl.hostname)) {
+    return {
+      allowed: true,
+      violation: null,
+      policy: 'local-loopback',
+    };
+  }
+
+  if (allowNonApimOverride(env)) {
+    return {
+      allowed: true,
+      violation: null,
+      policy: 'local-override',
+    };
+  }
+
+  return {
+    allowed: false,
+    violation: 'non-apim',
+    policy: null,
+  };
 }
 
 // Strategy pattern: evaluate candidate env keys in priority order and pick the first valid URL.

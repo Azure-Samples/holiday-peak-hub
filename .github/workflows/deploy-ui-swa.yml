@@ -91,6 +91,7 @@ jobs:
 
           echo "api_url=$RESOLVED_API_URL" >> "$GITHUB_OUTPUT"
           echo "crud_api_url=$RESOLVED_API_URL" >> "$GITHUB_OUTPUT"
+          echo "agent_api_url=${RESOLVED_API_URL}/agents" >> "$GITHUB_OUTPUT"
 
       - name: Smoke test APIM health before UI deploy
         shell: bash
@@ -172,6 +173,7 @@ jobs:
         env:
           NEXT_PUBLIC_API_URL: ${{ steps.api.outputs.api_url }}
           NEXT_PUBLIC_CRUD_API_URL: ${{ steps.api.outputs.crud_api_url }}
+          NEXT_PUBLIC_AGENT_API_URL: ${{ steps.api.outputs.agent_api_url }}
 
       - name: Smoke test UI host and API health after deploy
         shell: bash

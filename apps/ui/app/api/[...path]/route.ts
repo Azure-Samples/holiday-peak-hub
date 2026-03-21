@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-import { resolveCrudApiBaseUrl } from '../_shared/base-url-resolver';
+import { resolveCrudApiBaseUrl, validateProxyBaseUrlPolicy } from '../_shared/base-url-resolver';
 
 type TargetResolution = {
   targetUrl: string | null;
   baseUrl: string | null;
   sourceKey: string | null;
   upstreamPath: string;
+  policyViolation: 'missing' | 'non-apim' | null;
 };
 
-type ProxyFailureKind = 'config' | 'network' | 'upstream';
+type ProxyFailureKind = 'config' | 'policy' | 'network' | 'upstream';
 
 type ProxyErrorPayload = {
   error: string;
@@ -31,12 +32,15 @@ function buildTargetUrl(request: NextRequest, pathSegments: string[]): TargetRes
   const { baseUrl, sourceKey } = resolveCrudApiBaseUrl();
   const joinedPath = pathSegments.filter(Boolean).join('/');
   const upstreamPath = `/api/${joinedPath}`;
-  if (!baseUrl) {
+  const policyResult = validateProxyBaseUrlPolicy(baseUrl);
+
+  if (!baseUrl || !policyResult.allowed) {
     return {
       targetUrl: null,
-      baseUrl: null,
+      baseUrl,
       sourceKey,
       upstreamPath,
+      policyViolation: policyResult.violation,
     };
   }
 
@@ -47,6 +51,7 @@ function buildTargetUrl(request: NextRequest, pathSegments: string[]): TargetRes
     baseUrl,
     sourceKey,
     upstreamPath,
+    policyViolation: null,
   };
 }
 
@@ -124,8 +129,12 @@ function buildProxyErrorPayload(params: {
 }): ProxyErrorPayload {
   const remediationByKind: Record<ProxyFailureKind, string[]> = {
     config: [
-      'Set NEXT_PUBLIC_CRUD_API_URL (or NEXT_PUBLIC_API_URL / CRUD_API_URL) to a reachable backend URL.',
+      'Set NEXT_PUBLIC_CRUD_API_URL (or NEXT_PUBLIC_API_URL / CRUD_API_URL) to the APIM gateway URL.',
       'Redeploy or restart the UI host after updating environment variables.',
+    ],
+    policy: [
+      'Use an APIM gateway URL (*.azure-api.net) for NEXT_PUBLIC_CRUD_API_URL / NEXT_PUBLIC_API_URL / CRUD_API_URL.',
+      'For local development only, use a loopback URL (http://localhost:*) or set UI_ALLOW_NON_APIM_PROXY_URL=true.',
     ],
     network: [
       'Verify DNS, firewall rules, and outbound network access from the UI host to the backend URL.',
@@ -139,6 +148,7 @@ function buildProxyErrorPayload(params: {
 
   const errorByKind: Record<ProxyFailureKind, string> = {
     config: 'API proxy is not configured for backend routing.',
+    policy: 'API proxy rejected a non-APIM upstream target URL.',
     network: 'API proxy could not reach upstream service.',
     upstream: 'API proxy received a bad gateway response from upstream.',
   };
@@ -165,13 +175,15 @@ async function proxyRequest(
   context: { params: Promise<{ path: string[] }> },
 ): Promise<NextResponse> {
   const params = await context.params;
-  const { targetUrl, baseUrl, sourceKey, upstreamPath } = buildTargetUrl(request, params.path);
+  const { targetUrl, baseUrl, sourceKey, upstreamPath, policyViolation } = buildTargetUrl(request, params.path);
   const method = request.method.toUpperCase();
 
   if (!targetUrl) {
+    const failureKind: ProxyFailureKind = policyViolation === 'non-apim' ? 'policy' : 'config';
+
     return NextResponse.json(
       buildProxyErrorPayload({
-        failureKind: 'config',
+        failureKind,
         sourceKey,
         baseUrl,
         attemptedPath: upstreamPath,
@@ -181,7 +193,7 @@ async function proxyRequest(
         status: 502,
         headers: {
           'x-holiday-peak-proxy': 'next-app-api',
-          'x-holiday-peak-proxy-failure-kind': 'config',
+          'x-holiday-peak-proxy-failure-kind': failureKind,
         },
       },
     );

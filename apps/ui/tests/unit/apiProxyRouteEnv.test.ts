@@ -145,6 +145,59 @@ describe('/api proxy route env handling', () => {
     );
   });
 
+  it('rejects non-APIM upstream URL in proxy policy guard', async () => {
+    process.env.NEXT_PUBLIC_CRUD_API_URL = 'https://backend.internal.example.net';
+    process.env = {
+      ...process.env,
+      NODE_ENV: 'production',
+    };
+
+    const route = await import('../../app/api/[...path]/route');
+    const response = await route.GET(makeRequest('http://localhost/api/products'), {
+      params: Promise.resolve({ path: ['products'] }),
+    });
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toEqual(
+      expect.objectContaining({
+        error: 'API proxy rejected a non-APIM upstream target URL.',
+        proxy: expect.objectContaining({
+          failureKind: 'policy',
+          sourceKey: 'NEXT_PUBLIC_CRUD_API_URL',
+          attemptedPath: '/api/products',
+        }),
+      }),
+    );
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('allows local loopback URL for development runtime', async () => {
+    process.env.NEXT_PUBLIC_CRUD_API_URL = 'http://localhost:8000';
+    process.env = {
+      ...process.env,
+      NODE_ENV: 'development',
+    };
+
+    (global.fetch as jest.Mock).mockResolvedValue({
+      body: null,
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers({
+        'content-type': 'application/json',
+      }),
+    });
+
+    const route = await import('../../app/api/[...path]/route');
+    await route.GET(makeRequest('http://localhost/api/products'), {
+      params: Promise.resolve({ path: ['products'] }),
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://localhost:8000/api/products',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
   it('returns 502 upstream diagnostics when upstream responds with 502', async () => {
     process.env.NEXT_PUBLIC_CRUD_API_URL = 'https://apim.example.azure-api.net';
     (global.fetch as jest.Mock).mockResolvedValue(

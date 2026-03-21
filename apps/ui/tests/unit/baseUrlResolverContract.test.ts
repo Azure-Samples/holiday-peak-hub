@@ -3,6 +3,7 @@ import {
   resolveAgentApiClientBaseUrl,
   resolveCrudApiBaseUrl,
   resolveCrudApiClientBaseUrl,
+  validateProxyBaseUrlPolicy,
 } from '../../app/api/_shared/base-url-resolver';
 
 describe('base URL resolver contract', () => {
@@ -152,6 +153,44 @@ describe('base URL resolver contract', () => {
         baseUrl: 'https://test-crud.example.net/agents',
         sourceKey: 'NEXT_PUBLIC_CRUD_API_URL',
         runtime: 'test',
+      });
+    });
+  });
+
+  describe('validateProxyBaseUrlPolicy', () => {
+    it('allows APIM URLs in production runtime', () => {
+      const result = validateProxyBaseUrlPolicy('https://holiday.example.azure-api.net', {
+        NODE_ENV: 'production',
+      } as NodeJS.ProcessEnv);
+
+      expect(result).toEqual({
+        allowed: true,
+        violation: null,
+        policy: 'apim',
+      });
+    });
+
+    it('rejects non-APIM URLs by default', () => {
+      const result = validateProxyBaseUrlPolicy('https://backend.internal.example.net', {
+        NODE_ENV: 'production',
+      } as NodeJS.ProcessEnv);
+
+      expect(result).toEqual({
+        allowed: false,
+        violation: 'non-apim',
+        policy: null,
+      });
+    });
+
+    it('allows loopback URL in local runtime', () => {
+      const result = validateProxyBaseUrlPolicy('http://localhost:8000', {
+        NODE_ENV: 'development',
+      } as NodeJS.ProcessEnv);
+
+      expect(result).toEqual({
+        allowed: true,
+        violation: null,
+        policy: 'local-loopback',
       });
     });
   });
