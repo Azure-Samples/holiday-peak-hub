@@ -1,15 +1,19 @@
 """Cart routes."""
 
 import logging
-from datetime import datetime, timezone
 
-import httpx
-from circuitbreaker import CircuitBreakerError
 from crud_service.auth import User, get_current_user
 from crud_service.integrations import get_agent_client, get_event_publisher
 from crud_service.repositories import CartRepository, ProductRepository
+from crud_service.schemas.api.cart import (
+    AddToCartRequest,
+    CartItem,
+    CartRecommendationsResponse,
+    CartResponse,
+)
+from crud_service.schemas.domain.cart import AddCartItemCommand
+from crud_service.services.cart_service import add_item_to_cart as add_item_to_cart_service
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
 
 router = APIRouter()
 cart_repo = CartRepository()
@@ -17,37 +21,6 @@ product_repo = ProductRepository()
 agent_client = get_agent_client()
 logger = logging.getLogger(__name__)
 event_publisher = get_event_publisher()
-AGENT_FALLBACK_EXCEPTIONS = (httpx.HTTPError, CircuitBreakerError)
-
-
-class AddToCartRequest(BaseModel):
-    """Add to cart request."""
-
-    product_id: str
-    quantity: int = 1
-
-
-class CartItem(BaseModel):
-    """Cart item."""
-
-    product_id: str
-    quantity: int
-    price: float
-
-
-class CartResponse(BaseModel):
-    """Cart response."""
-
-    user_id: str
-    items: list[CartItem]
-    total: float
-
-
-class CartRecommendationsResponse(BaseModel):
-    """Cart recommendations response."""
-
-    user_id: str
-    recommendations: dict | None
 
 
 @router.get("/cart", response_model=CartResponse)
@@ -87,80 +60,18 @@ async def add_to_cart(
     current_user: User = Depends(get_current_user),
 ):
     """Add item to cart (validates stock reservation when agent available)."""
-    # Verify product exists
-    product = await product_repo.get_by_id(request.product_id)
-    if not product:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
-
-    # Validate reservation via inventory agent (non-blocking)
-    try:
-        reservation = await agent_client.validate_reservation(
-            sku=request.product_id, quantity=request.quantity
-        )
-        if isinstance(reservation, dict):
-            is_approved = reservation.get("approved")
-            if is_approved is None:
-                is_approved = reservation.get("valid")
-            if is_approved is False:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail=reservation.get("reason", "Insufficient stock"),
-                )
-            if is_approved is True:
-                try:
-                    await event_publisher.publish_inventory_reserved(
-                        {
-                            "user_id": current_user.user_id,
-                            "sku": request.product_id,
-                            "quantity": request.quantity,
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
-                        }
-                    )
-                except Exception as exc:
-                    logger.warning(
-                        "Inventory reservation publish failed for user_id=%s sku=%s",
-                        current_user.user_id,
-                        request.product_id,
-                        extra={"error_type": type(exc).__name__},
-                        exc_info=True,
-                    )
-    except HTTPException:
-        raise
-    except AGENT_FALLBACK_EXCEPTIONS as exc:
-        logger.warning(
-            "Inventory reservation validation unavailable for product_id=%s; continuing with optimistic add",
-            request.product_id,
-            extra={"error_type": type(exc).__name__},
-            exc_info=True,
-        )
-
-    # Get or create cart
-    cart = await cart_repo.get_by_user(current_user.user_id)
-    if not cart:
-        cart = {
-            "id": f"cart_{current_user.user_id}",
-            "user_id": current_user.user_id,
-            "items": [],
-            "status": "active",
-        }
-
-    # Add or update item
-    items = cart.get("items", [])
-    existing_item = next((i for i in items if i["product_id"] == request.product_id), None)
-
-    if existing_item:
-        existing_item["quantity"] += request.quantity
-    else:
-        items.append(
-            {
-                "product_id": request.product_id,
-                "quantity": request.quantity,
-                "price": product["price"],
-            }
-        )
-
-    cart["items"] = items
-    await cart_repo.update(cart)
+    await add_item_to_cart_service(
+        AddCartItemCommand(
+            product_id=request.product_id,
+            quantity=request.quantity,
+            current_user=current_user,
+        ),
+        product_repo=product_repo,
+        cart_repo=cart_repo,
+        agent_client=agent_client,
+        event_publisher=event_publisher,
+        logger=logger,
+    )
 
     return {"message": "Item added to cart"}
 

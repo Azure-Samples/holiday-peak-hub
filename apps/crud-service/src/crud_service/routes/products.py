@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-from collections.abc import Iterable
 
 import httpx
 from circuitbreaker import CircuitBreakerError
@@ -10,9 +9,14 @@ from crud_service.auth import User, get_current_user_optional
 from crud_service.config.settings import get_settings
 from crud_service.integrations import get_agent_client
 from crud_service.repositories import ProductRepository
+from crud_service.schemas.api.products import ProductResponse
+from crud_service.schemas.domain.products import ProductQuery
+from crud_service.services.product_service import (
+    fetch_products as fetch_products_service,
+    to_canonical_product as to_canonical_product_service,
+    validate_product_responses,
+)
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from holiday_peak_lib.schemas import CanonicalProduct
-from pydantic import BaseModel, ValidationError
 
 router = APIRouter()
 product_repo = ProductRepository()
@@ -22,31 +26,8 @@ settings = get_settings()
 AGENT_FALLBACK_EXCEPTIONS = (httpx.HTTPError, CircuitBreakerError)
 
 
-class ProductResponse(BaseModel):
-    """Product response schema."""
-
-    id: str
-    name: str
-    description: str
-    price: float
-    category_id: str
-    image_url: str | None = None
-    in_stock: bool = True
-    rating: float | None = None
-    review_count: int | None = None
-    features: list[str] | None = None
-    media: list[dict[str, object]] | None = None
-    inventory: dict[str, object] | None = None
-    related: list[dict[str, object]] | None = None
-
-
 def _to_canonical_product(product: dict) -> dict | None:
-    if not isinstance(product, dict):
-        return None
-    try:
-        return CanonicalProduct.model_validate(product).to_crud_record()
-    except ValidationError:
-        return None
+    return to_canonical_product_service(product)
 
 
 async def _fetch_products(
@@ -56,57 +37,18 @@ async def _fetch_products(
     limit: int,
     current_user: User | None,
 ) -> list[dict]:
-    products: list[dict] = []
-
-    if search:
-        try:
-            agent_results = await agent_client.semantic_search(search, limit=limit)
-            if isinstance(agent_results, list):
-                canonical_results = []
-                for product in agent_results:
-                    normalized = _to_canonical_product(product)
-                    if normalized is not None:
-                        canonical_results.append(normalized)
-                if canonical_results:
-                    products = canonical_results
-        except AGENT_FALLBACK_EXCEPTIONS as exc:
-            logger.warning(
-                "Semantic search unavailable; falling back to keyword search for search=%s",
-                search,
-                extra={"error_type": type(exc).__name__},
-                exc_info=True,
-            )
-        if not products:
-            products = await product_repo.search_by_name(search, limit=limit)
-    elif category:
-        products = await product_repo.get_by_category(category, limit=limit)
-    else:
-        products = await product_repo.query(
-            query="SELECT * FROM c OFFSET 0 LIMIT @limit",
-            parameters=[{"name": "@limit", "value": limit}],
-        )
-
-    if current_user:
-        try:
-            recommendations = await agent_client.get_user_recommendations(
-                user_id=current_user.user_id
-            )
-            if isinstance(recommendations, dict):
-                boosted_skus = recommendations.get("boosted_skus") or []
-                if boosted_skus:
-                    sku_set = set(boosted_skus)
-                    boosted = [p for p in products if p.get("id") in sku_set]
-                    rest = [p for p in products if p.get("id") not in sku_set]
-                    products = boosted + rest
-        except AGENT_FALLBACK_EXCEPTIONS as exc:
-            logger.warning(
-                "Personalized product ordering unavailable for user_id=%s",
-                current_user.user_id,
-                extra={"error_type": type(exc).__name__},
-                exc_info=True,
-            )
-
-    return products
+    return await fetch_products_service(
+        ProductQuery(
+            search=search,
+            category=category,
+            limit=limit,
+            current_user=current_user,
+        ),
+        product_repo=product_repo,
+        agent_client=agent_client,
+        logger=logger,
+        agent_fallback_exceptions=AGENT_FALLBACK_EXCEPTIONS,
+    )
 
 
 @router.get("/products", response_model=list[ProductResponse])
@@ -167,25 +109,14 @@ async def list_products(
             detail="Product catalog is temporarily unavailable",
         ) from exc
 
-    if products is None or isinstance(products, (str, bytes)) or not isinstance(products, Iterable):
+    try:
+        return validate_product_responses(products, logger=logger)
+    except TypeError:
         logger.warning("Product list returned invalid result type: %s", type(products).__name__)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Product catalog is temporarily unavailable",
-        )
-
-    # No GoF pattern applies - straightforward record validation and filtering.
-    validated_products: list[ProductResponse] = []
-    for product in products:
-        normalized = _to_canonical_product(product)
-        if normalized is not None:
-            product = normalized
-        try:
-            validated_products.append(ProductResponse.model_validate(product))
-        except ValidationError as exc:
-            logger.warning("Skipping malformed product record: %s", exc)
-
-    return validated_products
+        ) from None
 
 
 @router.get("/products/{product_id}", response_model=ProductResponse)
