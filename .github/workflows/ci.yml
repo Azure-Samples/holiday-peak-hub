@@ -110,6 +110,8 @@ jobs:
       - name: Build image
         run: |
           docker build \
+            --cache-from=type=gha,scope=${{ matrix.service.image_name }} \
+            --cache-to=type=gha,mode=max,scope=${{ matrix.service.image_name }} \
             -t "${{ steps.image.outputs.image_ref }}" \
             -f "${{ matrix.service.dockerfile }}" \
             "${{ matrix.service.context }}"
@@ -168,6 +170,16 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
             echo "Published image not found, skipping: $image_ref"
           fi
+
+      - name: Warm Buildx cache from Dockerfile context
+        if: steps.image.outputs.exists == 'true'
+        run: |
+          docker build \
+            --cache-from=type=gha,scope=${{ matrix.service.image_name }} \
+            --cache-to=type=gha,mode=max,scope=${{ matrix.service.image_name }} \
+            -f "${{ matrix.service.dockerfile }}" \
+            --target prod \
+            "${{ matrix.service.context }}"
 
       - name: Trivy scan published image (HIGH/CRITICAL)
         if: steps.image.outputs.exists == 'true'

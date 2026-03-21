@@ -74,7 +74,7 @@ jobs:
       - name: Publish Python test summary
         if: always() && github.event_name == 'pull_request'
         continue-on-error: true
-        uses: dorny/test-reporter@v1
+        uses: dorny/test-reporter@v2
         with:
           name: Python Tests
           path: test-results-*.xml
@@ -95,8 +95,16 @@ jobs:
           cache-dependency-path: apps/ui/yarn.lock
       - name: Install UI dependencies
         run: yarn install --frozen-lockfile
+      - name: Run UI lint
+        run: yarn lint
+      - name: Run UI type-check
+        run: yarn type-check
       - name: Run UI unit tests
         run: yarn test --ci --coverage --testPathIgnorePatterns=tests/unit/pagesRender.test.tsx
+      - name: Install Playwright browser
+        run: yarn playwright install --with-deps chromium
+      - name: Run UI E2E smoke tests
+        run: yarn test:e2e:ci --grep "critical flows baseline"
       - name: Run UI dependency vulnerability audit
         run: |
           yarn audit --json > yarn-audit.json || true
@@ -108,3 +116,5 @@ jobs:
           name: ui-test-results
           path: |
             apps/ui/coverage/**
+            apps/ui/test-results/**
+            apps/ui/playwright-report/**

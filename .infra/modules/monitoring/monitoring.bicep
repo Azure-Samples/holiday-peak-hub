@@ -74,7 +74,7 @@ resource cosmosRuAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
   name: '${projectName}-${environment}-cosmos-ru-high'
   location: 'global'
   properties: {
-    description: 'Cosmos RU consumption exceeded baseline threshold.'
+    description: 'Cosmos TotalRequestUnits average > 80 over PT15M (evaluated every PT5M).'
     severity: 2
     enabled: true
     scopes: [
@@ -108,7 +108,7 @@ resource cosmos5xxAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
   name: '${projectName}-${environment}-cosmos-5xx-high'
   location: 'global'
   properties: {
-    description: 'Cosmos 5xx responses exceeded baseline threshold.'
+    description: 'Cosmos ServerSideRequests total > 5 over PT15M (evaluated every PT5M).'
     severity: 2
     enabled: true
     scopes: [
@@ -142,7 +142,7 @@ resource cosmosLatencyAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
   name: '${projectName}-${environment}-cosmos-latency-high'
   location: 'global'
   properties: {
-    description: 'Cosmos request latency exceeded baseline threshold.'
+    description: 'Cosmos TotalRequestLatency average > 200ms over PT15M (evaluated every PT5M).'
     severity: 3
     enabled: true
     scopes: [
@@ -176,7 +176,7 @@ resource redisMemoryAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
   name: '${projectName}-${environment}-redis-memory-high'
   location: 'global'
   properties: {
-    description: 'Redis memory utilization exceeded baseline threshold.'
+    description: 'Redis usedmemorypercentage average > 80 over PT15M (evaluated every PT5M).'
     severity: 2
     enabled: true
     scopes: [
@@ -210,7 +210,7 @@ resource redisConnectionAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
   name: '${projectName}-${environment}-redis-connections-failed'
   location: 'global'
   properties: {
-    description: 'Redis connection failures detected.'
+    description: 'Redis errors total > 1 over PT15M (evaluated every PT5M).'
     severity: 2
     enabled: true
     scopes: [
@@ -244,7 +244,7 @@ resource redisEvictionsAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
   name: '${projectName}-${environment}-redis-evictions-high'
   location: 'global'
   properties: {
-    description: 'Redis key eviction activity exceeded baseline threshold.'
+    description: 'Redis evictedkeys total > 0 over PT15M (evaluated every PT5M).'
     severity: 3
     enabled: true
     scopes: [
@@ -278,7 +278,7 @@ resource postgresCpuAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
   name: '${projectName}-${environment}-postgres-cpu-high'
   location: 'global'
   properties: {
-    description: 'PostgreSQL CPU utilization exceeded baseline threshold.'
+    description: 'PostgreSQL cpu_percent average > 80 over PT15M (evaluated every PT5M).'
     severity: 2
     enabled: true
     scopes: [
@@ -312,7 +312,7 @@ resource postgresStorageAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
   name: '${projectName}-${environment}-postgres-storage-high'
   location: 'global'
   properties: {
-    description: 'PostgreSQL storage utilization exceeded baseline threshold.'
+    description: 'PostgreSQL storage_percent average > 85 over PT15M (evaluated every PT5M).'
     severity: 2
     enabled: true
     scopes: [
@@ -346,7 +346,7 @@ resource postgresLongQueryAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
   name: '${projectName}-${environment}-postgres-long-queries'
   location: 'global'
   properties: {
-    description: 'PostgreSQL long-running query count exceeded baseline threshold.'
+    description: 'PostgreSQL long_running_queries average > 5 over PT15M (evaluated every PT5M).'
     severity: 3
     enabled: true
     scopes: [
@@ -380,7 +380,7 @@ resource eventHubsThrottledAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = 
   name: '${projectName}-${environment}-eventhubs-throttled'
   location: 'global'
   properties: {
-    description: 'Event Hubs throttled requests exceeded baseline threshold.'
+    description: 'Event Hubs ThrottledRequests total > 0 over PT15M (evaluated every PT5M).'
     severity: 2
     enabled: true
     scopes: [
@@ -414,7 +414,7 @@ resource eventHubsAbandonedMessagesAlert 'Microsoft.Insights/metricAlerts@2018-0
   name: '${projectName}-${environment}-eventhubs-abandoned'
   location: 'global'
   properties: {
-    description: 'Event Hubs abandoned messages exceeded baseline threshold.'
+    description: 'Event Hubs OutgoingMessages average < 1 over PT15M (evaluated every PT5M).'
     severity: 3
     enabled: true
     scopes: [
@@ -448,7 +448,7 @@ resource eventHubsConsumerLagAlert 'Microsoft.Insights/metricAlerts@2018-03-01' 
   name: '${projectName}-${environment}-eventhubs-consumer-lag'
   location: 'global'
   properties: {
-    description: 'Event Hubs consumer lag proxy metric exceeded baseline threshold.'
+    description: 'Event Hubs IncomingMessages total > 100000 over PT15M (evaluated every PT5M) as consumer lag proxy.'
     severity: 2
     enabled: true
     scopes: [
@@ -482,7 +482,7 @@ resource aksNodeCpuAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
   name: '${projectName}-${environment}-aks-node-cpu-high'
   location: 'global'
   properties: {
-    description: 'AKS node CPU utilization exceeded baseline threshold.'
+    description: 'AKS node_cpu_usage_percentage average > 80 over PT15M (evaluated every PT5M).'
     severity: 2
     enabled: true
     scopes: [
@@ -516,7 +516,7 @@ resource aksPodRestartAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
   name: '${projectName}-${environment}-aks-pod-restarts-high'
   location: 'global'
   properties: {
-    description: 'AKS pod restart activity exceeded baseline threshold.'
+    description: 'AKS pod_restart_count total > 5 over PT15M (evaluated every PT5M).'
     severity: 3
     enabled: true
     scopes: [
@@ -550,7 +550,7 @@ resource aksImagePullFailuresAlert 'Microsoft.Insights/metricAlerts@2018-03-01' 
   name: '${projectName}-${environment}-aks-image-pull-failures'
   location: 'global'
   properties: {
-    description: 'AKS image pull failures exceeded baseline threshold.'
+    description: 'AKS image_pull_failed_count total > 0 over PT15M (evaluated every PT5M).'
     severity: 2
     enabled: true
     scopes: [
@@ -584,7 +584,7 @@ resource apimFailedRequestsAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = 
   name: '${projectName}-${environment}-apim-failed-requests'
   location: 'global'
   properties: {
-    description: 'APIM failed request count exceeded baseline threshold.'
+    description: 'APIM FailedRequests total > 10 over PT15M (evaluated every PT5M).'
     severity: 2
     enabled: true
     scopes: [
@@ -618,7 +618,7 @@ resource apimLatencyAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
   name: '${projectName}-${environment}-apim-latency-p95'
   location: 'global'
   properties: {
-    description: 'APIM request duration exceeded baseline threshold.'
+    description: 'APIM Duration average > 2000ms over PT15M (evaluated every PT5M).'
     severity: 2
     enabled: true
     scopes: [
@@ -652,7 +652,7 @@ resource apim5xxRateAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
   name: '${projectName}-${environment}-apim-5xx-rate'
   location: 'global'
   properties: {
-    description: 'APIM 5xx error rate proxy exceeded baseline threshold.'
+    description: 'APIM FailedRequests average > 1 over PT15M (evaluated every PT5M) as 5xx proxy.'
     severity: 2
     enabled: true
     scopes: [

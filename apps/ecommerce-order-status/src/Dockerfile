@@ -27,13 +27,24 @@ RUN chown -R appuser:appgroup /app
 USER appuser
 CMD ["uvicorn", "ecommerce_order_status.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
-FROM base AS prod
+FROM base AS prod-builder
 ENV APP_ENV=prod
 COPY pyproject.toml uv.lock ./
 COPY . ./
 ENV PYTHONPATH=/app/src
 ENV PATH="/app/src/.venv/bin:$PATH"
 RUN uv sync --frozen --no-dev --no-sources
+
+FROM python:${PYTHON_VERSION} AS prod
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+RUN groupadd --gid ${APP_GID} appgroup && useradd --uid ${APP_UID} --gid ${APP_GID} --create-home --home-dir /home/appuser --shell /usr/sbin/nologin appuser \
+    && mkdir -p /app && chown -R appuser:appgroup /app
+WORKDIR /app/src
+RUN apt-get update && apt-get install -y --no-install-recommends libpq5 \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=prod-builder /app /app
 RUN chown -R appuser:appgroup /app
 USER appuser
 CMD ["uvicorn", "ecommerce_order_status.main:app", "--host", "0.0.0.0", "--port", "8000"]
