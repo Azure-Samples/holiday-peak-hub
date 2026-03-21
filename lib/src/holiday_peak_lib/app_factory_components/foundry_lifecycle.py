@@ -84,9 +84,7 @@ class FoundryLifecycleManager:
         """Ensure a single Foundry role and wire model target when available."""
         target_name = name_override or config.agent_name or f"{self.service_name}-{selected_role}"
         target_model = (
-            model_override
-            or config.deployment_name
-            or DEFAULT_FOUNDRY_MODELS[selected_role]
+            model_override or config.deployment_name or DEFAULT_FOUNDRY_MODELS[selected_role]
         )
         config.agent_name = str(target_name)
         config.deployment_name = str(target_model)

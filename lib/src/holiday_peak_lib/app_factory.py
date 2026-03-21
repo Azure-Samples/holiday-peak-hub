@@ -121,9 +121,7 @@ def build_service_app(
     app.state.agent = agent
     strict_foundry_mode = strict_foundry_mode_enabled()
     foundry_ready = not strict_foundry_mode
-    auto_ensure_on_startup = auto_ensure_on_startup_enabled(
-        strict_foundry_mode=strict_foundry_mode
-    )
+    auto_ensure_on_startup = auto_ensure_on_startup_enabled(strict_foundry_mode=strict_foundry_mode)
 
     if hasattr(agent, "service_name"):
         agent.service_name = service_name
@@ -227,20 +225,20 @@ def build_service_app(
                 models.get(selected_role)
                 or config.deployment_name
                 or build_foundry_config(
-                    "FOUNDRY_AGENT_ID_FAST"
-                    if selected_role == "fast"
-                    else "FOUNDRY_AGENT_ID_RICH",
-                    "MODEL_DEPLOYMENT_NAME_FAST"
-                    if selected_role == "fast"
-                    else "MODEL_DEPLOYMENT_NAME_RICH",
+                    "FOUNDRY_AGENT_ID_FAST" if selected_role == "fast" else "FOUNDRY_AGENT_ID_RICH",
+                    (
+                        "MODEL_DEPLOYMENT_NAME_FAST"
+                        if selected_role == "fast"
+                        else "MODEL_DEPLOYMENT_NAME_RICH"
+                    ),
                 ).deployment_name
                 if build_foundry_config(
-                    "FOUNDRY_AGENT_ID_FAST"
-                    if selected_role == "fast"
-                    else "FOUNDRY_AGENT_ID_RICH",
-                    "MODEL_DEPLOYMENT_NAME_FAST"
-                    if selected_role == "fast"
-                    else "MODEL_DEPLOYMENT_NAME_RICH",
+                    "FOUNDRY_AGENT_ID_FAST" if selected_role == "fast" else "FOUNDRY_AGENT_ID_RICH",
+                    (
+                        "MODEL_DEPLOYMENT_NAME_FAST"
+                        if selected_role == "fast"
+                        else "MODEL_DEPLOYMENT_NAME_RICH"
+                    ),
                 )
                 else ("gpt-5-nano" if selected_role == "fast" else "gpt-5")
             )
