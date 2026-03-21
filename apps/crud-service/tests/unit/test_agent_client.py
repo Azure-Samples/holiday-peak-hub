@@ -3,9 +3,17 @@
 import crud_service.integrations.agent_client as agent_client_module
 import httpx
 import pytest
+from circuitbreaker import CircuitBreakerMonitor
 from holiday_peak_lib.utils import clear_correlation_id, set_correlation_id
 
 AgentClient = agent_client_module.AgentClient
+
+
+@pytest.fixture(autouse=True)
+def reset_circuit_breakers() -> None:
+    """Reset global circuit breaker state to keep tests order-independent."""
+    for circuit_breaker in CircuitBreakerMonitor.get_circuits():
+        circuit_breaker.reset()
 
 
 class DummyResponse:
