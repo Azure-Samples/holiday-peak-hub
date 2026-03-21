@@ -73,6 +73,14 @@ describe('middleware – protected routes', () => {
     expect(redirectUrl.searchParams.get('redirect')).toBe('/dashboard');
   });
 
+  it('redirects unauthenticated user from /admin to login with full redirect target', async () => {
+    await proxy(makeRequest('/admin?tab=schemas'));
+    expect(mockRedirect).toHaveBeenCalledTimes(1);
+    const redirectUrl: URL = mockRedirect.mock.calls[0][0];
+    expect(redirectUrl.pathname).toBe('/auth/login');
+    expect(redirectUrl.searchParams.get('redirect')).toBe('/admin?tab=schemas');
+  });
+
   it('rejects unsigned cookie values and redirects to login', async () => {
     await proxy(makeRequest('/orders', { 'msal-auth': 'customer' }));
     expect(mockRedirect).toHaveBeenCalledTimes(1);

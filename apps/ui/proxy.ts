@@ -58,7 +58,8 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   // Not authenticated — redirect to login
   if (roles.length === 0) {
     const loginUrl = new URL(LOGIN_PATH, request.url);
-    loginUrl.searchParams.set('redirect', pathname);
+    const redirectTarget = `${pathname}${request.nextUrl.search}`;
+    loginUrl.searchParams.set('redirect', redirectTarget);
     return NextResponse.redirect(loginUrl);
   }
 
