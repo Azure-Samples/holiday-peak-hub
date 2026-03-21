@@ -3,7 +3,7 @@
 from unittest.mock import AsyncMock
 
 import pytest
-from holiday_peak_lib.agents.base_agent import BaseRetailAgent
+from holiday_peak_lib.agents.base_agent import AgentDependencies, BaseRetailAgent
 from holiday_peak_lib.agents.foundry import FoundryAgentConfig
 from holiday_peak_lib.app_factory_components.foundry_lifecycle import (
     FoundryLifecycleManager,
@@ -40,7 +40,7 @@ def test_foundry_mode_flags(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_ensure_role_wires_model_target():
-    agent = _Agent()
+    agent = _Agent(config=AgentDependencies())
     cfg = FoundryAgentConfig(
         endpoint="https://example.test",
         agent_id="pending",
