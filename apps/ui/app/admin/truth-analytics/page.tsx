@@ -1,9 +1,9 @@
 'use client';
 
 import React from 'react';
+import dynamic from 'next/dynamic';
 import { MainLayout } from '@/components/templates/MainLayout';
 import { Card } from '@/components/molecules/Card';
-import { Chart } from '@/components/atoms/Chart';
 import { MetricsCard } from '@/components/admin/MetricsCard';
 import { CompletenessChart } from '@/components/admin/CompletenessChart';
 import { PipelineFlowDiagram } from '@/components/admin/PipelineFlowDiagram';
@@ -12,6 +12,18 @@ import {
   useTruthCompletenessBreakdown,
   useTruthPipelineThroughput,
 } from '@/lib/hooks/useTruthAdmin';
+
+const Chart = dynamic(
+  () => import('@/components/atoms/Chart').then((module) => module.Chart),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-64 flex items-center justify-center text-gray-500 dark:text-gray-400">
+        Loading chart...
+      </div>
+    ),
+  },
+);
 
 export default function TruthAnalyticsPage() {
   const { data: summary, isLoading: summaryLoading, isError: summaryError } = useTruthAnalyticsSummary();

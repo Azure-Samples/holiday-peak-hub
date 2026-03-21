@@ -17,7 +17,15 @@ Provides the Next.js frontend for Holiday Peak Hub operations and workflows.
 yarn --cwd apps/ui install
 yarn --cwd apps/ui dev
 yarn --cwd apps/ui test
+yarn --cwd apps/ui test:coverage
+yarn --cwd apps/ui test:e2e
+yarn --cwd apps/ui lint
+yarn --cwd apps/ui type-check
 ```
+
+## Coverage and quality gates
+- Jest enforces global coverage thresholds (`branches/functions/lines/statements >= 60%`) in `apps/ui/jest.config.js`.
+- Baseline critical-flow E2E coverage runs through Playwright (`apps/ui/tests/e2e/critical-flows.spec.ts`).
 
 ## Configuration notes
 - Uses frontend environment variables for backend/API URLs and auth integration.

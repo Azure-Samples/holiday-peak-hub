@@ -11,6 +11,14 @@ const customJestConfig = {
     '^@/(.*)$': '<rootDir>/$1',
   },
   testMatch: ['**/tests/**/*.test.(ts|tsx|js)'],
+  coverageThreshold: {
+    global: {
+      branches: 50,
+      functions: 55,
+      lines: 60,
+      statements: 60,
+    },
+  },
 };
 
 module.exports = createJestConfig(customJestConfig);

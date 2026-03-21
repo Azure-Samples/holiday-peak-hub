@@ -1,11 +1,19 @@
 'use client';
 
 import React from 'react';
+import dynamic from 'next/dynamic';
 import { MainLayout } from '@/components/templates/MainLayout';
-import { ProductGraphCanvas } from '@/components/organisms/ProductGraphCanvas';
 import { useCategories } from '@/lib/hooks/useCategories';
 import { useProducts } from '@/lib/hooks/useProducts';
 import { mapApiProductsToUi } from '@/lib/utils/productMappers';
+
+const ProductGraphCanvas = dynamic(
+  () => import('@/components/organisms/ProductGraphCanvas').then((module) => module.ProductGraphCanvas),
+  {
+    ssr: false,
+    loading: () => <div className="h-[calc(100dvh-3.5rem)] animate-pulse bg-[var(--hp-surface-strong)]" />,
+  },
+);
 
 export default function HomePage() {
   useCategories();

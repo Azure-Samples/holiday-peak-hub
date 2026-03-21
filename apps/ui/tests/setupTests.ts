@@ -18,10 +18,6 @@ jest.mock('@/components/atoms/ThemeToggle', () => ({
 	ThemeToggle: () => React.createElement('div', { 'data-testid': 'theme-toggle' }),
 }));
 
-jest.mock('@/components/atoms/Chart', () => ({
-  Chart: () => React.createElement('div', { 'data-testid': 'mock-chart' }),
-}));
-
 jest.mock('next/image', () => ({
 	__esModule: true,
 	default: (props: any) => {

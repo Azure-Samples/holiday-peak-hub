@@ -1,11 +1,12 @@
-'use client';
-
-import { useSearchParams } from 'next/navigation';
 import { CategoryPageClient } from './CategoryPageClient';
 
-export default function CategoryPage() {
-  const searchParams = useSearchParams();
-  const slug = searchParams.get('slug') || 'all';
+type CategoryPageProps = {
+  searchParams?: Promise<{ slug?: string }>;
+};
+
+export default async function CategoryPage({ searchParams }: CategoryPageProps) {
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const slug = resolvedSearchParams.slug || 'all';
 
   return <CategoryPageClient slug={slug} />;
 }
