@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { MainLayout } from '@/components/templates/MainLayout';
 import { Button } from '@/components/atoms/Button';
 import { Card } from '@/components/molecules/Card';
@@ -10,7 +10,20 @@ import { FiShoppingBag } from 'react-icons/fi';
 import { useAuth } from '@/contexts/AuthContext';
 import { isDevAuthMockUiEnabled } from '@/lib/auth/msalConfig';
 
+function resolvePostLoginPath(rawRedirectPath: string | null): string {
+  if (!rawRedirectPath) {
+    return '/';
+  }
+
+  if (!rawRedirectPath.startsWith('/') || rawRedirectPath.startsWith('//')) {
+    return '/';
+  }
+
+  return rawRedirectPath;
+}
+
 export default function LoginPage() {
+  const router = useRouter();
   const { login, loginAsMockRole, isAuthenticated, isLoading, authConfigError } = useAuth();
   const searchParams = useSearchParams();
   const [loginError, setLoginError] = React.useState<string | null>(null);
@@ -19,6 +32,10 @@ export default function LoginPage() {
     'customer' | 'staff' | 'admin' | null
   >(null);
   const redirectPath = searchParams.get('redirect');
+  const postLoginPath = React.useMemo(
+    () => resolvePostLoginPath(redirectPath),
+    [redirectPath]
+  );
   const hasRouteProtectionRedirect = Boolean(
     redirectPath && redirectPath.startsWith('/')
   );
@@ -44,7 +61,7 @@ export default function LoginPage() {
       setIsMockLoading(true);
       setSelectedMockRole(role);
       await loginAsMockRole(role);
-      window.location.href = '/';
+      router.replace(postLoginPath);
     } catch {
       setLoginError("Couldn't proceed with your login. Please try again later.");
     } finally {
@@ -59,17 +76,25 @@ export default function LoginPage() {
     }
   }, [authConfigError]);
 
-  // If already authenticated, redirect
-  if (isAuthenticated && !isLoading) {
-    if (typeof window !== 'undefined') {
-      window.location.href = '/';
+  React.useEffect(() => {
+    if (isAuthenticated && !isLoading) {
+      router.replace(postLoginPath);
     }
-    return null;
-  }
+  }, [isAuthenticated, isLoading, postLoginPath, router]);
 
   return (
     <MainLayout>
       <div className="max-w-md mx-auto py-12">
+        {isAuthenticated && !isLoading && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="mb-4 rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm text-cyan-800 dark:border-cyan-800 dark:bg-cyan-950 dark:text-cyan-200"
+          >
+            Finishing sign-in and redirecting…
+          </div>
+        )}
+
         {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-ocean-100 dark:bg-ocean-900 rounded-full mb-4">

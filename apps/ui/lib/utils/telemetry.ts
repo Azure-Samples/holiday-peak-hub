@@ -10,6 +10,11 @@ type EventPayload = {
 
 type BrowserAppInsights = {
   trackTrace?: (trace: TracePayload) => void;
+  trackException?: (payload: {
+    exception: Error;
+    severityLevel?: number;
+    properties?: Record<string, string>;
+  }) => void;
   trackEvent?: (
     event: EventPayload,
     customProperties?: Record<string, string>,
@@ -159,4 +164,42 @@ export function trackWarning(message: string, properties?: Record<string, string
   }
 
   console.warn(message, properties || {});
+}
+
+export function trackBoundaryError(scope: string, error: Error & { digest?: string }) {
+  const appInsights = getBrowserAppInsights();
+  const properties: Record<string, string> = {
+    scope,
+  };
+
+  if (error.digest) {
+    properties.digest = error.digest;
+  }
+
+  if (appInsights?.trackException) {
+    appInsights.trackException({
+      exception: error,
+      severityLevel: 3,
+      properties,
+    });
+    return;
+  }
+
+  if (appInsights?.trackTrace) {
+    appInsights.trackTrace({
+      message: `route_error:${scope}`,
+      severityLevel: 3,
+      properties: {
+        ...properties,
+        message: error.message,
+      },
+    });
+    return;
+  }
+
+  console.error('route_error', {
+    scope,
+    digest: error.digest,
+    message: error.message,
+  });
 }
