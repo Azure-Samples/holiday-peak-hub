@@ -34,6 +34,17 @@ param aksResourceId string
 @description('Resource ID of API Management service.')
 param apimResourceId string
 
+@description('Resource ID of Azure AI Search service.')
+param aiSearchResourceId string
+
+@description('Resource ID of Storage Account used by Blob Storage.')
+param storageAccountResourceId string
+
+@description('Indexer name to monitor for AI Search failed document processing. Use * to include all indexers.')
+param aiSearchIndexerName string = '*'
+
+var blobServiceResourceId = '${storageAccountResourceId}/blobServices/default'
+
 var actionGroupShortName = take(replace('${projectName}${environment}', '-', ''), 12)
 
 resource actionGroup 'Microsoft.Insights/actionGroups@2023-01-01' = {
@@ -660,6 +671,158 @@ resource apim5xxRateAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
           operator: 'GreaterThan'
           threshold: 1
           timeAggregation: 'Average'
+        }
+      ]
+    }
+    actions: [
+      {
+        actionGroupId: actionGroup.id
+      }
+    ]
+  }
+}
+
+resource aiSearchIndexerFailuresAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
+  name: '${projectName}-${environment}-aisearch-indexer-failures'
+  location: 'global'
+  properties: {
+    description: 'AI Search indexer failed document processing > 0 over PT15M (evaluated every PT5M).'
+    severity: 2
+    enabled: true
+    scopes: [
+      aiSearchResourceId
+    ]
+    evaluationFrequency: 'PT5M'
+    windowSize: 'PT15M'
+    criteria: {
+      'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
+      allOf: [
+        {
+          criterionType: 'StaticThresholdCriterion'
+          name: 'AiSearchFailedDocuments'
+          metricNamespace: 'Microsoft.Search/searchServices'
+          metricName: 'DocumentsProcessedCount'
+          operator: 'GreaterThan'
+          threshold: 0
+          timeAggregation: 'Total'
+          dimensions: [
+            {
+              name: 'Failed'
+              operator: 'Include'
+              values: [
+                'true'
+              ]
+            }
+            {
+              name: 'IndexerName'
+              operator: 'Include'
+              values: [
+                aiSearchIndexerName
+              ]
+            }
+          ]
+        }
+      ]
+    }
+    actions: [
+      {
+        actionGroupId: actionGroup.id
+      }
+    ]
+  }
+}
+
+resource blobCapacityAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
+  name: '${projectName}-${environment}-blob-capacity-high'
+  location: 'global'
+  properties: {
+    description: 'BlobCapacity > 500GB over PT1H (evaluated every PT1H).'
+    severity: 3
+    enabled: true
+    scopes: [
+      blobServiceResourceId
+    ]
+    evaluationFrequency: 'PT1H'
+    windowSize: 'PT1H'
+    criteria: {
+      'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
+      allOf: [
+        {
+          criterionType: 'StaticThresholdCriterion'
+          name: 'BlobCapacityBytes'
+          metricNamespace: 'Microsoft.Storage/storageAccounts/blobServices'
+          metricName: 'BlobCapacity'
+          operator: 'GreaterThan'
+          threshold: 536870912000
+          timeAggregation: 'Average'
+        }
+      ]
+    }
+    actions: [
+      {
+        actionGroupId: actionGroup.id
+      }
+    ]
+  }
+}
+
+resource blobUsedCapacityAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
+  name: '${projectName}-${environment}-blob-used-capacity-high'
+  location: 'global'
+  properties: {
+    description: 'UsedCapacity > 750GB over PT1H (evaluated every PT1H) to flag account-level blob growth pressure.'
+    severity: 3
+    enabled: true
+    scopes: [
+      storageAccountResourceId
+    ]
+    evaluationFrequency: 'PT1H'
+    windowSize: 'PT1H'
+    criteria: {
+      'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
+      allOf: [
+        {
+          criterionType: 'StaticThresholdCriterion'
+          name: 'StorageUsedCapacityBytes'
+          metricNamespace: 'Microsoft.Storage/storageAccounts'
+          metricName: 'UsedCapacity'
+          operator: 'GreaterThan'
+          threshold: 805306368000
+          timeAggregation: 'Average'
+        }
+      ]
+    }
+    actions: [
+      {
+        actionGroupId: actionGroup.id
+      }
+    ]
+  }
+}
+
+resource apimLatencyP99ProxyAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
+  name: '${projectName}-${environment}-apim-latency-p99-proxy'
+  location: 'global'
+  properties: {
+    description: 'APIM tail latency proxy: Duration maximum > 3000ms over PT15M (evaluated every PT5M); complements average latency alerts.'
+    severity: 2
+    enabled: true
+    scopes: [
+      apimResourceId
+    ]
+    evaluationFrequency: 'PT5M'
+    windowSize: 'PT15M'
+    criteria: {
+      'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
+      allOf: [
+        {
+          criterionType: 'StaticThresholdCriterion'
+          name: 'ApimDurationTailLatencyProxy'
+          metricNamespace: 'Microsoft.ApiManagement/service'
+          metricName: 'Duration'
+          operator: 'GreaterThan'
+          threshold: 3000
+          timeAggregation: 'Maximum'
         }
       ]
     }
