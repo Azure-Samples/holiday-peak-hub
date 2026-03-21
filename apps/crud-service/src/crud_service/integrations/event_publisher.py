@@ -8,6 +8,8 @@ from azure.eventhub import EventData
 from azure.eventhub.aio import EventHubProducerClient
 from azure.identity.aio import DefaultAzureCredential
 from crud_service.config import get_settings
+from holiday_peak_lib.events import RETAIL_EVENT_TOPICS, build_retail_event_payload
+from pydantic import ValidationError
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -78,11 +80,27 @@ class EventPublisher:
             logger.error(f"Unknown topic: {topic}")
             return
 
-        event_payload = {
-            "event_type": event_type,
-            "data": data,
-            "timestamp": data.get("timestamp"),
-        }
+        try:
+            if topic in RETAIL_EVENT_TOPICS:
+                event_payload = build_retail_event_payload(
+                    topic=topic,
+                    event_type=event_type,
+                    data=data,
+                )
+            else:
+                event_payload = {
+                    "event_type": event_type,
+                    "data": data,
+                    "timestamp": data.get("timestamp"),
+                }
+        except (ValidationError, ValueError) as exc:
+            logger.error(
+                "Invalid event payload for topic=%s event_type=%s: %s",
+                topic,
+                event_type,
+                exc,
+            )
+            raise ValueError(f"Invalid payload for {topic}:{event_type}") from exc
 
         event_data = EventData(json.dumps(event_payload))
         producer = self._producers[topic]

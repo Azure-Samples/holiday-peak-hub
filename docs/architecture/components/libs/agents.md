@@ -206,7 +206,17 @@ mcp.add_tool("/inventory/check", check_inventory)
 
 ### MCP Schema Discovery
 
-MCP schema discovery is not implemented by default. Apps should publish their tool list explicitly if needed.
+`FastAPIMCPServer` now supports per-tool schema metadata registration at add time:
+
+- Optional `input_model` / `output_model` validation (Pydantic)
+- Optional versioned schema references (`name`, `version`, optional `uri`)
+- Metadata captured in `FastAPIMCPServer.tool_metadata`
+
+Backward compatibility:
+
+- Existing `mcp.add_tool("/path", handler)` usage remains valid.
+- Tools without schema models continue to accept/return dict payloads unchanged.
+- Teams can incrementally add schema refs and validation without breaking existing MCP paths.
 
 ### Model Selection
 

@@ -10,6 +10,22 @@ from holiday_peak_lib.events.connector_events import (
     ProductChanged,
     parse_connector_event,
 )
+from holiday_peak_lib.events.retail_events import (
+    RETAIL_EVENT_TOPICS,
+    InventoryEventData,
+    InventoryEventEnvelope,
+    OrderEventData,
+    OrderEventEnvelope,
+    PaymentEventData,
+    PaymentEventEnvelope,
+    RetailEvent,
+    ReturnEventData,
+    ReturnEventEnvelope,
+    ShipmentEventData,
+    ShipmentEventEnvelope,
+    build_retail_event_payload,
+    parse_retail_event,
+)
 
 __all__ = [
     "ConnectorEvent",
@@ -20,4 +36,18 @@ __all__ = [
     "OrderStatusChanged",
     "PriceUpdated",
     "parse_connector_event",
+    "OrderEventData",
+    "PaymentEventData",
+    "ReturnEventData",
+    "InventoryEventData",
+    "ShipmentEventData",
+    "OrderEventEnvelope",
+    "PaymentEventEnvelope",
+    "ReturnEventEnvelope",
+    "InventoryEventEnvelope",
+    "ShipmentEventEnvelope",
+    "RetailEvent",
+    "RETAIL_EVENT_TOPICS",
+    "parse_retail_event",
+    "build_retail_event_payload",
 ]
