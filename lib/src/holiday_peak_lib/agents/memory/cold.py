@@ -1,7 +1,6 @@
 """Cold memory layer using Azure Blob Storage."""
 
 import asyncio
-from typing import Optional
 
 from azure.core.pipeline.transport import AioHttpTransport
 from azure.identity import DefaultAzureCredential
@@ -28,7 +27,7 @@ class ColdMemory:
         self.connection_pool_size = connection_pool_size
         self.connection_timeout = connection_timeout
         self.read_timeout = read_timeout
-        self.client: Optional[BlobServiceClient] = None
+        self.client: BlobServiceClient | None = None
         self._connect_lock = asyncio.Lock()
 
     async def connect(self) -> None:

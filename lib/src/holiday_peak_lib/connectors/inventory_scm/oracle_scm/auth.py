@@ -14,7 +14,6 @@ Configuration via environment variables:
 
 import os
 import time
-from typing import Optional
 
 import httpx
 
@@ -45,10 +44,10 @@ class OracleSCMAuth:
 
     def __init__(
         self,
-        token_url: Optional[str] = None,
-        client_id: Optional[str] = None,
-        client_secret: Optional[str] = None,
-        scope: Optional[str] = None,
+        token_url: str | None = None,
+        client_id: str | None = None,
+        client_secret: str | None = None,
+        scope: str | None = None,
         http_timeout: float = 10.0,
     ) -> None:
         self._token_url = token_url or os.environ.get("ORACLE_SCM_TOKEN_URL", "")
@@ -57,7 +56,7 @@ class OracleSCMAuth:
         self._scope = scope or os.environ.get("ORACLE_SCM_SCOPE", "")
         self._http_timeout = http_timeout
 
-        self._token: Optional[str] = None
+        self._token: str | None = None
         self._expires_at: float = 0.0
 
     def _is_token_valid(self) -> bool:

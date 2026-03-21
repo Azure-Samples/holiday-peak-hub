@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import os
 from datetime import datetime
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable
 
 import httpx
 from holiday_peak_lib.adapters.base import AdapterError, BaseAdapter
@@ -75,7 +75,7 @@ class _AEPHttpAdapter(BaseAdapter):
             self._raise_for_status(response)
             return [response.json()]
 
-    async def _upsert_impl(self, payload: dict[str, Any]) -> Optional[dict[str, Any]]:
+    async def _upsert_impl(self, payload: dict[str, Any]) -> dict[str, Any] | None:
         """Execute a POST request; ``payload`` must contain ``_path``."""
         path: str = payload.pop("_path")
         headers = await self._build_headers()
@@ -128,11 +128,11 @@ class AdobeAEPConnector(CRMConnectorBase):
     def __init__(
         self,
         *,
-        base_url: Optional[str] = None,
-        org_id: Optional[str] = None,
-        sandbox: Optional[str] = None,
-        inlet_id: Optional[str] = None,
-        auth: Optional[AdobeImsAuth] = None,
+        base_url: str | None = None,
+        org_id: str | None = None,
+        sandbox: str | None = None,
+        inlet_id: str | None = None,
+        auth: AdobeImsAuth | None = None,
     ) -> None:
         self._base_url = (
             base_url or os.environ.get("AEP_BASE_URL", "https://platform.adobe.io")

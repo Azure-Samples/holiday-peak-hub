@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import os
 from datetime import datetime
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable
 
 import httpx
 from holiday_peak_lib.adapters.base import AdapterError, BaseAdapter
@@ -87,7 +87,7 @@ class Dynamics365CEConnector(BaseAdapter, CRMConnectorBase):
             resource_url=self._base_url,
             credential=credential,
         )
-        self._http_client: Optional[httpx.AsyncClient] = None
+        self._http_client: httpx.AsyncClient | None = None
 
     # ------------------------------------------------------------------
     # BaseAdapter hooks
@@ -105,7 +105,7 @@ class Dynamics365CEConnector(BaseAdapter, CRMConnectorBase):
         response = await self._odata_get(entity, params=params)
         return response.get("value", [response] if response and "value" not in response else [])
 
-    async def _upsert_impl(self, payload: dict[str, Any]) -> Optional[dict[str, Any]]:
+    async def _upsert_impl(self, payload: dict[str, Any]) -> dict[str, Any] | None:
         """PATCH or POST a Dynamics 365 CE entity."""
         entity = payload.pop("_entity", "")
         entity_id = payload.pop("_id", None)

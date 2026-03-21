@@ -12,7 +12,7 @@ Key design decisions:
 
 from __future__ import annotations
 
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable
 
 from holiday_peak_lib.adapters.base import BaseAdapter
 
@@ -105,7 +105,7 @@ class TruthStoreAdapter(BaseAdapter):
             items.append(item)
         return items
 
-    async def _upsert_impl(self, payload: dict[str, Any]) -> Optional[dict[str, Any]]:
+    async def _upsert_impl(self, payload: dict[str, Any]) -> dict[str, Any] | None:
         """Idempotent upsert of a document into the target container."""
         self._assert_connected()
         return await self._container_proxy.upsert_item(body=payload)
@@ -126,13 +126,13 @@ class TruthStoreAdapter(BaseAdapter):
     # Convenience helpers
     # ------------------------------------------------------------------
 
-    async def get_by_id(self, item_id: str, partition_key: str) -> Optional[dict[str, Any]]:
+    async def get_by_id(self, item_id: str, partition_key: str) -> dict[str, Any] | None:
         """Return a single document by id and partition key, or ``None``."""
         results = await self.fetch({"id": item_id, "partition_key": partition_key})
         items = list(results)
         return items[0] if items else None
 
-    async def upsert_document(self, document: dict[str, Any]) -> Optional[dict[str, Any]]:
+    async def upsert_document(self, document: dict[str, Any]) -> dict[str, Any] | None:
         """Convenience wrapper around :meth:`upsert`."""
         return await self.upsert(document)
 

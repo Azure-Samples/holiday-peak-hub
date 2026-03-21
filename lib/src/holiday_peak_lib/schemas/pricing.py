@@ -6,7 +6,7 @@ required fields and defaults.
 """
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -23,14 +23,14 @@ class PriceEntry(BaseModel):
     sku: str
     currency: str
     amount: float
-    list_amount: Optional[float] = None
-    discount_code: Optional[str] = None
-    channel: Optional[str] = None
-    region: Optional[str] = None
+    list_amount: float | None = None
+    discount_code: str | None = None
+    channel: str | None = None
+    region: str | None = None
     tax_included: bool = False
     promotional: bool = False
-    effective_from: Optional[datetime] = None
-    effective_to: Optional[datetime] = None
+    effective_from: datetime | None = None
+    effective_to: datetime | None = None
     attributes: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -43,5 +43,5 @@ class PriceContext(BaseModel):
     """
 
     sku: str
-    active: Optional[PriceEntry] = None
+    active: PriceEntry | None = None
     offers: list[PriceEntry] = Field(default_factory=list)

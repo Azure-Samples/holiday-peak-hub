@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import time
 from collections import defaultdict, deque
-from typing import Optional
 
 
 class RateLimitExceededError(Exception):
@@ -80,7 +79,7 @@ class RateLimiter:
             count = sum(1 for ts in window if ts >= cutoff)
             return max(0, self.limit - count)
 
-    def reset(self, tenant_id: Optional[str] = None) -> None:
+    def reset(self, tenant_id: str | None = None) -> None:
         """Reset rate-limit counters.
 
         Args:

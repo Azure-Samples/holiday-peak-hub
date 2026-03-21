@@ -5,8 +5,6 @@ and revenue optimization scenarios highlighted in the business summary.
 Includes doctests for every helper to validate mapping and aggregation.
 """
 
-from typing import Optional
-
 from holiday_peak_lib.adapters.base import BaseAdapter, BaseConnector
 from holiday_peak_lib.schemas.pricing import PriceContext, PriceEntry
 
@@ -36,7 +34,7 @@ class PricingConnector(BaseConnector):
         ('SKU-1', 10.0)
     """
 
-    def __init__(self, adapter: Optional[BaseAdapter] = None, map_concurrency: int = 10) -> None:
+    def __init__(self, adapter: BaseAdapter | None = None, map_concurrency: int = 10) -> None:
         super().__init__(adapter=adapter, map_concurrency=map_concurrency)
 
     async def get_prices(self, sku: str, limit: int = 10) -> list[PriceEntry]:
@@ -64,7 +62,7 @@ class PricingConnector(BaseConnector):
         records = await self._fetch_many(entity="price", sku=sku, limit=limit)
         return await self._map_many(PriceEntry, records)
 
-    async def get_active_price(self, sku: str) -> Optional[PriceEntry]:
+    async def get_active_price(self, sku: str) -> PriceEntry | None:
         """Return the first active price for the SKU if available.
 
         Doctest::

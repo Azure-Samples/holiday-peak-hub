@@ -14,23 +14,17 @@ Design decisions:
 """
 
 import asyncio
-import logging
-from typing import Any, Optional
+from typing import Any
 
 from azure.cosmos.aio import CosmosClient
 from azure.cosmos.exceptions import CosmosHttpResponseError, CosmosResourceNotFoundError
 from azure.identity import DefaultAzureCredential
 from holiday_peak_lib.adapters.base import AdapterError, BaseAdapter
 from holiday_peak_lib.truth.models import (
-    AssetMetadata,
-    AttributeStatus,
     AuditEvent,
-    AuditEventType,
     CategorySchema,
-    GapReport,
     MappingDocument,
     ProductStyle,
-    ProductVariant,
     ProposedAttribute,
     TenantConfig,
     TruthAttribute,
@@ -80,9 +74,9 @@ class TruthStoreAdapter(BaseAdapter):
         account_uri: str,
         database: str,
         *,
-        containers: Optional[dict[str, str]] = None,
-        connection_limit: Optional[int] = None,
-        client_kwargs: Optional[dict[str, Any]] = None,
+        containers: dict[str, str] | None = None,
+        connection_limit: int | None = None,
+        client_kwargs: dict[str, Any] | None = None,
         **adapter_kwargs: Any,
     ) -> None:
         super().__init__(**adapter_kwargs)
@@ -91,7 +85,7 @@ class TruthStoreAdapter(BaseAdapter):
         self.containers: dict[str, str] = containers or dict(_DEFAULT_CONTAINERS)
         self._connection_limit = connection_limit
         self._client_kwargs: dict[str, Any] = client_kwargs or {}
-        self.client: Optional[CosmosClient] = None
+        self.client: CosmosClient | None = None
 
     # ------------------------------------------------------------------
     # BaseAdapter abstract hooks
@@ -130,7 +124,7 @@ class TruthStoreAdapter(BaseAdapter):
             items.append(item)
         return items
 
-    async def _upsert_impl(self, payload: dict[str, Any]) -> Optional[dict[str, Any]]:
+    async def _upsert_impl(self, payload: dict[str, Any]) -> dict[str, Any] | None:
         container_name = payload.pop("_container", None)
         if not container_name:
             raise AdapterError("_container is required in payload")
@@ -170,7 +164,7 @@ class TruthStoreAdapter(BaseAdapter):
 
     async def _cosmos_call(self, func, *args, **kwargs) -> Any:
         """Execute a Cosmos operation with 429 retry-after handling."""
-        last_exc: Optional[Exception] = None
+        last_exc: Exception | None = None
         for attempt in range(_MAX_COSMOS_RETRIES + 1):
             try:
                 return await func(*args, **kwargs)
@@ -208,7 +202,7 @@ class TruthStoreAdapter(BaseAdapter):
         result = await self._cosmos_call(container.upsert_item, item)
         return ProductStyle.model_validate(result)
 
-    async def get_product(self, entity_id: str, category_id: str) -> Optional[ProductStyle]:
+    async def get_product(self, entity_id: str, category_id: str) -> ProductStyle | None:
         """Retrieve a product style by ID and partition key."""
         await self._ensure_connected()
         container = self._get_container("products")
@@ -279,7 +273,7 @@ class TruthStoreAdapter(BaseAdapter):
     async def get_proposed_attributes(
         self,
         entity_id: str,
-        status: Optional[str] = None,
+        status: str | None = None,
     ) -> list[ProposedAttribute]:
         """Return proposed attributes for an entity, optionally filtered by status."""
         await self._ensure_connected()
@@ -302,7 +296,7 @@ class TruthStoreAdapter(BaseAdapter):
 
     async def update_proposed_status(
         self, attr_id: str, entity_id: str, status: str
-    ) -> Optional[ProposedAttribute]:
+    ) -> ProposedAttribute | None:
         """Approve or reject a proposed attribute by updating its status."""
         await self._ensure_connected()
         container = self._get_container("attributes_proposed")
@@ -317,7 +311,7 @@ class TruthStoreAdapter(BaseAdapter):
     # Schemas
     # ------------------------------------------------------------------
 
-    async def get_schema(self, category_id: str) -> Optional[CategorySchema]:
+    async def get_schema(self, category_id: str) -> CategorySchema | None:
         """Load the category schema definition."""
         await self._ensure_connected()
         container = self._get_container("schemas")
@@ -340,7 +334,7 @@ class TruthStoreAdapter(BaseAdapter):
     # Mappings
     # ------------------------------------------------------------------
 
-    async def get_mapping(self, protocol: str, version: str) -> Optional[MappingDocument]:
+    async def get_mapping(self, protocol: str, version: str) -> MappingDocument | None:
         """Load a canonical-to-protocol field mapping document."""
         await self._ensure_connected()
         container = self._get_container("mappings")
@@ -365,7 +359,7 @@ class TruthStoreAdapter(BaseAdapter):
     async def query_audit(
         self,
         entity_id: str,
-        event_type: Optional[str] = None,
+        event_type: str | None = None,
         limit: int = 50,
     ) -> list[AuditEvent]:
         """Return audit events for an entity, optionally filtered by event_type."""
@@ -410,7 +404,7 @@ class TruthStoreAdapter(BaseAdapter):
         result = await self._cosmos_call(container.upsert_item, item)
         return TenantConfig.model_validate(result)
 
-    async def get_config(self, tenant_id: str) -> Optional[TenantConfig]:
+    async def get_config(self, tenant_id: str) -> TenantConfig | None:
         """Load tenant configuration by tenant ID."""
         await self._ensure_connected()
         container = self._get_container("config")

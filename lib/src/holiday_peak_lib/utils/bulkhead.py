@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ class Bulkhead:
         self,
         name: str,
         concurrency_limit: int = 10,
-        queue_timeout: Optional[float] = 0.0,
+        queue_timeout: float | None = 0.0,
     ) -> None:
         if concurrency_limit < 1:
             raise ValueError("concurrency_limit must be >= 1")

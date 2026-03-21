@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import os
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 from holiday_peak_lib.adapters.base import AdapterError
@@ -61,9 +61,9 @@ class SalesforceCRMConnector(CRMConnectorBase):
     def __init__(
         self,
         *,
-        auth: Optional[SalesforceAuth] = None,
-        api_version: Optional[str] = None,
-        http_client: Optional[httpx.AsyncClient] = None,
+        auth: SalesforceAuth | None = None,
+        api_version: str | None = None,
+        http_client: httpx.AsyncClient | None = None,
     ) -> None:
         self._auth = auth or SalesforceAuth()
         self._api_version = api_version or os.environ.get(

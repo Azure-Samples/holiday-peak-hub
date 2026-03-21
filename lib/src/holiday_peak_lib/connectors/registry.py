@@ -10,7 +10,7 @@ import pkgutil
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping, Optional, Type
+from typing import Any, Mapping
 
 from holiday_peak_lib.adapters.base import BaseAdapter
 
@@ -21,7 +21,7 @@ class ConnectorDefinition:
 
     domain: str
     vendor: str
-    connector_class: Type[Any]
+    connector_class: type[Any]
     module: str
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -62,7 +62,7 @@ class ConnectorRegistry:
         self,
         domain: str,
         vendor: str,
-        connector_class: Type[Any],
+        connector_class: type[Any],
         *,
         metadata: dict[str, Any] | None = None,
         overwrite: bool = False,
@@ -83,7 +83,7 @@ class ConnectorRegistry:
             metadata=metadata or {},
         )
 
-    def get(self, domain: str, vendor: str) -> Optional[Type[Any]]:
+    def get(self, domain: str, vendor: str) -> type[Any] | None:
         """Return connector class by domain/vendor or ``None`` when unavailable."""
         definition = self.get_definition(domain, vendor)
         return definition.connector_class if definition else None

@@ -10,7 +10,6 @@ from __future__ import annotations
 import os
 import time
 from dataclasses import dataclass, field
-from typing import Optional
 
 import httpx
 
@@ -54,10 +53,10 @@ class AdobeImsAuth:
     def __init__(
         self,
         *,
-        client_id: Optional[str] = None,
-        client_secret: Optional[str] = None,
-        org_id: Optional[str] = None,
-        ims_url: Optional[str] = None,
+        client_id: str | None = None,
+        client_secret: str | None = None,
+        org_id: str | None = None,
+        ims_url: str | None = None,
     ) -> None:
         self._client_id = client_id or os.environ.get("AEP_CLIENT_ID", "")
         self._client_secret = client_secret or os.environ.get("AEP_CLIENT_SECRET", "")
@@ -65,7 +64,7 @@ class AdobeImsAuth:
         self._ims_url = (ims_url or os.environ.get("AEP_IMS_URL", self._DEFAULT_IMS_URL)).rstrip(
             "/"
         )
-        self._cached: Optional[AdobeImsToken] = None
+        self._cached: AdobeImsToken | None = None
 
     async def get_token(self) -> str:
         """Return a valid Bearer token, refreshing if necessary."""

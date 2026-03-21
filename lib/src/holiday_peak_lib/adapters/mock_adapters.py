@@ -6,7 +6,7 @@ assembly without external systems.
 """
 
 import datetime as _dt
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable
 
 from holiday_peak_lib.adapters.base import BaseAdapter
 
@@ -44,7 +44,7 @@ class MockProductAdapter(BaseAdapter):
             ]
         return []
 
-    async def _upsert_impl(self, payload: dict[str, Any]) -> Optional[dict[str, Any]]:
+    async def _upsert_impl(self, payload: dict[str, Any]) -> dict[str, Any] | None:
         return payload
 
     async def _delete_impl(self, identifier: str) -> bool:
@@ -73,7 +73,7 @@ class MockPricingAdapter(BaseAdapter):
             ]
         return []
 
-    async def _upsert_impl(self, payload: dict[str, Any]) -> Optional[dict[str, Any]]:
+    async def _upsert_impl(self, payload: dict[str, Any]) -> dict[str, Any] | None:
         return payload
 
     async def _delete_impl(self, identifier: str) -> bool:
@@ -103,7 +103,7 @@ class MockInventoryAdapter(BaseAdapter):
             ]
         return []
 
-    async def _upsert_impl(self, payload: dict[str, Any]) -> Optional[dict[str, Any]]:
+    async def _upsert_impl(self, payload: dict[str, Any]) -> dict[str, Any] | None:
         return payload
 
     async def _delete_impl(self, identifier: str) -> bool:
@@ -140,7 +140,7 @@ class MockLogisticsAdapter(BaseAdapter):
             ]
         return []
 
-    async def _upsert_impl(self, payload: dict[str, Any]) -> Optional[dict[str, Any]]:
+    async def _upsert_impl(self, payload: dict[str, Any]) -> dict[str, Any] | None:
         return payload
 
     async def _delete_impl(self, identifier: str) -> bool:
@@ -178,7 +178,7 @@ class MockCRMAdapter(BaseAdapter):
             ]
         return []
 
-    async def _upsert_impl(self, payload: dict[str, Any]) -> Optional[dict[str, Any]]:
+    async def _upsert_impl(self, payload: dict[str, Any]) -> dict[str, Any] | None:
         return payload
 
     async def _delete_impl(self, identifier: str) -> bool:
@@ -205,7 +205,7 @@ class MockFunnelAdapter(BaseAdapter):
             ]
         return []
 
-    async def _upsert_impl(self, payload: dict[str, Any]) -> Optional[dict[str, Any]]:
+    async def _upsert_impl(self, payload: dict[str, Any]) -> dict[str, Any] | None:
         return payload
 
     async def _delete_impl(self, identifier: str) -> bool:

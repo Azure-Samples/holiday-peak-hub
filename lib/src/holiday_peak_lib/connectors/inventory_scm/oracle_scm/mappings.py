@@ -6,12 +6,12 @@ objects that agents and downstream services can consume uniformly.
 """
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from holiday_peak_lib.connectors.common.protocols import InventoryData
 
 
-def _parse_datetime(value: Optional[str]) -> Optional[datetime]:
+def _parse_datetime(value: str | None) -> datetime | None:
     """Parse an ISO-8601 string (with or without timezone) into a datetime.
 
     Returns ``None`` when *value* is empty or cannot be parsed.

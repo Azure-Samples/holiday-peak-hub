@@ -8,17 +8,16 @@ they expire to minimise redundant token requests.
 from __future__ import annotations
 
 import time
-from typing import Optional
 
 
 class _TokenCache:
     """Lightweight in-memory token cache."""
 
     def __init__(self) -> None:
-        self._token: Optional[str] = None
+        self._token: str | None = None
         self._expires_at: float = 0.0
 
-    def get(self) -> Optional[str]:
+    def get(self) -> str | None:
         if self._token and time.monotonic() < self._expires_at:
             return self._token
         return None

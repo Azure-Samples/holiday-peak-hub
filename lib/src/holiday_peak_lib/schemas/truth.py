@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -179,10 +179,10 @@ class ProductVariant(BaseModel):
 
     id: str
     style_id: str = Field(alias="styleId")
-    upc: Optional[str] = None
-    size: Optional[str] = None
-    width: Optional[str] = None
-    color: Optional[str] = None
+    upc: str | None = None
+    size: str | None = None
+    width: str | None = None
+    color: str | None = None
     asset_ids: list[str] = Field(default_factory=list, alias="assetIds")
     updated_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
@@ -215,7 +215,7 @@ class TruthAttribute(BaseModel):
     entity_id: str = Field(alias="entityId")
     attribute_key: str = Field(alias="attributeKey")
     value: Any
-    unit: Optional[str] = None
+    unit: str | None = None
     source: AttributeSource
     share_policy: SharePolicy = Field(SharePolicy.INTERNAL_ONLY, alias="sharePolicy")
     provenance: Provenance = Field(default_factory=Provenance)
@@ -244,7 +244,7 @@ class ProposedAttribute(BaseModel):
     entity_id: str = Field(alias="entityId")
     attribute_key: str = Field(alias="attributeKey")
     value: Any
-    unit: Optional[str] = None
+    unit: str | None = None
     source: AttributeSource
     share_policy: SharePolicy = Field(SharePolicy.INTERNAL_ONLY, alias="sharePolicy")
     provenance: Provenance = Field(default_factory=Provenance)
@@ -255,11 +255,11 @@ class ProposedAttribute(BaseModel):
     model_run_id: str = Field(alias="modelRunId")
     evidence_refs: list[str] = Field(default_factory=list, alias="evidenceRefs")
     validation_errors: list[str] = Field(default_factory=list, alias="validationErrors")
-    source_type: Optional[SourceType] = Field(None, alias="sourceType")
+    source_type: SourceType | None = Field(None, alias="sourceType")
     source_assets: list[str] = Field(default_factory=list, alias="sourceAssets")
     original_data: dict[str, Any] = Field(default_factory=dict, alias="originalData")
     enriched_data: dict[str, Any] = Field(default_factory=dict, alias="enrichedData")
-    reasoning: Optional[str] = None
+    reasoning: str | None = None
 
 
 class ProductEnrichmentProposal(ProposedAttribute):
@@ -278,20 +278,20 @@ class IntentClassification(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     query_type: Literal["simple", "complex"] | None = Field(None, alias="queryType")
-    category: Optional[str] = None
+    category: str | None = None
     attributes: list[str] = Field(default_factory=list)
-    use_case: Optional[str] = Field(None, alias="useCase")
-    brand: Optional[str] = None
+    use_case: str | None = Field(None, alias="useCase")
+    brand: str | None = None
     price_range: tuple[float | None, float | None] = Field(
         default=(None, None),
         alias="priceRange",
     )
     filters: dict[str, Any] = Field(default_factory=dict)
     sub_queries: list[str] = Field(default_factory=list, alias="subQueries")
-    intent: Optional[str] = None
+    intent: str | None = None
     confidence: float = Field(..., ge=0.0, le=1.0)
     entities: dict[str, Any] = Field(default_factory=dict)
-    reasoning: Optional[str] = None
+    reasoning: str | None = None
 
 
 class SearchEnrichedProduct(BaseModel):
@@ -300,13 +300,13 @@ class SearchEnrichedProduct(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     sku: str
-    id: Optional[str] = None
-    entity_id: Optional[str] = Field(None, alias="entityId")
-    name: Optional[str] = None
-    brand: Optional[str] = None
-    category: Optional[str] = None
-    description: Optional[str] = None
-    price: Optional[float] = None
+    id: str | None = None
+    entity_id: str | None = Field(None, alias="entityId")
+    name: str | None = None
+    brand: str | None = None
+    category: str | None = None
+    description: str | None = None
+    price: float | None = None
     use_cases: list[str] = Field(default_factory=list, alias="useCases")
     complementary_products: list[str] = Field(
         default_factory=list,
@@ -314,23 +314,23 @@ class SearchEnrichedProduct(BaseModel):
     )
     substitute_products: list[str] = Field(default_factory=list, alias="substituteProducts")
     search_keywords: list[str] = Field(default_factory=list, alias="searchKeywords")
-    enriched_description: Optional[str] = Field(None, alias="enrichedDescription")
+    enriched_description: str | None = Field(None, alias="enrichedDescription")
     enriched_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         alias="enrichedAt",
     )
-    enrichment_model: Optional[str] = Field(None, alias="enrichmentModel")
-    source_approval_version: Optional[int] = Field(None, alias="sourceApprovalVersion")
-    score: Optional[float] = Field(None, ge=0.0, le=1.0)
-    source_type: Optional[SourceType] = Field(None, alias="sourceType")
+    enrichment_model: str | None = Field(None, alias="enrichmentModel")
+    source_approval_version: int | None = Field(None, alias="sourceApprovalVersion")
+    score: float | None = Field(None, ge=0.0, le=1.0)
+    source_type: SourceType | None = Field(None, alias="sourceType")
     source_assets: list[str] = Field(default_factory=list, alias="sourceAssets")
     original_data: dict[str, Any] = Field(default_factory=dict, alias="originalData")
     enriched_data: dict[str, Any] = Field(default_factory=dict, alias="enrichedData")
-    intent_classification: Optional[IntentClassification] = Field(
+    intent_classification: IntentClassification | None = Field(
         None,
         alias="intentClassification",
     )
-    reasoning: Optional[str] = None
+    reasoning: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -403,8 +403,8 @@ class AssetMetadata(BaseModel):
     product_id: str = Field(alias="productId")
     url: str
     asset_type: str = Field(alias="assetType")
-    mime_type: Optional[str] = Field(None, alias="mimeType")
-    alt_text: Optional[str] = Field(None, alias="altText")
+    mime_type: str | None = Field(None, alias="mimeType")
+    alt_text: str | None = Field(None, alias="altText")
     updated_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         alias="updatedAt",
@@ -460,9 +460,9 @@ class ExportJob(BaseModel):
     job_id: str = Field(alias="jobId")
     entity_id: str = Field(alias="entityId")
     protocol: str
-    partner_id: Optional[str] = Field(None, alias="partnerId")
-    requested_by: Optional[str] = Field(None, alias="requestedBy")
-    requested_at: Optional[datetime] = Field(None, alias="requestedAt")
+    partner_id: str | None = Field(None, alias="partnerId")
+    requested_by: str | None = Field(None, alias="requestedBy")
+    requested_at: datetime | None = Field(None, alias="requestedAt")
     options: dict[str, Any] = Field(default_factory=dict)
 
 

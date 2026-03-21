@@ -5,7 +5,6 @@ business summary. Doctests show instantiation with defaults.
 """
 
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -19,9 +18,9 @@ class FunnelMetric(BaseModel):
 
     stage: str
     count: int
-    conversion_rate: Optional[float] = None
-    channel: Optional[str] = None
-    stage_time_ms: Optional[float] = None
+    conversion_rate: float | None = None
+    channel: str | None = None
+    stage_time_ms: float | None = None
     attributes: dict = Field(default_factory=dict)
 
 
@@ -33,7 +32,7 @@ class FunnelContext(BaseModel):
     'click'
     """
 
-    campaign_id: Optional[str] = None
-    account_id: Optional[str] = None
+    campaign_id: str | None = None
+    account_id: str | None = None
     metrics: list[FunnelMetric] = Field(default_factory=list)
-    updated_at: Optional[datetime] = None
+    updated_at: datetime | None = None

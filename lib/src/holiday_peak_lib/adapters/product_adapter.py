@@ -6,8 +6,6 @@ helper normalizes adapter payloads into validated domain models with bounded
 async mapping and includes doctests for quick verification.
 """
 
-from typing import Optional
-
 from holiday_peak_lib.adapters.base import BaseAdapter, BaseConnector
 from holiday_peak_lib.schemas.product import CatalogProduct, ProductContext
 
@@ -41,10 +39,10 @@ class ProductConnector(BaseConnector):
         ('SKU-1', 1)
     """
 
-    def __init__(self, adapter: Optional[BaseAdapter] = None, map_concurrency: int = 10) -> None:
+    def __init__(self, adapter: BaseAdapter | None = None, map_concurrency: int = 10) -> None:
         super().__init__(adapter=adapter, map_concurrency=map_concurrency)
 
-    async def get_product(self, sku: str) -> Optional[CatalogProduct]:
+    async def get_product(self, sku: str) -> CatalogProduct | None:
         """Fetch and normalize a single catalog product.
 
         Process:
@@ -96,7 +94,7 @@ class ProductConnector(BaseConnector):
 
     async def build_product_context(
         self, sku: str, related_limit: int = 5
-    ) -> Optional[ProductContext]:
+    ) -> ProductContext | None:
         """Assemble agent-ready product context with related items.
 
         Doctest::

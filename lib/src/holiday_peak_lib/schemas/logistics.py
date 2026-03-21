@@ -6,7 +6,6 @@ construction.
 """
 
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -20,9 +19,9 @@ class ShipmentEvent(BaseModel):
     """
 
     code: str
-    description: Optional[str] = None
+    description: str | None = None
     occurred_at: datetime
-    location: Optional[str] = None
+    location: str | None = None
     metadata: dict = Field(default_factory=dict)
 
 
@@ -34,15 +33,15 @@ class Shipment(BaseModel):
     """
 
     tracking_id: str
-    order_id: Optional[str] = None
-    carrier: Optional[str] = None
+    order_id: str | None = None
+    carrier: str | None = None
     status: str
-    eta: Optional[datetime] = None
-    last_updated: Optional[datetime] = None
-    origin: Optional[str] = None
-    destination: Optional[str] = None
-    service_level: Optional[str] = None
-    weight_kg: Optional[float] = None
+    eta: datetime | None = None
+    last_updated: datetime | None = None
+    origin: str | None = None
+    destination: str | None = None
+    service_level: str | None = None
+    weight_kg: float | None = None
     attributes: dict = Field(default_factory=dict)
 
 

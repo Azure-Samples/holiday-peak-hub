@@ -6,7 +6,6 @@ one of these canonical types so agents can consume data uniformly.
 """
 
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -22,17 +21,17 @@ class InventoryData(BaseModel):
 
     item_number: str
     organization_code: str
-    organization_id: Optional[int] = None
-    description: Optional[str] = None
+    organization_id: int | None = None
+    description: str | None = None
     on_hand_quantity: float = 0.0
     reserved_quantity: float = 0.0
-    available_quantity: Optional[float] = None
-    unit_of_measure: Optional[str] = None
-    subinventory_code: Optional[str] = None
-    locator: Optional[str] = None
-    lot_number: Optional[str] = None
-    expiration_date: Optional[datetime] = None
-    last_updated: Optional[datetime] = None
+    available_quantity: float | None = None
+    unit_of_measure: str | None = None
+    subinventory_code: str | None = None
+    locator: str | None = None
+    lot_number: str | None = None
+    expiration_date: datetime | None = None
+    last_updated: datetime | None = None
     attributes: dict = Field(default_factory=dict)
 
     @property
@@ -52,14 +51,14 @@ class ProductData(BaseModel):
 
     product_id: str
     name: str
-    description: Optional[str] = None
-    sku: Optional[str] = None
-    category: Optional[str] = None
-    price: Optional[float] = None
-    currency: Optional[str] = None
+    description: str | None = None
+    sku: str | None = None
+    category: str | None = None
+    price: float | None = None
+    currency: str | None = None
     images: list[str] = Field(default_factory=list)
     attributes: dict = Field(default_factory=dict)
-    last_updated: Optional[datetime] = None
+    last_updated: datetime | None = None
 
 
 class AssetData(BaseModel):
@@ -72,12 +71,12 @@ class AssetData(BaseModel):
     asset_id: str
     name: str
     url: str
-    media_type: Optional[str] = None
-    width: Optional[int] = None
-    height: Optional[int] = None
+    media_type: str | None = None
+    width: int | None = None
+    height: int | None = None
     tags: list[str] = Field(default_factory=list)
     attributes: dict = Field(default_factory=dict)
-    last_updated: Optional[datetime] = None
+    last_updated: datetime | None = None
 
 
 class CustomerData(BaseModel):
@@ -88,13 +87,13 @@ class CustomerData(BaseModel):
     """
 
     customer_id: str
-    email: Optional[str] = None
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    phone: Optional[str] = None
+    email: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    phone: str | None = None
     segments: list[str] = Field(default_factory=list)
     attributes: dict = Field(default_factory=dict)
-    last_updated: Optional[datetime] = None
+    last_updated: datetime | None = None
 
 
 class OrderData(BaseModel):
@@ -106,13 +105,13 @@ class OrderData(BaseModel):
 
     order_id: str
     status: str
-    customer_id: Optional[str] = None
-    total_amount: Optional[float] = None
-    currency: Optional[str] = None
+    customer_id: str | None = None
+    total_amount: float | None = None
+    currency: str | None = None
     line_items: list[dict] = Field(default_factory=list)
     attributes: dict = Field(default_factory=dict)
-    created_at: Optional[datetime] = None
-    last_updated: Optional[datetime] = None
+    created_at: datetime | None = None
+    last_updated: datetime | None = None
 
 
 class SegmentData(BaseModel):
@@ -124,7 +123,7 @@ class SegmentData(BaseModel):
 
     segment_id: str
     name: str
-    description: Optional[str] = None
-    size: Optional[int] = None
+    description: str | None = None
+    size: int | None = None
     attributes: dict = Field(default_factory=dict)
-    last_updated: Optional[datetime] = None
+    last_updated: datetime | None = None

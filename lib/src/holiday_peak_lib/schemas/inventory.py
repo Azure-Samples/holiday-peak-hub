@@ -6,7 +6,6 @@ basic construction and defaults.
 """
 
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -21,8 +20,8 @@ class WarehouseStock(BaseModel):
     warehouse_id: str
     available: int
     reserved: int = 0
-    location: Optional[str] = None
-    updated_at: Optional[datetime] = None
+    location: str | None = None
+    updated_at: datetime | None = None
 
 
 class InventoryItem(BaseModel):
@@ -37,10 +36,10 @@ class InventoryItem(BaseModel):
     sku: str
     available: int
     reserved: int = 0
-    backorder_date: Optional[datetime] = None
-    safety_stock: Optional[int] = None
-    lead_time_days: Optional[int] = None
-    status: Optional[str] = None
+    backorder_date: datetime | None = None
+    safety_stock: int | None = None
+    lead_time_days: int | None = None
+    status: str | None = None
     attributes: dict = Field(default_factory=dict)
 
 

@@ -6,7 +6,7 @@ ships pre-built schemas for common retail categories.
 
 from __future__ import annotations
 
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -24,9 +24,9 @@ class UcpAttribute(BaseModel):
     label: str
     data_type: Literal["string", "number", "boolean", "list", "object"] = "string"
     required: bool = False
-    max_length: Optional[int] = None
+    max_length: int | None = None
     allowed_values: list[Any] = Field(default_factory=list)
-    description: Optional[str] = None
+    description: str | None = None
 
 
 class UcpSchema(BaseModel):

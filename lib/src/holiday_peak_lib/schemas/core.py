@@ -1,30 +1,28 @@
 """Core schemas."""
 
-from typing import List, Optional
-
 from pydantic import BaseModel, Field
 
 
 class UserContext(BaseModel):
     user_id: str
-    segment: Optional[str] = None
-    preferences: Optional[dict] = None
+    segment: str | None = None
+    preferences: dict | None = None
 
 
 class Product(BaseModel):
     sku: str
     name: str
-    description: Optional[str] = None
-    price: Optional[float] = None
+    description: str | None = None
+    price: float | None = None
     attributes: dict = Field(default_factory=dict)
 
 
 class RecommendationRequest(BaseModel):
     query: str
-    user: Optional[UserContext] = None
+    user: UserContext | None = None
     limit: int = 5
 
 
 class RecommendationResponse(BaseModel):
-    items: List[Product]
+    items: list[Product]
     latency_ms: float
