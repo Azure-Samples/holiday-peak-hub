@@ -67,3 +67,28 @@ async def test_publish_rejects_mismatched_topic_event_type() -> None:
                 "user_id": "user-1",
             },
         )
+
+
+@pytest.mark.asyncio
+async def test_publish_product_updated_validates_product_event_payload() -> None:
+    publisher = EventPublisher()
+    producer = _FakeProducer()
+    publisher._producers = {"product-events": producer}
+
+    await publisher.publish(
+        "product-events",
+        "ProductUpdated",
+        {
+            "id": "sku-1",
+            "name": "Widget",
+            "category_id": "cat-1",
+            "price": 12.5,
+            "timestamp": "2026-03-21T00:00:00Z",
+        },
+    )
+
+    assert len(producer.sent) == 1
+    payload = producer.sent[0][0]
+    assert payload["event_type"] == "ProductUpdated"
+    assert payload["data"]["product_id"] == "sku-1"
+    assert payload["data"]["sku"] == "sku-1"
