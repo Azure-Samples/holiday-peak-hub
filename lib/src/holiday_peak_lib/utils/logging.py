@@ -7,7 +7,7 @@ import tracemalloc
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from time import perf_counter
-from typing import Any, Awaitable, Callable, Optional
+from typing import Any, Awaitable, Callable
 
 from holiday_peak_lib.utils.correlation import get_correlation_id
 
@@ -47,7 +47,7 @@ def _token_estimate(payload: Any) -> int:
 
 
 def configure_logging(
-    connection_string: Optional[str] = None, app_name: Optional[str] = None
+    connection_string: str | None = None, app_name: str | None = None
 ) -> logging.Logger:
     resolved_app = app_name or DEFAULT_APP_NAME
     base_logger = logging.getLogger(f"holiday-peak-lib.{resolved_app}")
@@ -87,10 +87,10 @@ def configure_logging(
 async def log_async_operation(
     logger: logging.Logger,
     name: str,
-    intent: Optional[str],
+    intent: str | None,
     func: Callable[[], Awaitable[Any]],
-    token_count: Optional[int] = None,
-    metadata: Optional[dict] = None,
+    token_count: int | None = None,
+    metadata: dict | None = None,
 ) -> Any:
     _ensure_tracemalloc()
     start_mem, _ = tracemalloc.get_traced_memory()
@@ -137,9 +137,9 @@ async def log_async_operation(
 def log_operation(
     logger: logging.Logger,
     name: str,
-    intent: Optional[str],
-    token_count: Optional[int] = None,
-    metadata: Optional[dict] = None,
+    intent: str | None,
+    token_count: int | None = None,
+    metadata: dict | None = None,
 ):
     _ensure_tracemalloc()
     start_mem, _ = tracemalloc.get_traced_memory()

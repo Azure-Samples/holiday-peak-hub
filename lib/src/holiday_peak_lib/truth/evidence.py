@@ -14,7 +14,7 @@ extraction runs for a given tenant (off by default).
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -120,7 +120,7 @@ class EvidenceConfig(BaseModel):
             "output parsing.  Disabled by default."
         ),
     )
-    auto_approve_threshold: Optional[float] = Field(
+    auto_approve_threshold: float | None = Field(
         default=None,
         ge=0.0,
         le=1.0,

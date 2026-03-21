@@ -1,7 +1,7 @@
 """Hot memory layer using Redis."""
 
 import asyncio
-from typing import Any, Optional
+from typing import Any
 
 import redis.asyncio as redis
 from holiday_peak_lib.utils.logging import configure_logging, log_async_operation
@@ -28,7 +28,7 @@ class HotMemory:
         self.socket_connect_timeout = socket_connect_timeout
         self.health_check_interval = health_check_interval
         self.retry_on_timeout = retry_on_timeout
-        self.client: Optional[redis.Redis] = None
+        self.client: redis.Redis | None = None
         self._connect_lock = asyncio.Lock()
 
     async def connect(self) -> None:
@@ -72,7 +72,7 @@ class HotMemory:
             metadata={"ttl": ttl_seconds},
         )
 
-    async def get(self, key: str) -> Optional[str]:
+    async def get(self, key: str) -> str | None:
         if not self.client:
             await self.connect()
         return await log_async_operation(

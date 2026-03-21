@@ -5,8 +5,6 @@ purchase and delivery experiences described in the business summary. Every
 helper includes doctests to demonstrate normalization.
 """
 
-from typing import Optional
-
 from holiday_peak_lib.adapters.base import BaseAdapter, BaseConnector
 from holiday_peak_lib.schemas.logistics import LogisticsContext, Shipment, ShipmentEvent
 
@@ -40,10 +38,10 @@ class LogisticsConnector(BaseConnector):
         ('T1', 1)
     """
 
-    def __init__(self, adapter: Optional[BaseAdapter] = None, map_concurrency: int = 10) -> None:
+    def __init__(self, adapter: BaseAdapter | None = None, map_concurrency: int = 10) -> None:
         super().__init__(adapter=adapter, map_concurrency=map_concurrency)
 
-    async def get_shipment(self, tracking_id: str) -> Optional[Shipment]:
+    async def get_shipment(self, tracking_id: str) -> Shipment | None:
         """Fetch and normalize a shipment by tracking id.
 
         Doctest::
@@ -89,7 +87,7 @@ class LogisticsConnector(BaseConnector):
 
     async def build_logistics_context(
         self, tracking_id: str, event_limit: int = 50
-    ) -> Optional[LogisticsContext]:
+    ) -> LogisticsContext | None:
         """Assemble shipment and timeline for agent consumption.
 
         Doctest::

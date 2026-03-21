@@ -6,8 +6,6 @@ All helpers include doctests to demonstrate normalization and concurrency-safe
 mapping.
 """
 
-from typing import Optional
-
 from holiday_peak_lib.adapters.base import BaseAdapter, BaseConnector
 from holiday_peak_lib.schemas.crm import (
     CRMAccount,
@@ -46,10 +44,10 @@ class CRMConnector(BaseConnector):
         'a@example.com'
     """
 
-    def __init__(self, adapter: Optional[BaseAdapter] = None, map_concurrency: int = 10) -> None:
+    def __init__(self, adapter: BaseAdapter | None = None, map_concurrency: int = 10) -> None:
         super().__init__(adapter=adapter, map_concurrency=map_concurrency)
 
-    async def get_contact(self, contact_id: str) -> Optional[CRMContact]:
+    async def get_contact(self, contact_id: str) -> CRMContact | None:
         """Fetch and normalize a single contact by identifier.
 
         :param contact_id: External CRM contact identifier.
@@ -76,7 +74,7 @@ class CRMConnector(BaseConnector):
         record = await self._fetch_first(entity="contact", id=contact_id)
         return await self._map_single(CRMContact, record)
 
-    async def get_account(self, account_id: str) -> Optional[CRMAccount]:
+    async def get_account(self, account_id: str) -> CRMAccount | None:
         """Fetch and normalize a single account by identifier.
 
         Process:
@@ -140,7 +138,7 @@ class CRMConnector(BaseConnector):
 
     async def build_contact_context(
         self, contact_id: str, interaction_limit: int = 20
-    ) -> Optional[CRMContext]:
+    ) -> CRMContext | None:
         """Assemble an agent-ready context containing contact, account, and interactions.
 
         Process:

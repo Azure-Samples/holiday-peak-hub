@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import os
 from datetime import datetime, timezone
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable
 
 import httpx
 from holiday_peak_lib.adapters.base import AdapterError, BaseAdapter
@@ -65,7 +65,7 @@ class BrazeConnector(BaseAdapter, CRMConnectorBase):
             "/"
         )
         self._transport = transport
-        self._client: Optional[httpx.AsyncClient] = None
+        self._client: httpx.AsyncClient | None = None
 
     # ------------------------------------------------------------------
     # Internal HTTP helpers
@@ -125,7 +125,7 @@ class BrazeConnector(BaseAdapter, CRMConnectorBase):
             return await self._list_segments(query.get("page", 0))
         raise AdapterError(f"Unknown Braze fetch operation: {op!r}")
 
-    async def _upsert_impl(self, payload: dict[str, Any]) -> Optional[dict[str, Any]]:
+    async def _upsert_impl(self, payload: dict[str, Any]) -> dict[str, Any] | None:
         """Dispatch to ``/users/track`` or ``/messages/send`` based on ``payload["_op"]``."""
         op = payload.get("_op")
         if op == "track":

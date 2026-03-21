@@ -20,7 +20,7 @@ Configuration via environment variables:
 
 import os
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 from holiday_peak_lib.adapters.base import AdapterError, BaseAdapter
@@ -46,14 +46,14 @@ class InventoryConnectorBase(BaseAdapter, ABC):
     async def get_on_hand_quantity(
         self,
         item_number: str,
-        organization_code: Optional[str] = None,
+        organization_code: str | None = None,
     ) -> list[InventoryData]:
         """Return on-hand inventory records for *item_number*."""
 
     @abstractmethod
     async def list_on_hand_quantities(
         self,
-        organization_code: Optional[str] = None,
+        organization_code: str | None = None,
         **filters: Any,
     ) -> list[InventoryData]:
         """Return all on-hand inventory records, optionally filtered."""
@@ -81,10 +81,10 @@ class OracleSCMConnector(InventoryConnectorBase):
 
     def __init__(
         self,
-        base_url: Optional[str] = None,
-        auth: Optional[OracleSCMAuth] = None,
-        api_version: Optional[str] = None,
-        page_size: Optional[int] = None,
+        base_url: str | None = None,
+        auth: OracleSCMAuth | None = None,
+        api_version: str | None = None,
+        page_size: int | None = None,
         http_timeout: float = 30.0,
         **adapter_kwargs: Any,
     ) -> None:
@@ -117,7 +117,7 @@ class OracleSCMConnector(InventoryConnectorBase):
             )
         raise AdapterError(f"Unknown Oracle SCM resource: {resource!r}")
 
-    async def _upsert_impl(self, payload: dict[str, Any]) -> Optional[dict[str, Any]]:
+    async def _upsert_impl(self, payload: dict[str, Any]) -> dict[str, Any] | None:
         """Oracle SCM is read-only via this connector; not implemented."""
         raise NotImplementedError("Oracle SCM connector does not support upsert.")
 
@@ -132,7 +132,7 @@ class OracleSCMConnector(InventoryConnectorBase):
     async def get_on_hand_quantity(
         self,
         item_number: str,
-        organization_code: Optional[str] = None,
+        organization_code: str | None = None,
     ) -> list[InventoryData]:
         """Return on-hand inventory records for a single item.
 
@@ -160,7 +160,7 @@ class OracleSCMConnector(InventoryConnectorBase):
 
     async def list_on_hand_quantities(
         self,
-        organization_code: Optional[str] = None,
+        organization_code: str | None = None,
         **filters: Any,
     ) -> list[InventoryData]:
         """Return all on-hand inventory records, with optional filters.
@@ -216,10 +216,10 @@ class OracleSCMConnector(InventoryConnectorBase):
 
     def _build_filter(
         self,
-        item_number: Optional[str],
-        organization_code: Optional[str],
+        item_number: str | None,
+        organization_code: str | None,
         extra_filters: dict[str, Any],
-    ) -> Optional[str]:
+    ) -> str | None:
         """Construct an Oracle SCIM-style finder/query filter string."""
         parts: list[str] = []
         if item_number:
@@ -232,9 +232,9 @@ class OracleSCMConnector(InventoryConnectorBase):
 
     async def _fetch_on_hand_quantities(
         self,
-        item_number: Optional[str] = None,
-        organization_code: Optional[str] = None,
-        extra_filters: Optional[dict[str, Any]] = None,
+        item_number: str | None = None,
+        organization_code: str | None = None,
+        extra_filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         """Paginate through Oracle onHandQuantities and return raw records."""
         if not self._base_url:

@@ -5,7 +5,7 @@ cross-sell flows described in the business summary. Doctests demonstrate how
 payloads are validated and structured.
 """
 
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -21,13 +21,13 @@ class CatalogProduct(BaseModel):
 
     sku: str
     name: str
-    description: Optional[str] = None
-    brand: Optional[str] = None
-    category: Optional[str] = None
-    price: Optional[float] = None
-    currency: Optional[str] = None
-    image_url: Optional[str] = None
-    rating: Optional[float] = None
+    description: str | None = None
+    brand: str | None = None
+    category: str | None = None
+    price: float | None = None
+    currency: str | None = None
+    image_url: str | None = None
+    rating: float | None = None
     tags: list[str] = Field(default_factory=list)
     attributes: dict[str, Any] = Field(default_factory=dict)
     variants: list[dict[str, Any]] = Field(default_factory=list)

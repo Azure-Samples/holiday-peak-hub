@@ -15,7 +15,7 @@ GET  /API_WAREHOUSE_LOC_STOCK/A_WarehouseStorageBinStock
 from __future__ import annotations
 
 import os
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable
 
 import httpx
 from holiday_peak_lib.adapters.base import AdapterError, BaseAdapter
@@ -85,7 +85,7 @@ class SAPS4HANAConnector(BaseAdapter, InventoryConnectorBase):
         params: dict[str, Any] = dict(query.get("params") or {})
         return await self._odata_get(endpoint, params=params)
 
-    async def _upsert_impl(self, payload: dict[str, Any]) -> Optional[dict[str, Any]]:
+    async def _upsert_impl(self, payload: dict[str, Any]) -> dict[str, Any] | None:
         """Execute a generic OData POST request.
 
         Keys in *payload*

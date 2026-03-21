@@ -5,8 +5,6 @@ fulfillment scenarios covered in the business summary. Each helper includes a
 doctest to demonstrate normalization.
 """
 
-from typing import Optional
-
 from holiday_peak_lib.adapters.base import BaseAdapter, BaseConnector
 from holiday_peak_lib.schemas.inventory import (
     InventoryContext,
@@ -44,10 +42,10 @@ class InventoryConnector(BaseConnector):
         ('SKU-1', 1)
     """
 
-    def __init__(self, adapter: Optional[BaseAdapter] = None, map_concurrency: int = 10) -> None:
+    def __init__(self, adapter: BaseAdapter | None = None, map_concurrency: int = 10) -> None:
         super().__init__(adapter=adapter, map_concurrency=map_concurrency)
 
-    async def get_item(self, sku: str) -> Optional[InventoryItem]:
+    async def get_item(self, sku: str) -> InventoryItem | None:
         """Fetch and normalize a single inventory item.
 
         Doctest::
@@ -91,7 +89,7 @@ class InventoryConnector(BaseConnector):
         records = await self._fetch_many(entity="warehouse_stock", sku=sku)
         return await self._map_many(WarehouseStock, records)
 
-    async def build_inventory_context(self, sku: str) -> Optional[InventoryContext]:
+    async def build_inventory_context(self, sku: str) -> InventoryContext | None:
         """Assemble item and per-warehouse stock into agent-ready context.
 
         Doctest::

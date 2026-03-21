@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -67,8 +67,8 @@ class ProductStyle(BaseModel):
     style_id: str = Field(default_factory=_new_id)
     category_id: str = Field(..., alias="categoryId")
     name: str
-    brand: Optional[str] = None
-    description: Optional[str] = None
+    brand: str | None = None
+    description: str | None = None
     tags: list[str] = Field(default_factory=list)
     source_system: str
     source_id: str
@@ -96,9 +96,9 @@ class ProductVariant(BaseModel):
     style_id: str
     category_id: str = Field(..., alias="categoryId")
     sku: str
-    size: Optional[str] = None
-    color: Optional[str] = None
-    price: Optional[float] = None
+    size: str | None = None
+    color: str | None = None
+    price: float | None = None
     currency: str = "USD"
     inventory_count: int = 0
     source_system: str
@@ -131,8 +131,8 @@ class TruthAttribute(BaseModel):
     source_system: str
     source_id: str
     status: AttributeStatus = AttributeStatus.APPROVED
-    approved_by: Optional[str] = None
-    approved_at: Optional[datetime] = None
+    approved_by: str | None = None
+    approved_at: datetime | None = None
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)
 
@@ -158,9 +158,9 @@ class ProposedAttribute(BaseModel):
     source_system: str
     source_id: str
     status: AttributeStatus = AttributeStatus.PENDING
-    reviewer: Optional[str] = None
-    review_note: Optional[str] = None
-    reviewed_at: Optional[datetime] = None
+    reviewer: str | None = None
+    review_note: str | None = None
+    reviewed_at: datetime | None = None
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)
     evidence_ids: list[str] = Field(default_factory=list)
@@ -202,9 +202,9 @@ class AuditEvent(BaseModel):
     entity_id: str = Field(..., alias="entityId")
     event_type: AuditEventType
     actor: str
-    attribute_name: Optional[str] = None
-    old_value: Optional[Any] = None
-    new_value: Optional[Any] = None
+    attribute_name: str | None = None
+    old_value: Any | None = None
+    new_value: Any | None = None
     source_system: str
     source_id: str
     occurred_at: datetime = Field(default_factory=_utcnow)
@@ -228,10 +228,10 @@ class AssetMetadata(BaseModel):
     product_id: str = Field(..., alias="productId")
     asset_type: str
     url: str
-    alt_text: Optional[str] = None
-    width: Optional[int] = None
-    height: Optional[int] = None
-    file_size_bytes: Optional[int] = None
+    alt_text: str | None = None
+    width: int | None = None
+    height: int | None = None
+    file_size_bytes: int | None = None
     source_system: str
     source_id: str
     created_at: datetime = Field(default_factory=_utcnow)

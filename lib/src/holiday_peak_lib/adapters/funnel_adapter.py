@@ -5,8 +5,6 @@ analysis scenarios referenced in the business summary. Doctests illustrate how
 adapter payloads become validated funnel contexts.
 """
 
-from typing import Optional
-
 from holiday_peak_lib.adapters.base import BaseAdapter, BaseConnector
 from holiday_peak_lib.schemas.funnel import FunnelContext, FunnelMetric
 
@@ -33,13 +31,13 @@ class FunnelConnector(BaseConnector):
         'view'
     """
 
-    def __init__(self, adapter: Optional[BaseAdapter] = None, map_concurrency: int = 10) -> None:
+    def __init__(self, adapter: BaseAdapter | None = None, map_concurrency: int = 10) -> None:
         super().__init__(adapter=adapter, map_concurrency=map_concurrency)
 
     async def get_metrics(
         self,
-        campaign_id: Optional[str] = None,
-        account_id: Optional[str] = None,
+        campaign_id: str | None = None,
+        account_id: str | None = None,
         limit: int = 20,
     ) -> list[FunnelMetric]:
         """Fetch and normalize funnel metrics for a campaign or account.
@@ -70,8 +68,8 @@ class FunnelConnector(BaseConnector):
 
     async def build_funnel_context(
         self,
-        campaign_id: Optional[str] = None,
-        account_id: Optional[str] = None,
+        campaign_id: str | None = None,
+        account_id: str | None = None,
         limit: int = 20,
     ) -> FunnelContext:
         """Assemble funnel metrics into agent-ready context.

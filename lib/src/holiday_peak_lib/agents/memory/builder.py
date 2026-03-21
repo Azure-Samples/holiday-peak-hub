@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 from .cold import ColdMemory
 from .hot import HotMemory
@@ -18,8 +18,8 @@ class MemoryRules:
     read_fallback: bool = True
     promote_on_read: bool = True
     write_through: bool = True
-    hot_ttl_seconds: Optional[int] = 300
-    warm_ttl_seconds: Optional[int] = None
+    hot_ttl_seconds: int | None = 300
+    warm_ttl_seconds: int | None = None
     write_cold: bool = False
 
 
@@ -86,7 +86,7 @@ class MemoryClient:
         return self.rules.promote_on_read and self.warm is not None
 
     @staticmethod
-    def _warm_item(key: str, value: Any, ttl: Optional[int]) -> dict[str, Any]:
+    def _warm_item(key: str, value: Any, ttl: int | None) -> dict[str, Any]:
         payload: dict[str, Any] = {"id": key, "pk": key, "value": value}
         if ttl is not None:
             payload["ttl"] = ttl
@@ -120,8 +120,8 @@ class MemoryBuilder:
         read_fallback: bool | None = None,
         promote_on_read: bool | None = None,
         write_through: bool | None = None,
-        hot_ttl_seconds: Optional[int] = None,
-        warm_ttl_seconds: Optional[int] = None,
+        hot_ttl_seconds: int | None = None,
+        warm_ttl_seconds: int | None = None,
         write_cold: bool | None = None,
     ) -> "MemoryBuilder":
         if read_fallback is not None:

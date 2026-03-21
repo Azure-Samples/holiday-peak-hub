@@ -6,7 +6,7 @@ summary. Doctests illustrate validation and defaults.
 """
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -22,11 +22,11 @@ class CRMAccount(BaseModel):
 
     account_id: str
     name: str
-    region: Optional[str] = None
-    owner: Optional[str] = None
-    industry: Optional[str] = None
-    tier: Optional[str] = None
-    lifecycle_stage: Optional[str] = None
+    region: str | None = None
+    owner: str | None = None
+    industry: str | None = None
+    tier: str | None = None
+    lifecycle_stage: str | None = None
     attributes: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -40,15 +40,15 @@ class CRMContact(BaseModel):
     """
 
     contact_id: str
-    account_id: Optional[str] = None
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    locale: Optional[str] = None
-    timezone: Optional[str] = None
+    account_id: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    locale: str | None = None
+    timezone: str | None = None
     marketing_opt_in: bool = False
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    title: Optional[str] = None
+    first_name: str | None = None
+    last_name: str | None = None
+    title: str | None = None
     tags: list[str] = Field(default_factory=list)
     preferences: dict[str, Any] = Field(default_factory=dict)
     attributes: dict[str, Any] = Field(default_factory=dict)
@@ -66,15 +66,15 @@ class CRMInteraction(BaseModel):
     """
 
     interaction_id: str
-    contact_id: Optional[str] = None
-    account_id: Optional[str] = None
+    contact_id: str | None = None
+    account_id: str | None = None
     channel: str
     occurred_at: datetime
-    duration_seconds: Optional[int] = None
-    outcome: Optional[str] = None
-    subject: Optional[str] = None
-    summary: Optional[str] = None
-    sentiment: Optional[str] = None
+    duration_seconds: int | None = None
+    outcome: str | None = None
+    subject: str | None = None
+    summary: str | None = None
+    sentiment: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -88,5 +88,5 @@ class CRMContext(BaseModel):
     """
 
     contact: CRMContact
-    account: Optional[CRMAccount] = None
+    account: CRMAccount | None = None
     interactions: list[CRMInteraction] = Field(default_factory=list)

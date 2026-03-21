@@ -19,7 +19,7 @@ import random
 import time
 from abc import ABC, abstractmethod
 from collections import OrderedDict, deque
-from typing import Any, Iterable, Optional, Type, TypeVar
+from typing import Any, Iterable, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
@@ -111,7 +111,7 @@ class BaseAdapter(ABC):
         await self._set_cache(key, result)
         return result
 
-    async def upsert(self, payload: dict[str, Any]) -> Optional[dict[str, Any]]:
+    async def upsert(self, payload: dict[str, Any]) -> dict[str, Any] | None:
         async def op():
             return await self._upsert_impl(payload)
 
@@ -137,7 +137,7 @@ class BaseAdapter(ABC):
         """Fetch data from the upstream system given a query payload."""
 
     @abstractmethod
-    async def _upsert_impl(self, payload: dict[str, Any]) -> Optional[dict[str, Any]]:
+    async def _upsert_impl(self, payload: dict[str, Any]) -> dict[str, Any] | None:
         """Create or update an entity in the upstream system."""
 
     @abstractmethod
@@ -149,7 +149,7 @@ class BaseAdapter(ABC):
         await self._acquire_rate_limit()
         await self._ensure_circuit_allows()
 
-        last_error: Optional[Exception] = None
+        last_error: Exception | None = None
         for attempt in range(1, self._retries + 2):
             try:
                 result = await asyncio.wait_for(func(), timeout=self._timeout)
@@ -210,7 +210,7 @@ class BaseAdapter(ABC):
             "reset_seconds": self._circuit_reset_seconds,
         }
 
-    async def _get_cached(self, key: tuple) -> Optional[list[dict[str, Any]]]:
+    async def _get_cached(self, key: tuple) -> list[dict[str, Any]] | None:
         if self._cache_ttl <= 0:
             return None
         async with self._lock:
@@ -267,7 +267,7 @@ class BaseConnector:
         1
     """
 
-    def __init__(self, adapter: Optional[BaseAdapter] = None, map_concurrency: int = 10) -> None:
+    def __init__(self, adapter: BaseAdapter | None = None, map_concurrency: int = 10) -> None:
         """Initialize with an optional adapter and mapping concurrency limit.
 
         >>> BaseConnector(map_concurrency=0)._map_semaphore._value
@@ -277,7 +277,7 @@ class BaseConnector:
         ...
         AdapterError: Adapter has not been configured.
         """
-        self._adapter: Optional[BaseAdapter] = adapter
+        self._adapter: BaseAdapter | None = adapter
         self._map_semaphore = asyncio.Semaphore(max(1, map_concurrency))
 
     @property
@@ -304,7 +304,7 @@ class BaseConnector:
         """Open a connection using the underlying adapter."""
         await self.adapter.connect(**kwargs)
 
-    async def _fetch_first(self, **query: Any) -> Optional[dict[str, Any]]:
+    async def _fetch_first(self, **query: Any) -> dict[str, Any] | None:
         """Return the first record that matches the query, if present.
 
         >>> class OneAdapter(BaseAdapter):
@@ -346,8 +346,8 @@ class BaseConnector:
             raise AdapterError(f"Failed to fetch data for query: {query}") from exc
 
     async def _map_single(
-        self, model: Type[ModelT], payload: Optional[dict[str, Any]]
-    ) -> Optional[ModelT]:
+        self, model: type[ModelT], payload: dict[str, Any] | None
+    ) -> ModelT | None:
         """Validate and coerce a single payload into the target model.
 
         >>> class Model(BaseModel):
@@ -370,7 +370,7 @@ class BaseConnector:
             raise AdapterError(f"Invalid payload for {model.__name__}") from exc
 
     async def _map_many(
-        self, model: Type[ModelT], payloads: Iterable[dict[str, Any]]
+        self, model: type[ModelT], payloads: Iterable[dict[str, Any]]
     ) -> list[ModelT]:
         """Normalize multiple payloads concurrently with a bounded semaphore.
 

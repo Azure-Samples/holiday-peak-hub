@@ -20,7 +20,6 @@ from __future__ import annotations
 import os
 import time
 from dataclasses import dataclass
-from typing import Optional
 
 import httpx
 
@@ -56,12 +55,12 @@ class SalesforceAuth:
     def __init__(
         self,
         *,
-        client_id: Optional[str] = None,
-        client_secret: Optional[str] = None,
-        username: Optional[str] = None,
-        password: Optional[str] = None,
-        login_url: Optional[str] = None,
-        http_client: Optional[httpx.AsyncClient] = None,
+        client_id: str | None = None,
+        client_secret: str | None = None,
+        username: str | None = None,
+        password: str | None = None,
+        login_url: str | None = None,
+        http_client: httpx.AsyncClient | None = None,
     ) -> None:
         self._client_id = client_id or os.environ.get("SALESFORCE_CLIENT_ID", "")
         self._client_secret = client_secret or os.environ.get("SALESFORCE_CLIENT_SECRET", "")
@@ -71,7 +70,7 @@ class SalesforceAuth:
             login_url or os.environ.get("SALESFORCE_LOGIN_URL", self._DEFAULT_LOGIN_URL)
         ).rstrip("/")
         self._http_client = http_client
-        self._token_entry: Optional[_TokenEntry] = None
+        self._token_entry: _TokenEntry | None = None
 
     async def get_token(self) -> _TokenEntry:
         """Return a valid access token, refreshing if necessary."""
