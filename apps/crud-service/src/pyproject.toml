@@ -38,6 +38,7 @@ dependencies = [
     # Utilities
     "python-dateutil>=2.9.0",
     "email-validator>=2.2.0",
+    "holiday-peak-lib>=0.1.0",
 ]
 
 [project.optional-dependencies]
@@ -53,6 +54,9 @@ dev = [
     "mypy>=1.13.0",
     "ruff>=0.8.0",
 ]
+
+[tool.uv.sources]
+holiday-peak-lib = { path = "../../../lib/src", editable = true }
 
 [build-system]
 requires = ["hatchling"]

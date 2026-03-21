@@ -7,6 +7,8 @@ Provides the transactional FastAPI microservice for Holiday Peak Hub domain oper
 - Own customer, catalog, cart, order, payment, and operational CRUD workflows.
 - Expose API surfaces used by frontend and service integrations.
 - Publish domain events consumed by asynchronous agent services.
+- Compose routes through bounded groups (`platform`, `commerce`, `staff`, `truth`) while preserving existing API paths.
+- Treat connector bootstrap as optional runtime wiring when connector domains are configured.
 
 ## Key endpoints or interfaces
 - Root and health endpoints: `GET /`, `GET /health`, `GET /ready`.

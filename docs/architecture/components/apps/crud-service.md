@@ -16,6 +16,7 @@ The CRUD service is a non-agent FastAPI microservice that owns transactional sta
 - **APIM-routed agent invocation** (12 agent methods with circuit breaker + retry)
 - **JWKS-based JWT authentication** with Entra ID
 - **Brand-shopping contract surface** for UI personalization orchestration
+- **Bounded route composition groups** (`platform`, `commerce`, `staff`, `truth`) with unchanged endpoint contracts
 
 ## Key Endpoints
 
@@ -126,6 +127,11 @@ The `sla` object carries lifecycle timestamps (`requested_at`, `approved_at`, `r
 - `circuitbreaker` (failure_threshold=5, recovery_timeout=60s)
 - `tenacity` retry with exponential backoff (3 attempts)
 - Graceful degradation: returns `None` if agent unavailable
+
+## Connector Wiring Boundary
+
+- Connector registry bootstrap is activated only when connector domains are configured.
+- Connector package capabilities are treated as optional install extras for dependency boundary control.
 
 ## Events
 

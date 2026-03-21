@@ -6,48 +6,19 @@ for transactional data operations and user-facing endpoints.
 
 import os
 from contextlib import asynccontextmanager
+from importlib import import_module
+from typing import Any
 
 from azure.monitor.opentelemetry import configure_azure_monitor
 from crud_service.auth.dependencies import get_key_vault_secret
+from crud_service.composition import register_routes
 from crud_service.config.settings import get_settings
 from crud_service.consumers import get_connector_sync_consumer
 from crud_service.integrations.event_publisher import get_event_publisher
 from crud_service.repositories.base import BaseRepository
-from crud_service.routes import (
-    acp_checkout,
-    acp_payments,
-    acp_products,
-    audit_trail,
-    auth,
-    brand_shopping,
-    cart,
-    categories,
-    checkout,
-    completeness,
-    connector_webhooks,
-    health,
-    inventory,
-    orders,
-    payments,
-    products,
-    proposed_attributes,
-)
-from crud_service.routes import returns as customer_returns
-from crud_service.routes import (
-    reviews,
-    schemas_registry,
-    truth_attributes,
-    ucp_products,
-    users,
-    webhooks,
-)
-from crud_service.routes.staff import analytics
-from crud_service.routes.staff import returns as staff_returns
-from crud_service.routes.staff import shipments, tickets
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from holiday_peak_lib.connectors.registry import ConnectorRegistry
 from holiday_peak_lib.utils import (
     CORRELATION_HEADER,
     clear_correlation_id,
@@ -59,6 +30,16 @@ from opentelemetry import trace
 # Get settings
 settings = get_settings()
 logger = configure_logging(app_name=settings.service_name)
+
+
+def create_connector_registry() -> Any | None:
+    try:
+        connector_module = import_module("holiday_peak_lib.connectors.registry")
+        registry_class = getattr(connector_module, "ConnectorRegistry")
+        return registry_class()
+    except (ImportError, AttributeError) as exc:
+        logger.warning("Connector registry unavailable; skipping connector bootstrap: %s", exc)
+        return None
 
 
 @asynccontextmanager
@@ -87,26 +68,27 @@ async def lifespan(_app: FastAPI):
     _app.state.connector_sync_consumer = connector_sync_consumer
     logger.info("Connector sync consumer initialized")
 
-    connector_registry = ConnectorRegistry()
-    discovered = await connector_registry.discover()
-    logger.info("Connector classes discovered: %s", discovered)
-
     configured_domains = [
         item.strip().lower()
         for item in (os.getenv("CONNECTOR_ENABLED_DOMAINS", "").split(","))
         if item.strip()
     ]
-    for domain in configured_domains:
-        try:
-            await connector_registry.create(domain)
-            logger.info("Connector created for domain '%s'", domain)
-        except ValueError as exc:
-            logger.warning("Connector bootstrap skipped for domain '%s': %s", domain, exc)
+    if configured_domains:
+        connector_registry = create_connector_registry()
+        if connector_registry is not None:
+            discovered = await connector_registry.discover()
+            logger.info("Connector classes discovered: %s", discovered)
+            for domain in configured_domains:
+                try:
+                    await connector_registry.create(domain)
+                    logger.info("Connector created for domain '%s'", domain)
+                except ValueError as exc:
+                    logger.warning("Connector bootstrap skipped for domain '%s': %s", domain, exc)
 
-    health_interval = float(os.getenv("CONNECTOR_HEALTH_INTERVAL_SECONDS", "60"))
-    await connector_registry.start_health_monitor(interval_seconds=health_interval)
-    _app.state.connector_registry = connector_registry
-    logger.info("Connector health monitor started")
+            health_interval = float(os.getenv("CONNECTOR_HEALTH_INTERVAL_SECONDS", "60"))
+            await connector_registry.start_health_monitor(interval_seconds=health_interval)
+            _app.state.connector_registry = connector_registry
+            logger.info("Connector health monitor started")
 
     # Resolve DB credentials from Key Vault only for password mode
     if settings.postgres_auth_mode == "password" and not settings.postgres_password:
@@ -131,7 +113,7 @@ async def lifespan(_app: FastAPI):
 
     # Shutdown
     logger.info("Shutting down CRUD Service...")
-    connector_registry: ConnectorRegistry | None = getattr(_app.state, "connector_registry", None)
+    connector_registry = getattr(_app.state, "connector_registry", None)
     if connector_registry:
         await connector_registry.stop_health_monitor()
         logger.info("Connector health monitor stopped")
@@ -200,39 +182,7 @@ async def global_exception_handler(_request, exc):
     )
 
 
-# Include routers
-app.include_router(health.router, tags=["Health"])
-app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
-app.include_router(users.router, prefix="/api", tags=["Users"])
-app.include_router(products.router, prefix="/api", tags=["Products"])
-app.include_router(categories.router, prefix="/api", tags=["Categories"])
-app.include_router(cart.router, prefix="/api", tags=["Cart"])
-app.include_router(orders.router, prefix="/api", tags=["Orders"])
-app.include_router(inventory.router, prefix="/api", tags=["Inventory"])
-app.include_router(checkout.router, prefix="/api", tags=["Checkout"])
-app.include_router(payments.router, prefix="/api", tags=["Payments"])
-app.include_router(customer_returns.router, prefix="/api/returns", tags=["Returns"])
-app.include_router(webhooks.router, tags=["Webhooks"])
-app.include_router(connector_webhooks.router, tags=["Connector Webhooks"])
-app.include_router(reviews.router, prefix="/api", tags=["Reviews"])
-app.include_router(brand_shopping.router, prefix="/api", tags=["Brand Shopping"])
-app.include_router(acp_products.router, prefix="/acp", tags=["ACP Products"])
-app.include_router(acp_checkout.router, prefix="/acp", tags=["ACP Checkout"])
-app.include_router(acp_payments.router, prefix="/acp", tags=["ACP Payments"])
-
-# Staff routes
-app.include_router(analytics.router, prefix="/api/staff/analytics", tags=["Staff Analytics"])
-app.include_router(tickets.router, prefix="/api/staff/tickets", tags=["Staff Tickets"])
-app.include_router(staff_returns.router, prefix="/api/staff/returns", tags=["Staff Returns"])
-app.include_router(shipments.router, prefix="/api/staff/shipments", tags=["Staff Shipments"])
-
-# Truth-layer routes
-app.include_router(truth_attributes.router, prefix="/api", tags=["Truth Attributes"])
-app.include_router(proposed_attributes.router, prefix="/api", tags=["Proposed Attributes"])
-app.include_router(schemas_registry.router, prefix="/api", tags=["Schemas Registry"])
-app.include_router(completeness.router, prefix="/api", tags=["Completeness"])
-app.include_router(audit_trail.router, prefix="/api", tags=["Audit Trail"])
-app.include_router(ucp_products.router, prefix="/api", tags=["UCP Products"])
+register_routes(app)
 
 
 @app.get("/")
