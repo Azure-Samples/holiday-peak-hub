@@ -1,5 +1,6 @@
 """Integration tests for product API."""
 
+import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -153,6 +154,19 @@ def test_list_products_non_iterable_repo_result_returns_503(client):
         "crud_service.routes.products.product_repo.query",
         new_callable=AsyncMock,
         return_value=42,
+    ):
+        response = client.get("/api/products")
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Product catalog is temporarily unavailable"
+
+
+def test_list_products_repo_timeout_returns_503(client):
+    """Repository timeout should degrade to stable 503."""
+    with patch(
+        "crud_service.routes.products.product_repo.query",
+        new_callable=AsyncMock,
+        side_effect=asyncio.TimeoutError(),
     ):
         response = client.get("/api/products")
 

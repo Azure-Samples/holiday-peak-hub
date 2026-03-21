@@ -7,6 +7,7 @@ from typing import Any, Generic, TypeVar
 
 import asyncpg
 from azure.identity.aio import DefaultAzureCredential
+
 from crud_service.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,224 @@ class BaseRepository(Generic[T]):
         """
         self.container_name = container_name
         self.table_name = container_name
+
+    @staticmethod
+    def _add_sql_param(sql_args: list[Any], value: Any) -> str:
+        """Append value to SQL args and return the positional placeholder."""
+        sql_args.append(value)
+        return f"${len(sql_args)}"
+
+    @classmethod
+    def _translate_where_clause_to_sql(
+        cls,
+        clause: str,
+        parameter_map: dict[str, Any],
+        sql_args: list[Any],
+    ) -> str | None:
+        """Translate supported Cosmos-style WHERE clauses to SQL predicates."""
+        clause = clause.strip()
+
+        translated_compound = cls._translate_compound_clause_to_sql(
+            clause,
+            parameter_map,
+            sql_args,
+        )
+        if translated_compound is not None:
+            return translated_compound
+
+        return cls._translate_simple_clause_to_sql(clause, parameter_map, sql_args)
+
+    @classmethod
+    def _translate_compound_clause_to_sql(
+        cls,
+        clause: str,
+        parameter_map: dict[str, Any],
+        sql_args: list[Any],
+    ) -> str | None:
+        """Translate OR/AND clauses recursively when all parts are supported."""
+        for operator in ("OR", "AND"):
+            token = f" {operator} "
+            if token in clause.upper():
+                parts = re.split(rf"\s+{operator}\s+", clause, flags=re.IGNORECASE)
+                translated_parts = []
+                for part in parts:
+                    translated = cls._translate_where_clause_to_sql(part, parameter_map, sql_args)
+                    if not translated:
+                        return None
+                    translated_parts.append(f"({translated})")
+                return f" {operator} ".join(translated_parts)
+        return None
+
+    @classmethod
+    def _translate_simple_clause_to_sql(
+        cls,
+        clause: str,
+        parameter_map: dict[str, Any],
+        sql_args: list[Any],
+    ) -> str | None:
+        """Translate non-compound supported clause patterns to SQL."""
+
+        contains_match = re.match(
+            r"CONTAINS\(LOWER\(c\.(\w+)\),\s*LOWER\((@\w+)\)\)",
+            clause,
+            re.IGNORECASE,
+        )
+        if contains_match:
+            field_name, param_name = contains_match.groups()
+            placeholder = cls._add_sql_param(sql_args, f"%{str(parameter_map.get(param_name, ''))}%")
+            return f"LOWER(data->>'{field_name}') LIKE LOWER({placeholder})"
+
+        not_defined_match = re.match(r"NOT IS_DEFINED\(c\.(\w+)\)", clause, re.IGNORECASE)
+        if not_defined_match:
+            field_name = not_defined_match.group(1)
+            return f"NOT (data ? '{field_name}')"
+
+        null_match = re.match(r"c\.(\w+)\s*=\s*null", clause, re.IGNORECASE)
+        if null_match:
+            field_name = null_match.group(1)
+            return f"data->>'{field_name}' IS NULL"
+
+        parameter_match = re.match(r"c\.(\w+)\s*=\s*(@\w+)", clause, re.IGNORECASE)
+        if parameter_match:
+            field_name, param_name = parameter_match.groups()
+            placeholder = cls._add_sql_param(sql_args, str(parameter_map.get(param_name, "")))
+            return f"data->>'{field_name}' = {placeholder}"
+
+        literal_match = re.match(r"c\.(\w+)\s*=\s*'([^']*)'", clause, re.IGNORECASE)
+        if literal_match:
+            field_name, literal_value = literal_match.groups()
+            placeholder = cls._add_sql_param(sql_args, literal_value)
+            return f"data->>'{field_name}' = {placeholder}"
+
+        return None
+
+    @staticmethod
+    def _decode_rows(rows: list[Any]) -> list[dict[str, Any]]:
+        """Decode query rows into dictionaries while skipping malformed payloads."""
+        items: list[dict[str, Any]] = []
+        for row in rows:
+            decoded = BaseRepository._decode_row_data(row["data"])
+            if decoded is not None:
+                items.append(decoded)
+        return items
+
+    async def _fetch_rows_for_full_scan(
+        self,
+        pool: asyncpg.Pool,
+        partition_key: str | None,
+    ) -> list[Any]:
+        """Fetch rows for fallback in-memory filtering path."""
+        async with pool.acquire() as conn:
+            if partition_key:
+                return await conn.fetch(
+                    f"SELECT data FROM {self.table_name} WHERE partition_key = $1",
+                    partition_key,
+                    timeout=settings.postgres_query_timeout_seconds,
+                )
+
+            return await conn.fetch(
+                f"SELECT data FROM {self.table_name}",
+                timeout=settings.postgres_query_timeout_seconds,
+            )
+
+    @staticmethod
+    def _extract_where_clause(query: str) -> str:
+        """Extract WHERE clause from Cosmos-style query string when present."""
+        where_match = re.search(r"WHERE\s+(.*?)\s*(ORDER BY|OFFSET|LIMIT|$)", query, re.IGNORECASE)
+        if where_match:
+            return where_match.group(1).strip()
+        return ""
+
+    @staticmethod
+    def _apply_order_by(items: list[dict[str, Any]], query: str) -> list[dict[str, Any]]:
+        """Apply ORDER BY clause semantics in fallback mode."""
+        order_match = re.search(r"ORDER BY\s+c\.(\w+)\s+(ASC|DESC)", query, re.IGNORECASE)
+        if not order_match:
+            return items
+
+        order_field = order_match.group(1)
+        reverse = order_match.group(2).upper() == "DESC"
+        return sorted(items, key=lambda item: item.get(order_field, ""), reverse=reverse)
+
+    @staticmethod
+    def _apply_limit(
+        items: list[dict[str, Any]],
+        query: str,
+        parameter_map: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        """Apply LIMIT clause semantics in fallback mode."""
+        limit_match = re.search(r"LIMIT\s+(@\w+|\d+)", query, re.IGNORECASE)
+        if not limit_match:
+            return items
+
+        limit_token = limit_match.group(1)
+        if limit_token.startswith("@"):
+            limit_value = int(parameter_map.get(limit_token, len(items)))
+        else:
+            limit_value = int(limit_token)
+        return items[:limit_value]
+
+    def _build_sql_pushdown_query(
+        self,
+        query: str,
+        parameter_map: dict[str, Any],
+        partition_key: str | None,
+    ) -> tuple[str, list[Any]] | None:
+        """Build SQL pushdown query for supported Cosmos-style query patterns."""
+        if not re.match(r"^\s*SELECT\s+\*\s+FROM\s+c\b", query, re.IGNORECASE):
+            return None
+
+        sql_args: list[Any] = []
+        where_predicates: list[str] = []
+
+        if partition_key is not None:
+            placeholder = self._add_sql_param(sql_args, str(partition_key))
+            where_predicates.append(f"partition_key = {placeholder}")
+
+        where_match = re.search(r"WHERE\s+(.*?)\s*(ORDER BY|OFFSET|LIMIT|$)", query, re.IGNORECASE)
+        if where_match:
+            translated = self._translate_where_clause_to_sql(
+                where_match.group(1).strip(),
+                parameter_map,
+                sql_args,
+            )
+            if not translated:
+                return None
+            where_predicates.append(translated)
+
+        sql_parts = [f"SELECT data FROM {self.table_name}"]
+        if where_predicates:
+            sql_parts.append("WHERE " + " AND ".join(f"({predicate})" for predicate in where_predicates))
+
+        order_match = re.search(r"ORDER BY\s+c\.(\w+)\s+(ASC|DESC)", query, re.IGNORECASE)
+        if order_match:
+            order_field = order_match.group(1)
+            order_direction = order_match.group(2).upper()
+            sql_parts.append(f"ORDER BY data->>'{order_field}' {order_direction}")
+
+        offset_match = re.search(r"OFFSET\s+(@\w+|\d+)", query, re.IGNORECASE)
+        if offset_match:
+            offset_token = offset_match.group(1)
+            offset_value = (
+                int(parameter_map.get(offset_token, 0))
+                if offset_token.startswith("@")
+                else int(offset_token)
+            )
+            placeholder = self._add_sql_param(sql_args, offset_value)
+            sql_parts.append(f"OFFSET {placeholder}")
+
+        limit_match = re.search(r"LIMIT\s+(@\w+|\d+)", query, re.IGNORECASE)
+        if limit_match:
+            limit_token = limit_match.group(1)
+            limit_value = (
+                int(parameter_map.get(limit_token, 0))
+                if limit_token.startswith("@")
+                else int(limit_token)
+            )
+            placeholder = self._add_sql_param(sql_args, limit_value)
+            sql_parts.append(f"LIMIT {placeholder}")
+
+        return " ".join(sql_parts), sql_args
 
     @classmethod
     async def initialize_pool(cls):
@@ -314,45 +533,29 @@ class BaseRepository(Generic[T]):
 
         parameter_map = {p["name"]: p["value"] for p in (parameters or [])}
 
-        async with pool.acquire() as conn:
-            if partition_key:
+        pushdown = self._build_sql_pushdown_query(query, parameter_map, partition_key)
+        if pushdown:
+            sql, sql_args = pushdown
+            async with pool.acquire() as conn:
                 rows = await conn.fetch(
-                    f"SELECT data FROM {self.table_name} WHERE partition_key = $1",
-                    partition_key,
+                    sql,
+                    *sql_args,
+                    timeout=settings.postgres_query_timeout_seconds,
                 )
-            else:
-                rows = await conn.fetch(f"SELECT data FROM {self.table_name}")
 
-        items: list[dict[str, Any]] = []
-        for row in rows:
-            decoded = self._decode_row_data(row["data"])
-            if decoded is not None:
-                items.append(decoded)
+            return self._decode_rows(rows)
 
-        where_clause = ""
-        where_match = re.search(r"WHERE\s+(.*?)\s*(ORDER BY|OFFSET|LIMIT|$)", query, re.IGNORECASE)
-        if where_match:
-            where_clause = where_match.group(1).strip()
+        rows = await self._fetch_rows_for_full_scan(pool, partition_key)
+        items = self._decode_rows(rows)
 
+        where_clause = self._extract_where_clause(query)
         if where_clause:
             items = [
                 item for item in items if self._matches_where(item, where_clause, parameter_map)
             ]
 
-        order_match = re.search(r"ORDER BY\s+c\.(\w+)\s+(ASC|DESC)", query, re.IGNORECASE)
-        if order_match:
-            order_field = order_match.group(1)
-            reverse = order_match.group(2).upper() == "DESC"
-            items = sorted(items, key=lambda item: item.get(order_field, ""), reverse=reverse)
-
-        limit_match = re.search(r"LIMIT\s+(@\w+|\d+)", query, re.IGNORECASE)
-        if limit_match:
-            limit_token = limit_match.group(1)
-            if limit_token.startswith("@"):
-                limit_value = int(parameter_map.get(limit_token, len(items)))
-            else:
-                limit_value = int(limit_token)
-            items = items[:limit_value]
+        items = self._apply_order_by(items, query)
+        items = self._apply_limit(items, query, parameter_map)
 
         return items
 

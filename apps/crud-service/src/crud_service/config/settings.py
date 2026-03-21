@@ -49,6 +49,10 @@ class Settings(BaseSettings):
     )
     postgres_min_pool_size: int = Field(default=2, description="Minimum PostgreSQL pool size")
     postgres_max_pool_size: int = Field(default=20, description="Maximum PostgreSQL pool size")
+    postgres_query_timeout_seconds: float = Field(
+        default=8.0,
+        description="Timeout for repository PostgreSQL queries (seconds)",
+    )
 
     # Azure Event Hubs (use Managed Identity, no connection string)
     event_hub_namespace: str = Field(

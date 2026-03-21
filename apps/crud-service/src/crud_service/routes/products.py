@@ -1,21 +1,25 @@
 """Product routes."""
 
+import asyncio
 import logging
 from collections.abc import Iterable
 
 import httpx
 from circuitbreaker import CircuitBreakerError
-from crud_service.auth import User, get_current_user_optional
-from crud_service.integrations import get_agent_client
-from crud_service.repositories import ProductRepository
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from holiday_peak_lib.schemas import CanonicalProduct
 from pydantic import BaseModel, ValidationError
+
+from crud_service.auth import User, get_current_user_optional
+from crud_service.config.settings import get_settings
+from crud_service.integrations import get_agent_client
+from crud_service.repositories import ProductRepository
 
 router = APIRouter()
 product_repo = ProductRepository()
 agent_client = get_agent_client()
 logger = logging.getLogger(__name__)
+settings = get_settings()
 AGENT_FALLBACK_EXCEPTIONS = (httpx.HTTPError, CircuitBreakerError)
 
 
@@ -128,8 +132,37 @@ async def list_products(
             limit=limit,
             current_user=current_user,
         )
+    except asyncio.TimeoutError as exc:
+        logger.warning(
+            "Product list fetch timed out",
+            extra={
+                "app_role": settings.service_name,
+                "endpoint": "/api/products",
+                "search_present": bool(search),
+                "category_present": bool(category),
+                "limit": limit,
+                "error_type": type(exc).__name__,
+            },
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Product catalog is temporarily unavailable",
+        ) from exc
     except Exception as exc:
-        logger.warning("Product list fetch failed: %s", exc, exc_info=True)
+        logger.warning(
+            "Product list fetch failed: %s",
+            exc,
+            extra={
+                "app_role": settings.service_name,
+                "endpoint": "/api/products",
+                "search_present": bool(search),
+                "category_present": bool(category),
+                "limit": limit,
+                "error_type": type(exc).__name__,
+            },
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Product catalog is temporarily unavailable",
