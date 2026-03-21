@@ -56,6 +56,10 @@ permissions:
 
 jobs:
   deploy:
+    permissions:
+      id-token: write
+      contents: read
+      issues: write
     uses: ./.github/workflows/deploy-azd.yml
     with:
       environment: dev
