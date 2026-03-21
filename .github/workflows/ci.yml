@@ -117,7 +117,7 @@ jobs:
             "${{ matrix.service.context }}"
 
       - name: Trivy scan (HIGH/CRITICAL)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@0.35.0
         with:
           image-ref: ${{ steps.image.outputs.image_ref }}
           format: sarif
@@ -125,6 +125,42 @@ jobs:
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: '1'
+
+      - name: Generate Docker hardening evidence
+        run: |
+          image_ref="${{ steps.image.outputs.image_ref }}"
+          service_name="${{ matrix.service.image_name }}"
+          report="hardening-evidence-${service_name}.md"
+
+          image_size_bytes=$(docker image inspect "$image_ref" --format '{{.Size}}')
+          runtime_pkg_matches=$(docker run --rm --entrypoint sh "$image_ref" -c "dpkg -l 2>/dev/null | egrep 'build-essential|libpq-dev|git|curl' || true")
+
+          {
+            echo "# Docker Hardening Evidence"
+            echo ""
+            echo "- service: ${service_name}"
+            echo "- dockerfile: ${{ matrix.service.dockerfile }}"
+            echo "- context: ${{ matrix.service.context }}"
+            echo "- image_ref: ${image_ref}"
+            echo "- image_size_bytes: ${image_size_bytes}"
+            echo ""
+            echo "## Runtime package check"
+            if [ -n "$runtime_pkg_matches" ]; then
+              echo "Detected build-only packages in runtime image:"
+              echo '```'
+              echo "$runtime_pkg_matches"
+              echo '```'
+            else
+              echo "No build-only packages detected in runtime image for pattern: build-essential|libpq-dev|git|curl"
+            fi
+          } > "$report"
+
+      - name: Upload hardening evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hardening-evidence-${{ matrix.service.image_name }}
+          path: hardening-evidence-${{ matrix.service.image_name }}.md
 
       - name: Upload Trivy SARIF
         if: always()
@@ -183,7 +219,7 @@ jobs:
 
       - name: Trivy scan published image (HIGH/CRITICAL)
         if: steps.image.outputs.exists == 'true'
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@0.35.0
         with:
           image-ref: ${{ steps.image.outputs.image_ref }}
           format: sarif
