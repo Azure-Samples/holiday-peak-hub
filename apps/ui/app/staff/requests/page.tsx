@@ -21,7 +21,7 @@ import {
   useStaffTickets,
   useUpdateStaffTicket,
 } from '@/lib/hooks/useStaff';
-import type { Return, ReturnStatus, Ticket, TicketStatus } from '@/lib/types/api';
+import type { Return, ReturnStatus, Ticket, TicketPriority, TicketStatus, UpdateTicketRequest } from '@/lib/types/api';
 
 const getReturnLifecycleMessage = (item: Return): string => {
   if (item.status === 'requested') {
@@ -85,7 +85,7 @@ export default function RequestsPage() {
 
   const [createUserId, setCreateUserId] = useState('');
   const [createSubject, setCreateSubject] = useState('');
-  const [createPriority, setCreatePriority] = useState('medium');
+  const [createPriority, setCreatePriority] = useState<TicketPriority>('medium');
   const [createDescription, setCreateDescription] = useState('');
 
   const [selectedTicketId, setSelectedTicketId] = useState('');
@@ -251,8 +251,8 @@ export default function RequestsPage() {
       return;
     }
 
-    const request = {
-      status: hasStatusChange ? updateStatus : undefined,
+    const request: UpdateTicketRequest = {
+      status: hasStatusChange && updateStatus ? updateStatus : undefined,
       assignee_id: hasAssigneeChange ? updateAssigneeValue || undefined : undefined,
       reason: actionReasonValue || undefined,
     };
@@ -380,7 +380,7 @@ export default function RequestsPage() {
                             { value: 'urgent', label: 'Urgent' },
                           ]}
                           value={createPriority}
-                          onChange={(event) => setCreatePriority(event.target.value)}
+                          onChange={(event) => setCreatePriority(event.target.value as TicketPriority)}
                           placeholder="Priority"
                           ariaLabel="Priority for new ticket"
                         />

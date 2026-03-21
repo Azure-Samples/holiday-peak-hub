@@ -161,17 +161,16 @@ export function darken(col: string, amt: number): string {
   return colorLuminance(col, amt);
 }
 export function hexToRgbA(hex: string, opacity: number): string {
-  let c: string[] | string | number;
   const o = opacity || 1;
   if (/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)) {
-    c = hex.substring(1).split("");
+    let c = hex.substring(1).split("");
     if (c.length === 3) {
       c = [c[0], c[0], c[1], c[1], c[2], c[2]];
     }
-    c = "0x" + c.join("");
+    const numeric = Number(`0x${c.join("")}`);
     return (
       "rgba(" +
-      [(c >> 16) & 255, (c >> 8) & 255, c & 255].join(",") +
+      [(numeric >> 16) & 255, (numeric >> 8) & 255, numeric & 255].join(",") +
       "," +
       o +
       ")"

@@ -43,8 +43,8 @@ function getProxyFailureError(error: unknown): ProxyFailureShape | null {
   }
 
   return {
-    failureKind: proxyError.details.proxy.failureKind,
-    remediation: proxyError.details.proxy.remediation,
+    failureKind: proxyFailure.failureKind,
+    remediation: proxyFailure.remediation,
   };
 }
 

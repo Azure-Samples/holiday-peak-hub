@@ -192,11 +192,13 @@ function UnsupportedTabState({ message }: { message: string }) {
   const headingId = React.useId();
 
   return (
-    <Card className="p-6" role="note" aria-labelledby={headingId}>
-      <h3 id={headingId} className="text-base font-semibold text-gray-900 dark:text-white mb-2">
-        Feature unavailable
-      </h3>
-      <p className="text-sm text-gray-600 dark:text-gray-400">{message}</p>
+    <Card className="p-6">
+      <div role="note" aria-labelledby={headingId}>
+        <h3 id={headingId} className="text-base font-semibold text-gray-900 dark:text-white mb-2">
+          Feature unavailable
+        </h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400">{message}</p>
+      </div>
     </Card>
   );
 }

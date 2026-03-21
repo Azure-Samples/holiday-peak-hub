@@ -49,14 +49,23 @@ export default function SalesAnalyticsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(data.top_products || []).map((entry, index) => (
-                    <tr key={`top-product-${index}`} className="border-t border-gray-200 dark:border-gray-700">
-                      <td className="px-4 py-3">{entry.name || entry.id || `Product ${index + 1}`}</td>
-                      <td className="px-4 py-3">
-                        <pre className="bg-gray-100 dark:bg-gray-800 p-2 rounded-lg overflow-x-auto">{JSON.stringify(entry, null, 2)}</pre>
-                      </td>
-                    </tr>
-                  ))}
+                  {(data.top_products || []).map((entry, index) => {
+                    const productName =
+                      typeof entry.name === 'string' && entry.name.length > 0
+                        ? entry.name
+                        : typeof entry.id === 'string' && entry.id.length > 0
+                        ? entry.id
+                        : `Product ${index + 1}`;
+
+                    return (
+                      <tr key={`top-product-${index}`} className="border-t border-gray-200 dark:border-gray-700">
+                        <td className="px-4 py-3">{productName}</td>
+                        <td className="px-4 py-3">
+                          <pre className="bg-gray-100 dark:bg-gray-800 p-2 rounded-lg overflow-x-auto">{JSON.stringify(entry, null, 2)}</pre>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
               {!data.top_products?.length && (

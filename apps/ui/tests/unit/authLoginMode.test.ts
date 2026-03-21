@@ -31,7 +31,7 @@ describe('msalConfig login mode', () => {
   });
 
   it('forces dev mock mode off in production runtime', async () => {
-    process.env.NODE_ENV = 'production';
+    process.env = { ...process.env, NODE_ENV: 'production' } as NodeJS.ProcessEnv;
     process.env.NEXT_PUBLIC_DEV_AUTH_MOCK = 'true';
     const config = await import('../../lib/auth/msalConfig');
     expect(config.isDevAuthMockUiEnabled).toBe(false);

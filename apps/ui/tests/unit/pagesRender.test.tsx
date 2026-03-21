@@ -24,7 +24,7 @@ import NewArrivalsPage from '../../app/new/page';
 
 const redirect = jest.fn();
 const useSearchParamsMock = jest.fn(() => ({
-  get: () => null,
+  get: (_key: string) => null as string | null,
 }));
 
 jest.mock('next/navigation', () => ({
@@ -503,7 +503,7 @@ jest.mock('@/components/templates/CheckoutLayout', () => ({
 describe('Page rendering smoke tests', () => {
   beforeEach(() => {
     useSearchParamsMock.mockReturnValue({
-      get: () => null,
+      get: (_key: string) => null,
     });
   });
 

@@ -68,7 +68,7 @@ describe('resolveServerCrudApiBaseUrl', () => {
       NEXT_PUBLIC_CRUD_API_URL: 'https://primary.example.net/',
       NEXT_PUBLIC_API_URL: 'https://secondary.example.net',
       CRUD_API_URL: 'https://tertiary.example.net',
-    } as NodeJS.ProcessEnv);
+    } as unknown as NodeJS.ProcessEnv);
 
     expect(resolved).toEqual({
       baseUrl: 'https://primary.example.net',
@@ -79,7 +79,7 @@ describe('resolveServerCrudApiBaseUrl', () => {
   it('falls back to NEXT_PUBLIC_API_URL then CRUD_API_URL', () => {
     const fallbackToPublic = resolveServerCrudApiBaseUrl({
       NEXT_PUBLIC_API_URL: 'https://fallback-public.example.net/',
-    } as NodeJS.ProcessEnv);
+    } as unknown as NodeJS.ProcessEnv);
 
     expect(fallbackToPublic).toEqual({
       baseUrl: 'https://fallback-public.example.net',
@@ -88,7 +88,7 @@ describe('resolveServerCrudApiBaseUrl', () => {
 
     const fallbackToBase = resolveServerCrudApiBaseUrl({
       NEXT_PUBLIC_API_BASE_URL: 'https://fallback-base.example.net/',
-    } as NodeJS.ProcessEnv);
+    } as unknown as NodeJS.ProcessEnv);
 
     expect(fallbackToBase).toEqual({
       baseUrl: 'https://fallback-base.example.net',
@@ -97,7 +97,7 @@ describe('resolveServerCrudApiBaseUrl', () => {
 
     const fallbackToServerOnly = resolveServerCrudApiBaseUrl({
       CRUD_API_URL: 'https://fallback-server.example.net/',
-    } as NodeJS.ProcessEnv);
+    } as unknown as NodeJS.ProcessEnv);
 
     expect(fallbackToServerOnly).toEqual({
       baseUrl: 'https://fallback-server.example.net',

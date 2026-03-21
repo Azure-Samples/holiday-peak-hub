@@ -49,6 +49,10 @@ function decodeUtf8(bytes: Uint8Array): string {
   return decodeURIComponent(escape(binary));
 }
 
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+}
+
 function toBase64Url(bytes: Uint8Array): string {
   return btoa(toBinaryString(bytes))
     .replace(/\+/g, '-')
@@ -80,7 +84,7 @@ function normalizeRoles(roles: string[]): string[] {
 async function getSigningKey(secret: string): Promise<CryptoKey> {
   return crypto.subtle.importKey(
     'raw',
-    encodeUtf8(secret),
+    toArrayBuffer(encodeUtf8(secret)),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
     ['sign', 'verify'],
@@ -122,7 +126,7 @@ export async function createSignedAuthCookieValue(
   const signature = await crypto.subtle.sign(
     'HMAC',
     signingKey,
-    encodeUtf8(payloadEncoded),
+    toArrayBuffer(encodeUtf8(payloadEncoded)),
   );
   const signatureEncoded = toBase64Url(new Uint8Array(signature));
 
@@ -149,8 +153,8 @@ export async function readAuthRolesFromCookie(rawValue: string | undefined): Pro
   const isValid = await crypto.subtle.verify(
     'HMAC',
     signingKey,
-    signatureBytes,
-    encodeUtf8(payloadEncoded),
+    toArrayBuffer(signatureBytes),
+    toArrayBuffer(encodeUtf8(payloadEncoded)),
   );
 
   if (!isValid) {

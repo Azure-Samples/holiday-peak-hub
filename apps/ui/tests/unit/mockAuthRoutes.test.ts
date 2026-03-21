@@ -1,3 +1,5 @@
+import type { NextRequest } from 'next/server';
+
 jest.mock('next/server', () => {
   class MockNextResponse {
     public readonly status: number;
@@ -49,7 +51,7 @@ describe('mock auth routes', () => {
     const route = await import('../../app/api/auth/mock/login/route');
     const response = await route.POST({
       json: async () => ({ role: 'customer' }),
-    } as unknown as Request);
+    } as unknown as NextRequest);
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toEqual(
@@ -63,7 +65,7 @@ describe('mock auth routes', () => {
 
     const response = await route.POST({
       json: async () => ({ role: 'staff' }),
-    } as unknown as Request);
+    } as unknown as NextRequest);
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual(
@@ -87,7 +89,7 @@ describe('mock auth routes', () => {
 
     const response = await route.POST({
       json: async () => ({ role: 'admin' }),
-    } as unknown as Request);
+    } as unknown as NextRequest);
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toEqual(
@@ -117,9 +119,9 @@ describe('mock auth routes', () => {
 
     const response = await route.POST({
       headers: {
-        get: () => null,
+        get: (_name: string) => null,
       },
-    } as unknown as Request);
+    } as unknown as NextRequest);
 
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toEqual(
@@ -141,7 +143,7 @@ describe('mock auth routes', () => {
       headers: {
         get: (name: string) => (name.toLowerCase() === 'authorization' ? 'Bearer token-123' : null),
       },
-    } as unknown as Request);
+    } as unknown as NextRequest);
 
     expect(global.fetch).toHaveBeenCalledWith(
       'https://crud.example.test/api/auth/me',

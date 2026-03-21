@@ -31,14 +31,14 @@ describe('api client dev mock auth headers', () => {
   }
 
   it('uses browser CRUD proxy base URL in browser runtime', async () => {
-    process.env.NODE_ENV = 'development';
+    process.env = { ...process.env, NODE_ENV: 'development' } as NodeJS.ProcessEnv;
     process.env.NEXT_PUBLIC_CRUD_API_URL = 'https://apim.example.azure-api.net/';
 
     await expect(getApiClientBaseUrl()).resolves.toBe('');
   });
 
   it('keeps browser CRUD proxy base URL when no public CRUD URL is configured', async () => {
-    process.env.NODE_ENV = 'development';
+    process.env = { ...process.env, NODE_ENV: 'development' } as NodeJS.ProcessEnv;
     delete process.env.NEXT_PUBLIC_CRUD_API_URL;
     delete process.env.NEXT_PUBLIC_API_URL;
     delete process.env.NEXT_PUBLIC_API_BASE_URL;

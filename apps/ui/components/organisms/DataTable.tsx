@@ -181,9 +181,15 @@ export function DataTable<T = Record<string, unknown>>({
             >
               {columns.map((column, colIndex) => {
                 const value = getNestedValue(row, column.accessor as string);
+                const fallbackContent: React.ReactNode =
+                  value == null
+                    ? ''
+                    : typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
+                    ? String(value)
+                    : JSON.stringify(value);
                 const content = column.render
                   ? column.render(value, row, rowIndex)
-                  : value;
+                  : fallbackContent;
 
                 return (
                   <td

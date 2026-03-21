@@ -152,22 +152,18 @@ export const Chart: React.FC<ChartProps> = ({
   if (type === 'line' || type === 'bar' || type === 'area' || type === 'horizontal-bar') {
     const isHorizontal = type === 'horizontal-bar';
     
-    let ChartComponent: React.ElementType;
-    let DataComponent: React.ElementType;
+    let ChartComponent: React.ElementType = LineChart;
     
     switch (type) {
       case 'line':
         ChartComponent = LineChart;
-        DataComponent = Line;
         break;
       case 'bar':
       case 'horizontal-bar':
         ChartComponent = BarChart;
-        DataComponent = Bar;
         break;
       case 'area':
         ChartComponent = AreaChart;
-        DataComponent = Area;
         break;
     }
 
@@ -193,17 +189,40 @@ export const Chart: React.FC<ChartProps> = ({
             )}
             {showTooltip && <Tooltip content={<CustomTooltip />} />}
             {showLegend && <Legend iconType="circle" wrapperStyle={{ fontSize: '12px' }} />}
-            {series.map((s) => (
-              <DataComponent
-                key={s.dataKey}
-                dataKey={s.dataKey}
-                name={s.name || s.dataKey}
-                stroke={type === 'line' ? s.color : undefined}
-                fill={type === 'line' ? undefined : s.color}
-                strokeWidth={type === 'line' ? 2 : undefined}
-                fillOpacity={type === 'area' ? 0.6 : 1}
-              />
-            ))}
+            {series.map((s) => {
+              if (type === 'line') {
+                return (
+                  <Line
+                    key={s.dataKey}
+                    dataKey={s.dataKey}
+                    name={s.name || s.dataKey}
+                    stroke={s.color}
+                    strokeWidth={2}
+                  />
+                );
+              }
+
+              if (type === 'area') {
+                return (
+                  <Area
+                    key={s.dataKey}
+                    dataKey={s.dataKey}
+                    name={s.name || s.dataKey}
+                    fill={s.color}
+                    fillOpacity={0.6}
+                  />
+                );
+              }
+
+              return (
+                <Bar
+                  key={s.dataKey}
+                  dataKey={s.dataKey}
+                  name={s.name || s.dataKey}
+                  fill={s.color}
+                />
+              );
+            })}
           </ChartComponent>
         </ResponsiveContainer>
       </div>

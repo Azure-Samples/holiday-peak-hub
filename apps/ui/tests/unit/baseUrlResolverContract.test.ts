@@ -24,7 +24,7 @@ describe('base URL resolver contract', () => {
         NEXT_PUBLIC_API_URL: 'https://secondary.example.net',
         NEXT_PUBLIC_API_BASE_URL: 'https://tertiary.example.net',
         CRUD_API_URL: 'https://quaternary.example.net',
-      } as NodeJS.ProcessEnv);
+      } as unknown as NodeJS.ProcessEnv);
 
       expect(resolved).toEqual({
         baseUrl: 'https://primary.example.net',
@@ -35,7 +35,7 @@ describe('base URL resolver contract', () => {
     it('normalizes a trailing api path segment from CRUD aliases', () => {
       const resolved = resolveCrudApiBaseUrl({
         NEXT_PUBLIC_CRUD_API_URL: 'https://primary.example.net/api/',
-      } as NodeJS.ProcessEnv);
+      } as unknown as NodeJS.ProcessEnv);
 
       expect(resolved).toEqual({
         baseUrl: 'https://primary.example.net',
@@ -50,7 +50,7 @@ describe('base URL resolver contract', () => {
         NEXT_PUBLIC_AGENT_API_URL: 'https://agents-public.example.net/',
         AGENT_API_URL: 'https://agents-server.example.net',
         NEXT_PUBLIC_CRUD_API_URL: 'https://crud.example.net',
-      } as NodeJS.ProcessEnv);
+      } as unknown as NodeJS.ProcessEnv);
 
       expect(explicitResolution).toEqual({
         baseUrl: 'https://agents-public.example.net',
@@ -59,7 +59,7 @@ describe('base URL resolver contract', () => {
 
       const fallbackResolution = resolveAgentApiBaseUrl({
         NEXT_PUBLIC_API_BASE_URL: 'https://crud-base.example.net/api/',
-      } as NodeJS.ProcessEnv);
+      } as unknown as NodeJS.ProcessEnv);
 
       expect(fallbackResolution).toEqual({
         baseUrl: 'https://crud-base.example.net/agents',
@@ -86,7 +86,7 @@ describe('base URL resolver contract', () => {
         runtime: 'browser',
         env: {
           NEXT_PUBLIC_CRUD_API_URL: 'https://browser.example.net/',
-        } as NodeJS.ProcessEnv,
+        } as unknown as NodeJS.ProcessEnv,
       });
       expect(browser).toEqual({
         baseUrl: '',
@@ -94,7 +94,7 @@ describe('base URL resolver contract', () => {
         runtime: 'browser',
       });
 
-      const browserFallback = resolveCrudApiClientBaseUrl({ runtime: 'browser', env: {} as NodeJS.ProcessEnv });
+      const browserFallback = resolveCrudApiClientBaseUrl({ runtime: 'browser', env: {} as unknown as NodeJS.ProcessEnv });
       expect(browserFallback).toEqual({
         baseUrl: '',
         sourceKey: 'BROWSER_PROXY_ROUTE',
@@ -105,7 +105,7 @@ describe('base URL resolver contract', () => {
         runtime: 'server',
         env: {
           NEXT_PUBLIC_API_URL: 'https://server.example.net/',
-        } as NodeJS.ProcessEnv,
+        } as unknown as NodeJS.ProcessEnv,
       });
       expect(server).toEqual({
         baseUrl: 'https://server.example.net',
@@ -135,7 +135,7 @@ describe('base URL resolver contract', () => {
         runtime: 'server',
         env: {
           AGENT_API_URL: 'https://server-agent.example.net/',
-        } as NodeJS.ProcessEnv,
+        } as unknown as NodeJS.ProcessEnv,
       });
       expect(server).toEqual({
         baseUrl: 'https://server-agent.example.net',
@@ -147,7 +147,7 @@ describe('base URL resolver contract', () => {
         runtime: 'test',
         env: {
           NEXT_PUBLIC_CRUD_API_URL: 'https://test-crud.example.net/',
-        } as NodeJS.ProcessEnv,
+        } as unknown as NodeJS.ProcessEnv,
       });
       expect(test).toEqual({
         baseUrl: 'https://test-crud.example.net/agents',

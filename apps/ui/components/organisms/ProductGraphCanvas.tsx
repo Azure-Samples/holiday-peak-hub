@@ -561,7 +561,7 @@ export const ProductGraphCanvas: React.FC<ProductGraphCanvasProps> = ({
 
       const imageSource = toImageSource(node.product);
       const cachedImage = imageSource ? imageCacheRef.current.get(imageSource) : undefined;
-      if (cachedImage && cachedImage !== false) {
+      if (cachedImage instanceof HTMLImageElement) {
         context.save();
         drawCard(drawLeft, drawTop, drawWidth, drawHeight);
         context.clip();

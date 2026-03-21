@@ -4,7 +4,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import LoginPage from '../../app/auth/login/page';
 
 const replaceMock = jest.fn();
-const useSearchParamsMock = jest.fn(() => ({ get: () => null }));
+const useSearchParamsMock = jest.fn(() => ({ get: (_key: string) => null as string | null }));
 const useAuthMock = jest.fn();
 
 jest.mock('next/navigation', () => ({
@@ -43,7 +43,7 @@ describe('login post-auth redirect behavior', () => {
   beforeEach(() => {
     replaceMock.mockClear();
     useSearchParamsMock.mockReturnValue({
-      get: () => null,
+      get: (_key: string) => null,
     });
 
     useAuthMock.mockReturnValue({

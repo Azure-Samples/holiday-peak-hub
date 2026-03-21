@@ -88,8 +88,8 @@ export default function OrderTrackingPage() {
         </div>
 
         {isLoading && (
-          <Card className="p-6 text-gray-600 dark:text-gray-400" role="status" aria-live="polite">
-            Loading order details...
+          <Card className="p-6 text-gray-600 dark:text-gray-400">
+            <div role="status" aria-live="polite">Loading order details...</div>
           </Card>
         )}
 

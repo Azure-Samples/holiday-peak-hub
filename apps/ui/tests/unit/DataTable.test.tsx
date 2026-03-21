@@ -33,7 +33,7 @@ describe('DataTable', () => {
           {
             header: 'Score',
             accessor: 'metrics.score',
-            render: (value) => <span>{value}%</span>,
+            render: (value) => <span>{String(value)}%</span>,
             align: 'right',
           },
         ]}

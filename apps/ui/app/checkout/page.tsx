@@ -16,6 +16,7 @@ import checkoutService from '@/lib/services/checkoutService';
 import inventoryService from '@/lib/services/inventoryService';
 import { useCart } from '@/lib/hooks/useCart';
 import { useInventoryHealth, useReservationOutcomeQueries } from '@/lib/hooks/useInventory';
+import type { InventoryReservation } from '@/lib/types/api';
 
 const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
   ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
@@ -308,7 +309,10 @@ export default function CheckoutPage() {
   const summaryItems = orderId ? lockedItems : liveCartItems;
   const reservationOutcomeQueries = useReservationOutcomeQueries(reservationIds);
   const reservationOutcomes = useMemo(
-    () => reservationOutcomeQueries.map((query) => query.data).filter(Boolean),
+    () =>
+      reservationOutcomeQueries
+        .map((query) => query.data)
+        .filter((value): value is InventoryReservation => Boolean(value)),
     [reservationOutcomeQueries]
   );
   const subtotal = summaryItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
