@@ -73,6 +73,7 @@ var agcControllerIdentityName = '${projectName}${envSuffix}-agc-controller'
 var agcControllerNamespace = 'azure-alb-system'
 var agcControllerServiceAccount = 'alb-controller-sa'
 var agcGatewayClassName = 'azure-alb-external'
+var monitoringEnabled = environment == 'prod'
 var tags = {
   Project: projectName
   Environment: environment
@@ -876,7 +877,7 @@ module apim 'br/public:avm/res/api-management/service:0.14.0' = {
   }
 }
 
-module monitoring '../monitoring/monitoring.bicep' = {
+module monitoring '../monitoring/monitoring.bicep' = if (monitoringEnabled) {
   name: 'monitoring'
   params: {
     projectName: projectName
@@ -1179,5 +1180,5 @@ output agcFrontendHostname string = ''
 output agcFrontendReference string = agcSupportEnabled ? 'gateway-class:${agcGatewayClassName}' : ''
 output aksOidcIssuerUrl string = aks.outputs.?oidcIssuerUrl ?? ''
 output aksNodeResourceGroup string = aksClusterResource.properties.nodeResourceGroup ?? ''
-output monitoringActionGroupId string = monitoring.outputs.actionGroupId
-output monitoringActionGroupName string = monitoring.outputs.actionGroupName
+output monitoringActionGroupId string = monitoringEnabled ? monitoring!.outputs.actionGroupId : ''
+output monitoringActionGroupName string = monitoringEnabled ? monitoring!.outputs.actionGroupName : ''
