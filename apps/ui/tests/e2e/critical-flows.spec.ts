@@ -9,7 +9,7 @@ test.describe('critical flows baseline', () => {
     await expect(page).toHaveURL(/\/$/);
 
     await page.goto('/shop');
-    await expect(page).toHaveURL(/\/category\?slug=all$/);
+    await expect(page).toHaveURL(/\/shop$/);
 
     await page.goto('/cart');
     await expect(page).toHaveURL(/\/auth\/login\?redirect=%2Fcart$/);
