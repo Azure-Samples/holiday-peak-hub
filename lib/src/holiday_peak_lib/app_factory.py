@@ -4,7 +4,7 @@ import os
 from contextlib import asynccontextmanager
 from typing import Any, AsyncContextManager, AsyncIterator, Callable
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException
 from holiday_peak_lib.agents import AgentBuilder, BaseRetailAgent, FoundryAgentConfig
 from holiday_peak_lib.agents.foundry import (
     build_foundry_model_target,
@@ -13,44 +13,27 @@ from holiday_peak_lib.agents.foundry import (
 from holiday_peak_lib.agents.memory import ColdMemory, HotMemory, WarmMemory
 from holiday_peak_lib.agents.orchestration.router import RoutingStrategy
 from holiday_peak_lib.agents.prompt_loader import load_service_prompt_instructions
+from holiday_peak_lib.app_factory_components.endpoints import register_standard_endpoints
+from holiday_peak_lib.app_factory_components.foundry_lifecycle import (
+    FoundryLifecycleManager,
+    auto_ensure_on_startup_enabled,
+    build_foundry_config,
+    strict_foundry_mode_enabled,
+)
+from holiday_peak_lib.app_factory_components.middleware import register_correlation_middleware
 from holiday_peak_lib.config import MemorySettings
 from holiday_peak_lib.connectors.registry import ConnectorRegistry
 from holiday_peak_lib.mcp.server import FastAPIMCPServer
 from holiday_peak_lib.utils import (
-    CORRELATION_HEADER,
     EventHubSubscription,
-    clear_correlation_id,
     create_eventhub_lifespan,
     get_foundry_tracer,
-    get_tracer,
-    set_correlation_id,
 )
-from holiday_peak_lib.utils.logging import configure_logging, log_async_operation
-
-DEFAULT_FOUNDRY_MODELS = {
-    "fast": "gpt-5-nano",
-    "rich": "gpt-5",
-}
-
+from holiday_peak_lib.utils.logging import configure_logging
 
 def _build_foundry_config(agent_env: str, deployment_env: str) -> FoundryAgentConfig | None:
-    endpoint = os.getenv("PROJECT_ENDPOINT") or os.getenv("FOUNDRY_ENDPOINT")
-    project_name = os.getenv("PROJECT_NAME") or os.getenv("FOUNDRY_PROJECT_NAME")
-    role = "fast" if agent_env.endswith("FAST") else "rich"
-    agent_id = os.getenv(agent_env)
-    agent_name = os.getenv(f"FOUNDRY_AGENT_NAME_{role.upper()}")
-    deployment = os.getenv(deployment_env) or DEFAULT_FOUNDRY_MODELS[role]
-    stream = (os.getenv("FOUNDRY_STREAM") or "").lower() in {"1", "true", "yes"}
-    if not endpoint:
-        return None
-    return FoundryAgentConfig(
-        endpoint=endpoint,
-        agent_id=agent_id or agent_name or f"{role}-pending",
-        agent_name=agent_name,
-        deployment_name=deployment,
-        project_name=project_name,
-        stream=stream,
-    )
+    """Backward-compatible alias for internal Foundry config builder."""
+    return build_foundry_config(agent_env, deployment_env)
 
 
 def create_standard_app(
@@ -135,20 +118,11 @@ def build_service_app(
     if hasattr(agent, "connector_registry"):
         agent.connector_registry = registry
     app.state.agent = agent
-    strict_foundry_mode = (os.getenv("FOUNDRY_STRICT_ENFORCEMENT") or "").lower() in {
-        "1",
-        "true",
-        "yes",
-    }
+    strict_foundry_mode = strict_foundry_mode_enabled()
     foundry_ready = not strict_foundry_mode
-    auto_ensure_default = "true" if strict_foundry_mode else "false"
-    auto_ensure_on_startup = (
-        os.getenv("FOUNDRY_AUTO_ENSURE_ON_STARTUP") or auto_ensure_default
-    ).lower() in {
-        "1",
-        "true",
-        "yes",
-    }
+    auto_ensure_on_startup = auto_ensure_on_startup_enabled(
+        strict_foundry_mode=strict_foundry_mode
+    )
 
     if hasattr(agent, "service_name"):
         agent.service_name = service_name
@@ -156,60 +130,26 @@ def build_service_app(
         mcp_setup(mcp, agent)
     default_instructions = load_service_prompt_instructions(service_name)
 
-    @app.middleware("http")
-    async def correlation_middleware(request: Request, call_next):
-        incoming_correlation = (
-            request.headers.get(CORRELATION_HEADER)
-            or request.headers.get("X-Correlation-ID")
-            or request.headers.get("x-request-id")
-        )
-        correlation_id = set_correlation_id(incoming_correlation)
-        try:
-            response = await call_next(request)
-        finally:
-            clear_correlation_id()
-        response.headers["X-Correlation-ID"] = correlation_id
-        return response
+    register_correlation_middleware(app)
 
-    async def _ensure_role(selected_role: str, config: FoundryAgentConfig, service: str) -> dict:
-        target_name = config.agent_name or f"{service}-{selected_role}"
-        target_model = config.deployment_name or DEFAULT_FOUNDRY_MODELS[selected_role]
-        ensure_result = await ensure_foundry_agent(
-            config,
-            agent_name=target_name,
-            instructions=default_instructions,
-            create_if_missing=True,
-            model=target_model,
-        )
-        ensured_id = ensure_result.get("agent_id")
-        ensured_name = ensure_result.get("agent_name")
-        if ensured_id:
-            config.agent_id = str(ensured_id)
-        if ensured_name:
-            config.agent_name = str(ensured_name)
+    async def _ensure_foundry_agent_proxy(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        return await ensure_foundry_agent(*args, **kwargs)
 
-        if config.agent_id:
-            model_target = build_foundry_model_target(config)
-            if selected_role == "fast":
-                agent.slm = model_target
-            else:
-                agent.llm = model_target
-
-        return ensure_result
+    foundry_manager = FoundryLifecycleManager(
+        service_name=service_name,
+        agent=agent,
+        slm_config=slm_config,
+        llm_config=llm_config,
+        ensure_foundry_agent_fn=_ensure_foundry_agent_proxy,
+        build_foundry_model_target_fn=build_foundry_model_target,
+    )
 
     @asynccontextmanager
     async def _service_lifespan(wrapped_app: FastAPI) -> AsyncIterator[None]:
         nonlocal foundry_ready
         if auto_ensure_on_startup:
-            results: dict[str, dict] = {}
-            role_to_config: dict[str, FoundryAgentConfig | None] = {
-                "fast": slm_config,
-                "rich": llm_config,
-            }
-            for selected_role, config in role_to_config.items():
-                if config is None:
-                    continue
-                results[selected_role] = await _ensure_role(selected_role, config, service_name)
+            foundry_manager.ensure_foundry_agent_fn = ensure_foundry_agent
+            results = await foundry_manager.ensure_startup_roles(default_instructions)
 
             foundry_ready = all(
                 result.get("status") in {"exists", "found_by_name", "created"}
@@ -231,106 +171,9 @@ def build_service_app(
     app.router.lifespan_context = _service_lifespan
     router.register("default", agent.handle)
 
-    @app.get("/health")
-    async def health():
-        return {
-            "status": "ok",
-            "service": service_name,
-            "integrations_registered": await registry.count(),
-        }
-
-    @app.get("/integrations")
-    async def integrations():
-        return {
-            "service": service_name,
-            "domains": await registry.list_domains(),
-            "health": await registry.health(),
-        }
-
-    @app.get("/ready")
-    async def ready():
-        """Readiness probe — returns 503 when Foundry agents aren't provisioned
-        and strict enforcement is enabled. K8s readinessProbe should use this
-        endpoint so traffic is only routed to pods that are fully operational."""
-        if strict_foundry_mode and not foundry_ready:
-            raise HTTPException(
-                status_code=503,
-                detail={
-                    "status": "not_ready",
-                    "service": service_name,
-                    "reason": "Foundry agents not provisioned. "
-                    "Call POST /foundry/agents/ensure or set FOUNDRY_AUTO_ENSURE_ON_STARTUP=true.",
-                },
-            )
-        return {
-            "status": "ready",
-            "service": service_name,
-            "foundry_ready": foundry_ready,
-            "integrations_registered": await registry.count(),
-        }
-
-    @app.post("/invoke")
-    async def invoke(payload: dict):
-        if strict_foundry_mode and not foundry_ready:
-            raise HTTPException(
-                status_code=503,
-                detail=(
-                    "Strict Foundry enforcement is enabled and no Foundry target is ready. "
-                    "Call POST /foundry/agents/ensure first."
-                ),
-            )
-
-        intent = str(payload.get("intent", "default"))
-        request_payload = payload.get("payload", payload)
-        if not isinstance(request_payload, dict):
-            request_payload = {"query": str(request_payload)}
-
-        otel_tracer = get_tracer(service_name)
-
-        async def _route_with_span():
-            with otel_tracer.start_as_current_span("agent.handle") as span:
-                try:
-                    span.set_attribute("agent.service", service_name)
-                    span.set_attribute("agent.intent", intent)
-                    span.set_attribute("agent.payload_size", len(str(request_payload)))
-                except (AttributeError, TypeError, ValueError):
-                    pass
-                return await router.route(intent, request_payload)
-
-        return await log_async_operation(
-            logger,
-            name="service.invoke",
-            intent=intent,
-            func=_route_with_span,
-            token_count=None,
-            metadata={
-                "payload_size": len(str(request_payload)),
-                "service": service_name,
-            },
-        )
-
-    @app.get("/agent/traces")
-    async def agent_traces(limit: int = 50):
-        return {
-            "service": service_name,
-            "traces": tracer.get_traces(limit=limit),
-        }
-
-    @app.get("/agent/metrics")
-    async def agent_metrics():
-        return tracer.get_metrics()
-
-    @app.get("/agent/evaluation/latest")
-    async def agent_evaluation_latest():
-        latest = tracer.get_latest_evaluation()
-        return {
-            "service": service_name,
-            "latest": latest,
-        }
-
-    @app.post("/foundry/agents/ensure")
-    async def ensure_agents(payload: dict | None = None):
+    async def ensure_agents(payload: dict | None = None) -> dict[str, Any]:
         nonlocal foundry_ready
+        foundry_manager.ensure_foundry_agent_fn = ensure_foundry_agent
         body: dict = payload if isinstance(payload, dict) else {}
         fallback_instructions = load_service_prompt_instructions(service_name)
         role = str(body.get("role", "both")).lower()
@@ -357,11 +200,7 @@ def build_service_app(
                 ),
             )
 
-        role_to_config: dict[str, FoundryAgentConfig | None] = {
-            "fast": slm_config,
-            "rich": llm_config,
-        }
-        default_instructions = load_service_prompt_instructions(service_name)
+        role_to_config = foundry_manager.role_to_config
         selected_roles = ["fast", "rich"] if role == "both" else [role]
         results: dict[str, dict] = {}
 
@@ -378,42 +217,45 @@ def build_service_app(
                 }
                 continue
 
-            default_name = f"{service_name}-{selected_role}"
-            configured_name = names.get(selected_role) or os.getenv(
-                f"FOUNDRY_AGENT_NAME_{selected_role.upper()}"
+            configured_name = (
+                names.get(selected_role)
+                or os.getenv(f"FOUNDRY_AGENT_NAME_{selected_role.upper()}")
+                or f"{service_name}-{selected_role}"
             )
-            config.agent_name = str(configured_name or default_name)
-            config.deployment_name = str(
+            configured_model = (
                 models.get(selected_role)
                 or config.deployment_name
-                or DEFAULT_FOUNDRY_MODELS[selected_role]
+                or build_foundry_config(
+                    "FOUNDRY_AGENT_ID_FAST"
+                    if selected_role == "fast"
+                    else "FOUNDRY_AGENT_ID_RICH",
+                    "MODEL_DEPLOYMENT_NAME_FAST"
+                    if selected_role == "fast"
+                    else "MODEL_DEPLOYMENT_NAME_RICH",
+                ).deployment_name
+                if build_foundry_config(
+                    "FOUNDRY_AGENT_ID_FAST"
+                    if selected_role == "fast"
+                    else "FOUNDRY_AGENT_ID_RICH",
+                    "MODEL_DEPLOYMENT_NAME_FAST"
+                    if selected_role == "fast"
+                    else "MODEL_DEPLOYMENT_NAME_RICH",
+                )
+                else ("gpt-5-nano" if selected_role == "fast" else "gpt-5")
             )
 
-            ensure_result = await ensure_foundry_agent(
-                config,
-                agent_name=config.agent_name,
+            ensure_result = await foundry_manager.ensure_role(
+                selected_role=selected_role,
+                config=config,
                 instructions=(
                     instructions.get(selected_role)
                     if selected_role in instructions
                     else fallback_instructions
                 ),
                 create_if_missing=create_if_missing,
-                model=config.deployment_name,
+                name_override=str(configured_name),
+                model_override=str(configured_model),
             )
-
-            ensured_id = ensure_result.get("agent_id")
-            ensured_name = ensure_result.get("agent_name")
-            if ensured_id:
-                config.agent_id = str(ensured_id)
-            if ensured_name:
-                config.agent_name = str(ensured_name)
-
-            if config.agent_id:
-                model_target = build_foundry_model_target(config)
-                if selected_role == "fast":
-                    agent.slm = model_target
-                else:
-                    agent.llm = model_target
 
             results[selected_role] = ensure_result
 
@@ -430,6 +272,26 @@ def build_service_app(
             "foundry_ready": foundry_ready,
             "results": results,
         }
+
+    def _is_foundry_ready() -> bool:
+        return foundry_ready
+
+    def _set_foundry_ready(value: bool) -> None:
+        nonlocal foundry_ready
+        foundry_ready = value
+
+    register_standard_endpoints(
+        app,
+        service_name=service_name,
+        registry=registry,
+        router=router,
+        tracer=tracer,
+        logger=logger,
+        strict_foundry_mode=strict_foundry_mode,
+        is_foundry_ready=_is_foundry_ready,
+        set_foundry_ready=_set_foundry_ready,
+        ensure_agents_handler=ensure_agents,
+    )
 
     mcp.mount()
     return app
