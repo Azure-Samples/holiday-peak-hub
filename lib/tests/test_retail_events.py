@@ -33,3 +33,20 @@ def test_build_retail_event_payload_rejects_invalid_return_event() -> None:
                 "status": "requested",
             },
         )
+
+
+def test_build_product_event_payload_normalizes_product_id_alias() -> None:
+    payload = build_retail_event_payload(
+        topic="product-events",
+        event_type="ProductUpdated",
+        data={
+            "id": "sku-11",
+            "name": "Widget",
+            "category_id": "cat-1",
+            "price": 18.0,
+        },
+    )
+
+    assert payload["event_type"] == "ProductUpdated"
+    assert payload["data"]["product_id"] == "sku-11"
+    assert payload["data"]["sku"] == "sku-11"

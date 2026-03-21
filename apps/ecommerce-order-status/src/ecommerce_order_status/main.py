@@ -12,6 +12,7 @@ app = create_standard_app(
     mcp_setup=register_mcp_tools,
     subscriptions=[
         EventHubSubscription("order-events", "order-status-group"),
+        EventHubSubscription("shipment-events", "order-status-group"),
     ],
     handlers=build_event_handlers(),
 )

@@ -25,6 +25,7 @@ class EventPublisher:
     - return-events: ReturnRequested, ReturnApproved, ReturnRejected, ReturnReceived, ReturnRestocked, ReturnRefunded
     - inventory-events: InventoryReserved, InventoryReleased
     - shipment-events: ShipmentCreated, ShipmentUpdated
+    - product-events: ProductCreated, ProductUpdated, ProductDeleted
     - user-events: UserRegistered, UserUpdated
     """
 
@@ -44,6 +45,7 @@ class EventPublisher:
             "return-events",
             "inventory-events",
             "shipment-events",
+            "product-events",
             "user-events",
         ]
 
@@ -132,6 +134,10 @@ class EventPublisher:
     async def publish_user_registered(self, user: dict):
         """Publish UserRegistered event."""
         await self.publish("user-events", "UserRegistered", user)
+
+    async def publish_product_updated(self, product: dict):
+        """Publish ProductUpdated event."""
+        await self.publish("product-events", "ProductUpdated", product)
 
     async def publish_return_lifecycle_event(self, *, event_type: str, data: dict):
         """Publish return lifecycle events to return-events topic."""

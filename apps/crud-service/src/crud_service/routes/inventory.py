@@ -1,5 +1,6 @@
 """Inventory and reservation routes."""
 
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Literal
@@ -7,9 +8,11 @@ from typing import Any, Literal
 from crud_service.auth import User, get_current_user
 from crud_service.repositories import InventoryRepository, ReservationRepository
 from fastapi import APIRouter, Depends, HTTPException, status
+from holiday_peak_lib.utils import CompensationAction, execute_compensation
 from pydantic import BaseModel, Field, field_validator
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 ReservationStatus = Literal["created", "confirmed", "released"]
 
@@ -431,25 +434,47 @@ async def create_reservation(
     try:
         await reservation_repo.create(reservation)
     except Exception as exc:
-        inventory["reserved_quantity"] = max(
-            int(inventory.get("reserved_quantity", 0)) - request.quantity,
-            0,
+
+        async def rollback_reservation_lock() -> None:
+            inventory["reserved_quantity"] = max(
+                int(inventory.get("reserved_quantity", 0)) - request.quantity,
+                0,
+            )
+            _validate_inventory_quantities(inventory)
+            _compute_health_fields(inventory)
+            inventory["updated_at"] = _utc_now_iso()
+            inventory["updated_by"] = current_user.user_id
+            _append_audit(
+                inventory,
+                action="reservation_lock_rollback",
+                actor=current_user,
+                details={
+                    "reservation_id": reservation["id"],
+                    "quantity": request.quantity,
+                    "reason": ERR_RESERVATION_CREATE_FAILED,
+                },
+            )
+            await inventory_repo.update(inventory)
+
+        compensation_result = await execute_compensation(
+            [
+                CompensationAction(
+                    name="reservation_lock_rollback", execute=rollback_reservation_lock
+                )
+            ]
         )
-        _validate_inventory_quantities(inventory)
-        _compute_health_fields(inventory)
-        inventory["updated_at"] = _utc_now_iso()
-        inventory["updated_by"] = current_user.user_id
-        _append_audit(
-            inventory,
-            action="reservation_lock_rollback",
-            actor=current_user,
-            details={
-                "reservation_id": reservation["id"],
-                "quantity": request.quantity,
-                "reason": ERR_RESERVATION_CREATE_FAILED,
-            },
-        )
-        await inventory_repo.update(inventory)
+        if not compensation_result.succeeded:
+            logger.warning(
+                "inventory_reservation_compensation_failed",
+                extra={
+                    "failed_action": compensation_result.failed_action,
+                    "error_type": (
+                        type(compensation_result.failed_error).__name__
+                        if compensation_result.failed_error
+                        else None
+                    ),
+                },
+            )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=ERR_RESERVATION_CREATE_FAILED,

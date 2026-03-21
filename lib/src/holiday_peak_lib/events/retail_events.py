@@ -19,6 +19,7 @@ ReturnEventType = Literal[
 ]
 InventoryEventType = Literal["InventoryReserved", "InventoryReleased", "InventoryUpdated"]
 ShipmentEventType = Literal["ShipmentCreated", "ShipmentUpdated"]
+ProductEventType = Literal["ProductCreated", "ProductUpdated", "ProductDeleted"]
 
 RETAIL_EVENT_TOPICS: tuple[str, ...] = (
     "order-events",
@@ -26,6 +27,7 @@ RETAIL_EVENT_TOPICS: tuple[str, ...] = (
     "return-events",
     "inventory-events",
     "shipment-events",
+    "product-events",
 )
 
 
@@ -180,6 +182,36 @@ class ShipmentEventData(_RetailEventData):
         return self
 
 
+class ProductEventData(_RetailEventData):
+    """Product lifecycle event payload."""
+
+    product_id: str | None = None
+    sku: str | None = None
+    name: str | None = None
+    category_id: str | None = None
+    price: float | None = None
+    status: str | None = None
+    timestamp: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_product_identifiers(cls, value: Any) -> Any:
+        if isinstance(value, dict):
+            copy = dict(value)
+            if not copy.get("product_id") and copy.get("id"):
+                copy["product_id"] = copy["id"]
+            if not copy.get("sku") and copy.get("product_id"):
+                copy["sku"] = copy["product_id"]
+            return copy
+        return value
+
+    @model_validator(mode="after")
+    def _require_product_identifier(self) -> "ProductEventData":
+        if not self.product_id and not self.sku:
+            raise ValueError("Product event payload requires product_id/sku (or id)")
+        return self
+
+
 class _RetailEventEnvelope(BaseModel):
     model_config = ConfigDict(extra="allow")
 
@@ -241,12 +273,20 @@ class ShipmentEventEnvelope(_RetailEventEnvelope):
     data: ShipmentEventData
 
 
+class ProductEventEnvelope(_RetailEventEnvelope):
+    """Product event envelope."""
+
+    event_type: ProductEventType
+    data: ProductEventData
+
+
 RetailEvent = (
     OrderEventEnvelope
     | PaymentEventEnvelope
     | ReturnEventEnvelope
     | InventoryEventEnvelope
     | ShipmentEventEnvelope
+    | ProductEventEnvelope
 )
 
 _RETAIL_TOPIC_ADAPTERS: dict[str, TypeAdapter[Any]] = {
@@ -255,6 +295,7 @@ _RETAIL_TOPIC_ADAPTERS: dict[str, TypeAdapter[Any]] = {
     "return-events": TypeAdapter(ReturnEventEnvelope),
     "inventory-events": TypeAdapter(InventoryEventEnvelope),
     "shipment-events": TypeAdapter(ShipmentEventEnvelope),
+    "product-events": TypeAdapter(ProductEventEnvelope),
 }
 _RETAIL_EVENT_ADAPTER = TypeAdapter(RetailEvent)
 

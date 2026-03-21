@@ -59,4 +59,48 @@ def build_event_handlers() -> dict[str, EventHandler]:
             },
         )
 
-    return {"order-events": handle_order_event}
+    async def handle_shipment_event(_partition_context, event) -> None:  # noqa: ANN001
+        try:
+            payload = json.loads(event.body_as_str())
+        except json.JSONDecodeError:
+            logger.warning(
+                "order_status_shipment_event_invalid_json",
+                extra={"event_type": None},
+            )
+            return
+        try:
+            shipment_event = parse_retail_event(payload, topic="shipment-events")
+        except (ValidationError, ValueError) as exc:
+            logger.warning(
+                "order_status_shipment_event_invalid",
+                extra={"error_type": type(exc).__name__},
+            )
+            return
+
+        shipment_data = shipment_event.data
+        tracking_id = shipment_data.tracking_id or shipment_data.shipment_id
+        if not tracking_id and shipment_data.order_id:
+            tracking_id = await adapters.resolver.resolve_tracking_id(str(shipment_data.order_id))
+        if not tracking_id:
+            logger.info(
+                "order_status_shipment_event_skipped",
+                extra={"event_type": shipment_event.event_type},
+            )
+            return
+
+        context = await adapters.logistics.build_logistics_context(str(tracking_id))
+        logger.info(
+            "order_status_shipment_event_processed",
+            extra={
+                "event_type": shipment_event.event_type,
+                "order_id": shipment_data.order_id,
+                "tracking_id": tracking_id,
+                "status": context.shipment.status if context else None,
+                "event_count": len(context.events) if context else 0,
+            },
+        )
+
+    return {
+        "order-events": handle_order_event,
+        "shipment-events": handle_shipment_event,
+    }

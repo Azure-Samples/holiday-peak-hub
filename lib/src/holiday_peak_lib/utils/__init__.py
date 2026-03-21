@@ -2,6 +2,7 @@
 
 from .bulkhead import Bulkhead, BulkheadFullError
 from .circuit_breaker import CircuitBreaker, CircuitBreakerOpenError, CircuitState
+from .compensation import CompensationAction, CompensationResult, execute_compensation
 from .correlation import (
     CORRELATION_HEADER,
     clear_correlation_id,
@@ -25,6 +26,8 @@ __all__ = [
     "CircuitBreaker",
     "CircuitBreakerOpenError",
     "CircuitState",
+    "CompensationAction",
+    "CompensationResult",
     "CORRELATION_HEADER",
     "clear_correlation_id",
     "EventHubSubscriber",
@@ -36,6 +39,7 @@ __all__ = [
     "RateLimiter",
     "RateLimitExceededError",
     "set_correlation_id",
+    "execute_compensation",
     "async_retry",
     "FoundryTracer",
     "get_foundry_tracer",

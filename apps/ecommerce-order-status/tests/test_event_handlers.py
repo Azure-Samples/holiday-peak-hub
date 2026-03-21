@@ -12,6 +12,8 @@ def test_build_event_handlers_includes_order_events() -> None:
     handlers = build_event_handlers()
     assert "order-events" in handlers
     assert callable(handlers["order-events"])
+    assert "shipment-events" in handlers
+    assert callable(handlers["shipment-events"])
 
 
 @pytest.mark.asyncio
@@ -97,3 +99,37 @@ async def test_order_event_handler_skips_malformed_json(monkeypatch) -> None:
 
     resolver.resolve_tracking_id.assert_not_called()
     logistics.build_logistics_context.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_shipment_event_handler_validates_and_processes_event(monkeypatch) -> None:
+    context = SimpleNamespace(
+        shipment=SimpleNamespace(status="in_transit"),
+        events=[{"kind": "scan"}],
+    )
+    logistics = SimpleNamespace(build_logistics_context=AsyncMock(return_value=context))
+    resolver = SimpleNamespace(resolve_tracking_id=AsyncMock())
+    adapters = SimpleNamespace(logistics=logistics, resolver=resolver)
+
+    monkeypatch.setattr(
+        "ecommerce_order_status.event_handlers.build_order_status_adapters",
+        lambda: adapters,
+    )
+
+    handlers = build_event_handlers()
+    event = MagicMock()
+    event.body_as_str.return_value = json.dumps(
+        {
+            "event_type": "ShipmentCreated",
+            "data": {
+                "shipment_id": "ship-1",
+                "order_id": "order-1",
+                "status": "created",
+            },
+        }
+    )
+
+    await handlers["shipment-events"](MagicMock(), event)
+
+    resolver.resolve_tracking_id.assert_not_called()
+    logistics.build_logistics_context.assert_awaited_once_with("ship-1")
