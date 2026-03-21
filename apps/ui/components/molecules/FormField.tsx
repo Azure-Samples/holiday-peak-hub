@@ -44,15 +44,16 @@ export const FormField: React.FC<FormFieldProps> = ({
   ariaLabel,
 }) => {
   const [charCount, setCharCount] = React.useState(0);
+  type FieldChangeEvent = React.ChangeEvent<
+    HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+  >;
 
-  const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
+  const handleInputChange = (e: FieldChangeEvent) => {
     if (showCharCount) {
       setCharCount(e.target.value.length);
     }
     if (fieldProps.onChange) {
-      fieldProps.onChange(e as any);
+      (fieldProps.onChange as (event: FieldChangeEvent) => void)(e);
     }
   };
 

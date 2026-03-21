@@ -1,10 +1,15 @@
 import '@testing-library/jest-dom';
 
+type GlobalWithWebApis = typeof globalThis & {
+	crypto?: Crypto;
+	ResizeObserver?: typeof ResizeObserver;
+};
+
 if (!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) {
 	process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY = 'pk_test_checkout';
 }
 
-if (!(global as any).crypto?.subtle) {
+if (!(globalThis as GlobalWithWebApis).crypto?.subtle) {
 	const { webcrypto } = require('crypto');
 	Object.defineProperty(global, 'crypto', {
 		value: webcrypto,
@@ -20,7 +25,7 @@ jest.mock('@/components/atoms/ThemeToggle', () => ({
 
 jest.mock('next/image', () => ({
 	__esModule: true,
-	default: (props: any) => {
+	default: (props: React.ComponentPropsWithoutRef<'img'> & { fill?: boolean; priority?: boolean }) => {
 		const { fill, priority, ...rest } = props;
 		return React.createElement('img', { alt: props.alt || '', ...rest });
 	},
@@ -28,7 +33,7 @@ jest.mock('next/image', () => ({
 
 jest.mock('next/link', () => ({
 	__esModule: true,
-	default: ({ href, children, ...rest }: any) =>
+	default: ({ href, children, ...rest }: { href: string; children?: React.ReactNode } & Record<string, unknown>) =>
 		React.createElement('a', { href, ...rest }, children),
 }));
 
@@ -48,14 +53,14 @@ if (!window.matchMedia) {
 	});
 }
 
-if (!(global as any).ResizeObserver) {
+if (!(globalThis as GlobalWithWebApis).ResizeObserver) {
 	class MockResizeObserver {
 		observe() {}
 		unobserve() {}
 		disconnect() {}
 	}
-	(global as any).ResizeObserver = MockResizeObserver;
-	(window as any).ResizeObserver = MockResizeObserver;
+	(globalThis as GlobalWithWebApis).ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver;
+	(window as Window & typeof globalThis & { ResizeObserver?: typeof ResizeObserver }).ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver;
 }
 
 jest.mock('@stripe/stripe-js', () => ({
@@ -67,7 +72,7 @@ jest.mock('@stripe/stripe-js', () => ({
 
 jest.mock('@stripe/react-stripe-js', () => ({
 	__esModule: true,
-	Elements: ({ children }: any) => React.createElement('div', { 'data-testid': 'stripe-elements' }, children),
+	Elements: ({ children }: { children?: React.ReactNode }) => React.createElement('div', { 'data-testid': 'stripe-elements' }, children),
 	PaymentElement: () => React.createElement('div', { 'data-testid': 'payment-element' }),
 	useStripe: () => ({
 		confirmPayment: jest.fn(async () => ({ error: null })),

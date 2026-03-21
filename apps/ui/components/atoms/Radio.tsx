@@ -5,6 +5,7 @@
 
 import React, { forwardRef } from 'react';
 import { useFormContext } from 'react-hook-form';
+import type { RegisterOptions } from 'react-hook-form';
 import { cn } from '../utils';
 import type { BaseComponentProps } from '../types';
 
@@ -28,7 +29,7 @@ export interface RadioProps extends BaseComponentProps {
   /** Whether to use react-hook-form integration */
   useRHF?: boolean;
   /** Validation rules for react-hook-form */
-  rules?: any;
+  rules?: RegisterOptions;
   /** Helper text below label */
   hint?: string;
 }

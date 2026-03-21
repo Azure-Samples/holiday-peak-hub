@@ -64,7 +64,7 @@ export default function SearchPage() {
     setPreference,
     resolvedMode,
   } = useIntelligentSearch(query, 20);
-  const products = data?.items ?? [];
+  const products = useMemo(() => data?.items ?? [], [data?.items]);
   const relatedProductIds = useMemo(() => {
     const ids = new Set<string>();
     for (const product of products) {

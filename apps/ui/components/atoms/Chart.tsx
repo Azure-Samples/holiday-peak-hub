@@ -57,7 +57,11 @@ export interface ChartProps {
 /**
  * Custom tooltip component with dark mode support
  */
-const CustomTooltip: React.FC<{ active?: boolean; payload?: any }> = ({ active, payload }) => {
+type TooltipPayloadEntry = {
+  payload: ChartDataPoint;
+};
+
+const CustomTooltip: React.FC<{ active?: boolean; payload?: TooltipPayloadEntry[] }> = ({ active, payload }) => {
   if (!active || !payload || !payload.length) return null;
 
   const data = payload[0].payload;
@@ -148,8 +152,8 @@ export const Chart: React.FC<ChartProps> = ({
   if (type === 'line' || type === 'bar' || type === 'area' || type === 'horizontal-bar') {
     const isHorizontal = type === 'horizontal-bar';
     
-    let ChartComponent: any;
-    let DataComponent: any;
+    let ChartComponent: React.ElementType;
+    let DataComponent: React.ElementType;
     
     switch (type) {
       case 'line':

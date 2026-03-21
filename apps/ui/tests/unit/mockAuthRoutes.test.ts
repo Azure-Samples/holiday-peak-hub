@@ -49,7 +49,7 @@ describe('mock auth routes', () => {
     const route = await import('../../app/api/auth/mock/login/route');
     const response = await route.POST({
       json: async () => ({ role: 'customer' }),
-    } as any);
+    } as unknown as Request);
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toEqual(
@@ -63,7 +63,7 @@ describe('mock auth routes', () => {
 
     const response = await route.POST({
       json: async () => ({ role: 'staff' }),
-    } as any);
+    } as unknown as Request);
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual(
@@ -87,7 +87,7 @@ describe('mock auth routes', () => {
 
     const response = await route.POST({
       json: async () => ({ role: 'admin' }),
-    } as any);
+    } as unknown as Request);
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toEqual(
@@ -119,7 +119,7 @@ describe('mock auth routes', () => {
       headers: {
         get: () => null,
       },
-    } as any);
+    } as unknown as Request);
 
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toEqual(
@@ -141,7 +141,7 @@ describe('mock auth routes', () => {
       headers: {
         get: (name: string) => (name.toLowerCase() === 'authorization' ? 'Bearer token-123' : null),
       },
-    } as any);
+    } as unknown as Request);
 
     expect(global.fetch).toHaveBeenCalledWith(
       'https://crud.example.test/api/auth/me',

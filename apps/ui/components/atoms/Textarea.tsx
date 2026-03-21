@@ -5,6 +5,7 @@
 
 import React, { forwardRef } from 'react';
 import { useFormContext } from 'react-hook-form';
+import type { RegisterOptions } from 'react-hook-form';
 import { cn } from '../utils';
 import type { Size, FormFieldBaseProps } from '../types';
 
@@ -24,7 +25,7 @@ export interface TextareaProps extends Omit<FormFieldBaseProps, 'label' | 'hint'
   /** Whether to use react-hook-form integration */
   useRHF?: boolean;
   /** Validation rules for react-hook-form */
-  rules?: any;
+  rules?: RegisterOptions;
   /** Max length */
   maxLength?: number;
   /** Whether textarea is read-only */

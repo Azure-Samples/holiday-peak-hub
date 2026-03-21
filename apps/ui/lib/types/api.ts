@@ -305,7 +305,7 @@ export interface SalesAnalytics {
   total_revenue: number;
   total_orders: number;
   average_order_value: number;
-  top_products: any[];
+  top_products: Array<Record<string, unknown>>;
 }
 
 export type TicketStatus = 'open' | 'in_progress' | 'pending_customer' | 'escalated' | 'resolved' | 'closed';

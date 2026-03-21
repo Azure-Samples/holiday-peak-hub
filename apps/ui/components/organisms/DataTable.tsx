@@ -2,20 +2,20 @@
 
 import React from 'react';
 
-export interface DataTableColumn<T = any> {
+export interface DataTableColumn<T = Record<string, unknown>> {
   /** Column header text */
   header: string;
   /** Accessor key for the data */
   accessor: keyof T | string;
   /** Custom render function for cell content */
-  render?: (value: any, row: T, index: number) => React.ReactNode;
+  render?: (value: unknown, row: T, index: number) => React.ReactNode;
   /** Column width className */
   width?: string;
   /** Text alignment */
   align?: 'left' | 'center' | 'right';
 }
 
-export interface DataTableProps<T = any> {
+export interface DataTableProps<T = Record<string, unknown>> {
   /** Array of data objects to display */
   data: T[];
   /** Column configuration */
@@ -114,7 +114,7 @@ export interface DataTableProps<T = any> {
  * />
  * ```
  */
-export function DataTable<T = any>({
+export function DataTable<T = Record<string, unknown>>({
   data,
   columns,
   loading = false,
@@ -123,8 +123,13 @@ export function DataTable<T = any>({
   hoverable = true,
   className = '',
 }: DataTableProps<T>) {
-  const getNestedValue = (obj: any, path: string) => {
-    return path.split('.').reduce((acc, part) => acc?.[part], obj);
+  const getNestedValue = (obj: unknown, path: string): unknown => {
+    return path.split('.').reduce<unknown>((acc, part) => {
+      if (acc && typeof acc === 'object') {
+        return (acc as Record<string, unknown>)[part];
+      }
+      return undefined;
+    }, obj);
   };
 
   if (loading) {

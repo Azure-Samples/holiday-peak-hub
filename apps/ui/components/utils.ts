@@ -308,7 +308,7 @@ export const getAriaProps = (options: {
   selected?: boolean;
   disabled?: boolean;
 }) => {
-  const props: Record<string, any> = {};
+  const props: Record<string, string | boolean> = {};
   
   if (options.label) props['aria-label'] = options.label;
   if (options.description) props['aria-describedby'] = options.description;

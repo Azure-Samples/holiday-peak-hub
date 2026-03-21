@@ -132,10 +132,7 @@ export function trackEcommerceEvent<K extends EcommerceEventName>(
     return;
   }
 
-  console.debug('ecommerce_telemetry', {
-    eventName,
-    payload,
-  });
+  return;
 }
 
 export function trackDebug(message: string, properties?: Record<string, string>) {
@@ -149,7 +146,7 @@ export function trackDebug(message: string, properties?: Record<string, string>)
     return;
   }
 
-  console.debug(message, properties || {});
+  return;
 }
 
 export function trackWarning(message: string, properties?: Record<string, string>) {
@@ -163,7 +160,7 @@ export function trackWarning(message: string, properties?: Record<string, string
     return;
   }
 
-  console.warn(message, properties || {});
+  return;
 }
 
 export function trackBoundaryError(scope: string, error: Error & { digest?: string }) {

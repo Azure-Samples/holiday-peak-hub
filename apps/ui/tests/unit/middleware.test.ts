@@ -26,7 +26,7 @@ function makeRequest(pathname: string, cookies: Record<string, string> = {}) {
     cookies: {
       get: (name: string) => (cookies[name] ? { value: cookies[name] } : undefined),
     },
-  } as any;
+  } as unknown as Parameters<typeof proxy>[0];
 }
 
 beforeEach(() => {

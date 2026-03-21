@@ -1,20 +1,26 @@
-export const flatten = (o: Record<string, any>): Record<string, any> => {
-  return Object.assign(
-    {},
-    ...(function _flatten(objectBit, path = ""): any {
-      //spread the result into our return object
-      return [].concat(
-        //concat everything into one level
-        ...Object.keys(objectBit).map(
-          //iterate over object
-          (key) =>
-            typeof objectBit[key] === "object" //check if there is a nested object
-              ? _flatten(objectBit[key], `${path}-${key}`.replace(/^-/, "")) //call itself if there is
-              : {[`${path}-${key}`.replace(/^-/, "")]: objectBit[key]} //append object with it’s path as key
-        )
-      );
-    })(o)
-  );
+type NestedColorMap = {
+  [key: string]: string | NestedColorMap;
+};
+
+export const flatten = (o: NestedColorMap): Record<string, string> => {
+  const output: Record<string, string> = {};
+
+  const walk = (objectBit: NestedColorMap, path = ''): void => {
+    Object.keys(objectBit).forEach((key) => {
+      const value = objectBit[key];
+      const nextKey = `${path}-${key}`.replace(/^-/, '');
+
+      if (value && typeof value === 'object') {
+        walk(value as NestedColorMap, nextKey);
+        return;
+      }
+
+      output[nextKey] = String(value);
+    });
+  };
+
+  walk(o);
+  return output;
 };
 
 export function isDarkPalette(color: string): boolean {
@@ -141,7 +147,7 @@ export function getColor(key: string): string {
       "900": "#831843",
     },
   };
-  const flattenedColors: Record<string, any> = flatten(colors);
+  const flattenedColors: Record<string, string> = flatten(colors);
   return flattenedColors[key];
 }
 
@@ -155,7 +161,7 @@ export function darken(col: string, amt: number): string {
   return colorLuminance(col, amt);
 }
 export function hexToRgbA(hex: string, opacity: number): string {
-  let c: any;
+  let c: string[] | string | number;
   const o = opacity || 1;
   if (/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)) {
     c = hex.substring(1).split("");

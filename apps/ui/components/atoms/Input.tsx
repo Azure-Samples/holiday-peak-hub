@@ -5,6 +5,7 @@
 
 import React, { forwardRef } from 'react';
 import { useFormContext } from 'react-hook-form';
+import type { RegisterOptions } from 'react-hook-form';
 import { cn, sizeClasses } from '../utils';
 import type { Size, FormFieldBaseProps, InputType } from '../types';
 
@@ -29,7 +30,7 @@ export interface InputProps extends Omit<FormFieldBaseProps, 'label' | 'hint'>,
   /** Whether to use react-hook-form integration */
   useRHF?: boolean;
   /** Validation rules for react-hook-form */
-  rules?: any;
+  rules?: RegisterOptions;
   /** Min value (for number inputs) */
   min?: number;
   /** Max value (for number inputs) */
