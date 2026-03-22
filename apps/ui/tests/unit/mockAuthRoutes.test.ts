@@ -40,6 +40,7 @@ describe('mock auth routes', () => {
       AUTH_COOKIE_SECRET: 'test-auth-cookie-secret',
     };
     delete process.env.DEV_AUTH_MOCK;
+    delete process.env.DEV_AUTH_MOCK_ALLOW_PROD;
   });
 
   afterEach(() => {
@@ -94,6 +95,31 @@ describe('mock auth routes', () => {
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toEqual(
       expect.objectContaining({ error: 'Mock authentication is disabled.' }),
+    );
+  });
+
+  it('login is enabled in production when DEV_AUTH_MOCK_ALLOW_PROD is true', async () => {
+    process.env = {
+      ...process.env,
+      NODE_ENV: 'production',
+      DEV_AUTH_MOCK: 'true',
+      DEV_AUTH_MOCK_ALLOW_PROD: 'true',
+    };
+    const route = await import('../../app/api/auth/mock/login/route');
+
+    const response = await route.POST({
+      json: async () => ({ role: 'admin' }),
+    } as unknown as NextRequest);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual(
+      expect.objectContaining({ ok: true, role: 'admin' }),
+    );
+    expect(response.cookies.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'msal-auth',
+        httpOnly: true,
+      }),
     );
   });
 

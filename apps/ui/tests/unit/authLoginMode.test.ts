@@ -10,6 +10,7 @@ describe('msalConfig login mode', () => {
     delete process.env.NEXT_PUBLIC_ENTRA_CLIENT_ID;
     delete process.env.NEXT_PUBLIC_ENTRA_TENANT_ID;
     delete process.env.NEXT_PUBLIC_DEV_AUTH_MOCK;
+    delete process.env.NEXT_PUBLIC_DEV_AUTH_MOCK_ALLOW_PROD;
   });
 
   afterEach(() => {
@@ -35,5 +36,14 @@ describe('msalConfig login mode', () => {
     process.env.NEXT_PUBLIC_DEV_AUTH_MOCK = 'true';
     const config = await import('../../lib/auth/msalConfig');
     expect(config.isDevAuthMockUiEnabled).toBe(false);
+  });
+
+  it('allows mock mode in production when explicit override is enabled', async () => {
+    process.env = { ...process.env, NODE_ENV: 'production' } as NodeJS.ProcessEnv;
+    process.env.NEXT_PUBLIC_DEV_AUTH_MOCK = 'true';
+    process.env.NEXT_PUBLIC_DEV_AUTH_MOCK_ALLOW_PROD = 'true';
+    const config = await import('../../lib/auth/msalConfig');
+    expect(config.isDevAuthMockUiEnabled).toBe(true);
+    expect(config.getEntraConfigError()).toBeNull();
   });
 });

@@ -126,6 +126,8 @@ export const Navigation: React.FC<NavigationProps> = ({
               iconOnly
               onClick={onMobileMenuToggle}
               ariaLabel={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={mobileMenuOpen}
+              aria-controls="mobile-menu"
               className="text-[var(--hp-text)]"
             >
               <FiMenu className="w-6 h-6" />
@@ -276,7 +278,10 @@ export const Navigation: React.FC<NavigationProps> = ({
 
       {/* Mobile Menu */}
       {mobileMenuOpen && (
-        <div className="lg:hidden border-t border-[var(--hp-border)] bg-[var(--hp-surface)] showcase-rise">
+        <div
+          id="mobile-menu"
+          className="lg:hidden border-t border-[var(--hp-border)] bg-[var(--hp-surface)] showcase-rise"
+        >
           <div className="space-y-2 px-4 py-3">
             <div className="pb-3">
               <SearchInput

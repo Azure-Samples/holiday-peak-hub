@@ -42,15 +42,31 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
   ariaLabel,
 }) => {
   const router = useRouter();
+  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+
+  const handleMobileMenuToggle = React.useCallback(() => {
+    setMobileMenuOpen((previousState) => !previousState);
+  }, []);
+
   const handleSearch = (query: string) => {
     const trimmed = query.trim();
     if (trimmed) {
       router.push(`/search?q=${encodeURIComponent(trimmed)}`);
     }
   };
+  const hasExternalMobileMenuController =
+    typeof navigationProps?.mobileMenuOpen === 'boolean'
+    && typeof navigationProps?.onMobileMenuToggle === 'function';
+
   const mergedNavigationProps = {
     ...navigationProps,
     onSearch: navigationProps?.onSearch ?? handleSearch,
+    mobileMenuOpen: hasExternalMobileMenuController
+      ? navigationProps?.mobileMenuOpen
+      : mobileMenuOpen,
+    onMobileMenuToggle: hasExternalMobileMenuController
+      ? navigationProps?.onMobileMenuToggle
+      : handleMobileMenuToggle,
   };
   return (
     <div

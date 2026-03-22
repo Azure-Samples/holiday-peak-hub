@@ -109,12 +109,15 @@ export default function LoginPage() {
             Welcome to Holiday Peak Hub
           </h1>
           <p className="text-gray-600 dark:text-gray-400">
-            Sign in with your Microsoft account to continue
+            {isDevAuthMockUiEnabled
+              ? 'Select a role below to continue in mock authentication mode'
+              : 'Sign in with your Microsoft account to continue'}
           </p>
         </div>
 
         {/* Sign in with Microsoft */}
-        <Card className="p-8 mb-6">
+        {!isDevAuthMockUiEnabled && (
+          <Card className="p-8 mb-6">
           {hasRouteProtectionRedirect && !loginError && (
             <div
               role="status"
@@ -155,7 +158,8 @@ export default function LoginPage() {
             <br />
             Your credentials are never stored by this application.
           </p>
-        </Card>
+          </Card>
+        )}
 
         {isDevAuthMockUiEnabled && (
           <Card className="p-6 mb-6">
@@ -163,7 +167,7 @@ export default function LoginPage() {
               Development Mock Login
             </h2>
             <p id="mock-login-description" className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-              Mock sign-in is for local development only and is unavailable in production.
+              Mock sign-in is available only when explicitly enabled by runtime configuration.
             </p>
             <p id="mock-login-status" role="status" aria-live="polite" className="text-xs text-gray-500 dark:text-gray-400 mb-4">
               {isMockLoading && selectedMockRole
