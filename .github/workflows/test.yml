@@ -82,6 +82,8 @@ jobs:
 
   ui-quality:
     runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_CRUD_API_URL: http://localhost:8000
     defaults:
       run:
         working-directory: apps/ui
