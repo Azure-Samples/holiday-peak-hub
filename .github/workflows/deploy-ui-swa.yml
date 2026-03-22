@@ -173,6 +173,8 @@ jobs:
           NEXT_PUBLIC_API_URL: ${{ steps.api.outputs.api_url }}
           NEXT_PUBLIC_CRUD_API_URL: ${{ steps.api.outputs.crud_api_url }}
           NEXT_PUBLIC_AGENT_API_URL: ${{ steps.api.outputs.agent_api_url }}
+          NEXT_PUBLIC_DEV_AUTH_MOCK: ${{ vars.NEXT_PUBLIC_DEV_AUTH_MOCK }}
+          NEXT_PUBLIC_DEV_AUTH_MOCK_ALLOW_PROD: ${{ vars.NEXT_PUBLIC_DEV_AUTH_MOCK_ALLOW_PROD }}
 
       - name: Smoke test UI host and API health after deploy
         shell: bash
