@@ -129,6 +129,22 @@ export interface Product {
   related?: Array<Record<string, unknown>>;
 }
 
+export interface ProductEnrichmentTriggerRequest {
+  trace_id?: string;
+  trigger_source?: string;
+  reason?: string;
+}
+
+export interface ProductEnrichmentTriggerResponse {
+  status: 'queued';
+  product_id: string;
+  event_type: string;
+  queued_at: string;
+  trace_id?: string | null;
+  trigger_source?: string | null;
+  reason?: string | null;
+}
+
 // Category types
 export interface Category {
   id: string;

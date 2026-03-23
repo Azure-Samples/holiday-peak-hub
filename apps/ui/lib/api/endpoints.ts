@@ -26,6 +26,7 @@ export const API_ENDPOINTS = {
   products: {
     list: '/api/products',
     get: (id: string) => `/api/products/${id}`,
+    triggerEnrichment: (id: string) => `/api/products/${id}/trigger-enrichment`,
     search: (query: string) => `/api/products?search=${encodeURIComponent(query)}`,
     byCategory: (categoryId: string) => `/api/products?category=${categoryId}`,
   },

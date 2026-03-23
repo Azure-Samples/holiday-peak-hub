@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { MainLayout } from '@/components/templates/MainLayout';
 import { Card } from '@/components/molecules/Card';
 import { Badge } from '@/components/atoms/Badge';
@@ -11,6 +11,7 @@ import {
   DEFAULT_ADMIN_SERVICE_RANGE,
   ADMIN_SERVICE_RANGE_OPTIONS,
 } from '@/lib/hooks/useAdminServiceDashboard';
+import { useProducts, useTriggerProductEnrichment } from '@/lib/hooks/useProducts';
 import type { AdminServiceDomain, AgentMonitorTimeRange, AdminServiceStatus, AgentTraceStatus } from '@/lib/types/api';
 
 const STATUS_BADGE_VARIANT: Record<AdminServiceStatus, 'success' | 'warning' | 'danger' | 'secondary'> = {
@@ -42,7 +43,67 @@ export interface AdminServiceDashboardPageProps {
 
 export function AdminServiceDashboardPage({ domain, service }: AdminServiceDashboardPageProps) {
   const [timeRange, setTimeRange] = useState<AgentMonitorTimeRange>(DEFAULT_ADMIN_SERVICE_RANGE);
+  const [triggerProductId, setTriggerProductId] = useState('');
+  const [triggerStatusMessage, setTriggerStatusMessage] = useState<string | null>(null);
+  const [triggerErrorMessage, setTriggerErrorMessage] = useState<string | null>(null);
   const { data, isLoading, isError, isFetching, error, refetch } = useAdminServiceDashboard(domain, service, timeRange);
+  const {
+    data: products = [],
+    isLoading: isProductsLoading,
+    isError: isProductsError,
+  } = useProducts({ limit: 100 });
+  const triggerEnrichment = useTriggerProductEnrichment();
+
+  const showProductTriggerCard = domain === 'ecommerce' && service === 'products';
+  const productOptions = useMemo(
+    () =>
+      products.map((product) => ({
+        value: product.id,
+        label: `${product.id} — ${product.name}`,
+      })),
+    [products],
+  );
+
+  useEffect(() => {
+    if (!showProductTriggerCard) {
+      return;
+    }
+
+    if (triggerProductId || productOptions.length === 0) {
+      return;
+    }
+
+    setTriggerProductId(String(productOptions[0].value));
+  }, [showProductTriggerCard, triggerProductId, productOptions]);
+
+  const handleTriggerEnrichment = async () => {
+    const normalizedProductId = triggerProductId.trim();
+    if (!normalizedProductId) {
+      setTriggerErrorMessage('Select a product to trigger enrichment.');
+      setTriggerStatusMessage(null);
+      return;
+    }
+
+    setTriggerErrorMessage(null);
+    setTriggerStatusMessage(null);
+
+    try {
+      const response = await triggerEnrichment.mutateAsync({
+        productId: normalizedProductId,
+        payload: {
+          trigger_source: 'admin_ecommerce_products',
+        },
+      });
+
+      const queuedAt = new Date(response.queued_at).toLocaleString();
+      setTriggerStatusMessage(`Queued at ${queuedAt}`);
+      await refetch();
+    } catch (triggerError: unknown) {
+      const message =
+        triggerError instanceof Error ? triggerError.message : 'Failed to trigger enrichment.';
+      setTriggerErrorMessage(message);
+    }
+  };
 
   return (
     <MainLayout>
@@ -88,6 +149,56 @@ export function AdminServiceDashboardPage({ domain, service }: AdminServiceDashb
             Refresh
           </Button>
         </section>
+
+        {showProductTriggerCard && (
+          <Card className="p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <div className="w-full sm:max-w-sm">
+                <label
+                  htmlFor="trigger-product-id"
+                  className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                >
+                  Product ID
+                </label>
+                <Select
+                  name="trigger-product-id"
+                  value={triggerProductId}
+                  onChange={(event) => setTriggerProductId(event.target.value)}
+                  options={productOptions}
+                  placeholder={isProductsLoading ? 'Loading products...' : 'Select a product'}
+                  disabled={isProductsLoading || productOptions.length === 0}
+                  ariaLabel="Product ID"
+                />
+              </div>
+              <Button
+                onClick={() => {
+                  void handleTriggerEnrichment();
+                }}
+                loading={triggerEnrichment.isPending}
+                disabled={isProductsLoading || productOptions.length === 0 || !triggerProductId}
+                ariaLabel="Trigger enrichment"
+              >
+                Trigger enrichment
+              </Button>
+            </div>
+            {isProductsError && (
+              <p className="mt-2 text-sm text-red-700 dark:text-red-400">
+                Unable to load products from CRUD service.
+              </p>
+            )}
+            {!isProductsLoading && !isProductsError && productOptions.length === 0 && (
+              <p className="mt-2 text-sm text-yellow-700 dark:text-yellow-400">
+                No products available in CRUD service.
+              </p>
+            )}
+            {triggerStatusMessage && (
+              <p className="mt-2 text-sm text-green-700 dark:text-green-400">{triggerStatusMessage}</p>
+            )}
+            {triggerErrorMessage && (
+              <p className="mt-2 text-sm text-red-700 dark:text-red-400">{triggerErrorMessage}</p>
+            )}
+          </Card>
+        )}
 
         {isLoading && <Card className="p-6 text-gray-600 dark:text-gray-400">Loading service dashboard…</Card>}
 

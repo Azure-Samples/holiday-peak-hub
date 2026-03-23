@@ -8,7 +8,7 @@ import { MainLayout } from '@/components/templates/MainLayout';
 import { Badge } from '@/components/atoms/Badge';
 import { Button } from '@/components/atoms/Button';
 import { Card } from '@/components/molecules/Card';
-import { useProduct } from '@/lib/hooks/useProducts';
+import { useProduct, useTriggerProductEnrichment } from '@/lib/hooks/useProducts';
 import { useCategories } from '@/lib/hooks/useCategories';
 import { mapApiProductToUiProduct } from '@/lib/utils/productMappers';
 import { formatAgentResponse, type AgentMessageView } from '@/lib/utils/agentResponseCards';
@@ -199,6 +199,9 @@ export function ProductPageClient({ productId }: { productId: string }) {
   const [fitError, setFitError] = useState<string | null>(null);
   const [fitResponseView, setFitResponseView] = useState<AgentMessageView | null>(null);
   const [fitAssessment, setFitAssessment] = useState<FitAssessment | null>(null);
+  const [triggerEnrichmentStatus, setTriggerEnrichmentStatus] = useState<string | null>(null);
+  const [triggerEnrichmentError, setTriggerEnrichmentError] = useState<string | null>(null);
+  const triggerProductEnrichment = useTriggerProductEnrichment();
 
   const uiProduct = useMemo(() => (product ? mapApiProductToUiProduct(product) : null), [product]);
   const relatedProductIds = useMemo(() => {
@@ -310,6 +313,30 @@ export function ProductPageClient({ productId }: { productId: string }) {
       setFitError(detail);
     } finally {
       setFitLoading(false);
+    }
+  };
+
+  const handleTriggerEnrichmentJob = async () => {
+    if (!product?.id) {
+      return;
+    }
+
+    setTriggerEnrichmentError(null);
+    setTriggerEnrichmentStatus(null);
+
+    try {
+      const response = await triggerProductEnrichment.mutateAsync({
+        productId: product.id,
+        payload: {
+          trigger_source: 'product_page',
+        },
+      });
+
+      setTriggerEnrichmentStatus(`Queued at ${new Date(response.queued_at).toLocaleString()}`);
+    } catch (triggerError: unknown) {
+      const message =
+        triggerError instanceof Error ? triggerError.message : 'Failed to trigger enrichment job.';
+      setTriggerEnrichmentError(message);
     }
   };
 
@@ -457,7 +484,26 @@ export function ProductPageClient({ productId }: { productId: string }) {
                       Does this fits my case?
                       <FiArrowRight className="ml-2 h-4 w-4" />
                     </Button>
+
+                    <Button
+                      variant="secondary"
+                      size="lg"
+                      className="w-full sm:w-auto"
+                      onClick={() => {
+                        void handleTriggerEnrichmentJob();
+                      }}
+                      loading={triggerProductEnrichment.isPending}
+                    >
+                      Trigger enrichment job
+                    </Button>
                   </div>
+
+                  {triggerEnrichmentStatus ? (
+                    <p className="mt-2 text-sm text-[var(--hp-accent)]">{triggerEnrichmentStatus}</p>
+                  ) : null}
+                  {triggerEnrichmentError ? (
+                    <p className="mt-2 text-sm text-[var(--hp-primary)]">{triggerEnrichmentError}</p>
+                  ) : null}
 
                   {showFitPrompt ? (
                     <Card className="mt-4 border border-[var(--hp-border)] bg-[var(--hp-surface)] p-4 text-[var(--hp-text)]">

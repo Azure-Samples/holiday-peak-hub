@@ -172,3 +172,57 @@ def test_list_products_repo_timeout_returns_503(client):
 
     assert response.status_code == 503
     assert response.json()["detail"] == "Product catalog is temporarily unavailable"
+
+
+def test_trigger_product_enrichment_returns_202_and_publishes_product_updated(client):
+    """Trigger endpoint should enqueue ProductUpdated with optional metadata."""
+    with patch(
+        "crud_service.routes.products.event_publisher.publish_product_updated",
+        new_callable=AsyncMock,
+    ) as publish_product_updated:
+        response = client.post(
+            "/api/products/prod-1/trigger-enrichment",
+            json={
+                "trace_id": "trace-001",
+                "trigger_source": "manual",
+                "reason": "refresh content",
+            },
+        )
+
+    assert response.status_code == 202
+    payload = response.json()
+    assert payload["status"] == "queued"
+    assert payload["product_id"] == "prod-1"
+    assert payload["event_type"] == "ProductUpdated"
+    assert payload["queued_at"]
+    assert payload["trace_id"] == "trace-001"
+    assert payload["trigger_source"] == "manual"
+    assert payload["reason"] == "refresh content"
+
+    publish_product_updated.assert_awaited_once()
+    published_payload = publish_product_updated.await_args.args[0]
+    assert published_payload["id"] == "prod-1"
+    assert published_payload["timestamp"]
+    assert published_payload["trace_id"] == "trace-001"
+    assert published_payload["trigger_source"] == "manual"
+    assert published_payload["reason"] == "refresh content"
+
+
+def test_trigger_product_enrichment_returns_404_when_product_not_found(client):
+    """Trigger endpoint should return 404 and publish no event for unknown product."""
+    with (
+        patch(
+            "crud_service.routes.products.product_repo.get_by_id",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "crud_service.routes.products.event_publisher.publish_product_updated",
+            new_callable=AsyncMock,
+        ) as publish_product_updated,
+    ):
+        response = client.post("/api/products/prod-missing/trigger-enrichment", json={})
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Product not found"
+    publish_product_updated.assert_not_awaited()

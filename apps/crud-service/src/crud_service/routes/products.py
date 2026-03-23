@@ -2,14 +2,19 @@
 
 import asyncio
 import logging
+from datetime import UTC, datetime
 
 import httpx
 from circuitbreaker import CircuitBreakerError
 from crud_service.auth import User, get_current_user_optional
 from crud_service.config.settings import get_settings
-from crud_service.integrations import get_agent_client
+from crud_service.integrations import get_agent_client, get_event_publisher
 from crud_service.repositories import ProductRepository
-from crud_service.schemas.api.products import ProductResponse
+from crud_service.schemas.api.products import (
+    ProductEnrichmentTriggerRequest,
+    ProductEnrichmentTriggerResponse,
+    ProductResponse,
+)
 from crud_service.schemas.domain.products import ProductQuery
 from crud_service.services.product_service import fetch_products as fetch_products_service
 from crud_service.services.product_service import (
@@ -23,6 +28,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 router = APIRouter()
 product_repo = ProductRepository()
 agent_client = get_agent_client()
+event_publisher = get_event_publisher()
 logger = logging.getLogger(__name__)
 settings = get_settings()
 AGENT_FALLBACK_EXCEPTIONS = (httpx.HTTPError, CircuitBreakerError)
@@ -161,3 +167,41 @@ async def get_product(product_id: str):
         )
 
     return ProductResponse(**product)
+
+
+@router.post(
+    "/products/{product_id}/trigger-enrichment",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=ProductEnrichmentTriggerResponse,
+)
+async def trigger_product_enrichment(
+    product_id: str,
+    request: ProductEnrichmentTriggerRequest | None = None,
+):
+    """Queue a ProductUpdated event to trigger asynchronous product enrichment."""
+    product = await product_repo.get_by_id(product_id)
+    if not product:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
+
+    queued_at = datetime.now(UTC).isoformat()
+    event_payload = dict(product)
+    event_payload["timestamp"] = queued_at
+
+    if request and request.trace_id is not None:
+        event_payload["trace_id"] = request.trace_id
+    if request and request.trigger_source is not None:
+        event_payload["trigger_source"] = request.trigger_source
+    if request and request.reason is not None:
+        event_payload["reason"] = request.reason
+
+    await event_publisher.publish_product_updated(event_payload)
+
+    return ProductEnrichmentTriggerResponse(
+        status="queued",
+        product_id=product_id,
+        event_type="ProductUpdated",
+        queued_at=queued_at,
+        trace_id=request.trace_id if request else None,
+        trigger_source=request.trigger_source if request else None,
+        reason=request.reason if request else None,
+    )

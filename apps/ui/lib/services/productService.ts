@@ -7,7 +7,11 @@
 import apiClient, { handleApiError } from '../api/client';
 import agentApiClient from '../api/agentClient';
 import API_ENDPOINTS from '../api/endpoints';
-import type { Product } from '../types/api';
+import type {
+  Product,
+  ProductEnrichmentTriggerRequest,
+  ProductEnrichmentTriggerResponse,
+} from '../types/api';
 import { parsePriceString, type AcpProduct } from '../utils/productMappers';
 
 type AgentEnrichmentPayload = {
@@ -152,6 +156,21 @@ export const productService = {
    */
   async getByCategory(categoryId: string, limit = 50): Promise<Product[]> {
     return this.list({ category: categoryId, limit });
+  },
+
+  async triggerEnrichment(
+    id: string,
+    request?: ProductEnrichmentTriggerRequest,
+  ): Promise<ProductEnrichmentTriggerResponse> {
+    try {
+      const response = await apiClient.post<ProductEnrichmentTriggerResponse>(
+        API_ENDPOINTS.products.triggerEnrichment(id),
+        request,
+      );
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
   },
 };
 

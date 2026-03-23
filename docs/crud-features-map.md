@@ -73,7 +73,7 @@ All tables share the universal schema: `(id TEXT PK, partition_key TEXT, data JS
 
 | Table | Repository | CRUD Endpoints | Write Ops |
 |-------|-----------|---------------|-----------|
-| `products` | `ProductRepository` | `GET /api/products`, `GET /api/products/{id}` | Seed only |
+| `products` | `ProductRepository` | `GET /api/products`, `GET /api/products/{id}`, `POST /api/products/{id}/trigger-enrichment` | Seed + enrichment trigger |
 | `users` | `UserRepository` | `GET /api/users/me`, `PATCH /api/users/me` | Auto-create from JWT |
 | `cart` | `CartRepository` | `GET /api/cart`, `POST /api/cart/items`, `DELETE /api/cart/items/{id}`, `DELETE /api/cart` | Full CRUD |
 | `orders` | `OrderRepository` | `GET /api/orders`, `GET /api/orders/{id}`, `POST /api/orders`, `PATCH /api/orders/{id}/cancel` | Create + Cancel |
