@@ -87,9 +87,19 @@ type StaffReviewFallbackPayload =
 
 type EnrichmentMonitorFallbackPayload =
   | {
-      status_cards: [];
-      active_jobs: [];
-      error_log: [];
+      status_cards: Array<{
+        label: string;
+        value: number;
+      }>;
+      active_jobs: Array<{
+        id: string;
+        entity_id: string;
+        status: 'pending' | 'approved' | 'rejected' | 'queued' | 'running' | 'completed' | 'failed';
+        source_type: string;
+        confidence: number;
+        updated_at: string;
+      }>;
+      error_log: unknown[];
       throughput: {
         per_minute: number;
         last_10m: number;
@@ -99,12 +109,12 @@ type EnrichmentMonitorFallbackPayload =
   | {
       entity_id: string;
       title: string;
-      status: 'unknown';
+      status: 'unknown' | 'pending';
       confidence: number;
-      source_assets: [];
-      image_evidence: [];
-      attribute_diffs: [];
-      diffs: [];
+      source_assets: unknown[];
+      image_evidence: unknown[];
+      attribute_diffs: Array<Record<string, unknown>>;
+      diffs: Array<Record<string, unknown>>;
       reasoning: string;
       trace_id: null;
     };
@@ -732,9 +742,13 @@ function buildAgentEvaluationsFromSources(sources: AgentSourceData[]): Record<st
 
 async function buildAgentActivitySecondaryPayload(params: {
   upstreamPath: string;
-  baseUrl: string;
+  baseUrl: string | null;
   requestHeaders: Headers;
 }): Promise<Record<string, unknown> | null> {
+  if (!params.baseUrl) {
+    return null;
+  }
+
   const route = resolveAgentActivityRoute(params.upstreamPath);
   if (!route) {
     return null;
@@ -816,10 +830,14 @@ async function buildStaffReviewSecondaryPayload(
     baseUrl,
     requestHeaders,
   }: {
-    baseUrl: string;
+    baseUrl: string | null;
     requestHeaders: Headers;
   },
 ): Promise<StaffReviewFallbackPayload | null> {
+  if (!baseUrl) {
+    return null;
+  }
+
   const invokeUrl = `${baseUrl}/agents/truth-hitl/invoke`;
 
   if (upstreamPath === '/api/staff/review') {
@@ -937,10 +955,14 @@ async function buildEnrichmentMonitorSecondaryPayload(
     baseUrl,
     requestHeaders,
   }: {
-    baseUrl: string;
+    baseUrl: string | null;
     requestHeaders: Headers;
   },
 ): Promise<EnrichmentMonitorFallbackPayload | null> {
+  if (!baseUrl) {
+    return null;
+  }
+
   const invokeUrl = `${baseUrl}/agents/truth-hitl/invoke`;
 
   if (upstreamPath === '/api/admin/enrichment-monitor') {
