@@ -1,5 +1,7 @@
-import { redirect } from 'next/navigation';
+'use client';
 
-export default function AdminEcommerceProductsRedirectPage() {
-  redirect('/admin/enrichment-monitor');
+import AdminServiceDashboardPage from '@/components/admin/AdminServiceDashboardPage';
+
+export default function AdminEcommerceProductsPage() {
+  return <AdminServiceDashboardPage domain="ecommerce" service="products" />;
 }

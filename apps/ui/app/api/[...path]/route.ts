@@ -1148,6 +1148,32 @@ async function postJsonIfOk(url: string, headers: Headers, payload: unknown): Pr
   }
 }
 
+async function getJsonIfOk(url: string, headers: Headers): Promise<unknown | null> {
+  try {
+    const requestHeaders = new Headers(headers);
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: requestHeaders,
+      redirect: 'manual',
+      cache: 'no-store',
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      return null;
+    }
+
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
 async function buildStaffReviewSecondaryPayload(
   upstreamPath: string,
   query: URLSearchParams,
@@ -1288,21 +1314,17 @@ async function buildEnrichmentMonitorSecondaryPayload(
     return null;
   }
 
-  const invokeUrl = `${baseUrl}/agents/truth-hitl/invoke`;
+  const reviewBaseUrl = `${baseUrl}/agents/truth-hitl/review`;
 
   if (upstreamPath === '/api/admin/enrichment-monitor') {
     const [queuePayload, statsPayload] = await Promise.all([
-      postJsonIfOk(invokeUrl, requestHeaders, {
-        action: 'queue',
-        skip: 0,
-        limit: 50,
-      }),
-      postJsonIfOk(invokeUrl, requestHeaders, { action: 'stats' }),
+      getJsonIfOk(`${reviewBaseUrl}/queue?skip=0&limit=50`, requestHeaders),
+      getJsonIfOk(`${reviewBaseUrl}/stats`, requestHeaders),
     ]);
 
     const queueRecord = toRecord(queuePayload);
     const statsRecord = toRecord(statsPayload);
-    const stats = toRecord(statsRecord?.stats);
+    const stats = toRecord(statsRecord?.stats) ?? statsRecord;
     const queueItems = toArray(queueRecord?.items)
       .map((item) => toRecord(item))
       .filter((item): item is Record<string, unknown> => item !== null);
@@ -1348,16 +1370,13 @@ async function buildEnrichmentMonitorSecondaryPayload(
   const detailMatch = upstreamPath.match(/^\/api\/admin\/enrichment-monitor\/([^/]+)$/);
   if (detailMatch && detailMatch[1]) {
     const entityId = decodeURIComponent(detailMatch[1]);
-    const detailPayload = await postJsonIfOk(invokeUrl, requestHeaders, {
-      action: 'detail',
-      entity_id: entityId,
-    });
+    const detailPayload = await getJsonIfOk(`${reviewBaseUrl}/${encodeURIComponent(entityId)}`, requestHeaders);
     const detail = toRecord(detailPayload);
     if (!detail) {
       return null;
     }
 
-    const proposals = toArray(detail.proposed_attributes)
+    const proposals = toArray(detail.proposed_attributes ?? detail.items)
       .map((item) => toRecord(item))
       .filter((item): item is Record<string, unknown> => item !== null);
 

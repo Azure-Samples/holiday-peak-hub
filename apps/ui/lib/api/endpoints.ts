@@ -139,6 +139,7 @@ export const API_ENDPOINTS = {
 
   // Admin
   admin: {
+    serviceDashboard: (domain: string, service: string) => `/api/admin/${domain}/${service}`,
     enrichmentMonitor: {
       dashboard: '/api/admin/enrichment-monitor',
       detail: (entityId: string) => `/api/admin/enrichment-monitor/${entityId}`,

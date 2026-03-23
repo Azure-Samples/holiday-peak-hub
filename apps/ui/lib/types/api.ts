@@ -800,6 +800,36 @@ export interface AgentEvaluationsPayload {
   comparison: AgentEvaluationComparisonRow[];
 }
 
+export type AdminServiceDomain = 'crm' | 'ecommerce' | 'inventory' | 'logistics' | 'products';
+
+export type AdminServiceStatus = 'healthy' | 'warning' | 'error' | 'unknown';
+
+export interface AdminServiceStatusCard {
+  label: string;
+  value: number | string;
+  status: AdminServiceStatus;
+}
+
+export interface AdminServiceActivityRow {
+  id: string;
+  timestamp: string;
+  event: string;
+  entity: string;
+  status: AgentTraceStatus;
+  latency_ms: number;
+}
+
+export interface AdminServiceDashboard {
+  domain: AdminServiceDomain;
+  service: string;
+  agent_service: string;
+  generated_at: string;
+  tracing_enabled: boolean;
+  status_cards: AdminServiceStatusCard[];
+  activity: AdminServiceActivityRow[];
+  model_usage: AgentModelUsageRow[];
+}
+
 // API Response wrappers
 export interface ApiResponse<T> {
   data: T;
