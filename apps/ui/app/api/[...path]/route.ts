@@ -139,6 +139,49 @@ type AgentSourceData = {
   latestEvaluation: Record<string, unknown> | null;
 };
 
+type AdminServiceDomain = 'crm' | 'ecommerce' | 'inventory' | 'logistics' | 'products';
+
+type AdminServiceRouteMatch = {
+  domain: AdminServiceDomain;
+  service: string;
+  agentService: string;
+};
+
+type AdminServiceActivityRow = {
+  id: string;
+  timestamp: string;
+  event: string;
+  entity: string;
+  status: 'ok' | 'warning' | 'error' | 'unknown';
+  latency_ms: number;
+};
+
+type AdminServiceModelUsageRow = {
+  model_name: string;
+  model_tier: 'slm' | 'llm' | 'unknown';
+  requests: number;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  avg_latency_ms: number;
+  cost_usd: number;
+};
+
+type AdminServiceFallbackPayload = {
+  domain: AdminServiceDomain;
+  service: string;
+  agent_service: string;
+  generated_at: string;
+  tracing_enabled: boolean;
+  status_cards: Array<{
+    label: string;
+    value: string | number;
+    status: 'healthy' | 'warning' | 'error' | 'unknown';
+  }>;
+  activity: AdminServiceActivityRow[];
+  model_usage: AdminServiceModelUsageRow[];
+};
+
 const DEFAULT_AGENT_ACTIVITY_SERVICES = [
   'ecommerce-catalog-search',
   'search-enrichment-agent',
@@ -154,6 +197,38 @@ const DEFAULT_AGENT_ACTIVITY_SERVICES = [
   'logistics-route-issue-detection',
   'logistics-returns-support',
 ] as const;
+
+const ADMIN_SERVICE_AGENT_MAP: Record<string, string> = {
+  'crm/campaigns': 'crm-campaign-intelligence',
+  'crm/profiles': 'crm-profile-aggregation',
+  'crm/segmentation': 'crm-segmentation-personalization',
+  'crm/support': 'crm-support-assistance',
+  'ecommerce/catalog': 'ecommerce-catalog-search',
+  'ecommerce/cart': 'ecommerce-cart-intelligence',
+  'ecommerce/checkout': 'ecommerce-checkout-support',
+  'ecommerce/orders': 'ecommerce-order-status',
+  'ecommerce/products': 'ecommerce-product-detail-enrichment',
+  'inventory/health': 'inventory-health-check',
+  'inventory/alerts': 'inventory-alerts-triggers',
+  'inventory/replenishment': 'inventory-jit-replenishment',
+  'inventory/reservation': 'inventory-reservation-validation',
+  'logistics/carriers': 'logistics-carrier-selection',
+  'logistics/eta': 'logistics-eta-computation',
+  'logistics/returns': 'logistics-returns-support',
+  'logistics/routes': 'logistics-route-issue-detection',
+  'products/acp': 'product-management-acp-transformation',
+  'products/assortment': 'product-management-assortment-optimization',
+  'products/validation': 'product-management-consistency-validation',
+  'products/normalization': 'product-management-normalization-classification',
+};
+
+const ADMIN_SERVICE_DOMAINS = new Set<AdminServiceDomain>([
+  'crm',
+  'ecommerce',
+  'inventory',
+  'logistics',
+  'products',
+]);
 
 function buildTargetUrl(request: NextRequest, pathSegments: string[]): TargetResolution {
   const { baseUrl, sourceKey } = resolveCrudApiBaseUrl();
@@ -304,6 +379,32 @@ function isAgentActivityRoute(path: string): boolean {
     || path === '/api/admin/agent-activity/evaluations'
     || path.startsWith('/api/admin/agent-activity/traces/')
   );
+}
+
+function resolveAdminServiceRoute(path: string): AdminServiceRouteMatch | null {
+  const match = path.match(/^\/api\/admin\/([^/]+)\/([^/]+)$/);
+  if (!match) {
+    return null;
+  }
+
+  const domainCandidate = decodeURIComponent(match[1]) as AdminServiceDomain;
+  const service = decodeURIComponent(match[2]);
+
+  if (!ADMIN_SERVICE_DOMAINS.has(domainCandidate)) {
+    return null;
+  }
+
+  const mappingKey = `${domainCandidate}/${service}`;
+  const agentService = ADMIN_SERVICE_AGENT_MAP[mappingKey];
+  if (!agentService) {
+    return null;
+  }
+
+  return {
+    domain: domainCandidate,
+    service,
+    agentService,
+  };
 }
 
 function resolveAgentActivityRoute(upstreamPath: string): { kind: AgentActivityRouteKind; traceId?: string } | null {
@@ -774,6 +875,230 @@ async function buildAgentActivitySecondaryPayload(params: {
   return null;
 }
 
+function buildEmptyAdminServicePayload(route: AdminServiceRouteMatch): AdminServiceFallbackPayload {
+  return {
+    domain: route.domain,
+    service: route.service,
+    agent_service: route.agentService,
+    generated_at: new Date().toISOString(),
+    tracing_enabled: false,
+    status_cards: [],
+    activity: [],
+    model_usage: [],
+  };
+}
+
+function buildAdminServiceModelUsageRows(
+  traces: Array<Record<string, unknown>>,
+  metrics: Record<string, unknown> | null,
+  latestEvaluation: Record<string, unknown> | null,
+): AdminServiceModelUsageRow[] {
+  const usageMap = new Map<string, {
+    model_name: string;
+    model_tier: 'slm' | 'llm' | 'unknown';
+    requests: number;
+    input_tokens: number;
+    output_tokens: number;
+    total_tokens: number;
+    latency_sum: number;
+    cost_usd: number;
+  }>();
+
+  for (const trace of traces) {
+    const metadata = toRecord(trace.metadata);
+    const modelName = readString(metadata, ['model_name', 'model', 'deployment', 'model_deployment']) || 'unknown-model';
+    const modelTier = normalizeModelTier(readString(metadata, ['model_tier']) || modelName);
+    const key = `${modelTier}:${modelName}`;
+    const inputTokens = readNumber(metadata, ['input_tokens', 'prompt_tokens']) || 0;
+    const outputTokens = readNumber(metadata, ['output_tokens', 'completion_tokens']) || 0;
+    const totalTokens = readNumber(metadata, ['total_tokens']) || inputTokens + outputTokens;
+    const latency = readNumber(metadata, ['latency_ms', 'duration_ms']) || 0;
+    const cost = readNumber(metadata, ['cost_usd']) || 0;
+
+    const current = usageMap.get(key) || {
+      model_name: modelName,
+      model_tier: modelTier,
+      requests: 0,
+      input_tokens: 0,
+      output_tokens: 0,
+      total_tokens: 0,
+      latency_sum: 0,
+      cost_usd: 0,
+    };
+
+    current.requests += 1;
+    current.input_tokens += inputTokens;
+    current.output_tokens += outputTokens;
+    current.total_tokens += totalTokens;
+    current.latency_sum += latency;
+    current.cost_usd += cost;
+    usageMap.set(key, current);
+  }
+
+  if (usageMap.size === 0) {
+    const metricsModelUsage = toArray(toRecord(metrics?.model_usage)?.rows ?? metrics?.model_usage)
+      .map((row) => toRecord(row))
+      .filter((row): row is Record<string, unknown> => row !== null)
+      .map((row) => {
+        const modelName = readString(row, ['model_name', 'model', 'deployment']) || 'unknown-model';
+        const requests = readNumber(row, ['requests', 'count']) || 0;
+        const inputTokens = readNumber(row, ['input_tokens', 'prompt_tokens']) || 0;
+        const outputTokens = readNumber(row, ['output_tokens', 'completion_tokens']) || 0;
+        const totalTokens = readNumber(row, ['total_tokens']) || inputTokens + outputTokens;
+        const avgLatency = readNumber(row, ['avg_latency_ms', 'latency_ms']) || 0;
+        return {
+          model_name: modelName,
+          model_tier: normalizeModelTier(readString(row, ['model_tier', 'tier']) || modelName),
+          requests,
+          input_tokens: inputTokens,
+          output_tokens: outputTokens,
+          total_tokens: totalTokens,
+          avg_latency_ms: avgLatency,
+          cost_usd: readNumber(row, ['cost_usd']) || 0,
+        };
+      });
+
+    if (metricsModelUsage.length > 0) {
+      return metricsModelUsage;
+    }
+
+    if (latestEvaluation) {
+      const modelName = readString(latestEvaluation, ['model_name', 'model', 'deployment']) || 'unknown-model';
+      const avgLatency = readNumber(latestEvaluation, ['avg_latency_ms', 'latency_ms']) || 0;
+      return [
+        {
+          model_name: modelName,
+          model_tier: normalizeModelTier(readString(latestEvaluation, ['model_tier', 'tier']) || modelName),
+          requests: 0,
+          input_tokens: 0,
+          output_tokens: 0,
+          total_tokens: 0,
+          avg_latency_ms: avgLatency,
+          cost_usd: readNumber(latestEvaluation, ['cost_per_1k_tokens', 'cost']) || 0,
+        },
+      ];
+    }
+
+    return [];
+  }
+
+  return Array.from(usageMap.values()).map((row) => ({
+    model_name: row.model_name,
+    model_tier: row.model_tier,
+    requests: row.requests,
+    input_tokens: row.input_tokens,
+    output_tokens: row.output_tokens,
+    total_tokens: row.total_tokens,
+    avg_latency_ms: row.requests > 0 ? row.latency_sum / row.requests : 0,
+    cost_usd: Number(row.cost_usd.toFixed(6)),
+  }));
+}
+
+async function buildAdminServiceSecondaryPayload(params: {
+  route: AdminServiceRouteMatch;
+  baseUrl: string | null;
+  requestHeaders: Headers;
+}): Promise<AdminServiceFallbackPayload> {
+  const { route, baseUrl, requestHeaders } = params;
+
+  if (!baseUrl) {
+    return buildEmptyAdminServicePayload(route);
+  }
+
+  const [tracesPayload, metricsPayload, evaluationPayload] = await Promise.all([
+    fetchJsonIfOk(`${baseUrl}/agents/${route.agentService}/agent/traces?limit=40`, requestHeaders),
+    fetchJsonIfOk(`${baseUrl}/agents/${route.agentService}/agent/metrics`, requestHeaders),
+    fetchJsonIfOk(`${baseUrl}/agents/${route.agentService}/agent/evaluation/latest`, requestHeaders),
+  ]);
+
+  const tracesRecord = toRecord(tracesPayload);
+  const traces = toArray(tracesRecord?.traces)
+    .map((entry) => toRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null);
+  const metrics = toRecord(metricsPayload);
+  const evaluationRecord = toRecord(evaluationPayload);
+  const latestEvaluation = toRecord(evaluationRecord?.latest) || evaluationRecord;
+
+  const generatedAt = new Date().toISOString();
+  const activity = traces.map((entry, index) => {
+    const metadata = toRecord(entry.metadata);
+    const timestamp =
+      readString(entry, ['timestamp', 'started_at', 'time'])
+      || readString(metadata, ['timestamp', 'started_at'])
+      || generatedAt;
+    const status = normalizeTraceStatus(
+      readString(entry, ['status', 'outcome']) || readString(metadata, ['status', 'outcome']),
+    );
+    const eventName =
+      readString(entry, ['name', 'operation', 'type'])
+      || readString(metadata, ['operation', 'tool_name'])
+      || 'agent.activity';
+    const entity =
+      readString(metadata, ['entity_id', 'resource_id'])
+      || readString(entry, ['entity_id', 'id'])
+      || route.agentService;
+    const latency =
+      readNumber(metadata, ['latency_ms', 'duration_ms'])
+      || readNumber(entry, ['latency_ms', 'duration_ms'])
+      || 0;
+    const id =
+      readString(metadata, ['trace_id', 'id'])
+      || readString(entry, ['trace_id', 'id'])
+      || `${route.agentService}-${index + 1}`;
+
+    return {
+      id,
+      timestamp,
+      event: eventName,
+      entity,
+      status,
+      latency_ms: latency,
+    };
+  });
+
+  const errorCount = activity.filter((row) => row.status === 'error').length;
+  const totalCount = activity.length;
+  const averageLatency =
+    totalCount > 0 ? Math.round(activity.reduce((sum, row) => sum + row.latency_ms, 0) / totalCount) : 0;
+  const errorRate = totalCount > 0 ? errorCount / totalCount : 0;
+  const evaluationScore = readNumber(latestEvaluation, ['overall_score', 'score', 'quality_score', 'accuracy']) || 0;
+  const metricsEnabled = typeof metrics?.enabled === 'boolean' ? metrics.enabled : totalCount > 0;
+
+  const statusCards: AdminServiceFallbackPayload['status_cards'] = [
+    {
+      label: 'Trace events',
+      value: totalCount,
+      status: totalCount > 0 ? 'healthy' : 'unknown',
+    },
+    {
+      label: 'Avg latency (ms)',
+      value: averageLatency,
+      status: averageLatency > 0 && averageLatency > 1200 ? 'warning' : averageLatency > 0 ? 'healthy' : 'unknown',
+    },
+    {
+      label: 'Error rate',
+      value: `${Math.round(errorRate * 100)}%`,
+      status: errorRate >= 0.25 ? 'error' : errorRate > 0 ? 'warning' : totalCount > 0 ? 'healthy' : 'unknown',
+    },
+    {
+      label: 'Latest evaluation',
+      value: Number(evaluationScore.toFixed(3)),
+      status: evaluationScore >= 0.75 ? 'healthy' : evaluationScore > 0 ? 'warning' : 'unknown',
+    },
+  ];
+
+  return {
+    domain: route.domain,
+    service: route.service,
+    agent_service: route.agentService,
+    generated_at: generatedAt,
+    tracing_enabled: metricsEnabled,
+    status_cards: statusCards,
+    activity: activity.slice(0, 40),
+    model_usage: buildAdminServiceModelUsageRows(traces, metrics, latestEvaluation),
+  };
+}
+
 function isStaffReviewRoute(path: string): boolean {
   return path === '/api/staff/review' || path.startsWith('/api/staff/review/');
 }
@@ -1155,75 +1480,6 @@ function buildAgentActivityFallbackPayload(upstreamPath: string): AgentActivityF
   return null;
 }
 
-function buildEnrichmentMonitorFallbackPayload(upstreamPath: string): EnrichmentMonitorFallbackPayload | null {
-  if (upstreamPath === '/api/admin/enrichment-monitor') {
-    const now = new Date();
-    const runningUpdatedAt = now.toISOString();
-    const queuedUpdatedAt = new Date(now.getTime() - 2 * 60 * 1000).toISOString();
-    const pendingUpdatedAt = new Date(now.getTime() - 5 * 60 * 1000).toISOString();
-
-    return {
-      status_cards: [
-        { label: 'Pending review', value: 6 },
-        { label: 'Approved', value: 142 },
-        { label: 'Rejected', value: 9 },
-        { label: 'Active jobs', value: 3 },
-      ],
-      active_jobs: [
-        {
-          id: 'job-demo-101',
-          entity_id: 'SKU-HP-1042',
-          status: 'running',
-          source_type: 'catalog_ai',
-          confidence: 0.94,
-          updated_at: runningUpdatedAt,
-        },
-        {
-          id: 'job-demo-102',
-          entity_id: 'SKU-HP-2298',
-          status: 'queued',
-          source_type: 'merchant_feed',
-          confidence: 0.88,
-          updated_at: queuedUpdatedAt,
-        },
-        {
-          id: 'job-demo-103',
-          entity_id: 'SKU-HP-3371',
-          status: 'pending',
-          source_type: 'ocr',
-          confidence: 0.81,
-          updated_at: pendingUpdatedAt,
-        },
-      ],
-      error_log: [],
-      throughput: {
-        per_minute: 7,
-        last_10m: 58,
-        failed_last_10m: 2,
-      },
-    };
-  }
-
-  const detailMatch = upstreamPath.match(/^\/api\/admin\/enrichment-monitor\/([^/]+)$/);
-  if (detailMatch && detailMatch[1]) {
-    const entityId = decodeURIComponent(detailMatch[1]);
-    return {
-      entity_id: entityId,
-      title: entityId,
-      status: 'unknown',
-      confidence: 0,
-      source_assets: [],
-      image_evidence: [],
-      attribute_diffs: [],
-      diffs: [],
-      reasoning: '',
-      trace_id: null,
-    };
-  }
-
-  return null;
-}
-
 async function proxyRequest(
   request: NextRequest,
   context: { params: Promise<{ path: string[] }> },
@@ -1302,6 +1558,12 @@ async function proxyRequest(
     && isAgentActivityRoute(upstreamPath)
     && (upstream.status === 404 || upstream.status >= 500);
 
+  const adminServiceRoute = resolveAdminServiceRoute(upstreamPath);
+  const shouldFallbackAdminService =
+    method === 'GET'
+    && adminServiceRoute !== null
+    && (upstream.status === 404 || upstream.status >= 500);
+
   const shouldFallbackStaffReview =
     method === 'GET'
     && isStaffReviewRoute(upstreamPath)
@@ -1311,6 +1573,24 @@ async function proxyRequest(
     method === 'GET'
     && isEnrichmentMonitorRoute(upstreamPath)
     && (upstream.status === 404 || upstream.status >= 500);
+
+  if (shouldFallbackAdminService && adminServiceRoute) {
+    const payload = await buildAdminServiceSecondaryPayload({
+      route: adminServiceRoute,
+      baseUrl,
+      requestHeaders,
+    });
+
+    return NextResponse.json(payload, {
+      status: 200,
+      headers: {
+        'x-holiday-peak-proxy': 'next-app-api',
+        'x-holiday-peak-proxy-source': sourceKey ?? '',
+        'x-holiday-peak-proxy-fallback': payload.activity.length > 0 ? 'admin-service-live-aggregate' : 'admin-service-empty',
+        'x-holiday-peak-proxy-fallback-upstream-status': String(upstream.status),
+      },
+    });
+  }
 
   if (shouldFallbackAgentActivity) {
     const secondaryPayload = await buildAgentActivitySecondaryPayload({
@@ -1393,19 +1673,6 @@ async function proxyRequest(
           'x-holiday-peak-proxy': 'next-app-api',
           'x-holiday-peak-proxy-source': sourceKey ?? '',
           'x-holiday-peak-proxy-fallback': 'enrichment-monitor-live-aggregate',
-          'x-holiday-peak-proxy-fallback-upstream-status': String(upstream.status),
-        },
-      });
-    }
-
-    const fallbackPayload = buildEnrichmentMonitorFallbackPayload(upstreamPath);
-    if (fallbackPayload !== null) {
-      return NextResponse.json(fallbackPayload, {
-        status: 200,
-        headers: {
-          'x-holiday-peak-proxy': 'next-app-api',
-          'x-holiday-peak-proxy-source': sourceKey ?? '',
-          'x-holiday-peak-proxy-fallback': 'enrichment-monitor-unavailable',
           'x-holiday-peak-proxy-fallback-upstream-status': String(upstream.status),
         },
       });
