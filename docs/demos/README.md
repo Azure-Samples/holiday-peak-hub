@@ -9,6 +9,10 @@
 
 This directory contains comprehensive demonstrations for all 21 agent services in Holiday Peak Hub. Each demo is designed to showcase agent capabilities through realistic retail scenarios, from quick API calls to complex multi-agent workflows.
 
+### Live Operator Runbook
+
+- [Search + Enrichment + HITL Live Demo](live-demo-search-enrichment-hitl.md)
+
 ---
 
 ## Demo Structure

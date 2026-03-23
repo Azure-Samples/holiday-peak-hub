@@ -237,4 +237,204 @@ describe('/api proxy route env handling', () => {
       }),
     );
   });
+
+  it('aggregates live agent activity from /agents/* fallback chain when admin upstream route is unavailable', async () => {
+    process.env.NEXT_PUBLIC_CRUD_API_URL = 'https://apim.example.azure-api.net';
+    process.env.ADMIN_AGENT_ACTIVITY_SERVICES = 'ecommerce-catalog-search';
+
+    (global.fetch as jest.Mock).mockImplementation(async (url: string) => {
+      if (url.includes('/api/admin/agent-activity?time_range=15m')) {
+        return {
+          body: null,
+          ok: false,
+          status: 404,
+          statusText: 'Not Found',
+          headers: new Headers({ 'content-type': 'application/json' }),
+        };
+      }
+
+      if (url.includes('/agents/ecommerce-catalog-search/agent/traces')) {
+        return {
+          body: null,
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: jest.fn(async () => ({
+            service: 'ecommerce-catalog-search',
+            traces: [
+              {
+                timestamp: '2026-03-23T10:00:00.000Z',
+                service: 'ecommerce-catalog-search',
+                name: 'catalog.search',
+                outcome: 'success',
+                metadata: {
+                  trace_id: 'trace-123',
+                  duration_ms: 42,
+                  model_tier: 'slm',
+                  model_name: 'gpt-fast',
+                  input_tokens: 10,
+                  output_tokens: 20,
+                },
+              },
+            ],
+          })),
+        };
+      }
+
+      if (url.includes('/agents/ecommerce-catalog-search/agent/metrics')) {
+        return {
+          body: null,
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: jest.fn(async () => ({
+            service: 'ecommerce-catalog-search',
+            enabled: true,
+            counts: {
+              model_invocation: 1,
+            },
+          })),
+        };
+      }
+
+      if (url.includes('/agents/ecommerce-catalog-search/agent/evaluation/latest')) {
+        return {
+          body: null,
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: jest.fn(async () => ({
+            service: 'ecommerce-catalog-search',
+            latest: {
+              overall_score: 0.91,
+              pass_rate: 0.88,
+              model_name: 'gpt-fast',
+            },
+          })),
+        };
+      }
+
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const route = await import('../../app/api/[...path]/route');
+    const response = await route.GET(makeRequest('http://localhost/api/admin/agent-activity?time_range=15m'), {
+      params: Promise.resolve({ path: ['admin', 'agent-activity'] }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/agents/ecommerce-catalog-search/agent/traces'),
+      expect.objectContaining({ method: 'GET' }),
+    );
+    await expect(response.json()).resolves.toEqual(
+      expect.objectContaining({
+        tracing_enabled: true,
+        health_cards: expect.arrayContaining([
+          expect.objectContaining({ id: 'ecommerce-catalog-search' }),
+        ]),
+        trace_feed: expect.arrayContaining([
+          expect.objectContaining({
+            trace_id: 'trace-123',
+            agent_name: 'ecommerce-catalog-search',
+          }),
+        ]),
+        model_usage: expect.any(Array),
+      }),
+    );
+  });
+
+  it('aggregates staff review queue from truth-hitl invoke when staff upstream route is unavailable', async () => {
+    process.env.NEXT_PUBLIC_CRUD_API_URL = 'https://apim.example.azure-api.net';
+
+    (global.fetch as jest.Mock).mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.includes('/api/staff/review?page=1&page_size=20')) {
+        return {
+          body: null,
+          ok: false,
+          status: 404,
+          statusText: 'Not Found',
+          headers: new Headers({ 'content-type': 'application/json' }),
+        };
+      }
+
+      if (url.includes('/agents/truth-hitl/invoke')) {
+        expect(init?.method).toBe('POST');
+        return {
+          body: null,
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: jest.fn(async () => ({
+            items: [
+              {
+                id: 'attr-123',
+                entity_id: 'prd-001',
+                product_title: 'Demo Product',
+                category: 'Electronics',
+                field_name: 'material',
+                current_value: 'plastic',
+                proposed_value: 'aluminum',
+                confidence: 0.91,
+                source: 'ai',
+                proposed_at: '2026-03-23T10:00:00.000Z',
+                status: 'pending',
+              },
+            ],
+            count: 1,
+          })),
+        };
+      }
+
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const route = await import('../../app/api/[...path]/route');
+    const response = await route.GET(makeRequest('http://localhost/api/staff/review?page=1&page_size=20'), {
+      params: Promise.resolve({ path: ['staff', 'review'] }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual(
+      expect.objectContaining({
+        items: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'attr-123',
+            entity_id: 'prd-001',
+          }),
+        ]),
+        total: 1,
+        page: 1,
+        page_size: 20,
+      }),
+    );
+  });
+
+  it('keeps non-agent routes unchanged when upstream returns 404', async () => {
+    process.env.NEXT_PUBLIC_CRUD_API_URL = 'https://apim.example.azure-api.net';
+    (global.fetch as jest.Mock).mockResolvedValue({
+      body: null,
+      status: 404,
+      statusText: 'Not Found',
+      headers: new Headers({
+        'content-type': 'application/json',
+      }),
+    });
+
+    const route = await import('../../app/api/[...path]/route');
+    const response = await route.GET(makeRequest('http://localhost/api/products'), {
+      params: Promise.resolve({ path: ['products'] }),
+    });
+
+    expect(response.status).toBe(404);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://apim.example.azure-api.net/api/products',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
 });

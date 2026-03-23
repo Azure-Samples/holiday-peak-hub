@@ -365,7 +365,7 @@ export default function DashboardPage() {
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                 Our customer support team is here to assist you 24/7
               </p>
-              <Link href="/agents/product-enrichment-chat">
+              <Link href="/search?agentChat=1">
                 <Button className="w-full bg-ocean-500 hover:bg-ocean-600 dark:bg-ocean-300 dark:hover:bg-ocean-400 text-white dark:text-gray-900">
                   Contact Support
                 </Button>

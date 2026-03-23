@@ -55,8 +55,6 @@ class AISearchDocumentResult:
 
 _SEARCH_SELECT_FIELDS = [
     "sku",
-    "item_id",
-    "product_id",
     "id",
     "title",
     "description",
@@ -393,7 +391,7 @@ async def search_catalog_skus_detailed(query: str, limit: int) -> AISearchSkuRes
         results = await client.search(
             search_text=query,
             top=limit,
-            select=["sku", "item_id", "product_id", "id"],
+            select=["sku", "id"],
         )
         async for doc in results:
             sku = _extract_sku(doc)

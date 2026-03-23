@@ -29,6 +29,41 @@ export interface AcpProduct {
 }
 
 const PLACEHOLDER_IMAGE = '/images/products/p1.jpg';
+const INVALID_IMAGE_HOSTS = new Set([
+  'example.com',
+  'www.example.com',
+  'via.placeholder.com',
+  'placeholder.com',
+]);
+
+export const sanitizeProductImageUrl = (rawUrl?: string): string => {
+  if (!rawUrl) {
+    return PLACEHOLDER_IMAGE;
+  }
+
+  const candidate = rawUrl.trim();
+  if (!candidate) {
+    return PLACEHOLDER_IMAGE;
+  }
+
+  if (candidate.startsWith('/')) {
+    return candidate;
+  }
+
+  if (candidate.startsWith('http://') || candidate.startsWith('https://')) {
+    try {
+      const parsed = new URL(candidate);
+      if (INVALID_IMAGE_HOSTS.has(parsed.hostname.toLowerCase())) {
+        return PLACEHOLDER_IMAGE;
+      }
+      return candidate;
+    } catch {
+      return PLACEHOLDER_IMAGE;
+    }
+  }
+
+  return PLACEHOLDER_IMAGE;
+};
 
 export const parsePriceString = (
   rawPrice?: string
@@ -48,7 +83,11 @@ export const parsePriceString = (
 
 export const mapApiProductToUiProduct = (product: ApiProduct): UiProduct => {
   const mediaImage = product.media?.find((media) => Boolean(media.url))?.url;
-  const thumbnail = product.image_url || mediaImage || PLACEHOLDER_IMAGE;
+  const thumbnail = sanitizeProductImageUrl(product.image_url || mediaImage);
+  const mappedImages =
+    product.media
+      ?.map((media) => sanitizeProductImageUrl(String(media.url)))
+      .filter((url) => url !== PLACEHOLDER_IMAGE) || [];
   return {
     sku: product.id,
     title: product.name,
@@ -57,8 +96,7 @@ export const mapApiProductToUiProduct = (product: ApiProduct): UiProduct => {
     category: product.category_id,
     price: product.price,
     currency: 'USD',
-    images:
-      product.media?.map((media) => String(media.url)).filter(Boolean) || [thumbnail],
+    images: mappedImages.length > 0 ? mappedImages : [thumbnail],
     thumbnail,
     rating: product.rating,
     reviewCount: product.review_count,
@@ -73,7 +111,7 @@ export const mapApiProductToUiProduct = (product: ApiProduct): UiProduct => {
 
 export const mapAcpProductToUiProduct = (product: AcpProduct): UiProduct => {
   const { amount, currency } = parsePriceString(product.price);
-  const thumbnail = product.image_url || product.image || PLACEHOLDER_IMAGE;
+  const thumbnail = sanitizeProductImageUrl(product.image_url || product.image);
   const availability = (product.availability || '').toLowerCase();
   return {
     sku: product.item_id,

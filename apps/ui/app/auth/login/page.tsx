@@ -39,6 +39,7 @@ export default function LoginPage() {
   const hasRouteProtectionRedirect = Boolean(
     redirectPath && redirectPath.startsWith('/')
   );
+  const isMockModeEnabled = isDevAuthMockUiEnabled;
 
   const mockRoleLabels: Record<'customer' | 'staff' | 'admin', string> = {
     customer: 'Customer',
@@ -109,65 +110,19 @@ export default function LoginPage() {
             Welcome to Holiday Peak Hub
           </h1>
           <p className="text-gray-600 dark:text-gray-400">
-            {isDevAuthMockUiEnabled
-              ? 'Select a role below to continue in mock authentication mode'
-              : 'Sign in with your Microsoft account to continue'}
+            {isMockModeEnabled
+              ? 'Choose a demo role or sign in with Microsoft.'
+              : 'Sign in with Microsoft to continue.'}
           </p>
         </div>
 
-        {/* Sign in with Microsoft */}
-        {!isDevAuthMockUiEnabled && (
-          <Card className="p-8 mb-6">
-          {hasRouteProtectionRedirect && !loginError && (
-            <div
-              role="status"
-              aria-live="polite"
-              className="mb-4 rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm text-cyan-800 dark:border-cyan-800 dark:bg-cyan-950 dark:text-cyan-200"
-            >
-              Sign in to continue to the page you requested.
-            </div>
-          )}
-
-          <Button
-            onClick={handleMicrosoftLogin}
-            size="lg"
-            className="w-full bg-hp-neutral-700 hover:bg-hp-neutral-800 dark:bg-white dark:hover:bg-gray-100 text-white dark:text-gray-900 flex items-center justify-center gap-3"
-            disabled={isLoading || Boolean(authConfigError)}
-          >
-            <svg className="w-5 h-5" viewBox="0 0 23 23" fill="none">
-              <rect width="11" height="11" fill="#F25022" />
-              <rect x="12" width="11" height="11" fill="#7FBA00" />
-              <rect y="12" width="11" height="11" fill="#00A4EF" />
-              <rect x="12" y="12" width="11" height="11" fill="#FFB900" />
-            </svg>
-            {isLoading ? 'Signing in…' : 'Sign in with Microsoft'}
-          </Button>
-
-          {loginError && (
-            <div
-              role="alert"
-              aria-live="assertive"
-              className="mt-4 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300"
-            >
-              {loginError}
-            </div>
-          )}
-
-          <p className="mt-4 text-xs text-center text-gray-500 dark:text-gray-400">
-            Authentication is managed by Microsoft Entra ID.
-            <br />
-            Your credentials are never stored by this application.
-          </p>
-          </Card>
-        )}
-
-        {isDevAuthMockUiEnabled && (
+        {isMockModeEnabled && (
           <Card className="p-6 mb-6">
             <h2 id="mock-login-title" className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
               Development Mock Login
             </h2>
             <p id="mock-login-description" className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-              Mock sign-in is available only when explicitly enabled by runtime configuration.
+              Use these quick buttons to simulate Customer, Staff, or Admin roles for demo flows.
             </p>
             <p id="mock-login-status" role="status" aria-live="polite" className="text-xs text-gray-500 dark:text-gray-400 mb-4">
               {isMockLoading && selectedMockRole
@@ -216,6 +171,50 @@ export default function LoginPage() {
             </fieldset>
           </Card>
         )}
+
+        {/* Sign in with Microsoft */}
+        <Card className="p-8 mb-6">
+          {hasRouteProtectionRedirect && !loginError && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="mb-4 rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm text-cyan-800 dark:border-cyan-800 dark:bg-cyan-950 dark:text-cyan-200"
+            >
+              Sign in to continue to the page you requested.
+            </div>
+          )}
+
+          <Button
+            onClick={handleMicrosoftLogin}
+            size="lg"
+            className="w-full bg-hp-neutral-700 hover:bg-hp-neutral-800 dark:bg-white dark:hover:bg-gray-100 text-white dark:text-gray-900 flex items-center justify-center gap-3"
+            disabled={isLoading || Boolean(authConfigError)}
+          >
+            <svg className="w-5 h-5" viewBox="0 0 23 23" fill="none">
+              <rect width="11" height="11" fill="#F25022" />
+              <rect x="12" width="11" height="11" fill="#7FBA00" />
+              <rect y="12" width="11" height="11" fill="#00A4EF" />
+              <rect x="12" y="12" width="11" height="11" fill="#FFB900" />
+            </svg>
+            {isLoading ? 'Signing in…' : 'Sign in with Microsoft'}
+          </Button>
+
+          {loginError && (
+            <div
+              role="alert"
+              aria-live="assertive"
+              className="mt-4 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300"
+            >
+              {loginError}
+            </div>
+          )}
+
+          <p className="mt-4 text-xs text-center text-gray-500 dark:text-gray-400">
+            Authentication is managed by Microsoft Entra ID.
+            <br />
+            Your credentials are never stored by this application.
+          </p>
+        </Card>
 
         {/* Guest Checkout */}
         <div className="mt-8">

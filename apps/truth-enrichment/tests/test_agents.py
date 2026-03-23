@@ -194,6 +194,12 @@ async def test_enrich_field_uses_image_when_models_unavailable(
     assert proposed["source_type"] == "image_analysis"
     assert proposed["proposed_value"] is None
     assert proposed["status"] == "pending"
+    adapters.hitl_publisher.publish.assert_awaited_once()
+    payload = adapters.hitl_publisher.publish.await_args.args[0]
+    assert payload["event_type"] == "attribute.proposed"
+    assert payload["data"]["entity_id"] == "sku-3"
+    assert payload["data"]["attr_id"] == proposed["id"]
+    assert payload["data"]["field_name"] == "pattern"
 
 
 def test_detect_gaps_uses_full_schema_fields_list() -> None:

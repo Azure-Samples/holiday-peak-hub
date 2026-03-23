@@ -22,7 +22,7 @@ const SLIDES = [
     subtitle: 'Catalog + Agent workflow',
     description: 'Compare options in the catalog, then use the Product Enrichment Agent for deeper guidance.',
     image: 'https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?auto=format&fit=crop&w=1600&q=80',
-    ctaLink: '/agents/product-enrichment-chat',
+    ctaLink: '/search?agentChat=1',
     ctaText: 'Ask Product Agent',
   },
   {
@@ -133,10 +133,10 @@ export const HeroSlider: React.FC = () => {
               </Button>
             </Link>
 
-            <Link href="/agents/product-enrichment-chat">
+            <Link href="/search?agentChat=1">
               <Button size="lg" variant="secondary" className="border border-white/20 bg-white/10 px-6 py-3 text-sm text-white hover:bg-white/20">
                 <FiMessageSquare className="mr-1" />
-                Agent Product Enrichment Chat
+                Open Agent Popup
               </Button>
             </Link>
           </div>

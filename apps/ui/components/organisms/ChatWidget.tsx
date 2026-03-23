@@ -1,44 +1,151 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/atoms/Button';
-import { FiMessageSquare, FiSend, FiMinimize2, FiArrowRight } from 'react-icons/fi';
+import { FiMessageSquare, FiSend, FiMinimize2, FiRefreshCw } from 'react-icons/fi';
 import { Card } from '@/components/molecules/Card';
+import { SearchComparisonScorecard } from '@/components/enrichment/SearchComparisonScorecard';
+import { semanticSearchService } from '@/lib/services/semanticSearchService';
+
+type ProductPreview = {
+  sku: string;
+  title: string;
+  score?: number;
+};
+
+type ChatEntry = {
+  id: string;
+  role: 'user' | 'agent';
+  text: string;
+  comparison?: {
+    intelligent: ProductPreview[];
+    keyword: ProductPreview[];
+  };
+};
+
+const DEFAULT_PROMPT = 'Find similar products to premium wireless noise-cancelling headphones under 300';
 
 export const ChatWidget: React.FC = () => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState<{ role: 'user' | 'agent'; text: string }[]>([
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const shouldAutoOpen = useMemo(() => {
+    if (searchParams.get('agentChat') === '1') {
+      return true;
+    }
+    if (typeof window === 'undefined') {
+      return false;
+    }
+    return window.location.hash === '#agent-chat';
+  }, [searchParams]);
+
+  const [isOpen, setIsOpen] = useState(shouldAutoOpen);
+  const [messages, setMessages] = useState<ChatEntry[]>([
     {
+      id: 'intro-agent-message',
       role: 'agent',
-      text: 'I can interpret product data and help compare options. Catalog browsing is available in-page, and this chat is the agent layer.',
+      text: 'Ask for similar products and I will compare intelligent agent retrieval with basic keyword search.',
     },
   ]);
   const [inputValue, setInputValue] = useState('');
+  const [isSending, setIsSending] = useState(false);
 
-  const handleSend = () => {
-    if (!inputValue.trim()) return;
+  useEffect(() => {
+    if (shouldAutoOpen) {
+      setIsOpen(true);
+    }
+  }, [shouldAutoOpen]);
 
-    setMessages((prev) => [...prev, { role: 'user', text: inputValue }]);
+  if (pathname?.startsWith('/auth')) {
+    return null;
+  }
 
-    setTimeout(() => {
+  const buildPreview = (items: Array<Record<string, unknown>>): ProductPreview[] => {
+    return items.slice(0, 4).map((item, index) => {
+      const sku = String(item.sku ?? item.id ?? `item-${index + 1}`);
+      const title = String(item.title ?? item.name ?? sku);
+      const scoreRaw = Number(item.score ?? item.relevanceScore ?? 0);
+      const score = Number.isFinite(scoreRaw) && scoreRaw > 0 ? Number(scoreRaw.toFixed(2)) : undefined;
+      return { sku, title, score };
+    });
+  };
+
+  const handleSend = async () => {
+    const trimmed = inputValue.trim();
+    if (!trimmed || isSending) {
+      return;
+    }
+
+    setIsSending(true);
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `${Date.now()}-user`,
+        role: 'user',
+        text: trimmed,
+      },
+    ]);
+    setInputValue('');
+
+    try {
+      const [intelligentResult, keywordResult] = await Promise.allSettled([
+        semanticSearchService.searchWithMode(trimmed, 'intelligent', 8),
+        semanticSearchService.searchWithMode(trimmed, 'keyword', 8),
+      ]);
+
+      const intelligentPreview =
+        intelligentResult.status === 'fulfilled'
+          ? buildPreview(intelligentResult.value.items as unknown as Array<Record<string, unknown>>)
+          : [];
+      const keywordPreview =
+        keywordResult.status === 'fulfilled'
+          ? buildPreview(keywordResult.value.items as unknown as Array<Record<string, unknown>>)
+          : [];
+
+      if (intelligentPreview.length === 0 && keywordPreview.length === 0) {
+        throw new Error('No usable comparison results');
+      }
+
       setMessages((prev) => [
         ...prev,
         {
+          id: `${Date.now()}-agent`,
           role: 'agent',
-          text: 'Demo response: use this thread to ask for enrichment, stock interpretation, and comparison support.',
+          text: 'Agent retrieval is tuned for intent and relevance context. Compare the two lists below.',
+          comparison: {
+            intelligent: intelligentPreview,
+            keyword: keywordPreview,
+          },
         },
       ]);
-    }, 1000);
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `${Date.now()}-agent-error`,
+          role: 'agent',
+          text: 'Search agent is temporarily unavailable. Retry in a few seconds or use /search directly.',
+        },
+      ]);
+    } finally {
+      setIsSending(false);
+    }
+  };
 
-    setInputValue('');
+  const openWidget = () => {
+    setIsOpen(true);
+    if (typeof window !== 'undefined' && window.location.hash !== '#agent-chat') {
+      window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#agent-chat`);
+    }
   };
 
   if (!isOpen) {
     return (
       <button
         type="button"
-        onClick={() => setIsOpen(true)}
+        onClick={openWidget}
         className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-full bg-[var(--hp-primary)] px-4 py-3 text-white shadow-lg transition-transform hover:scale-105 hover:bg-[var(--hp-primary-hover)] sm:bottom-6 sm:right-6"
         aria-label="Open product enrichment chat"
       >
@@ -58,11 +165,10 @@ export const ChatWidget: React.FC = () => {
           </div>
           <div className="flex gap-3">
             <Link
-              href="/agents/product-enrichment-chat"
+              href="/search"
               className="hidden items-center text-xs font-semibold uppercase tracking-wide text-white/90 hover:text-white sm:inline-flex"
             >
-              <FiArrowRight className="mr-1 h-4 w-4" />
-              Full Screen
+              Open search page
             </Link>
             <button
               type="button"
@@ -76,12 +182,12 @@ export const ChatWidget: React.FC = () => {
         </div>
 
         <div className="border-b border-[var(--hp-border)] bg-[var(--hp-surface-strong)] px-4 py-2 text-xs text-[var(--hp-text-muted)]">
-          Catalog actions remain on page cards. Agent actions happen in this chat.
+          Ask for similar products. We compare intelligent retrieval vs keyword fallback live.
         </div>
 
         <div className="flex-1 space-y-4 overflow-y-auto bg-[var(--hp-bg)] p-4" role="log" aria-live="polite" aria-relevant="additions text">
-          {messages.map((m, idx) => (
-            <div key={idx} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+          {messages.map((m) => (
+            <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div
                 className={`max-w-[84%] rounded-2xl p-3 text-sm ${
                   m.role === 'user'
@@ -90,6 +196,53 @@ export const ChatWidget: React.FC = () => {
                 }`}
               >
                 {m.text}
+
+                {m.comparison ? (
+                  <div className="mt-3 grid grid-cols-1 gap-3">
+                    <SearchComparisonScorecard
+                      intelligent={m.comparison.intelligent}
+                      keyword={m.comparison.keyword}
+                    />
+
+                    <div>
+                      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--hp-primary)]">
+                        Intelligent agent results
+                      </p>
+                      <ul className="space-y-1">
+                        {m.comparison.intelligent.map((product) => (
+                          <li key={`intelligent-${m.id}-${product.sku}`}>
+                            <Link
+                              href={`/product?id=${encodeURIComponent(product.sku)}`}
+                              className="text-xs underline decoration-dotted underline-offset-2"
+                            >
+                              {product.title}
+                              {product.score ? ` (score ${product.score})` : ''}
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div>
+                      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--hp-text-muted)]">
+                        Keyword fallback results
+                      </p>
+                      <ul className="space-y-1">
+                        {m.comparison.keyword.map((product) => (
+                          <li key={`keyword-${m.id}-${product.sku}`}>
+                            <Link
+                              href={`/product?id=${encodeURIComponent(product.sku)}`}
+                              className="text-xs underline decoration-dotted underline-offset-2"
+                            >
+                              {product.title}
+                              {product.score ? ` (score ${product.score})` : ''}
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
           ))}
@@ -109,7 +262,7 @@ export const ChatWidget: React.FC = () => {
               type="text"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              placeholder="Ask for product insights"
+              placeholder={DEFAULT_PROMPT}
               className="flex-1 rounded-full border border-[var(--hp-border)] bg-[var(--hp-bg)] px-4 py-2 text-sm text-[var(--hp-text)]"
               autoFocus
             />
@@ -118,8 +271,9 @@ export const ChatWidget: React.FC = () => {
               size="sm"
               className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--hp-primary)] p-0 hover:bg-[var(--hp-primary-hover)]"
               ariaLabel="Send message"
+              disabled={isSending}
             >
-              <FiSend className="w-4 h-4" />
+              {isSending ? <FiRefreshCw className="h-4 w-4 animate-spin" /> : <FiSend className="w-4 h-4" />}
             </Button>
           </form>
         </div>

@@ -842,12 +842,12 @@ export const ProductGraphCanvas: React.FC<ProductGraphCanvasProps> = ({
             <FiArrowRight className="ml-1 h-4 w-4" />
           </Button>
         </Link>
-        <Link href="/agents/product-enrichment-chat" className="inline-flex">
+        <Link href="/search?agentChat=1" className="inline-flex">
           <Button
             size="sm"
             className="rounded-full border border-[var(--hp-accent)] bg-[var(--hp-accent)] text-white hover:brightness-110"
           >
-            <FiMessageSquare className="mr-1 h-4 w-4" /> Agent Chat
+            <FiMessageSquare className="mr-1 h-4 w-4" /> Agent Popup
           </Button>
         </Link>
       </div>

@@ -6,6 +6,7 @@ import LoginPage from '../../app/auth/login/page';
 const replaceMock = jest.fn();
 const useSearchParamsMock = jest.fn(() => ({ get: (_key: string) => null as string | null }));
 const useAuthMock = jest.fn();
+const mockUiState = { enabled: false };
 
 jest.mock('next/navigation', () => ({
   useRouter: () => ({
@@ -20,7 +21,9 @@ jest.mock('../../contexts/AuthContext', () => ({
 }));
 
 jest.mock('../../lib/auth/msalConfig', () => ({
-  isDevAuthMockUiEnabled: false,
+  get isDevAuthMockUiEnabled() {
+    return mockUiState.enabled;
+  },
 }));
 
 jest.mock('@/components/templates/MainLayout', () => ({
@@ -42,6 +45,7 @@ jest.mock('@/components/molecules/Card', () => ({
 describe('login post-auth redirect behavior', () => {
   beforeEach(() => {
     replaceMock.mockClear();
+    mockUiState.enabled = false;
     useSearchParamsMock.mockReturnValue({
       get: (_key: string) => null,
     });
@@ -92,5 +96,32 @@ describe('login post-auth redirect behavior', () => {
     await waitFor(() => {
       expect(replaceMock).toHaveBeenCalledWith('/');
     });
+  });
+
+  it('prioritizes mock role controls before Microsoft sign-in in mock-enabled mode', () => {
+    mockUiState.enabled = true;
+
+    render(<LoginPage />);
+
+    const roleButtons = screen.getAllByRole('button', { name: /Sign in as/i });
+    const microsoftButton = screen.getByRole('button', { name: 'Sign in with Microsoft' });
+    const allButtons = screen.getAllByRole('button');
+    const firstRoleButtonIndex = allButtons.findIndex((button) => button.textContent?.includes('Sign in as'));
+    const microsoftButtonIndex = allButtons.indexOf(microsoftButton);
+
+    expect(roleButtons.length).toBe(3);
+    expect(firstRoleButtonIndex).toBeGreaterThanOrEqual(0);
+    expect(microsoftButtonIndex).toBeGreaterThanOrEqual(0);
+    expect(firstRoleButtonIndex).toBeLessThan(microsoftButtonIndex);
+    expect(microsoftButton).toBeInTheDocument();
+  });
+
+  it('keeps Microsoft sign-in primary and hides mock role controls when mock mode is disabled', () => {
+    mockUiState.enabled = false;
+
+    render(<LoginPage />);
+
+    expect(screen.getByRole('button', { name: 'Sign in with Microsoft' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Sign in as/i })).not.toBeInTheDocument();
   });
 });

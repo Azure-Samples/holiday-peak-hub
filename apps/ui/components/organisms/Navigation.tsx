@@ -21,6 +21,8 @@ import { SearchInput } from '../molecules/SearchInput';
 import { Dropdown, DropdownItem } from '../molecules/Dropdown';
 import type { BaseComponentProps } from '../types';
 import { useAgentGlobalHealth } from '@/lib/hooks/useAgentMonitor';
+import { useAuth } from '@/contexts/AuthContext';
+import { isDevAuthMockUiEnabled } from '@/lib/auth/msalConfig';
 
 export interface NavigationProps extends BaseComponentProps {
   /** Logo component or image */
@@ -61,8 +63,10 @@ export const Navigation: React.FC<NavigationProps> = ({
   userAvatar,
   navLinks = [
     { label: 'Catalog', href: '/category?slug=all' },
-    { label: 'Season Picks', href: '/category?slug=all' },
-    { label: 'Shop', href: '/shop' },
+    { label: 'Dashboard', href: '/dashboard' },
+    { label: 'Admin', href: '/admin' },
+    { label: 'Search Demo', href: '/search' },
+    { label: 'Product Demo', href: '/product?id=prd_001' },
   ],
   userMenuItems = [
     { key: 'profile', label: 'My Profile', href: '/profile' },
@@ -80,6 +84,7 @@ export const Navigation: React.FC<NavigationProps> = ({
   testId,
   ariaLabel,
 }) => {
+  const { isAuthenticated, loginAsMockRole, user } = useAuth();
   let globalHealth: 'healthy' | 'degraded' | 'down' | 'unknown' | undefined;
 
   try {
@@ -102,6 +107,22 @@ export const Navigation: React.FC<NavigationProps> = ({
     ? 'bg-transparent'
     : 'bg-[var(--hp-surface)]/95 backdrop-blur border-b border-[var(--hp-border)]';
 
+  const showMockRoleQuickLogin = isDevAuthMockUiEnabled && !isAuthenticated;
+  const effectiveIsLoggedIn = isLoggedIn || isAuthenticated;
+  const effectiveUserName = userName || user?.name;
+
+  const handleMockRoleLogin = async (role: 'customer' | 'staff' | 'admin') => {
+    try {
+      await loginAsMockRole(role);
+    } catch (error) {
+      console.error('Mock role login failed:', error);
+    }
+  };
+
+  const handleMobileLinkClick = () => {
+    onMobileMenuToggle?.();
+  };
+
   return (
     <nav
       data-testid={testId}
@@ -119,7 +140,7 @@ export const Navigation: React.FC<NavigationProps> = ({
         </a>
 
         <div className="flex min-h-16 items-center justify-between gap-3 py-2">
-          <div className="flex items-center gap-2 lg:hidden">
+          <div className="flex items-center gap-2 xl:hidden">
             <Button
               variant="ghost"
               size="sm"
@@ -149,7 +170,7 @@ export const Navigation: React.FC<NavigationProps> = ({
             </Link>
           </div>
 
-          <div className="hidden lg:flex lg:items-center lg:space-x-5" aria-label="Catalog sections">
+          <div className="hidden xl:flex xl:items-center xl:space-x-5" aria-label="Catalog sections">
             {navLinks.map((link) => (
               <Link
                 key={`${link.href}-${link.label}`}
@@ -161,7 +182,7 @@ export const Navigation: React.FC<NavigationProps> = ({
             ))}
           </div>
 
-          <div className="hidden lg:flex lg:flex-1 lg:max-w-md lg:mx-4">
+          <div className="hidden xl:flex xl:flex-1 xl:max-w-md xl:mx-4">
             <SearchInput
               placeholder="Search catalog products"
               onSearch={onSearch}
@@ -181,7 +202,7 @@ export const Navigation: React.FC<NavigationProps> = ({
             </Link>
 
             <Link
-              href="/agents/product-enrichment-chat"
+              href="/search?agentChat=1"
               className="hidden rounded-full border border-[var(--hp-border)] bg-[var(--hp-surface-strong)] px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-[var(--hp-primary)] md:inline-flex"
               aria-label="Open product enrichment agent chat"
             >
@@ -191,7 +212,7 @@ export const Navigation: React.FC<NavigationProps> = ({
 
             <ThemeToggle size="sm" />
 
-            <div className="lg:hidden">
+            <div className="xl:hidden">
               <Button
                 variant="ghost"
                 size="sm"
@@ -241,18 +262,18 @@ export const Navigation: React.FC<NavigationProps> = ({
               </Button>
             </Link>
 
-            {isLoggedIn ? (
+            {effectiveIsLoggedIn ? (
               <Dropdown
                 trigger={
                   userAvatar ? (
                     <img
                       src={userAvatar}
-                      alt={userName || 'User'}
+                      alt={effectiveUserName || 'User'}
                       className="w-8 h-8 rounded-full"
                     />
                   ) : (
                     <div className="w-8 h-8 rounded-full bg-[var(--hp-primary)] flex items-center justify-center text-white text-sm font-semibold">
-                      {userName?.charAt(0)?.toUpperCase() || 'U'}
+                      {effectiveUserName?.charAt(0)?.toUpperCase() || 'U'}
                     </div>
                   )
                 }
@@ -261,16 +282,31 @@ export const Navigation: React.FC<NavigationProps> = ({
                 iconButton
               />
             ) : (
-              <Link href="/auth/login">
-                <Button
-                  variant="primary"
-                  size="sm"
-                  iconLeft={<FiUser className="w-4 h-4" />}
-                  className="bg-[var(--hp-primary)] hover:bg-[var(--hp-primary-hover)]"
-                >
-                  Sign In
-                </Button>
-              </Link>
+              <div className="flex items-center gap-2">
+                {showMockRoleQuickLogin ? (
+                  <div className="hidden items-center gap-1 md:flex">
+                    <Button variant="secondary" size="sm" onClick={() => void handleMockRoleLogin('customer')}>
+                      Customer
+                    </Button>
+                    <Button variant="secondary" size="sm" onClick={() => void handleMockRoleLogin('staff')}>
+                      Staff
+                    </Button>
+                    <Button variant="secondary" size="sm" onClick={() => void handleMockRoleLogin('admin')}>
+                      Admin
+                    </Button>
+                  </div>
+                ) : null}
+                <Link href="/auth/login">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    iconLeft={<FiUser className="w-4 h-4" />}
+                    className="bg-[var(--hp-primary)] hover:bg-[var(--hp-primary-hover)]"
+                  >
+                    Sign In
+                  </Button>
+                </Link>
+              </div>
             )}
           </div>
         </div>
@@ -280,7 +316,7 @@ export const Navigation: React.FC<NavigationProps> = ({
       {mobileMenuOpen && (
         <div
           id="mobile-menu"
-          className="lg:hidden border-t border-[var(--hp-border)] bg-[var(--hp-surface)] showcase-rise"
+          className="xl:hidden border-t border-[var(--hp-border)] bg-[var(--hp-surface)] showcase-rise"
         >
           <div className="space-y-2 px-4 py-3">
             <div className="pb-3">
@@ -293,18 +329,34 @@ export const Navigation: React.FC<NavigationProps> = ({
             </div>
 
             <Link
-              href="/agents/product-enrichment-chat"
+              href="/search?agentChat=1"
               className="flex items-center rounded-xl border border-[var(--hp-border)] bg-[var(--hp-surface-strong)] px-3 py-2 text-sm font-semibold text-[var(--hp-primary)]"
+              onClick={handleMobileLinkClick}
             >
               <FiMessageSquare className="mr-2 h-4 w-4" />
-              Agent Product Enrichment Chat
+              Open Agent Popup
             </Link>
+
+            {showMockRoleQuickLogin ? (
+              <div className="grid grid-cols-3 gap-2 py-1">
+                <Button size="sm" variant="secondary" onClick={() => void handleMockRoleLogin('customer')}>
+                  Customer
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => void handleMockRoleLogin('staff')}>
+                  Staff
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => void handleMockRoleLogin('admin')}>
+                  Admin
+                </Button>
+              </div>
+            ) : null}
 
             {navLinks.map((link) => (
               <Link
                 key={`${link.href}-${link.label}`}
                 href={link.href}
                 className="block rounded-md px-3 py-2 text-sm font-semibold text-[var(--hp-text)] hover:bg-[var(--hp-surface-strong)]"
+                onClick={handleMobileLinkClick}
               >
                 {link.label}
               </Link>

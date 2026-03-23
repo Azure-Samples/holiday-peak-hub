@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Any, AsyncIterator, Awaitable, Callable, Iterable
 
 from azure.eventhub.aio import EventHubConsumerClient
+from azure.identity.aio import DefaultAzureCredential
 from holiday_peak_lib.utils.logging import configure_logging
 
 EventHandler = Callable[[Any, Any], Awaitable[None]]
@@ -89,11 +90,22 @@ def create_eventhub_lifespan(
     @asynccontextmanager
     async def lifespan(app) -> AsyncIterator[None]:  # noqa: ANN001
         logger = configure_logging(app_name=f"{service_name}-events")
-        connection_string = os.getenv(connection_string_env)
-        if not connection_string:
-            logger.warning("eventhub_connection_string_missing")
+        connection_string = os.getenv(connection_string_env) or os.getenv(
+            "EVENT_HUB_CONNECTION_STRING"
+        )
+        namespace = os.getenv("EVENT_HUB_NAMESPACE") or os.getenv("EVENTHUB_NAMESPACE")
+        use_connection_string = bool(connection_string)
+
+        credential: DefaultAzureCredential | None = None
+
+        if not use_connection_string and not namespace:
+            logger.warning("eventhub_configuration_missing")
             yield
             return
+
+        if not use_connection_string and namespace:
+            client_id = os.getenv("AZURE_CLIENT_ID")
+            credential = DefaultAzureCredential(managed_identity_client_id=client_id)
 
         tasks: list[asyncio.Task] = []
 
@@ -114,13 +126,35 @@ def create_eventhub_lifespan(
             return _handler
 
         for subscription in subscriptions:
+
+            def make_client_factory(target_subscription: EventHubSubscription):
+                if use_connection_string and connection_string:
+                    return None
+
+                qualified_namespace = (
+                    namespace
+                    if namespace and namespace.endswith(".servicebus.windows.net")
+                    else f"{namespace}.servicebus.windows.net"
+                )
+
+                def _factory() -> EventHubConsumerClient:
+                    return EventHubConsumerClient(
+                        fully_qualified_namespace=qualified_namespace,
+                        consumer_group=target_subscription.consumer_group,
+                        eventhub_name=target_subscription.eventhub_name,
+                        credential=credential,
+                    )
+
+                return _factory
+
             subscriber = EventHubSubscriber(
                 EventHubSubscriberConfig(
-                    connection_string=connection_string,
+                    connection_string=connection_string or "",
                     eventhub_name=subscription.eventhub_name,
                     consumer_group=subscription.consumer_group,
                 ),
                 on_event=make_handler(subscription.eventhub_name),
+                client_factory=make_client_factory(subscription),
             )
             tasks.append(asyncio.create_task(subscriber.start()))
 
@@ -130,6 +164,8 @@ def create_eventhub_lifespan(
             for task in tasks:
                 task.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
+            if credential is not None:
+                await credential.close()
 
     return lifespan
 

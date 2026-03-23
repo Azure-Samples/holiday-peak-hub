@@ -37,6 +37,8 @@ export interface SemanticSearchResponse {
   items: UiProduct[];
   source: 'agent' | 'crud';
   mode: 'keyword' | 'intelligent';
+  requested_mode?: 'keyword' | 'intelligent';
+  fallback_reason?: 'agent_unavailable' | 'agent_mock';
   trace_id?: string;
   intent?: SemanticSearchIntent | null;
   subqueries?: string[];
@@ -56,8 +58,14 @@ export const semanticSearchService = {
 
   async search(request: SemanticSearchRequest): Promise<SemanticSearchResponse> {
     const trimmed = request.query.trim();
+    const requestedMode = request.mode;
     if (!trimmed) {
-      return { items: [], source: 'crud', mode: request.mode || 'keyword' };
+      return {
+        items: [],
+        source: 'crud',
+        mode: requestedMode === 'intelligent' ? 'intelligent' : 'keyword',
+        requested_mode: requestedMode,
+      };
     }
 
     if (AGENT_API_BASE_URL) {
@@ -65,11 +73,28 @@ export const semanticSearchService = {
         const response = await agentApiClient.post('/ecommerce-catalog-search/invoke', request);
         const payload = response.data || {};
         const results = (payload.results || payload.items || []) as AcpProduct[];
+
+        const appearsMockPayload = results.some((item) => {
+          const title = String(item?.title || '').toLowerCase();
+          const imageUrl = String(item?.image_url || '').toLowerCase();
+          const itemUrl = String((item as { url?: string })?.url || '').toLowerCase();
+          return (
+            title.includes('mock')
+            || imageUrl.includes('example.com')
+            || itemUrl.includes('example.com')
+          );
+        });
+
+        if (appearsMockPayload) {
+          throw new Error('Agent returned mock payload');
+        }
+
         const mode = payload.mode === 'intelligent' ? 'intelligent' : 'keyword';
         return {
           items: mapAcpProductsToUi(results),
           source: 'agent',
           mode,
+          requested_mode: requestedMode,
           trace_id: typeof payload.trace_id === 'string' ? payload.trace_id : undefined,
           intent: (payload.intent as SemanticSearchIntent | undefined) || null,
           subqueries: Array.isArray(payload.subqueries)
@@ -83,7 +108,18 @@ export const semanticSearchService = {
     }
 
     const fallback = await productService.search(trimmed, request.limit || 20);
-    return { items: mapApiProductsToUi(fallback), source: 'crud', mode: 'keyword' };
+    return {
+      items: mapApiProductsToUi(fallback),
+      source: 'crud',
+      mode: 'keyword',
+      requested_mode: requestedMode,
+      fallback_reason:
+        requestedMode === 'intelligent'
+          ? AGENT_API_BASE_URL
+            ? 'agent_mock'
+            : 'agent_unavailable'
+          : undefined,
+    };
   },
 };
 

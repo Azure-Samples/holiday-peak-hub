@@ -11,12 +11,18 @@ const AuthProvider = dynamic(
   { ssr: false }
 );
 
+const ChatWidget = dynamic(
+  () => import('@/components/organisms/ChatWidget').then((mod) => mod.ChatWidget),
+  { ssr: false }
+);
+
 export default function Providers({ children }: { children: ReactNode }) {
   return (
     <AuthProvider>
       <QueryProvider>
         <ThemeProvider>
           {children}
+          <ChatWidget />
         </ThemeProvider>
       </QueryProvider>
     </AuthProvider>

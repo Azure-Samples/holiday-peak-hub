@@ -143,4 +143,31 @@ describe('SearchPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry search' }));
     expect(refetch).toHaveBeenCalledTimes(1);
   });
+
+  it('does not show unavailable warning for agent mock fallback', () => {
+    mockUseIntelligentSearch.mockReturnValue({
+      data: {
+        items: [],
+        source: 'crud',
+        mode: 'keyword',
+        requested_mode: 'intelligent',
+        fallback_reason: 'agent_mock',
+        intent: null,
+        subqueries: [],
+      },
+      isLoading: false,
+      error: null,
+      isFetching: false,
+      refetch: jest.fn(),
+      preference: 'intelligent',
+      setPreference,
+      resolvedMode: 'intelligent',
+    });
+
+    render(<SearchPage />);
+
+    expect(
+      screen.queryByText('Results are from CRUD catalog search because the agent path was unavailable.')
+    ).not.toBeInTheDocument();
+  });
 });

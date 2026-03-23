@@ -170,8 +170,32 @@ class TruthEnrichmentAgent(BaseRetailAgent):
         await self.adapters.audit.append(audit)
 
         if self.engine.needs_hitl(proposed):
+            current_value = None
+            original_data = proposed.get("original_data")
+            if isinstance(original_data, dict):
+                current_value = original_data.get(field_name)
+
             await self.adapters.hitl_publisher.publish(
-                {"entity_id": entity_id, "field_name": field_name, "proposed_id": proposed["id"]}
+                {
+                    "event_type": "attribute.proposed",
+                    "data": {
+                        "entity_id": entity_id,
+                        "attr_id": proposed["id"],
+                        "field_name": field_name,
+                        "proposed_value": proposed.get("proposed_value"),
+                        "confidence": proposed.get("confidence", 0.0),
+                        "current_value": current_value,
+                        "source": "ai",
+                        "proposed_at": proposed.get("created_at"),
+                        "product_title": str(product.get("title") or product.get("name") or ""),
+                        "category_label": str(product.get("category") or ""),
+                        "original_data": proposed.get("original_data"),
+                        "enriched_data": proposed.get("enriched_data"),
+                        "reasoning": proposed.get("reasoning"),
+                        "source_assets": proposed.get("source_assets"),
+                        "source_type": proposed.get("source_type"),
+                    },
+                }
             )
 
         return proposed

@@ -63,6 +63,11 @@ function clearPersistedMockUser(): void {
   localStorage.removeItem(MOCK_AUTH_USER_STORAGE_KEY);
 }
 
+function clearLocalAuthArtifacts(): void {
+  authService.clearToken();
+  clearPersistedMockUser();
+}
+
 function buildMockUser(role: 'customer' | 'staff' | 'admin'): User {
   return {
     user_id: `mock-${role}`,
@@ -187,35 +192,48 @@ function AuthProviderInner({ children }: { children: ReactNode }) {
    * Logout handler
    */
   const logout = async () => {
+    const finalizeLogoutState = () => {
+      clearLocalAuthArtifacts();
+      setMockUser(null);
+      setUser(null);
+    };
+
     if (isDevAuthMockUiEnabled) {
       try {
         await fetch('/api/auth/mock/logout', {
           method: 'POST',
         });
+      } catch (error) {
+        console.error('Mock logout request failed:', error);
       } finally {
-        clearPersistedMockUser();
-        setMockUser(null);
-        setUser(null);
+        finalizeLogoutState();
       }
       return;
     }
 
-    try {
-      // Clear backend session and middleware auth cookie
-      await Promise.allSettled([
-        authService.logout(),
-        clearAuthSessionCookie(),
-      ]);
+    await Promise.allSettled([
+      authService.logout(),
+      clearAuthSessionCookie(),
+    ]);
 
-      // Clear MSAL session
+    finalizeLogoutState();
+
+    try {
       await instance.logoutPopup({
-        account: account,
+        account,
       });
-      
-      setUser(null);
-    } catch (error) {
-      console.error('Logout failed:', error);
-      throw error;
+      return;
+    } catch (popupError) {
+      console.warn('MSAL popup logout failed, attempting redirect logout:', popupError);
+    }
+
+    try {
+      await instance.logoutRedirect({
+        account: account ?? undefined,
+        postLogoutRedirectUri: '/auth/login',
+      });
+    } catch (redirectError) {
+      console.error('MSAL redirect logout failed:', redirectError);
     }
   };
 
@@ -360,8 +378,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               await fetch('/api/auth/mock/logout', {
                 method: 'POST',
               });
+            } catch (error) {
+              console.error('Mock logout request failed:', error);
             } finally {
-              clearPersistedMockUser();
+              clearLocalAuthArtifacts();
               setMockUser(null);
             }
           },
@@ -388,7 +408,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           loginAsMockRole: async () => {
             throw new Error('Mock authentication is disabled.');
           },
-          logout: async () => {},
+          logout: async () => {
+            clearLocalAuthArtifacts();
+          },
           getAccessToken: async () => null,
         }}
       >

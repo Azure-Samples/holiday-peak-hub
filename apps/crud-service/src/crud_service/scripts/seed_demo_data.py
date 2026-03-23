@@ -31,10 +31,17 @@ CATEGORIES: list[dict] = [
     },
     {
         "id": "cat-clothing",
-        "name": "Clothing & Apparel",
-        "slug": "clothing-apparel",
-        "description": "Seasonal fashion, outerwear, and holiday party attire for the whole family.",
+        "name": "Clothes & Apparel",
+        "slug": "clothes-apparel",
+        "description": "Everyday basics, premium layers, and seasonal outfits for holiday shoppers.",
         "image_url": "https://images.unsplash.com/photo-1445205170230-053b83016050?w=800&q=80",
+    },
+    {
+        "id": "cat-furniture",
+        "name": "Furniture",
+        "slug": "furniture",
+        "description": "Living room, bedroom, and home office furniture with modern finishes and comfort-first design.",
+        "image_url": "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=800&q=80",
     },
     {
         "id": "cat-home-kitchen",
@@ -93,6 +100,21 @@ CATEGORIES: list[dict] = [
         "image_url": "https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=800&q=80",
     },
 ]
+
+CURATED_CATEGORY_IDS: tuple[str, ...] = tuple(category["id"] for category in CATEGORIES)
+
+LEGACY_FAKE_CATEGORY_NAMES: tuple[str, ...] = (
+    "Purpose Brother",
+    "Performance Knowledge",
+    "Offer Kind",
+    "Source Great",
+    "Win Human",
+    "Drive Spring",
+    "Science Write",
+    "Push Rise",
+    "Usually Who",
+    "Someone Anyone",
+)
 
 # Each entry: (name, description, price, features, image_keyword)
 _PRODUCTS_BY_CATEGORY: dict[str, list[tuple[str, str, float, list[str], str]]] = {
@@ -238,6 +260,78 @@ _PRODUCTS_BY_CATEGORY: dict[str, list[tuple[str, str, float, list[str], str]]] =
             79.99,
             ["100% Silk", "Gift Box", "3-Pack"],
             "silk-ties",
+        ),
+    ],
+    "cat-furniture": [
+        (
+            "Hawthorne Home Novara Oak Dining Table",
+            "Solid oak dining table with matte sealant finish, seating for 6, and reinforced steel underframe.",
+            749.99,
+            ["Solid Oak", "Seats 6", "Steel Reinforcement"],
+            "oak-dining-table",
+        ),
+        (
+            "Arden Living Luma Linen Sectional Sofa",
+            "Three-seat sectional with performance linen upholstery, high-resilience foam, and reversible chaise.",
+            1199.99,
+            ["Performance Linen", "Reversible Chaise", "High-Resilience Foam"],
+            "sectional-sofa",
+        ),
+        (
+            "Northfield Studio Mid-Century TV Console",
+            "Walnut-veneer media console with cable management channels and soft-close storage doors.",
+            429.99,
+            ["Walnut Veneer", "Cable Management", "Soft-Close Doors"],
+            "tv-console",
+        ),
+        (
+            "Brentwood Sleep Haven Upholstered Bed Frame",
+            "Queen-size platform bed frame with tufted headboard, center support rail, and noise-free slats.",
+            599.99,
+            ["Queen Size", "Tufted Headboard", "Noise-Free Slats"],
+            "upholstered-bed",
+        ),
+        (
+            "Kensington Works Adjustable Standing Desk",
+            "Electric height-adjustable desk with dual motors, memory presets, and cable tray.",
+            499.99,
+            ["Dual Motor", "4 Memory Presets", "Integrated Cable Tray"],
+            "standing-desk",
+        ),
+        (
+            "Willow & Finch Accent Lounge Chair",
+            "Compact accent chair with kiln-dried hardwood frame and textured boucle upholstery.",
+            319.99,
+            ["Hardwood Frame", "Boucle Upholstery", "Compact Footprint"],
+            "accent-chair",
+        ),
+        (
+            "Parkline Home 6-Drawer Dresser",
+            "Modern dresser with anti-tip kit, full-extension drawers, and scratch-resistant finish.",
+            389.99,
+            ["6 Drawers", "Anti-Tip Kit", "Scratch Resistant"],
+            "dresser",
+        ),
+        (
+            "Orchard Lane Nesting Coffee Table Set",
+            "Two-piece nesting coffee table set in black metal and smoked glass for flexible layouts.",
+            229.99,
+            ["2-Piece Set", "Smoked Glass", "Space Saving"],
+            "coffee-table",
+        ),
+        (
+            "Monroe Office Ergonomic Task Chair",
+            "Mesh-back task chair with lumbar support, synchro tilt, and 4D adjustable armrests.",
+            279.99,
+            ["Lumbar Support", "Synchro Tilt", "4D Armrests"],
+            "office-chair",
+        ),
+        (
+            "Riverside Loft Bookshelf 5-Tier",
+            "Open-frame bookshelf with powder-coated steel, engineered wood shelves, and leveling feet.",
+            189.99,
+            ["5 Tiers", "Steel Frame", "Leveling Feet"],
+            "bookshelf",
         ),
     ],
     "cat-home-kitchen": [
@@ -1594,6 +1688,52 @@ async def _upsert_item(
     )
 
 
+def _affected_row_count(command_status: str | None) -> int:
+    if not command_status:
+        return 0
+
+    maybe_count = command_status.strip().split(" ")[-1]
+    return int(maybe_count) if maybe_count.isdigit() else 0
+
+
+async def _purge_legacy_seed_catalog(conn: asyncpg.Connection) -> tuple[int, int]:
+    # No GoF pattern applies — simple deterministic cleanup query routine.
+    curated_category_ids = list(CURATED_CATEGORY_IDS)
+    fake_category_names = list(LEGACY_FAKE_CATEGORY_NAMES)
+
+    product_delete_status = await conn.execute(
+        """
+        DELETE FROM products
+        WHERE COALESCE(data->>'seeded', 'false') = 'true'
+          AND (
+            COALESCE(data->>'category_id', '') = ''
+            OR NOT (data->>'category_id' = ANY($1::text[]))
+            OR data->>'id' LIKE 'demo-prd-%'
+            OR data->>'category_id' IN (
+                SELECT id
+                FROM categories
+                WHERE (COALESCE(data->>'seeded', 'false') = 'true' AND NOT (id = ANY($1::text[])))
+                   OR COALESCE(data->>'name', '') = ANY($2::text[])
+            )
+          )
+        """,
+        curated_category_ids,
+        fake_category_names,
+    )
+
+    category_delete_status = await conn.execute(
+        """
+        DELETE FROM categories
+        WHERE (COALESCE(data->>'seeded', 'false') = 'true' AND NOT (id = ANY($1::text[])))
+           OR COALESCE(data->>'name', '') = ANY($2::text[])
+        """,
+        curated_category_ids,
+        fake_category_names,
+    )
+
+    return _affected_row_count(product_delete_status), _affected_row_count(category_delete_status)
+
+
 async def main() -> None:
     environment = os.getenv("DEMO_ENVIRONMENT", "dev")
     postgres_auth_mode = os.getenv("POSTGRES_AUTH_MODE", "password").strip().lower()
@@ -1619,6 +1759,8 @@ async def main() -> None:
             "returns",
         ):
             await _ensure_table(conn, table)
+
+        purged_products, purged_categories = await _purge_legacy_seed_catalog(conn)
 
         now_dt = datetime.now(UTC)
         now = now_dt.isoformat()
@@ -1879,6 +2021,7 @@ async def main() -> None:
 
         print(
             f"Seed completed for environment={environment}: "
+            f"purged_categories={purged_categories}, purged_products={purged_products}, "
             f"categories={len(CATEGORIES)}, products={product_count}, "
             f"users={len(DEMO_USERS)}, orders={order_count}, "
             f"shipments={shipment_count}, reviews={len(DEMO_REVIEWS)}, "

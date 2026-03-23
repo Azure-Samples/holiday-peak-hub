@@ -55,3 +55,18 @@ def test_edit_missing_entity_returns_404():
         json={"edited_value": "New Value"},
     )
     assert resp.status_code == 404
+
+
+def test_invoke_queue_action_returns_items_shape():
+    client = TestClient(app)
+    invoke_response = client.post(
+        "/invoke",
+        json={
+            "action": "queue",
+            "limit": 10,
+        },
+    )
+    assert invoke_response.status_code == 200
+    payload = invoke_response.json()
+    assert "items" in payload
+    assert "count" in payload

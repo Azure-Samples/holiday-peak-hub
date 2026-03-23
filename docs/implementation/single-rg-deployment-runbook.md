@@ -34,7 +34,24 @@ This configures azd environment values for `holidaypeakhub405-dev-rg` and runs `
 
 This starts AKS and PostgreSQL, validates direct AGC CRUD health plus APIM CRUD endpoints, and runs CRUD demo seed job.
 
-### 3. Pause (Cost Save)
+### 3. Pre-Demo Wake-Up + Connectivity Validation
+
+```powershell
+./scripts/ops/demo-preflight-validate.ps1
+```
+
+This is the recommended command before live demos. It:
+
+- Starts AKS, Application Gateway, and PostgreSQL when stopped.
+- Validates AKS ingress/public IP signals (App Gateway public IP, AGC frontend DNS, and LoadBalancer service IPs when present).
+- Validates APIM `api` and `agents/*` backend host resolution overlaps AKS ingress IP signals.
+- Executes APIM smoke checks for:
+  - `GET /api/health`
+  - `GET /api/products?limit=1`
+  - `GET /api/categories`
+- Writes a report to `.tmp/demo-preflight-report-<timestamp>.json`.
+
+### 4. Pause (Cost Save)
 
 ```powershell
 ./scripts/ops/demo-deprovision.ps1
@@ -42,7 +59,7 @@ This starts AKS and PostgreSQL, validates direct AGC CRUD health plus APIM CRUD 
 
 This stops AKS, Application Gateway, and PostgreSQL.
 
-### 4. Full Teardown
+### 5. Full Teardown
 
 ```powershell
 ./scripts/ops/demo-deprovision.ps1 -DeleteResourceGroup

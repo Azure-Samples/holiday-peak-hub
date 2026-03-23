@@ -1162,6 +1162,8 @@ jobs:
           NEXT_PUBLIC_API_URL: ${{ steps.api.outputs.api_url }}
           NEXT_PUBLIC_CRUD_API_URL: ${{ steps.api.outputs.crud_api_url }}
           NEXT_PUBLIC_AGENT_API_URL: ${{ steps.api.outputs.agent_api_url }}
+          NEXT_PUBLIC_DEV_AUTH_MOCK: ${{ inputs.environment == 'dev' && 'true' || vars.NEXT_PUBLIC_DEV_AUTH_MOCK }}
+          NEXT_PUBLIC_DEV_AUTH_MOCK_ALLOW_PROD: ${{ inputs.environment == 'dev' && 'false' || vars.NEXT_PUBLIC_DEV_AUTH_MOCK_ALLOW_PROD }}
           NEXT_PUBLIC_ENTRA_CLIENT_ID: ${{ vars.NEXT_PUBLIC_ENTRA_CLIENT_ID }}
           NEXT_PUBLIC_ENTRA_TENANT_ID: ${{ vars.NEXT_PUBLIC_ENTRA_TENANT_ID }}
 
@@ -1385,6 +1387,8 @@ jobs:
           NEXT_PUBLIC_API_URL: ${{ steps.api.outputs.api_url }}
           NEXT_PUBLIC_CRUD_API_URL: ${{ steps.api.outputs.crud_api_url }}
           NEXT_PUBLIC_AGENT_API_URL: ${{ steps.api.outputs.agent_api_url }}
+          NEXT_PUBLIC_DEV_AUTH_MOCK: ${{ inputs.environment == 'dev' && 'true' || vars.NEXT_PUBLIC_DEV_AUTH_MOCK }}
+          NEXT_PUBLIC_DEV_AUTH_MOCK_ALLOW_PROD: ${{ inputs.environment == 'dev' && 'false' || vars.NEXT_PUBLIC_DEV_AUTH_MOCK_ALLOW_PROD }}
           NEXT_PUBLIC_ENTRA_CLIENT_ID: ${{ vars.NEXT_PUBLIC_ENTRA_CLIENT_ID }}
           NEXT_PUBLIC_ENTRA_TENANT_ID: ${{ vars.NEXT_PUBLIC_ENTRA_TENANT_ID }}
 

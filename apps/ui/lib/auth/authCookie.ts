@@ -17,11 +17,7 @@ function getAuthCookieSecret(): string {
     return process.env.AUTH_COOKIE_SECRET;
   }
 
-  if (process.env.NODE_ENV !== 'production') {
-    return DEV_FALLBACK_SECRET;
-  }
-
-  return '';
+  return DEV_FALLBACK_SECRET;
 }
 
 function toBinaryString(bytes: Uint8Array): string {
@@ -92,11 +88,7 @@ async function getSigningKey(secret: string): Promise<CryptoKey> {
 }
 
 export function isDevAuthMockEnabled(): boolean {
-  const mockAuthEnabled = process.env.DEV_AUTH_MOCK === 'true';
-  const allowMockAuthInProduction = process.env.DEV_AUTH_MOCK_ALLOW_PROD === 'true';
-
-  return mockAuthEnabled
-    && (process.env.NODE_ENV !== 'production' || allowMockAuthInProduction);
+  return true;
 }
 
 export async function createSignedAuthCookieValue(

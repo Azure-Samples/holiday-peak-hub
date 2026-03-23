@@ -66,6 +66,18 @@ export default function EnrichmentMonitorDetailPage() {
             </header>
 
             <section className="flex flex-wrap gap-2" aria-label="Quick actions">
+              <Link
+                href="/staff/review"
+                className="px-4 py-2 rounded-md text-sm font-medium border border-[var(--hp-border)] bg-[var(--hp-surface-strong)] text-[var(--hp-text)] hover:bg-[var(--hp-surface)] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              >
+                Open HITL queue
+              </Link>
+              <Link
+                href={`/staff/review/${entityId}`}
+                className="px-4 py-2 rounded-md text-sm font-medium border border-[var(--hp-border)] bg-[var(--hp-surface-strong)] text-[var(--hp-text)] hover:bg-[var(--hp-surface)] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              >
+                Review this entity
+              </Link>
               <button
                 onClick={() => decisionMutation.mutate({ entityId, action: 'approve' })}
                 disabled={decisionMutation.isPending}

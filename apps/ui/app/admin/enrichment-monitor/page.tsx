@@ -25,12 +25,20 @@ export default function EnrichmentMonitorPage() {
           <p className="text-gray-600 dark:text-gray-400 mt-1">
             Real-time pipeline state, active jobs, and processing health.
           </p>
-          <Link
-            href="/admin/agent-activity"
-            className="mt-2 inline-flex text-sm text-blue-600 dark:text-blue-400 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
-          >
-            Open Agent Activity dashboard
-          </Link>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <Link
+              href="/staff/review"
+              className="inline-flex rounded-md border border-[var(--hp-border)] bg-[var(--hp-surface-strong)] px-3 py-1.5 text-sm font-semibold text-[var(--hp-text)] hover:bg-[var(--hp-surface)] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            >
+              Open HITL review queue
+            </Link>
+            <Link
+              href="/admin/agent-activity"
+              className="inline-flex text-sm text-blue-600 dark:text-blue-400 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
+            >
+              Open Agent Activity dashboard
+            </Link>
+          </div>
         </header>
 
         {isLoading && <Card className="p-6 text-gray-600 dark:text-gray-400">Loading monitor data…</Card>}
@@ -81,6 +89,7 @@ export default function EnrichmentMonitorPage() {
                           <th className="text-left font-semibold text-gray-700 dark:text-gray-300 px-4 py-2">Source</th>
                           <th className="text-left font-semibold text-gray-700 dark:text-gray-300 px-4 py-2">Confidence</th>
                           <th className="text-left font-semibold text-gray-700 dark:text-gray-300 px-4 py-2">Updated</th>
+                          <th className="text-left font-semibold text-gray-700 dark:text-gray-300 px-4 py-2">HITL</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -101,6 +110,14 @@ export default function EnrichmentMonitorPage() {
                             <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{Math.round(job.confidence * 100)}%</td>
                             <td className="px-4 py-2 text-gray-500 dark:text-gray-400">
                               {new Date(job.updated_at).toLocaleString()}
+                            </td>
+                            <td className="px-4 py-2">
+                              <Link
+                                href={`/staff/review/${job.entity_id}`}
+                                className="text-blue-600 dark:text-blue-400 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
+                              >
+                                Review item
+                              </Link>
                             </td>
                           </tr>
                         ))}
