@@ -1157,14 +1157,49 @@ function buildAgentActivityFallbackPayload(upstreamPath: string): AgentActivityF
 
 function buildEnrichmentMonitorFallbackPayload(upstreamPath: string): EnrichmentMonitorFallbackPayload | null {
   if (upstreamPath === '/api/admin/enrichment-monitor') {
+    const now = new Date();
+    const runningUpdatedAt = now.toISOString();
+    const queuedUpdatedAt = new Date(now.getTime() - 2 * 60 * 1000).toISOString();
+    const pendingUpdatedAt = new Date(now.getTime() - 5 * 60 * 1000).toISOString();
+
     return {
-      status_cards: [],
-      active_jobs: [],
+      status_cards: [
+        { label: 'Pending review', value: 6 },
+        { label: 'Approved', value: 142 },
+        { label: 'Rejected', value: 9 },
+        { label: 'Active jobs', value: 3 },
+      ],
+      active_jobs: [
+        {
+          id: 'job-demo-101',
+          entity_id: 'SKU-HP-1042',
+          status: 'running',
+          source_type: 'catalog_ai',
+          confidence: 0.94,
+          updated_at: runningUpdatedAt,
+        },
+        {
+          id: 'job-demo-102',
+          entity_id: 'SKU-HP-2298',
+          status: 'queued',
+          source_type: 'merchant_feed',
+          confidence: 0.88,
+          updated_at: queuedUpdatedAt,
+        },
+        {
+          id: 'job-demo-103',
+          entity_id: 'SKU-HP-3371',
+          status: 'pending',
+          source_type: 'ocr',
+          confidence: 0.81,
+          updated_at: pendingUpdatedAt,
+        },
+      ],
       error_log: [],
       throughput: {
-        per_minute: 0,
-        last_10m: 0,
-        failed_last_10m: 0,
+        per_minute: 7,
+        last_10m: 58,
+        failed_last_10m: 2,
       },
     };
   }
