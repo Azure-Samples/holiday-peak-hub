@@ -28,6 +28,41 @@ type ProxyErrorPayload = {
   };
 };
 
+type AgentMonitorDashboardFallback = {
+  tracing_enabled: false;
+  generated_at: string;
+  health_cards: [];
+  trace_feed: [];
+  model_usage: [];
+};
+
+type AgentTraceDetailFallback = {
+  tracing_enabled: false;
+  trace_id: string;
+  root_agent_name: 'unavailable';
+  status: 'unknown';
+  started_at: string;
+  duration_ms: 0;
+  spans: [];
+};
+
+type AgentEvaluationsFallback = {
+  tracing_enabled: false;
+  generated_at: string;
+  summary: {
+    overall_score: 0;
+    pass_rate: 0;
+    total_runs: 0;
+  };
+  trends: [];
+  comparison: [];
+};
+
+type AgentActivityFallbackPayload =
+  | AgentMonitorDashboardFallback
+  | AgentTraceDetailFallback
+  | AgentEvaluationsFallback;
+
 function buildTargetUrl(request: NextRequest, pathSegments: string[]): TargetResolution {
   const { baseUrl, sourceKey } = resolveCrudApiBaseUrl();
   const joinedPath = pathSegments.filter(Boolean).join('/');
@@ -170,6 +205,62 @@ function buildProxyErrorPayload(params: {
   };
 }
 
+function isAgentActivityRoute(path: string): boolean {
+  return (
+    path === '/api/admin/agent-activity'
+    || path === '/api/admin/agent-activity/health'
+    || path === '/api/admin/agent-activity/evaluations'
+    || path.startsWith('/api/admin/agent-activity/traces/')
+  );
+}
+
+function buildAgentActivityFallbackPayload(upstreamPath: string): AgentActivityFallbackPayload | null {
+  if (!isAgentActivityRoute(upstreamPath)) {
+    return null;
+  }
+
+  const timestamp = new Date().toISOString();
+
+  if (upstreamPath === '/api/admin/agent-activity' || upstreamPath === '/api/admin/agent-activity/health') {
+    return {
+      tracing_enabled: false,
+      generated_at: timestamp,
+      health_cards: [],
+      trace_feed: [],
+      model_usage: [],
+    };
+  }
+
+  if (upstreamPath === '/api/admin/agent-activity/evaluations') {
+    return {
+      tracing_enabled: false,
+      generated_at: timestamp,
+      summary: {
+        overall_score: 0,
+        pass_rate: 0,
+        total_runs: 0,
+      },
+      trends: [],
+      comparison: [],
+    };
+  }
+
+  if (upstreamPath.startsWith('/api/admin/agent-activity/traces/')) {
+    const traceId = decodeURIComponent(upstreamPath.split('/').pop() || 'unknown-trace');
+    return {
+      tracing_enabled: false,
+      trace_id: traceId,
+      root_agent_name: 'unavailable',
+      status: 'unknown',
+      started_at: timestamp,
+      duration_ms: 0,
+      spans: [],
+    };
+  }
+
+  return null;
+}
+
 async function proxyRequest(
   request: NextRequest,
   context: { params: Promise<{ path: string[] }> },
@@ -241,6 +332,26 @@ async function proxyRequest(
         },
       },
     );
+  }
+
+  const shouldFallbackAgentActivity =
+    method === 'GET'
+    && isAgentActivityRoute(upstreamPath)
+    && (upstream.status === 404 || upstream.status >= 500);
+
+  if (shouldFallbackAgentActivity) {
+    const fallbackPayload = buildAgentActivityFallbackPayload(upstreamPath);
+    if (fallbackPayload) {
+      return NextResponse.json(fallbackPayload, {
+        status: 200,
+        headers: {
+          'x-holiday-peak-proxy': 'next-app-api',
+          'x-holiday-peak-proxy-source': sourceKey ?? '',
+          'x-holiday-peak-proxy-fallback': 'agent-activity-unavailable',
+          'x-holiday-peak-proxy-fallback-upstream-status': String(upstream.status),
+        },
+      });
+    }
   }
 
   if (upstream.status === 502) {
