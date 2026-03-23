@@ -1078,7 +1078,7 @@ jobs:
           echo "agent_api_url=${RESOLVED_API_URL}/agents" >> "$GITHUB_OUTPUT"
 
       - name: Smoke test APIM API health before UI deploy
-        if: ${{ !inputs.skipApiSmokeChecks }}
+        if: ${{ !(inputs.skipApiSmokeChecks == true || inputs.skipApiSmokeChecks == 'true') }}
         shell: bash
         run: |
           set -euo pipefail
@@ -1389,7 +1389,7 @@ jobs:
           NEXT_PUBLIC_ENTRA_TENANT_ID: ${{ vars.NEXT_PUBLIC_ENTRA_TENANT_ID }}
 
       - name: Smoke test API health after UI-only deploy
-        if: ${{ !inputs.skipApiSmokeChecks }}
+        if: ${{ !(inputs.skipApiSmokeChecks == true || inputs.skipApiSmokeChecks == 'true') }}
         shell: bash
         run: |
           set -euo pipefail
