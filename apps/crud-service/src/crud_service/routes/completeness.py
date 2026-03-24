@@ -158,7 +158,9 @@ def _average_review_time_minutes(proposals: list[dict]) -> float:
     return sum(durations) / len(durations)
 
 
-def _build_bucket_starts(*, now: datetime, window_hours: int, interval_minutes: int) -> list[datetime]:
+def _build_bucket_starts(
+    *, now: datetime, window_hours: int, interval_minutes: int
+) -> list[datetime]:
     total_minutes = max(window_hours * 60, interval_minutes)
     bucket_count = max(1, total_minutes // interval_minutes)
 
@@ -226,7 +228,9 @@ async def get_truth_analytics_summary():
     proposal_items = await proposed_attr_repo.query(query="SELECT * FROM c")
     audit_items = await audit_repo.query(query="SELECT * FROM c")
 
-    scores = [_to_float(item.get("score", item.get("completeness_score"))) for item in completeness_items]
+    scores = [
+        _to_float(item.get("score", item.get("completeness_score"))) for item in completeness_items
+    ]
     total_products = len(completeness_items)
     overall_completeness = (sum(scores) / total_products) if total_products else 0.0
 
@@ -336,7 +340,9 @@ async def get_truth_analytics_throughput(
     }
 
     for item in completeness_items:
-        event_time = _extract_event_time(item, ["generated_at", "created_at", "timestamp", "updated_at"])
+        event_time = _extract_event_time(
+            item, ["generated_at", "created_at", "timestamp", "updated_at"]
+        )
         if event_time is None:
             continue
         bucket_key = _bucket_for_timestamp(

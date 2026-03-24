@@ -422,8 +422,16 @@ class TestCompletenessRoutes:
             {"id": "p-2", "status": "rejected", "reviewed_at": (now - minute * 4).isoformat()},
         ]
         audit_items = [
-            {"id": "a-1", "action": "enrichment_completed", "timestamp": (now - minute * 33).isoformat()},
-            {"id": "a-2", "action": "enrichment_completed", "timestamp": (now - minute * 3).isoformat()},
+            {
+                "id": "a-1",
+                "action": "enrichment_completed",
+                "timestamp": (now - minute * 33).isoformat(),
+            },
+            {
+                "id": "a-2",
+                "action": "enrichment_completed",
+                "timestamp": (now - minute * 3).isoformat(),
+            },
         ]
 
         with (
