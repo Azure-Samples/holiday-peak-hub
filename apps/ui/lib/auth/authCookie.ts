@@ -88,6 +88,12 @@ async function getSigningKey(secret: string): Promise<CryptoKey> {
 }
 
 export function isDevAuthMockEnabled(): boolean {
+  const mockEnabled = process.env.DEV_AUTH_MOCK === 'true';
+  if (!mockEnabled) return false;
+
+  const isProduction = process.env.NODE_ENV === 'production';
+  if (isProduction && process.env.DEV_AUTH_MOCK_ALLOW_PROD !== 'true') return false;
+
   return true;
 }
 
