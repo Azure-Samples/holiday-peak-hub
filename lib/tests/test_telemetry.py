@@ -2,6 +2,7 @@
 
 import sys
 
+from holiday_peak_lib.utils.correlation import clear_correlation_id, set_correlation_id
 from holiday_peak_lib.utils.telemetry import (
     FoundryTracer,
     _NoopMeter,
@@ -102,21 +103,39 @@ class TestFoundryTracer:
     def test_records_traces_and_metrics(self, monkeypatch):
         monkeypatch.setenv("FOUNDRY_TRACING_ENABLED", "true")
         tracer = FoundryTracer("svc", max_events=5)
-        tracer.trace_decision(decision="route", outcome="slm", metadata={"x": 1})
-        tracer.trace_tool_call(tool_name="inventory_lookup", outcome="success", metadata={})
-        tracer.trace_model_invocation(
-            model="gpt-5",
-            target="rich",
-            outcome="success",
-            metadata={"elapsed_ms": 12.3},
-        )
-        tracer.record_evaluation({"score": 0.9})
+        set_correlation_id("corr-test-123")
+        try:
+            tracer.trace_decision(decision="route", outcome="slm", metadata={"x": 1})
+            tracer.trace_tool_call(tool_name="inventory_lookup", outcome="success", metadata={})
+            tracer.trace_model_invocation(
+                model="gpt-5",
+                target="rich",
+                outcome="success",
+                metadata={"elapsed_ms": 12.3},
+            )
+            tracer.record_evaluation({"score": 0.9})
+        finally:
+            clear_correlation_id()
 
         traces = tracer.get_traces(limit=10)
         assert len(traces) == 3
         assert traces[0]["type"] == "model_invocation"
         assert traces[1]["type"] == "tool_call"
         assert traces[2]["type"] == "decision"
+
+        for trace_event in traces:
+            assert "service" in trace_event
+            assert "operation" in trace_event
+            assert "trace_id" in trace_event
+            assert "correlation_id" in trace_event
+            assert "status" in trace_event
+            assert "latency_ms" in trace_event
+            assert "timestamp" in trace_event
+
+        assert traces[0]["operation"] == "rich"
+        assert traces[0]["status"] == "success"
+        assert traces[0]["latency_ms"] == 12.3
+        assert traces[0]["correlation_id"] == "corr-test-123"
 
         metrics = tracer.get_metrics()
         assert metrics["counts"]["decision"] == 1
@@ -127,6 +146,29 @@ class TestFoundryTracer:
         latest = tracer.get_latest_evaluation()
         assert latest is not None
         assert latest["score"] == 0.9
+        assert latest["service"] == "svc"
+        assert latest["operation"] == "evaluation"
+        assert latest["status"] == "recorded"
+        assert "trace_id" in latest
+        assert latest["correlation_id"] == "corr-test-123"
+        assert "latency_ms" in latest
+        assert "timestamp" in latest
+
+    def test_metadata_correlation_id_overrides_context(self, monkeypatch):
+        monkeypatch.setenv("FOUNDRY_TRACING_ENABLED", "true")
+        tracer = FoundryTracer("svc", max_events=5)
+        set_correlation_id("corr-context")
+        try:
+            tracer.trace_tool_call(
+                tool_name="inventory_lookup",
+                outcome="success",
+                metadata={"correlation_id": "corr-metadata"},
+            )
+        finally:
+            clear_correlation_id()
+
+        event = tracer.get_traces(limit=1)[0]
+        assert event["correlation_id"] == "corr-metadata"
 
     def test_get_foundry_tracer_returns_singleton(self):
         tracer_a = get_foundry_tracer("svc-singleton")

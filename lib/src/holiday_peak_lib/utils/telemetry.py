@@ -26,6 +26,8 @@ from threading import Lock
 from typing import Any
 from weakref import WeakKeyDictionary
 
+from .correlation import get_correlation_id
+
 logger = logging.getLogger(__name__)
 
 _OTEL_AVAILABLE = False  # pylint: disable=invalid-name
@@ -76,6 +78,80 @@ def _is_truthy(value: str | None, *, default: bool = True) -> bool:
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _coerce_latency_ms(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _extract_latency_ms(metadata: dict[str, Any] | None) -> float | None:
+    if not isinstance(metadata, dict):
+        return None
+    for key in ("latency_ms", "elapsed_ms", "duration_ms"):
+        if key in metadata:
+            latency = _coerce_latency_ms(metadata.get(key))
+            if latency is not None:
+                return latency
+    return None
+
+
+def _trace_id_from_otel() -> str | None:
+    if not _OTEL_AVAILABLE:
+        return None
+    try:
+        current_span = trace.get_current_span()  # type: ignore[union-attr]
+        span_context = current_span.get_span_context() if current_span else None
+        if span_context is None:
+            return None
+
+        trace_id = getattr(span_context, "trace_id", 0)
+        is_valid = getattr(span_context, "is_valid", bool(trace_id))
+        if not is_valid or not isinstance(trace_id, int) or trace_id <= 0:
+            return None
+        return f"{trace_id:032x}"
+    except (AttributeError, TypeError, ValueError):
+        return None
+
+
+def _resolve_trace_id(metadata: dict[str, Any] | None) -> str | None:
+    if isinstance(metadata, dict):
+        for key in ("trace_id", "traceId", "operation_id"):
+            value = metadata.get(key)
+            if value is not None:
+                resolved = str(value).strip()
+                if resolved:
+                    return resolved
+    return _trace_id_from_otel()
+
+
+def _resolve_correlation_id(metadata: dict[str, Any] | None) -> str | None:
+    if isinstance(metadata, dict):
+        value = metadata.get("correlation_id")
+        if value is not None:
+            resolved = str(value).strip()
+            if resolved:
+                return resolved
+    return get_correlation_id()
+
+
+def _build_envelope_fields(
+    *,
+    operation: str,
+    status: str,
+    metadata: dict[str, Any] | None,
+) -> dict[str, Any]:
+    return {
+        "operation": operation,
+        "trace_id": _resolve_trace_id(metadata),
+        "correlation_id": _resolve_correlation_id(metadata),
+        "status": status,
+        "latency_ms": _extract_latency_ms(metadata),
+    }
 
 
 class FoundryTracer:
@@ -170,13 +246,19 @@ class FoundryTracer:
     def _record(self, event_type: str, name: str, outcome: str, metadata: dict[str, Any]) -> None:
         if not self.enabled:
             return
+        event_metadata = dict(metadata)
         event = {
             "timestamp": _now_iso(),
             "service": self.service_name,
+            **_build_envelope_fields(
+                operation=name,
+                status=outcome,
+                metadata=event_metadata,
+            ),
             "type": event_type,
             "name": name,
             "outcome": outcome,
-            "metadata": metadata,
+            "metadata": event_metadata,
         }
         with self._lock:
             self._events.append(event)
@@ -222,10 +304,18 @@ class FoundryTracer:
     def record_evaluation(self, payload: dict[str, Any]) -> None:
         if not self.enabled:
             return
+        payload_data = dict(payload)
+        operation = str(payload_data.get("operation", "evaluation"))
+        status = str(payload_data.get("status", "recorded"))
         enriched_payload = {
+            **payload_data,
             "timestamp": _now_iso(),
             "service": self.service_name,
-            **payload,
+            **_build_envelope_fields(
+                operation=operation,
+                status=status,
+                metadata=payload_data,
+            ),
         }
         with self._lock:
             self._latest_evaluation = enriched_payload
