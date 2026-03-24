@@ -1,0 +1,60 @@
+name: deploy-azd-truth-agents (scoped entrypoint)
+
+on:
+  workflow_dispatch:
+    inputs:
+      location:
+        description: Azure location
+        required: true
+        default: centralus
+      projectName:
+        description: Project prefix used by naming convention
+        required: true
+        default: holidaypeakhub405
+      imageTag:
+        description: Image tag to deploy
+        required: true
+        default: latest
+      forceApimSync:
+        description: Force APIM sync after deploying truth agents
+        required: true
+        type: boolean
+        default: true
+      autoAllowAcrRunnerIp:
+        description: Temporarily allow GitHub runner egress IP in ACR firewall during deploy
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-azd-truth-agents
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    permissions:
+      id-token: write
+      contents: read
+      issues: write
+    uses: ./.github/workflows/deploy-azd.yml
+    with:
+      environment: truth-agents
+      location: ${{ inputs.location }}
+      projectName: ${{ inputs.projectName }}
+      imageTag: ${{ inputs.imageTag }}
+      deployStatic: false
+      uiOnly: false
+      apiBaseUrl: ''
+      deployChangedOnly: true
+      forceApimSync: ${{ inputs.forceApimSync }}
+      autoAllowAcrRunnerIp: ${{ inputs.autoAllowAcrRunnerIp }}
+      skipApiSmokeChecks: false
+      serviceFilter: search-enrichment-agent,truth-ingestion,truth-enrichment,truth-export,truth-hitl
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}

@@ -56,6 +56,11 @@ on:
         required: false
         type: boolean
         default: false
+      serviceFilter:
+        description: Comma-separated list of agent service names to deploy (empty = all changed). Use to scope deploys to a subset of services.
+        required: false
+        type: string
+        default: ''
     secrets:
       AZURE_CLIENT_ID:
         required: true
@@ -220,6 +225,35 @@ jobs:
           if [ "$LIB_CHANGED" = true ]; then
             CHANGED_AGENTS=("${AGENT_SERVICES[@]}")
             CRUD_CHANGED=true
+          fi
+
+          # Apply service filter when provided (scoped deployments)
+          SERVICE_FILTER="${{ inputs.serviceFilter }}"
+          if [ -n "$SERVICE_FILTER" ]; then
+            IFS=',' read -ra FILTER_LIST <<< "$SERVICE_FILTER"
+            FILTERED_AGENTS=()
+            for filter_svc in "${FILTER_LIST[@]}"; do
+              trimmed=$(echo "$filter_svc" | xargs)
+              for agent in "${AGENT_SERVICES[@]}"; do
+                if [ "$agent" = "$trimmed" ]; then
+                  FILTERED_AGENTS+=("$agent")
+                fi
+              done
+            done
+            CHANGED_AGENTS=("${FILTERED_AGENTS[@]}")
+            # When a filter is active, do not auto-include CRUD unless it is in the filter
+            CRUD_IN_FILTER=false
+            for filter_svc in "${FILTER_LIST[@]}"; do
+              trimmed=$(echo "$filter_svc" | xargs)
+              if [ "$trimmed" = "crud-service" ]; then
+                CRUD_IN_FILTER=true
+              fi
+            done
+            if [ "$CRUD_IN_FILTER" = false ]; then
+              CRUD_CHANGED=false
+            fi
+            UI_CHANGED=false
+            echo "Service filter applied: ${CHANGED_AGENTS[*]:-none}"
           fi
 
           if [ ${#CHANGED_AGENTS[@]} -gt 0 ]; then
