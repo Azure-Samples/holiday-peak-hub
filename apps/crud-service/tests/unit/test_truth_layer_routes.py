@@ -1,5 +1,6 @@
 """Unit tests for truth-layer route modules."""
 
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -299,6 +300,159 @@ class TestCompletenessRoutes:
             resp = client.get("/api/completeness/summary")
         assert resp.status_code == 200
         assert resp.json()["total_products"] == 0
+
+    def test_truth_analytics_summary_shape_and_calculations(self, client):
+        completeness_items = [
+            {
+                "id": "c-1",
+                "entity_id": "p-1",
+                "category_id": "cat-a",
+                "score": 0.80,
+                "generated_at": "2026-03-24T10:00:00Z",
+            },
+            {
+                "id": "c-2",
+                "entity_id": "p-2",
+                "category_id": "cat-b",
+                "score": 0.60,
+                "generated_at": "2026-03-24T11:00:00Z",
+            },
+        ]
+        proposals = [
+            {
+                "id": "pa-1",
+                "status": "pending",
+                "proposed_at": "2026-03-24T10:00:00Z",
+            },
+            {
+                "id": "pa-2",
+                "status": "approved",
+                "reviewed_by": "system",
+                "proposed_at": "2026-03-24T10:00:00Z",
+                "reviewed_at": "2026-03-24T10:10:00Z",
+            },
+            {
+                "id": "pa-3",
+                "status": "rejected",
+                "proposed_at": "2026-03-24T10:00:00Z",
+                "reviewed_at": "2026-03-24T10:20:00Z",
+            },
+        ]
+        audit_events = [
+            {"id": "a-1", "action": "enrichment_completed", "timestamp": "2026-03-24T10:05:00Z"},
+            {"id": "a-2", "action": "acp_export", "metadata": {"target": "acp"}},
+            {"id": "a-3", "action": "ucp_export", "metadata": {"target": "ucp"}},
+        ]
+
+        with (
+            patch(
+                "crud_service.routes.completeness.completeness_repo.query",
+                new=AsyncMock(return_value=completeness_items),
+            ),
+            patch(
+                "crud_service.routes.completeness.proposed_attr_repo.query",
+                new=AsyncMock(return_value=proposals),
+            ),
+            patch(
+                "crud_service.routes.completeness.audit_repo.query",
+                new=AsyncMock(return_value=audit_events),
+            ),
+        ):
+            resp = client.get("/api/truth/analytics/summary")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert set(data.keys()) == {
+            "overall_completeness",
+            "total_products",
+            "enrichment_jobs_processed",
+            "auto_approved",
+            "sent_to_hitl",
+            "queue_pending",
+            "queue_approved",
+            "queue_rejected",
+            "avg_review_time_minutes",
+            "acp_exports",
+            "ucp_exports",
+        }
+        assert data["total_products"] == 2
+        assert data["overall_completeness"] == pytest.approx(0.7)
+        assert data["queue_pending"] == 1
+        assert data["queue_approved"] == 1
+        assert data["queue_rejected"] == 1
+        assert data["sent_to_hitl"] == 3
+        assert data["auto_approved"] == 1
+        assert data["enrichment_jobs_processed"] == 1
+        assert data["avg_review_time_minutes"] == pytest.approx(15.0)
+        assert data["acp_exports"] == 1
+        assert data["ucp_exports"] == 1
+
+    def test_truth_analytics_completeness_returns_category_rows(self, client):
+        completeness_items = [
+            {"id": "c-1", "entity_id": "p-1", "category_id": "cat-a", "score": 1.0},
+            {"id": "c-2", "entity_id": "p-2", "category_id": "cat-a", "score": 0.5},
+            {"id": "c-3", "entity_id": "p-3", "category_id": "cat-b", "score": 0.75},
+        ]
+        with patch(
+            "crud_service.routes.completeness.completeness_repo.query",
+            new=AsyncMock(return_value=completeness_items),
+        ):
+            resp = client.get("/api/truth/analytics/completeness")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 2
+
+        cat_a = next(row for row in data if row["category"] == "cat-a")
+        cat_b = next(row for row in data if row["category"] == "cat-b")
+        assert cat_a["product_count"] == 2
+        assert cat_a["completeness"] == pytest.approx(0.75)
+        assert cat_b["product_count"] == 1
+        assert cat_b["completeness"] == pytest.approx(0.75)
+
+    def test_truth_analytics_throughput_returns_time_series(self, client):
+        now = datetime.now(UTC)
+        minute = timedelta(minutes=1)
+        completeness_items = [
+            {"id": "c-1", "generated_at": (now - minute * 35).isoformat()},
+            {"id": "c-2", "generated_at": (now - minute * 5).isoformat()},
+        ]
+        proposal_items = [
+            {"id": "p-1", "status": "approved", "reviewed_at": (now - minute * 34).isoformat()},
+            {"id": "p-2", "status": "rejected", "reviewed_at": (now - minute * 4).isoformat()},
+        ]
+        audit_items = [
+            {"id": "a-1", "action": "enrichment_completed", "timestamp": (now - minute * 33).isoformat()},
+            {"id": "a-2", "action": "enrichment_completed", "timestamp": (now - minute * 3).isoformat()},
+        ]
+
+        with (
+            patch(
+                "crud_service.routes.completeness.completeness_repo.query",
+                new=AsyncMock(return_value=completeness_items),
+            ),
+            patch(
+                "crud_service.routes.completeness.proposed_attr_repo.query",
+                new=AsyncMock(return_value=proposal_items),
+            ),
+            patch(
+                "crud_service.routes.completeness.audit_repo.query",
+                new=AsyncMock(return_value=audit_items),
+            ),
+        ):
+            resp = client.get("/api/truth/analytics/throughput?window_hours=1&interval_minutes=30")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) >= 2
+        assert all(
+            set(point.keys()) == {"timestamp", "ingested", "enriched", "approved", "rejected"}
+            for point in data
+        )
+        assert sum(point["ingested"] for point in data) == 2
+        assert sum(point["enriched"] for point in data) == 2
+        assert sum(point["approved"] for point in data) == 1
+        assert sum(point["rejected"] for point in data) == 1
 
 
 # ---------------------------------------------------------------------------
