@@ -29,6 +29,14 @@ jest.mock('../../components/atoms/ThemeToggle', () => ({
   ThemeToggle: () => <div data-testid="theme-toggle" />,
 }));
 
+jest.mock('../../components/organisms/Navigation', () => ({
+  Navigation: ({ onSearch }: { onSearch?: (query: string) => void }) => (
+    <nav data-testid="navigation-mock">
+      {onSearch && <button onClick={() => onSearch('test')}>search</button>}
+    </nav>
+  ),
+}));
+
 describe('SearchPage', () => {
   const setPreference = jest.fn();
 
