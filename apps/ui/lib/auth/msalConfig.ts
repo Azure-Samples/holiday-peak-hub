@@ -6,7 +6,15 @@ const entraClientId = process.env.NEXT_PUBLIC_ENTRA_CLIENT_ID || '';
 const entraTenantId = process.env.NEXT_PUBLIC_ENTRA_TENANT_ID || '';
 
 export const isEntraConfigured = Boolean(entraClientId && entraTenantId);
-export const isDevAuthMockUiEnabled = true;
+export const isDevAuthMockUiEnabled = (() => {
+  const mockEnabled = process.env.NEXT_PUBLIC_DEV_AUTH_MOCK === 'true';
+  if (!mockEnabled) return false;
+
+  const isProduction = process.env.NODE_ENV === 'production';
+  if (isProduction && process.env.NEXT_PUBLIC_DEV_AUTH_MOCK_ALLOW_PROD !== 'true') return false;
+
+  return true;
+})();
 
 export const getMissingEntraConfigKeys = (): string[] => {
   const missing: string[] = [];

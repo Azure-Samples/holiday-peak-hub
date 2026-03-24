@@ -102,7 +102,7 @@ jobs:
       - name: Run UI type-check
         run: yarn type-check
       - name: Run UI unit tests
-        run: yarn test --ci --coverage --testPathIgnorePatterns=tests/unit/pagesRender.test.tsx
+        run: yarn test --ci --coverage --forceExit --testPathIgnorePatterns=tests/unit/pagesRender.test.tsx
       - name: Install Playwright browser
         run: yarn playwright install --with-deps chromium
       - name: Run UI E2E smoke tests
