@@ -2,7 +2,6 @@ import {ReactNode} from 'react'
 import {Metadata} from 'next'
 import Providers from './providers'
 
-import '@/css/tailwind.css'
 import './globals.css'
 import '@/css/main.css'
 import '@/css/layouts/layout-1.css'

@@ -1,3 +1,4 @@
+@reference "tailwindcss";
 @media (max-width: 767px) {
   [data-layout="e-commerce"] {
     .left-sidebar-2 {
@@ -30,3 +31,4 @@
     }
   }
 }
+

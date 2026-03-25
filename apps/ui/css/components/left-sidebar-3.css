@@ -1,3 +1,4 @@
+@reference "tailwindcss";
 .left-sidebar-3 {
   @apply w-full min-w-full;
   ul .left-sidebar-item {
@@ -67,3 +68,4 @@
     }
   }
 }
+

@@ -1,3 +1,4 @@
+@reference "tailwindcss";
 @import url("https://fonts.googleapis.com/css?family=Poppins&display=swap");
 
 #__next {
@@ -195,3 +196,4 @@ input[type="number"] {
     }
   }
 }
+

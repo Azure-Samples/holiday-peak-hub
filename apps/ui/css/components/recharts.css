@@ -1,3 +1,4 @@
+@reference "tailwindcss";
 /*recharts*/
 
 [data-background="light"] {
@@ -11,3 +12,4 @@
     @apply text-white;
   }
 }
+

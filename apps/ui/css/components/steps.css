@@ -1,3 +1,4 @@
+@reference "tailwindcss";
 .steps-1 {
   .number {
     @apply relative;
@@ -14,3 +15,4 @@
     }
   }
 }
+
