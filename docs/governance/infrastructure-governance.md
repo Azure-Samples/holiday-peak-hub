@@ -83,6 +83,11 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 - Health checks and smoke checks are required post-deploy for critical API paths.
 - Shared infrastructure must deploy baseline metric alerts for Cosmos DB, Redis, PostgreSQL, Event Hubs, AKS, and APIM via `.infra/modules/monitoring/monitoring.bicep`.
 - Action group notification targets for observability alerts are configured through azd/Bicep parameters `alertNotificationEmail` and `alertTeamsWebhookUrl`.
+- UI proxy observability must classify proxy failures by `failureKind` (`config`, `policy`, `network`, `upstream`) and capture `upstreamPath`, `sourceKey`, `status`, and `fallbackUsed` dimensions for incident triage.
+- Sustained `502` alerting is mandatory for critical UI proxy endpoints (`/api/*` set defined by endpoint-contract governance):
+  - Warn threshold: `502` rate >= 3% over 10 minutes with request count >= 30.
+  - Critical threshold: `502` rate >= 8% over 5 minutes with request count >= 50.
+- Fallback-enabled routes must publish fallback usage telemetry separately from `502` failure alerts so graceful degradation does not mask upstream reliability regressions.
 - Required test/smoke gates in CI must not use permissive `|| true` patterns on transport calls; failures must be deterministic for both transport errors and non-200 responses.
 - Transport-layer failures in required checks must be normalized to explicit non-success outcomes and treated as hard failures.
 - Advisory diagnostics/telemetry checks must be modeled separately from required gates and may remain non-blocking only when explicitly marked non-gating.

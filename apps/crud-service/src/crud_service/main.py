@@ -9,7 +9,6 @@ from contextlib import asynccontextmanager
 from importlib import import_module
 from typing import Any
 
-from azure.monitor.opentelemetry import configure_azure_monitor
 from crud_service.auth.dependencies import get_key_vault_secret
 from crud_service.composition import register_routes
 from crud_service.config.settings import get_settings
@@ -32,6 +31,29 @@ settings = get_settings()
 logger = configure_logging(app_name=settings.service_name)
 
 
+def configure_optional_telemetry(connection_string: str | None) -> None:
+    """Configure Application Insights telemetry when dependency is available."""
+    if not connection_string:
+        return
+
+    try:
+        azure_monitor_module = import_module("azure.monitor.opentelemetry")
+        configure_azure_monitor = getattr(
+            azure_monitor_module,
+            "configure_azure_monitor",
+        )
+        configure_azure_monitor(
+            connection_string=connection_string,
+            logger_name="crud_service",
+        )
+        logger.info("Application Insights configured")
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        logger.warning(
+            "Application Insights unavailable; continuing without telemetry: %s",
+            exc,
+        )
+
+
 def create_connector_registry() -> Any | None:
     try:
         connector_module = import_module("holiday_peak_lib.connectors.registry")
@@ -50,13 +72,7 @@ async def lifespan(_app: FastAPI):
     logger.info("Environment: %s", settings.environment)
     logger.info("Service Name: %s", settings.service_name)
 
-    # Configure Application Insights if instrumentation key is provided
-    if settings.app_insights_connection_string:
-        configure_azure_monitor(
-            connection_string=settings.app_insights_connection_string,
-            logger_name="crud_service",
-        )
-        logger.info("Application Insights configured")
+    configure_optional_telemetry(settings.app_insights_connection_string)
 
     # Initialize event publisher
     event_publisher = get_event_publisher()

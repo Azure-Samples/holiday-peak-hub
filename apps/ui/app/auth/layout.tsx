@@ -23,14 +23,12 @@ export const metadata: Metadata = {
   }
 }
 
-export default function RootLayout({
+export default function AuthLayout({
   children,
 }: {
   children: ReactNode
 }) {
   return (
-    <body className="font-sans text-sm antialiased disable-scrollbars bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
-      <ClientLayout pattern='root'>{children}</ClientLayout>
-    </body>
+    <ClientLayout pattern='root'>{children}</ClientLayout>
   )
 }

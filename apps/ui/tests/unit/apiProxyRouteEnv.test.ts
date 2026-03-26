@@ -121,7 +121,7 @@ describe('/api proxy route env handling', () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  it('returns 502 with sanitized diagnostics when upstream fetch throws', async () => {
+  it('returns fallback payload when /api/products upstream fetch throws', async () => {
     process.env.NEXT_PUBLIC_CRUD_API_URL = 'https://apim.example.azure-api.net';
     (global.fetch as jest.Mock).mockRejectedValue(new Error('connect ETIMEDOUT'));
 
@@ -130,19 +130,21 @@ describe('/api proxy route env handling', () => {
       params: Promise.resolve({ path: ['products'] }),
     });
 
-    expect(response.status).toBe(502);
-    await expect(response.json()).resolves.toEqual(
-      expect.objectContaining({
-        error: 'API proxy could not reach upstream service.',
-        proxy: expect.objectContaining({
-          failureKind: 'network',
-          sourceKey: 'NEXT_PUBLIC_CRUD_API_URL',
-          attemptedPath: '/api/products',
-          method: 'GET',
-          upstreamError: 'connect ETIMEDOUT',
-        }),
-      }),
-    );
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual([]);
+  });
+
+  it('returns fallback payload when /api/categories upstream fetch throws', async () => {
+    process.env.NEXT_PUBLIC_CRUD_API_URL = 'https://apim.example.azure-api.net';
+    (global.fetch as jest.Mock).mockRejectedValue(new Error('connect ETIMEDOUT'));
+
+    const route = await import('../../app/api/[...path]/route');
+    const response = await route.GET(makeRequest('http://localhost/api/categories'), {
+      params: Promise.resolve({ path: ['categories'] }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual([]);
   });
 
   it('rejects non-APIM upstream URL in proxy policy guard', async () => {
@@ -198,7 +200,7 @@ describe('/api proxy route env handling', () => {
     );
   });
 
-  it('returns 502 upstream diagnostics when upstream responds with 502', async () => {
+  it('returns fallback payload when /api/products upstream responds with 502', async () => {
     process.env.NEXT_PUBLIC_CRUD_API_URL = 'https://apim.example.azure-api.net';
     (global.fetch as jest.Mock).mockResolvedValue(
       {
@@ -221,13 +223,67 @@ describe('/api proxy route env handling', () => {
       params: Promise.resolve({ path: ['products'] }),
     });
 
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual([]);
+  });
+
+  it('returns fallback payload when /api/categories upstream responds with 502', async () => {
+    process.env.NEXT_PUBLIC_CRUD_API_URL = 'https://apim.example.azure-api.net';
+    (global.fetch as jest.Mock).mockResolvedValue(
+      {
+        body: null,
+        status: 502,
+        statusText: 'Bad Gateway',
+        headers: new Headers({
+          'content-type': 'application/json',
+          'x-request-id': 'upstream-req-123',
+        }),
+        json: jest.fn(async () => ({
+          error: 'Backend dependency timeout',
+        })),
+        text: jest.fn(async () => ''),
+      },
+    );
+
+    const route = await import('../../app/api/[...path]/route');
+    const response = await route.GET(makeRequest('http://localhost/api/categories'), {
+      params: Promise.resolve({ path: ['categories'] }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual([]);
+  });
+
+  it('keeps intentional 502 payload contract for non-fallback endpoints', async () => {
+    process.env.NEXT_PUBLIC_CRUD_API_URL = 'https://apim.example.azure-api.net';
+    (global.fetch as jest.Mock).mockResolvedValue(
+      {
+        body: null,
+        status: 502,
+        statusText: 'Bad Gateway',
+        headers: new Headers({
+          'content-type': 'application/json',
+          'x-request-id': 'upstream-req-123',
+        }),
+        json: jest.fn(async () => ({
+          error: 'Backend dependency timeout',
+        })),
+        text: jest.fn(async () => ''),
+      },
+    );
+
+    const route = await import('../../app/api/[...path]/route');
+    const response = await route.GET(makeRequest('http://localhost/api/orders'), {
+      params: Promise.resolve({ path: ['orders'] }),
+    });
+
     expect(response.status).toBe(502);
     await expect(response.json()).resolves.toEqual(
       expect.objectContaining({
         error: 'API proxy received a bad gateway response from upstream.',
         proxy: expect.objectContaining({
           failureKind: 'upstream',
-          attemptedPath: '/api/products',
+          attemptedPath: '/api/orders',
           method: 'GET',
           upstreamStatus: 502,
           upstreamStatusText: 'Bad Gateway',

@@ -162,3 +162,111 @@
   - `Catalog Search fallback (agent unavailable)` when agent path is unavailable and CRUD fallback is used.
 - `apps/ui/lib/hooks/useSemanticSearch.ts` query enablement now triggers for any non-empty query (`trim().length > 0`) to keep existing search UX responsiveness.
 - `apps/ui/tests/unit/SearchPage.test.tsx` now validates both source badge variants.
+
+## Issue #546 proxy reliability contract (2026-03-26)
+
+### Scope
+
+- Applies only to idempotent catalog reads routed through UI proxy:
+  - `GET /api/categories`
+  - `GET /api/products`
+- APIM policy guardrails are unchanged: non-APIM proxy base URL remains a hard-fail `502` with `failureKind=policy`.
+- Config failures are unchanged: missing proxy base URL remains a hard-fail `502` with `failureKind=config`.
+
+### New fallback behavior
+
+When upstream network connectivity fails or upstream returns `502` for the two routes above, the proxy now returns a bounded fallback response instead of propagating a hard-fail `502`:
+
+- Status: `200`
+- Response body: empty array (`[]`)
+- Headers include:
+  - `x-holiday-peak-proxy=next-app-api`
+  - `x-holiday-peak-proxy-fallback=<strategy-name>-<mode>`
+
+Fallback strategy names:
+
+- `products-read-empty-network`
+- `products-read-empty-upstream-502`
+- `categories-read-empty-network`
+- `categories-read-empty-upstream-502`
+
+### Bounded retry semantics
+
+- For these two idempotent reads, proxy performs bounded retry before fallback.
+- Max attempts: `2` (initial attempt + one retry).
+- Retryable upstream statuses: `502`, `503`, `504`.
+- After retry budget is exhausted:
+  - network exception -> fallback `200 []`
+  - upstream `502` -> fallback `200 []`
+
+### Preserved intentional `502` payload contract
+
+- Existing proxy error payload schema for intentional `502` responses remains unchanged for non-fallback endpoints (for example, `GET /api/orders`):
+  - top-level `error`
+  - `proxy.failureKind`
+  - `proxy.attemptedPath`
+  - `proxy.method`
+  - `proxy.upstreamStatus`
+  - `proxy.upstreamStatusText`
+  - `proxy.upstreamError`
+  - `proxy.upstreamRequestId`
+
+## Issue #547 observability hardening design (2026-03-26)
+
+### Scope boundary
+
+- Keep proxy request/response payload contracts unchanged for `/api/*` consumers.
+- Preserve APIM-first proxy policy semantics (`*.azure-api.net` enforcement and existing policy failure mode).
+- Focus on observability signals and operational response, not endpoint behavior changes.
+
+### Dependency on issue #546 (endpoint contracts)
+
+- Alerting and failure-rate SLOs must consume the endpoint criticality set defined by issue #546.
+- Until #546 is merged, use the provisional critical endpoint set already validated in this document:
+  - `GET /api/health`
+  - `GET /api/products`
+  - `GET /api/categories`
+  - `GET /api/admin/agent-activity`
+  - `GET /api/admin/enrichment-monitor`
+- Replace provisional endpoint filters in alert rules immediately after #546 finalizes contract ownership and path set.
+
+### UI proxy failure telemetry contract
+
+Emit or derive the following dimensions for every UI proxy failure event and `502` response path:
+
+| Dimension | Source | Notes |
+| --- | --- | --- |
+| `failureKind` | `proxy.failureKind` and `x-holiday-peak-proxy-failure-kind` | Allowed values: `config`, `policy`, `network`, `upstream`. |
+| `upstreamPath` | `proxy.attemptedPath` | Store normalized path template for analytics (`/api/products`, `/api/admin/*`). |
+| `sourceKey` | `proxy.sourceKey` and `x-holiday-peak-proxy-source` | Captures env key precedence outcome used by resolver. |
+| `status` | HTTP response status | Distinguish proxy-generated `502` from pass-through upstream status codes. |
+| `fallbackUsed` | `x-holiday-peak-proxy-fallback` presence/value | `true` when fallback header exists; include fallback strategy name as value. |
+
+Additional operational dimensions recommended for triage joins:
+
+- `method` from proxy payload (`GET`, `POST`, etc.).
+- `upstreamStatus` when `failureKind=upstream`.
+- `environment`, `cloud_RoleName`, and `operation_Id` from Application Insights context.
+
+### Sustained `502` alert policy
+
+Define two alert tiers for critical UI endpoints (from #546 contract set):
+
+1. **Warn**: `502` rate >= 3% for 10 minutes, with at least 30 requests in the window.
+2. **Critical**: `502` rate >= 8% for 5 minutes, with at least 50 requests in the window.
+
+Routing and ownership:
+
+- Action group: shared observability action group (`alertNotificationEmail`, `alertTeamsWebhookUrl`).
+- First responder: Platform Engineering on-call.
+- Escalation: API owner on-call if `failureKind=upstream` dominates for 10+ minutes.
+
+### Non-prod verification matrix
+
+| Failure mode | Injection method (non-prod only) | Expected telemetry | Expected alert/result |
+| --- | --- | --- | --- |
+| `config` | Remove `NEXT_PUBLIC_CRUD_API_URL` and fallback aliases from UI runtime env | `failureKind=config`, `sourceKey=null`, `status=502`, `fallbackUsed=false` | No sustained-rate alert unless repeated load test pushes rate threshold. |
+| `policy` | Set UI proxy base URL to non-APIM host while `UI_ALLOW_NON_APIM_PROXY_URL` is unset | `failureKind=policy`, `status=502`, `fallbackUsed=false` | Warn alert should trigger under repeated requests to critical endpoints. |
+| `network` | Block outbound egress from UI host to APIM (NSG/firewall temporary deny) | `failureKind=network`, `status=502`, `fallbackUsed=false` | Critical alert should trigger in <10 min under synthetic traffic. |
+| `upstream` | Return `502` from APIM backend policy or force unhealthy upstream backend | `failureKind=upstream`, `status=502`, `upstreamStatus=502` | Warn/Critical according to observed rate; runbook should route to upstream owner. |
+| fallback path | Force upstream `404/5xx` on fallback-enabled admin routes | `status=200`, `fallbackUsed=true`, fallback header value present | No `502` alert expected; fallback usage dashboard should spike and create advisory signal. |

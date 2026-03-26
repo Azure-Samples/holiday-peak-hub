@@ -182,6 +182,22 @@ type AdminServiceFallbackPayload = {
   model_usage: AdminServiceModelUsageRow[];
 };
 
+type EndpointFallbackStrategy = {
+  name: string;
+  method: 'GET' | 'HEAD';
+  path: '/api/categories' | '/api/products';
+  retry: {
+    maxAttempts: number;
+    retryableStatuses: readonly number[];
+  };
+  buildPayload: (request: NextRequest) => unknown;
+};
+
+type UpstreamAttemptResult = {
+  response: Response | null;
+  networkError: Error | null;
+};
+
 const DEFAULT_AGENT_ACTIVITY_SERVICES = [
   'ecommerce-catalog-search',
   'search-enrichment-agent',
@@ -229,6 +245,93 @@ const ADMIN_SERVICE_DOMAINS = new Set<AdminServiceDomain>([
   'logistics',
   'products',
 ]);
+
+const CATALOG_READ_FALLBACK_STRATEGIES: readonly EndpointFallbackStrategy[] = [
+  {
+    name: 'categories-read-empty',
+    method: 'GET',
+    path: '/api/categories',
+    retry: {
+      maxAttempts: 2,
+      retryableStatuses: [502, 503, 504] as const,
+    },
+    buildPayload: () => [],
+  },
+  {
+    name: 'products-read-empty',
+    method: 'GET',
+    path: '/api/products',
+    retry: {
+      maxAttempts: 2,
+      retryableStatuses: [502, 503, 504] as const,
+    },
+    buildPayload: () => [],
+  },
+];
+
+function resolveEndpointFallbackStrategy(method: string, upstreamPath: string): EndpointFallbackStrategy | null {
+  return (
+    CATALOG_READ_FALLBACK_STRATEGIES.find(
+      (strategy) => strategy.method === method && strategy.path === upstreamPath,
+    ) || null
+  );
+}
+
+function shouldRetryUpstreamResponse(status: number, strategy: EndpointFallbackStrategy | null): boolean {
+  if (!strategy) {
+    return false;
+  }
+
+  return strategy.retry.retryableStatuses.includes(status);
+}
+
+async function executeUpstreamWithRetry(params: {
+  targetUrl: string;
+  method: string;
+  headers: Headers;
+  body: ArrayBuffer | undefined;
+  strategy: EndpointFallbackStrategy | null;
+}): Promise<UpstreamAttemptResult> {
+  const maxAttempts = params.strategy?.retry.maxAttempts ?? 1;
+  let lastNetworkError: Error | null = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const upstream = await fetch(params.targetUrl, {
+        method: params.method,
+        headers: params.headers,
+        body: params.body,
+        redirect: 'manual',
+        cache: 'no-store',
+      });
+
+      if (attempt < maxAttempts && shouldRetryUpstreamResponse(upstream.status, params.strategy)) {
+        continue;
+      }
+
+      return {
+        response: upstream,
+        networkError: null,
+      };
+    } catch (error) {
+      lastNetworkError = error instanceof Error ? error : null;
+
+      if (attempt < maxAttempts && params.strategy) {
+        continue;
+      }
+
+      return {
+        response: null,
+        networkError: lastNetworkError,
+      };
+    }
+  }
+
+  return {
+    response: null,
+    networkError: lastNetworkError,
+  };
+}
 
 function buildTargetUrl(request: NextRequest, pathSegments: string[]): TargetResolution {
   const { baseUrl, sourceKey } = resolveCrudApiBaseUrl();
@@ -1573,18 +1676,18 @@ async function proxyRequest(
   requestHeaders.delete('content-length');
 
   const body = method === 'GET' || method === 'HEAD' ? undefined : await request.arrayBuffer();
+  const endpointFallbackStrategy = resolveEndpointFallbackStrategy(method, upstreamPath);
 
-  let upstream: Response;
+  const upstreamResult = await executeUpstreamWithRetry({
+    targetUrl,
+    method,
+    headers: requestHeaders,
+    body,
+    strategy: endpointFallbackStrategy,
+  });
 
-  try {
-    upstream = await fetch(targetUrl, {
-      method,
-      headers: requestHeaders,
-      body,
-      redirect: 'manual',
-      cache: 'no-store',
-    });
-  } catch (error) {
+  if (upstreamResult.networkError) {
+    const error = upstreamResult.networkError;
     if (error instanceof Error) {
       console.error('API proxy upstream fetch failed', {
         attemptedPath: upstreamPath,
@@ -1592,6 +1695,18 @@ async function proxyRequest(
         message: error.message,
       });
     }
+
+    if (endpointFallbackStrategy) {
+      return NextResponse.json(endpointFallbackStrategy.buildPayload(request), {
+        status: 200,
+        headers: {
+          'x-holiday-peak-proxy': 'next-app-api',
+          'x-holiday-peak-proxy-source': sourceKey ?? '',
+          'x-holiday-peak-proxy-fallback': `${endpointFallbackStrategy.name}-network`,
+        },
+      });
+    }
+
     return NextResponse.json(
       buildProxyErrorPayload({
         failureKind: 'network',
@@ -1611,6 +1726,8 @@ async function proxyRequest(
       },
     );
   }
+
+  const upstream = upstreamResult.response as Response;
 
   const shouldFallbackAgentActivity =
     method === 'GET'
@@ -1769,6 +1886,17 @@ async function proxyRequest(
         'x-holiday-peak-proxy': 'next-app-api',
         'x-holiday-peak-proxy-source': sourceKey ?? '',
         'x-holiday-peak-proxy-fallback': 'staff-review-action-noop',
+      },
+    });
+  }
+
+  if (endpointFallbackStrategy && upstream.status === 502) {
+    return NextResponse.json(endpointFallbackStrategy.buildPayload(request), {
+      status: 200,
+      headers: {
+        'x-holiday-peak-proxy': 'next-app-api',
+        'x-holiday-peak-proxy-source': sourceKey ?? '',
+        'x-holiday-peak-proxy-fallback': `${endpointFallbackStrategy.name}-upstream-502`,
       },
     });
   }

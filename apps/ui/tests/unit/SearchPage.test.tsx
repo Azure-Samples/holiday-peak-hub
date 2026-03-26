@@ -16,6 +16,7 @@ jest.mock('next/navigation', () => ({
 
 const mockUseIntelligentSearch = jest.fn();
 const mockUseRelatedProducts = jest.fn();
+const mockSemanticSearchWithMode = jest.fn();
 
 jest.mock('../../lib/hooks/useIntelligentSearch', () => ({
   useIntelligentSearch: (...args: unknown[]) => mockUseIntelligentSearch(...args),
@@ -23,6 +24,12 @@ jest.mock('../../lib/hooks/useIntelligentSearch', () => ({
 
 jest.mock('../../lib/hooks/useRelatedProducts', () => ({
   useRelatedProducts: (...args: unknown[]) => mockUseRelatedProducts(...args),
+}));
+
+jest.mock('../../lib/services/semanticSearchService', () => ({
+  semanticSearchService: {
+    searchWithMode: (...args: unknown[]) => mockSemanticSearchWithMode(...args),
+  },
 }));
 
 jest.mock('../../components/atoms/ThemeToggle', () => ({
@@ -43,6 +50,14 @@ describe('SearchPage', () => {
   beforeEach(() => {
     push.mockClear();
     setPreference.mockClear();
+    mockSemanticSearchWithMode.mockReset();
+    mockSemanticSearchWithMode.mockImplementation(
+      async (_query: string, mode: 'keyword' | 'intelligent') => ({
+        items: [],
+        source: 'crud',
+        mode,
+      }),
+    );
     getParam.mockReturnValue('headphones');
     mockUseRelatedProducts.mockReturnValue({ data: {} });
     mockUseIntelligentSearch.mockReturnValue({
