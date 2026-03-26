@@ -24,6 +24,7 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 - **azd-first deployment is mandatory** (ADR-021).
 - Reusable workflow `deploy-azd.yml` is not the primary operator entrypoint; use env-specific entrypoint workflows.
 - OIDC Azure login is required in CI/CD; no static cloud credentials committed to repository.
+- Provisioning must fail fast when `projectName` is not `holidaypeakhub405` or when `resourceGroupName`/`AZURE_RESOURCE_GROUP` are not `holidaypeakhub405-<environment>-rg`; this is enforced through azd `preprovision` hooks.
 
 ## Environment Policy Matrix
 
