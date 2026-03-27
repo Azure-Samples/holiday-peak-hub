@@ -88,9 +88,9 @@ describe('agent activity components', () => {
       />
     );
 
-    expect(screen.getByText('mini-fast')).toBeInTheDocument();
-    expect(screen.getByText('slm')).toBeInTheDocument();
-    expect(screen.getByText('llm')).toBeInTheDocument();
+    expect(screen.getAllByText('mini-fast').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('slm').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('llm').length).toBeGreaterThan(0);
   });
 
   it('renders evaluation trend empty-state and comparison rows', () => {

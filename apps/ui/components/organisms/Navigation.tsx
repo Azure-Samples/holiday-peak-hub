@@ -5,6 +5,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import {
   FiShoppingCart,
   FiHeart,
@@ -84,15 +85,57 @@ export const Navigation: React.FC<NavigationProps> = ({
   testId,
   ariaLabel,
 }) => {
+  const pathname = usePathname();
   const { isAuthenticated, loginAsMockRole, user } = useAuth();
-  let globalHealth: 'healthy' | 'degraded' | 'down' | 'unknown' | undefined;
+  const healthQuery = useAgentGlobalHealth();
+  const globalHealth = healthQuery.data ?? 'unknown';
 
-  try {
-    const healthQuery = useAgentGlobalHealth();
-    globalHealth = healthQuery.data;
-  } catch {
-    globalHealth = 'unknown';
-  }
+  const mobileMenuButtonRef = React.useRef<HTMLButtonElement>(null);
+  const mobileMenuRef = React.useRef<HTMLDivElement>(null);
+
+  const closeMobileMenu = React.useCallback(() => {
+    if (mobileMenuOpen) {
+      onMobileMenuToggle?.();
+    }
+  }, [mobileMenuOpen, onMobileMenuToggle]);
+
+  React.useEffect(() => {
+    if (!mobileMenuOpen) {
+      return undefined;
+    }
+
+    const firstFocusableElement = mobileMenuRef.current?.querySelector<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+    firstFocusableElement?.focus();
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeMobileMenu();
+        mobileMenuButtonRef.current?.focus();
+      }
+    };
+
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [closeMobileMenu, mobileMenuOpen]);
+
+  const isLinkActive = React.useCallback(
+    (href: string): boolean => {
+      const targetPath = href.split('?')[0];
+      if (!pathname) {
+        return false;
+      }
+
+      if (targetPath === '/') {
+        return pathname === '/';
+      }
+
+      return pathname === targetPath || pathname.startsWith(`${targetPath}/`);
+    },
+    [pathname]
+  );
 
   const healthIndicatorClass =
     globalHealth === 'healthy'
@@ -120,7 +163,7 @@ export const Navigation: React.FC<NavigationProps> = ({
   };
 
   const handleMobileLinkClick = () => {
-    onMobileMenuToggle?.();
+    closeMobileMenu();
   };
 
   return (
@@ -141,18 +184,17 @@ export const Navigation: React.FC<NavigationProps> = ({
 
         <div className="flex min-h-16 items-center justify-between gap-3 py-2">
           <div className="flex items-center gap-2 xl:hidden">
-            <Button
-              variant="ghost"
-              size="sm"
-              iconOnly
+            <button
+              type="button"
+              ref={mobileMenuButtonRef}
               onClick={onMobileMenuToggle}
-              ariaLabel={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+              aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
               aria-expanded={mobileMenuOpen}
               aria-controls="mobile-menu"
-              className="text-[var(--hp-text)]"
+              className="inline-flex items-center justify-center rounded-lg p-2 text-[var(--hp-text)] transition-colors hover:bg-[var(--hp-surface-strong)]"
             >
               <FiMenu className="w-6 h-6" />
-            </Button>
+            </button>
           </div>
 
           <div className="flex flex-1 items-center gap-3 lg:flex-none">
@@ -175,7 +217,13 @@ export const Navigation: React.FC<NavigationProps> = ({
               <Link
                 key={`${link.href}-${link.label}`}
                 href={link.href}
-                className="rounded-md px-2 py-1 text-sm font-semibold text-[var(--hp-text-muted)] transition-colors hover:text-[var(--hp-primary)]"
+                aria-current={isLinkActive(link.href) ? 'page' : undefined}
+                className={cn(
+                  'rounded-md px-2 py-1 text-sm font-semibold transition-colors',
+                  isLinkActive(link.href)
+                    ? 'bg-[var(--hp-surface-strong)] text-[var(--hp-text)]'
+                    : 'text-[var(--hp-text-muted)] hover:text-[var(--hp-primary)]'
+                )}
               >
                 {link.label}
               </Link>
@@ -316,6 +364,10 @@ export const Navigation: React.FC<NavigationProps> = ({
       {mobileMenuOpen && (
         <div
           id="mobile-menu"
+          ref={mobileMenuRef}
+          role="dialog"
+          aria-modal="false"
+          aria-label="Mobile navigation menu"
           className="xl:hidden border-t border-[var(--hp-border)] bg-[var(--hp-surface)] showcase-rise"
         >
           <div className="space-y-2 px-4 py-3">
@@ -327,6 +379,15 @@ export const Navigation: React.FC<NavigationProps> = ({
                 className="w-full"
               />
             </div>
+
+            <Link
+              href="/admin/enrichment-monitor"
+              className="flex items-center rounded-xl border border-[var(--hp-border)] bg-[var(--hp-surface-strong)] px-3 py-2 text-sm font-semibold text-[var(--hp-text)]"
+              onClick={handleMobileLinkClick}
+            >
+              <span aria-hidden="true" className={`mr-2 h-2.5 w-2.5 rounded-full ${healthIndicatorClass}`} />
+              Pipeline status
+            </Link>
 
             <Link
               href="/search?agentChat=1"
@@ -355,7 +416,13 @@ export const Navigation: React.FC<NavigationProps> = ({
               <Link
                 key={`${link.href}-${link.label}`}
                 href={link.href}
-                className="block rounded-md px-3 py-2 text-sm font-semibold text-[var(--hp-text)] hover:bg-[var(--hp-surface-strong)]"
+                aria-current={isLinkActive(link.href) ? 'page' : undefined}
+                className={cn(
+                  'block rounded-md px-3 py-2 text-sm font-semibold',
+                  isLinkActive(link.href)
+                    ? 'bg-[var(--hp-surface-strong)] text-[var(--hp-text)]'
+                    : 'text-[var(--hp-text)] hover:bg-[var(--hp-surface-strong)]'
+                )}
                 onClick={handleMobileLinkClick}
               >
                 {link.label}

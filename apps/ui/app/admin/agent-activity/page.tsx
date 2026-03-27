@@ -26,6 +26,9 @@ export default function AgentActivityPage() {
   const errorLog = (data?.trace_feed ?? [])
     .filter((trace) => trace.status === 'error' || trace.error_count > 0)
     .slice(0, 8);
+  const traceCount = data?.trace_feed.length ?? 0;
+  const retryNeededCount = errorLog.filter((trace) => trace.status === 'error').length;
+  const recoveredCount = errorLog.filter((trace) => trace.status !== 'error').length;
 
   return (
     <MainLayout>
@@ -81,6 +84,29 @@ export default function AgentActivityPage() {
 
         {data && data.tracing_enabled && (
           <>
+            <section aria-label="Live monitor triage summary" className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <Card className="border border-[var(--hp-border)] bg-[var(--hp-surface)] p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--hp-text-muted)]">Tracing</p>
+                <p className="mt-2 text-2xl font-black text-[var(--hp-text)]">Enabled</p>
+                <p className="mt-1 text-xs text-[var(--hp-text-muted)]">Feed refreshes every 10 seconds.</p>
+              </Card>
+              <Card className="border border-[var(--hp-border)] bg-[var(--hp-surface)] p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--hp-text-muted)]">Active traces</p>
+                <p className="mt-2 text-2xl font-black text-[var(--hp-text)]">{traceCount}</p>
+                <p className="mt-1 text-xs text-[var(--hp-text-muted)]">Within selected time window.</p>
+              </Card>
+              <Card className="border border-[var(--hp-border)] bg-[var(--hp-surface)] p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--hp-text-muted)]">Needs retry</p>
+                <p className="mt-2 text-2xl font-black text-red-600 dark:text-red-400">{retryNeededCount}</p>
+                <p className="mt-1 text-xs text-[var(--hp-text-muted)]">Failed traces awaiting recovery.</p>
+              </Card>
+              <Card className="border border-[var(--hp-border)] bg-[var(--hp-surface)] p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--hp-text-muted)]">Recovered</p>
+                <p className="mt-2 text-2xl font-black text-[var(--hp-accent)]">{recoveredCount}</p>
+                <p className="mt-1 text-xs text-[var(--hp-text-muted)]">Retries completed in range.</p>
+              </Card>
+            </section>
+
             <section aria-label="Agent health cards" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {data.health_cards.map((metric) => (
                 <AgentHealthCard key={metric.id} metric={metric} />
@@ -97,34 +123,56 @@ export default function AgentActivityPage() {
                 {data.trace_feed.length === 0 ? (
                   <p className="p-4 text-sm text-gray-500 dark:text-gray-400">No traces captured for this range.</p>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full text-sm">
-                      <thead className="bg-gray-50 dark:bg-gray-900/40">
-                        <tr>
-                          <th className="px-4 py-2 text-left font-semibold text-gray-700 dark:text-gray-300">Trace</th>
-                          <th className="px-4 py-2 text-left font-semibold text-gray-700 dark:text-gray-300">Agent</th>
-                          <th className="px-4 py-2 text-left font-semibold text-gray-700 dark:text-gray-300">Status</th>
-                          <th className="px-4 py-2 text-left font-semibold text-gray-700 dark:text-gray-300">Duration</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {data.trace_feed.map((trace) => (
-                          <tr key={trace.trace_id} className="border-t border-gray-200 dark:border-gray-700">
-                            <td className="px-4 py-2">
-                              <Link
-                                href={`/admin/agent-activity/${trace.trace_id}`}
-                                className="text-blue-600 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-blue-400"
-                              >
-                                {trace.trace_id}
-                              </Link>
-                            </td>
-                            <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{trace.agent_name}</td>
-                            <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{trace.status}</td>
-                            <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{Math.round(trace.duration_ms)} ms</td>
+                  <div>
+                    <div className="space-y-3 p-4 md:hidden">
+                      {data.trace_feed.map((trace) => (
+                        <article key={trace.trace_id} className="rounded-xl border border-[var(--hp-border)] bg-[var(--hp-surface)] p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <Link
+                              href={`/admin/agent-activity/${trace.trace_id}`}
+                              className="text-sm font-semibold text-[var(--hp-primary)] hover:underline"
+                            >
+                              {trace.trace_id}
+                            </Link>
+                            <span className="rounded-full bg-[var(--hp-surface-strong)] px-2 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--hp-text)]">
+                              {trace.status}
+                            </span>
+                          </div>
+                          <p className="mt-2 text-xs text-[var(--hp-text-muted)]">{trace.agent_name}</p>
+                          <p className="mt-1 text-xs text-[var(--hp-text-muted)]">{Math.round(trace.duration_ms)} ms</p>
+                        </article>
+                      ))}
+                    </div>
+
+                    <div className="hidden overflow-x-auto md:block">
+                      <table className="min-w-full text-sm">
+                        <thead className="bg-gray-50 dark:bg-gray-900/40">
+                          <tr>
+                            <th className="px-4 py-2 text-left font-semibold text-gray-700 dark:text-gray-300">Trace</th>
+                            <th className="px-4 py-2 text-left font-semibold text-gray-700 dark:text-gray-300">Agent</th>
+                            <th className="px-4 py-2 text-left font-semibold text-gray-700 dark:text-gray-300">Status</th>
+                            <th className="px-4 py-2 text-left font-semibold text-gray-700 dark:text-gray-300">Duration</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {data.trace_feed.map((trace) => (
+                            <tr key={trace.trace_id} className="border-t border-gray-200 dark:border-gray-700">
+                              <td className="px-4 py-2">
+                                <Link
+                                  href={`/admin/agent-activity/${trace.trace_id}`}
+                                  className="text-blue-600 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-blue-400"
+                                >
+                                  {trace.trace_id}
+                                </Link>
+                              </td>
+                              <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{trace.agent_name}</td>
+                              <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{trace.status}</td>
+                              <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{Math.round(trace.duration_ms)} ms</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 )}
               </Card>
@@ -151,36 +199,58 @@ export default function AgentActivityPage() {
               {errorLog.length === 0 ? (
                 <p className="p-4 text-sm text-gray-500 dark:text-gray-400">No failed traces for this range.</p>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full text-sm">
-                    <thead className="bg-gray-50 dark:bg-gray-900/40">
-                      <tr>
-                        <th className="px-4 py-2 text-left font-semibold text-gray-700 dark:text-gray-300">Trace</th>
-                        <th className="px-4 py-2 text-left font-semibold text-gray-700 dark:text-gray-300">Agent</th>
-                        <th className="px-4 py-2 text-left font-semibold text-gray-700 dark:text-gray-300">Errors</th>
-                        <th className="px-4 py-2 text-left font-semibold text-gray-700 dark:text-gray-300">Retry status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {errorLog.map((trace) => (
-                        <tr key={`error-${trace.trace_id}`} className="border-t border-gray-200 dark:border-gray-700">
-                          <td className="px-4 py-2">
-                            <Link
-                              href={`/admin/agent-activity/${trace.trace_id}`}
-                              className="text-blue-600 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-blue-400"
-                            >
-                              {trace.trace_id}
-                            </Link>
-                          </td>
-                          <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{trace.agent_name}</td>
-                          <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{trace.error_count}</td>
-                          <td className="px-4 py-2 text-gray-700 dark:text-gray-300">
+                <div>
+                  <div className="space-y-3 p-4 md:hidden">
+                    {errorLog.map((trace) => (
+                      <article key={`error-${trace.trace_id}`} className="rounded-xl border border-[var(--hp-border)] bg-[var(--hp-surface)] p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <Link
+                            href={`/admin/agent-activity/${trace.trace_id}`}
+                            className="text-sm font-semibold text-[var(--hp-primary)] hover:underline"
+                          >
+                            {trace.trace_id}
+                          </Link>
+                          <span className="rounded-full bg-[var(--hp-surface-strong)] px-2 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--hp-text)]">
                             {trace.status === 'error' ? 'Needs retry' : 'Recovered'}
-                          </td>
+                          </span>
+                        </div>
+                        <p className="mt-2 text-xs text-[var(--hp-text-muted)]">{trace.agent_name}</p>
+                        <p className="mt-1 text-xs text-[var(--hp-text-muted)]">Errors: {trace.error_count}</p>
+                      </article>
+                    ))}
+                  </div>
+
+                  <div className="hidden overflow-x-auto md:block">
+                    <table className="min-w-full text-sm">
+                      <thead className="bg-gray-50 dark:bg-gray-900/40">
+                        <tr>
+                          <th className="px-4 py-2 text-left font-semibold text-gray-700 dark:text-gray-300">Trace</th>
+                          <th className="px-4 py-2 text-left font-semibold text-gray-700 dark:text-gray-300">Agent</th>
+                          <th className="px-4 py-2 text-left font-semibold text-gray-700 dark:text-gray-300">Errors</th>
+                          <th className="px-4 py-2 text-left font-semibold text-gray-700 dark:text-gray-300">Retry status</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {errorLog.map((trace) => (
+                          <tr key={`error-${trace.trace_id}`} className="border-t border-gray-200 dark:border-gray-700">
+                            <td className="px-4 py-2">
+                              <Link
+                                href={`/admin/agent-activity/${trace.trace_id}`}
+                                className="text-blue-600 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-blue-400"
+                              >
+                                {trace.trace_id}
+                              </Link>
+                            </td>
+                            <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{trace.agent_name}</td>
+                            <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{trace.error_count}</td>
+                            <td className="px-4 py-2 text-gray-700 dark:text-gray-300">
+                              {trace.status === 'error' ? 'Needs retry' : 'Recovered'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
             </Card>
