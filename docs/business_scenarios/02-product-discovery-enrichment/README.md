@@ -61,3 +61,8 @@ Implemented and operational in platform deployment/runtime paths:
 - Add vector embeddings + weighted hybrid query tuning (current path is keyword/SKU retrieval).
 - Add index relevance/load evaluation suites and SLO-driven alert thresholds.
 - Add stricter index/schema drift validation in CI pre-deploy checks.
+
+## Detailed Walkthroughs
+
+- [Intelligent Search and Agent Comparison](intelligent-search-and-agent-comparison.md)
+- [Category Browsing and Product Detail Exploration](category-browsing-and-product-detail.md)

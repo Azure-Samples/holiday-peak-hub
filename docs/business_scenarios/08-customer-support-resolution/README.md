@@ -24,20 +24,16 @@ AI-first support resolution loop that compresses response time, improves first-c
 
 ## Current API Readiness (Issue #220)
 
-- Staff resolution loop now has CRUD lifecycle coverage with role enforcement:
-   - `POST /api/staff/tickets`
-   - `PATCH /api/staff/tickets/{id}`
-   - `POST /api/staff/tickets/{id}/escalate`
-   - `POST /api/staff/tickets/{id}/resolve`
+- Staff resolution loop now has CRUD lifecycle coverage with role enforcement.
+   Supported routes: `POST /api/staff/tickets`, `PATCH /api/staff/tickets/{id}`, `POST /api/staff/tickets/{id}/escalate`, and `POST /api/staff/tickets/{id}/resolve`.
 - Ticket mutation responses now include auditable lifecycle metadata (`status_history`, `audit_log`, actor, timestamp, reason).
 - Payment context retrieval is now available through `GET /api/payments/{payment_id}` for support workflows (ownership + staff/admin access checks).
 - Remaining scenario gap: customer/self-service ticket creation route is still not implemented in CRUD (`/api/tickets` equivalent remains pending).
 
 ## Demo Access Enablement (Issue #214)
 
-- Support scenario demos run with role-based access in both auth modes:
-   - Entra mode: role claims from sign-in token (`customer`, `staff`, `admin`).
-   - Dev fail-safe mode: role-selectable mock login at `/auth/login` (non-production only).
+- Support scenario demos run with role-based access in both auth modes.
+   Entra mode uses role claims from the sign-in token (`customer`, `staff`, `admin`). Dev fail-safe mode uses role-selectable mock login at `/auth/login` in non-production environments only.
 - Staff resolution operations continue to require `staff|admin`; admin-only routes still require `admin`.
 - Production safeguard: mock login endpoints return `403` when mock mode is disabled and are never enabled in production runtime.
 
@@ -65,3 +61,7 @@ flowchart LR
    class C c
    class G,H d
 ```
+
+## Detailed Walkthroughs
+
+- [Staff Ticket Resolution and Escalation](staff-ticket-resolution-and-escalation.md)
