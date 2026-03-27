@@ -1,8 +1,16 @@
 # Holiday Peak Hub - Architecture Documentation
 
-**Last Updated**: March 11, 2026  
-**Version**: [v2.0.0](https://github.com/Azure-Samples/holiday-peak-hub/releases/tag/v2.0.0)  
+**Last Updated**: March 27, 2026  
+**Version**: main (post PR #559)  
 **Status**: Active Development
+
+## Latest Update Snapshot (March 27, 2026)
+
+- Enrichment/search orchestration hardening merged via PR #559 (Issue #558).
+- Truth flow now enforces human-gated enrichment validation (`pending_review`) with dual HITL publish (`export-jobs` and `search-enrichment-jobs`).
+- Search flow now supports two-stage UX (baseline first, background rerank) and request context propagation.
+- Catalog search now stores stage/session search context with best-effort persistence across hot/warm/cold memory tiers.
+- Validation status: local repository test run reports 1647 passed (2 warnings).
 
 ## Overview
 

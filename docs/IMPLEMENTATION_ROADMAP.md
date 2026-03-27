@@ -1,14 +1,29 @@
 # Implementation Roadmap
 
-**Last Updated**: March 3, 2026  
-**Version**: [v1.1.0](https://github.com/Azure-Samples/holiday-peak-hub/releases/tag/v1.1.0)  
-**Status**: Phase 1 Complete | Phase 2 Complete | Truth Layer Phase 1-2 Complete | Enterprise Connectors Active
+**Last Updated**: March 27, 2026  
+**Version**: main (post PR #559)  
+**Status**: Active Execution | Enrichment/Search Hardening Merged
 
 ---
 
 ## Overview
 
 This document tracks the implementation progress of the Holiday Peak Hub platform. The CRUD service, frontend integration, 21 AI agents, and shared infrastructure (Bicep) are complete. v1.1.0 adds enterprise system connectors (Oracle, Salesforce, SAP, Dynamics 365), the Product Truth Layer foundation, HITL review system, and enterprise hardening patterns (circuit breaker, bulkhead, rate limiter).
+
+## Current Execution State (March 27, 2026)
+
+### Completed in Latest Merge Wave
+- Issue #558 / PR #559 merged to main.
+- Enrichment/search orchestration hardening implemented across truth-ingestion, truth-enrichment, truth-hitl, ecommerce-catalog-search, and ui.
+- Human-only validation enforcement in enrichment proposal lifecycle.
+- Two-stage search UX delivery with baseline and rerank stages.
+- Search context propagation and memory persistence improvements.
+
+### Validation Snapshot
+- Repository local validation completed: 1647 tests passed (2 warnings).
+
+### Backlog Guidance
+- Legacy phase/task checklists below are retained for traceability; use `docs/roadmap/` and open GitHub issues as the canonical source for next execution priorities.
 
 > **Known Issues**: See [docs/roadmap/](roadmap/) for tracked corrections and gaps discovered during deployment validation.
 > 
