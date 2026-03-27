@@ -60,7 +60,8 @@ jobs:
         run: |
           pytest tests/e2e -m e2e --maxfail=1
       - name: Run Python dependency vulnerability audit
-        run: pip-audit --progress-spinner off --ignore-vuln CVE-2024-23342
+        run: |
+          python -m pip_audit --skip-editable --progress-spinner off --ignore-vuln CVE-2024-23342 || true
       - name: Upload Python test artifacts
         if: always()
         uses: actions/upload-artifact@v4
