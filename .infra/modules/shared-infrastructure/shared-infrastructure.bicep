@@ -883,6 +883,7 @@ module monitoring '../monitoring/monitoring.bicep' = if (monitoringEnabled) {
     projectName: projectName
     environment: environment
     location: location
+    monitoringWorkspaceResourceId: logAnalytics.outputs.resourceId
     alertEmailAddress: alertNotificationEmail
     teamsWebhookUrl: alertTeamsWebhookUrl
     cosmosResourceId: cosmos.outputs.resourceId

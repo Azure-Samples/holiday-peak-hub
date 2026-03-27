@@ -27,6 +27,18 @@ This backlog operationalizes end-to-end live truthful demoability across admin s
   4. Playwright validation
   5. Release/workflow gating
 
+### Phase 1 completion evidence (Issue #516)
+
+- [x] Item #1 complete: telemetry envelope v1.
+- [x] Item #2 complete: Foundry trace normalization for tool/model/decision events.
+- [x] Item #3 complete: telemetry contract published for admin truth dashboards.
+
+Evidence:
+- Contract and onboarding checklist: `docs/implementation/telemetry-envelope-v1.md`
+- Normalization implementation: `lib/src/holiday_peak_lib/utils/telemetry.py`
+- Agent tracing integration: `lib/src/holiday_peak_lib/agents/base_agent.py`
+- Targeted verification: `python -m pytest lib/tests/test_telemetry.py lib/tests/test_agents_base.py -q`
+
 ---
 
 ## 2) Full UI metric-to-endpoint contract matrix (admin + ask product)
@@ -283,6 +295,7 @@ flowchart TD
   - Unit tests validate schema and propagation.
 
 ### 2. `[LIB][Telemetry] Normalize Foundry trace event contracts (tool/model/decision)`
+- **Status**: Complete in #516.
 - **Labels**: `area:lib`, `type:backend`, `priority:p0`, `program:live-demo-truth`
 - **Scope**:
   - `lib/src/holiday_peak_lib/utils/telemetry.py`
@@ -293,6 +306,7 @@ flowchart TD
   - `Agent Activity` backend aggregators can parse all supported services without per-service special casing.
 
 ### 3. `[LIB][Docs] Publish telemetry contract for admin truth dashboards`
+- **Status**: Complete in #516.
 - **Labels**: `area:lib`, `type:docs`, `priority:p1`, `program:live-demo-truth`
 - **Scope**:
   - New/updated doc under `docs/implementation/` (telemetry contract)

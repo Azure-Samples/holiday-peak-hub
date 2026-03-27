@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.40.2.10011",
-      "templateHash": "1669079106564881176"
+      "templateHash": "13646261343416813110"
     }
   },
   "parameters": {
@@ -26,6 +26,12 @@
       "defaultValue": "[resourceGroup().location]",
       "metadata": {
         "description": "Azure region for alerts resources."
+      }
+    },
+    "monitoringWorkspaceResourceId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of Log Analytics workspace used for scheduled query alerts."
       }
     },
     "alertEmailAddress": {
@@ -100,7 +106,9 @@
   },
   "variables": {
     "blobServiceResourceId": "[format('{0}/blobServices/default', parameters('storageAccountResourceId'))]",
-    "actionGroupShortName": "[take(replace(format('{0}{1}', parameters('projectName'), parameters('environment')), '-', ''), 12)]"
+    "actionGroupShortName": "[take(replace(format('{0}{1}', parameters('projectName'), parameters('environment')), '-', ''), 12)]",
+    "uiProxyWarn502Query": "let criticalPaths = dynamic([\r\n  '/api/health',\r\n  '/api/products',\r\n  '/api/categories',\r\n  '/api/admin/agent-activity',\r\n  '/api/admin/enrichment-monitor'\r\n]);\r\nlet proxyRequests =\r\n  union isfuzzy=true\r\n    (\r\n      AppRequests\r\n      | project\r\n          eventTime = TimeGenerated,\r\n          requestUrl = tostring(Url),\r\n          requestName = tostring(Name),\r\n          statusCode = tostring(ResultCode),\r\n          dimensions = todynamic(Properties)\r\n    ),\r\n    (\r\n      requests\r\n      | project\r\n          eventTime = timestamp,\r\n          requestUrl = tostring(url),\r\n          requestName = tostring(name),\r\n          statusCode = tostring(resultCode),\r\n          dimensions = todynamic(customDimensions)\r\n    );\r\nproxyRequests\r\n| where eventTime > ago(10m)\r\n| where requestUrl has '/api/' or requestName has '/api/'\r\n| extend normalizedNamePath = iif(requestName has '/api/', tostring(split(requestName, ' ')[1]), requestName)\r\n| extend upstreamPath = coalesce(\r\n    tostring(dimensions.upstreamPath),\r\n    tostring(dimensions['proxy.attemptedPath']),\r\n    tostring(dimensions.attemptedPath),\r\n    tostring(parse_url(requestUrl).Path),\r\n    normalizedNamePath\r\n  )\r\n| where isnotempty(upstreamPath) and upstreamPath in~ (criticalPaths)\r\n| extend status = statusCode\r\n| extend failureKind = coalesce(\r\n    tostring(dimensions.failureKind),\r\n    tostring(dimensions['proxy.failureKind']),\r\n    tostring(dimensions['x-holiday-peak-proxy-failure-kind']),\r\n    'unknown'\r\n  )\r\n| extend sourceKey = coalesce(\r\n    tostring(dimensions.sourceKey),\r\n    tostring(dimensions['proxy.sourceKey']),\r\n    tostring(dimensions['x-holiday-peak-proxy-source']),\r\n    'unknown'\r\n  )\r\n| extend fallbackToken = coalesce(\r\n    tostring(dimensions.fallbackUsed),\r\n    tostring(dimensions['x-holiday-peak-proxy-fallback']),\r\n    ''\r\n  )\r\n| extend fallbackUsed = iff(tolower(fallbackToken) in ('true', '1') or isnotempty(fallbackToken), 'true', 'false')\r\n| summarize requestCount=count(), failureCount=countif(status == '502') by upstreamPath, failureKind, sourceKey, fallbackUsed\r\n| extend status = '502'\r\n| extend failureRatePct = iff(requestCount == 0, 0.0, todouble(failureCount) * 100.0 / todouble(requestCount))\r\n| where requestCount >= 30 and failureRatePct >= 3.0\r\n| extend breach = failureRatePct\r\n| project breach, failureRatePct, requestCount, failureCount, upstreamPath, failureKind, sourceKey, status, fallbackUsed\r\n",
+    "uiProxyCritical502Query": "let criticalPaths = dynamic([\r\n  '/api/health',\r\n  '/api/products',\r\n  '/api/categories',\r\n  '/api/admin/agent-activity',\r\n  '/api/admin/enrichment-monitor'\r\n]);\r\nlet proxyRequests =\r\n  union isfuzzy=true\r\n    (\r\n      AppRequests\r\n      | project\r\n          eventTime = TimeGenerated,\r\n          requestUrl = tostring(Url),\r\n          requestName = tostring(Name),\r\n          statusCode = tostring(ResultCode),\r\n          dimensions = todynamic(Properties)\r\n    ),\r\n    (\r\n      requests\r\n      | project\r\n          eventTime = timestamp,\r\n          requestUrl = tostring(url),\r\n          requestName = tostring(name),\r\n          statusCode = tostring(resultCode),\r\n          dimensions = todynamic(customDimensions)\r\n    );\r\nproxyRequests\r\n| where eventTime > ago(5m)\r\n| where requestUrl has '/api/' or requestName has '/api/'\r\n| extend normalizedNamePath = iif(requestName has '/api/', tostring(split(requestName, ' ')[1]), requestName)\r\n| extend upstreamPath = coalesce(\r\n    tostring(dimensions.upstreamPath),\r\n    tostring(dimensions['proxy.attemptedPath']),\r\n    tostring(dimensions.attemptedPath),\r\n    tostring(parse_url(requestUrl).Path),\r\n    normalizedNamePath\r\n  )\r\n| where isnotempty(upstreamPath) and upstreamPath in~ (criticalPaths)\r\n| extend status = statusCode\r\n| extend failureKind = coalesce(\r\n    tostring(dimensions.failureKind),\r\n    tostring(dimensions['proxy.failureKind']),\r\n    tostring(dimensions['x-holiday-peak-proxy-failure-kind']),\r\n    'unknown'\r\n  )\r\n| extend sourceKey = coalesce(\r\n    tostring(dimensions.sourceKey),\r\n    tostring(dimensions['proxy.sourceKey']),\r\n    tostring(dimensions['x-holiday-peak-proxy-source']),\r\n    'unknown'\r\n  )\r\n| extend fallbackToken = coalesce(\r\n    tostring(dimensions.fallbackUsed),\r\n    tostring(dimensions['x-holiday-peak-proxy-fallback']),\r\n    ''\r\n  )\r\n| extend fallbackUsed = iff(tolower(fallbackToken) in ('true', '1') or isnotempty(fallbackToken), 'true', 'false')\r\n| summarize requestCount=count(), failureCount=countif(status == '502') by upstreamPath, failureKind, sourceKey, fallbackUsed\r\n| extend status = '502'\r\n| extend failureRatePct = iff(requestCount == 0, 0.0, todouble(failureCount) * 100.0 / todouble(requestCount))\r\n| where requestCount >= 50 and failureRatePct >= 8.0\r\n| extend breach = failureRatePct\r\n| project breach, failureRatePct, requestCount, failureCount, upstreamPath, failureKind, sourceKey, status, fallbackUsed\r\n"
   },
   "resources": [
     {
@@ -121,7 +129,7 @@
       "name": "[format('{0}-{1}-cosmos-ru-high', parameters('projectName'), parameters('environment'))]",
       "location": "global",
       "properties": {
-        "description": "Cosmos RU consumption exceeded baseline threshold.",
+        "description": "Cosmos TotalRequestUnits average > 80 over PT15M (evaluated every PT5M).",
         "severity": 2,
         "enabled": true,
         "scopes": [
@@ -159,7 +167,7 @@
       "name": "[format('{0}-{1}-cosmos-5xx-high', parameters('projectName'), parameters('environment'))]",
       "location": "global",
       "properties": {
-        "description": "Cosmos 5xx responses exceeded baseline threshold.",
+        "description": "Cosmos ServerSideRequests total > 5 over PT15M (evaluated every PT5M).",
         "severity": 2,
         "enabled": true,
         "scopes": [
@@ -197,7 +205,7 @@
       "name": "[format('{0}-{1}-cosmos-latency-high', parameters('projectName'), parameters('environment'))]",
       "location": "global",
       "properties": {
-        "description": "Cosmos request latency exceeded baseline threshold.",
+        "description": "Cosmos TotalRequestLatency average > 200ms over PT15M (evaluated every PT5M).",
         "severity": 3,
         "enabled": true,
         "scopes": [
@@ -235,7 +243,7 @@
       "name": "[format('{0}-{1}-redis-memory-high', parameters('projectName'), parameters('environment'))]",
       "location": "global",
       "properties": {
-        "description": "Redis memory utilization exceeded baseline threshold.",
+        "description": "Redis usedmemorypercentage average > 80 over PT15M (evaluated every PT5M).",
         "severity": 2,
         "enabled": true,
         "scopes": [
@@ -273,7 +281,7 @@
       "name": "[format('{0}-{1}-redis-connections-failed', parameters('projectName'), parameters('environment'))]",
       "location": "global",
       "properties": {
-        "description": "Redis connection failures detected.",
+        "description": "Redis errors total > 1 over PT15M (evaluated every PT5M).",
         "severity": 2,
         "enabled": true,
         "scopes": [
@@ -311,7 +319,7 @@
       "name": "[format('{0}-{1}-redis-evictions-high', parameters('projectName'), parameters('environment'))]",
       "location": "global",
       "properties": {
-        "description": "Redis key eviction activity exceeded baseline threshold.",
+        "description": "Redis evictedkeys total > 0 over PT15M (evaluated every PT5M).",
         "severity": 3,
         "enabled": true,
         "scopes": [
@@ -349,7 +357,7 @@
       "name": "[format('{0}-{1}-postgres-cpu-high', parameters('projectName'), parameters('environment'))]",
       "location": "global",
       "properties": {
-        "description": "PostgreSQL CPU utilization exceeded baseline threshold.",
+        "description": "PostgreSQL cpu_percent average > 80 over PT15M (evaluated every PT5M).",
         "severity": 2,
         "enabled": true,
         "scopes": [
@@ -387,7 +395,7 @@
       "name": "[format('{0}-{1}-postgres-storage-high', parameters('projectName'), parameters('environment'))]",
       "location": "global",
       "properties": {
-        "description": "PostgreSQL storage utilization exceeded baseline threshold.",
+        "description": "PostgreSQL storage_percent average > 85 over PT15M (evaluated every PT5M).",
         "severity": 2,
         "enabled": true,
         "scopes": [
@@ -425,7 +433,7 @@
       "name": "[format('{0}-{1}-postgres-long-queries', parameters('projectName'), parameters('environment'))]",
       "location": "global",
       "properties": {
-        "description": "PostgreSQL long-running query count exceeded baseline threshold.",
+        "description": "PostgreSQL long_running_queries average > 5 over PT15M (evaluated every PT5M).",
         "severity": 3,
         "enabled": true,
         "scopes": [
@@ -463,7 +471,7 @@
       "name": "[format('{0}-{1}-eventhubs-throttled', parameters('projectName'), parameters('environment'))]",
       "location": "global",
       "properties": {
-        "description": "Event Hubs throttled requests exceeded baseline threshold.",
+        "description": "Event Hubs ThrottledRequests total > 0 over PT15M (evaluated every PT5M).",
         "severity": 2,
         "enabled": true,
         "scopes": [
@@ -501,7 +509,7 @@
       "name": "[format('{0}-{1}-eventhubs-abandoned', parameters('projectName'), parameters('environment'))]",
       "location": "global",
       "properties": {
-        "description": "Event Hubs abandoned messages exceeded baseline threshold.",
+        "description": "Event Hubs OutgoingMessages average < 1 over PT15M (evaluated every PT5M).",
         "severity": 3,
         "enabled": true,
         "scopes": [
@@ -539,7 +547,7 @@
       "name": "[format('{0}-{1}-eventhubs-consumer-lag', parameters('projectName'), parameters('environment'))]",
       "location": "global",
       "properties": {
-        "description": "Event Hubs consumer lag proxy metric exceeded baseline threshold.",
+        "description": "Event Hubs IncomingMessages total > 100000 over PT15M (evaluated every PT5M) as consumer lag proxy.",
         "severity": 2,
         "enabled": true,
         "scopes": [
@@ -577,7 +585,7 @@
       "name": "[format('{0}-{1}-aks-node-cpu-high', parameters('projectName'), parameters('environment'))]",
       "location": "global",
       "properties": {
-        "description": "AKS node CPU utilization exceeded baseline threshold.",
+        "description": "AKS node_cpu_usage_percentage average > 80 over PT15M (evaluated every PT5M).",
         "severity": 2,
         "enabled": true,
         "scopes": [
@@ -615,7 +623,7 @@
       "name": "[format('{0}-{1}-aks-pod-restarts-high', parameters('projectName'), parameters('environment'))]",
       "location": "global",
       "properties": {
-        "description": "AKS pod restart activity exceeded baseline threshold.",
+        "description": "AKS pod_restart_count total > 5 over PT15M (evaluated every PT5M).",
         "severity": 3,
         "enabled": true,
         "scopes": [
@@ -653,7 +661,7 @@
       "name": "[format('{0}-{1}-aks-image-pull-failures', parameters('projectName'), parameters('environment'))]",
       "location": "global",
       "properties": {
-        "description": "AKS image pull failures exceeded baseline threshold.",
+        "description": "AKS image_pull_failed_count total > 0 over PT15M (evaluated every PT5M).",
         "severity": 2,
         "enabled": true,
         "scopes": [
@@ -691,7 +699,7 @@
       "name": "[format('{0}-{1}-apim-failed-requests', parameters('projectName'), parameters('environment'))]",
       "location": "global",
       "properties": {
-        "description": "APIM failed request count exceeded baseline threshold.",
+        "description": "APIM FailedRequests total > 10 over PT15M (evaluated every PT5M).",
         "severity": 2,
         "enabled": true,
         "scopes": [
@@ -729,7 +737,7 @@
       "name": "[format('{0}-{1}-apim-latency-p95', parameters('projectName'), parameters('environment'))]",
       "location": "global",
       "properties": {
-        "description": "APIM request duration exceeded baseline threshold.",
+        "description": "APIM Duration average > 2000ms over PT15M (evaluated every PT5M).",
         "severity": 2,
         "enabled": true,
         "scopes": [
@@ -767,7 +775,7 @@
       "name": "[format('{0}-{1}-apim-5xx-rate', parameters('projectName'), parameters('environment'))]",
       "location": "global",
       "properties": {
-        "description": "APIM 5xx error rate proxy exceeded baseline threshold.",
+        "description": "APIM FailedRequests average > 1 over PT15M (evaluated every PT5M) as 5xx proxy.",
         "severity": 2,
         "enabled": true,
         "scopes": [
@@ -962,6 +970,166 @@
             "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
           }
         ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/scheduledQueryRules",
+      "apiVersion": "2023-12-01",
+      "name": "[format('{0}-{1}-ui-proxy-502-warn', parameters('projectName'), parameters('environment'))]",
+      "location": "[parameters('location')]",
+      "kind": "LogAlert",
+      "properties": {
+        "description": "UI proxy sustained 502 warn alert for critical API paths: failure rate >= 3% over 10 minutes with at least 30 requests.",
+        "displayName": "[format('{0}-{1} ui proxy 502 warn', parameters('projectName'), parameters('environment'))]",
+        "enabled": true,
+        "severity": 2,
+        "evaluationFrequency": "PT5M",
+        "windowSize": "PT10M",
+        "scopes": [
+          "[parameters('monitoringWorkspaceResourceId')]"
+        ],
+        "targetResourceTypes": [
+          "Microsoft.OperationalInsights/workspaces"
+        ],
+        "criteria": {
+          "allOf": [
+            {
+              "query": "[variables('uiProxyWarn502Query')]",
+              "timeAggregation": "Maximum",
+              "metricMeasureColumn": "breach",
+              "operator": "GreaterThan",
+              "threshold": 0,
+              "failingPeriods": {
+                "numberOfEvaluationPeriods": 1,
+                "minFailingPeriodsToAlert": 1
+              },
+              "dimensions": [
+                {
+                  "name": "upstreamPath",
+                  "operator": "Include",
+                  "values": [
+                    "*"
+                  ]
+                },
+                {
+                  "name": "failureKind",
+                  "operator": "Include",
+                  "values": [
+                    "*"
+                  ]
+                },
+                {
+                  "name": "sourceKey",
+                  "operator": "Include",
+                  "values": [
+                    "*"
+                  ]
+                },
+                {
+                  "name": "status",
+                  "operator": "Include",
+                  "values": [
+                    "502"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "autoMitigate": true,
+        "skipQueryValidation": false,
+        "actions": {
+          "actionGroups": [
+            "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+          ],
+          "customProperties": {
+            "playbook": "docs/architecture/playbooks/playbook-ui-proxy-failures.md",
+            "threshold": "warn-3pct-10m-min30"
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/scheduledQueryRules",
+      "apiVersion": "2023-12-01",
+      "name": "[format('{0}-{1}-ui-proxy-502-critical', parameters('projectName'), parameters('environment'))]",
+      "location": "[parameters('location')]",
+      "kind": "LogAlert",
+      "properties": {
+        "description": "UI proxy sustained 502 critical alert for critical API paths: failure rate >= 8% over 5 minutes with at least 50 requests.",
+        "displayName": "[format('{0}-{1} ui proxy 502 critical', parameters('projectName'), parameters('environment'))]",
+        "enabled": true,
+        "severity": 1,
+        "evaluationFrequency": "PT1M",
+        "windowSize": "PT5M",
+        "scopes": [
+          "[parameters('monitoringWorkspaceResourceId')]"
+        ],
+        "targetResourceTypes": [
+          "Microsoft.OperationalInsights/workspaces"
+        ],
+        "criteria": {
+          "allOf": [
+            {
+              "query": "[variables('uiProxyCritical502Query')]",
+              "timeAggregation": "Maximum",
+              "metricMeasureColumn": "breach",
+              "operator": "GreaterThan",
+              "threshold": 0,
+              "failingPeriods": {
+                "numberOfEvaluationPeriods": 1,
+                "minFailingPeriodsToAlert": 1
+              },
+              "dimensions": [
+                {
+                  "name": "upstreamPath",
+                  "operator": "Include",
+                  "values": [
+                    "*"
+                  ]
+                },
+                {
+                  "name": "failureKind",
+                  "operator": "Include",
+                  "values": [
+                    "*"
+                  ]
+                },
+                {
+                  "name": "sourceKey",
+                  "operator": "Include",
+                  "values": [
+                    "*"
+                  ]
+                },
+                {
+                  "name": "status",
+                  "operator": "Include",
+                  "values": [
+                    "502"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "autoMitigate": true,
+        "skipQueryValidation": false,
+        "actions": {
+          "actionGroups": [
+            "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"
+          ],
+          "customProperties": {
+            "playbook": "docs/architecture/playbooks/playbook-ui-proxy-failures.md",
+            "threshold": "critical-8pct-5m-min50"
+          }
+        }
       },
       "dependsOn": [
         "[resourceId('Microsoft.Insights/actionGroups', format('{0}-{1}-ops-ag', parameters('projectName'), parameters('environment')))]"

@@ -141,6 +141,9 @@ class TestFoundryTracer:
         assert metrics["counts"]["decision"] == 1
         assert metrics["counts"]["tool_call"] == 1
         assert metrics["counts"]["model_invocation"] == 1
+        assert metrics["counts"]["decision:success"] == 1
+        assert metrics["counts"]["tool_call:success"] == 1
+        assert metrics["counts"]["model_invocation:success"] == 1
         assert metrics["counts"]["evaluation_updates"] == 1
         assert "instrumentation" in metrics
         latest = tracer.get_latest_evaluation()
@@ -282,6 +285,7 @@ class TestOutcomeStatusInEvents:
         tracer = FoundryTracer("svc", max_events=5)
         tracer.trace_tool_call(tool_name="search", outcome="success", metadata={})
         event = tracer.get_traces(limit=1)[0]
+        assert event["status"] == "success"
         assert event["outcome_status"] == "success"
 
     def test_decision_has_outcome_status(self, monkeypatch):
@@ -293,6 +297,7 @@ class TestOutcomeStatusInEvents:
             metadata={"reason": "no_upgrade"},
         )
         event = tracer.get_traces(limit=1)[0]
+        assert event["status"] == "success"
         assert event["outcome_status"] == "success"
 
     def test_decision_skipped_outcome_status(self, monkeypatch):
@@ -304,6 +309,7 @@ class TestOutcomeStatusInEvents:
             metadata={"entity_id": "sku-1"},
         )
         event = tracer.get_traces(limit=1)[0]
+        assert event["status"] == "skipped"
         assert event["outcome_status"] == "skipped"
 
     def test_decision_pending_outcome_status(self, monkeypatch):
@@ -315,6 +321,7 @@ class TestOutcomeStatusInEvents:
             metadata={"has_slm": True, "has_llm": True},
         )
         event = tracer.get_traces(limit=1)[0]
+        assert event["status"] == "pending"
         assert event["outcome_status"] == "pending"
 
     def test_model_tier_defaults_to_unknown(self, monkeypatch):
