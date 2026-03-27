@@ -85,7 +85,7 @@ export default function LoginPage() {
 
   return (
     <MainLayout>
-      <div className="max-w-md mx-auto py-12">
+      <div className="max-w-md mx-auto px-4 py-12 sm:px-0">
         {isAuthenticated && !isLoading && (
           <div
             role="status"
@@ -173,7 +173,7 @@ export default function LoginPage() {
         )}
 
         {/* Sign in with Microsoft */}
-        <Card className="p-8 mb-6">
+        <Card className="mb-6 p-6 sm:p-8">
           {hasRouteProtectionRedirect && !loginError && (
             <div
               role="status"
@@ -187,7 +187,7 @@ export default function LoginPage() {
           <Button
             onClick={handleMicrosoftLogin}
             size="lg"
-            className="w-full bg-hp-neutral-700 hover:bg-hp-neutral-800 dark:bg-white dark:hover:bg-gray-100 text-white dark:text-gray-900 flex items-center justify-center gap-3"
+            className="w-full bg-hp-neutral-700 hover:bg-hp-neutral-800 dark:bg-white dark:hover:bg-gray-100 text-white dark:text-gray-900 flex items-center justify-center gap-3 min-h-[44px] whitespace-normal text-center leading-tight"
             disabled={isLoading || Boolean(authConfigError)}
           >
             <svg className="w-5 h-5" viewBox="0 0 23 23" fill="none">
@@ -229,7 +229,7 @@ export default function LoginPage() {
                   Browse products without signing in
                 </p>
                 <Link href="/">
-                  <Button variant="outline" size="sm" className="border-cyan-500 text-cyan-500 hover:bg-cyan-50 dark:border-cyan-300 dark:text-cyan-300">
+                  <Button variant="outline" size="sm" className="border-cyan-500 text-cyan-500 hover:bg-cyan-50 dark:border-cyan-300 dark:text-cyan-300 whitespace-normal text-center leading-tight">
                     Browse Products
                   </Button>
                 </Link>

@@ -7,7 +7,7 @@ Index of operational playbooks for the Holiday Peak Hub accelerator.
 - [Incident response baseline](incident-response.md) — Severity model, ownership, escalation, and communication flow
 
 | Playbook | Area | Trigger |
-|---|---|---|
+| --- | --- | --- |
 | [Agent latency spikes](playbook-agent-latency-spikes.md) | Agents | P95 latency breach or timeouts |
 | [Tool call failures](playbook-tool-call-failures.md) | Agents/Tools | Tool error rate > threshold |
 | [Model degradation](playbook-model-degradation.md) | Agents/Models | Quality regression or increased hallucinations |
@@ -19,6 +19,7 @@ Index of operational playbooks for the Holiday Peak Hub accelerator.
 | [Blob throttling](playbook-blob-throttling.md) | Memory/Cold | 503s or slow downloads/uploads |
 | [Connection pool exhaustion](playbook-connection-pool-exhaustion.md) | Memory | Connection timeouts/too many connections |
 | [TTL not expiring](playbook-ttl-not-expiring.md) | Memory | Stale data or unbounded growth |
+| [UI proxy failures](playbook-ui-proxy-failures.md) | Frontend/Platform | Sustained `/api/*` `502` bursts or fallback anomalies |
 | [Observability query templates](playbook-observability-queries.md) | Platform/Observability | Correlated triage across APIM, AKS, data, and agent services |
 
 ## Playbook Policy Checklist

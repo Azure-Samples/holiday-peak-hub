@@ -34,6 +34,12 @@ This configures azd environment values for `holidaypeakhub405-dev-rg` and runs `
 
 This starts AKS and PostgreSQL, validates direct AGC CRUD health plus APIM CRUD endpoints, and runs CRUD demo seed job.
 
+Recovery is idempotent and AGC-first out-of-the-box:
+
+- If AKS/PostgreSQL are already running, the script continues without failing.
+- If legacy Application Gateway does not exist, the script skips it and continues in AGC mode.
+- APIM approved backend hostnames are loaded automatically from `azd env` values.
+
 ### 3. Pre-Demo Wake-Up + Connectivity Validation
 
 ```powershell
@@ -43,6 +49,7 @@ This starts AKS and PostgreSQL, validates direct AGC CRUD health plus APIM CRUD 
 This is the recommended command before live demos. It:
 
 - Starts AKS, Application Gateway, and PostgreSQL when stopped.
+- In AGC-only environments, missing Application Gateway is treated as expected and does not block validation.
 - Validates AKS ingress/public IP signals (App Gateway public IP, AGC frontend DNS, and LoadBalancer service IPs when present).
 - Validates APIM `api` and `agents/*` backend host resolution overlaps AKS ingress IP signals.
 - Executes APIM smoke checks for:

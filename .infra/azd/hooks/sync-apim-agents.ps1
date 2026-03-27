@@ -159,7 +159,7 @@ function Get-ApprovedBackendHosts {
 
     $candidates = Split-HostnameList -Value $ApprovedBackendHostnames
     if ($candidates.Count -gt 0) {
-        return ,@($candidates)
+        return @($candidates)
     }
 
     if ($env:AZURE_ENV_NAME) {
@@ -167,13 +167,13 @@ function Get-ApprovedBackendHosts {
         $value = Get-EnvValueFromFile -FilePath $envFile -Key 'APIM_APPROVED_BACKEND_HOSTNAMES'
         $candidates = Split-HostnameList -Value $value
         if ($candidates.Count -gt 0) {
-            return ,@($candidates)
+            return @($candidates)
         }
 
         $value = Get-EnvValueFromFile -FilePath $envFile -Key 'AGC_FRONTEND_HOSTNAME'
         $candidates = Split-HostnameList -Value $value
         if ($candidates.Count -gt 0) {
-            return ,@($candidates)
+            return @($candidates)
         }
     }
 

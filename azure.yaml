@@ -511,6 +511,15 @@ services:
           interactive: false
 
 hooks:
+  preprovision:
+    windows:
+      shell: pwsh
+      run: ./.infra/azd/hooks/assert-canonical-azd-env.ps1
+      interactive: false
+    posix:
+      shell: sh
+      run: ./.infra/azd/hooks/assert-canonical-azd-env.sh
+      interactive: false
   postprovision:
     windows:
       shell: pwsh
