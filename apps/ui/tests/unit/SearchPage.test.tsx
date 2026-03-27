@@ -16,7 +16,7 @@ jest.mock('next/navigation', () => ({
 
 const mockUseIntelligentSearch = jest.fn();
 const mockUseRelatedProducts = jest.fn();
-const mockSemanticSearchWithMode = jest.fn();
+const mockUseAuth = jest.fn();
 
 jest.mock('../../lib/hooks/useIntelligentSearch', () => ({
   useIntelligentSearch: (...args: unknown[]) => mockUseIntelligentSearch(...args),
@@ -26,10 +26,8 @@ jest.mock('../../lib/hooks/useRelatedProducts', () => ({
   useRelatedProducts: (...args: unknown[]) => mockUseRelatedProducts(...args),
 }));
 
-jest.mock('../../lib/services/semanticSearchService', () => ({
-  semanticSearchService: {
-    searchWithMode: (...args: unknown[]) => mockSemanticSearchWithMode(...args),
-  },
+jest.mock('../../contexts/AuthContext', () => ({
+  useAuth: () => mockUseAuth(),
 }));
 
 jest.mock('../../components/atoms/ThemeToggle', () => ({
@@ -50,14 +48,11 @@ describe('SearchPage', () => {
   beforeEach(() => {
     push.mockClear();
     setPreference.mockClear();
-    mockSemanticSearchWithMode.mockReset();
-    mockSemanticSearchWithMode.mockImplementation(
-      async (_query: string, mode: 'keyword' | 'intelligent') => ({
-        items: [],
-        source: 'crud',
-        mode,
-      }),
-    );
+    mockUseAuth.mockReturnValue({
+      user: {
+        user_id: 'customer-123',
+      },
+    });
     getParam.mockReturnValue('headphones');
     mockUseRelatedProducts.mockReturnValue({ data: {} });
     mockUseIntelligentSearch.mockReturnValue({
@@ -72,6 +67,13 @@ describe('SearchPage', () => {
       error: null,
       isFetching: false,
       refetch: jest.fn(),
+      isReranking: false,
+      baselineData: {
+        items: [],
+        source: 'crud',
+        mode: 'keyword',
+      },
+      rerankedData: undefined,
       preference: 'auto',
       setPreference,
       resolvedMode: 'keyword',
@@ -81,6 +83,9 @@ describe('SearchPage', () => {
   it('prefills the query from the URL and shows mode badge', () => {
     render(<SearchPage />);
 
+    expect(mockUseIntelligentSearch).toHaveBeenCalledWith('headphones', 20, {
+      userId: 'customer-123',
+    });
     expect(screen.getByDisplayValue('headphones')).toBeInTheDocument();
     expect(screen.getAllByText('Keyword Search').length).toBeGreaterThan(0);
     expect(screen.getByText('No products matched your search.')).toBeInTheDocument();
@@ -103,6 +108,13 @@ describe('SearchPage', () => {
       error: null,
       isFetching: false,
       refetch: jest.fn(),
+      isReranking: false,
+      baselineData: {
+        items: [],
+        source: 'agent',
+        mode: 'intelligent',
+      },
+      rerankedData: undefined,
       preference: 'intelligent',
       setPreference,
       resolvedMode: 'intelligent',
@@ -152,6 +164,13 @@ describe('SearchPage', () => {
         },
       },
       refetch,
+      isReranking: false,
+      baselineData: {
+        items: [],
+        source: 'crud',
+        mode: 'keyword',
+      },
+      rerankedData: undefined,
       preference: 'auto',
       setPreference,
       resolvedMode: 'keyword',
@@ -182,6 +201,13 @@ describe('SearchPage', () => {
       error: null,
       isFetching: false,
       refetch: jest.fn(),
+      isReranking: false,
+      baselineData: {
+        items: [],
+        source: 'crud',
+        mode: 'keyword',
+      },
+      rerankedData: undefined,
       preference: 'intelligent',
       setPreference,
       resolvedMode: 'intelligent',
@@ -192,5 +218,40 @@ describe('SearchPage', () => {
     expect(
       screen.queryByText('Results are from CRUD catalog search because the agent path was unavailable.')
     ).not.toBeInTheDocument();
+  });
+
+  it('announces reranking progress with a polite status message', () => {
+    mockUseIntelligentSearch.mockReturnValue({
+      data: {
+        items: [],
+        source: 'crud',
+        mode: 'keyword',
+        intent: null,
+        subqueries: [],
+      },
+      baselineData: {
+        items: [
+          {
+            sku: 'sku-1',
+            title: 'Sample Product',
+          },
+        ],
+        source: 'crud',
+        mode: 'keyword',
+      },
+      rerankedData: undefined,
+      isLoading: false,
+      error: null,
+      isFetching: true,
+      isReranking: true,
+      refetch: jest.fn(),
+      preference: 'auto',
+      setPreference,
+      resolvedMode: 'keyword',
+    });
+
+    render(<SearchPage />);
+
+    expect(screen.getByText('Reranking baseline results in the background...')).toBeInTheDocument();
   });
 });

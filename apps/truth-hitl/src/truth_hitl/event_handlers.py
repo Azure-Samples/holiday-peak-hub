@@ -8,14 +8,14 @@ from datetime import datetime, timezone
 from holiday_peak_lib.utils.event_hub import EventHandler
 from holiday_peak_lib.utils.logging import configure_logging
 
-from .adapters import build_hitl_adapters
+from .adapters import HITLAdapters, build_hitl_adapters
 from .review_manager import ReviewItem
 
 
-def build_event_handlers() -> dict[str, EventHandler]:
+def build_event_handlers(adapters: HITLAdapters | None = None) -> dict[str, EventHandler]:
     """Build event handlers for hitl-jobs Event Hub subscription."""
     logger = configure_logging(app_name="truth-hitl-events")
-    adapters = build_hitl_adapters()
+    adapters = adapters or build_hitl_adapters()
 
     async def handle_hitl_job(_partition_context, event) -> None:  # noqa: ANN001
         payload = json.loads(event.body_as_str())

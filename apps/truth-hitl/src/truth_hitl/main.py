@@ -9,6 +9,8 @@ from truth_hitl.routes import build_review_router
 
 SERVICE_NAME = "truth-hitl"
 
+_adapters = build_hitl_adapters()
+
 
 app = create_standard_app(
     service_name=SERVICE_NAME,
@@ -17,9 +19,8 @@ app = create_standard_app(
     subscriptions=[
         EventHubSubscription("hitl-jobs", "hitl-service"),
     ],
-    handlers=build_event_handlers(),
+    handlers=build_event_handlers(adapters=_adapters),
 )
 
 # Mount the review REST routes
-_adapters = build_hitl_adapters()
 app.include_router(build_review_router(_adapters))

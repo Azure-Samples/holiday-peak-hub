@@ -72,7 +72,9 @@ class EventHubPublisher:
 
     def __init__(self, topic: str = "hitl-jobs") -> None:
         self.topic = topic
-        self._connection_string = os.getenv("EVENT_HUB_CONNECTION_STRING")
+        self._connection_string = os.getenv("EVENT_HUB_CONNECTION_STRING") or os.getenv(
+            "EVENTHUB_CONNECTION_STRING"
+        )
 
     async def publish(self, payload: dict[str, Any]) -> None:
         """Send a message to the configured Event Hub topic."""

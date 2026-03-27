@@ -95,7 +95,7 @@ def test_score_confidence_clamps(engine):
     assert engine.score_confidence({"confidence": 0.7}) == pytest.approx(0.7)
 
 
-def test_build_proposed_attribute_auto_approve(engine):
+def test_build_proposed_attribute_always_pending_review(engine):
     parsed = {
         "value": "blue",
         "confidence": 0.97,
@@ -108,7 +108,7 @@ def test_build_proposed_attribute_auto_approve(engine):
         "metadata": {"source": "image_analysis", "assets_count": 2},
     }
     proposed = engine.build_proposed_attribute("sku-1", "color", parsed, model_id="gpt-5")
-    assert proposed["status"] == "auto_approved"
+    assert proposed["status"] == "pending_review"
     assert proposed["entity_id"] == "sku-1"
     assert proposed["field_name"] == "color"
     assert proposed["source_model"] == "gpt-5"
@@ -123,7 +123,7 @@ def test_build_proposed_attribute_auto_approve(engine):
 def test_build_proposed_attribute_pending(engine):
     parsed = {"value": "blue", "confidence": 0.7, "evidence": "medium confidence"}
     proposed = engine.build_proposed_attribute("sku-2", "color", parsed)
-    assert proposed["status"] == "pending"
+    assert proposed["status"] == "pending_review"
     assert proposed["source_type"] == "text_enrichment"
     assert proposed["source_assets"] == []
     assert proposed["original_data"] == {"color": None}
@@ -181,12 +181,17 @@ def test_merge_enrichment_candidates_text_only(engine):
 
 
 def test_needs_hitl_pending(engine):
-    proposed = {"status": "pending"}
+    proposed = {"status": "pending_review"}
     assert engine.needs_hitl(proposed) is True
 
 
 def test_needs_hitl_auto_approved(engine):
     proposed = {"status": "auto_approved"}
+    assert engine.needs_hitl(proposed) is True
+
+
+def test_needs_hitl_approved(engine):
+    proposed = {"status": "approved"}
     assert engine.needs_hitl(proposed) is False
 
 
@@ -196,7 +201,7 @@ def test_build_audit_event(engine):
         "entity_id": "sku-1",
         "field_name": "color",
         "confidence": 0.9,
-        "status": "pending",
+        "status": "pending_review",
     }
     event = engine.build_audit_event("enrichment_proposed", "sku-1", "color", proposed)
     assert event["action"] == "enrichment_proposed"

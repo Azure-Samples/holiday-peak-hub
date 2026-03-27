@@ -20,6 +20,13 @@ export interface SemanticSearchRequest {
   query: string;
   limit?: number;
   mode?: 'keyword' | 'intelligent';
+  user_id?: string;
+  tenant_id?: string;
+  session_id?: string;
+  query_history?: string[];
+  search_stage?: 'baseline' | 'rerank';
+  baseline_candidate_skus?: string[];
+  correlation_id?: string;
   filters?: {
     category?: string;
     priceRange?: { min: number; max: number };
@@ -44,6 +51,17 @@ export interface SemanticSearchResponse {
   subqueries?: string[];
 }
 
+export type SemanticSearchContext = Pick<
+  SemanticSearchRequest,
+  | 'user_id'
+  | 'tenant_id'
+  | 'session_id'
+  | 'query_history'
+  | 'search_stage'
+  | 'baseline_candidate_skus'
+  | 'correlation_id'
+>;
+
 export type SearchModePreference = 'auto' | 'keyword' | 'intelligent';
 
 export const semanticSearchService = {
@@ -51,9 +69,10 @@ export const semanticSearchService = {
     query: string,
     mode: SearchModePreference,
     limit = 20,
+    context?: SemanticSearchContext,
   ): Promise<SemanticSearchResponse> {
     const requestedMode = mode === 'auto' ? undefined : mode;
-    return this.search({ query, limit, mode: requestedMode });
+    return this.search({ query, limit, mode: requestedMode, ...(context || {}) });
   },
 
   async search(request: SemanticSearchRequest): Promise<SemanticSearchResponse> {

@@ -238,7 +238,7 @@ class EnrichmentEngine:
     ) -> dict[str, Any]:
         """Assemble a ProposedAttribute record ready for Cosmos DB."""
         confidence = self.score_confidence(parsed)
-        status = "auto_approved" if confidence >= self.auto_approve_threshold else "pending"
+        status = "pending_review"
         return {
             "id": str(uuid.uuid4()),
             "job_id": job_id or str(uuid.uuid4()),
@@ -260,7 +260,7 @@ class EnrichmentEngine:
 
     def needs_hitl(self, proposed: dict[str, Any]) -> bool:
         """Return True when the attribute requires human review."""
-        return proposed.get("status") == "pending"
+        return str(proposed.get("status", "")).lower() != "approved"
 
     def build_audit_event(
         self,

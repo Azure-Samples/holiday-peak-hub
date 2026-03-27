@@ -87,6 +87,7 @@ def mock_events():
     publisher.publish = AsyncMock(return_value=None)
     publisher.publish_completeness_job = AsyncMock(return_value=None)
     publisher.publish_ingestion_notification = AsyncMock(return_value=None)
+    publisher.publish_enrichment_job = AsyncMock(return_value=None)
     return publisher
 
 

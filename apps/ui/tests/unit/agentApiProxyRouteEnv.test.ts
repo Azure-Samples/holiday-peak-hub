@@ -40,11 +40,12 @@ describe('/agent-api proxy route env handling', () => {
     jest.restoreAllMocks();
   });
 
-  function makeRequest(url: string): NextRequest {
+  function makeRequest(url: string, additionalHeaders: Record<string, string> = {}): NextRequest {
     return {
       method: 'GET',
       headers: new Headers({
         host: 'localhost',
+        ...additionalHeaders,
       }),
       nextUrl: new URL(url),
       arrayBuffer: jest.fn(async () => new ArrayBuffer(0)),
@@ -139,14 +140,61 @@ describe('/agent-api proxy route env handling', () => {
     });
 
     const route = await import('../../app/agent-api/[...path]/route');
-    await route.GET(makeRequest('http://localhost/agent-api/ecommerce-catalog-search/invoke'), {
+    await route.GET(
+      makeRequest('http://localhost/agent-api/ecommerce-catalog-search/invoke', {
+        'x-forwarded-for': '203.0.113.9, 10.0.0.5',
+      }),
+      {
       params: Promise.resolve({ path: ['ecommerce-catalog-search', 'invoke'] }),
-    });
+      },
+    );
 
     expect(global.fetch).toHaveBeenCalledWith(
       'http://localhost:8100/agents/ecommerce-catalog-search/invoke',
       expect.objectContaining({ method: 'GET' }),
     );
+
+    const fetchOptions = (global.fetch as jest.Mock).mock.calls[0][1] as { headers: Headers };
+    const forwardedHeaders = fetchOptions.headers;
+
+    expect(forwardedHeaders.get('x-correlation-id')).toEqual(expect.any(String));
+    expect(forwardedHeaders.get('x-request-id')).toBe(forwardedHeaders.get('x-correlation-id'));
+    expect(forwardedHeaders.get('x-holiday-peak-user-ip')).toBe('203.0.113.9');
+  });
+
+  it('reuses inbound correlation id and forwards user and session headers', async () => {
+    process.env.NEXT_PUBLIC_AGENT_API_URL = 'https://apim.example.azure-api.net/agents';
+
+    (global.fetch as jest.Mock).mockResolvedValue({
+      body: null,
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers({
+        'content-type': 'application/json',
+      }),
+    });
+
+    const route = await import('../../app/agent-api/[...path]/route');
+    await route.GET(
+      makeRequest('http://localhost/agent-api/ecommerce-catalog-search/invoke', {
+        'x-correlation-id': 'corr-123',
+        'x-real-ip': '198.51.100.77',
+        'x-holiday-peak-user-id': 'user-123',
+        'x-holiday-peak-session-id': 'session-abc',
+      }),
+      {
+        params: Promise.resolve({ path: ['ecommerce-catalog-search', 'invoke'] }),
+      },
+    );
+
+    const fetchOptions = (global.fetch as jest.Mock).mock.calls[0][1] as { headers: Headers };
+    const forwardedHeaders = fetchOptions.headers;
+
+    expect(forwardedHeaders.get('x-correlation-id')).toBe('corr-123');
+    expect(forwardedHeaders.get('x-request-id')).toBe('corr-123');
+    expect(forwardedHeaders.get('x-holiday-peak-user-ip')).toBe('198.51.100.77');
+    expect(forwardedHeaders.get('x-holiday-peak-user-id')).toBe('user-123');
+    expect(forwardedHeaders.get('x-holiday-peak-session-id')).toBe('session-abc');
   });
 
   it('returns 502 upstream diagnostics when upstream responds with 502', async () => {

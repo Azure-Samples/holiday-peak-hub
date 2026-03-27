@@ -407,7 +407,11 @@ class EventPublisher:
     """
 
     def __init__(self, connection_string: Optional[str] = None) -> None:
-        self._connection_string = connection_string or os.getenv("EVENTHUB_CONNECTION_STRING", "")
+        self._connection_string = (
+            connection_string
+            or os.getenv("EVENTHUB_CONNECTION_STRING")
+            or os.getenv("EVENT_HUB_CONNECTION_STRING", "")
+        )
 
     async def publish(self, eventhub_name: str, payload: dict[str, Any]) -> None:
         """Send ``payload`` as a JSON event to the given Event Hub topic."""
@@ -454,6 +458,21 @@ class EventPublisher:
                 "entity_id": entity_id,
                 "operation": operation,
                 "source": source,
+                "timestamp": datetime.now(UTC).isoformat(),
+            },
+        )
+
+    async def publish_enrichment_job(
+        self,
+        entity_id: str,
+        record_type: str = "product_style",
+    ) -> None:
+        await self.publish(
+            "enrichment-jobs",
+            {
+                "event_type": "enrichment_job",
+                "entity_id": entity_id,
+                "record_type": record_type,
                 "timestamp": datetime.now(UTC).isoformat(),
             },
         )
@@ -540,6 +559,7 @@ async def ingest_single_product(
     await asyncio.gather(
         adapters.events.publish_completeness_job(style.entity_id),
         adapters.events.publish_ingestion_notification(style.entity_id, source=style.source),
+        adapters.events.publish_enrichment_job(style.entity_id),
     )
 
     return {

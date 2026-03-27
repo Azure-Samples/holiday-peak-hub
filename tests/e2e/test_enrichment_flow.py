@@ -189,9 +189,9 @@ async def test_image_only_enrichment_path(agent_config_without_models, build_enr
         )
 
     assert proposed["source_type"] == "image_analysis"
-    assert proposed["status"] == "auto_approved"
-    assert len(enrichment.truth_records) == 1
-    assert enrichment.hitl_events == []
+    assert proposed["status"] == "pending_review"
+    assert enrichment.truth_records == []
+    assert len(enrichment.hitl_events) == 1
 
 
 async def test_rejection_no_writeback_and_audit(make_event, review_timestamp) -> None:

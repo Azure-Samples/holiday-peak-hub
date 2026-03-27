@@ -115,6 +115,45 @@ async function readUpstreamErrorPayload(response: Response): Promise<string | nu
   }
 }
 
+function createCorrelationId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+
+  return `hp-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+}
+
+function resolveCorrelationId(headers: Headers): string {
+  const existingCorrelationId = headers.get('x-correlation-id')?.trim();
+  if (existingCorrelationId) {
+    return existingCorrelationId;
+  }
+
+  const existingRequestId = headers.get('x-request-id')?.trim();
+  if (existingRequestId) {
+    return existingRequestId;
+  }
+
+  return createCorrelationId();
+}
+
+function deriveUserIp(headers: Headers): string | null {
+  const forwardedFor = headers.get('x-forwarded-for');
+  if (forwardedFor) {
+    const firstForwardedIp = forwardedFor
+      .split(',')
+      .map((value) => value.trim())
+      .find((value) => value.length > 0);
+
+    if (firstForwardedIp) {
+      return firstForwardedIp;
+    }
+  }
+
+  const realIp = headers.get('x-real-ip')?.trim();
+  return realIp && realIp.length > 0 ? realIp : null;
+}
+
 function buildProxyErrorPayload(params: {
   failureKind: ProxyFailureKind;
   sourceKey: string | null;
@@ -201,6 +240,25 @@ async function proxyRequest(
   const requestHeaders = new Headers(request.headers);
   requestHeaders.delete('host');
   requestHeaders.delete('content-length');
+
+  const correlationId = resolveCorrelationId(requestHeaders);
+  requestHeaders.set('x-correlation-id', correlationId);
+  requestHeaders.set('x-request-id', correlationId);
+
+  const userIp = deriveUserIp(requestHeaders);
+  if (userIp) {
+    requestHeaders.set('x-holiday-peak-user-ip', userIp);
+  }
+
+  const userId = requestHeaders.get('x-holiday-peak-user-id')?.trim();
+  if (userId) {
+    requestHeaders.set('x-holiday-peak-user-id', userId);
+  }
+
+  const sessionId = requestHeaders.get('x-holiday-peak-session-id')?.trim();
+  if (sessionId) {
+    requestHeaders.set('x-holiday-peak-session-id', sessionId);
+  }
 
   const body = method === 'GET' || method === 'HEAD' ? undefined : await request.arrayBuffer();
 

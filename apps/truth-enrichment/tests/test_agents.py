@@ -131,6 +131,7 @@ async def test_enrich_field_runs_image_before_text_and_marks_hybrid(
     assert proposed["original_data"] == {"color": None}
     assert proposed["enriched_data"]["color"] in {"black", "jet black"}
     assert isinstance(proposed["reasoning"], str) and proposed["reasoning"]
+    adapters.truth.upsert.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -167,6 +168,7 @@ async def test_enrich_field_gracefully_falls_back_to_text_when_dam_unavailable(
     assert proposed["source_type"] == "text_enrichment"
     assert proposed["proposed_value"] == "canvas"
     assert proposed["source_assets"] == []
+    adapters.truth.upsert.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -193,7 +195,8 @@ async def test_enrich_field_uses_image_when_models_unavailable(
 
     assert proposed["source_type"] == "image_analysis"
     assert proposed["proposed_value"] is None
-    assert proposed["status"] == "pending"
+    assert proposed["status"] == "pending_review"
+    adapters.truth.upsert.assert_not_awaited()
     adapters.hitl_publisher.publish.assert_awaited_once()
     payload = adapters.hitl_publisher.publish.await_args.args[0]
     assert payload["event_type"] == "attribute.proposed"

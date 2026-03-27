@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from truth_hitl.adapters import HITLAdapters, build_hitl_approval_event
+from truth_hitl.adapters import (
+    HITLAdapters,
+    build_hitl_approval_event,
+    build_search_enrichment_event,
+)
 from truth_hitl.review_manager import ReviewDecision, ReviewItem
 
 
@@ -46,7 +51,16 @@ def build_review_router(adapters: HITLAdapters) -> APIRouter:
             reviewer_id=reviewed_by,
             decision_timestamp=decision_timestamp,
         )
-        await adapters.export_publisher.publish(payload)
+        search_payload = build_search_enrichment_event(
+            entity_id=entity_id,
+            approved_fields=approved_fields,
+            reviewer_id=reviewed_by,
+            decision_timestamp=decision_timestamp,
+        )
+        await asyncio.gather(
+            adapters.export_publisher.publish(payload),
+            adapters.search_enrichment_publisher.publish(search_payload),
+        )
 
     def execute_review_action(
         entity_id: str, decision: ReviewDecision, action: str

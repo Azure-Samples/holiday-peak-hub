@@ -6,12 +6,19 @@ import asyncio
 import json
 import logging
 import os
+from datetime import datetime, timezone
 from typing import Any
+from uuid import uuid4
 
 from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
+from holiday_peak_lib.agents.memory import (
+    NamespaceContext,
+    build_canonical_memory_key,
+    resolve_namespace_context,
+)
 from holiday_peak_lib.schemas.product import CatalogProduct
 from holiday_peak_lib.schemas.truth import IntentClassification
 from pydantic import ValidationError
@@ -63,6 +70,10 @@ from .ai_search import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+HOT_HISTORY_MAX_ENTRIES = 20
+HOT_HISTORY_TTL_SECONDS = 3600
 
 
 class CatalogSearchAgent(BaseRetailAgent):
@@ -200,7 +211,20 @@ class CatalogSearchAgent(BaseRetailAgent):
     async def handle(self, request: dict[str, Any]) -> dict[str, Any]:
         query = request.get("query", "")
         limit = int(request.get("limit", 5))
-        mode = normalize_search_mode(str(request.get("mode") or "keyword"))
+        requested_mode = str(request.get("mode") or "keyword")
+        mode = normalize_search_mode(requested_mode)
+        search_stage = _normalize_search_stage(request.get("search_stage"))
+        user_id = _coerce_optional_str(request.get("user_id"))
+        user_ip = _coerce_optional_str(request.get("user_ip"))
+        query_history = _coerce_optional_string_list(request.get("query_history"))
+        baseline_candidate_skus = _coerce_optional_string_list(
+            request.get("baseline_candidate_skus")
+        )
+        namespace_context = resolve_namespace_context(
+            request,
+            self.service_name or "catalog-search",
+            session_fallback=user_id or user_ip,
+        )
         filters = request.get("filters")
         filter_payload = filters if isinstance(filters, dict) else None
 
@@ -245,6 +269,18 @@ class CatalogSearchAgent(BaseRetailAgent):
             limit=limit,
         )
 
+        history_record = _build_search_history_record(
+            query=str(query),
+            mode=mode,
+            search_stage=search_stage,
+            result_skus=[product.sku for product in products],
+            user_id=user_id,
+            user_ip=user_ip,
+            query_history=query_history,
+            baseline_candidate_skus=baseline_candidate_skus,
+        )
+        await _persist_search_history(self, namespace_context, history_record)
+
         if self.slm or self.llm:
             messages = [
                 {
@@ -259,12 +295,19 @@ class CatalogSearchAgent(BaseRetailAgent):
                     },
                 },
             ]
-            return await self.invoke_model(request=request, messages=messages)
+            model_response = await self.invoke_model(request=request, messages=messages)
+            model_response["requested_mode"] = requested_mode
+            model_response["search_stage"] = search_stage
+            model_response["session_id"] = namespace_context.session_id
+            return model_response
 
         return {
             "service": self.service_name,
             "query": query,
             "mode": mode,
+            "requested_mode": requested_mode,
+            "search_stage": search_stage,
+            "session_id": namespace_context.session_id,
             "results": acp_products,
             "intent": intent.model_dump(mode="json") if intent is not None else None,
         }
@@ -551,6 +594,151 @@ async def _availability_for_sku(adapters: CatalogAdapters, sku: str) -> str:
     if item is None:
         return "unknown"
     return "in_stock" if item.available > 0 else "out_of_stock"
+
+
+def _normalize_search_stage(raw_value: Any) -> str:
+    stage = str(raw_value or "baseline").strip().lower()
+    return stage if stage in {"baseline", "rerank"} else "baseline"
+
+
+def _coerce_optional_str(raw_value: Any) -> str | None:
+    if raw_value is None:
+        return None
+    value = str(raw_value).strip()
+    return value or None
+
+
+def _coerce_optional_string_list(raw_value: Any) -> list[str] | None:
+    if raw_value is None:
+        return None
+    if not isinstance(raw_value, list):
+        return None
+
+    values = [str(item).strip() for item in raw_value]
+    return [value for value in values if value]
+
+
+def _build_search_history_record(
+    *,
+    query: str,
+    mode: str,
+    search_stage: str,
+    result_skus: list[str],
+    user_id: str | None,
+    user_ip: str | None,
+    query_history: list[str] | None,
+    baseline_candidate_skus: list[str] | None,
+) -> dict[str, Any]:
+    record: dict[str, Any] = {
+        "query": query,
+        "mode": mode,
+        "search_stage": search_stage,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "result_skus": result_skus,
+    }
+
+    if user_id:
+        record["user_id"] = user_id
+    if user_ip:
+        record["user_ip"] = user_ip
+    if query_history is not None:
+        record["query_history"] = query_history
+    if baseline_candidate_skus is not None:
+        record["baseline_candidate_skus"] = baseline_candidate_skus
+    return record
+
+
+async def _persist_search_history(
+    agent: CatalogSearchAgent,
+    namespace_context: NamespaceContext,
+    record: dict[str, Any],
+) -> None:
+    record_id = (
+        f"{namespace_context.service}:{int(datetime.now(timezone.utc).timestamp() * 1000)}"
+        f":{uuid4().hex}"
+    )
+    persisted_record = {
+        "id": record_id,
+        "service": namespace_context.service,
+        "tenant_id": namespace_context.tenant_id,
+        "session_id": namespace_context.session_id,
+        **record,
+    }
+
+    hot_history_key = build_canonical_memory_key(namespace_context, "catalog-search-history")
+    if agent.hot_memory:
+        try:
+            existing = await agent.hot_memory.get(hot_history_key)
+            history = _parse_hot_history(existing)
+            history.append(record)
+            history = history[-HOT_HISTORY_MAX_ENTRIES:]
+            await agent.hot_memory.set(
+                key=hot_history_key,
+                value=json.dumps(history),
+                ttl_seconds=HOT_HISTORY_TTL_SECONDS,
+            )
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.warning(
+                "catalog_search_hot_memory_persist_failed",
+                extra={
+                    "service": namespace_context.service,
+                    "tenant_id": namespace_context.tenant_id,
+                    "session_id": namespace_context.session_id,
+                },
+                exc_info=True,
+            )
+
+    if agent.warm_memory:
+        try:
+            await agent.warm_memory.upsert(persisted_record)
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.warning(
+                "catalog_search_warm_memory_persist_failed",
+                extra={
+                    "service": namespace_context.service,
+                    "tenant_id": namespace_context.tenant_id,
+                    "session_id": namespace_context.session_id,
+                    "record_id": record_id,
+                },
+                exc_info=True,
+            )
+
+    if agent.cold_memory:
+        try:
+            blob_name = (
+                f"{namespace_context.service}/search-history/tenant={namespace_context.tenant_id}"
+                f"/session={namespace_context.session_id}/{record_id}.json"
+            )
+            await agent.cold_memory.upload_text(
+                blob_name=blob_name,
+                data=json.dumps(persisted_record),
+            )
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.warning(
+                "catalog_search_cold_memory_persist_failed",
+                extra={
+                    "service": namespace_context.service,
+                    "tenant_id": namespace_context.tenant_id,
+                    "session_id": namespace_context.session_id,
+                    "record_id": record_id,
+                },
+                exc_info=True,
+            )
+
+
+def _parse_hot_history(raw_value: Any) -> list[dict[str, Any]]:
+    payload = raw_value
+    if isinstance(raw_value, str):
+        try:
+            payload = json.loads(raw_value)
+        except json.JSONDecodeError:
+            return []
+
+    if isinstance(payload, list):
+        return [entry for entry in payload if isinstance(entry, dict)]
+    if isinstance(payload, dict):
+        return [payload]
+    return []
 
 
 def _record_search_evaluation(

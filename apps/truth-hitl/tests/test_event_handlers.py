@@ -75,6 +75,32 @@ def test_build_event_handlers_includes_hitl_jobs():
 
 
 @pytest.mark.asyncio
+async def test_build_event_handlers_uses_provided_adapters():
+    review_manager = ReviewManager()
+    adapters = build_hitl_adapters(review_manager=review_manager)
+
+    handlers = event_handlers.build_event_handlers(adapters=adapters)
+    handler = handlers["hitl-jobs"]
+
+    payload = {
+        "event_type": "proposed_attribute",
+        "data": {
+            "entity_id": "prod-777",
+            "attr_id": "attr-777",
+            "field_name": "color",
+            "proposed_value": "Black",
+            "confidence": 0.77,
+        },
+    }
+
+    await handler(None, FakeEvent(payload))
+
+    queued = review_manager.get_by_entity("prod-777")
+    assert len(queued) == 1
+    assert queued[0].attr_id == "attr-777"
+
+
+@pytest.mark.asyncio
 async def test_handle_hitl_job_accepts_enhanced_ui_payload_shapes(monkeypatch):
     review_manager = ReviewManager()
 

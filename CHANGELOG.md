@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Enrichment/search orchestration hardening: truth-ingestion now emits `enrichment-jobs`; truth-hitl approval now emits both `export-jobs` and `search-enrichment-jobs`; truth-enrichment proposals are now always `pending_review` (human-only promotion path), removing direct auto-approval writes from enrichment.
+
+- Catalog and UI two-stage search flow: UI now renders keyword baseline first and applies background intelligent rerank updates, proxy forwarding now enriches correlation/user-session-IP headers, and catalog-search now records stage/session metadata plus best-effort search history persistence across hot/warm/cold memory tiers.
+
 - Issue #456 monitoring expansion: added Azure Monitor alert definitions in `.infra/modules/monitoring/monitoring.bicep` for AI Search failed indexer document processing (`DocumentsProcessedCount` with `Failed=true`), Blob capacity/utilization pressure (`BlobCapacity`, `UsedCapacity`), and APIM tail-latency proxy (`Duration` with `Maximum`) with explicit threshold/window descriptions.
 
 - Dependabot remediation merged for security/tooling maintenance: PR #245 (`pyjwt` bump to `2.12.0`) and PR #222 (`black` bump to `26.3.1`) are now integrated on `main`, with lint/test checks revalidated after merge.
