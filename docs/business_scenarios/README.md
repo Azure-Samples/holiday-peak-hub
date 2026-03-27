@@ -2,10 +2,15 @@
 
 Executive scenario playbook for Holiday Peak Hub: each scenario is a value stream, each capability is mapped to a primary business outcome, and each flow is represented with a visual executive narrative.
 
+This folder now serves two different documentation needs:
+
+1. Each scenario `README.md` remains the executive overview.
+2. The additional walkthrough files in each scenario folder are the current-state, click-by-click operating guides for the UI that exists today.
+
 ## Scenario Portfolio
 
 | # | Scenario | Outcome Theme | Flow Model |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | 1 | [Order-to-Fulfillment](01-order-to-fulfillment/) | Revenue Protection + Fulfillment Velocity | SAGA Orchestration |
 | 2 | [Product Discovery & Enrichment](02-product-discovery-enrichment/) | Conversion Acceleration + Catalog Intelligence | Hybrid Sync/Async |
 | 3 | [Returns & Refund Processing](03-returns-refund-processing/) | Margin Recovery + Trust Retention | Event-Driven Reverse Logistics |
@@ -18,7 +23,7 @@ Executive scenario playbook for Holiday Peak Hub: each scenario is a value strea
 ## Capability-to-Scenario Mapping
 
 | Capability Cluster | Primary Scenario | Supporting Platforms |
-|---|---|---|
+| --- | --- | --- |
 | CRUD transactional core | 1 | APIM, PostgreSQL, Event Hubs |
 | Catalog search + enrichment | 2 | Azure AI Search, Foundry, Redis |
 | Returns + refund automation | 3 | Logistics agents, payment flow, support context |
@@ -34,21 +39,68 @@ Executive scenario playbook for Holiday Peak Hub: each scenario is a value strea
 - Developer fail-safe mode: dev mock login can be enabled only outside production for role-based walkthroughs.
 - Production safeguard: mock auth routes are disabled in production and role checks remain enforced by UI middleware.
 
+## Walkthrough Entry Notes
+
+| Access mode | Use this when |
+| --- | --- |
+| Main navigation | The workflow is exposed from the current storefront or admin portal. |
+| Direct route entry | The screen exists and works today, but is not yet linked from the main navigation. |
+
+## Detailed Walkthrough Index
+
+### 01 Order-to-Fulfillment
+
+- [Customer Cart, Checkout, and Order Confirmation](01-order-to-fulfillment/customer-cart-checkout-and-order-confirmation.md)
+
+### 02 Product Discovery & Enrichment
+
+- [Intelligent Search and Agent Comparison](02-product-discovery-enrichment/intelligent-search-and-agent-comparison.md)
+- [Category Browsing and Product Detail Exploration](02-product-discovery-enrichment/category-browsing-and-product-detail.md)
+
+### 03 Returns & Refund Processing
+
+- [Customer Return Request and Refund Status](03-returns-refund-processing/customer-return-request-and-refund-status.md)
+
+### 04 Inventory Optimization
+
+- [Checkout Inventory Signals and Reservation Protection](04-inventory-optimization/checkout-inventory-signals-and-reservations.md)
+
+### 05 Shipment & Delivery Tracking
+
+- [Customer Order Tracking and Logistics Enrichment](05-shipment-delivery-tracking/customer-order-tracking-and-logistics-enrichment.md)
+- [Staff Logistics Tracking Console](05-shipment-delivery-tracking/staff-logistics-tracking-console.md)
+
+### 06 Customer 360 & Personalization
+
+- [Customer Dashboard Personalization](06-customer-360-personalization/customer-dashboard-personalization.md)
+- [Profile Management](06-customer-360-personalization/profile-management.md)
+
+### 07 Product Lifecycle Management
+
+- [Admin Enrichment Trigger and Monitor](07-product-lifecycle-management/admin-enrichment-trigger-and-monitor.md)
+- [Staff HITL Review and Decisioning](07-product-lifecycle-management/staff-hitl-review-and-decisioning.md)
+- [Admin Schema and Tenant Configuration](07-product-lifecycle-management/admin-schema-and-tenant-configuration.md)
+- [Admin Truth Analytics and Observability](07-product-lifecycle-management/admin-truth-analytics-and-observability.md)
+
+### 08 Customer Support Resolution
+
+- [Staff Ticket Resolution and Escalation](08-customer-support-resolution/staff-ticket-resolution-and-escalation.md)
+
 ## Executive Flow Map
 
 ```mermaid
 flowchart LR
-	A[Digital Demand Signals] --> B[Scenario Value Streams]
-	B --> C[Agentic Decision Layer]
-	C --> D[Operational Systems of Record]
-	D --> E[Executive Outcomes Dashboard]
+A[Digital Demand Signals] --> B[Scenario Value Streams]
+B --> C[Agentic Decision Layer]
+C --> D[Operational Systems of Record]
+D --> E[Executive Outcomes Dashboard]
 
-	classDef c1 fill:#0B84F3,color:#fff,stroke:#085ea8
-	classDef c2 fill:#00A88F,color:#fff,stroke:#0b6e5f
-	classDef c3 fill:#F39C12,color:#fff,stroke:#af6f0c
-	classDef c4 fill:#8E44AD,color:#fff,stroke:#5b2a70
-	class A,B c1
-	class C c2
-	class D c3
-	class E c4
+classDef c1 fill:#0B84F3,color:#fff,stroke:#085ea8
+classDef c2 fill:#00A88F,color:#fff,stroke:#0b6e5f
+classDef c3 fill:#F39C12,color:#fff,stroke:#af6f0c
+classDef c4 fill:#8E44AD,color:#fff,stroke:#5b2a70
+class A,B c1
+class C c2
+class D c3
+class E c4
 ```

@@ -74,3 +74,7 @@ This scenario is implemented through CRUD lifecycle APIs and staff operations (n
 
 - Return lifecycle events are emitted to `return-events`: `ReturnRequested`, `ReturnApproved`, `ReturnRejected`, `ReturnReceived`, `ReturnRestocked`, `ReturnRefunded`
 - Refund issuance is emitted to `payment-events` as `RefundIssued`
+
+## Detailed Walkthroughs
+
+- [Customer Return Request and Refund Status](customer-return-request-and-refund-status.md)

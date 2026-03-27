@@ -59,3 +59,7 @@ State model implemented in CRUD:
 - `created -> released` (rollback/abandonment)
 - `confirmed` and `released` are terminal states
 - Invalid transitions (`released -> confirmed`, `confirmed -> released`) return `409`
+
+## Detailed Walkthroughs
+
+- [Checkout Inventory Signals and Reservation Protection](checkout-inventory-signals-and-reservations.md)

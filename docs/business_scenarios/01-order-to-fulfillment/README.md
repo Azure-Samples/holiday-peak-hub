@@ -60,3 +60,7 @@ Checkout in this scenario runs on the live CRUD payment path (no stubbed success
 6. `GET /api/payments/{payment_id}` supports post-checkout payment retrieval (customer ownership, staff/admin override).
 
 Business impact: confirmation is tied to provider-backed payment state and auditable order/payment linkage, preserving payment-to-shipment continuity targets.
+
+## Detailed Walkthroughs
+
+- [Customer Cart, Checkout, and Order Confirmation](customer-cart-checkout-and-order-confirmation.md)
