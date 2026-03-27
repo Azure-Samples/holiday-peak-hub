@@ -14,7 +14,11 @@ from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
-from holiday_peak_lib.agents.memory import NamespaceContext, build_canonical_memory_key, resolve_namespace_context
+from holiday_peak_lib.agents.memory import (
+    NamespaceContext,
+    build_canonical_memory_key,
+    resolve_namespace_context,
+)
 from holiday_peak_lib.schemas.product import CatalogProduct
 from holiday_peak_lib.schemas.truth import IntentClassification
 from pydantic import ValidationError
