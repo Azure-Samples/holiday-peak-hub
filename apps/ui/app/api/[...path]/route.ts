@@ -1702,6 +1702,7 @@ async function proxyRequest(
         headers: {
           'x-holiday-peak-proxy': 'next-app-api',
           'x-holiday-peak-proxy-source': sourceKey ?? '',
+          'x-holiday-peak-proxy-failure-kind': 'network',
           'x-holiday-peak-proxy-fallback': `${endpointFallbackStrategy.name}-network`,
         },
       });
@@ -1890,13 +1891,15 @@ async function proxyRequest(
     });
   }
 
-  if (endpointFallbackStrategy && upstream.status === 502) {
+  if (endpointFallbackStrategy && shouldRetryUpstreamResponse(upstream.status, endpointFallbackStrategy)) {
     return NextResponse.json(endpointFallbackStrategy.buildPayload(request), {
       status: 200,
       headers: {
         'x-holiday-peak-proxy': 'next-app-api',
         'x-holiday-peak-proxy-source': sourceKey ?? '',
-        'x-holiday-peak-proxy-fallback': `${endpointFallbackStrategy.name}-upstream-502`,
+        'x-holiday-peak-proxy-failure-kind': 'upstream',
+        'x-holiday-peak-proxy-fallback': `${endpointFallbackStrategy.name}-upstream-${upstream.status}`,
+        'x-holiday-peak-proxy-fallback-upstream-status': String(upstream.status),
       },
     });
   }

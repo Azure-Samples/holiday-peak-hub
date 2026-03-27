@@ -17,7 +17,7 @@ Every event emitted by `FoundryTracer._record()` includes these fields:
 | `operation` | `string` | Yes | Logical operation/target for the event (maps to `name`). |
 | `trace_id` | `string \| null` | Yes | Distributed trace identifier from metadata or active span context. |
 | `correlation_id` | `string \| null` | Yes | Request correlation identifier from metadata or request context. |
-| `status` | `string` | Yes | Raw outcome/status value for the event (same as `outcome`). |
+| `status` | `string` | Yes | Normalized status enum for aggregations: `success \| error \| degraded \| skipped \| pending`. |
 | `latency_ms` | `number \| null` | Yes | Latency in milliseconds (reads `latency_ms`, `elapsed_ms`, or `duration_ms` from metadata). |
 | `type` | `string` | Yes | Event type: `model_invocation`, `tool_call`, `decision`. |
 | `name` | `string` | Yes | Event-specific name (model target, tool name, or decision type). |
@@ -149,7 +149,7 @@ Emitted for agent routing and workflow decisions. Domain-specific decisions are 
   "operation": "enrichment_decision",
   "trace_id": "abc123",
   "correlation_id": "req-456",
-  "status": "skip_no_gaps",
+  "status": "skipped",
   "latency_ms": null,
   "type": "decision",
   "name": "enrichment_decision",
@@ -179,7 +179,7 @@ Events are exposed via auto-registered FastAPI endpoints in `app_factory_compone
 | Endpoint | Response shape | Notes |
 |---|---|---|
 | `GET /agent/traces?limit=N` | `{ "service": str, "traces": [event, ...] }` | Most recent `N` events (default 50, max `FOUNDRY_TRACING_MAX_EVENTS`). Reverse chronological. |
-| `GET /agent/metrics` | `{ "service": str, "enabled": bool, "app_insights_configured": bool, "traces_buffered": int, "instrumentation": {...}, "counts": {...} }` | Aggregate counters keyed by `{event_type}` and `{event_type}:{outcome}`. |
+| `GET /agent/metrics` | `{ "service": str, "enabled": bool, "app_insights_configured": bool, "traces_buffered": int, "instrumentation": {...}, "counts": {...} }` | Aggregate counters keyed by `{event_type}`, `{event_type}:{outcome_status}`, and compatibility keys `{event_type}:{outcome}`. |
 | `GET /agent/evaluation/latest` | `{ "service": str, "latest": event \| null }` | Most recent evaluation payload or `null`. |
 
 ## 5. Resolution precedence
@@ -206,5 +206,6 @@ To emit compliant telemetry events from a new agent service:
 
 - Existing fields (`type`, `name`, `outcome`, `metadata`) are preserved alongside the normalized fields.
 - `outcome_status` is computed from `outcome` at emission time — never set by callers.
+- `status` and `outcome_status` are both normalized enum values; use `outcome` when raw service-specific detail is needed.
 - `model_tier` defaults to `"unknown"` when not provided.
 - `trace_id` and `correlation_id` may be `null` when no context is available.

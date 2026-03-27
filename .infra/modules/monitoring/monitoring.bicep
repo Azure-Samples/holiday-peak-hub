@@ -9,6 +9,9 @@ param environment string
 @description('Azure region for alerts resources.')
 param location string = resourceGroup().location
 
+@description('Resource ID of Log Analytics workspace used for scheduled query alerts.')
+param monitoringWorkspaceResourceId string
+
 @description('Optional email receiver for action group notifications.')
 param alertEmailAddress string = ''
 
@@ -46,6 +49,140 @@ param aiSearchIndexerName string = '*'
 var blobServiceResourceId = '${storageAccountResourceId}/blobServices/default'
 
 var actionGroupShortName = take(replace('${projectName}${environment}', '-', ''), 12)
+
+var uiProxyWarn502Query = '''
+let criticalPaths = dynamic([
+  '/api/health',
+  '/api/products',
+  '/api/categories',
+  '/api/admin/agent-activity',
+  '/api/admin/enrichment-monitor'
+]);
+let proxyRequests =
+  union isfuzzy=true
+    (
+      AppRequests
+      | project
+          eventTime = TimeGenerated,
+          requestUrl = tostring(Url),
+          requestName = tostring(Name),
+          statusCode = tostring(ResultCode),
+          dimensions = todynamic(Properties)
+    ),
+    (
+      requests
+      | project
+          eventTime = timestamp,
+          requestUrl = tostring(url),
+          requestName = tostring(name),
+          statusCode = tostring(resultCode),
+          dimensions = todynamic(customDimensions)
+    );
+proxyRequests
+| where eventTime > ago(10m)
+| where requestUrl has '/api/' or requestName has '/api/'
+| extend normalizedNamePath = iif(requestName has '/api/', tostring(split(requestName, ' ')[1]), requestName)
+| extend upstreamPath = coalesce(
+    tostring(dimensions.upstreamPath),
+    tostring(dimensions['proxy.attemptedPath']),
+    tostring(dimensions.attemptedPath),
+    tostring(parse_url(requestUrl).Path),
+    normalizedNamePath
+  )
+| where isnotempty(upstreamPath) and upstreamPath in~ (criticalPaths)
+| extend status = statusCode
+| extend failureKind = coalesce(
+    tostring(dimensions.failureKind),
+    tostring(dimensions['proxy.failureKind']),
+    tostring(dimensions['x-holiday-peak-proxy-failure-kind']),
+    'unknown'
+  )
+| extend sourceKey = coalesce(
+    tostring(dimensions.sourceKey),
+    tostring(dimensions['proxy.sourceKey']),
+    tostring(dimensions['x-holiday-peak-proxy-source']),
+    'unknown'
+  )
+| extend fallbackToken = coalesce(
+    tostring(dimensions.fallbackUsed),
+    tostring(dimensions['x-holiday-peak-proxy-fallback']),
+    ''
+  )
+| extend fallbackUsed = iff(tolower(fallbackToken) in ('true', '1') or isnotempty(fallbackToken), 'true', 'false')
+| summarize requestCount=count(), failureCount=countif(status == '502') by upstreamPath, failureKind, sourceKey, fallbackUsed
+| extend status = '502'
+| extend failureRatePct = iff(requestCount == 0, 0.0, todouble(failureCount) * 100.0 / todouble(requestCount))
+| where requestCount >= 30 and failureRatePct >= 3.0
+| extend breach = failureRatePct
+| project breach, failureRatePct, requestCount, failureCount, upstreamPath, failureKind, sourceKey, status, fallbackUsed
+'''
+
+var uiProxyCritical502Query = '''
+let criticalPaths = dynamic([
+  '/api/health',
+  '/api/products',
+  '/api/categories',
+  '/api/admin/agent-activity',
+  '/api/admin/enrichment-monitor'
+]);
+let proxyRequests =
+  union isfuzzy=true
+    (
+      AppRequests
+      | project
+          eventTime = TimeGenerated,
+          requestUrl = tostring(Url),
+          requestName = tostring(Name),
+          statusCode = tostring(ResultCode),
+          dimensions = todynamic(Properties)
+    ),
+    (
+      requests
+      | project
+          eventTime = timestamp,
+          requestUrl = tostring(url),
+          requestName = tostring(name),
+          statusCode = tostring(resultCode),
+          dimensions = todynamic(customDimensions)
+    );
+proxyRequests
+| where eventTime > ago(5m)
+| where requestUrl has '/api/' or requestName has '/api/'
+| extend normalizedNamePath = iif(requestName has '/api/', tostring(split(requestName, ' ')[1]), requestName)
+| extend upstreamPath = coalesce(
+    tostring(dimensions.upstreamPath),
+    tostring(dimensions['proxy.attemptedPath']),
+    tostring(dimensions.attemptedPath),
+    tostring(parse_url(requestUrl).Path),
+    normalizedNamePath
+  )
+| where isnotempty(upstreamPath) and upstreamPath in~ (criticalPaths)
+| extend status = statusCode
+| extend failureKind = coalesce(
+    tostring(dimensions.failureKind),
+    tostring(dimensions['proxy.failureKind']),
+    tostring(dimensions['x-holiday-peak-proxy-failure-kind']),
+    'unknown'
+  )
+| extend sourceKey = coalesce(
+    tostring(dimensions.sourceKey),
+    tostring(dimensions['proxy.sourceKey']),
+    tostring(dimensions['x-holiday-peak-proxy-source']),
+    'unknown'
+  )
+| extend fallbackToken = coalesce(
+    tostring(dimensions.fallbackUsed),
+    tostring(dimensions['x-holiday-peak-proxy-fallback']),
+    ''
+  )
+| extend fallbackUsed = iff(tolower(fallbackToken) in ('true', '1') or isnotempty(fallbackToken), 'true', 'false')
+| summarize requestCount=count(), failureCount=countif(status == '502') by upstreamPath, failureKind, sourceKey, fallbackUsed
+| extend status = '502'
+| extend failureRatePct = iff(requestCount == 0, 0.0, todouble(failureCount) * 100.0 / todouble(requestCount))
+| where requestCount >= 50 and failureRatePct >= 8.0
+| extend breach = failureRatePct
+| project breach, failureRatePct, requestCount, failureCount, upstreamPath, failureKind, sourceKey, status, fallbackUsed
+'''
 
 resource actionGroup 'Microsoft.Insights/actionGroups@2023-01-01' = {
   name: '${projectName}-${environment}-ops-ag'
@@ -831,6 +968,158 @@ resource apimLatencyP99ProxyAlert 'Microsoft.Insights/metricAlerts@2018-03-01' =
         actionGroupId: actionGroup.id
       }
     ]
+  }
+}
+
+resource uiProxyWarn502Alert 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
+  name: '${projectName}-${environment}-ui-proxy-502-warn'
+  location: location
+  kind: 'LogAlert'
+  properties: {
+    description: 'UI proxy sustained 502 warn alert for critical API paths: failure rate >= 3% over 10 minutes with at least 30 requests.'
+    displayName: '${projectName}-${environment} ui proxy 502 warn'
+    enabled: true
+    severity: 2
+    evaluationFrequency: 'PT5M'
+    windowSize: 'PT10M'
+    scopes: [
+      monitoringWorkspaceResourceId
+    ]
+    targetResourceTypes: [
+      'Microsoft.OperationalInsights/workspaces'
+    ]
+    criteria: {
+      allOf: [
+        {
+          query: uiProxyWarn502Query
+          timeAggregation: 'Maximum'
+          metricMeasureColumn: 'breach'
+          operator: 'GreaterThan'
+          threshold: 0
+          failingPeriods: {
+            numberOfEvaluationPeriods: 1
+            minFailingPeriodsToAlert: 1
+          }
+          dimensions: [
+            {
+              name: 'upstreamPath'
+              operator: 'Include'
+              values: [
+                '*'
+              ]
+            }
+            {
+              name: 'failureKind'
+              operator: 'Include'
+              values: [
+                '*'
+              ]
+            }
+            {
+              name: 'sourceKey'
+              operator: 'Include'
+              values: [
+                '*'
+              ]
+            }
+            {
+              name: 'status'
+              operator: 'Include'
+              values: [
+                '502'
+              ]
+            }
+          ]
+        }
+      ]
+    }
+    autoMitigate: true
+    skipQueryValidation: false
+    actions: {
+      actionGroups: [
+        actionGroup.id
+      ]
+      customProperties: {
+        playbook: 'docs/architecture/playbooks/playbook-ui-proxy-failures.md'
+        threshold: 'warn-3pct-10m-min30'
+      }
+    }
+  }
+}
+
+resource uiProxyCritical502Alert 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
+  name: '${projectName}-${environment}-ui-proxy-502-critical'
+  location: location
+  kind: 'LogAlert'
+  properties: {
+    description: 'UI proxy sustained 502 critical alert for critical API paths: failure rate >= 8% over 5 minutes with at least 50 requests.'
+    displayName: '${projectName}-${environment} ui proxy 502 critical'
+    enabled: true
+    severity: 1
+    evaluationFrequency: 'PT1M'
+    windowSize: 'PT5M'
+    scopes: [
+      monitoringWorkspaceResourceId
+    ]
+    targetResourceTypes: [
+      'Microsoft.OperationalInsights/workspaces'
+    ]
+    criteria: {
+      allOf: [
+        {
+          query: uiProxyCritical502Query
+          timeAggregation: 'Maximum'
+          metricMeasureColumn: 'breach'
+          operator: 'GreaterThan'
+          threshold: 0
+          failingPeriods: {
+            numberOfEvaluationPeriods: 1
+            minFailingPeriodsToAlert: 1
+          }
+          dimensions: [
+            {
+              name: 'upstreamPath'
+              operator: 'Include'
+              values: [
+                '*'
+              ]
+            }
+            {
+              name: 'failureKind'
+              operator: 'Include'
+              values: [
+                '*'
+              ]
+            }
+            {
+              name: 'sourceKey'
+              operator: 'Include'
+              values: [
+                '*'
+              ]
+            }
+            {
+              name: 'status'
+              operator: 'Include'
+              values: [
+                '502'
+              ]
+            }
+          ]
+        }
+      ]
+    }
+    autoMitigate: true
+    skipQueryValidation: false
+    actions: {
+      actionGroups: [
+        actionGroup.id
+      ]
+      customProperties: {
+        playbook: 'docs/architecture/playbooks/playbook-ui-proxy-failures.md'
+        threshold: 'critical-8pct-5m-min50'
+      }
+    }
   }
 }
 

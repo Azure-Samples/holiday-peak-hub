@@ -323,24 +323,27 @@ class FoundryTracer:
         if not self.enabled:
             return
         event_metadata = dict(metadata)
+        outcome_status = _normalize_outcome_status(outcome)
         event = {
             "timestamp": _now_iso(),
             "service": self.service_name,
             **_build_envelope_fields(
                 operation=name,
-                status=outcome,
+                status=outcome_status,
                 metadata=event_metadata,
             ),
             "type": event_type,
             "name": name,
             "outcome": outcome,
-            "outcome_status": _normalize_outcome_status(outcome),
+            "outcome_status": outcome_status,
             "metadata": event_metadata,
         }
         with self._lock:
             self._events.append(event)
             self._counts[event_type] += 1
-            self._counts[f"{event_type}:{outcome}"] += 1
+            self._counts[f"{event_type}:{outcome_status}"] += 1
+            if outcome != outcome_status:
+                self._counts[f"{event_type}:{outcome}"] += 1
 
     def trace_model_invocation(
         self,

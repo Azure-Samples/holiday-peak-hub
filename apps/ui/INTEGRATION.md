@@ -59,6 +59,14 @@ Shared resolver module: `app/api/_shared/base-url-resolver.ts`
   - Non-local runtime only accepts APIM upstream hosts (`*.azure-api.net`) for `/api/*` and `/agent-api/*` proxy forwarding.
   - Local loopback hosts (`localhost`, `127.0.0.1`, `::1`) are allowed for development/test runtime.
   - Optional local-only override: `UI_ALLOW_NON_APIM_PROXY_URL=true` (must remain disabled in production).
+- Catalog read resiliency policy (`/api/categories`, `/api/products`):
+  - Strategy retries transient upstream failures (`502`, `503`, `504`) with up to 2 attempts.
+  - If transient failures persist (or network fetch fails), the proxy returns HTTP `200` with an empty array fallback payload.
+  - Fallback responses include diagnostics headers for triage:
+    - `x-holiday-peak-proxy-source`: resolved env source key used for upstream routing.
+    - `x-holiday-peak-proxy-failure-kind`: `network` or `upstream`.
+    - `x-holiday-peak-proxy-fallback`: fallback strategy key and failure detail.
+    - `x-holiday-peak-proxy-fallback-upstream-status`: upstream status code when available.
 - Browser runtime:
   - CRUD client (`lib/api/client.ts`) always uses `/api/*` proxy route
   - Agent client (`lib/api/agentClient.ts`) uses `/agent-api/*`

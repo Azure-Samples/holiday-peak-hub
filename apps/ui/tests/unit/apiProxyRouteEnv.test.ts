@@ -3,14 +3,17 @@ import { NextRequest } from 'next/server';
 jest.mock('next/server', () => {
   class MockNextResponse {
     public readonly status: number;
+    public readonly headers: Headers;
 
-    constructor(_body?: unknown, init?: { status?: number }) {
+    constructor(_body?: unknown, init?: { status?: number; headers?: HeadersInit }) {
       this.status = init?.status ?? 200;
+      this.headers = new Headers(init?.headers);
     }
 
-    static json(body: unknown, init?: { status?: number }) {
+    static json(body: unknown, init?: { status?: number; headers?: HeadersInit }) {
       return {
         status: init?.status ?? 200,
+        headers: new Headers(init?.headers),
         json: async () => body,
       };
     }
@@ -131,6 +134,9 @@ describe('/api proxy route env handling', () => {
     });
 
     expect(response.status).toBe(200);
+    expect(response.headers.get('x-holiday-peak-proxy-source')).toBe('NEXT_PUBLIC_CRUD_API_URL');
+    expect(response.headers.get('x-holiday-peak-proxy-failure-kind')).toBe('network');
+    expect(response.headers.get('x-holiday-peak-proxy-fallback')).toBe('products-read-empty-network');
     await expect(response.json()).resolves.toEqual([]);
   });
 
@@ -224,6 +230,42 @@ describe('/api proxy route env handling', () => {
     });
 
     expect(response.status).toBe(200);
+    expect(response.headers.get('x-holiday-peak-proxy-source')).toBe('NEXT_PUBLIC_CRUD_API_URL');
+    expect(response.headers.get('x-holiday-peak-proxy-failure-kind')).toBe('upstream');
+    expect(response.headers.get('x-holiday-peak-proxy-fallback')).toBe('products-read-empty-upstream-502');
+    expect(response.headers.get('x-holiday-peak-proxy-fallback-upstream-status')).toBe('502');
+    await expect(response.json()).resolves.toEqual([]);
+  });
+
+  it('returns fallback payload when /api/products upstream responds with 503 after retry', async () => {
+    process.env.NEXT_PUBLIC_CRUD_API_URL = 'https://apim.example.azure-api.net';
+    (global.fetch as jest.Mock).mockResolvedValue(
+      {
+        body: null,
+        status: 503,
+        statusText: 'Service Unavailable',
+        headers: new Headers({
+          'content-type': 'application/json',
+          'x-request-id': 'upstream-req-503',
+        }),
+        json: jest.fn(async () => ({
+          error: 'Service unavailable',
+        })),
+        text: jest.fn(async () => ''),
+      },
+    );
+
+    const route = await import('../../app/api/[...path]/route');
+    const response = await route.GET(makeRequest('http://localhost/api/products'), {
+      params: Promise.resolve({ path: ['products'] }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(response.headers.get('x-holiday-peak-proxy-source')).toBe('NEXT_PUBLIC_CRUD_API_URL');
+    expect(response.headers.get('x-holiday-peak-proxy-failure-kind')).toBe('upstream');
+    expect(response.headers.get('x-holiday-peak-proxy-fallback')).toBe('products-read-empty-upstream-503');
+    expect(response.headers.get('x-holiday-peak-proxy-fallback-upstream-status')).toBe('503');
     await expect(response.json()).resolves.toEqual([]);
   });
 
