@@ -4,7 +4,7 @@
  * Migrated from e-commerce/products.tsx
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { FiGrid, FiMenu } from 'react-icons/fi';
 import { cn } from '../utils';
 import { Select } from '../atoms/Select';
@@ -72,6 +72,10 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
   const [view, setView] = useState<'grid' | 'list'>(defaultView);
   const resolvedGridColumns = columns ?? gridColumns;
 
+  useEffect(() => {
+    setView(defaultView);
+  }, [defaultView]);
+
   const handleViewChange = (newView: 'grid' | 'list') => {
     setView(newView);
     onViewChange?.(newView);
@@ -108,6 +112,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
                   iconOnly
                   onClick={() => handleViewChange('grid')}
                   ariaLabel="Grid view"
+                  aria-pressed={view === 'grid'}
                   className={cn(
                     'border border-[var(--hp-border)]',
                     view === 'grid' && 'bg-[var(--hp-surface-strong)]'
@@ -121,6 +126,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
                   iconOnly
                   onClick={() => handleViewChange('list')}
                   ariaLabel="List view"
+                  aria-pressed={view === 'list'}
                   className={cn(
                     'border border-[var(--hp-border)]',
                     view === 'list' && 'bg-[var(--hp-surface-strong)]'
@@ -163,6 +169,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
                 iconOnly
                 onClick={() => handleViewChange('grid')}
                 ariaLabel="Grid view"
+                aria-pressed={view === 'grid'}
                 className={cn(
                   'border border-[var(--hp-border)]',
                   view === 'grid' && 'bg-[var(--hp-surface-strong)]'
@@ -176,6 +183,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
                 iconOnly
                 onClick={() => handleViewChange('list')}
                 ariaLabel="List view"
+                aria-pressed={view === 'list'}
                 className={cn(
                   'border border-[var(--hp-border)]',
                   view === 'list' && 'bg-[var(--hp-surface-strong)]'

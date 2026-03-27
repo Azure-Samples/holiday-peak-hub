@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/atoms/Button';
@@ -26,6 +26,14 @@ type ChatEntry = {
 };
 
 const DEFAULT_PROMPT = 'Find similar products to premium wireless noise-cancelling headphones under 300';
+const CHAT_WIDGET_PANEL_ID = 'agent-chat-widget-panel';
+const CHAT_WIDGET_LOG_ID = 'agent-chat-widget-log';
+const CHAT_WIDGET_INPUT_ID = 'widget-agent-input';
+const QUICK_PROMPTS = [
+  'Giftable kitchen tools under 80',
+  'Office chairs with lumbar support under 300',
+  'Compact smart speakers for small rooms',
+];
 
 export const ChatWidget: React.FC = () => {
   const pathname = usePathname();
@@ -51,12 +59,51 @@ export const ChatWidget: React.FC = () => {
   ]);
   const [inputValue, setInputValue] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('Ready. Ask for similar products to compare retrieval modes.');
+  const launcherButtonRef = useRef<HTMLButtonElement>(null);
+  const transcriptRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const focusLauncherButton = () => {
+    window.setTimeout(() => {
+      launcherButtonRef.current?.focus();
+    }, 0);
+  };
 
   useEffect(() => {
     if (shouldAutoOpen) {
       setIsOpen(true);
     }
   }, [shouldAutoOpen]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    inputRef.current?.focus();
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setIsOpen(false);
+        setStatusMessage('Chat minimized.');
+        focusLauncherButton();
+      }
+    };
+
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [isOpen]);
+
+  useEffect(() => {
+    const transcriptElement = transcriptRef.current;
+    if (!transcriptElement || typeof transcriptElement.scrollTo !== 'function') {
+      return;
+    }
+
+    transcriptElement.scrollTo({ top: transcriptElement.scrollHeight, behavior: 'smooth' });
+  }, [messages, isSending]);
 
   if (pathname?.startsWith('/auth')) {
     return null;
@@ -87,6 +134,7 @@ export const ChatWidget: React.FC = () => {
         text: trimmed,
       },
     ]);
+    setStatusMessage('Comparing intelligent and keyword retrieval now.');
     setInputValue('');
 
     try {
@@ -120,6 +168,7 @@ export const ChatWidget: React.FC = () => {
           },
         },
       ]);
+      setStatusMessage('Comparison ready. Review intelligent and keyword results below.');
     } catch {
       setMessages((prev) => [
         ...prev,
@@ -129,6 +178,7 @@ export const ChatWidget: React.FC = () => {
           text: 'Search agent is temporarily unavailable. Retry in a few seconds or use /search directly.',
         },
       ]);
+      setStatusMessage('Comparison failed. Search agent is temporarily unavailable.');
     } finally {
       setIsSending(false);
     }
@@ -136,18 +186,28 @@ export const ChatWidget: React.FC = () => {
 
   const openWidget = () => {
     setIsOpen(true);
+    setStatusMessage('Chat opened. Type your product request to start a comparison.');
     if (typeof window !== 'undefined' && window.location.hash !== '#agent-chat') {
       window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#agent-chat`);
     }
+  };
+
+  const handleQuickPrompt = (prompt: string) => {
+    setInputValue(prompt);
+    setStatusMessage('Quick prompt selected. Press send to run comparison.');
+    inputRef.current?.focus();
   };
 
   if (!isOpen) {
     return (
       <button
         type="button"
+        ref={launcherButtonRef}
         onClick={openWidget}
         className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-full bg-[var(--hp-primary)] px-4 py-3 text-white shadow-lg transition-transform hover:scale-105 hover:bg-[var(--hp-primary-hover)] sm:bottom-6 sm:right-6"
         aria-label="Open product enrichment chat"
+        aria-expanded={false}
+        aria-controls={CHAT_WIDGET_PANEL_ID}
       >
         <FiMessageSquare className="w-6 h-6" />
         <span className="hidden font-semibold md:inline">Ask Product Agent</span>
@@ -156,12 +216,19 @@ export const ChatWidget: React.FC = () => {
   }
 
   return (
-    <section className="fixed bottom-4 right-4 z-50 w-[calc(100%-2rem)] max-w-sm sm:bottom-6 sm:right-6" aria-label="Agent chat widget">
+    <section
+      id={CHAT_WIDGET_PANEL_ID}
+      role="dialog"
+      aria-modal="false"
+      aria-labelledby="agent-chat-widget-title"
+      className="fixed bottom-4 right-4 z-50 w-[calc(100%-2rem)] max-w-md sm:bottom-6 sm:right-6"
+      aria-label="Agent chat widget"
+    >
       <Card className="flex h-[70dvh] max-h-[540px] min-h-[440px] flex-col overflow-hidden border-[var(--hp-border)] shadow-2xl">
         <div className="flex items-center justify-between bg-[var(--hp-primary)] p-4 text-white">
           <div className="flex items-center gap-2">
             <div className="h-2 w-2 animate-pulse rounded-full bg-green-300" />
-            <h3 className="font-bold">Product Enrichment Agent</h3>
+            <h3 id="agent-chat-widget-title" className="font-bold">Product Enrichment Agent</h3>
           </div>
           <div className="flex gap-3">
             <Link
@@ -172,7 +239,11 @@ export const ChatWidget: React.FC = () => {
             </Link>
             <button
               type="button"
-              onClick={() => setIsOpen(false)}
+              onClick={() => {
+                setIsOpen(false);
+                setStatusMessage('Chat minimized.');
+                focusLauncherButton();
+              }}
               className="text-white/80 hover:text-white"
               aria-label="Minimize chat"
             >
@@ -185,7 +256,29 @@ export const ChatWidget: React.FC = () => {
           Ask for similar products. We compare intelligent retrieval vs keyword fallback live.
         </div>
 
-        <div className="flex-1 space-y-4 overflow-y-auto bg-[var(--hp-bg)] p-4" role="log" aria-live="polite" aria-relevant="additions text">
+        <div className="grid grid-cols-1 gap-2 border-b border-[var(--hp-border)] bg-[var(--hp-surface)] px-4 py-3 sm:grid-cols-3" aria-label="Quick prompts">
+          {QUICK_PROMPTS.map((prompt) => (
+            <button
+              key={prompt}
+              type="button"
+              onClick={() => handleQuickPrompt(prompt)}
+              className="rounded-lg border border-[var(--hp-border)] bg-[var(--hp-surface-strong)] px-2 py-1.5 text-left text-xs font-semibold text-[var(--hp-text)] hover:bg-[var(--hp-surface)]"
+            >
+              {prompt}
+            </button>
+          ))}
+        </div>
+
+        <div className="sr-only" role="status" aria-live="polite">{statusMessage}</div>
+
+        <div
+          id={CHAT_WIDGET_LOG_ID}
+          ref={transcriptRef}
+          className="flex-1 space-y-4 overflow-y-auto bg-[var(--hp-bg)] p-4"
+          role="log"
+          aria-live="polite"
+          aria-relevant="additions text"
+        >
           {messages.map((m) => (
             <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div
@@ -258,13 +351,14 @@ export const ChatWidget: React.FC = () => {
               Ask the product enrichment agent
             </label>
             <input
-              id="widget-agent-input"
+              id={CHAT_WIDGET_INPUT_ID}
+              ref={inputRef}
               type="text"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               placeholder={DEFAULT_PROMPT}
               className="flex-1 rounded-full border border-[var(--hp-border)] bg-[var(--hp-bg)] px-4 py-2 text-sm text-[var(--hp-text)]"
-              autoFocus
+              aria-controls={CHAT_WIDGET_LOG_ID}
             />
             <Button
               type="submit"

@@ -70,6 +70,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
   const finalPrice = salePrice || price;
   const isOnSale = msrp && finalPrice < msrp;
+  const productHref = `/product?id=${encodeURIComponent(sku)}`;
 
   if (layout === 'list') {
     return (
@@ -85,7 +86,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         )}
       >
         <Link
-          href={`/product?id=${encodeURIComponent(sku)}`}
+          href={productHref}
           className="shrink-0 w-24 h-24 relative overflow-hidden rounded-xl"
         >
           <Image
@@ -112,8 +113,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                 </p>
               )}
               <Link
-                href={`/product?id=${encodeURIComponent(sku)}`}
-                className="block truncate font-semibold text-[var(--hp-text)] hover:text-[var(--hp-primary)]"
+                href={productHref}
+                className="block truncate font-semibold text-[var(--hp-text)] hover:text-[var(--hp-primary)] focus-visible:rounded-sm"
               >
                 {title}
               </Link>
@@ -154,6 +155,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                   iconOnly
                   onClick={() => onWishlist?.(product)}
                   ariaLabel="Add to wishlist"
+                  aria-pressed={inWishlist}
                 >
                   <FiHeart
                     className={cn(
@@ -211,12 +213,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         <button
           type="button"
           onClick={() => onWishlist?.(product)}
+          aria-pressed={inWishlist}
           className={cn(
             'absolute top-2 right-2 z-10',
             'p-2 rounded-full bg-[var(--hp-surface)]/90',
             'hover:bg-[var(--hp-surface)]',
             'transition-colors duration-200',
-            'opacity-0 group-hover:opacity-100'
+            'opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100'
           )}
           aria-label="Add to wishlist"
         >
@@ -230,7 +233,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       )}
 
       <Link
-        href={`/product?id=${encodeURIComponent(sku)}`}
+        href={productHref}
         className="relative aspect-square overflow-hidden bg-[var(--hp-surface-strong)]"
       >
         <Image
@@ -250,11 +253,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         )}
 
         <Link
-          href={`/product?id=${encodeURIComponent(sku)}`}
-          className="font-semibold text-[var(--hp-text)] hover:text-[var(--hp-primary)] line-clamp-2 mb-2"
+          href={productHref}
+          className="font-semibold text-[var(--hp-text)] hover:text-[var(--hp-primary)] line-clamp-2 mb-1 focus-visible:rounded-sm"
         >
           {title}
         </Link>
+
+        <p className="mb-2 text-xs uppercase tracking-wide text-[var(--hp-text-muted)]">
+          {category}
+        </p>
 
         {rating && (
           <div className="flex items-center gap-1 mb-2">

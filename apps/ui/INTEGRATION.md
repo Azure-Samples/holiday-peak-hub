@@ -1,8 +1,8 @@
 # Holiday Peak Hub - Frontend Integration Guide
 
 **Status**: ✅ Complete  
-**Last Updated**: January 29, 2026  
-**Version**: 1.0.0
+**Last Updated**: March 27, 2026  
+**Version**: 1.1.0
 
 ## Overview
 
@@ -16,6 +16,8 @@ Complete frontend-backend integration for the Holiday Peak Hub Next.js applicati
 ✅ **Authentication**: Microsoft Entra ID via MSAL (SSR-safe)  
 ✅ **Type Safety**: Complete TypeScript interfaces matching backend Pydantic models  
 ✅ **Configuration**: Environment variables, Next.js config, PostCSS, Tailwind  
+✅ **UI Accessibility Refresh**: Keyboard-friendly navigation, restored global focus visibility, improved chat focus behavior  
+✅ **Responsive Monitor UX**: Agent Activity triage summaries and mobile-optimized trace/model/error views
 
 ## Prerequisites
 

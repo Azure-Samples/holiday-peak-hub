@@ -18,33 +18,10 @@ pre {
   @apply inline-flex p-1 font-mono font-bold text-gray-900 whitespace-pre-wrap bg-gray-100 rounded dark:bg-gray-700 dark:text-white;
 }
 
-*,
-input,
-select,
-textarea,
-option,
-button {
-  outline: none !important;
-  &:focus {
-    outline: none !important;
-  }
-}
-
 a,
 input[type="submit"],
 button {
-  @apply outline-none cursor-pointer;
-}
-a:hover,
-a:active,
-a:focus,
-input[type="submit"]:hover,
-input[type="submit"]:active,
-input[type="submit"]:focus,
-button:hover,
-button:active,
-button:focus {
-  @apply outline-none;
+  @apply cursor-pointer;
 }
 
 /**
