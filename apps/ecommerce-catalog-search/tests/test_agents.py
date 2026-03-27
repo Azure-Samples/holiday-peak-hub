@@ -110,6 +110,132 @@ class TestCatalogSearchAgent:
             assert result["results"][0]["item_id"] == "SKU-001"
 
     @pytest.mark.asyncio
+    async def test_handle_response_includes_search_context_fields(
+        self, agent_dependencies, mock_catalog_product
+    ):
+        """Response should expose requested_mode/search_stage/effective session id."""
+        mock_inventory_item = InventoryItem(sku="SKU-001", available=10, reserved=0)
+
+        with patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build:
+            mock_products = AsyncMock()
+            mock_products.get_product = AsyncMock(return_value=mock_catalog_product)
+            mock_products.get_related = AsyncMock(return_value=[])
+
+            mock_inventory = AsyncMock()
+            mock_inventory.get_item = AsyncMock(return_value=mock_inventory_item)
+
+            mock_mapping = AcpCatalogMapper()
+
+            mock_build.return_value = CatalogAdapters(
+                products=mock_products,
+                inventory=mock_inventory,
+                mapping=mock_mapping,
+            )
+
+            agent = CatalogSearchAgent(config=agent_dependencies)
+            result = await agent.handle(
+                {
+                    "query": "test product",
+                    "limit": 5,
+                    "mode": "unsupported-mode",
+                    "session_id": "session-123",
+                }
+            )
+
+            assert result["mode"] == "keyword"
+            assert result["requested_mode"] == "unsupported-mode"
+            assert result["search_stage"] == "baseline"
+            assert result["session_id"] == "session-123"
+
+    @pytest.mark.asyncio
+    async def test_handle_persists_search_history_to_memory_tiers(
+        self, agent_dependencies, mock_catalog_product
+    ):
+        """Search requests should persist history across hot/warm/cold tiers."""
+        mock_inventory_item = InventoryItem(sku="SKU-001", available=10, reserved=0)
+
+        with patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build:
+            mock_products = AsyncMock()
+            mock_products.get_product = AsyncMock(return_value=mock_catalog_product)
+            mock_products.get_related = AsyncMock(return_value=[])
+
+            mock_inventory = AsyncMock()
+            mock_inventory.get_item = AsyncMock(return_value=mock_inventory_item)
+
+            mock_mapping = AcpCatalogMapper()
+
+            mock_build.return_value = CatalogAdapters(
+                products=mock_products,
+                inventory=mock_inventory,
+                mapping=mock_mapping,
+            )
+
+            agent = CatalogSearchAgent(config=agent_dependencies)
+            mock_hot_memory = AsyncMock()
+            mock_hot_memory.get = AsyncMock(return_value=None)
+            mock_hot_memory.set = AsyncMock()
+            mock_warm_memory = AsyncMock()
+            mock_warm_memory.upsert = AsyncMock()
+            mock_cold_memory = AsyncMock()
+            mock_cold_memory.upload_text = AsyncMock()
+
+            agent.hot_memory = mock_hot_memory
+            agent.warm_memory = mock_warm_memory
+            agent.cold_memory = mock_cold_memory
+
+            await agent.handle(
+                {
+                    "query": "test product",
+                    "limit": 5,
+                    "mode": "keyword",
+                    "search_stage": "rerank",
+                    "session_id": "session-abc",
+                    "query_history": ["old query"],
+                }
+            )
+
+            assert mock_hot_memory.get.await_count == 1
+            assert mock_hot_memory.set.await_count == 1
+            assert mock_hot_memory.set.await_args.kwargs["key"] == (
+                "v1|svc=test-catalog-search|ten=public|ses=session-abc"
+                "|key=catalog-search-history"
+            )
+            assert mock_warm_memory.upsert.await_count == 1
+            warm_record = mock_warm_memory.upsert.await_args.args[0]
+            assert warm_record["session_id"] == "session-abc"
+            assert warm_record["search_stage"] == "rerank"
+            assert warm_record["result_skus"] == ["SKU-001"]
+            assert mock_cold_memory.upload_text.await_count == 1
+
+    @pytest.mark.asyncio
+    async def test_handle_falls_back_session_id_to_user_ip(
+        self, agent_dependencies, mock_catalog_product
+    ):
+        """Effective session_id should fallback to user_ip when session/user are absent."""
+        mock_inventory_item = InventoryItem(sku="SKU-001", available=10, reserved=0)
+
+        with patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build:
+            mock_products = AsyncMock()
+            mock_products.get_product = AsyncMock(return_value=mock_catalog_product)
+            mock_products.get_related = AsyncMock(return_value=[])
+
+            mock_inventory = AsyncMock()
+            mock_inventory.get_item = AsyncMock(return_value=mock_inventory_item)
+
+            mock_mapping = AcpCatalogMapper()
+
+            mock_build.return_value = CatalogAdapters(
+                products=mock_products,
+                inventory=mock_inventory,
+                mapping=mock_mapping,
+            )
+
+            agent = CatalogSearchAgent(config=agent_dependencies)
+            result = await agent.handle({"query": "test", "limit": 5, "user_ip": "203.0.113.9"})
+
+            assert result["session_id"] == "203.0.113.9"
+
+    @pytest.mark.asyncio
     async def test_handle_empty_query(self, agent_dependencies):
         """Test handling an empty search query."""
         with patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build:

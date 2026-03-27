@@ -18,7 +18,7 @@ import {
 } from '@/components/enrichment/SearchComparisonScorecard';
 import { useIntelligentSearch } from '@/lib/hooks/useIntelligentSearch';
 import { useRelatedProducts } from '@/lib/hooks/useRelatedProducts';
-import { semanticSearchService } from '@/lib/services/semanticSearchService';
+import { useAuth } from '@/contexts/AuthContext';
 
 type ProxyErrorShape = {
   status?: number;
@@ -76,17 +76,23 @@ export default function SearchPage() {
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get('q') ?? '';
   const [query, setQuery] = useState(initialQuery);
+  const { user } = useAuth();
 
   const {
     data,
+    baselineData,
+    rerankedData,
     isLoading,
     error,
     refetch,
     isFetching,
+    isReranking,
     preference,
     setPreference,
     resolvedMode,
-  } = useIntelligentSearch(query, 20);
+  } = useIntelligentSearch(query, 20, {
+    userId: user?.user_id,
+  });
   const products = useMemo(() => data?.items ?? [], [data?.items]);
   const relatedProductIds = useMemo(() => {
     const ids = new Set<string>();
@@ -108,11 +114,30 @@ export default function SearchPage() {
     data?.requested_mode === 'intelligent' && data?.source === 'crud';
   const showUnavailableAgentFallbackAlert =
     isIntelligentFallback && fallbackReason !== 'agent_mock';
-  const [comparisonData, setComparisonData] = useState<{
+  const comparisonData = useMemo<{
     intelligent: SearchComparisonItem[];
     keyword: SearchComparisonItem[];
-  } | null>(null);
-  const [isComparisonLoading, setIsComparisonLoading] = useState(false);
+  } | null>(() => {
+    if (!query.trim()) {
+      return null;
+    }
+
+    const keywordItems = toScorecardItems(
+      (baselineData?.items || []) as unknown as Array<Record<string, unknown>>,
+    );
+    const intelligentItems = toScorecardItems(
+      (rerankedData?.items || []) as unknown as Array<Record<string, unknown>>,
+    );
+
+    if (keywordItems.length === 0 && intelligentItems.length === 0) {
+      return null;
+    }
+
+    return {
+      keyword: keywordItems,
+      intelligent: intelligentItems,
+    };
+  }, [query, baselineData?.items, rerankedData?.items]);
 
   const proxyFailureLabelByKind: Record<'config' | 'network' | 'upstream', string> = {
     config: 'Catalog search proxy configuration is missing or invalid.',
@@ -123,64 +148,6 @@ export default function SearchPage() {
   useEffect(() => {
     setQuery(initialQuery);
   }, [initialQuery]);
-
-  useEffect(() => {
-    const trimmedQuery = query.trim();
-    if (!trimmedQuery) {
-      setComparisonData(null);
-      setIsComparisonLoading(false);
-      return;
-    }
-
-    let isMounted = true;
-    setIsComparisonLoading(true);
-
-    const loadComparisonData = async () => {
-      try {
-        const [intelligentResult, keywordResult] = await Promise.allSettled([
-          semanticSearchService.searchWithMode(trimmedQuery, 'intelligent', 8),
-          semanticSearchService.searchWithMode(trimmedQuery, 'keyword', 8),
-        ]);
-
-        if (!isMounted) {
-          return;
-        }
-
-        const intelligentFromComparison =
-          intelligentResult.status === 'fulfilled'
-            ? toScorecardItems(intelligentResult.value.items as unknown as Array<Record<string, unknown>>)
-            : null;
-        const keywordFromComparison =
-          keywordResult.status === 'fulfilled'
-            ? toScorecardItems(keywordResult.value.items as unknown as Array<Record<string, unknown>>)
-            : null;
-
-        const intelligent = intelligentFromComparison ?? [];
-        const keyword = keywordFromComparison ?? [];
-
-        if (intelligent.length > 0 || keyword.length > 0) {
-          setComparisonData({ intelligent, keyword });
-          return;
-        }
-
-        setComparisonData(null);
-      } catch {
-        if (isMounted) {
-          setComparisonData(null);
-        }
-      } finally {
-        if (isMounted) {
-          setIsComparisonLoading(false);
-        }
-      }
-    };
-
-    void loadComparisonData();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [query, products]);
 
   const handleSearch = (value: string) => {
     const trimmed = value.trim();
@@ -252,12 +219,16 @@ export default function SearchPage() {
         ) : null}
         <IntentPanel mode={resolvedMode} intent={data?.intent} subqueries={data?.subqueries} />
         {query && (
-          <div aria-live="polite">
-            {isComparisonLoading ? (
-              <div className="rounded-xl border border-[var(--hp-border)] bg-[var(--hp-surface-strong)] p-3 text-sm text-[var(--hp-text-muted)]">
-                Building intelligent-vs-keyword scorecard…
+          <div aria-live="polite" className="space-y-2">
+            {isReranking ? (
+              <div
+                role="status"
+                className="rounded-xl border border-[var(--hp-border)] bg-[var(--hp-surface-strong)] p-3 text-sm text-[var(--hp-text-muted)]"
+              >
+                Reranking baseline results in the background...
               </div>
-            ) : comparisonData ? (
+            ) : null}
+            {comparisonData ? (
               <SearchComparisonScorecard
                 intelligent={comparisonData.intelligent}
                 keyword={comparisonData.keyword}

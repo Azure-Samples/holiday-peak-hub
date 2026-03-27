@@ -176,6 +176,7 @@ class TestIngestSingleProduct:
         mock_adapters.events.publish_ingestion_notification.assert_called_once_with(
             "PROD-001", source="pim"
         )
+        mock_adapters.events.publish_enrichment_job.assert_called_once_with("PROD-001")
 
     @pytest.mark.asyncio
     async def test_ingest_writes_audit_event(self, sample_pim_product, mock_adapters):

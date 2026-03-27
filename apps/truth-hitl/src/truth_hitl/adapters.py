@@ -19,7 +19,9 @@ class EventHubPublisher:
 
     def __init__(self, topic: str = "export-jobs") -> None:
         self.topic = topic
-        self._connection_string = os.getenv("EVENT_HUB_CONNECTION_STRING")
+        self._connection_string = os.getenv("EVENT_HUB_CONNECTION_STRING") or os.getenv(
+            "EVENTHUB_CONNECTION_STRING"
+        )
 
     async def publish(self, payload: dict[str, Any]) -> None:
         """Send a message to the configured Event Hub topic."""
@@ -74,6 +76,28 @@ def build_hitl_approval_event(
     }
 
 
+def build_search_enrichment_event(
+    *,
+    entity_id: str,
+    approved_fields: list[str],
+    reviewer_id: str | None,
+    decision_timestamp: datetime | None = None,
+) -> dict[str, Any]:
+    """Build a payload for search enrichment refresh after HITL approval."""
+    timestamp = decision_timestamp or datetime.now(timezone.utc)
+    return {
+        "event_type": "hitl.approved.search",
+        "source": "truth-hitl",
+        "data": {
+            "entity_id": entity_id,
+            "approved_fields": approved_fields,
+            "reviewer_id": reviewer_id,
+            "decision_timestamp": timestamp.isoformat(),
+            "status": "approved",
+        },
+    }
+
+
 @dataclass
 class HITLAdapters:
     """Container for Truth HITL service adapters."""
@@ -82,15 +106,32 @@ class HITLAdapters:
     export_publisher: EventHubPublisher = field(
         default_factory=lambda: EventHubPublisher("export-jobs")
     )
+    search_enrichment_publisher: EventHubPublisher = field(
+        default_factory=lambda: EventHubPublisher("search-enrichment-jobs")
+    )
 
 
 def build_hitl_adapters(
     *,
     review_manager: ReviewManager | None = None,
     export_publisher: EventHubPublisher | None = None,
+    search_enrichment_publisher: EventHubPublisher | None = None,
 ) -> HITLAdapters:
     """Create adapters for the HITL review workflow."""
+    if (
+        review_manager is None
+        and export_publisher is None
+        and search_enrichment_publisher is None
+    ):
+        shared_default = getattr(build_hitl_adapters, "_shared_default", None)
+        if shared_default is None:
+            shared_default = HITLAdapters()
+            setattr(build_hitl_adapters, "_shared_default", shared_default)
+        return shared_default
+
     return HITLAdapters(
         review_manager=review_manager or ReviewManager(),
         export_publisher=export_publisher or EventHubPublisher("export-jobs"),
+        search_enrichment_publisher=search_enrichment_publisher
+        or EventHubPublisher("search-enrichment-jobs"),
     )

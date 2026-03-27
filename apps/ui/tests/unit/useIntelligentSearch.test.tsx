@@ -15,11 +15,8 @@ jest.mock('@tanstack/react-query', () => ({
 }));
 
 describe('useIntelligentSearch', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    jest.useFakeTimers();
-    window.localStorage.clear();
-    mockUseSemanticSearch.mockReturnValue({
+  function buildQueryResult(overrides: Record<string, unknown> = {}) {
+    return {
       data: {
         items: [],
         mode: 'keyword',
@@ -29,6 +26,37 @@ describe('useIntelligentSearch', () => {
       error: null,
       isFetching: false,
       refetch: jest.fn(),
+      ...overrides,
+    };
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.useFakeTimers();
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    mockUseSemanticSearch.mockImplementation((
+      _query: string,
+      _limit: number,
+      mode: 'keyword' | 'intelligent' | 'auto',
+      _context: unknown,
+      enabled = true,
+    ) => {
+      if (!enabled) {
+        return buildQueryResult({ data: undefined });
+      }
+
+      if (mode === 'intelligent') {
+        return buildQueryResult({
+          data: {
+            items: [],
+            mode: 'intelligent',
+            source: 'agent',
+          },
+        });
+      }
+
+      return buildQueryResult();
     });
   });
 
@@ -44,7 +72,16 @@ describe('useIntelligentSearch', () => {
 
     expect(result.current.preference).toBe('auto');
     expect(result.current.resolvedMode).toBe('keyword');
-    expect(mockUseSemanticSearch).toHaveBeenCalledWith('headphones', 20, 'auto');
+    expect(mockUseSemanticSearch).toHaveBeenCalledWith(
+      'headphones',
+      20,
+      'keyword',
+      expect.objectContaining({
+        search_stage: 'baseline',
+        session_id: expect.any(String),
+      }),
+      true,
+    );
   });
 
   it('reads persisted preference from localStorage', () => {
@@ -68,7 +105,75 @@ describe('useIntelligentSearch', () => {
     expect(window.localStorage.getItem('hp.search.mode.preference')).toBe('keyword');
   });
 
+  it('returns baseline results first and replaces them with reranked results when available', () => {
+    let rerankReady = false;
+
+    mockUseSemanticSearch.mockImplementation((
+      _query: string,
+      _limit: number,
+      mode: 'keyword' | 'intelligent' | 'auto',
+      _context: unknown,
+      enabled = true,
+    ) => {
+      if (mode === 'keyword') {
+        return buildQueryResult({
+          data: {
+            items: [
+              {
+                sku: 'sku-baseline',
+                complementaryProducts: [],
+                substituteProducts: [],
+              },
+            ],
+            mode: 'keyword',
+            source: 'crud',
+          },
+        });
+      }
+
+      if (!enabled || !rerankReady) {
+        return buildQueryResult({
+          data: undefined,
+          isFetching: enabled,
+        });
+      }
+
+      return buildQueryResult({
+        data: {
+          items: [
+            {
+              sku: 'sku-reranked',
+              complementaryProducts: [],
+              substituteProducts: [],
+            },
+          ],
+          mode: 'intelligent',
+          source: 'agent',
+        },
+      });
+    });
+
+    const { result, rerender } = renderHook(() => useIntelligentSearch('headphones', 20));
+
+    act(() => {
+      jest.advanceTimersByTime(300);
+    });
+
+    expect(result.current.searchStage).toBe('baseline');
+    expect(result.current.data?.items[0].sku).toBe('sku-baseline');
+    expect(result.current.isReranking).toBe(true);
+
+    rerankReady = true;
+    rerender();
+
+    expect(result.current.searchStage).toBe('rerank');
+    expect(result.current.data?.items[0].sku).toBe('sku-reranked');
+    expect(result.current.resolvedMode).toBe('intelligent');
+  });
+
   it('prefetches related product cards from search results', () => {
+    window.localStorage.setItem('hp.search.mode.preference', 'keyword');
+
     mockUseSemanticSearch.mockReturnValue({
       data: {
         items: [
@@ -102,6 +207,15 @@ describe('useIntelligentSearch', () => {
       jest.advanceTimersByTime(300);
     });
 
-    expect(mockPrefetchQuery).toHaveBeenCalledTimes(2);
+    expect(mockPrefetchQuery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queryKey: ['related-product-preview', 'sku-2'],
+      }),
+    );
+    expect(mockPrefetchQuery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queryKey: ['related-product-preview', 'sku-3'],
+      }),
+    );
   });
 });
