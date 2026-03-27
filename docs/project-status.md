@@ -1,6 +1,26 @@
 # Project Status & Issue Prioritization
 
-> Generated: 2026-03-03 | Version: v1.1.0 | Branch: `main`
+> Generated: 2026-03-27 | Version: main (post PR #559) | Branch: `main`
+
+## Current Main Snapshot (2026-03-27)
+
+### Recently Merged
+- Issue #558: enrichment/search orchestration hardening.
+- PR #559: hardening merge to main with protected-branch auto-merge.
+
+### What Changed
+- Truth ingestion now emits `enrichment-jobs`.
+- Truth HITL approval now emits both `export-jobs` and `search-enrichment-jobs`.
+- Truth enrichment now uses human-gated lifecycle (`pending_review`) with no direct auto-approval write path.
+- Catalog search now returns/uses stage and session metadata and persists search history context.
+- UI search now uses baseline-first retrieval with background intelligent rerank refresh.
+- Agent API proxy now forwards correlation and user/session/IP context headers.
+
+### Validation
+- Full local test run on latest merged state: 1647 passed, 2 warnings.
+
+### Note
+- Historical sections below preserve earlier v1.1.0 planning/trackers for audit context and may include superseded planning entries.
 
 ---
 

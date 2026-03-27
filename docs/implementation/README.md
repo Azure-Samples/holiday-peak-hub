@@ -1,7 +1,7 @@
 # Implementation Documentation
 
-**Last Updated**: March 12, 2026  
-**Status**: Ready for Execution
+**Last Updated**: March 27, 2026  
+**Status**: Active Execution
 
 ---
 
@@ -73,6 +73,14 @@ This reference is aligned with architecture intent in [Architecture Overview](..
 - Canonical state machine with transition constraints
 - Endpoint contracts and event publication points
 - Test strategy, rollout, and compatibility rules
+
+### [Issue #005 Enrichment/Search Orchestration Hardening](./issues/ISSUE-005-enrichment-search-orchestration-hardening.md)
+**Purpose**: 5W2H execution specification for enrichment/search hardening merged in Issue #558 / PR #559  
+**Includes**:
+- Event topology updates and HITL gating expectations
+- Two-stage search UX and context propagation requirements
+- Search memory persistence requirements
+- Acceptance criteria and rollout sequence
 
 ### [Entra ID Setup](./entra-id-setup.md)
 **Purpose**: Local and deployed environment configuration guidance for Entra ID auth in UI and CRUD service
