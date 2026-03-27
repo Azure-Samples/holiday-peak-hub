@@ -104,7 +104,7 @@
       border-color: color(theme("colors.gray.900") tint(10%));
     }
     .badge {
-      @apply hidden !important;
+      display: none !important;
     }
   }
 }
