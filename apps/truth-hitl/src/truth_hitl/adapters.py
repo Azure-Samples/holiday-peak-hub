@@ -118,11 +118,7 @@ def build_hitl_adapters(
     search_enrichment_publisher: EventHubPublisher | None = None,
 ) -> HITLAdapters:
     """Create adapters for the HITL review workflow."""
-    if (
-        review_manager is None
-        and export_publisher is None
-        and search_enrichment_publisher is None
-    ):
+    if review_manager is None and export_publisher is None and search_enrichment_publisher is None:
         shared_default = getattr(build_hitl_adapters, "_shared_default", None)
         if shared_default is None:
             shared_default = HITLAdapters()
