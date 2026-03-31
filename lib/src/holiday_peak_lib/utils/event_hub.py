@@ -7,7 +7,7 @@ import json
 import os
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import Any, AsyncIterator, Awaitable, Callable, Iterable
+from typing import Any, AsyncContextManager, AsyncIterator, Awaitable, Callable, Iterable
 
 from azure.eventhub.aio import EventHubConsumerClient
 from azure.identity.aio import DefaultAzureCredential
@@ -84,11 +84,11 @@ def create_eventhub_lifespan(
     subscriptions: Iterable[EventHubSubscription],
     connection_string_env: str = "EVENTHUB_CONNECTION_STRING",
     handlers: dict[str, EventHandler] | None = None,
-) -> Callable[[Any], AsyncIterator[None]]:
+) -> Callable[[Any], AsyncContextManager[None]]:
     """Create a FastAPI lifespan that starts Event Hub subscribers."""
 
     @asynccontextmanager
-    async def lifespan(app) -> AsyncIterator[None]:  # noqa: ANN001
+    async def lifespan(_app) -> AsyncIterator[None]:  # noqa: ANN001
         logger = configure_logging(app_name=f"{service_name}-events")
         connection_string = os.getenv(connection_string_env) or os.getenv(
             "EVENT_HUB_CONNECTION_STRING"
@@ -113,7 +113,7 @@ def create_eventhub_lifespan(
             handler = handlers.get(eventhub_name) if handlers else None
 
             async def _handler(partition_context, event):  # noqa: ANN001
-                if handler:
+                if handler is not None:
                     await handler(partition_context, event)
                     return
                 payload = json.loads(event.body_as_str())
@@ -179,7 +179,7 @@ def build_basic_event_handlers(
     logger = configure_logging(app_name=f"{service_name}-events")
 
     def make_handler(eventhub_name: str) -> EventHandler:
-        async def _handler(partition_context, event):  # noqa: ANN001
+        async def _handler(_partition_context, event):  # noqa: ANN001
             payload = json.loads(event.body_as_str())
             logger.info(
                 "event_processed",
@@ -208,7 +208,7 @@ def build_event_handlers_with_keys(
     def make_handler(eventhub_name: str, keys: Iterable[str]) -> EventHandler:
         key_list = list(keys)
 
-        async def _handler(partition_context, event):  # noqa: ANN001
+        async def _handler(_partition_context, event):  # noqa: ANN001
             payload = json.loads(event.body_as_str())
             data = payload.get("data", {}) if isinstance(payload, dict) else {}
             identifier = None
