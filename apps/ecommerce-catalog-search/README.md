@@ -60,19 +60,16 @@ Replace the placeholder values to match your environment before running any subs
 # ── Project identifiers ──────────────────────────────────────────────────────
 SUBSCRIPTION_ID="<your-subscription-id>"
 RESOURCE_GROUP="rg-holidaypeakhub405-dev"
-ENVIRONMENT="dev"
-# dev | staging | prod
+ENVIRONMENT="dev"                                   # dev | staging | prod
 PROJECT_NAME="holidaypeakhub405"
 
 # ── ACR ──────────────────────────────────────────────────────────────────────
-ACR_NAME="${PROJECT_NAME}${ENVIRONMENT}acr"
-# e.g. holidaypeakhub405devacr
+ACR_NAME="${PROJECT_NAME}${ENVIRONMENT}acr"         # e.g. holidaypeakhub405devacr
 ACR_LOGIN_SERVER="${ACR_NAME}.azurecr.io"
 
 # ── Service ──────────────────────────────────────────────────────────────────
 SERVICE_NAME="ecommerce-catalog-search"
-IMAGE_TAG="$(git rev-parse --short HEAD)"
-# or any explicit tag, e.g. "1.0.0"
+IMAGE_TAG="$(git rev-parse --short HEAD)"           # or any explicit tag, e.g. "1.0.0"
 IMAGE_REPO="${ACR_LOGIN_SERVER}/${SERVICE_NAME}"
 
 # ── AKS ──────────────────────────────────────────────────────────────────────
@@ -111,7 +108,7 @@ Build from the repository root so that all source files are available in the bui
 ```bash
 # From the repository root
 docker build \
-  --target dev \
+  --target prod \
   --tag "${IMAGE_REPO}:${IMAGE_TAG}" \
   --tag "${IMAGE_REPO}:latest" \
   -f apps/ecommerce-catalog-search/src/Dockerfile \
