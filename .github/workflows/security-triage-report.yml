@@ -1,0 +1,83 @@
+name: security-triage-report
+
+permissions:
+  contents: read
+  security-events: read
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 10 * * 1'
+
+jobs:
+  weekly-security-triage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate weekly security triage markdown
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          count_severity() {
+            local stream="$1"
+            local severity="$2"
+            printf '%s\n' "$stream" | awk -v sev="$severity" 'tolower($0)==sev {count++} END {print count+0}'
+          }
+
+          DEP_SEVERITIES=$(gh api --paginate \
+            -H "Accept: application/vnd.github+json" \
+            "repos/${REPO}/dependabot/alerts?state=open&per_page=100" \
+            --jq '.[].security_advisory.severity')
+
+          CODEQL_SEVERITIES=$(gh api --paginate \
+            -H "Accept: application/vnd.github+json" \
+            "repos/${REPO}/code-scanning/alerts?state=open&per_page=100" \
+            --jq '.[].rule.security_severity_level')
+
+          DEP_CRITICAL=$(count_severity "$DEP_SEVERITIES" "critical")
+          DEP_HIGH=$(count_severity "$DEP_SEVERITIES" "high")
+          DEP_MODERATE=$(count_severity "$DEP_SEVERITIES" "moderate")
+          DEP_LOW=$(count_severity "$DEP_SEVERITIES" "low")
+
+          CODEQL_CRITICAL=$(count_severity "$CODEQL_SEVERITIES" "critical")
+          CODEQL_HIGH=$(count_severity "$CODEQL_SEVERITIES" "high")
+          CODEQL_MEDIUM=$(count_severity "$CODEQL_SEVERITIES" "medium")
+          CODEQL_LOW=$(count_severity "$CODEQL_SEVERITIES" "low")
+
+          TODAY=$(date -u +%Y-%m-%d)
+          TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          TOTAL_HIGH=$((DEP_HIGH + CODEQL_HIGH))
+
+          cat > security-triage-report.md <<EOF
+          # Weekly Security Triage Report
+
+          Generated: ${TIMESTAMP}
+
+          ## Severity Snapshot
+
+          | Source | Critical | High | Medium/Moderate | Low |
+          | --- | --- | --- | --- | --- |
+          | Dependabot | ${DEP_CRITICAL} | ${DEP_HIGH} | ${DEP_MODERATE} | ${DEP_LOW} |
+          | CodeQL | ${CODEQL_CRITICAL} | ${CODEQL_HIGH} | ${CODEQL_MEDIUM} | ${CODEQL_LOW} |
+
+          ## Burn-down Status
+
+          | Week | Total High | Target High |
+          | --- | --- | --- |
+          | ${TODAY} | ${TOTAL_HIGH} | 0 |
+
+          ## References
+
+          - docs/governance/security-triage-weekly.md
+          - docs/governance/security-exception-register.md
+          EOF
+
+      - name: Upload security triage report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: weekly-security-triage-report
+          path: security-triage-report.md

@@ -153,6 +153,66 @@ describe('/api proxy route env handling', () => {
     await expect(response.json()).resolves.toEqual([]);
   });
 
+  it('returns fallback payload when /api/products upstream times out', async () => {
+    process.env.NEXT_PUBLIC_CRUD_API_URL = 'https://apim.example.azure-api.net';
+
+    const timeoutError = Object.assign(new Error('The operation timed out.'), {
+      name: 'TimeoutError',
+    });
+
+    (global.fetch as jest.Mock).mockRejectedValue(timeoutError);
+
+    const route = await import('../../app/api/[...path]/route');
+    const response = await route.GET(makeRequest('http://localhost/api/products'), {
+      params: Promise.resolve({ path: ['products'] }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://apim.example.azure-api.net/api/products',
+      expect.objectContaining({
+        method: 'GET',
+        signal: expect.anything(),
+      }),
+    );
+    expect(response.headers.get('x-holiday-peak-proxy-failure-kind')).toBe('network');
+    expect(response.headers.get('x-holiday-peak-proxy-fallback')).toBe('products-read-empty-network');
+    await expect(response.json()).resolves.toEqual([]);
+  });
+
+  it('only attaches timeout signals to fallback-protected catalog reads', async () => {
+    process.env.NEXT_PUBLIC_CRUD_API_URL = 'https://apim.example.azure-api.net';
+    (global.fetch as jest.Mock).mockResolvedValue({
+      body: null,
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers({
+        'content-type': 'application/json',
+      }),
+    });
+
+    const route = await import('../../app/api/[...path]/route');
+
+    await route.GET(makeRequest('http://localhost/api/products'), {
+      params: Promise.resolve({ path: ['products'] }),
+    });
+
+    await route.GET(makeRequest('http://localhost/api/orders'), {
+      params: Promise.resolve({ path: ['orders'] }),
+    });
+
+    const catalogFetchInit = (global.fetch as jest.Mock).mock.calls[0][1] as RequestInit;
+    const ordersFetchInit = (global.fetch as jest.Mock).mock.calls[1][1] as RequestInit;
+
+    expect(catalogFetchInit).toEqual(
+      expect.objectContaining({
+        method: 'GET',
+        signal: expect.anything(),
+      }),
+    );
+    expect('signal' in ordersFetchInit).toBe(false);
+  });
+
   it('rejects non-APIM upstream URL in proxy policy guard', async () => {
     process.env.NEXT_PUBLIC_CRUD_API_URL = 'https://backend.internal.example.net';
     process.env = {

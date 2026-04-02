@@ -30,6 +30,14 @@ This folder is the governance source of truth for engineering standards, runtime
 **Audience**: Repository maintainers and admins  
 **Scope**: Issue/PR cleanup operations and branch pruning to main-only
 
+### [Security Exception Register](security-exception-register.md)
+**Audience**: Platform/DevSecOps engineers  
+**Scope**: Time-boxed exception records for unresolved high-severity alerts with owner/expiry tracking
+
+### [Weekly Security Triage Report](security-triage-weekly.md)
+**Audience**: Platform/DevSecOps engineers  
+**Scope**: Weekly high-severity burn-down metrics and resolution evidence links
+
 ## Repository Source-of-Truth Map
 
 | Governance topic | Canonical source | Notes |
@@ -65,6 +73,7 @@ Detailed policy is defined in [Infrastructure Governance](infrastructure-governa
 
 - PR/build automation via GitHub Actions workflows under `.github/workflows/`
 - Deployment gates via `deploy-azd-dev.yml`, `deploy-azd-prod.yml`, and reusable `deploy-azd.yml`
+- Weekly security burn-down artifact via `security-triage-report.yml`
 - Lint/test tasks exposed in workspace (`lint`, `format`, `test`)
 
 ### Manual
@@ -99,7 +108,7 @@ Use both checks below for governance hardening and drift detection:
 	- CI fails if stale canonical governance reference tokens appear in tracked agent docs.
 
 2. Main protection audit (manual/CI)
-	- `python scripts/ops/audit_main_governance.py --repo <owner/repo>`
+	- `python scripts/ops/audit_main_governance.py --repo <owner/repo> --required-check lint --required-check test --min-approvals 1 --require-conversation-resolution`
 	- Validates PR-only controls for `main`:
 	  - pull request rule present
 	  - at least one required approval

@@ -15,6 +15,22 @@ import {
 import type { Product as UiProduct } from '../../components/types';
 
 const AGENT_API_BASE_URL = resolveAgentApiClientBaseUrl().baseUrl || '';
+const MOCK_HOST_SUFFIX = 'example.com';
+
+function usesMockHost(rawUrl: string): boolean {
+  const candidate = rawUrl.trim();
+  if (!candidate) {
+    return false;
+  }
+
+  try {
+    const parsed = new URL(candidate, 'https://placeholder.invalid');
+    const hostname = parsed.hostname.toLowerCase();
+    return hostname === MOCK_HOST_SUFFIX || hostname.endsWith(`.${MOCK_HOST_SUFFIX}`);
+  } catch {
+    return false;
+  }
+}
 
 export interface SemanticSearchRequest {
   query: string;
@@ -95,12 +111,12 @@ export const semanticSearchService = {
 
         const appearsMockPayload = results.some((item) => {
           const title = String(item?.title || '').toLowerCase();
-          const imageUrl = String(item?.image_url || '').toLowerCase();
-          const itemUrl = String((item as { url?: string })?.url || '').toLowerCase();
+          const imageUrl = String(item?.image_url || '');
+          const itemUrl = String((item as { url?: string })?.url || '');
           return (
             title.includes('mock')
-            || imageUrl.includes('example.com')
-            || itemUrl.includes('example.com')
+            || usesMockHost(imageUrl)
+            || usesMockHost(itemUrl)
           );
         });
 

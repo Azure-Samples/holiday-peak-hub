@@ -24,7 +24,8 @@ Get-ChildItem apps | ForEach-Object {
 `uv` is the canonical package manager for this repo. `pip` is compatibility-only for bootstrapping `uv`.
 
 ## Development workflow
-- Format/lint: `python -m isort --check lib apps` then `python -m black --check lib apps` and `python -m pylint lib/src apps/*/src`
+- Format/lint: `python -m isort --check lib apps` then `python -m black --check lib apps` and `python -m pylint --fail-on=E,F lib/src apps/*/src`
+- Lint policy: any pylint `E` or `F` diagnostic is blocking in both CI and the local push gate.
 - Tests: `pytest lib/tests apps/**/tests --maxfail=1 --cov=. --cov-report=term-missing --cov-fail-under=75`
 - Coverage floor is 75% to match CI.
 - Optional (recommended) push gate setup: `git config core.hooksPath .githooks`

@@ -55,7 +55,7 @@ jobs:
         run: |
           python -m isort --check-only lib apps
           python -m black --check lib apps
-          python -m pylint lib/src apps/*/src
+          python -m pylint --fail-on=E,F lib/src apps/*/src
       - name: Type check (mypy)
         run: |
           python -m mypy --config-file pyproject.toml --ignore-missing-imports --follow-imports=skip lib/src/holiday_peak_lib/agents/service_agent.py lib/src/holiday_peak_lib/agents/memory/builder.py

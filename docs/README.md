@@ -1,29 +1,33 @@
 # Holiday Peak Hub - Architecture Documentation
 
-**Last Updated**: March 27, 2026  
+**Last Updated**: April 2, 2026  
 **Version**: main (post PR #559)  
 **Status**: Active Development
 
-## Latest Update Snapshot (March 27, 2026)
+## Latest Update Snapshot (April 2, 2026)
 
 - Enrichment/search orchestration hardening merged via PR #559 (Issue #558).
 - Truth flow now enforces human-gated enrichment validation (`pending_review`) with dual HITL publish (`export-jobs` and `search-enrichment-jobs`).
 - Search flow now supports two-stage UX (baseline first, background rerank) and request context propagation.
 - Catalog search now stores stage/session search context with best-effort persistence across hot/warm/cold memory tiers.
 - Validation status: local repository test run reports 1647 passed (2 warnings).
+- Agentic app README deployment docs are standardized with standalone azd-first guidance and app-specific ACR/AKS paths.
 
 ## Overview
 
 Holiday Peak Hub is a **cloud-native, agent-driven retail accelerator** with complete frontend implementation and comprehensive backend architecture plan. This documentation covers all architectural decisions, implementation plans, and operational procedures.
 
-## Developer Scripts
+## Developer Tooling
 
-Per-app run and test scripts are available under [scripts](scripts). These scripts create per-app virtual environments under each app src folder and run tests with coverage outputs per app directory.
+Repository-maintained automation scripts are available under [../scripts/ops](../scripts/ops) and [../scripts/ci](../scripts/ci).
+
+Per-app local run/test commands are documented in each service README under [../apps](../apps) (for example [../apps/ecommerce-catalog-search/README.md](../apps/ecommerce-catalog-search/README.md)).
 
 Python package management in this repository is uv-first. In CI, dependency installs use `uv pip --system`; use pip only as a compatibility bootstrap path to install uv.
 
-- Run an app: [scripts/run-app.sh](scripts/run-app.sh) with a per-app wrapper like [scripts/run-ecommerce-checkout-support.sh](scripts/run-ecommerce-checkout-support.sh)
-- Run all tests with coverage per app: [scripts/run-all-tests.sh](scripts/run-all-tests.sh)
+- Run tests: `python -m pytest`
+- Run lint: `python -m pylint lib/src apps/**/src`
+- Run format: `python -m black lib apps && python -m isort lib apps`
 
 ## Infrastructure CLI
 
@@ -187,11 +191,13 @@ azd env set POSTGRES_USER <aks-managed-identity-name>
 azd env set POSTGRES_PASSWORD ""
 ```
 
-6. **Deploy UI through azd**
+6. **Deploy UI through the azd dev entry workflow (SWA action path)**
 
 ```bash
-azd deploy --service ui --no-prompt -e dev
+gh workflow run deploy-azd-dev.yml -f location=eastus2 -f projectName=holidaypeakhub405 -f imageTag=latest -f deployStatic=true -f uiOnly=true -f forceApimSync=false -f autoAllowAcrRunnerIp=true
 ```
+
+This preserves the current governance path for UI rollout and avoids direct `azd deploy --service ui` usage.
 
 7. **Validate AKS health and CRUD runtime**
 

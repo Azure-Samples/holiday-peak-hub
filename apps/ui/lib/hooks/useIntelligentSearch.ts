@@ -60,12 +60,22 @@ function buildSessionStorageKey(scope: string): string {
   return `${SEARCH_SESSION_STORAGE_PREFIX}.${scope}`;
 }
 
+function generateSecureHex(byteLength: number): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    const randomBytes = new Uint8Array(byteLength);
+    crypto.getRandomValues(randomBytes);
+    return Array.from(randomBytes, (value) => value.toString(16).padStart(2, '0')).join('');
+  }
+
+  return Date.now().toString(16);
+}
+
 function generateSessionId(scope: string): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
   }
 
-  return `${scope}-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+  return `${scope}-${Date.now()}-${generateSecureHex(4)}`;
 }
 
 function readQueryHistory(scope: string): string[] {

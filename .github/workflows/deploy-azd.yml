@@ -538,32 +538,46 @@ jobs:
         run: |
           set -euo pipefail
 
+      - name: Validate app dependency manifest coverage
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 .infra/validate_app_dependency_manifest.py \
+            --azure-config azure.yaml \
+            --manifest .infra/app-dependency-manifest.yaml
+
+      - name: Validate Event Hubs IaC declarations
+        shell: bash
+        run: |
+          set -euo pipefail
+
           BICEP_FILE=".infra/modules/shared-infrastructure/shared-infrastructure.bicep"
           MISSING=0
 
-          for hub in ingest-jobs enrichment-jobs export-jobs hitl-jobs search-enrichment-jobs; do
+          for hub in order-events product-events return-events inventory-events shipment-events payment-events user-events ingest-jobs enrichment-jobs completeness-jobs export-jobs hitl-jobs search-enrichment-jobs; do
             if ! grep -q "'$hub'" "$BICEP_FILE"; then
-              echo "Missing required truth Event Hub declaration in $BICEP_FILE: $hub" >&2
+              echo "Missing required Event Hub declaration in $BICEP_FILE: $hub" >&2
               MISSING=1
             fi
           done
 
-          for group in ingestion-group enrichment-engine export-engine hitl-service search-enrichment-consumer search-enrichment-agent; do
+          for group in ingestion-group enrichment-engine export-engine hitl-service search-enrichment-consumer search-enrichment-agent catalog-search-group enrichment-group acp-transform-group normalization-group assortment-group validation-group completeness-engine support-group returns-group; do
             if ! grep -q "'$group'" "$BICEP_FILE"; then
-              echo "Missing required truth consumer group declaration in $BICEP_FILE: $group" >&2
+              echo "Missing required consumer group declaration in $BICEP_FILE: $group" >&2
               MISSING=1
             fi
           done
 
           if [ "$MISSING" -ne 0 ]; then
             if [ "${{ inputs.environment }}" = "prod" ] || [ "${{ inputs.environment }}" = "production" ]; then
-              echo "Truth Event Hub IaC validation failed in production environment." >&2
+              echo "Event Hub IaC validation failed in production environment." >&2
               exit 1
             fi
-            echo "Proceeding despite truth Event Hub IaC declaration warnings in non-production environment." >&2
+            echo "Proceeding despite Event Hub IaC declaration warnings in non-production environment." >&2
           fi
 
-          echo "Truth Event Hub and consumer group declarations are present in IaC."
+          echo "Event Hub and consumer group declarations are present in IaC."
 
       - name: Provision infrastructure
         shell: bash
