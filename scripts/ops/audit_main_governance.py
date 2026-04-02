@@ -103,7 +103,8 @@ def _github_get_optional(repo: str, endpoint: str) -> Any | None:
     try:
         return _github_get(repo, endpoint)
     except RuntimeError as exc:
-        if "GitHub API 404" in str(exc):
+        # GitHub Actions integration tokens often cannot read branch protection.
+        if "GitHub API 404" in str(exc) or "GitHub API 403" in str(exc):
             return None
         raise
 
