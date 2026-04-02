@@ -961,7 +961,7 @@ wheels = [
 [[package]]
 name = "holiday-peak-lib"
 version = "0.1.0"
-source = { editable = "../../../lib/src" }
+source = { git = "https://github.com/Azure-Samples/holiday-peak-hub.git?subdirectory=lib%2Fsrc&branch=main#b23caf979509f3ad5a4734473c892e2896e57952" }
 dependencies = [
     { name = "agent-framework" },
     { name = "aiohttp" },
@@ -987,47 +987,6 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "uvicorn" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "agent-framework" },
-    { name = "aiohttp" },
-    { name = "asyncpg" },
-    { name = "azure-ai-projects", specifier = ">=2.0.0b4" },
-    { name = "azure-cosmos" },
-    { name = "azure-eventhub" },
-    { name = "azure-identity" },
-    { name = "azure-keyvault-secrets" },
-    { name = "azure-monitor-opentelemetry", specifier = ">=1.7.0" },
-    { name = "azure-search-documents" },
-    { name = "azure-storage-blob" },
-    { name = "black", extras = ["jupyter"], marker = "extra == 'lint'", specifier = ">=26.3.1" },
-    { name = "debugpy", marker = "extra == 'dev'" },
-    { name = "faker", marker = "extra == 'dev'" },
-    { name = "fastapi" },
-    { name = "fastapi-mcp" },
-    { name = "httpx" },
-    { name = "httpx", marker = "extra == 'test'" },
-    { name = "isort", marker = "extra == 'lint'" },
-    { name = "mkdocs", marker = "extra == 'docs'" },
-    { name = "opentelemetry-api", specifier = ">=1.27.0" },
-    { name = "opentelemetry-sdk", specifier = ">=1.27.0" },
-    { name = "pre-commit", marker = "extra == 'dev'" },
-    { name = "pydantic", specifier = ">=2" },
-    { name = "pydantic-settings", specifier = ">=2" },
-    { name = "pylint", marker = "extra == 'lint'" },
-    { name = "pytest", marker = "extra == 'test'" },
-    { name = "pytest-asyncio", marker = "extra == 'test'" },
-    { name = "pytest-cov", marker = "extra == 'test'" },
-    { name = "python-dotenv" },
-    { name = "python-dotenv", marker = "extra == 'dev'" },
-    { name = "pyyaml" },
-    { name = "redis" },
-    { name = "requests", marker = "extra == 'test'" },
-    { name = "typing-extensions" },
-    { name = "uvicorn" },
-]
-provides-extras = ["dev", "test", "lint", "docs"]
 
 [[package]]
 name = "httpcore"
@@ -2593,7 +2552,7 @@ requires-dist = [
     { name = "faker", marker = "extra == 'dev'" },
     { name = "fastapi", specifier = ">=0.115.0" },
     { name = "fastapi-mcp" },
-    { name = "holiday-peak-lib", editable = "../../../lib/src" },
+    { name = "holiday-peak-lib", git = "https://github.com/Azure-Samples/holiday-peak-hub.git?subdirectory=lib%2Fsrc&branch=main" },
     { name = "httpx" },
     { name = "httpx", marker = "extra == 'test'" },
     { name = "isort", marker = "extra == 'lint'" },

@@ -244,23 +244,36 @@ $truthServiceEventHubMappings = @{
   "truth-hitl" = @{ TRUTH_EVENT_HUB_NAME = "hitl-jobs"; TRUTH_EVENT_HUB_CONSUMER_GROUP = "hitl-service" }
 }
 
+function Assert-RequiredEnvKeys {
+  param(
+    [string]$TargetService,
+    [hashtable]$Mappings,
+    [string[]]$RequiredKeys,
+    [string]$TargetEnvironment
+  )
+
+  $missing = @()
+  foreach ($required in $RequiredKeys) {
+    $value = $null
+    if ($Mappings.ContainsKey($required)) {
+      $value = $Mappings[$required]
+    }
+    if ([string]::IsNullOrWhiteSpace($value)) {
+      $missing += $required
+    }
+  }
+
+  if ($missing.Count -gt 0) {
+    $envHint = if ([string]::IsNullOrWhiteSpace($TargetEnvironment)) { "<environment>" } else { $TargetEnvironment }
+    throw "Missing required environment variables for ${TargetService}: $($missing -join ', '). Run 'azd provision -e $envHint' with deployShared=true so shared dependencies are exported."
+  }
+}
+
 $isTruthService = $truthServiceEventHubMappings.ContainsKey($ServiceName)
 if ($isTruthService) {
   $truthServiceVars = $truthServiceEventHubMappings[$ServiceName]
   foreach ($truthKey in $truthServiceVars.Keys) {
     $envMappings[$truthKey] = $truthServiceVars[$truthKey]
-  }
-
-  $requiredTruthEnv = @("EVENT_HUB_NAMESPACE", "PROJECT_ENDPOINT", "COSMOS_ACCOUNT_URI", "COSMOS_DATABASE")
-  $missingTruthEnv = @()
-  foreach ($requiredKey in $requiredTruthEnv) {
-    $requiredValue = $envMappings[$requiredKey]
-    if ([string]::IsNullOrWhiteSpace($requiredValue)) {
-      $missingTruthEnv += $requiredKey
-    }
-  }
-  if ($missingTruthEnv.Count -gt 0) {
-    throw "Missing required environment variables for ${ServiceName}: $($missingTruthEnv -join ', ')"
   }
 }
 
@@ -294,6 +307,30 @@ if ($ServiceName -eq "search-enrichment-agent") {
   $envMappings["SEARCH_ENRICHMENT_EVENT_HUB_CONSUMER_GROUP"] = $searchEnrichmentConsumerGroup
 }
 
+$isAgentService = $ServiceName -ne "crud-service"
+if ($isAgentService) {
+  Assert-RequiredEnvKeys -TargetService $ServiceName -Mappings $envMappings -RequiredKeys @(
+    "EVENT_HUB_NAMESPACE",
+    "PROJECT_ENDPOINT",
+    "PROJECT_NAME",
+    "COSMOS_ACCOUNT_URI",
+    "COSMOS_DATABASE",
+    "REDIS_HOST",
+    "BLOB_ACCOUNT_URL",
+    "KEY_VAULT_URI"
+  ) -TargetEnvironment $deployEnv
+}
+
+if ($ServiceName -in @("ecommerce-catalog-search", "search-enrichment-agent")) {
+  Assert-RequiredEnvKeys -TargetService $ServiceName -Mappings $envMappings -RequiredKeys @(
+    "AI_SEARCH_ENDPOINT",
+    "AI_SEARCH_INDEX",
+    "AI_SEARCH_VECTOR_INDEX",
+    "AI_SEARCH_INDEXER_NAME",
+    "EMBEDDING_DEPLOYMENT_NAME"
+  ) -TargetEnvironment $deployEnv
+}
+
 foreach ($key in $envMappings.Keys) {
   $value = $envMappings[$key]
   if ($value) {
@@ -316,6 +353,24 @@ if ($isTruthService) {
     $present = Select-String -Path $rendered -SimpleMatch "name: $renderedKey" -Quiet
     if (-not $present) {
       throw "Rendered manifest missing env key '$renderedKey' for $ServiceName"
+    }
+  }
+}
+
+if ($ServiceName -in @("ecommerce-catalog-search", "search-enrichment-agent")) {
+  $requiredSearchRenderedKeys = @(
+    "AI_SEARCH_ENDPOINT",
+    "AI_SEARCH_INDEX",
+    "AI_SEARCH_VECTOR_INDEX",
+    "AI_SEARCH_INDEXER_NAME",
+    "EMBEDDING_DEPLOYMENT_NAME",
+    "SEARCH_ENRICHMENT_EVENT_HUB_NAME",
+    "SEARCH_ENRICHMENT_EVENT_HUB_CONSUMER_GROUP"
+  )
+  foreach ($searchKey in $requiredSearchRenderedKeys) {
+    $present = Select-String -Path $rendered -SimpleMatch "name: $searchKey" -Quiet
+    if (-not $present) {
+      throw "Rendered manifest missing env key '$searchKey' for $ServiceName"
     }
   }
 }

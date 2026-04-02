@@ -42,5 +42,9 @@ Get-ChildItem apps | ForEach-Object {
 - Avoid unrelated formatting churn; keep commits cohesive.
 - Ensure CI is green before requesting review.
 
+## Repository hygiene maintenance (maintainers)
+- Use the governance runbook in `docs/governance/repository-hygiene-cleanup.md` for backlog reset operations (Issues/PRs) and branch pruning to `main` only.
+- Run hygiene operations only with explicit maintainer approval because they can close work items and delete branches.
+
 ## Reporting issues
 - Include reproduction steps, expected vs actual behavior, and environment details (OS, Python, cloud resources used).

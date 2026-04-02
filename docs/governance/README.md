@@ -26,11 +26,16 @@ This folder is the governance source of truth for engineering standards, runtime
 **Audience**: Platform/DevSecOps engineers  
 **Scope**: pip-audit baseline evidence, remediation status, and vulnerability exception tracking
 
+### [Repository Hygiene Cleanup Runbook](repository-hygiene-cleanup.md)
+**Audience**: Repository maintainers and admins  
+**Scope**: Issue/PR cleanup operations and branch pruning to main-only
+
 ## Repository Source-of-Truth Map
 
 | Governance topic | Canonical source | Notes |
 | --- | --- | --- |
 | Governance policy baseline | `docs/governance/README.md` | This index and enforcement model |
+| Hygiene cleanup operations | `docs/governance/repository-hygiene-cleanup.md` | Runbook for issue/PR backlog reset and branch pruning |
 | Frontend standards | `docs/governance/frontend-governance.md` | UI/runtime coding and quality rules |
 | Backend/agent standards | `docs/governance/backend-governance.md` | API/agent architecture and test rules |
 | Infrastructure/deployment policy | `docs/governance/infrastructure-governance.md` | IaC, pipeline, and runtime deployment controls |

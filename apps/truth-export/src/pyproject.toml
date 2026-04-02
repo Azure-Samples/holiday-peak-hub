@@ -12,7 +12,7 @@ test = ["pytest", "pytest-cov", "pytest-asyncio", "httpx", "requests"]
 lint = ["pylint", "isort", "black[jupyter]>=25.1.0"]
 
 [tool.uv.sources]
-holiday-peak-lib = { path = "../../../lib/src", editable = true }
+holiday-peak-lib = { git = "https://github.com/Azure-Samples/holiday-peak-hub.git", branch = "main", subdirectory = "lib/src" }
 
 [tool.pytest.ini_options]
 addopts = "-ra -q -s --cov=truth_export --cov-report=term-missing"
@@ -21,3 +21,4 @@ testpaths = ["tests"]
 [build-system]
 requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
+

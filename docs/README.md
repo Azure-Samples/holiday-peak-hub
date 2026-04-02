@@ -273,6 +273,7 @@ az acr update -n <acrName> --public-network-enabled false
 ## 📚 Documentation Index
 
 ### Implementation Plans
+
 - **[Implementation Roadmap](IMPLEMENTATION_ROADMAP.md)** - Current progress and pending tasks
   - Phase 1 Complete: CRUD service, frontend integration, infrastructure modules
   - Phases 2-7 Pending: Deployment, testing, monitoring, optimization
@@ -281,13 +282,19 @@ az acr update -n <acrName> --public-network-enabled false
   - 31 REST endpoints, authentication, event publishing
   - Database schemas, deployment guides
   - Frontend integration examples
+- **[Per-Agent azd Deployment Guide](implementation/per-agent-azd-deployment.md)** - Dependency-aware deployment flow for one specific agent service using shared IaC.
 - **[Single RG Deployment Runbook](implementation/single-rg-deployment-runbook.md)** - Fast provision/recover/deprovision operations for `holidaypeakhub405-dev-rg`
+
+### Governance
+
+- **[Repository Hygiene Cleanup Runbook](governance/repository-hygiene-cleanup.md)** - Procedure to clean Issues/PRs and enforce main-only local and remote branches.
 
 ### Architecture Documentation
 
 **Frontend Architecture**: The production-ready frontend (13 pages, 52 components) is fully documented in the [Components Documentation](architecture/components.md) and governed by 6 frontend-specific ADRs ([ADR-015](architecture/adrs/adr-015-nextjs-app-router.md) through [ADR-020](architecture/adrs/adr-020-api-client-architecture.md)).
 
 ### Core Documentation
+
 - **[Architecture Overview](architecture/architecture.md)** - System context and high-level design
 - **[Business Summary](architecture/business-summary.md)** - Business requirements and use cases
 - **[Components Documentation](architecture/components.md)** - All framework and service components

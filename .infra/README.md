@@ -68,6 +68,16 @@ azd deploy --all -e <environment>
 
 ---
 
+## 🎯 Deploy One Agent with Dependencies
+
+Use the dedicated guide for dependency-aware single-agent deployments:
+
+- [Per-Agent azd Deployment Guide](../docs/implementation/per-agent-azd-deployment.md)
+
+The Helm predeploy hooks now validate required shared dependency outputs for agent services before rendering manifests (Foundry, Event Hubs, Cosmos DB, Redis, Blob, Key Vault, and search-specific values where applicable).
+
+---
+
 ## 🏗️ Architecture Overview
 
 ### Shared Infrastructure Resources

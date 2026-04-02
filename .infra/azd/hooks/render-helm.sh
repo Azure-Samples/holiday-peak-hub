@@ -184,6 +184,27 @@ is_truth_service() {
   esac
 }
 
+is_agent_service() {
+  [ "$SERVICE_NAME" != "crud-service" ]
+}
+
+require_env_keys() {
+  MISSING_REQUIRED=""
+  for required in "$@"; do
+    eval "value=\${$required:-}"
+    if [ -z "$value" ]; then
+      MISSING_REQUIRED="$MISSING_REQUIRED $required"
+    fi
+  done
+
+  if [ -n "$MISSING_REQUIRED" ]; then
+    TARGET_ENV="${DEPLOY_ENV:-${AZURE_ENV_NAME:-<environment>}}"
+    echo "Missing required environment variables for $SERVICE_NAME:$MISSING_REQUIRED" >&2
+    echo "Run 'azd provision -e $TARGET_ENV' with deployShared=true so shared dependencies are exported." >&2
+    exit 1
+  fi
+}
+
 # Database
 add_env_arg "POSTGRES_HOST" "${POSTGRES_HOST:-}"
 add_env_arg "POSTGRES_USER" "${POSTGRES_USER:-}"
@@ -259,19 +280,27 @@ if is_truth_service; then
       add_env_arg "TRUTH_EVENT_HUB_CONSUMER_GROUP" "${TRUTH_EVENT_HUB_CONSUMER_GROUP:-hitl-service}"
       ;;
   esac
+fi
 
-  MISSING_REQUIRED=""
-  for required in EVENT_HUB_NAMESPACE PROJECT_ENDPOINT COSMOS_ACCOUNT_URI COSMOS_DATABASE; do
-    eval "value=\${$required:-}"
-    if [ -z "$value" ]; then
-      MISSING_REQUIRED="$MISSING_REQUIRED $required"
-    fi
-  done
+if is_agent_service; then
+  require_env_keys \
+    EVENT_HUB_NAMESPACE \
+    PROJECT_ENDPOINT \
+    PROJECT_NAME \
+    COSMOS_ACCOUNT_URI \
+    COSMOS_DATABASE \
+    REDIS_HOST \
+    BLOB_ACCOUNT_URL \
+    KEY_VAULT_URI
+fi
 
-  if [ -n "$MISSING_REQUIRED" ]; then
-    echo "Missing required environment variables for $SERVICE_NAME:$MISSING_REQUIRED" >&2
-    exit 1
-  fi
+if [ "$SERVICE_NAME" = "ecommerce-catalog-search" ] || [ "$SERVICE_NAME" = "search-enrichment-agent" ]; then
+  require_env_keys \
+    AI_SEARCH_ENDPOINT \
+    AI_SEARCH_INDEX \
+    AI_SEARCH_VECTOR_INDEX \
+    AI_SEARCH_INDEXER_NAME \
+    EMBEDDING_DEPLOYMENT_NAME
 fi
 
 # shellcheck disable=SC2086
@@ -279,6 +308,15 @@ helm template "$SERVICE_NAME" "$CHART_PATH" $HELM_ARGS > "$OUT_DIR/all.yaml"
 
 if is_truth_service; then
   for key in EVENT_HUB_NAMESPACE PROJECT_ENDPOINT COSMOS_ACCOUNT_URI COSMOS_DATABASE TRUTH_EVENT_HUB_NAME TRUTH_EVENT_HUB_CONSUMER_GROUP; do
+    if ! grep -q "name: $key" "$OUT_DIR/all.yaml"; then
+      echo "Rendered manifest missing env key '$key' for $SERVICE_NAME" >&2
+      exit 1
+    fi
+  done
+fi
+
+if [ "$SERVICE_NAME" = "ecommerce-catalog-search" ] || [ "$SERVICE_NAME" = "search-enrichment-agent" ]; then
+  for key in AI_SEARCH_ENDPOINT AI_SEARCH_INDEX AI_SEARCH_VECTOR_INDEX AI_SEARCH_INDEXER_NAME EMBEDDING_DEPLOYMENT_NAME SEARCH_ENRICHMENT_EVENT_HUB_NAME SEARCH_ENRICHMENT_EVENT_HUB_CONSUMER_GROUP; do
     if ! grep -q "name: $key" "$OUT_DIR/all.yaml"; then
       echo "Rendered manifest missing env key '$key' for $SERVICE_NAME" >&2
       exit 1
