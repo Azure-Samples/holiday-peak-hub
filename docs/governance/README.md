@@ -87,7 +87,7 @@ Detailed policy is defined in [Infrastructure Governance](infrastructure-governa
 `main` is PR-only and must not accept direct pushes from standard contributor or automation paths.
 
 - Require pull request before merge
-- Require review approvals and conversation resolution
+- Require conversation resolution (approval count is configurable; currently set to 0 for solo maintainer mode)
 - Require strict required checks (branch up-to-date + named required checks)
 - Minimize bypass actors to explicit break-glass identities only
 - Revalidate protections after any GitHub ruleset/permission change
@@ -108,10 +108,10 @@ Use both checks below for governance hardening and drift detection:
 	- CI fails if stale canonical governance reference tokens appear in tracked agent docs.
 
 2. Main protection audit (manual/CI)
-	- `python scripts/ops/audit_main_governance.py --repo <owner/repo> --required-check lint --required-check test --min-approvals 1 --require-conversation-resolution`
+	- `python scripts/ops/audit_main_governance.py --repo <owner/repo> --required-check lint --required-check test --min-approvals 0 --require-conversation-resolution`
 	- Validates PR-only controls for `main`:
 	  - pull request rule present
-	  - at least one required approval
+	  - configured minimum required approvals (currently 0 for solo maintainer mode)
 	  - conversation resolution required
 	  - required status checks configured in strict mode
 	  - force pushes blocked

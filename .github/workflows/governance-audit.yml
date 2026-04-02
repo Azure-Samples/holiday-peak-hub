@@ -26,5 +26,5 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --required-check lint \
             --required-check test \
-            --min-approvals 1 \
+            --min-approvals 0 \
             --require-conversation-resolution
