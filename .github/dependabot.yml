@@ -1,11 +1,83 @@
 version: 2
 updates:
-  - package-ecosystem: "pip"
-    directory: "/lib/src"
+  - package-ecosystem: "uv"
+    directories:
+      - "/lib/src"
+      - "/apps/*/src"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "05:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 12
+    labels:
+      - "dependencies"
+      - "python"
+    groups:
+      python-security-updates:
+        applies-to: security-updates
+        patterns:
+          - "*"
+        group-by: dependency-name
+      python-runtime-updates:
+        applies-to: version-updates
+        patterns:
+          - "aiohttp"
+          - "cryptography"
+          - "urllib3"
+          - "pygments"
+          - "httpx"
+          - "requests"
+        update-types:
+          - "minor"
+          - "patch"
+        group-by: dependency-name
+      python-other-updates:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+        group-by: dependency-name
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
 
   - package-ecosystem: "npm"
     directory: "/apps/ui"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "05:30"
+      timezone: "UTC"
+    open-pull-requests-limit: 6
+    labels:
+      - "dependencies"
+      - "frontend"
+    groups:
+      ui-security-updates:
+        applies-to: security-updates
+        patterns:
+          - "*"
+      ui-runtime-deps:
+        applies-to: version-updates
+        dependency-type: "production"
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+      ui-dev-deps:
+        applies-to: version-updates
+        dependency-type: "development"
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
