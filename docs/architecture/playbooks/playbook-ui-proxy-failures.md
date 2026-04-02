@@ -67,6 +67,7 @@ Signals:
 
 - `failureKind=network`
 - Proxy fetch exceptions, no upstream status code
+- Catalog reads (`/api/products`, `/api/categories`) may enter this class after a 10 second per-attempt proxy timeout aborts a stalled upstream call before falling back to `200` with `[]`.
 
 Checks:
 
@@ -157,7 +158,7 @@ Run the following controlled tests in `dev` before promoting alert rules:
    - Point proxy target to non-APIM URL with policy override disabled.
    - Verify `failureKind=policy` and threshold behavior under repeated traffic.
 3. Network failure injection.
-   - Apply temporary egress deny from UI runtime to APIM.
+   - Apply temporary egress deny from UI runtime to APIM or force a stalled upstream response beyond the 10 second catalog-read timeout.
    - Verify `failureKind=network` and critical alert trigger timing.
 4. Upstream failure injection.
    - Force APIM/backend to return `502` on one critical endpoint.
