@@ -118,9 +118,10 @@ async def get_order(order_id: str, current_user: User = Depends(get_current_user
             extra={"error_type": type(exc).__name__},
             exc_info=True,
         )
+    order_response_fields = set(OrderResponse.model_fields.keys())
 
     return OrderTrackingResponse(
-        **{k: v for k, v in order.items() if k in OrderResponse.model_fields},
+        **{k: v for k, v in order.items() if k in order_response_fields},
         tracking=tracking,
         eta=eta,
         carrier=carrier,

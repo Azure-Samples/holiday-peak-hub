@@ -16,6 +16,7 @@ from holiday_peak_lib.agents.memory import (
     read_hot_with_compatibility,
     resolve_namespace_context,
 )
+from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
 
 from .adapters import (
     EnrichmentAdapters,
