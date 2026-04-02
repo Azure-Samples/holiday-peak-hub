@@ -246,6 +246,8 @@ const ADMIN_SERVICE_DOMAINS = new Set<AdminServiceDomain>([
   'products',
 ]);
 
+const CATALOG_READ_UPSTREAM_TIMEOUT_MS = 10000;
+
 const CATALOG_READ_FALLBACK_STRATEGIES: readonly EndpointFallbackStrategy[] = [
   {
     name: 'categories-read-empty',
@@ -285,6 +287,34 @@ function shouldRetryUpstreamResponse(status: number, strategy: EndpointFallbackS
   return strategy.retry.retryableStatuses.includes(status);
 }
 
+function createCatalogReadTimeoutSignal(strategy: EndpointFallbackStrategy | null): {
+  signal?: AbortSignal;
+  cleanup: () => void;
+} {
+  if (!strategy) {
+    return {
+      cleanup: () => undefined,
+    };
+  }
+
+  if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+    return {
+      signal: AbortSignal.timeout(CATALOG_READ_UPSTREAM_TIMEOUT_MS),
+      cleanup: () => undefined,
+    };
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    controller.abort(new Error('The operation timed out.'));
+  }, CATALOG_READ_UPSTREAM_TIMEOUT_MS);
+
+  return {
+    signal: controller.signal,
+    cleanup: () => clearTimeout(timeoutId),
+  };
+}
+
 async function executeUpstreamWithRetry(params: {
   targetUrl: string;
   method: string;
@@ -296,6 +326,8 @@ async function executeUpstreamWithRetry(params: {
   let lastNetworkError: Error | null = null;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const timeoutSignal = createCatalogReadTimeoutSignal(params.strategy);
+
     try {
       const upstream = await fetch(params.targetUrl, {
         method: params.method,
@@ -303,6 +335,7 @@ async function executeUpstreamWithRetry(params: {
         body: params.body,
         redirect: 'manual',
         cache: 'no-store',
+        ...(timeoutSignal.signal ? { signal: timeoutSignal.signal } : {}),
       });
 
       if (attempt < maxAttempts && shouldRetryUpstreamResponse(upstream.status, params.strategy)) {
@@ -324,6 +357,8 @@ async function executeUpstreamWithRetry(params: {
         response: null,
         networkError: lastNetworkError,
       };
+    } finally {
+      timeoutSignal.cleanup();
     }
   }
 

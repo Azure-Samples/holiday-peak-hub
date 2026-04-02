@@ -31,6 +31,11 @@ from holiday_peak_lib.utils import (
 )
 from holiday_peak_lib.utils.logging import configure_logging
 
+_FALLBACK_INSTRUCTIONS_TEMPLATE = (
+    "Structured instructions file not found for '{service_name}'. "
+    "Use only provided request data, state missing fields, and avoid assumptions."
+)
+
 
 def _build_foundry_config(agent_env: str, deployment_env: str) -> FoundryAgentConfig | None:
     """Backward-compatible alias for internal Foundry config builder."""
@@ -54,12 +59,16 @@ def create_standard_app(
             memory_settings.cosmos_database,
             memory_settings.cosmos_container,
         )
-        if memory_settings.cosmos_account_uri
+        if (
+            memory_settings.cosmos_account_uri
+            and memory_settings.cosmos_database
+            and memory_settings.cosmos_container
+        )
         else None
     )
     cold_memory = (
         ColdMemory(memory_settings.blob_account_url, memory_settings.blob_container)
-        if memory_settings.blob_account_url
+        if memory_settings.blob_account_url and memory_settings.blob_container
         else None
     )
     lifespan = None
@@ -127,7 +136,9 @@ def build_service_app(
         agent.service_name = service_name
     if mcp_setup:
         mcp_setup(mcp, agent)
-    default_instructions = load_service_prompt_instructions(service_name)
+    default_instructions = load_service_prompt_instructions(service_name) or (
+        _FALLBACK_INSTRUCTIONS_TEMPLATE.format(service_name=service_name)
+    )
 
     register_correlation_middleware(app)
 
@@ -174,15 +185,29 @@ def build_service_app(
         nonlocal foundry_ready
         foundry_manager.ensure_foundry_agent_fn = ensure_foundry_agent
         body: dict = payload if isinstance(payload, dict) else {}
-        fallback_instructions = load_service_prompt_instructions(service_name)
+        fallback_instructions = (
+            load_service_prompt_instructions(service_name) or default_instructions
+        )
         role = str(body.get("role", "both")).lower()
         create_if_missing = bool(body.get("create_if_missing", True))
         instructions_raw = body.get("instructions")
         names_raw = body.get("names")
         models_raw = body.get("models")
-        instructions: dict = instructions_raw if isinstance(instructions_raw, dict) else {}
-        names: dict = names_raw if isinstance(names_raw, dict) else {}
-        models: dict = models_raw if isinstance(models_raw, dict) else {}
+        instructions: dict[str, str] = (
+            {str(key): value for key, value in instructions_raw.items() if isinstance(value, str)}
+            if isinstance(instructions_raw, dict)
+            else {}
+        )
+        names: dict[str, str] = (
+            {str(key): value for key, value in names_raw.items() if isinstance(value, str)}
+            if isinstance(names_raw, dict)
+            else {}
+        )
+        models: dict[str, str] = (
+            {str(key): value for key, value in models_raw.items() if isinstance(value, str)}
+            if isinstance(models_raw, dict)
+            else {}
+        )
         allow_instruction_override = (
             os.getenv("FOUNDRY_ALLOW_INSTRUCTION_OVERRIDE") or ""
         ).lower() in {
@@ -221,36 +246,32 @@ def build_service_app(
                 or os.getenv(f"FOUNDRY_AGENT_NAME_{selected_role.upper()}")
                 or f"{service_name}-{selected_role}"
             )
+            role_agent_env = (
+                "FOUNDRY_AGENT_ID_FAST" if selected_role == "fast" else "FOUNDRY_AGENT_ID_RICH"
+            )
+            role_deployment_env = (
+                "MODEL_DEPLOYMENT_NAME_FAST"
+                if selected_role == "fast"
+                else "MODEL_DEPLOYMENT_NAME_RICH"
+            )
+            role_discovered_config = build_foundry_config(role_agent_env, role_deployment_env)
             configured_model = (
                 models.get(selected_role)
                 or config.deployment_name
-                or build_foundry_config(
-                    "FOUNDRY_AGENT_ID_FAST" if selected_role == "fast" else "FOUNDRY_AGENT_ID_RICH",
-                    (
-                        "MODEL_DEPLOYMENT_NAME_FAST"
-                        if selected_role == "fast"
-                        else "MODEL_DEPLOYMENT_NAME_RICH"
-                    ),
-                ).deployment_name
-                if build_foundry_config(
-                    "FOUNDRY_AGENT_ID_FAST" if selected_role == "fast" else "FOUNDRY_AGENT_ID_RICH",
-                    (
-                        "MODEL_DEPLOYMENT_NAME_FAST"
-                        if selected_role == "fast"
-                        else "MODEL_DEPLOYMENT_NAME_RICH"
-                    ),
+                or (
+                    role_discovered_config.deployment_name
+                    if role_discovered_config is not None
+                    else None
                 )
-                else ("gpt-5-nano" if selected_role == "fast" else "gpt-5")
+                or ("gpt-5-nano" if selected_role == "fast" else "gpt-5")
             )
+
+            selected_instructions = instructions.get(selected_role) or fallback_instructions
 
             ensure_result = await foundry_manager.ensure_role(
                 selected_role=selected_role,
                 config=config,
-                instructions=(
-                    instructions.get(selected_role)
-                    if selected_role in instructions
-                    else fallback_instructions
-                ),
+                instructions=selected_instructions,
                 create_if_missing=create_if_missing,
                 name_override=str(configured_name),
                 model_override=str(configured_model),
