@@ -194,29 +194,17 @@ def build_service_app(
         names_raw = body.get("names")
         models_raw = body.get("models")
         instructions: dict[str, str] = (
-            {
-                str(key): value
-                for key, value in instructions_raw.items()
-                if isinstance(value, str)
-            }
+            {str(key): value for key, value in instructions_raw.items() if isinstance(value, str)}
             if isinstance(instructions_raw, dict)
             else {}
         )
         names: dict[str, str] = (
-            {
-                str(key): value
-                for key, value in names_raw.items()
-                if isinstance(value, str)
-            }
+            {str(key): value for key, value in names_raw.items() if isinstance(value, str)}
             if isinstance(names_raw, dict)
             else {}
         )
         models: dict[str, str] = (
-            {
-                str(key): value
-                for key, value in models_raw.items()
-                if isinstance(value, str)
-            }
+            {str(key): value for key, value in models_raw.items() if isinstance(value, str)}
             if isinstance(models_raw, dict)
             else {}
         )
