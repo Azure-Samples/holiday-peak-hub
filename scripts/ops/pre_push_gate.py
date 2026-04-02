@@ -34,7 +34,7 @@ def run_lint_gate() -> None:
         if (path / "pyproject.toml").exists()
     )
     run_step(
-        ["python", "-m", "pylint", *pylint_targets],
+        ["python", "-m", "pylint", "--fail-on=E,F", *pylint_targets],
         title="Lint gate: pylint",
     )
 

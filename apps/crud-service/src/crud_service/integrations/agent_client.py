@@ -34,7 +34,8 @@ class AgentClient:
         if not apim_base:
             return None
 
-        return f"{apim_base.rstrip('/')}/agents/{service_name}"
+        apim_base_url = str(apim_base)
+        return f"{apim_base_url.rstrip('/')}/agents/{service_name}"
 
     @circuit(
         failure_threshold=settings.agent_circuit_failure_threshold,
