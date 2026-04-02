@@ -44,3 +44,27 @@ Repository-scoped clean environment scan after remediation:
 
 1. Re-check `ecdsa` on each dependency audit run and remove ignore immediately when fixed version is available.
 2. Keep dependency-audit workflow enabled as a PR gate recommendation for `main` branch governance (Python + frontend).
+
+## Dependabot Throughput Policy (Issue #609)
+
+### Grouping and PR cap
+
+- Dependabot is configured to use grouped `uv` updates across `/lib/src` and `/apps/*/src` with `group-by: dependency-name`.
+- Dependabot open version-update pull requests are capped (`uv`: 12, `npm`: 6) to prevent queue saturation.
+
+### Safe auto-merge policy
+
+- Eligible: patch/minor dependency updates with green `lint`, `test`, and `dependency-audit` checks.
+- Excluded: major version updates, security exceptions, and dependency updates that require manual migration steps.
+- Required traceability: merged dependency PRs must include test evidence in the PR body.
+
+### Backlog target and monitoring
+
+- Baseline open Dependabot PRs (2026-04-02): `39`.
+- Current open Dependabot PRs (post-policy cleanup, 2026-04-02): `0`.
+- Target backlog: `<= 12` open Dependabot PRs (sustained cap).
+- Weekly monitoring command:
+
+```bash
+gh pr list --state open --author app/dependabot --limit 200 --json number --jq 'length'
+```

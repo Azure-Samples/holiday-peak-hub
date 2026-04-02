@@ -22,4 +22,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
-          python scripts/ops/audit_main_governance.py --repo "$GITHUB_REPOSITORY" --required-check lint --required-check test
+          python scripts/ops/audit_main_governance.py \
+            --repo "$GITHUB_REPOSITORY" \
+            --required-check lint \
+            --required-check test \
+            --min-approvals 1 \
+            --require-conversation-resolution

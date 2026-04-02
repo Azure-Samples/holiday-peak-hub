@@ -1,5 +1,6 @@
 import semanticSearchService from '../../lib/services/semanticSearchService';
 import agentApiClient from '../../lib/api/agentClient';
+import { productService } from '../../lib/services/productService';
 
 jest.mock('../../lib/api/agentClient', () => ({
   __esModule: true,
@@ -8,9 +9,16 @@ jest.mock('../../lib/api/agentClient', () => ({
   },
 }));
 
+jest.mock('../../lib/services/productService', () => ({
+  productService: {
+    search: jest.fn(),
+  },
+}));
+
 describe('semanticSearchService.searchWithMode', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (productService.search as jest.Mock).mockResolvedValue([]);
   });
 
   it('forwards optional context fields in the request payload', async () => {
@@ -46,5 +54,48 @@ describe('semanticSearchService.searchWithMode', () => {
         correlation_id: 'corr-abc',
       }),
     );
+  });
+
+  it('falls back to CRUD when agent payload uses example.com host content', async () => {
+    (agentApiClient.post as jest.Mock).mockResolvedValue({
+      data: {
+        items: [
+          {
+            item_id: 'SKU-1',
+            title: 'Trail runner',
+            image_url: 'https://example.com/mock.jpg',
+          },
+        ],
+        mode: 'intelligent',
+      },
+    });
+
+    const result = await semanticSearchService.searchWithMode('running shoes', 'intelligent', 20);
+
+    expect(productService.search).toHaveBeenCalledWith('running shoes', 20);
+    expect(result.source).toBe('crud');
+    expect(result.fallback_reason).toBe('agent_mock');
+  });
+
+  it('does not treat example.com in path/query text as a mock host', async () => {
+    (agentApiClient.post as jest.Mock).mockResolvedValue({
+      data: {
+        items: [
+          {
+            item_id: 'SKU-2',
+            title: 'Trail runner pro',
+            image_url: 'https://cdn.contoso.com/assets/example.com/banner.jpg',
+            url: 'https://shop.contoso.com/product/sku-2?ref=example.com',
+          },
+        ],
+        mode: 'intelligent',
+      },
+    });
+
+    const result = await semanticSearchService.searchWithMode('running shoes', 'intelligent', 20);
+
+    expect(result.source).toBe('agent');
+    expect(result.items[0].sku).toBe('SKU-2');
+    expect(productService.search).not.toHaveBeenCalled();
   });
 });
