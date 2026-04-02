@@ -56,7 +56,7 @@ dev = [
 ]
 
 [tool.uv.sources]
-holiday-peak-lib = { path = "../../../lib/src", editable = true }
+holiday-peak-lib = { git = "https://github.com/Azure-Samples/holiday-peak-hub.git", branch = "main", subdirectory = "lib/src" }
 
 [build-system]
 requires = ["hatchling"]
@@ -163,3 +163,4 @@ ignore = [
 
 [tool.ruff.per-file-ignores]
 "__init__.py" = ["F401"]  # unused imports in __init__.py
+

@@ -26,6 +26,10 @@ This folder is the governance source of truth for engineering standards, runtime
 **Audience**: Platform/DevSecOps engineers  
 **Scope**: pip-audit baseline evidence, remediation status, and vulnerability exception tracking
 
+### [Repository Hygiene Cleanup Runbook](repository-hygiene-cleanup.md)
+**Audience**: Repository maintainers and admins  
+**Scope**: Issue/PR cleanup operations and branch pruning to main-only
+
 ### [Security Exception Register](security-exception-register.md)
 **Audience**: Platform/DevSecOps engineers  
 **Scope**: Time-boxed exception records for unresolved high-severity alerts with owner/expiry tracking
@@ -39,6 +43,7 @@ This folder is the governance source of truth for engineering standards, runtime
 | Governance topic | Canonical source | Notes |
 | --- | --- | --- |
 | Governance policy baseline | `docs/governance/README.md` | This index and enforcement model |
+| Hygiene cleanup operations | `docs/governance/repository-hygiene-cleanup.md` | Runbook for issue/PR backlog reset and branch pruning |
 | Frontend standards | `docs/governance/frontend-governance.md` | UI/runtime coding and quality rules |
 | Backend/agent standards | `docs/governance/backend-governance.md` | API/agent architecture and test rules |
 | Infrastructure/deployment policy | `docs/governance/infrastructure-governance.md` | IaC, pipeline, and runtime deployment controls |
@@ -82,7 +87,7 @@ Detailed policy is defined in [Infrastructure Governance](infrastructure-governa
 `main` is PR-only and must not accept direct pushes from standard contributor or automation paths.
 
 - Require pull request before merge
-- Require review approvals and conversation resolution
+- Require conversation resolution (approval count is configurable; currently set to 0 for solo maintainer mode)
 - Require strict required checks (branch up-to-date + named required checks)
 - Minimize bypass actors to explicit break-glass identities only
 - Revalidate protections after any GitHub ruleset/permission change
@@ -103,10 +108,10 @@ Use both checks below for governance hardening and drift detection:
 	- CI fails if stale canonical governance reference tokens appear in tracked agent docs.
 
 2. Main protection audit (manual/CI)
-	- `python scripts/ops/audit_main_governance.py --repo <owner/repo> --required-check lint --required-check test --min-approvals 1 --require-conversation-resolution`
+	- `python scripts/ops/audit_main_governance.py --repo <owner/repo> --required-check lint --required-check test --min-approvals 0 --require-conversation-resolution`
 	- Validates PR-only controls for `main`:
 	  - pull request rule present
-	  - at least one required approval
+	  - configured minimum required approvals (currently 0 for solo maintainer mode)
 	  - conversation resolution required
 	  - required status checks configured in strict mode
 	  - force pushes blocked
