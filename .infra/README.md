@@ -29,6 +29,19 @@ All infrastructure uses [Azure Verified Modules (AVM)](https://azure.github.io/A
 The azd provisioning flow reads parameter values from `.infra/azd/main.parameters.json`, which pulls
 environment values set by the CLI (for example, `keyVaultNameOverride`).
 
+### App dependency manifest guardrail
+
+The deployment workflow now validates that every service declared in `azure.yaml` is represented in
+`.infra/app-dependency-manifest.yaml` before provisioning starts.
+
+Run this check locally with:
+
+```bash
+python .infra/validate_app_dependency_manifest.py \
+  --azure-config azure.yaml \
+  --manifest .infra/app-dependency-manifest.yaml
+```
+
 ## ✅ Provisioning Strategies
 
 We support two infrastructure provisioning strategies:

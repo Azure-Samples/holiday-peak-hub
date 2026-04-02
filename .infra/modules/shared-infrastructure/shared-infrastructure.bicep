@@ -633,6 +633,16 @@ module eventHubs 'br/public:avm/res/event-hub/namespace:0.14.0' = {
         partitionCount: 4
       }
       {
+        name: 'product-events'
+        messageRetentionInDays: 7
+        partitionCount: 4
+      }
+      {
+        name: 'return-events'
+        messageRetentionInDays: 7
+        partitionCount: 4
+      }
+      {
         name: 'inventory-events'
         messageRetentionInDays: 7
         partitionCount: 4
@@ -654,6 +664,11 @@ module eventHubs 'br/public:avm/res/event-hub/namespace:0.14.0' = {
       }
       {
         name: 'enrichment-jobs'
+        messageRetentionInDays: 7
+        partitionCount: 4
+      }
+      {
+        name: 'completeness-jobs'
         messageRetentionInDays: 7
         partitionCount: 4
       }
@@ -926,6 +941,11 @@ resource enrichmentJobsEventHub 'Microsoft.EventHub/namespaces/eventhubs@2023-01
   name: 'enrichment-jobs'
 }
 
+resource completenessJobsEventHub 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' existing = {
+  parent: eventHubsNamespaceResource
+  name: 'completeness-jobs'
+}
+
 resource exportJobsEventHub 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' existing = {
   parent: eventHubsNamespaceResource
   name: 'export-jobs'
@@ -934,6 +954,16 @@ resource exportJobsEventHub 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-
 resource hitlJobsEventHub 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' existing = {
   parent: eventHubsNamespaceResource
   name: 'hitl-jobs'
+}
+
+resource productEventsEventHub 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' existing = {
+  parent: eventHubsNamespaceResource
+  name: 'product-events'
+}
+
+resource returnEventsEventHub 'Microsoft.EventHub/namespaces/eventhubs@2023-01-01-preview' existing = {
+  parent: eventHubsNamespaceResource
+  name: 'return-events'
 }
 
 resource ingestionGroupConsumerGroup 'Microsoft.EventHub/namespaces/eventhubs/consumergroups@2023-01-01-preview' = {
@@ -984,6 +1014,87 @@ resource searchEnrichmentAgentConsumerGroup 'Microsoft.EventHub/namespaces/event
 resource searchEnrichmentConsumerGroup 'Microsoft.EventHub/namespaces/eventhubs/consumergroups@2023-01-01-preview' = {
   parent: searchEnrichmentJobsEventHub
   name: 'search-enrichment-consumer'
+  properties: {}
+  dependsOn: [
+    eventHubs
+  ]
+}
+
+resource catalogSearchConsumerGroup 'Microsoft.EventHub/namespaces/eventhubs/consumergroups@2023-01-01-preview' = {
+  parent: productEventsEventHub
+  name: 'catalog-search-group'
+  properties: {}
+  dependsOn: [
+    eventHubs
+  ]
+}
+
+resource productEnrichmentConsumerGroup 'Microsoft.EventHub/namespaces/eventhubs/consumergroups@2023-01-01-preview' = {
+  parent: productEventsEventHub
+  name: 'enrichment-group'
+  properties: {}
+  dependsOn: [
+    eventHubs
+  ]
+}
+
+resource acpTransformConsumerGroup 'Microsoft.EventHub/namespaces/eventhubs/consumergroups@2023-01-01-preview' = {
+  parent: productEventsEventHub
+  name: 'acp-transform-group'
+  properties: {}
+  dependsOn: [
+    eventHubs
+  ]
+}
+
+resource normalizationConsumerGroup 'Microsoft.EventHub/namespaces/eventhubs/consumergroups@2023-01-01-preview' = {
+  parent: productEventsEventHub
+  name: 'normalization-group'
+  properties: {}
+  dependsOn: [
+    eventHubs
+  ]
+}
+
+resource assortmentConsumerGroup 'Microsoft.EventHub/namespaces/eventhubs/consumergroups@2023-01-01-preview' = {
+  parent: productEventsEventHub
+  name: 'assortment-group'
+  properties: {}
+  dependsOn: [
+    eventHubs
+  ]
+}
+
+resource validationConsumerGroup 'Microsoft.EventHub/namespaces/eventhubs/consumergroups@2023-01-01-preview' = {
+  parent: productEventsEventHub
+  name: 'validation-group'
+  properties: {}
+  dependsOn: [
+    eventHubs
+  ]
+}
+
+resource completenessEngineConsumerGroup 'Microsoft.EventHub/namespaces/eventhubs/consumergroups@2023-01-01-preview' = {
+  parent: completenessJobsEventHub
+  name: 'completeness-engine'
+  properties: {}
+  dependsOn: [
+    eventHubs
+  ]
+}
+
+resource supportConsumerGroup 'Microsoft.EventHub/namespaces/eventhubs/consumergroups@2023-01-01-preview' = {
+  parent: returnEventsEventHub
+  name: 'support-group'
+  properties: {}
+  dependsOn: [
+    eventHubs
+  ]
+}
+
+resource returnsConsumerGroup 'Microsoft.EventHub/namespaces/eventhubs/consumergroups@2023-01-01-preview' = {
+  parent: returnEventsEventHub
+  name: 'returns-group'
   properties: {}
   dependsOn: [
     eventHubs

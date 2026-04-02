@@ -1,0 +1,107 @@
+schemaVersion: 1
+source:
+  azureConfig: azure.yaml
+  owner: platform-engineering
+profiles:
+  frontend:
+    - static-web-app
+    - apim-gateway
+  transactional-api:
+    - aks
+    - postgres
+    - redis
+    - key-vault
+    - event-hubs
+  agent-service:
+    - aks
+    - redis
+    - cosmos
+    - blob
+    - key-vault
+    - foundry
+    - event-hubs
+services:
+  ui:
+    host: staticwebapp
+    profile: frontend
+  crud-service:
+    host: aks
+    profile: transactional-api
+  crm-campaign-intelligence:
+    host: aks
+    profile: agent-service
+  crm-profile-aggregation:
+    host: aks
+    profile: agent-service
+  crm-segmentation-personalization:
+    host: aks
+    profile: agent-service
+  crm-support-assistance:
+    host: aks
+    profile: agent-service
+  ecommerce-cart-intelligence:
+    host: aks
+    profile: agent-service
+  ecommerce-catalog-search:
+    host: aks
+    profile: agent-service
+  ecommerce-checkout-support:
+    host: aks
+    profile: agent-service
+  ecommerce-order-status:
+    host: aks
+    profile: agent-service
+  ecommerce-product-detail-enrichment:
+    host: aks
+    profile: agent-service
+  inventory-alerts-triggers:
+    host: aks
+    profile: agent-service
+  inventory-health-check:
+    host: aks
+    profile: agent-service
+  inventory-jit-replenishment:
+    host: aks
+    profile: agent-service
+  inventory-reservation-validation:
+    host: aks
+    profile: agent-service
+  logistics-carrier-selection:
+    host: aks
+    profile: agent-service
+  logistics-eta-computation:
+    host: aks
+    profile: agent-service
+  logistics-returns-support:
+    host: aks
+    profile: agent-service
+  logistics-route-issue-detection:
+    host: aks
+    profile: agent-service
+  product-management-acp-transformation:
+    host: aks
+    profile: agent-service
+  product-management-assortment-optimization:
+    host: aks
+    profile: agent-service
+  product-management-consistency-validation:
+    host: aks
+    profile: agent-service
+  product-management-normalization-classification:
+    host: aks
+    profile: agent-service
+  search-enrichment-agent:
+    host: aks
+    profile: agent-service
+  truth-ingestion:
+    host: aks
+    profile: agent-service
+  truth-enrichment:
+    host: aks
+    profile: agent-service
+  truth-export:
+    host: aks
+    profile: agent-service
+  truth-hitl:
+    host: aks
+    profile: agent-service
