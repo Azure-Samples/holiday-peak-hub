@@ -56,12 +56,14 @@ export const Button: React.FC<ButtonProps> = ({
       aria-label={ariaLabel}
       aria-disabled={isDisabled}
       className={cn(
-        // Base styles
-        'inline-flex items-center justify-center font-bold uppercase',
-        'transition-colors duration-200',
-        'focus:outline-none focus:ring-2 focus:ring-offset-2',
-        'disabled:opacity-50 disabled:cursor-not-allowed',
-        'rounded-lg',
+        // Base styles — elegant, no-uppercase, refined weight
+        'relative overflow-hidden inline-flex items-center justify-center font-semibold tracking-normal',
+        'transition-all duration-300 ease-[cubic-bezier(0.23,1,0.32,1)]',
+        'focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--hp-primary)]',
+        'disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none',
+        'rounded-xl border border-transparent',
+        'hover:shadow-md hover:-translate-y-px active:translate-y-0 active:shadow-sm',
+        'group',
         
         // Size variants
         !iconOnly && sizeClasses.button[size],
@@ -106,18 +108,22 @@ export const Button: React.FC<ButtonProps> = ({
       )}
       
       {!loading && iconLeft && (
-        <span className={cn(!iconOnly && !!children && 'mr-2')}>
+        <span className={cn('transition-transform duration-300 group-hover:-translate-x-1', !iconOnly && !!children && 'mr-2')}>
           {iconLeft}
         </span>
       )}
-      
-      {!iconOnly && children}
-      
+
+      {/* Button Content with relative z-index for glass glow */}
+      {!iconOnly && <span className="relative z-10">{children}</span>}
+
       {!loading && iconRight && (
-        <span className={cn(!iconOnly && !!children && 'ml-2')}>
+        <span className={cn('transition-transform duration-300 group-hover:translate-x-1', !iconOnly && !!children && 'ml-2')}>
           {iconRight}
         </span>
       )}
+
+      {/* Subtle shine on hover */}
+      <span className="pointer-events-none absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-0 -translate-x-full group-hover:translate-x-full group-hover:opacity-100 transition-all duration-700 ease-out" />
     </button>
   );
 };

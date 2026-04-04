@@ -522,6 +522,125 @@ class TestCatalogSearchAgent:
             )
             mock_multi.assert_awaited_once()
 
+    @pytest.mark.asyncio
+    async def test_classify_intent_uses_deterministic_winter_travel_fallback(
+        self, agent_dependencies
+    ):
+        """Intent classifier should deterministically capture winter-travel apparel needs."""
+        with patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build:
+            mock_build.return_value = CatalogAdapters(
+                products=AsyncMock(),
+                inventory=AsyncMock(),
+                mapping=AcpCatalogMapper(),
+            )
+            agent = CatalogSearchAgent(config=agent_dependencies)
+
+        intent = await agent.classify_intent("I want to travel to Russia in winter")
+
+        assert intent.intent == "winter_travel_clothing"
+        assert intent.confidence >= 0.8
+        assert intent.entities["category"] == "apparel"
+        assert "insulated jacket" in intent.entities["keywords"]
+
+    @pytest.mark.asyncio
+    async def test_handle_keyword_mode_adaptive_reranks_winter_travel_to_apparel(
+        self, agent_dependencies
+    ):
+        """Keyword mode should conservatively promote winter-travel clothing essentials."""
+        baseline_products = [
+            CatalogProduct(
+                sku="SKU-PUZZLE",
+                name="Winter Puzzle Collection",
+                description="Snow village puzzle set",
+                category="toys",
+                brand="NordicPlay",
+            ),
+            CatalogProduct(
+                sku="SKU-MUG",
+                name="Snowflake Travel Mug",
+                description="Ceramic mug with winter print",
+                category="kitchen",
+                brand="HomeLuxe",
+            ),
+            CatalogProduct(
+                sku="SKU-GAME",
+                name="Winter Trivia Game",
+                description="Family board game",
+                category="games",
+                brand="BrightFun",
+            ),
+        ]
+        adaptive_products = [
+            CatalogProduct(
+                sku="SKU-COAT",
+                name="Insulated Travel Parka",
+                description="Warm winter jacket for subzero city trips",
+                category="apparel",
+                brand="NorthBound",
+            ),
+            CatalogProduct(
+                sku="SKU-BOOT",
+                name="Thermal Snow Boots",
+                description="Waterproof insulated boots for winter travel",
+                category="apparel",
+                brand="TrailStep",
+            ),
+            CatalogProduct(
+                sku="SKU-GLOVE",
+                name="Waterproof Gloves",
+                description="Warm gloves for cold-weather trips",
+                category="apparel",
+                brand="NorthBound",
+            ),
+        ]
+        products_by_sku = {product.sku: product for product in baseline_products + adaptive_products}
+
+        with (
+            patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
+            patch("ecommerce_catalog_search.agents.search_catalog_skus_detailed") as mock_search,
+        ):
+            async def _search_side_effect(query: str, limit: int) -> AISearchSkuResult:
+                del limit
+                if "insulated jacket" in query.lower() or "winter boots" in query.lower():
+                    return AISearchSkuResult(
+                        skus=["SKU-COAT", "SKU-BOOT", "SKU-GLOVE"],
+                    )
+                return AISearchSkuResult(skus=["SKU-PUZZLE", "SKU-MUG", "SKU-GAME"])
+
+            async def _get_product_side_effect(sku: str) -> CatalogProduct | None:
+                return products_by_sku.get(sku)
+
+            async def _get_inventory_side_effect(sku: str) -> InventoryItem:
+                return InventoryItem(sku=sku, available=12, reserved=0)
+
+            mock_search.side_effect = _search_side_effect
+
+            mock_products = AsyncMock()
+            mock_products.get_product.side_effect = _get_product_side_effect
+            mock_products.get_related = AsyncMock(return_value=[])
+
+            mock_inventory = AsyncMock()
+            mock_inventory.get_item.side_effect = _get_inventory_side_effect
+
+            mock_build.return_value = CatalogAdapters(
+                products=mock_products,
+                inventory=mock_inventory,
+                mapping=AcpCatalogMapper(),
+            )
+
+            agent = CatalogSearchAgent(config=agent_dependencies)
+            result = await agent.handle(
+                {
+                    "query": "I want to travel to Russia in winter",
+                    "limit": 3,
+                    "mode": "keyword",
+                }
+            )
+
+            ranked_ids = [item["item_id"] for item in result["results"]]
+            assert ranked_ids[:2] == ["SKU-COAT", "SKU-BOOT"]
+            assert mock_search.await_count == 2
+
     def test_build_sub_queries_from_intent_entities(self, agent_dependencies):
         """Private sub-query builder should include deduped intent entities."""
         with patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build:

@@ -137,6 +137,20 @@ type AgentSourceData = {
   traces: Array<Record<string, unknown>>;
   metrics: Record<string, unknown> | null;
   latestEvaluation: Record<string, unknown> | null;
+  readiness: ServiceReadinessSnapshot | null;
+};
+
+type ServiceReadinessSource = 'apim-readiness' | 'agc-direct-readiness';
+
+type ServiceReadinessSnapshot = {
+  source: ServiceReadinessSource;
+  checked_at: string;
+  health_ok: boolean | null;
+  ready_ok: boolean | null;
+  foundry_ready: boolean | null;
+  latency_ms: number;
+  successful_probes: number;
+  failed_probes: number;
 };
 
 type AdminServiceDomain = 'crm' | 'ecommerce' | 'inventory' | 'logistics' | 'products';
@@ -167,6 +181,32 @@ type AdminServiceModelUsageRow = {
   cost_usd: number;
 };
 
+type AdminServiceSurfaceStatus = 'healthy' | 'warning' | 'error' | 'unknown';
+
+type AdminServiceAppSurface = {
+  status: AdminServiceSurfaceStatus;
+  source: ServiceReadinessSource | 'unavailable';
+  checked_at: string | null;
+  liveness_ok: boolean | null;
+  readiness_ok: boolean | null;
+  links: {
+    health: string;
+    ready: string;
+  };
+};
+
+type AdminServiceFoundrySurface = {
+  status: AdminServiceSurfaceStatus;
+  checked_at: string | null;
+  foundry_ready: boolean | null;
+  links: {
+    studio: string;
+    project: string;
+    traces: string;
+    evaluations: string;
+  };
+};
+
 type AdminServiceFallbackPayload = {
   domain: AdminServiceDomain;
   service: string;
@@ -180,6 +220,38 @@ type AdminServiceFallbackPayload = {
   }>;
   activity: AdminServiceActivityRow[];
   model_usage: AdminServiceModelUsageRow[];
+  app_surface: AdminServiceAppSurface;
+  foundry_surface: AdminServiceFoundrySurface;
+};
+
+type ReadinessProbeResult = {
+  ok: boolean;
+  payload: Record<string, unknown> | null;
+  latencyMs: number;
+};
+
+type ServiceReadinessStrategy = {
+  name: ServiceReadinessSource;
+  baseUrl: string | null;
+  healthPath: (service: string) => string;
+  readyPaths: (service: string) => string[];
+  forwardRequestHeaders: boolean;
+};
+
+type AdminLinkDerivationContext = {
+  route: AdminServiceRouteMatch;
+  baseUrl: string | null;
+  agcReadinessBaseUrl: string | null;
+  foundryStudioUrl: string | null;
+  foundryProjectUrl: string | null;
+  foundryProjectEndpoint: string | null;
+  foundryTracesUrl: string | null;
+  foundryEvaluationsUrl: string | null;
+  foundryProjectName: string | null;
+};
+
+type AdminLinkStrategy = {
+  resolve: (context: AdminLinkDerivationContext) => string | null;
 };
 
 type EndpointFallbackStrategy = {
@@ -268,6 +340,131 @@ const CATALOG_READ_FALLBACK_STRATEGIES: readonly EndpointFallbackStrategy[] = [
       retryableStatuses: [502, 503, 504] as const,
     },
     buildPayload: () => [],
+  },
+];
+
+const SAFE_FOUNDRY_PORTAL_URL = 'https://ai.azure.com';
+
+const ADMIN_APP_HEALTH_APIM_LINK_STRATEGY: AdminLinkStrategy = {
+  resolve: (context) =>
+    context.baseUrl
+      ? joinUrlPath(context.baseUrl, `/agents/${context.route.agentService}/health`)
+      : null,
+};
+
+const ADMIN_APP_HEALTH_AGC_LINK_STRATEGY: AdminLinkStrategy = {
+  resolve: (context) =>
+    context.agcReadinessBaseUrl
+      ? joinUrlPath(context.agcReadinessBaseUrl, `/${context.route.agentService}/health`)
+      : null,
+};
+
+const ADMIN_APP_READY_APIM_LINK_STRATEGY: AdminLinkStrategy = {
+  resolve: (context) =>
+    context.baseUrl
+      ? joinUrlPath(context.baseUrl, `/agents/${context.route.agentService}/ready`)
+      : null,
+};
+
+const ADMIN_APP_READY_AGC_SERVICE_LINK_STRATEGY: AdminLinkStrategy = {
+  resolve: (context) =>
+    context.agcReadinessBaseUrl
+      ? joinUrlPath(context.agcReadinessBaseUrl, `/${context.route.agentService}/ready`)
+      : null,
+};
+
+const ADMIN_APP_READY_AGC_GLOBAL_LINK_STRATEGY: AdminLinkStrategy = {
+  resolve: (context) =>
+    context.agcReadinessBaseUrl
+      ? joinUrlPath(context.agcReadinessBaseUrl, '/ready')
+      : null,
+};
+
+const ADMIN_APP_HEALTH_LINK_STRATEGIES: readonly AdminLinkStrategy[] = [
+  ADMIN_APP_HEALTH_APIM_LINK_STRATEGY,
+  ADMIN_APP_HEALTH_AGC_LINK_STRATEGY,
+];
+
+const ADMIN_APP_HEALTH_LINK_STRATEGIES_AGC_FIRST: readonly AdminLinkStrategy[] = [
+  ADMIN_APP_HEALTH_AGC_LINK_STRATEGY,
+  ADMIN_APP_HEALTH_APIM_LINK_STRATEGY,
+];
+
+const ADMIN_APP_READY_LINK_STRATEGIES: readonly AdminLinkStrategy[] = [
+  ADMIN_APP_READY_APIM_LINK_STRATEGY,
+  ADMIN_APP_READY_AGC_SERVICE_LINK_STRATEGY,
+  ADMIN_APP_READY_AGC_GLOBAL_LINK_STRATEGY,
+];
+
+const ADMIN_APP_READY_LINK_STRATEGIES_AGC_FIRST: readonly AdminLinkStrategy[] = [
+  ADMIN_APP_READY_AGC_SERVICE_LINK_STRATEGY,
+  ADMIN_APP_READY_AGC_GLOBAL_LINK_STRATEGY,
+  ADMIN_APP_READY_APIM_LINK_STRATEGY,
+];
+
+const ADMIN_FOUNDRY_STUDIO_LINK_STRATEGIES: readonly AdminLinkStrategy[] = [
+  {
+    resolve: (context) => context.foundryStudioUrl,
+  },
+  {
+    resolve: (context) => context.foundryProjectUrl,
+  },
+  {
+    resolve: (context) => context.foundryProjectEndpoint,
+  },
+  {
+    resolve: (context) =>
+      context.foundryProjectName
+        ? `${SAFE_FOUNDRY_PORTAL_URL}?project=${encodeURIComponent(context.foundryProjectName)}`
+        : null,
+  },
+];
+
+const ADMIN_FOUNDRY_PROJECT_LINK_STRATEGIES: readonly AdminLinkStrategy[] = [
+  {
+    resolve: (context) => context.foundryProjectUrl,
+  },
+  {
+    resolve: (context) => context.foundryProjectEndpoint,
+  },
+  {
+    resolve: (context) => context.foundryStudioUrl,
+  },
+  {
+    resolve: (context) =>
+      context.foundryProjectName
+        ? `${SAFE_FOUNDRY_PORTAL_URL}?project=${encodeURIComponent(context.foundryProjectName)}`
+        : null,
+  },
+];
+
+const ADMIN_FOUNDRY_TRACES_LINK_STRATEGIES: readonly AdminLinkStrategy[] = [
+  {
+    resolve: (context) => context.foundryTracesUrl,
+  },
+  {
+    resolve: (context) => context.foundryProjectUrl,
+  },
+  {
+    resolve: (context) => context.foundryStudioUrl,
+  },
+  {
+    resolve: (context) => context.foundryProjectEndpoint,
+  },
+];
+
+const ADMIN_FOUNDRY_EVALUATIONS_LINK_STRATEGIES: readonly AdminLinkStrategy[] = [
+  {
+    resolve: (context) => context.foundryEvaluationsUrl,
+  },
+  {
+    resolve: (context) => context.foundryProjectUrl,
+  },
+  {
+    resolve: (context) => context.foundryStudioUrl,
+  },
+  {
+    resolve: (context) => context.foundryProjectEndpoint,
   },
 ];
 
@@ -618,6 +815,38 @@ function readNumber(record: Record<string, unknown> | null, keys: string[]): num
   return null;
 }
 
+function readBoolean(record: Record<string, unknown> | null, keys: string[]): boolean | null {
+  if (!record) {
+    return null;
+  }
+
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    if (typeof value === 'number') {
+      if (value === 1) {
+        return true;
+      }
+      if (value === 0) {
+        return false;
+      }
+    }
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (normalized === 'true' || normalized === 'yes' || normalized === 'ready' || normalized === 'ok') {
+        return true;
+      }
+      if (normalized === 'false' || normalized === 'no' || normalized === 'not_ready' || normalized === 'not-ready') {
+        return false;
+      }
+    }
+  }
+
+  return null;
+}
+
 function normalizeModelTier(value: string | null): 'slm' | 'llm' | 'unknown' {
   if (!value) {
     return 'unknown';
@@ -665,6 +894,383 @@ function getAgentActivityServices(): string[] {
     .filter((service) => service.length > 0);
 
   return parsed.length > 0 ? parsed : [...DEFAULT_AGENT_ACTIVITY_SERVICES];
+}
+
+function normalizeBaseUrl(value: string): string {
+  return value.trim().replace(/\/+$/, '');
+}
+
+function readFirstNonEmptyEnv(keys: string[]): string | null {
+  for (const key of keys) {
+    const value = (process.env[key] || '').trim();
+    if (value.length > 0) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+function toSafeHttpUrl(value: string | null): string | null {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return null;
+    }
+
+    return normalizeBaseUrl(parsed.toString());
+  } catch {
+    return null;
+  }
+}
+
+function joinUrlPath(baseUrl: string, path: string): string {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${normalizeBaseUrl(baseUrl)}${normalizedPath}`;
+}
+
+function resolveLinkByStrategies(
+  strategies: readonly AdminLinkStrategy[],
+  context: AdminLinkDerivationContext,
+  fallbackUrl: string,
+): string {
+  for (const strategy of strategies) {
+    const candidate = strategy.resolve(context);
+    if (candidate) {
+      return candidate;
+    }
+  }
+
+  return fallbackUrl;
+}
+
+function resolveAgcReadinessBaseUrl(): string | null {
+  const configuredHost = (process.env.AGC_FRONTEND_HOSTNAME || process.env.AGC_HOSTNAME || '').trim();
+  if (!configuredHost) {
+    return null;
+  }
+
+  const configuredScheme = (process.env.AGC_FRONTEND_SCHEME || 'http').trim().toLowerCase();
+  const scheme = configuredScheme === 'https' ? 'https' : 'http';
+
+  if (/^https?:\/\//i.test(configuredHost)) {
+    try {
+      const parsed = new URL(configuredHost);
+      return normalizeBaseUrl(`${scheme}://${parsed.host}${parsed.pathname}`);
+    } catch {
+      return normalizeBaseUrl(configuredHost);
+    }
+  }
+
+  return normalizeBaseUrl(`${scheme}://${configuredHost}`);
+}
+
+function buildServiceReadinessStrategies(baseUrl: string | null): ServiceReadinessStrategy[] {
+  // Strategy pattern: each source encapsulates how readiness is probed.
+  return [
+    {
+      name: 'apim-readiness',
+      baseUrl,
+      healthPath: (service: string) => `/agents/${service}/health`,
+      readyPaths: (service: string) => [`/agents/${service}/ready`],
+      forwardRequestHeaders: true,
+    },
+    {
+      name: 'agc-direct-readiness',
+      baseUrl: resolveAgcReadinessBaseUrl(),
+      healthPath: (service: string) => `/${service}/health`,
+      readyPaths: (service: string) => [`/${service}/ready`, '/ready'],
+      forwardRequestHeaders: false,
+    },
+  ];
+}
+
+async function fetchReadinessProbe(url: string, headers: Headers): Promise<ReadinessProbeResult> {
+  const startedAt = Date.now();
+
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers,
+      redirect: 'manual',
+      cache: 'no-store',
+    });
+
+    let payload: Record<string, unknown> | null = null;
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      try {
+        payload = toRecord(await response.json());
+      } catch {
+        payload = null;
+      }
+    }
+
+    return {
+      ok: response.ok,
+      payload,
+      latencyMs: Math.max(Date.now() - startedAt, 0),
+    };
+  } catch {
+    return {
+      ok: false,
+      payload: null,
+      latencyMs: Math.max(Date.now() - startedAt, 0),
+    };
+  }
+}
+
+async function fetchReadyProbeWithFallbackPaths(
+  baseUrl: string,
+  paths: string[],
+  headers: Headers,
+): Promise<ReadinessProbeResult | null> {
+  let lastResult: ReadinessProbeResult | null = null;
+
+  for (const path of paths) {
+    const result = await fetchReadinessProbe(`${baseUrl}${path}`, headers);
+    if (result.ok) {
+      return result;
+    }
+    lastResult = result;
+  }
+
+  return lastResult;
+}
+
+function getReadinessProbeErrorRate(readiness: ServiceReadinessSnapshot | null): number {
+  if (!readiness) {
+    return 0;
+  }
+
+  const total = readiness.successful_probes + readiness.failed_probes;
+  if (total <= 0) {
+    return 0;
+  }
+
+  return readiness.failed_probes / total;
+}
+
+function mapReadinessToAdminStatus(
+  readiness: ServiceReadinessSnapshot | null,
+): 'healthy' | 'warning' | 'error' | 'unknown' {
+  if (!readiness) {
+    return 'unknown';
+  }
+
+  if (readiness.health_ok === false || readiness.ready_ok === false || readiness.foundry_ready === false) {
+    return 'error';
+  }
+
+  const hasPositiveSignal =
+    readiness.health_ok === true
+    || readiness.ready_ok === true
+    || readiness.foundry_ready === true;
+
+  if (!hasPositiveSignal) {
+    return 'unknown';
+  }
+
+  if (readiness.failed_probes > 0 || readiness.foundry_ready === null) {
+    return 'warning';
+  }
+
+  return 'healthy';
+}
+
+function mapReadinessToAgentHealthStatus(readiness: ServiceReadinessSnapshot | null): 'healthy' | 'degraded' | 'unknown' {
+  const adminStatus = mapReadinessToAdminStatus(readiness);
+
+  if (adminStatus === 'healthy') {
+    return 'healthy';
+  }
+
+  if (adminStatus === 'warning' || adminStatus === 'error') {
+    return 'degraded';
+  }
+
+  return 'unknown';
+}
+
+function mapReadinessToAppSurfaceStatus(readiness: ServiceReadinessSnapshot | null): AdminServiceSurfaceStatus {
+  if (!readiness) {
+    return 'unknown';
+  }
+
+  if (readiness.health_ok === false || readiness.ready_ok === false) {
+    return 'error';
+  }
+
+  if (readiness.health_ok === true && readiness.ready_ok === true) {
+    return readiness.failed_probes > 0 ? 'warning' : 'healthy';
+  }
+
+  if (readiness.health_ok === true || readiness.ready_ok === true) {
+    return 'warning';
+  }
+
+  return 'unknown';
+}
+
+function mapReadinessToFoundrySurfaceStatus(
+  readiness: ServiceReadinessSnapshot | null,
+  evaluationScore: number,
+): AdminServiceSurfaceStatus {
+  if (readiness?.foundry_ready === false) {
+    return 'error';
+  }
+
+  if (readiness?.foundry_ready === true) {
+    return evaluationScore > 0 && evaluationScore < 0.75 ? 'warning' : 'healthy';
+  }
+
+  if (evaluationScore > 0) {
+    return 'warning';
+  }
+
+  return 'unknown';
+}
+
+function buildAdminLinkDerivationContext(route: AdminServiceRouteMatch, baseUrl: string | null): AdminLinkDerivationContext {
+  return {
+    route,
+    baseUrl: baseUrl ? normalizeBaseUrl(baseUrl) : null,
+    agcReadinessBaseUrl: resolveAgcReadinessBaseUrl(),
+    foundryStudioUrl: toSafeHttpUrl(readFirstNonEmptyEnv(['NEXT_PUBLIC_FOUNDRY_STUDIO_URL', 'FOUNDRY_STUDIO_URL'])),
+    foundryProjectUrl: toSafeHttpUrl(readFirstNonEmptyEnv(['NEXT_PUBLIC_FOUNDRY_PROJECT_URL', 'FOUNDRY_PROJECT_URL'])),
+    foundryProjectEndpoint: toSafeHttpUrl(readFirstNonEmptyEnv(['PROJECT_ENDPOINT', 'FOUNDRY_ENDPOINT'])),
+    foundryTracesUrl: toSafeHttpUrl(readFirstNonEmptyEnv(['NEXT_PUBLIC_FOUNDRY_TRACES_URL', 'FOUNDRY_TRACES_URL'])),
+    foundryEvaluationsUrl: toSafeHttpUrl(
+      readFirstNonEmptyEnv(['NEXT_PUBLIC_FOUNDRY_EVALUATIONS_URL', 'FOUNDRY_EVALUATIONS_URL']),
+    ),
+    foundryProjectName: readFirstNonEmptyEnv(['PROJECT_NAME', 'FOUNDRY_PROJECT_NAME']),
+  };
+}
+
+function buildAdminServiceSurfaces(params: {
+  route: AdminServiceRouteMatch;
+  baseUrl: string | null;
+  readiness: ServiceReadinessSnapshot | null;
+  evaluationScore: number;
+}): Pick<AdminServiceFallbackPayload, 'app_surface' | 'foundry_surface'> {
+  const linkContext = buildAdminLinkDerivationContext(params.route, params.baseUrl);
+  const appHealthStrategies =
+    params.readiness?.source === 'agc-direct-readiness'
+      ? ADMIN_APP_HEALTH_LINK_STRATEGIES_AGC_FIRST
+      : ADMIN_APP_HEALTH_LINK_STRATEGIES;
+  const appReadyStrategies =
+    params.readiness?.source === 'agc-direct-readiness'
+      ? ADMIN_APP_READY_LINK_STRATEGIES_AGC_FIRST
+      : ADMIN_APP_READY_LINK_STRATEGIES;
+
+  return {
+    app_surface: {
+      status: mapReadinessToAppSurfaceStatus(params.readiness),
+      source: params.readiness?.source ?? 'unavailable',
+      checked_at: params.readiness?.checked_at ?? null,
+      liveness_ok: params.readiness?.health_ok ?? null,
+      readiness_ok: params.readiness?.ready_ok ?? null,
+      links: {
+        health: resolveLinkByStrategies(
+          appHealthStrategies,
+          linkContext,
+          `/agents/${params.route.agentService}/health`,
+        ),
+        ready: resolveLinkByStrategies(
+          appReadyStrategies,
+          linkContext,
+          `/agents/${params.route.agentService}/ready`,
+        ),
+      },
+    },
+    foundry_surface: {
+      status: mapReadinessToFoundrySurfaceStatus(params.readiness, params.evaluationScore),
+      checked_at: params.readiness?.checked_at ?? null,
+      foundry_ready: params.readiness?.foundry_ready ?? null,
+      links: {
+        studio: resolveLinkByStrategies(
+          ADMIN_FOUNDRY_STUDIO_LINK_STRATEGIES,
+          linkContext,
+          SAFE_FOUNDRY_PORTAL_URL,
+        ),
+        project: resolveLinkByStrategies(
+          ADMIN_FOUNDRY_PROJECT_LINK_STRATEGIES,
+          linkContext,
+          SAFE_FOUNDRY_PORTAL_URL,
+        ),
+        traces: resolveLinkByStrategies(
+          ADMIN_FOUNDRY_TRACES_LINK_STRATEGIES,
+          linkContext,
+          SAFE_FOUNDRY_PORTAL_URL,
+        ),
+        evaluations: resolveLinkByStrategies(
+          ADMIN_FOUNDRY_EVALUATIONS_LINK_STRATEGIES,
+          linkContext,
+          SAFE_FOUNDRY_PORTAL_URL,
+        ),
+      },
+    },
+  };
+}
+
+async function collectServiceReadiness(params: {
+  service: string;
+  baseUrl: string | null;
+  requestHeaders: Headers;
+}): Promise<ServiceReadinessSnapshot | null> {
+  for (const strategy of buildServiceReadinessStrategies(params.baseUrl)) {
+    if (!strategy.baseUrl) {
+      continue;
+    }
+
+    const probeHeaders = strategy.forwardRequestHeaders ? new Headers(params.requestHeaders) : new Headers();
+    const healthProbe = await fetchReadinessProbe(
+      `${strategy.baseUrl}${strategy.healthPath(params.service)}`,
+      probeHeaders,
+    );
+    const readyProbe = await fetchReadyProbeWithFallbackPaths(
+      strategy.baseUrl,
+      strategy.readyPaths(params.service),
+      probeHeaders,
+    );
+
+    const successfulProbes = (healthProbe.ok ? 1 : 0) + (readyProbe?.ok ? 1 : 0);
+    if (successfulProbes === 0) {
+      continue;
+    }
+
+    const probeCount = 1 + (readyProbe ? 1 : 0);
+    const failedProbes = Math.max(probeCount - successfulProbes, 0);
+    const latencySamples = [healthProbe.latencyMs, readyProbe?.latencyMs]
+      .filter((value): value is number => typeof value === 'number' && value > 0);
+
+    const healthOk = healthProbe.ok
+      ? (readBoolean(healthProbe.payload, ['healthy', 'ok', 'health_ready']) ?? true)
+      : null;
+    const readyOk = readyProbe?.ok
+      ? (readBoolean(readyProbe.payload, ['ready', 'is_ready']) ?? true)
+      : null;
+
+    return {
+      source: strategy.name,
+      checked_at: new Date().toISOString(),
+      health_ok: healthOk,
+      ready_ok: readyOk,
+      foundry_ready: readBoolean(readyProbe?.payload ?? null, ['foundry_ready', 'foundryReady']),
+      latency_ms:
+        latencySamples.length > 0
+          ? Math.round(latencySamples.reduce((sum, value) => sum + value, 0) / latencySamples.length)
+          : 0,
+      successful_probes: successfulProbes,
+      failed_probes: failedProbes,
+    };
+  }
+
+  return null;
 }
 
 function mapTraceEntryToSummary(entry: Record<string, unknown>, fallbackService: string, index: number): AgentTraceSummaryShape {
@@ -741,10 +1347,15 @@ async function collectAgentSourceData(baseUrl: string, requestHeaders: Headers):
 
   await Promise.all(
     services.map(async (service) => {
-      const [tracesPayload, metricsPayload, evaluationPayload] = await Promise.all([
+      const [tracesPayload, metricsPayload, evaluationPayload, readiness] = await Promise.all([
         fetchJsonIfOk(`${baseUrl}/agents/${service}/agent/traces?limit=25`, requestHeaders),
         fetchJsonIfOk(`${baseUrl}/agents/${service}/agent/metrics`, requestHeaders),
         fetchJsonIfOk(`${baseUrl}/agents/${service}/agent/evaluation/latest`, requestHeaders),
+        collectServiceReadiness({
+          service,
+          baseUrl,
+          requestHeaders,
+        }),
       ]);
 
       const tracesRecord = toRecord(tracesPayload);
@@ -755,12 +1366,13 @@ async function collectAgentSourceData(baseUrl: string, requestHeaders: Headers):
       const evaluationRecord = toRecord(evaluationPayload);
       const latestEvaluation = toRecord(evaluationRecord?.latest) || toRecord(evaluationPayload);
 
-      if (traceEntries.length > 0 || toRecord(metricsPayload) || latestEvaluation) {
+      if (traceEntries.length > 0 || toRecord(metricsPayload) || latestEvaluation || readiness) {
         sources.push({
           service,
           traces: traceEntries,
           metrics: toRecord(metricsPayload),
           latestEvaluation,
+          readiness,
         });
       }
     }),
@@ -775,6 +1387,9 @@ function buildAgentActivityDashboardFromSources(sources: AgentSourceData[]): Age
   }
 
   const generatedAt = new Date().toISOString();
+  const telemetryAvailable = sources.some(
+    (source) => source.traces.length > 0 || source.metrics !== null || source.latestEvaluation !== null,
+  );
   const allSummaries = sources
     .flatMap((source) => source.traces.map((entry, index) => mapTraceEntryToSummary(entry, source.service, index)))
     .sort((left, right) => Date.parse(right.started_at) - Date.parse(left.started_at));
@@ -787,16 +1402,29 @@ function buildAgentActivityDashboardFromSources(sources: AgentSourceData[]): Age
     const total =
       readNumber(counts, ['model_invocation', 'tool_call', 'decision'])
       || Math.max(source.traces.length, 1);
-    const errorRate = total > 0 ? errors / total : 0;
+    const telemetryErrorRate = total > 0 ? errors / total : 0;
+    const readinessErrorRate = getReadinessProbeErrorRate(source.readiness);
+    const readinessStatus = mapReadinessToAgentHealthStatus(source.readiness);
+    const hasTelemetryForService = source.traces.length > 0 || metrics !== null || source.latestEvaluation !== null;
+    const errorRate = hasTelemetryForService ? telemetryErrorRate : readinessErrorRate;
+
+    let status: 'healthy' | 'degraded' | 'unknown';
+    if (hasTelemetryForService) {
+      status = enabled
+        ? (telemetryErrorRate > 0.35 ? 'degraded' : 'healthy')
+        : readinessStatus;
+    } else {
+      status = readinessStatus;
+    }
 
     return {
       id: source.service,
       label: source.service,
-      status: enabled ? (errorRate > 0.35 ? 'degraded' : 'healthy') : 'unknown',
-      latency_ms: 0,
+      status,
+      latency_ms: source.readiness?.latency_ms || 0,
       error_rate: Number(errorRate.toFixed(4)),
       throughput_rpm: source.traces.length,
-      updated_at: generatedAt,
+      updated_at: source.readiness?.checked_at || generatedAt,
     };
   });
 
@@ -856,7 +1484,7 @@ function buildAgentActivityDashboardFromSources(sources: AgentSourceData[]): Age
   }));
 
   return {
-    tracing_enabled: true,
+    tracing_enabled: telemetryAvailable,
     generated_at: generatedAt,
     health_cards: healthCards,
     trace_feed: allSummaries.slice(0, 100),
@@ -1014,6 +1642,13 @@ async function buildAgentActivitySecondaryPayload(params: {
 }
 
 function buildEmptyAdminServicePayload(route: AdminServiceRouteMatch): AdminServiceFallbackPayload {
+  const surfaces = buildAdminServiceSurfaces({
+    route,
+    baseUrl: null,
+    readiness: null,
+    evaluationScore: 0,
+  });
+
   return {
     domain: route.domain,
     service: route.service,
@@ -1028,6 +1663,7 @@ function buildEmptyAdminServicePayload(route: AdminServiceRouteMatch): AdminServ
     ],
     activity: [],
     model_usage: [],
+    ...surfaces,
   };
 }
 
@@ -1148,10 +1784,15 @@ async function buildAdminServiceSecondaryPayload(params: {
     return buildEmptyAdminServicePayload(route);
   }
 
-  const [tracesPayload, metricsPayload, evaluationPayload] = await Promise.all([
+  const [tracesPayload, metricsPayload, evaluationPayload, readiness] = await Promise.all([
     fetchJsonIfOk(`${baseUrl}/agents/${route.agentService}/agent/traces?limit=40`, requestHeaders),
     fetchJsonIfOk(`${baseUrl}/agents/${route.agentService}/agent/metrics`, requestHeaders),
     fetchJsonIfOk(`${baseUrl}/agents/${route.agentService}/agent/evaluation/latest`, requestHeaders),
+    collectServiceReadiness({
+      service: route.agentService,
+      baseUrl,
+      requestHeaders,
+    }),
   ]);
 
   const tracesRecord = toRecord(tracesPayload);
@@ -1206,29 +1847,74 @@ async function buildAdminServiceSecondaryPayload(params: {
   const errorRate = totalCount > 0 ? errorCount / totalCount : 0;
   const evaluationScore = readNumber(latestEvaluation, ['overall_score', 'score', 'quality_score', 'accuracy']) || 0;
   const metricsEnabled = typeof metrics?.enabled === 'boolean' ? metrics.enabled : totalCount > 0;
+  const readinessStatus = mapReadinessToAdminStatus(readiness);
+  const readinessErrorRate = getReadinessProbeErrorRate(readiness);
+
+  const effectiveLatency = averageLatency > 0 ? averageLatency : readiness?.latency_ms || 0;
+  const effectiveErrorRate = totalCount > 0 ? errorRate : readinessErrorRate;
+
+  const traceEventsStatus: 'healthy' | 'warning' | 'error' | 'unknown' =
+    totalCount > 0 ? 'healthy' : readinessStatus;
+  const latencyStatus: 'healthy' | 'warning' | 'error' | 'unknown' =
+    averageLatency > 0
+      ? (averageLatency > 1200 ? 'warning' : 'healthy')
+      : readinessStatus === 'error'
+        ? 'error'
+        : effectiveLatency > 1200
+          ? 'warning'
+          : readinessStatus === 'unknown'
+            ? 'unknown'
+            : 'healthy';
+  const errorRateStatus: 'healthy' | 'warning' | 'error' | 'unknown' =
+    totalCount > 0
+      ? (errorRate >= 0.25 ? 'error' : errorRate > 0 ? 'warning' : 'healthy')
+      : readinessStatus === 'unknown'
+        ? 'unknown'
+        : effectiveErrorRate >= 0.5
+          ? 'error'
+          : effectiveErrorRate > 0
+            ? 'warning'
+            : 'healthy';
+  const evaluationStatus: 'healthy' | 'warning' | 'error' | 'unknown' =
+    evaluationScore >= 0.75
+      ? 'healthy'
+      : evaluationScore > 0
+        ? 'warning'
+        : readiness?.foundry_ready === true
+          ? 'healthy'
+          : readiness?.foundry_ready === false
+            ? 'error'
+            : readinessStatus;
 
   const statusCards: AdminServiceFallbackPayload['status_cards'] = [
     {
       label: 'Trace events',
-      value: totalCount,
-      status: totalCount > 0 ? 'healthy' : 'unknown',
+      value: totalCount > 0 ? totalCount : readiness?.successful_probes || 0,
+      status: traceEventsStatus,
     },
     {
       label: 'Avg latency (ms)',
-      value: averageLatency,
-      status: averageLatency > 0 && averageLatency > 1200 ? 'warning' : averageLatency > 0 ? 'healthy' : 'unknown',
+      value: effectiveLatency,
+      status: latencyStatus,
     },
     {
       label: 'Error rate',
-      value: `${Math.round(errorRate * 100)}%`,
-      status: errorRate >= 0.25 ? 'error' : errorRate > 0 ? 'warning' : totalCount > 0 ? 'healthy' : 'unknown',
+      value: `${Math.round(effectiveErrorRate * 100)}%`,
+      status: errorRateStatus,
     },
     {
       label: 'Latest evaluation',
-      value: Number(evaluationScore.toFixed(3)),
-      status: evaluationScore >= 0.75 ? 'healthy' : evaluationScore > 0 ? 'warning' : 'unknown',
+      value: evaluationScore > 0 ? Number(evaluationScore.toFixed(3)) : readiness?.foundry_ready === true ? 1 : 0,
+      status: evaluationStatus,
     },
   ];
+
+  const surfaces = buildAdminServiceSurfaces({
+    route,
+    baseUrl,
+    readiness,
+    evaluationScore,
+  });
 
   return {
     domain: route.domain,
@@ -1239,6 +1925,7 @@ async function buildAdminServiceSecondaryPayload(params: {
     status_cards: statusCards,
     activity: activity.slice(0, 40),
     model_usage: buildAdminServiceModelUsageRows(traces, metrics, latestEvaluation),
+    ...surfaces,
   };
 }
 
@@ -1798,12 +2485,16 @@ async function proxyRequest(
       requestHeaders,
     });
 
+    const hasLiveSignals =
+      payload.activity.length > 0
+      || payload.status_cards.some((card) => card.status !== 'unknown');
+
     return NextResponse.json(payload, {
       status: 200,
       headers: {
         'x-holiday-peak-proxy': 'next-app-api',
         'x-holiday-peak-proxy-source': sourceKey ?? '',
-        'x-holiday-peak-proxy-fallback': payload.activity.length > 0 ? 'admin-service-live-aggregate' : 'admin-service-empty',
+        'x-holiday-peak-proxy-fallback': hasLiveSignals ? 'admin-service-live-aggregate' : 'admin-service-empty',
         'x-holiday-peak-proxy-fallback-upstream-status': String(upstream.status),
       },
     });

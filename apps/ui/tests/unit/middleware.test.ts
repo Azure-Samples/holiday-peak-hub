@@ -45,8 +45,11 @@ describe('middleware matcher config', () => {
       expect.arrayContaining([
         expect.stringContaining('/dashboard'),
         expect.stringContaining('/staff'),
-        expect.stringContaining('/admin'),
       ]),
+    );
+    // /admin is intentionally public for dev/demo environments
+    expect(config.matcher).not.toEqual(
+      expect.arrayContaining([expect.stringContaining('/admin')]),
     );
   });
 });
@@ -73,12 +76,10 @@ describe('middleware – protected routes', () => {
     expect(redirectUrl.searchParams.get('redirect')).toBe('/dashboard');
   });
 
-  it('redirects unauthenticated user from /admin to login with full redirect target', async () => {
+  it('passes through /admin without authentication (public for dev/demo)', async () => {
     await proxy(makeRequest('/admin?tab=schemas'));
-    expect(mockRedirect).toHaveBeenCalledTimes(1);
-    const redirectUrl: URL = mockRedirect.mock.calls[0][0];
-    expect(redirectUrl.pathname).toBe('/auth/login');
-    expect(redirectUrl.searchParams.get('redirect')).toBe('/admin?tab=schemas');
+    expect(mockNext).toHaveBeenCalledTimes(1);
+    expect(mockRedirect).not.toHaveBeenCalled();
   });
 
   it('rejects unsigned cookie values and redirects to login', async () => {
@@ -101,15 +102,14 @@ describe('middleware – protected routes', () => {
     expect(mockRedirect).not.toHaveBeenCalled();
   });
 
-  it('redirects signed staff role away from /admin', async () => {
+  it('passes through /admin for staff role (admin is public)', async () => {
     const signedCookie = await createSignedAuthCookieValue(['staff']);
     await proxy(makeRequest('/admin', { 'msal-auth': signedCookie }));
-    expect(mockRedirect).toHaveBeenCalledTimes(1);
-    const redirectUrl: URL = mockRedirect.mock.calls[0][0];
-    expect(redirectUrl.pathname).toBe('/');
+    expect(mockNext).toHaveBeenCalledTimes(1);
+    expect(mockRedirect).not.toHaveBeenCalled();
   });
 
-  it('allows signed admin role through /admin', async () => {
+  it('passes through /admin for admin role (admin is public)', async () => {
     const signedCookie = await createSignedAuthCookieValue(['admin']);
     await proxy(makeRequest('/admin', { 'msal-auth': signedCookie }));
     expect(mockNext).toHaveBeenCalledTimes(1);

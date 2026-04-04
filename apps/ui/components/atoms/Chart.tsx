@@ -67,7 +67,7 @@ const CustomTooltip: React.FC<{ active?: boolean; payload?: TooltipPayloadEntry[
   const data = payload[0].payload;
   
   return (
-    <div className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-lg rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+    <div className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm text-gray-900 dark:text-white shadow-xl rounded-xl p-3 border border-gray-100 dark:border-gray-800 ring-1 ring-black/5 dark:ring-white/5">
       {Object.entries(data).map(([key, value]) => {
         if (key === 'name' || typeof value !== 'number') {
           return key === 'name' ? (

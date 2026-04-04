@@ -686,7 +686,7 @@ echo "$SERVICES" | while IFS= read -r SERVICE; do
     echo "Created API: $API_ID"
   fi
 
-  for OP_ID in health invoke mcp-tool; do
+  for OP_ID in health ready invoke mcp-tool agent-traces agent-metrics agent-evaluation-latest; do
     az apim api operation delete \
       --resource-group "$RESOURCE_GROUP" \
       --service-name "$APIM_NAME" \
@@ -697,8 +697,12 @@ echo "$SERVICES" | while IFS= read -r SERVICE; do
   done
 
   az apim api operation create --resource-group "$RESOURCE_GROUP" --service-name "$APIM_NAME" --api-id "$API_ID" --operation-id health --display-name "Health" --method GET --url-template "/health" >/dev/null
+  az apim api operation create --resource-group "$RESOURCE_GROUP" --service-name "$APIM_NAME" --api-id "$API_ID" --operation-id ready --display-name "Ready" --method GET --url-template "/ready" >/dev/null
   az apim api operation create --resource-group "$RESOURCE_GROUP" --service-name "$APIM_NAME" --api-id "$API_ID" --operation-id invoke --display-name "Invoke" --method POST --url-template "/invoke" >/dev/null
   az apim api operation create --resource-group "$RESOURCE_GROUP" --service-name "$APIM_NAME" --api-id "$API_ID" --operation-id mcp-tool --display-name "MCP Tool" --method POST --url-template "/mcp/{tool}" --template-parameters name=tool description="MCP tool name" type=string required=true >/dev/null
+  az apim api operation create --resource-group "$RESOURCE_GROUP" --service-name "$APIM_NAME" --api-id "$API_ID" --operation-id agent-traces --display-name "Agent Traces" --method GET --url-template "/agent/traces" >/dev/null
+  az apim api operation create --resource-group "$RESOURCE_GROUP" --service-name "$APIM_NAME" --api-id "$API_ID" --operation-id agent-metrics --display-name "Agent Metrics" --method GET --url-template "/agent/metrics" >/dev/null
+  az apim api operation create --resource-group "$RESOURCE_GROUP" --service-name "$APIM_NAME" --api-id "$API_ID" --operation-id agent-evaluation-latest --display-name "Agent Evaluation Latest" --method GET --url-template "/agent/evaluation/latest" >/dev/null
 done
 
 echo "APIM agent sync completed."

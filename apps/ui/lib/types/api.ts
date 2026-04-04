@@ -835,6 +835,30 @@ export interface AdminServiceActivityRow {
   latency_ms: number;
 }
 
+export interface AdminServiceAppSurface {
+  status: AdminServiceStatus;
+  source: 'apim-readiness' | 'agc-direct-readiness' | 'unavailable';
+  checked_at: string | null;
+  liveness_ok: boolean | null;
+  readiness_ok: boolean | null;
+  links: {
+    health: string;
+    ready: string;
+  };
+}
+
+export interface AdminServiceFoundrySurface {
+  status: AdminServiceStatus;
+  checked_at: string | null;
+  foundry_ready: boolean | null;
+  links: {
+    studio: string;
+    project: string;
+    traces: string;
+    evaluations: string;
+  };
+}
+
 export interface AdminServiceDashboard {
   domain: AdminServiceDomain;
   service: string;
@@ -844,6 +868,8 @@ export interface AdminServiceDashboard {
   status_cards: AdminServiceStatusCard[];
   activity: AdminServiceActivityRow[];
   model_usage: AgentModelUsageRow[];
+  app_surface?: AdminServiceAppSurface;
+  foundry_surface?: AdminServiceFoundrySurface;
 }
 
 // API Response wrappers

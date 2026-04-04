@@ -157,12 +157,9 @@ if ($ServiceName -eq "crud-service") {
   $helmArgs += @('--set', 'agc.paths[1].path=/api')
   $helmArgs += @('--set', 'agc.paths[1].pathType=PathPrefix')
 } else {
-  $helmArgs += @('--set', 'agc.paths[0].path=/health')
+  $helmArgs += @('--set', "agc.paths[0].path=/$ServiceName")
   $helmArgs += @('--set', 'agc.paths[0].pathType=PathPrefix')
-  $helmArgs += @('--set', 'agc.paths[1].path=/invoke')
-  $helmArgs += @('--set', 'agc.paths[1].pathType=PathPrefix')
-  $helmArgs += @('--set', 'agc.paths[2].path=/mcp')
-  $helmArgs += @('--set', 'agc.paths[2].pathType=PathPrefix')
+  $helmArgs += @('--set', 'agc.paths[0].rewritePrefixMatch=/')
 }
 
 if ($agcHostname) {
@@ -230,6 +227,7 @@ $envMappings = @{
   COSMOS_ACCOUNT_URI = $env:COSMOS_ACCOUNT_URI
   COSMOS_DATABASE = $env:COSMOS_DATABASE
   COSMOS_CONTAINER = $env:COSMOS_CONTAINER
+  COSMOS_AUDIT_CONTAINER = $env:COSMOS_AUDIT_CONTAINER
   BLOB_ACCOUNT_URL = $env:BLOB_ACCOUNT_URL
   BLOB_CONTAINER = $env:BLOB_CONTAINER
 
@@ -274,6 +272,22 @@ if ($isTruthService) {
   $truthServiceVars = $truthServiceEventHubMappings[$ServiceName]
   foreach ($truthKey in $truthServiceVars.Keys) {
     $envMappings[$truthKey] = $truthServiceVars[$truthKey]
+  }
+
+  if ($ServiceName -eq 'truth-ingestion') {
+    $ingestionContainer = if ($env:TRUTH_INGESTION_COSMOS_CONTAINER) {
+      $env:TRUTH_INGESTION_COSMOS_CONTAINER
+    } else {
+      'products'
+    }
+    $ingestionAuditContainer = if ($env:TRUTH_INGESTION_COSMOS_AUDIT_CONTAINER) {
+      $env:TRUTH_INGESTION_COSMOS_AUDIT_CONTAINER
+    } else {
+      'audit'
+    }
+
+    $envMappings['COSMOS_CONTAINER'] = $ingestionContainer
+    $envMappings['COSMOS_AUDIT_CONTAINER'] = $ingestionAuditContainer
   }
 }
 
@@ -349,6 +363,12 @@ if ($isTruthService) {
     "TRUTH_EVENT_HUB_NAME",
     "TRUTH_EVENT_HUB_CONSUMER_GROUP"
   )
+  if ($ServiceName -eq 'truth-ingestion') {
+    $requiredRenderedKeys += @(
+      'COSMOS_CONTAINER',
+      'COSMOS_AUDIT_CONTAINER'
+    )
+  }
   foreach ($renderedKey in $requiredRenderedKeys) {
     $present = Select-String -Path $rendered -SimpleMatch "name: $renderedKey" -Quiet
     if (-not $present) {

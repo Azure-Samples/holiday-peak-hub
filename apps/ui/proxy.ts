@@ -24,8 +24,9 @@ const STAFF_REQUIRED_SEGMENTS = ['/staff'];
 
 /**
  * Route segments that require the "admin" role.
+ * Admin pages are publicly accessible for dev/demo environments.
  */
-const ADMIN_REQUIRED_SEGMENTS = ['/admin'];
+const ADMIN_REQUIRED_SEGMENTS: string[] = [];
 
 /**
  * Read the server-signed msal-auth cookie value set by auth session endpoints.
@@ -86,6 +87,5 @@ export const config = {
     '/wishlist/:path*',
     '/cart/:path*',
     '/staff/:path*',
-    '/admin/:path*',
   ],
 };

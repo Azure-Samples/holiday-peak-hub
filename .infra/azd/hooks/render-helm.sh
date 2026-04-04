@@ -128,12 +128,9 @@ if [ "$SERVICE_NAME" = "crud-service" ]; then
   HELM_ARGS="$HELM_ARGS --set agc.paths[1].path=/api"
   HELM_ARGS="$HELM_ARGS --set agc.paths[1].pathType=PathPrefix"
 else
-  HELM_ARGS="$HELM_ARGS --set agc.paths[0].path=/health"
+  HELM_ARGS="$HELM_ARGS --set agc.paths[0].path=/$SERVICE_NAME"
   HELM_ARGS="$HELM_ARGS --set agc.paths[0].pathType=PathPrefix"
-  HELM_ARGS="$HELM_ARGS --set agc.paths[1].path=/invoke"
-  HELM_ARGS="$HELM_ARGS --set agc.paths[1].pathType=PathPrefix"
-  HELM_ARGS="$HELM_ARGS --set agc.paths[2].path=/mcp"
-  HELM_ARGS="$HELM_ARGS --set agc.paths[2].pathType=PathPrefix"
+  HELM_ARGS="$HELM_ARGS --set agc.paths[0].rewritePrefixMatch=/"
 fi
 if [ -n "$AGC_HOSTNAME" ]; then
   HELM_ARGS="$HELM_ARGS --set-string agc.hostnames[0]=$AGC_HOSTNAME"
@@ -244,7 +241,14 @@ add_env_arg "EMBEDDING_DEPLOYMENT_NAME" "${EMBEDDING_DEPLOYMENT_NAME:-}"
 add_env_arg "REDIS_URL" "${REDIS_URL:-}"
 add_env_arg "COSMOS_ACCOUNT_URI" "${COSMOS_ACCOUNT_URI:-}"
 add_env_arg "COSMOS_DATABASE" "${COSMOS_DATABASE:-}"
-add_env_arg "COSMOS_CONTAINER" "${COSMOS_CONTAINER:-}"
+COSMOS_CONTAINER_VALUE="${COSMOS_CONTAINER:-}"
+COSMOS_AUDIT_CONTAINER_VALUE="${COSMOS_AUDIT_CONTAINER:-}"
+if [ "$SERVICE_NAME" = "truth-ingestion" ]; then
+  COSMOS_CONTAINER_VALUE="${TRUTH_INGESTION_COSMOS_CONTAINER:-products}"
+  COSMOS_AUDIT_CONTAINER_VALUE="${TRUTH_INGESTION_COSMOS_AUDIT_CONTAINER:-audit}"
+fi
+add_env_arg "COSMOS_CONTAINER" "$COSMOS_CONTAINER_VALUE"
+add_env_arg "COSMOS_AUDIT_CONTAINER" "$COSMOS_AUDIT_CONTAINER_VALUE"
 add_env_arg "BLOB_ACCOUNT_URL" "${BLOB_ACCOUNT_URL:-}"
 add_env_arg "BLOB_CONTAINER" "${BLOB_CONTAINER:-}"
 
@@ -313,6 +317,15 @@ if is_truth_service; then
       exit 1
     fi
   done
+
+  if [ "$SERVICE_NAME" = "truth-ingestion" ]; then
+    for key in COSMOS_CONTAINER COSMOS_AUDIT_CONTAINER; do
+      if ! grep -q "name: $key" "$OUT_DIR/all.yaml"; then
+        echo "Rendered manifest missing env key '$key' for $SERVICE_NAME" >&2
+        exit 1
+      fi
+    done
+  fi
 fi
 
 if [ "$SERVICE_NAME" = "ecommerce-catalog-search" ] || [ "$SERVICE_NAME" = "search-enrichment-agent" ]; then

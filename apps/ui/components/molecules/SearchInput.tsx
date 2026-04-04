@@ -147,13 +147,13 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
           aria-label={ariaLabel || placeholder}
           className={cn(
             'w-full',
-            'border border-gray-300 dark:border-gray-700',
-            'bg-white dark:bg-gray-800',
+            'border border-gray-200 dark:border-gray-700',
+            'bg-gray-50 dark:bg-gray-800/50',
             'text-gray-900 dark:text-white',
             'placeholder-gray-400 dark:placeholder-gray-500',
-            'rounded-lg',
-            'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent',
-            'transition-colors duration-200',
+            'rounded-xl',
+            'focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-white/10 focus:border-gray-400 dark:focus:border-gray-500 focus:bg-white dark:focus:bg-gray-800',
+            'transition-all duration-200',
             disabled && 'opacity-50 cursor-not-allowed',
             sizeClasses[size]
           )}

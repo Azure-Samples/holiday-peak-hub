@@ -1,10 +1,10 @@
 # Holiday Peak Hub - Architecture Documentation
 
-**Last Updated**: April 2, 2026  
+**Last Updated**: April 3, 2026  
 **Version**: main (post PR #559)  
 **Status**: Active Development
 
-## Latest Update Snapshot (April 2, 2026)
+## Latest Update Snapshot (April 3, 2026)
 
 - Enrichment/search orchestration hardening merged via PR #559 (Issue #558).
 - Truth flow now enforces human-gated enrichment validation (`pending_review`) with dual HITL publish (`export-jobs` and `search-enrichment-jobs`).
@@ -12,6 +12,7 @@
 - Catalog search now stores stage/session search context with best-effort persistence across hot/warm/cold memory tiers.
 - Validation status: local repository test run reports 1647 passed (2 warnings).
 - Agentic app README deployment docs are standardized with standalone azd-first guidance and app-specific ACR/AKS paths.
+- UI/UX modernization review added with per-view recommendations for customer, staff, admin, and observability surfaces.
 
 ## Overview
 

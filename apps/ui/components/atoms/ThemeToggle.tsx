@@ -40,11 +40,12 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({
       aria-label={ariaLabel || 'Toggle theme'}
       onClick={toggleTheme}
       className={cn(
-        'inline-flex items-center justify-center rounded-lg',
-        'text-gray-700 dark:text-gray-300',
-        'hover:bg-gray-100 dark:hover:bg-gray-800',
-        'focus:outline-none focus:ring-2 focus:ring-ocean-500 dark:focus:ring-ocean-300',
-        'transition-colors duration-200',
+        'inline-flex items-center justify-center rounded-full',
+        'text-gray-500 dark:text-gray-400',
+        'hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white',
+        'focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:focus-visible:ring-white',
+        'transition-all duration-300 ease-[cubic-bezier(0.23,1,0.32,1)]',
+        'active:scale-90',
         sizeClasses[size],
         className
       )}

@@ -24,7 +24,7 @@ export const RelatedProductsRail: React.FC<RelatedProductsRailProps> = ({
 
   return (
     <section aria-label={title}>
-      <h3 className="mb-2 text-sm font-semibold text-[var(--hp-text)]">{title}</h3>
+      <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-gray-400">{title}</h3>
       {resolvedProducts.length > 0 ? (
         <div className="flex flex-col gap-2 sm:flex-row sm:overflow-x-auto sm:pb-1" role="list" aria-label={`${title} mini product cards`}>
           {resolvedProducts.map((product) => (
@@ -32,14 +32,14 @@ export const RelatedProductsRail: React.FC<RelatedProductsRailProps> = ({
               key={`${title}-${product.sku}`}
               href={`/product?id=${encodeURIComponent(product.sku)}`}
               role="listitem"
-              className="flex min-w-[220px] items-center gap-3 rounded-xl border border-[var(--hp-border)] bg-[var(--hp-surface)] p-2 hover:border-[var(--hp-primary)]"
+              className="flex min-w-[200px] items-center gap-3 rounded-xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 p-2 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-sm transition-all duration-200"
             >
               <div className="relative h-12 w-12 overflow-hidden rounded-lg bg-[var(--hp-surface-strong)]">
                 <Image src={product.thumbnail} alt={product.title} fill className="object-cover" />
               </div>
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-[var(--hp-text)]">{product.title}</p>
-                <p className="text-xs text-[var(--hp-text-muted)]">${product.price.toFixed(2)}</p>
+                <p className="truncate text-xs font-medium text-gray-900 dark:text-white">{product.title}</p>
+                <p className="text-[11px] text-gray-400">${product.price.toFixed(2)}</p>
               </div>
             </Link>
           ))}
@@ -51,7 +51,7 @@ export const RelatedProductsRail: React.FC<RelatedProductsRailProps> = ({
               key={`${title}-${item}`}
               href={`/search?q=${encodeURIComponent(item)}`}
               role="listitem"
-              className="whitespace-nowrap rounded-full border border-[var(--hp-border)] bg-[var(--hp-surface)] px-3 py-1 text-sm text-[var(--hp-text)] hover:border-[var(--hp-primary)]"
+              className="whitespace-nowrap rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-1 text-xs text-gray-600 dark:text-gray-300 hover:border-gray-400 dark:hover:border-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors duration-200"
             >
               {item}
             </Link>

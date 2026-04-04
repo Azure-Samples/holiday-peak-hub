@@ -19,11 +19,11 @@ export const cn = (...classes: clsx.ClassValue[]): string => {
 
 export const sizeClasses = {
   button: {
-    xs: 'px-2 py-1 text-xs',
-    sm: 'px-3 py-1.5 text-sm',
+    xs: 'px-2.5 py-1 text-xs',
+    sm: 'px-3 py-1.5 text-xs',
     md: 'px-4 py-2 text-sm',
-    lg: 'px-5 py-2.5 text-base',
-    xl: 'px-6 py-3 text-lg',
+    lg: 'px-5 py-2.5 text-sm',
+    xl: 'px-6 py-3 text-base',
   },
   input: {
     xs: 'px-2 py-1 text-xs',
@@ -59,16 +59,16 @@ export const sizeClasses = {
 
 export const variantClasses = {
   button: {
-    primary: 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500',
-    secondary: 'bg-gray-600 text-white hover:bg-gray-700 focus:ring-gray-500',
-    success: 'bg-green-600 text-white hover:bg-green-700 focus:ring-green-500',
-    warning: 'bg-yellow-500 text-white hover:bg-yellow-600 focus:ring-yellow-500',
+    primary: 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-100 focus:ring-gray-500',
+    secondary: 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-gray-700 focus:ring-gray-400',
+    success: 'bg-emerald-600 text-white hover:bg-emerald-700 focus:ring-emerald-500',
+    warning: 'bg-amber-500 text-white hover:bg-amber-600 focus:ring-amber-500',
     error: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
     danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
-    info: 'bg-blue-500 text-white hover:bg-blue-600 focus:ring-blue-400',
+    info: 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-400',
     ghost: 'bg-transparent text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800',
-    light: 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 focus:ring-gray-300',
-    outline: 'bg-transparent text-gray-700 border border-gray-300 hover:bg-gray-50 focus:ring-gray-300',
+    light: 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 focus:ring-gray-300',
+    outline: 'bg-transparent text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 focus:ring-gray-300',
   },
   badge: {
     primary: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
