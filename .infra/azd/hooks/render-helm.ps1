@@ -22,6 +22,7 @@ $canaryEnabled = if ($env:CANARY_ENABLED) { $env:CANARY_ENABLED } else { "false"
 $readinessPath = "/ready"
 $replicaCount = ""
 $deployEnv = if ($env:DEPLOY_ENV) { $env:DEPLOY_ENV } elseif ($env:AZURE_ENV_NAME) { $env:AZURE_ENV_NAME } else { "" }
+$selectorIncludeCanary = "false"
 
 $nodePool = "agents"
 $workloadType = "agents"
@@ -47,6 +48,11 @@ if ($ServiceName -eq "crud-service") {
     $maxUnavailable = "0"
     $maxSurge = "1"
   }
+}
+
+if ($ServiceName -eq "truth-ingestion") {
+  # Preserve legacy selector shape for existing truth-ingestion deployment.
+  $selectorIncludeCanary = "true"
 }
 
 switch ($publicationMode.ToLowerInvariant()) {
@@ -131,8 +137,16 @@ $helmArgs = @(
   "agc.sharedResources.applicationLoadBalancerName=$agcSharedAlbName",
   '--set-string',
   "agc.sharedResources.subnetId=$agcSubnetId",
+  '--set-string',
+  'agc.sharedResources.listeners[0].name=http',
+  '--set-string',
+  'agc.sharedResources.listeners[0].protocol=HTTP',
+  '--set',
+  'agc.sharedResources.listeners[0].port=80',
   '--set',
   "canary.enabled=$canaryEnabled",
+  '--set',
+  "deployment.selectorIncludeCanary=$selectorIncludeCanary",
   '--set',
   "probes.readiness.path=$readinessPath",
   '--set',
@@ -160,6 +174,16 @@ if ($ServiceName -eq "crud-service") {
   $helmArgs += @('--set', "agc.paths[0].path=/$ServiceName")
   $helmArgs += @('--set', 'agc.paths[0].pathType=PathPrefix')
   $helmArgs += @('--set', 'agc.paths[0].rewritePrefixMatch=/')
+}
+
+if ($ServiceName -eq 'truth-export') {
+  # Override legacy in-cluster startup script with deterministic image entrypoint.
+  $helmArgs += @('--set-string', 'container.command[0]=uvicorn')
+  $helmArgs += @('--set-string', 'container.args[0]=truth_export.main:app')
+  $helmArgs += @('--set-string', 'container.args[1]=--host')
+  $helmArgs += @('--set-string', 'container.args[2]=0.0.0.0')
+  $helmArgs += @('--set-string', 'container.args[3]=--port')
+  $helmArgs += @('--set-string', 'container.args[4]=8000')
 }
 
 if ($agcHostname) {

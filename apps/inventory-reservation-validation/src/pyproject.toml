@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Inventory reservation validation"
 authors = [{name = "Ricardo Cataldi", email = "rcataldi@microsoft.com"}]
 requires-python = ">=3.13"
-dependencies = ["fastapi>=0.115.0", "fastapi-mcp", "uvicorn>=0.32.0", "pydantic>=2", "agent-framework", "azure-ai-projects>=2.0.0b4", "azure-identity", "azure-search-documents", "azure-cosmos", "azure-storage-blob", "azure-eventhub", "redis>=5.2.0", "asyncpg>=0.30.0", "holiday-peak-lib>=0.1.0"]
+dependencies = ["fastapi>=0.115.0", "fastapi-mcp", "uvicorn>=0.32.0", "pydantic>=2", "agent-framework", "azure-ai-projects>=2.0.0b4", "azure-identity", "azure-search-documents", "azure-cosmos", "azure-storage-blob", "azure-eventhub", "redis>=5.2.0", "asyncpg>=0.30.0", "holiday-peak-lib>=0.2.0"]
 
 [project.optional-dependencies]
 dev = ["faker", "pre-commit", "python-dotenv", "debugpy"]

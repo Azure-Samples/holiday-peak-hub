@@ -135,3 +135,11 @@ canary:
     enabled: false
     headerName: "x-canary"
     headerValue: "true"
+
+# Deployment compatibility options
+deployment:
+  selectorIncludeCanary: false
+
+container:
+  command: []
+  args: []

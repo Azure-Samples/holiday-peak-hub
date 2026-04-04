@@ -1,5 +1,6 @@
 """Tests for Azure AI Foundry integration."""
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -87,9 +88,8 @@ class TestFoundryAgentConfig:
 class TestFoundryInvoker:
     """Tests for FoundryInvoker."""
 
-    @patch("holiday_peak_lib.agents.foundry.AIProjectClient")
-    @patch("holiday_peak_lib.agents.foundry.DefaultAzureCredential")
-    async def test_invoke_non_streaming(self, mock_cred, mock_client):
+    @patch("holiday_peak_lib.agents.foundry._ensure_agents_client")
+    async def test_invoke_non_streaming(self, mock_ensure_agents_client):
         """Test non-streaming invocation."""
         config = FoundryAgentConfig(
             endpoint="https://test.openai.azure.com",
@@ -98,51 +98,45 @@ class TestFoundryInvoker:
             stream=False,
         )
 
-        mock_cred_instance = MagicMock()
-        mock_cred.return_value = mock_cred_instance
-
-        # Create mock client structure
+        # Create mock runtime client structure
         mock_client_instance = MagicMock()
-        mock_openai = MagicMock()
-        mock_openai.close = AsyncMock(return_value=None)
+        mock_client_instance.__aenter__ = AsyncMock(return_value=mock_client_instance)
+        mock_client_instance.__aexit__ = AsyncMock(return_value=None)
 
-        mock_conversation = MagicMock()
-        mock_conversation.id = "conv-123"
-        mock_openai.conversations.create = AsyncMock(return_value=mock_conversation)
+        mock_client_instance.threads = MagicMock()
+        mock_client_instance.messages = MagicMock()
+        mock_client_instance.runs = MagicMock()
 
-        mock_response = MagicMock()
-        mock_response.model_dump = MagicMock(
-            return_value={
-                "id": "resp-123",
-                "output": [
-                    {
-                        "type": "message",
-                        "role": "assistant",
-                        "content": [{"type": "output_text", "text": "ok"}],
-                    }
-                ],
-                "usage": {"total_tokens": 10},
-            }
+        mock_client_instance.threads.create = AsyncMock(return_value=SimpleNamespace(id="thread-123"))
+        mock_client_instance.messages.create = AsyncMock(return_value=SimpleNamespace(id="msg-1"))
+        mock_client_instance.messages.get_last_message_text_by_role = AsyncMock(
+            return_value=SimpleNamespace(text=SimpleNamespace(value="ok"))
         )
-        mock_openai.responses.create = AsyncMock(return_value=mock_response)
-        mock_client_instance.get_openai_client = MagicMock(return_value=mock_openai)
-        mock_client.return_value = mock_client_instance
+        mock_client_instance.runs.create_and_process = AsyncMock(
+            return_value=SimpleNamespace(
+                id="run-123",
+                status="completed",
+                usage={"total_tokens": 10},
+            )
+        )
+        mock_ensure_agents_client.return_value = mock_client_instance
 
         # Test invocation
         invoker = FoundryInvoker(config)
         result = await invoker(messages="Test query")
 
-        assert result["conversation_id"] == "conv-123"
-        assert result["response_id"] == "resp-123"
+        assert result["thread_id"] == "thread-123"
+        assert result["conversation_id"] == "thread-123"
+        assert result["run_id"] == "run-123"
+        assert result["response_id"] == "run-123"
         assert not result["stream"]
         assert "telemetry" in result
         assert result["telemetry"]["api_version"] == "v2"
-        mock_openai.responses.create.assert_called_once()
+        mock_client_instance.runs.create_and_process.assert_called_once()
 
-    @patch("holiday_peak_lib.agents.foundry.AIProjectClient")
-    @patch("holiday_peak_lib.agents.foundry.DefaultAzureCredential")
-    async def test_invoke_streaming(self, mock_cred, mock_client):
-        """Test invocation with an existing conversation id."""
+    @patch("holiday_peak_lib.agents.foundry._ensure_agents_client")
+    async def test_invoke_with_existing_conversation(self, mock_ensure_agents_client):
+        """Test invocation with an existing conversation id (thread id)."""
         config = FoundryAgentConfig(
             endpoint="https://test.openai.azure.com",
             agent_id="agent-123",
@@ -150,19 +144,22 @@ class TestFoundryInvoker:
             stream=True,
         )
 
-        mock_cred_instance = MagicMock()
-        mock_cred.return_value = mock_cred_instance
-
-        # Create mock client structure
+        # Create mock runtime client structure
         mock_client_instance = MagicMock()
-        mock_openai = MagicMock()
-        mock_openai.close = AsyncMock(return_value=None)
-        mock_openai.conversations.create = AsyncMock()
-        mock_response = MagicMock()
-        mock_response.model_dump = MagicMock(return_value={"id": "resp-456", "output": []})
-        mock_openai.responses.create = AsyncMock(return_value=mock_response)
-        mock_client_instance.get_openai_client = MagicMock(return_value=mock_openai)
-        mock_client.return_value = mock_client_instance
+        mock_client_instance.__aenter__ = AsyncMock(return_value=mock_client_instance)
+        mock_client_instance.__aexit__ = AsyncMock(return_value=None)
+
+        mock_client_instance.threads = MagicMock()
+        mock_client_instance.messages = MagicMock()
+        mock_client_instance.runs = MagicMock()
+
+        mock_client_instance.threads.create = AsyncMock()
+        mock_client_instance.messages.create = AsyncMock(return_value=SimpleNamespace(id="msg-2"))
+        mock_client_instance.messages.get_last_message_text_by_role = AsyncMock(return_value=None)
+        mock_client_instance.runs.create_and_process = AsyncMock(
+            return_value=SimpleNamespace(id="run-456", status="completed", usage={})
+        )
+        mock_ensure_agents_client.return_value = mock_client_instance
 
         # Test invocation
         invoker = FoundryInvoker(config)
@@ -172,10 +169,10 @@ class TestFoundryInvoker:
         )
 
         assert result["conversation_id"] == "conv-existing"
-        assert result["response_id"] == "resp-456"
+        assert result["response_id"] == "run-456"
         assert result["stream"] is False
-        mock_openai.conversations.create.assert_not_called()
-        mock_openai.responses.create.assert_called_once()
+        mock_client_instance.threads.create.assert_not_called()
+        mock_client_instance.runs.create_and_process.assert_called_once()
 
 
 class TestBuildFoundryModelTarget:

@@ -22,6 +22,7 @@ CANARY_ENABLED="${CANARY_ENABLED:-false}"
 READINESS_PATH="/ready"
 REPLICA_COUNT=""
 DEPLOY_ENV="${DEPLOY_ENV:-${AZURE_ENV_NAME:-}}"
+SELECTOR_INCLUDE_CANARY="false"
 
 case "$PUBLICATION_MODE" in
   legacy)
@@ -83,6 +84,13 @@ if [ "$AGC_ENABLED" = "true" ] && [ -z "${AGC_SHARED_RESOURCES_CREATE:-}" ] && [
   AGC_SHARED_RESOURCES_CREATE="true"
 fi
 
+case "$SERVICE_NAME" in
+  truth-ingestion)
+    # Preserve legacy selector shape for existing truth-ingestion deployment.
+    SELECTOR_INCLUDE_CANARY="true"
+    ;;
+esac
+
 SERVICE_IMAGE_VAR_NAME="SERVICE_$(printf '%s' "$SERVICE_NAME" | tr '[:lower:]-' '[:upper:]_')_IMAGE_NAME"
 SERVICE_IMAGE="$(printenv "$SERVICE_IMAGE_VAR_NAME" || true)"
 
@@ -118,6 +126,9 @@ HELM_ARGS="$HELM_ARGS --set-string agc.sharedResources.namespace=$AGC_SHARED_NAM
 HELM_ARGS="$HELM_ARGS --set-string agc.sharedResources.gatewayName=$AGC_SHARED_GATEWAY_NAME"
 HELM_ARGS="$HELM_ARGS --set-string agc.sharedResources.applicationLoadBalancerName=$AGC_SHARED_ALB_NAME"
 HELM_ARGS="$HELM_ARGS --set-string agc.sharedResources.subnetId=$AGC_SUBNET_ID"
+HELM_ARGS="$HELM_ARGS --set-string agc.sharedResources.listeners[0].name=http"
+HELM_ARGS="$HELM_ARGS --set-string agc.sharedResources.listeners[0].protocol=HTTP"
+HELM_ARGS="$HELM_ARGS --set agc.sharedResources.listeners[0].port=80"
 if [ "$SERVICE_NAME" = "crud-service" ]; then
   HELM_ARGS="$HELM_ARGS --set ingress.paths[0].path=/health"
   HELM_ARGS="$HELM_ARGS --set ingress.paths[0].pathType=Prefix"
@@ -132,11 +143,23 @@ else
   HELM_ARGS="$HELM_ARGS --set agc.paths[0].pathType=PathPrefix"
   HELM_ARGS="$HELM_ARGS --set agc.paths[0].rewritePrefixMatch=/"
 fi
+
+if [ "$SERVICE_NAME" = "truth-export" ]; then
+  # Override legacy in-cluster startup script with deterministic image entrypoint.
+  HELM_ARGS="$HELM_ARGS --set-string container.command[0]=uvicorn"
+  HELM_ARGS="$HELM_ARGS --set-string container.args[0]=truth_export.main:app"
+  HELM_ARGS="$HELM_ARGS --set-string container.args[1]=--host"
+  HELM_ARGS="$HELM_ARGS --set-string container.args[2]=0.0.0.0"
+  HELM_ARGS="$HELM_ARGS --set-string container.args[3]=--port"
+  HELM_ARGS="$HELM_ARGS --set-string container.args[4]=8000"
+fi
+
 if [ -n "$AGC_HOSTNAME" ]; then
   HELM_ARGS="$HELM_ARGS --set-string agc.hostnames[0]=$AGC_HOSTNAME"
   HELM_ARGS="$HELM_ARGS --set-string agc.sharedResources.listeners[0].hostname=$AGC_HOSTNAME"
 fi
 HELM_ARGS="$HELM_ARGS --set canary.enabled=$CANARY_ENABLED"
+HELM_ARGS="$HELM_ARGS --set deployment.selectorIncludeCanary=$SELECTOR_INCLUDE_CANARY"
 HELM_ARGS="$HELM_ARGS --set probes.readiness.path=$READINESS_PATH"
 if [ -n "$REPLICA_COUNT" ]; then
   HELM_ARGS="$HELM_ARGS --set replicaCount=$REPLICA_COUNT"

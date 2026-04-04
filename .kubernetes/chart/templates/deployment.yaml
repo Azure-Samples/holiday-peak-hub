@@ -18,6 +18,9 @@ spec:
   selector:
     matchLabels:
       app: {{ .Values.serviceName }}
+      {{- if .Values.deployment.selectorIncludeCanary }}
+      canary: "false"
+      {{- end }}
   template:
     metadata:
       labels:
@@ -55,6 +58,14 @@ spec:
       containers:
         - name: {{ .Values.serviceName }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          {{- if .Values.container.command }}
+          command:
+            {{- toYaml .Values.container.command | nindent 12 }}
+          {{- end }}
+          {{- if .Values.container.args }}
+          args:
+            {{- toYaml .Values.container.args | nindent 12 }}
+          {{- end }}
           {{- if .Values.env }}
           env:
             {{- range $key, $value := .Values.env }}

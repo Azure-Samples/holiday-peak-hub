@@ -19,7 +19,7 @@ dependencies = [
     "azure-eventhub",
     "redis>=5.2.0",
     "asyncpg>=0.30.0",
-    "holiday-peak-lib>=0.1.0"
+    "holiday-peak-lib>=0.2.0"
 ]
 
 [project.optional-dependencies]

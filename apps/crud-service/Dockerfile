@@ -7,6 +7,10 @@ RUN groupadd --gid ${APP_GID} appgroup && useradd --uid ${APP_UID} --gid ${APP_G
 
 WORKDIR /app
 
+# Required because pyproject uses a Git source override for holiday-peak-lib.
+RUN apt-get update && apt-get install -y --no-install-recommends git \
+	&& rm -rf /var/lib/apt/lists/*
+
 # Install uv for fast dependency installation
 RUN pip install uv
 
@@ -16,10 +20,9 @@ COPY apps/crud-service/README.md ./README.md
 
 # Copy package source for editable install
 COPY apps/crud-service/src/crud_service ./crud_service
-COPY lib/src ./holiday_peak_lib_src
 
 # Install dependencies
-RUN uv pip install --system -e ./holiday_peak_lib_src -e .
+RUN uv pip install --system -e .
 RUN chown -R appuser:appgroup /app
 
 # Expose port

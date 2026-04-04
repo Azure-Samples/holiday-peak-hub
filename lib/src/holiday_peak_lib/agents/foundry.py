@@ -58,11 +58,12 @@ class FoundryAgentConfig:
         stream = (os.getenv("FOUNDRY_STREAM") or "").lower() in {"1", "true", "yes"}
         if not endpoint:
             raise ValueError("PROJECT_ENDPOINT/FOUNDRY_ENDPOINT is required")
-        if not agent_id and not agent_name:
+        resolved_agent_id = agent_id or agent_name
+        if not resolved_agent_id:
             raise ValueError("FOUNDRY_AGENT_ID or FOUNDRY_AGENT_NAME is required")
         return cls(
             endpoint=endpoint,
-            agent_id=agent_id or agent_name,
+            agent_id=resolved_agent_id,
             agent_name=agent_name,
             deployment_name=deployment,
             project_name=project_name,
@@ -93,6 +94,27 @@ def _ensure_client(config: FoundryAgentConfig):
         ) from exc
 
 
+def _ensure_agents_client(config: FoundryAgentConfig):
+    """Create an async Azure AI Agents client with Entra ID credentials.
+
+    :param config: Foundry configuration.
+    :returns: A configured ``azure.ai.agents.aio.AgentsClient``.
+    :raises ImportError: If the required SDK packages are missing.
+    """
+    try:
+        from azure.ai.agents.aio import AgentsClient
+
+        credential = config.credential or DefaultAzureCredential()
+        client = AgentsClient(endpoint=config.endpoint, credential=credential)
+        if config.credential is None:
+            setattr(client, "_holiday_peak_owned_credential", credential)
+        return client
+    except ImportError as exc:  # pragma: no cover - guard for missing SDK
+        raise ImportError(
+            "azure-ai-agents and azure-identity are required for Foundry runtime integration"
+        ) from exc
+
+
 async def _close_owned_credential(client: Any) -> None:
     credential = getattr(client, "_holiday_peak_owned_credential", None)
     if credential is None:
@@ -116,6 +138,78 @@ async def _call_first_available(
         if callable(method):
             return await _maybe_await(method(*args, **kwargs))
     raise AttributeError(f"None of methods {method_names} found on {type(target).__name__}")
+
+
+def _is_agents_runtime_client(client: Any) -> bool:
+    return all(hasattr(client, operation) for operation in ("threads", "messages", "runs"))
+
+
+def _to_string_enum(value: Any) -> str:
+    if value is None:
+        return ""
+    enum_value = getattr(value, "value", None)
+    if enum_value is not None:
+        return str(enum_value)
+    return str(value)
+
+
+def _to_dict(value: Any) -> dict[str, Any]:
+    if value is None:
+        return {}
+    if isinstance(value, dict):
+        return value
+
+    for method_name in ("model_dump", "as_dict", "to_dict"):
+        method = getattr(value, method_name, None)
+        if callable(method):
+            payload = method()
+            if isinstance(payload, dict):
+                return payload
+
+    payload = getattr(value, "__dict__", None)
+    if isinstance(payload, dict):
+        return dict(payload)
+    return {}
+
+
+def _message_text_value(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        text_block = value.get("text")
+        if isinstance(text_block, dict):
+            inner_value = text_block.get("value")
+            if inner_value:
+                return str(inner_value)
+        raw_value = value.get("value")
+        if raw_value:
+            return str(raw_value)
+
+    text_block = getattr(value, "text", None)
+    text_value = getattr(text_block, "value", None) if text_block is not None else None
+    if text_value:
+        return str(text_value)
+
+    raw_value = getattr(value, "value", None)
+    if raw_value:
+        return str(raw_value)
+    return None
+
+
+async def _get_last_assistant_text(messages_client: Any, thread_id: str) -> str | None:
+    try:
+        text_content = await _call_first_available(
+            messages_client,
+            ("get_last_message_text_by_role",),
+            thread_id=thread_id,
+            role="assistant",
+        )
+    except (AttributeError, HttpResponseError, TypeError, ValueError):
+        return None
+
+    return _message_text_value(text_content)
 
 
 def _agent_id(agent_obj: Any) -> str | None:
@@ -240,7 +334,7 @@ async def ensure_foundry_agent(
                             "agent_name": resolved_agent_name,
                             "created": False,
                         }
-                except Exception:
+                except (AttributeError, TypeError, ValueError, RuntimeError):
                     if not create_if_missing:
                         return {
                             "status": "list_failed",
@@ -274,7 +368,7 @@ async def ensure_foundry_agent(
                         model=resolved_model,
                         instructions=instructions or "You are a helpful retail assistant.",
                     )
-                except Exception:
+                except (ImportError, AttributeError, TypeError, ValueError):
                     definition = {
                         "kind": "prompt",
                         "model": resolved_model,
@@ -351,125 +445,125 @@ class FoundryInvoker:
         self.config = config
 
     async def __call__(self, **kwargs: Any) -> dict[str, Any]:
-        """Invoke a Foundry Agent, optionally streaming tokens.
+        """Invoke a Foundry Agent through Azure AI Agents thread/run APIs.
 
-        This method:
-        - Ensures an async Project client is available and uses its ``agents`` subclient.
-        - Creates a thread if one is not supplied.
-        - Sends user messages to the thread.
-        - Executes the run either as a stream or as a blocking create-and-process.
-        - Returns telemetry with timing and basic usage metadata.
-
-        We return messages in ascending order when possible to preserve
-        conversational flow.
-
-        :param kwargs: Invocation options such as ``messages``, ``stream`` or ``thread``.
+        :param kwargs: Invocation options such as ``messages`` and ``thread_id``.
         :returns: A dictionary containing thread/run identifiers, responses, and telemetry.
         """
 
-        project_client: AIProjectClient | None = kwargs.pop("client", None)
-        owns_client = project_client is None
-        if project_client is None:
-            project_client = _ensure_client(self.config)
+        runtime_client = kwargs.pop("client", None)
+        owns_client = runtime_client is None or not _is_agents_runtime_client(runtime_client)
+        if owns_client:
+            runtime_client = _ensure_agents_client(self.config)
 
         if owns_client:
             try:
-                async with project_client:
-                    return await self._invoke(project_client, **kwargs)
+                async with runtime_client:
+                    return await self._invoke(runtime_client, **kwargs)
             finally:
-                await _close_owned_credential(project_client)
-        return await self._invoke(project_client, **kwargs)
+                await _close_owned_credential(runtime_client)
+        return await self._invoke(runtime_client, **kwargs)
 
-    async def _invoke(self, client: AIProjectClient, **kwargs) -> dict[str, Any]:
+    async def _invoke(self, client: Any, **kwargs) -> dict[str, Any]:
+        # No GoF pattern applies here; this is a thin data-oriented SDK adapter.
         messages = _normalize_messages(kwargs.pop("messages", []))
         started = perf_counter()
-        openai_client = client.get_openai_client()
-        conversation_id = kwargs.pop("conversation_id", None)
-        input_text = "\n".join(
-            str(m.get("content", "")) for m in messages if m.get("role") == "user"
+        thread_id = kwargs.pop("thread_id", None) or kwargs.pop("conversation_id", None)
+        requested_model = kwargs.pop("model", None)
+        temperature = kwargs.pop("temperature", None)
+        top_p = kwargs.pop("top_p", None)
+        kwargs.pop("tools", None)
+        kwargs.pop("stream", None)
+
+        if not _is_agents_runtime_client(client):
+            raise TypeError(
+                "Foundry runtime client must expose threads/messages/runs operations "
+                "from azure-ai-agents"
+            )
+
+        if not thread_id:
+            thread = await _maybe_await(client.threads.create())
+            thread_dict = _to_dict(thread)
+            thread_id = thread_dict.get("id") or getattr(thread, "id", None)
+
+        if not thread_id:
+            raise RuntimeError("Unable to resolve Foundry thread identifier")
+
+        for message in messages:
+            content = str(message.get("content", "")).strip()
+            if not content:
+                continue
+            role = str(message.get("role", "user")).lower()
+            if role not in {"user", "assistant"}:
+                role = "user"
+
+            await _maybe_await(
+                client.messages.create(
+                    thread_id=str(thread_id),
+                    role=role,
+                    content=content,
+                )
+            )
+
+        run_kwargs: dict[str, Any] = {
+            "thread_id": str(thread_id),
+            "agent_id": self.config.agent_id,
+        }
+        if requested_model and requested_model != self.config.agent_id:
+            run_kwargs["model"] = requested_model
+        if temperature is not None:
+            run_kwargs["temperature"] = temperature
+        if top_p is not None:
+            run_kwargs["top_p"] = top_p
+
+        run = await _maybe_await(client.runs.create_and_process(**run_kwargs))
+        run_dict = _to_dict(run)
+        run_id = run_dict.get("id") or getattr(run, "id", None)
+        run_status = _to_string_enum(run_dict.get("status") or getattr(run, "status", None)).lower()
+
+        if run_status != "completed":
+            error_payload = run_dict.get("last_error") or getattr(run, "last_error", None)
+            raise RuntimeError(
+                "Foundry run did not complete "
+                f"(status={run_status or 'unknown'}): {_to_dict(error_payload) or error_payload}"
+            )
+
+        assistant_text = await _get_last_assistant_text(client.messages, str(thread_id))
+        output_messages = (
+            [
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{"type": "output_text", "text": assistant_text}],
+                }
+            ]
+            if assistant_text
+            else []
         )
-        if not input_text:
-            input_text = "\n".join(str(m.get("content", "")) for m in messages)
+
+        usage_payload = run_dict.get("usage") or getattr(run, "usage", None)
+        usage = usage_payload if isinstance(usage_payload, dict) else _to_dict(usage_payload)
 
         reference_name = self.config.agent_name or _agent_name_from_identifier(self.config.agent_id)
-        if not reference_name:
-            raise ValueError("Foundry agent reference name is required for Agents V2 responses API")
-
-        try:
-            if conversation_id:
-                response = await _maybe_await(
-                    openai_client.responses.create(
-                        input=input_text,
-                        conversation=conversation_id,
-                        extra_body={
-                            "agent_reference": {
-                                "name": reference_name,
-                                "type": "agent_reference",
-                            }
-                        },
-                    )
-                )
-            else:
-                conversation = await _maybe_await(
-                    openai_client.conversations.create(
-                        items=[
-                            {
-                                "type": "message",
-                                "role": "user",
-                                "content": input_text,
-                            }
-                        ]
-                    )
-                )
-                conversation_id = getattr(conversation, "id", None) or conversation.get("id")
-                response = await _maybe_await(
-                    openai_client.responses.create(
-                        conversation=conversation_id,
-                        input=input_text,
-                        extra_body={
-                            "agent_reference": {
-                                "name": reference_name,
-                                "type": "agent_reference",
-                            }
-                        },
-                    )
-                )
-        finally:
-            close_method = getattr(openai_client, "close", None)
-            if callable(close_method):
-                await _maybe_await(close_method())
-
-        response_dict = (
-            response.model_dump()
-            if hasattr(response, "model_dump")
-            else (
-                response.to_dict()
-                if hasattr(response, "to_dict")
-                else dict(getattr(response, "__dict__", {}))
-            )
-        )
-
-        output = response_dict.get("output") or []
-        output_messages = [
-            item for item in output if isinstance(item, dict) and item.get("type") == "message"
-        ]
-
         telemetry = {
             "endpoint": self.config.endpoint,
             "agent_id": self.config.agent_id,
             "agent_name": reference_name,
-            "deployment_name": self.config.deployment_name or self.config.agent_id,
+            "deployment_name": self.config.deployment_name
+            or (requested_model if isinstance(requested_model, str) else self.config.agent_id),
             "stream": False,
             "messages_sent": len(messages),
             "duration_ms": (perf_counter() - started) * 1000,
+            "run_status": run_status,
             "api_version": "v2",
         }
-        usage = response_dict.get("usage")
         if usage:
             telemetry["usage"] = usage
         return {
-            "conversation_id": conversation_id,
-            "response_id": response_dict.get("id"),
+            "thread_id": str(thread_id),
+            "conversation_id": str(thread_id),
+            "run_id": str(run_id) if run_id is not None else None,
+            "response_id": str(run_id) if run_id is not None else None,
             "messages": output_messages,
             "stream": False,
             "telemetry": telemetry,
