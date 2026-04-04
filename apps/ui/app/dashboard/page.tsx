@@ -378,7 +378,7 @@ export default function DashboardPage() {
   );
 }
 
-function StatCard({ label, value, icon: Icon, color }: {
+function StatCard({ label, value, icon: Icon, color: _color }: {
   label: string;
   value: string;
   icon: React.ComponentType<{ className?: string }>;

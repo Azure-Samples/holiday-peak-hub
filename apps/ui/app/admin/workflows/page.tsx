@@ -66,7 +66,7 @@ export default function WorkflowsPage() {
     let nodes = [...initialNodes];
     
     // Simple state machine for simulation
-    const setStatus = (id: string, status: NodeStatus, metrics?: any) => {
+    const setStatus = (id: string, status: NodeStatus, metrics?: WorkflowNode['metrics']) => {
       nodes = nodes.map(n => n.id === id ? { ...n, status, metrics } : n);
     };
 

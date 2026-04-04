@@ -7,7 +7,6 @@ import { useRouter } from 'next/navigation';
 import { MainLayout } from '@/components/templates/MainLayout';
 import { Badge } from '@/components/atoms/Badge';
 import { Button } from '@/components/atoms/Button';
-import { Card } from '@/components/molecules/Card';
 import { Modal } from '@/components/molecules/Modal';
 import { cn } from '@/components/utils';
 import { useProduct } from '@/lib/hooks/useProducts';

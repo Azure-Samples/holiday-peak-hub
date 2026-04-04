@@ -1,9 +1,8 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { FaPlay, FaRobot, FaNetworkWired, FaCheck, FaCheckCircle, FaExclamationCircle } from 'react-icons/fa';
+import { FaPlay, FaRobot, FaNetworkWired, FaCheckCircle, FaExclamationCircle } from 'react-icons/fa';
 import { clsx } from 'clsx';
-import { HiOutlineLightningBolt } from "react-icons/hi";
 
 // Types
 export type NodeType = 'trigger' | 'orchestrator' | 'specialist' | 'action' | 'condition';
@@ -66,14 +65,12 @@ const statusGlow = {
 export function AgentWorkflowVisualizer({ graph, activeNodeId, onNodeClick }: VisualizerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [nodeRects, setNodeRects] = useState<Record<string, { x: number; y: number; w: number; h: number }>>({});
-  const [svgSize, setSvgSize] = useState({ width: 0, height: 0 });
 
   // Calculate layout and coordinates
   useEffect(() => {
     const updateLayout = () => {
       if (!containerRef.current) return;
       const cRect = containerRef.current.getBoundingClientRect();
-      setSvgSize({ width: cRect.width, height: cRect.height });
 
       const newRects: Record<string, { x: number; y: number; w: number; h: number }> = {};
       graph.nodes.forEach((n) => {
