@@ -107,7 +107,9 @@ class TestFoundryInvoker:
         mock_client_instance.messages = MagicMock()
         mock_client_instance.runs = MagicMock()
 
-        mock_client_instance.threads.create = AsyncMock(return_value=SimpleNamespace(id="thread-123"))
+        mock_client_instance.threads.create = AsyncMock(
+            return_value=SimpleNamespace(id="thread-123")
+        )
         mock_client_instance.messages.create = AsyncMock(return_value=SimpleNamespace(id="msg-1"))
         mock_client_instance.messages.get_last_message_text_by_role = AsyncMock(
             return_value=SimpleNamespace(text=SimpleNamespace(value="ok"))

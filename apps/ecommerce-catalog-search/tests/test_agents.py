@@ -593,12 +593,15 @@ class TestCatalogSearchAgent:
                 brand="NorthBound",
             ),
         ]
-        products_by_sku = {product.sku: product for product in baseline_products + adaptive_products}
+        products_by_sku = {
+            product.sku: product for product in baseline_products + adaptive_products
+        }
 
         with (
             patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
             patch("ecommerce_catalog_search.agents.search_catalog_skus_detailed") as mock_search,
         ):
+
             async def _search_side_effect(query: str, limit: int) -> AISearchSkuResult:
                 del limit
                 if "insulated jacket" in query.lower() or "winter boots" in query.lower():

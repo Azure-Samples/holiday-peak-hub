@@ -603,12 +603,8 @@ def _is_high_confidence_winter_travel_intent(intent: IntentClassification) -> bo
     season = str(entities.get("season") or "").lower()
     use_case = str(intent.use_case or entities.get("use_case") or "").lower()
     intent_name = str(intent.intent or "").lower()
-    return (
-        intent.confidence >= WINTER_TRAVEL_INTENT_CONFIDENCE_THRESHOLD
-        and (
-            intent_name == "winter_travel_clothing"
-            or (season == "winter" and "travel" in use_case)
-        )
+    return intent.confidence >= WINTER_TRAVEL_INTENT_CONFIDENCE_THRESHOLD and (
+        intent_name == "winter_travel_clothing" or (season == "winter" and "travel" in use_case)
     )
 
 
