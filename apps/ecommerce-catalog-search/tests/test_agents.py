@@ -511,6 +511,47 @@ class TestCatalogSearchAgent:
             )
 
     @pytest.mark.asyncio
+    async def test_handle_strict_mode_blocks_non_ai_fallback_when_ai_search_degraded(
+        self,
+        agent_dependencies,
+        mock_catalog_product,
+        monkeypatch,
+    ):
+        """Strict mode should not silently fallback when AI Search dependency is degraded."""
+        monkeypatch.setenv("CATALOG_SEARCH_REQUIRE_AI_SEARCH", "true")
+
+        with (
+            patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
+            patch("ecommerce_catalog_search.agents.search_catalog_skus_detailed") as mock_search,
+        ):
+            mock_search.return_value = AISearchSkuResult(
+                skus=[],
+                fallback_reason="ai_search_transport_error",
+            )
+
+            mock_products = AsyncMock()
+            mock_products.search = AsyncMock(return_value=[mock_catalog_product])
+            mock_products.get_product = AsyncMock(return_value=mock_catalog_product)
+            mock_products.get_related = AsyncMock(return_value=[mock_catalog_product])
+
+            mock_inventory = AsyncMock()
+            mock_inventory.get_item = AsyncMock(return_value=None)
+
+            mock_build.return_value = CatalogAdapters(
+                products=mock_products,
+                inventory=mock_inventory,
+                mapping=AcpCatalogMapper(),
+            )
+
+            agent = CatalogSearchAgent(config=agent_dependencies)
+            result = await agent.handle({"query": "fallback query", "limit": 3})
+
+            assert result["results"] == []
+            mock_products.search.assert_not_awaited()
+            mock_products.get_product.assert_not_awaited()
+            mock_products.get_related.assert_not_awaited()
+
+    @pytest.mark.asyncio
     async def test_handle_intelligent_mode_falls_back_on_low_confidence(
         self, agent_dependencies, mock_catalog_product
     ):
