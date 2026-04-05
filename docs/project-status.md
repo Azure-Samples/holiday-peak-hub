@@ -61,6 +61,9 @@
 - **Infrastructure Secret and Region Hygiene**: Shared infrastructure now uses a random `newGuid()`-seeded fallback for PostgreSQL admin password generation and parameterizes Azure AI Foundry location instead of hardcoding the region.
 - **UI Product Enrichment Monitoring (Issue #352)**: Admin now exposes a dedicated enrichment monitoring route (`/admin/enrichment-monitor`) with real-time stage/job visibility, retry controls on monitor failures/log entries, and throughput + approval-rate visual indicators; search now surfaces explicit mode/intent signal chips; top navigation includes a pipeline status indicator that links directly to the monitor.
 
+### Runtime Hotfix Notes (2026-04-05)
+- **Catalog Search Strict AI Search Runtime Hardening (Issue #675)**: Deployment workflow now propagates `CATALOG_SEARCH_REQUIRE_AI_SEARCH=true` for `ecommerce-catalog-search` and `false` for other services, Helm render hooks pass the variable into container manifests, and runtime/docs now codify fail-closed readiness with bounded startup/readiness seeding instead of continuity fallback in AKS strict mode.
+
 ### Merged PRs (v1.1.0)
 | # | Title | Category |
 |---|-------|----------|

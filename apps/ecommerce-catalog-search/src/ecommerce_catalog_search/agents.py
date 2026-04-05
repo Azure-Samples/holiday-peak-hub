@@ -66,6 +66,7 @@ from .adapters import (
 )
 from .ai_search import (
     AISearchDocumentResult,
+    ai_search_required_runtime_enabled,
     multi_query_search,
     search_catalog_skus_detailed,
 )
@@ -874,6 +875,7 @@ async def _search_products_keyword(
 ) -> list[CatalogProduct]:
     ai_search_result = await search_catalog_skus_detailed(query=query, limit=limit)
     ai_search_skus = ai_search_result.skus
+    strict_mode = ai_search_required_runtime_enabled()
     if ai_search_skus:
         resolved_products = await asyncio.gather(
             *[adapters.products.get_product(sku) for sku in ai_search_skus]
@@ -891,6 +893,17 @@ async def _search_products_keyword(
                 "limit": limit,
             },
         )
+
+    if strict_mode and ai_search_result.fallback_reason is not None:
+        logger.warning(
+            "catalog_search_strict_mode_blocked_fallback",
+            extra={
+                "fallback_reason": ai_search_result.fallback_reason,
+                "query_length": len(query),
+                "limit": limit,
+            },
+        )
+        return []
 
     if not _is_sku_like_query(query):
         text_fallback_products = await _search_products_text_fallback(

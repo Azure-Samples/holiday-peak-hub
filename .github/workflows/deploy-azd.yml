@@ -911,6 +911,7 @@ jobs:
           AI_SEARCH_INDEXER_NAME: ${{ needs.provision.outputs.AI_SEARCH_INDEXER_NAME }}
           EMBEDDING_DEPLOYMENT_NAME: ${{ needs.provision.outputs.EMBEDDING_DEPLOYMENT_NAME }}
           AI_SEARCH_AUTH_MODE: ${{ needs.provision.outputs.AI_SEARCH_AUTH_MODE }}
+          CATALOG_SEARCH_REQUIRE_AI_SEARCH: "false"
           PROJECT_ENDPOINT: ${{ needs.provision.outputs.PROJECT_ENDPOINT }}
           PROJECT_NAME: ${{ needs.provision.outputs.PROJECT_NAME }}
           MODEL_DEPLOYMENT_NAME_FAST: gpt-5-nano
@@ -1596,6 +1597,7 @@ jobs:
           AI_SEARCH_INDEXER_NAME: ${{ needs.provision.outputs.AI_SEARCH_INDEXER_NAME }}
           EMBEDDING_DEPLOYMENT_NAME: ${{ needs.provision.outputs.EMBEDDING_DEPLOYMENT_NAME }}
           AI_SEARCH_AUTH_MODE: ${{ needs.provision.outputs.AI_SEARCH_AUTH_MODE }}
+          CATALOG_SEARCH_REQUIRE_AI_SEARCH: ${{ matrix.service == 'ecommerce-catalog-search' && 'true' || 'false' }}
           PROJECT_ENDPOINT: ${{ needs.provision.outputs.PROJECT_ENDPOINT }}
           PROJECT_NAME: ${{ needs.provision.outputs.PROJECT_NAME }}
           FOUNDRY_AGENT_NAME_FAST: ${{ matrix.service }}-fast
