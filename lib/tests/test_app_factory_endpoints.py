@@ -1,8 +1,9 @@
 """Tests for app_factory_components.endpoints."""
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from holiday_peak_lib.app_factory_components.endpoints import register_standard_endpoints
+from holiday_peak_lib.self_healing import SelfHealingKernel, default_surface_manifest
 
 
 class _Registry:
@@ -19,6 +20,11 @@ class _Registry:
 class _Router:
     async def route(self, _intent: str, payload: dict) -> dict:
         return {"ok": True, "payload": payload}
+
+
+class _FailingRouter:
+    async def route(self, _intent: str, _payload: dict) -> dict:
+        raise HTTPException(status_code=503, detail="upstream_unavailable")
 
 
 class _Tracer:
@@ -134,3 +140,66 @@ def test_invoke_auto_ensures_foundry_before_routing():
     assert response.status_code == 200
     assert response.json()["ok"] is True
     assert ensure_calls == 1
+
+
+def test_self_healing_endpoints_capture_invoke_failures():
+    app = FastAPI()
+    foundry_ready = True
+    runtime_definitions_missing = False
+    kernel = SelfHealingKernel(
+        service_name="svc",
+        manifest=default_surface_manifest("svc"),
+        enabled=True,
+        detect_only=True,
+    )
+
+    def _is_ready() -> bool:
+        return foundry_ready
+
+    def _set_ready(value: bool) -> None:
+        nonlocal foundry_ready
+        foundry_ready = value
+
+    def _requires_runtime_resolution() -> bool:
+        return runtime_definitions_missing
+
+    async def _ensure_handler(_payload: dict | None) -> dict:
+        return {
+            "service": "svc",
+            "strict_foundry_mode": False,
+            "foundry_ready": True,
+            "results": {},
+        }
+
+    register_standard_endpoints(
+        app,
+        service_name="svc",
+        registry=_Registry(),
+        router=_FailingRouter(),
+        tracer=_Tracer(),
+        logger=_Logger(),
+        strict_foundry_mode=False,
+        is_foundry_ready=_is_ready,
+        set_foundry_ready=_set_ready,
+        requires_foundry_runtime_resolution=_requires_runtime_resolution,
+        ensure_agents_handler=_ensure_handler,
+        self_healing_kernel=kernel,
+    )
+
+    client = TestClient(app)
+    status_response = client.get("/self-healing/status")
+    assert status_response.status_code == 200
+    assert status_response.json()["enabled"] is True
+
+    invoke_response = client.post("/invoke", json={"query": "fail"})
+    assert invoke_response.status_code == 503
+
+    incidents_response = client.get("/self-healing/incidents")
+    assert incidents_response.status_code == 200
+    incidents_payload = incidents_response.json()
+    assert incidents_payload["count"] >= 1
+    assert incidents_payload["incidents"][0]["surface"] == "api"
+
+    reconcile_response = client.post("/self-healing/reconcile", json={})
+    assert reconcile_response.status_code == 200
+    assert "reconciled_incidents" in reconcile_response.json()

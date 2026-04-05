@@ -15,6 +15,7 @@ __all__ = [
     "integrations",
     "mcp",
     "schemas",
+    "self_healing",
     "utils",
     "config",
 ]

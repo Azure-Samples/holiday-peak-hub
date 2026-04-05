@@ -67,6 +67,7 @@ class AgentDependencies(BaseModel):
     warm_memory: Any = None
     cold_memory: Any = None
     mcp_server: Any = None
+    self_healing_kernel: Any = None
     slm: ModelTarget | None = None
     llm: ModelTarget | None = None
     complexity_threshold: float = 0.5
@@ -197,6 +198,14 @@ class BaseRetailAgent(BaseAgent, ABC):
         self.config.mcp_server = value
 
     @property
+    def self_healing_kernel(self) -> Any:
+        return self.config.self_healing_kernel
+
+    @self_healing_kernel.setter
+    def self_healing_kernel(self, value: Any) -> None:
+        self.config.self_healing_kernel = value
+
+    @property
     def slm(self) -> ModelTarget | None:
         return self.config.slm
 
@@ -247,6 +256,9 @@ class BaseRetailAgent(BaseAgent, ABC):
 
     def attach_mcp(self, mcp_server: Any) -> None:
         self.mcp_server = mcp_server
+
+    def attach_self_healing(self, self_healing_kernel: Any) -> None:
+        self.self_healing_kernel = self_healing_kernel
 
     def _get_foundry_tracer(self):
         service = self.service_name or type(self).__name__

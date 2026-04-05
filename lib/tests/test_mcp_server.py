@@ -6,6 +6,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from holiday_peak_lib.mcp.server import FastAPIMCPServer, MCPToolSchemaRef
+from holiday_peak_lib.self_healing import SelfHealingKernel, SurfaceType, default_surface_manifest
 from pydantic import BaseModel
 
 
@@ -106,3 +107,30 @@ async def test_mcp_tool_without_schema_models_remains_compatible() -> None:
     metadata = mcp.tool_metadata["/passthrough"]
     assert metadata["input_schema_ref"] is None
     assert metadata["output_schema_ref"] is None
+
+
+@pytest.mark.asyncio
+async def test_mcp_validation_errors_emit_self_healing_failure_signal() -> None:
+    app = FastAPI(title="svc")
+    kernel = SelfHealingKernel(
+        service_name="svc",
+        manifest=default_surface_manifest("svc"),
+        enabled=True,
+        detect_only=True,
+    )
+    mcp = FastAPIMCPServer(app, on_failure=kernel.handle_failure_signal)
+
+    async def echo_tool(payload: dict[str, object]) -> dict[str, object]:
+        return {"echoed": payload["value"]}
+
+    mcp.add_tool("/echo", echo_tool, input_model=EchoInput, output_model=EchoOutput)
+    mcp.mount()
+
+    client = TestClient(app)
+    response = client.post("/mcp/echo", json={"missing": "value"})
+
+    assert response.status_code == 422
+    incidents = kernel.list_incidents()
+    assert incidents
+    assert incidents[0].surface == SurfaceType.MCP
+    assert incidents[0].status_code == 422
