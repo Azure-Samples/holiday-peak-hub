@@ -6,9 +6,8 @@ import json
 import os
 import re
 
-from pydantic import BaseModel, Field, ValidationError, field_validator
-
 from holiday_peak_lib.self_healing.models import SurfaceType
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 SURFACE_MANIFEST_ENV_VAR = "SELF_HEALING_SURFACE_MANIFEST_JSON"
 
