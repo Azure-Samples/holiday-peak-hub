@@ -7,7 +7,7 @@ import json
 import os
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from inspect import isawaitable
+from inspect import isawaitable, signature
 from typing import Any, AsyncContextManager, AsyncIterator, Awaitable, Callable, Iterable
 
 from azure.eventhub.aio import EventHubConsumerClient
@@ -96,8 +96,13 @@ class EventHubSubscriber:
             return
 
         try:
+            expects_partition_context = len(signature(self._on_error).parameters) >= 2
+        except (TypeError, ValueError):
+            expects_partition_context = True
+
+        if expects_partition_context:
             result = self._on_error(partition_context, error)
-        except TypeError:
+        else:
             result = self._on_error(error)
 
         if isawaitable(result):
