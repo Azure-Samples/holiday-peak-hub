@@ -26,6 +26,22 @@ a Strategy abstraction in [lib/src/holiday_peak_lib/agents/provider_policy.py](.
 This keeps base orchestration provider-agnostic while allowing Foundry-specific
 governance (portal/SDK-owned instructions) and future provider extensions.
 
+## Self-Healing Kernel
+
+Services built through `build_service_app` now include a shared self-healing kernel from
+`holiday_peak_lib.self_healing`.
+
+- Incident lifecycle: detect -> classify -> remediate -> verify -> escalate/closed
+- Surface contract coverage: API/APIM, AKS ingress, MCP, and messaging
+- Policy guardrails:
+    - Recoverable class is limited to infrastructure misconfiguration (`4xx` and selected `5xx`)
+    - Remediation is allowlisted and audit-recorded
+    - Image restore/redeploy actions are explicitly forbidden
+- Operational visibility routes:
+    - `GET /self-healing/status`
+    - `GET /self-healing/incidents`
+    - `POST /self-healing/reconcile`
+
 ```python
 import os
 from typing import Any

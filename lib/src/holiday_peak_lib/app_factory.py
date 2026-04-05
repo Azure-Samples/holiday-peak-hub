@@ -24,6 +24,7 @@ from holiday_peak_lib.app_factory_components.middleware import register_correlat
 from holiday_peak_lib.config import MemorySettings
 from holiday_peak_lib.connectors.registry import ConnectorRegistry
 from holiday_peak_lib.mcp.server import FastAPIMCPServer
+from holiday_peak_lib.self_healing import SelfHealingKernel
 from holiday_peak_lib.utils import (
     EventHubSubscription,
     create_eventhub_lifespan,
@@ -69,6 +70,7 @@ def create_standard_app(
     handlers: dict[str, Any] | None = None,
 ) -> FastAPI:
     """Create a standard agent app with memory + default Foundry wiring."""
+    self_healing_kernel = SelfHealingKernel.from_env(service_name)
     memory_settings = MemorySettings()
     hot_memory = HotMemory(memory_settings.redis_url) if memory_settings.redis_url else None
     warm_memory = (
@@ -91,10 +93,17 @@ def create_standard_app(
     )
     lifespan = None
     if subscriptions and handlers:
+        eventhub_kwargs: dict[str, Any] = {}
+        if self_healing_kernel is not None:
+            eventhub_kwargs["self_healing_kernel"] = self_healing_kernel
+            eventhub_kwargs["reconcile_on_error"] = (
+                self_healing_kernel.reconcile_on_messaging_error
+            )
         lifespan = create_eventhub_lifespan(
             service_name=service_name,
             subscriptions=subscriptions,
             handlers=handlers,
+            **eventhub_kwargs,
         )
 
     return build_service_app(
@@ -105,6 +114,7 @@ def create_standard_app(
         cold_memory=cold_memory,
         mcp_setup=mcp_setup,
         lifespan=lifespan,
+        self_healing_kernel=self_healing_kernel,
     )
 
 
@@ -120,14 +130,19 @@ def build_service_app(
     connector_registry: ConnectorRegistry | None = None,
     mcp_setup: Callable[[FastAPIMCPServer, BaseRetailAgent], None] | None = None,
     lifespan: Callable[[FastAPI], AsyncContextManager[None]] | None = None,
+    self_healing_kernel: SelfHealingKernel | None = None,
 ) -> FastAPI:
     """Return a FastAPI app pre-wired with MCP and required memory tiers."""
     logger = configure_logging(app_name=service_name)
     app = FastAPI(title=service_name)
     registry = connector_registry or ConnectorRegistry()
     app.state.connector_registry = registry
+    healing_kernel = self_healing_kernel or SelfHealingKernel.from_env(service_name)
+    app.state.self_healing_kernel = healing_kernel
 
     mcp = FastAPIMCPServer(app)
+    if hasattr(mcp, "_on_failure"):
+        setattr(mcp, "_on_failure", healing_kernel.handle_failure_signal)
     router = RoutingStrategy()
     builder = (
         AgentBuilder()
@@ -136,6 +151,9 @@ def build_service_app(
         .with_memory(hot_memory, warm_memory, cold_memory)
         .with_mcp(mcp)
     )
+    with_self_healing = getattr(builder, "with_self_healing", None)
+    if callable(with_self_healing):
+        builder = with_self_healing(healing_kernel)
     if slm_config is None and llm_config is None:
         slm_config = _build_foundry_config("FOUNDRY_AGENT_ID_FAST", "MODEL_DEPLOYMENT_NAME_FAST")
         llm_config = _build_foundry_config("FOUNDRY_AGENT_ID_RICH", "MODEL_DEPLOYMENT_NAME_RICH")
@@ -367,6 +385,8 @@ def build_service_app(
     def _requires_foundry_runtime_resolution() -> bool:
         return bool((slm_config or llm_config) and not (agent.slm or agent.llm))
 
+    endpoint_kwargs: dict[str, Any] = {"self_healing_kernel": healing_kernel}
+
     register_standard_endpoints(
         app,
         service_name=service_name,
@@ -379,6 +399,7 @@ def build_service_app(
         set_foundry_ready=_set_foundry_ready,
         requires_foundry_runtime_resolution=_requires_foundry_runtime_resolution,
         ensure_agents_handler=ensure_agents,
+        **endpoint_kwargs,
     )
 
     mcp.mount()

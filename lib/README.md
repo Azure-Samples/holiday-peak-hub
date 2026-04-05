@@ -9,6 +9,7 @@ It provides:
 - Canonical schemas and truth-layer models
 - Shared app factory and configuration settings
 - Reliability/telemetry helpers (retry, circuit breaker, bulkhead, telemetry)
+- Autonomous self-healing runtime (incident lifecycle, remediation policy, audit trail)
 - Connectors and integration contracts for enterprise systems
 
 ## Location
@@ -45,6 +46,7 @@ holiday_peak_lib/
 ├── integrations/  # PIM/DAM and integration contracts
 ├── mcp/           # MCP tools (including AI Search indexing support)
 ├── schemas/       # Canonical/domain/truth schemas (Pydantic v2)
+├── self_healing/  # Incident lifecycle kernel, manifest contract, remediation policy
 ├── truth/         # Truth-layer models, storage, evidence, and Event Hub helpers
 └── utils/         # Retry, rate limiter, bulkhead, circuit breaker, telemetry, logging
 ```
@@ -60,6 +62,29 @@ app = build_service_app(
     llm_config=llm_config,
 )
 ```
+
+## Self-Healing Runtime
+
+Every service assembled through `build_service_app` inherits a shared self-healing kernel with:
+
+- Incident lifecycle state machine: detect -> classify -> remediate -> verify -> escalate/closed
+- Surface coverage: `api`, `apim`, `aks_ingress`, `mcp`, and `messaging`
+- Recoverable classification policy for infrastructure misconfiguration (`4xx` and selected `5xx`)
+- Allowlisted remediation actions with audit records
+- Guardrail that forbids image restore/redeploy remediation actions
+
+Feature flags:
+
+- `SELF_HEALING_ENABLED` (`false` by default)
+- `SELF_HEALING_DETECT_ONLY` (`false` by default)
+- `SELF_HEALING_SURFACE_MANIFEST_JSON` (optional JSON contract override)
+- `SELF_HEALING_RECONCILE_ON_MESSAGING_ERROR` (optional, default `false`)
+
+Operational routes exposed on every service:
+
+- `GET /self-healing/status`
+- `GET /self-healing/incidents`
+- `POST /self-healing/reconcile`
 
 ## Testing
 

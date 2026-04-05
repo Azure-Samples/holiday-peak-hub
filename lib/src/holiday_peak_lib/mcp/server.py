@@ -7,9 +7,11 @@ from inspect import isawaitable
 from typing import Any, Awaitable, Callable
 
 from fastapi import APIRouter, FastAPI, HTTPException
+from holiday_peak_lib.self_healing import FailureSignal, SurfaceType
 from pydantic import BaseModel, ValidationError
 
 ToolHandler = Callable[[dict[str, Any]], Awaitable[dict[str, Any]] | dict[str, Any]]
+FailureHandler = Callable[[FailureSignal], Awaitable[Any] | Any]
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,10 +32,11 @@ class MCPToolSchemaRef:
 class FastAPIMCPServer:
     """Registers MCP routes on a FastAPI app."""
 
-    def __init__(self, app: FastAPI) -> None:
+    def __init__(self, app: FastAPI, *, on_failure: FailureHandler | None = None) -> None:
         self.app = app
         self.router = APIRouter()
         self._tool_metadata: dict[str, dict[str, Any]] = {}
+        self._on_failure = on_failure
 
     @property
     def tool_metadata(self) -> dict[str, dict[str, Any]]:
@@ -52,7 +55,12 @@ class FastAPIMCPServer:
         metadata: dict[str, Any] | None = None,
     ) -> None:
         normalized_path = self._normalize_path(path)
-        validated_handler = self._wrap_handler(handler, input_model, output_model)
+        validated_handler = self._wrap_handler(
+            normalized_path,
+            handler,
+            input_model,
+            output_model,
+        )
         self.router.post(normalized_path)(validated_handler)
         self._tool_metadata[normalized_path] = {
             "input_schema_ref": self._resolve_schema_ref(input_schema_ref, input_model),
@@ -79,8 +87,36 @@ class FastAPIMCPServer:
             return None
         return MCPToolSchemaRef(name=model.__name__, version="v1").to_dict()
 
+    async def _emit_failure(
+        self,
+        *,
+        path: str,
+        status_code: int,
+        error: Exception,
+        details: dict[str, Any],
+    ) -> None:
+        if self._on_failure is None:
+            return
+
+        signal = FailureSignal(
+            service_name=self.app.title,
+            surface=SurfaceType.MCP,
+            component=path,
+            status_code=status_code,
+            error_type=type(error).__name__,
+            error_message=str(error),
+            metadata=details,
+        )
+        try:
+            emitted = self._on_failure(signal)
+            if isawaitable(emitted):
+                await emitted
+        except (AttributeError, TypeError, ValueError, RuntimeError):
+            return
+
     def _wrap_handler(
         self,
+        path: str,
         handler: ToolHandler,
         input_model: type[BaseModel] | None,
         output_model: type[BaseModel] | None,
@@ -91,6 +127,12 @@ class FastAPIMCPServer:
                 try:
                     validated_input = input_model.model_validate(payload)
                 except ValidationError as exc:
+                    await self._emit_failure(
+                        path=path,
+                        status_code=422,
+                        error=exc,
+                        details={"error": "invalid_tool_input", "issues": exc.errors()},
+                    )
                     raise HTTPException(
                         status_code=422,
                         detail={
@@ -108,6 +150,12 @@ class FastAPIMCPServer:
                 try:
                     validated_output = output_model.model_validate(result)
                 except ValidationError as exc:
+                    await self._emit_failure(
+                        path=path,
+                        status_code=500,
+                        error=exc,
+                        details={"error": "invalid_tool_output", "issues": exc.errors()},
+                    )
                     raise HTTPException(
                         status_code=500,
                         detail={
@@ -120,6 +168,13 @@ class FastAPIMCPServer:
             if isinstance(result, BaseModel):
                 return result.model_dump(mode="json")
             if not isinstance(result, dict):
+                type_error = TypeError("Tool handlers must return a dict payload")
+                await self._emit_failure(
+                    path=path,
+                    status_code=500,
+                    error=type_error,
+                    details={"error": "invalid_tool_output", "type": type(result).__name__},
+                )
                 raise HTTPException(
                     status_code=500,
                     detail={

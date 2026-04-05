@@ -1,9 +1,11 @@
 """Tests for Event Hub subscription helpers."""
 
 import asyncio
+from unittest.mock import AsyncMock
 
 import holiday_peak_lib.utils.event_hub as event_hub_module
 import pytest
+from holiday_peak_lib.self_healing import SelfHealingKernel, SurfaceType, default_surface_manifest
 from holiday_peak_lib.utils.event_hub import (
     EventHubSubscriber,
     EventHubSubscriberConfig,
@@ -18,7 +20,7 @@ class FakePartitionContext:
     def __init__(self) -> None:
         self.checkpoints = 0
 
-    async def update_checkpoint(self, event) -> None:  # noqa: ANN001
+    async def update_checkpoint(self, _event) -> None:  # noqa: ANN001
         self.checkpoints += 1
 
 
@@ -44,8 +46,19 @@ class FakeConsumerClient:
         return False
 
     async def receive(self, *, on_event, on_error, starting_position):  # noqa: ANN001
+        _ = on_error
+        _ = starting_position
         self.received = True
         await on_event(self._partition_context, self._event)
+
+
+class FakeErrorConsumerClient(FakeConsumerClient):
+    """Fake Event Hub client that triggers the on_error callback."""
+
+    async def receive(self, *, on_event, on_error, starting_position):  # noqa: ANN001
+        self.received = True
+        if on_error is not None:
+            await on_error(self._partition_context, RuntimeError("subscriber_failure"))
 
 
 @pytest.mark.asyncio
@@ -55,7 +68,7 @@ async def test_event_hub_subscriber_invokes_handler():
     event = FakeEvent("test")
     handler_calls = {"count": 0}
 
-    async def on_event(partition_context, event):  # noqa: ANN001
+    async def on_event(_partition_context, event):  # noqa: ANN001
         assert event.payload == "test"
         handler_calls["count"] += 1
 
@@ -82,7 +95,7 @@ async def test_event_hub_subscriber_disables_checkpoint():
     context = FakePartitionContext()
     event = FakeEvent("test")
 
-    async def on_event(partition_context, event):  # noqa: ANN001
+    async def on_event(_partition_context, _event):  # noqa: ANN001
         checkpoint_calls["count"] += 1
 
     config = EventHubSubscriberConfig(
@@ -113,11 +126,13 @@ async def test_create_eventhub_lifespan_supports_event_hub_connection_string_ali
 
     created = {"configs": [], "factories": []}
 
-    def fake_init(self, config, *, on_event, on_error=None, client_factory=None):  # noqa: ANN001
+    def fake_init(_self, config, *, on_event, on_error=None, client_factory=None):  # noqa: ANN001
+        _ = on_event
+        _ = on_error
         created["configs"].append(config)
         created["factories"].append(client_factory)
 
-    async def fake_start(self):  # noqa: ANN001
+    async def fake_start(_self):  # noqa: ANN001
         return None
 
     monkeypatch.setattr(event_hub_module.EventHubSubscriber, "__init__", fake_init)
@@ -158,11 +173,13 @@ async def test_create_eventhub_lifespan_uses_namespace_when_connection_string_mi
 
     created = {"configs": [], "factories": []}
 
-    def fake_init(self, config, *, on_event, on_error=None, client_factory=None):  # noqa: ANN001
+    def fake_init(_self, config, *, on_event, on_error=None, client_factory=None):  # noqa: ANN001
+        _ = on_event
+        _ = on_error
         created["configs"].append(config)
         created["factories"].append(client_factory)
 
-    async def fake_start(self):  # noqa: ANN001
+    async def fake_start(_self):  # noqa: ANN001
         return None
 
     monkeypatch.setattr(event_hub_module, "DefaultAzureCredential", FakeCredential)
@@ -184,3 +201,66 @@ async def test_create_eventhub_lifespan_uses_namespace_when_connection_string_mi
     assert len(created["configs"]) == 1
     assert created["configs"][0].connection_string == ""
     assert created["factories"][0] is not None
+
+
+@pytest.mark.asyncio
+async def test_event_hub_on_error_emits_failure_signal():
+    context = FakePartitionContext()
+    event = FakeEvent("test")
+    captured = []
+
+    async def on_event(_partition_context, _event):  # noqa: ANN001
+        return None
+
+    async def emit(signal):  # noqa: ANN001
+        captured.append(signal)
+
+    config = EventHubSubscriberConfig(
+        connection_string="Endpoint=sb://test/;SharedAccessKeyName=key;SharedAccessKey=val",
+        eventhub_name="test-hub",
+    )
+
+    subscriber = EventHubSubscriber(
+        config,
+        on_event=on_event,
+        client_factory=lambda: FakeErrorConsumerClient(context, event),
+        failure_signal_emitter=emit,
+    )
+
+    await subscriber.start()
+
+    assert captured
+    assert captured[0].surface == SurfaceType.MESSAGING
+    assert captured[0].component == "test-hub"
+
+
+@pytest.mark.asyncio
+async def test_event_hub_on_error_can_trigger_reconcile():
+    context = FakePartitionContext()
+    event = FakeEvent("test")
+    kernel = SelfHealingKernel(
+        service_name="svc",
+        manifest=default_surface_manifest("svc"),
+        enabled=True,
+    )
+    kernel.reconcile = AsyncMock(return_value={"reconciled_incidents": 0})  # type: ignore[method-assign]
+
+    async def on_event(_partition_context, _event):  # noqa: ANN001
+        return None
+
+    config = EventHubSubscriberConfig(
+        connection_string="Endpoint=sb://test/;SharedAccessKeyName=key;SharedAccessKey=val",
+        eventhub_name="test-hub",
+    )
+
+    subscriber = EventHubSubscriber(
+        config,
+        on_event=on_event,
+        client_factory=lambda: FakeErrorConsumerClient(context, event),
+        self_healing_kernel=kernel,
+        reconcile_on_error=True,
+    )
+
+    await subscriber.start()
+
+    kernel.reconcile.assert_awaited_once()

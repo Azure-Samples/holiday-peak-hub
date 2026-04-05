@@ -24,6 +24,7 @@ class AgentBuilder:
         self._cold_memory: ColdMemory | None = None
         self._memory_builder: MemoryBuilder | None = None
         self._mcp_server: FastAPIMCPServer | None = None
+        self._self_healing_kernel: Any = None
         self._tools: dict[str, Callable[..., Any]] = {}
         self._slm: ModelTarget | None = None
         self._llm: ModelTarget | None = None
@@ -54,6 +55,10 @@ class AgentBuilder:
 
     def with_mcp(self, mcp_server: FastAPIMCPServer) -> "AgentBuilder":
         self._mcp_server = mcp_server
+        return self
+
+    def with_self_healing(self, self_healing_kernel: Any) -> "AgentBuilder":
+        self._self_healing_kernel = self_healing_kernel
         return self
 
     def with_tool(self, name: str, handler: Callable[..., Any]) -> "AgentBuilder":
@@ -106,6 +111,7 @@ class AgentBuilder:
         deps = AgentDependencies(
             router=self._router or RoutingStrategy(),
             tools=self._tools,
+            self_healing_kernel=self._self_healing_kernel,
             slm=self._slm,
             llm=self._llm,
             complexity_threshold=self._complexity_threshold,
@@ -123,4 +129,6 @@ class AgentBuilder:
             agent.attach_memory(self._hot_memory, self._warm_memory, self._cold_memory)
         if self._mcp_server:
             agent.attach_mcp(self._mcp_server)
+        if self._self_healing_kernel is not None:
+            agent.attach_self_healing(self._self_healing_kernel)
         return agent
