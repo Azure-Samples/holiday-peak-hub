@@ -207,6 +207,10 @@ class CatalogSearchAgent(BaseRetailAgent):
         if not query.strip() or not (self.slm or self.llm):
             return fallback_intent
 
+        # Deterministic lexical intent is already high-confidence for this scenario.
+        if _is_high_confidence_winter_travel_intent(fallback_intent):
+            return fallback_intent
+
         messages = [
             {
                 "role": "system",
@@ -222,12 +226,24 @@ class CatalogSearchAgent(BaseRetailAgent):
         ]
 
         try:
-            response = await self.invoke_model(
-                request={"query": query, "requires_multi_tool": True},
-                messages=messages,
+            response = await asyncio.wait_for(
+                self.invoke_model(
+                    request={"query": query, "requires_multi_tool": True},
+                    messages=messages,
+                ),
+                timeout=_resolve_timeout_seconds(
+                    "CATALOG_INTENT_MODEL_TIMEOUT_SECONDS",
+                    8.0,
+                ),
             )
             parsed = _parse_intent_response(response)
             return parsed or fallback_intent
+        except asyncio.TimeoutError:
+            logger.warning(
+                "catalog_intent_classification_timeout",
+                extra={"query_length": len(query)},
+            )
+            return fallback_intent
         except Exception:  # pylint: disable=broad-exception-caught
             logger.warning(
                 "catalog_intent_classification_failed",
@@ -361,6 +377,26 @@ class CatalogSearchAgent(BaseRetailAgent):
         )
         await _persist_search_history(self, namespace_context, history_record)
 
+        summary, recommendation = _build_catalog_fallback_answer(
+            query=str(query),
+            products=products,
+            intent=intent,
+        )
+
+        deterministic_response: dict[str, Any] = {
+            "service": self.service_name,
+            "query": query,
+            "mode": mode,
+            "requested_mode": requested_mode,
+            "search_stage": search_stage,
+            "session_id": namespace_context.session_id,
+            "results": acp_products,
+            "intent": intent.model_dump(mode="json") if intent is not None else None,
+            "summary": summary,
+            "recommendation": recommendation,
+            "answer_source": "agent_fallback",
+        }
+
         if self.slm or self.llm:
             messages = [
                 {
@@ -372,15 +408,33 @@ class CatalogSearchAgent(BaseRetailAgent):
                     "content": {
                         "query": query,
                         "results": acp_products,
+                        "fallback_summary": summary,
+                        "fallback_recommendation": recommendation,
                     },
                 },
             ]
             try:
-                model_response = await self.invoke_model(request=request, messages=messages)
+                model_response = await asyncio.wait_for(
+                    self.invoke_model(request=request, messages=messages),
+                    timeout=_resolve_timeout_seconds(
+                        "CATALOG_RESPONSE_MODEL_TIMEOUT_SECONDS",
+                        14.0,
+                    ),
+                )
                 model_response["requested_mode"] = requested_mode
                 model_response["search_stage"] = search_stage
                 model_response["session_id"] = namespace_context.session_id
+                model_response["answer_source"] = "agent_model"
                 return model_response
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "catalog_search_model_response_timeout",
+                    extra={
+                        "query_length": len(str(query)),
+                        "mode": mode,
+                        "search_stage": search_stage,
+                    },
+                )
             except Exception:  # pylint: disable=broad-exception-caught
                 logger.warning(
                     "catalog_search_model_response_fallback",
@@ -392,16 +446,7 @@ class CatalogSearchAgent(BaseRetailAgent):
                     exc_info=True,
                 )
 
-        return {
-            "service": self.service_name,
-            "query": query,
-            "mode": mode,
-            "requested_mode": requested_mode,
-            "search_stage": search_stage,
-            "session_id": namespace_context.session_id,
-            "results": acp_products,
-            "intent": intent.model_dump(mode="json") if intent is not None else None,
-        }
+        return deterministic_response
 
 
 def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
@@ -608,6 +653,17 @@ def _is_high_confidence_winter_travel_intent(intent: IntentClassification) -> bo
     )
 
 
+def _has_winter_travel_lexical_signals(query: str) -> bool:
+    normalized_query = query.strip().lower()
+    if not normalized_query:
+        return False
+
+    tokens = _tokenize_lexical_terms(normalized_query)
+    travel_hits = _collect_signal_hits(normalized_query, tokens, TRAVEL_LEXICAL_SIGNALS)
+    winter_hits = _collect_signal_hits(normalized_query, tokens, WINTER_LEXICAL_SIGNALS)
+    return bool(travel_hits and winter_hits)
+
+
 def _product_search_text(product: CatalogProduct) -> str:
     values: list[str] = [
         product.name,
@@ -691,6 +747,7 @@ def _rerank_winter_travel_keyword_results(
     ranked = sorted(
         combined.values(),
         key=lambda product: (
+            0 if _is_apparel_product(product) else 1,
             -_winter_travel_product_score(product),
             0 if product.sku in adaptive_rank else 1,
             adaptive_rank.get(product.sku, len(adaptive_rank) + len(combined)),
@@ -710,10 +767,12 @@ async def _adapt_keyword_results_for_winter_travel(
     baseline_products: list[CatalogProduct],
 ) -> list[CatalogProduct]:
     if (
-        not baseline_products
-        or _is_sku_like_query(query)
-        or not _looks_like_natural_language_query(query)
-        or not _has_low_apparel_coverage(baseline_products)
+        _is_sku_like_query(query)
+        or (
+            not _looks_like_natural_language_query(query)
+            and not _has_winter_travel_lexical_signals(query)
+        )
+        or (baseline_products and not _has_low_apparel_coverage(baseline_products))
     ):
         return baseline_products
 
@@ -744,6 +803,37 @@ async def _adapt_keyword_results_for_winter_travel(
             exc_info=True,
         )
         return baseline_products
+
+
+async def _search_products_text_fallback(
+    adapters: CatalogAdapters,
+    *,
+    query: str,
+    limit: int,
+) -> list[CatalogProduct]:
+    search = getattr(adapters.products, "search", None)
+    if search is None or not query.strip() or limit <= 0:
+        return []
+
+    try:
+        try:
+            result = search(query=query, limit=limit)
+        except TypeError:
+            result = search(query, limit=limit)
+
+        if hasattr(result, "__await__"):
+            result = await result
+    except Exception:  # pylint: disable=broad-exception-caught
+        logger.warning(
+            "catalog_search_text_fallback_error",
+            extra={"query_length": len(query), "limit": limit},
+            exc_info=True,
+        )
+        return []
+
+    if not isinstance(result, list):
+        return []
+    return [product for product in result if isinstance(product, CatalogProduct)][:limit]
 
 
 async def _search_products(
@@ -801,6 +891,15 @@ async def _search_products_keyword(
                 "limit": limit,
             },
         )
+
+    if not _is_sku_like_query(query):
+        text_fallback_products = await _search_products_text_fallback(
+            adapters,
+            query=query,
+            limit=limit,
+        )
+        if text_fallback_products:
+            return text_fallback_products
 
     primary_sku = _coerce_query_to_sku(query)
     primary = await adapters.products.get_product(primary_sku)
@@ -960,6 +1059,53 @@ def _coerce_optional_str(raw_value: Any) -> str | None:
         return None
     value = str(raw_value).strip()
     return value or None
+
+
+def _resolve_timeout_seconds(environment_variable: str, default_seconds: float) -> float:
+    raw_value = os.getenv(environment_variable)
+    if raw_value is None:
+        return default_seconds
+
+    try:
+        resolved = float(raw_value)
+    except (TypeError, ValueError):
+        return default_seconds
+
+    return resolved if resolved > 0 else default_seconds
+
+
+def _build_catalog_fallback_answer(
+    *,
+    query: str,
+    products: list[CatalogProduct],
+    intent: IntentClassification | None,
+) -> tuple[str, str]:
+    normalized_query = query.strip()
+
+    if not products:
+        if intent is not None and _is_high_confidence_winter_travel_intent(intent):
+            essentials = ", ".join(WINTER_TRAVEL_APPAREL_ESSENTIALS[:5])
+            return (
+                "No exact products were returned in time, so I prioritized winter-travel apparel essentials.",
+                f"For your request '{normalized_query}', focus on {essentials}. Prioritize insulated and waterproof layers first.",
+            )
+
+        return (
+            "No catalog matches were available in time.",
+            "Try adding product terms like jacket, boots, gloves, or thermal base layer for a more targeted answer.",
+        )
+
+    highlighted = ", ".join(product.name for product in products[:3])
+    if intent is not None and _is_high_confidence_winter_travel_intent(intent):
+        return (
+            "Recommended products were selected for winter-travel conditions.",
+            f"Top options for your trip are {highlighted}. Focus on insulated outerwear, waterproof boots, and warm accessories.",
+        )
+
+    return (
+        "Recommended products were selected from your request.",
+        f"Best matches are {highlighted}. Choose based on warmth, weather protection, and layering.",
+    )
 
 
 def _coerce_optional_string_list(raw_value: Any) -> list[str] | None:

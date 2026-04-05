@@ -193,6 +193,7 @@ const GENERIC_IDENTIFIER_TOKENS = new Set<string>([
 ]);
 
 const SAFE_FOUNDRY_FALLBACK_URL = 'https://ai.azure.com';
+const ADMIN_AGENT_INVOKE_TIMEOUT_MS = 60_000;
 
 function toTitleCase(value: string): string {
   return value
@@ -316,11 +317,14 @@ function buildDefaultPayload(context: PayloadBuildContext): Record<string, unkno
 
 function buildCatalogSearchPayload(context: PayloadBuildContext): Record<string, unknown> {
   const query = pickFirstString(context.overridePayload, ['query', 'prompt', 'message', 'text']) ?? context.promptText;
+  const mode = pickFirstString(context.overridePayload, ['mode']) ?? 'keyword';
+
   return withPayloadMetadata(
     {
       ...(context.overridePayload ?? {}),
       query,
       prompt: context.promptText,
+      mode,
     },
     context,
   );
@@ -854,6 +858,8 @@ export function AdminServiceDashboardPage({ domain, service }: AdminServiceDashb
       const response = await agentApiClient.post(`/${agentSlug}/invoke`, {
         intent: 'default',
         payload: shapedPayload,
+      }, {
+        timeout: ADMIN_AGENT_INVOKE_TIMEOUT_MS,
       });
 
       const durationMs = Math.round(performance.now() - startMs);
@@ -1466,8 +1472,11 @@ export function AdminServiceDashboardPage({ domain, service }: AdminServiceDashb
                           </tr>
                         </thead>
                         <tbody>
-                          {data.activity.map((row) => (
-                            <tr key={row.id} className="border-t border-gray-50 dark:border-gray-800/50 hover:bg-gray-50/50 dark:hover:bg-gray-800/20 transition-colors">
+                          {data.activity.map((row, index) => (
+                            <tr
+                              key={`${row.id}-${row.timestamp}-${index}`}
+                              className="border-t border-gray-50 dark:border-gray-800/50 hover:bg-gray-50/50 dark:hover:bg-gray-800/20 transition-colors"
+                            >
                               <td className="px-4 py-2.5 text-xs text-gray-500 tabular-nums">{new Date(row.timestamp).toLocaleString()}</td>
                               <td className="px-4 py-2.5 text-xs font-medium text-gray-700 dark:text-gray-300">{row.event}</td>
                               <td className="px-4 py-2.5 text-xs text-gray-500 font-mono">{row.entity}</td>

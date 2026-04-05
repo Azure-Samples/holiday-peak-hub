@@ -1,5 +1,6 @@
 """Unit tests for CatalogSearchAgent."""
 
+import asyncio
 import logging
 from unittest.mock import AsyncMock, patch
 
@@ -146,6 +147,45 @@ class TestCatalogSearchAgent:
             assert result["requested_mode"] == "unsupported-mode"
             assert result["search_stage"] == "baseline"
             assert result["session_id"] == "session-123"
+
+    @pytest.mark.asyncio
+    async def test_handle_model_timeout_returns_fallback_answer(
+        self, agent_dependencies, mock_catalog_product
+    ):
+        """When model synthesis times out, agent should still return actionable fallback answer."""
+        mock_inventory_item = InventoryItem(sku="SKU-001", available=10, reserved=0)
+
+        with patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build:
+            mock_products = AsyncMock()
+            mock_products.get_product = AsyncMock(return_value=mock_catalog_product)
+            mock_products.get_related = AsyncMock(return_value=[])
+
+            mock_inventory = AsyncMock()
+            mock_inventory.get_item = AsyncMock(return_value=mock_inventory_item)
+
+            mock_build.return_value = CatalogAdapters(
+                products=mock_products,
+                inventory=mock_inventory,
+                mapping=AcpCatalogMapper(),
+            )
+
+            agent = CatalogSearchAgent(config=agent_dependencies)
+            agent.slm = object()
+            agent.invoke_model = AsyncMock(side_effect=asyncio.TimeoutError())
+
+            result = await agent.handle(
+                {
+                    "query": "rain jacket",
+                    "limit": 5,
+                }
+            )
+
+            assert result["query"] == "rain jacket"
+            assert isinstance(result["results"], list)
+            assert result["answer_source"] == "agent_fallback"
+            assert isinstance(result.get("summary"), str)
+            assert isinstance(result.get("recommendation"), str)
+            agent.invoke_model.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_handle_persists_search_history_to_memory_tiers(
@@ -353,6 +393,79 @@ class TestCatalogSearchAgent:
 
             assert len(result["results"]) == 1
             mock_search.assert_awaited_once_with(query="fallback query", limit=3)
+            mock_products.get_related.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_handle_uses_text_search_fallback_when_ai_search_empty(
+        self, agent_dependencies, mock_catalog_product
+    ):
+        """Keyword search should use deterministic text fallback before hash-SKU fallback."""
+        mock_inventory_item = InventoryItem(sku="SKU-001", available=10, reserved=0)
+
+        with (
+            patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
+            patch("ecommerce_catalog_search.agents.search_catalog_skus_detailed") as mock_search,
+        ):
+            mock_search.return_value = AISearchSkuResult(skus=[])
+
+            mock_products = AsyncMock()
+            mock_products.search = AsyncMock(return_value=[mock_catalog_product])
+            mock_products.get_product = AsyncMock(return_value=None)
+            mock_products.get_related = AsyncMock(return_value=[])
+
+            mock_inventory = AsyncMock()
+            mock_inventory.get_item = AsyncMock(return_value=mock_inventory_item)
+
+            mock_mapping = AcpCatalogMapper()
+
+            mock_build.return_value = CatalogAdapters(
+                products=mock_products,
+                inventory=mock_inventory,
+                mapping=mock_mapping,
+            )
+
+            agent = CatalogSearchAgent(config=agent_dependencies)
+            result = await agent.handle({"query": "rain jacket", "limit": 3})
+
+            assert len(result["results"]) == 1
+            assert result["results"][0]["item_id"] == "SKU-001"
+            mock_products.search.assert_awaited_once_with(query="rain jacket", limit=3)
+            mock_products.get_product.assert_not_awaited()
+            mock_products.get_related.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_handle_preserves_sku_like_fallback_behavior(
+        self, agent_dependencies, mock_catalog_product
+    ):
+        """SKU-like queries should keep hash-SKU fallback behavior and skip text search."""
+        mock_inventory_item = InventoryItem(sku="SKU-001", available=10, reserved=0)
+
+        with (
+            patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
+            patch("ecommerce_catalog_search.agents.search_catalog_skus_detailed") as mock_search,
+        ):
+            mock_search.return_value = AISearchSkuResult(skus=[])
+
+            mock_products = AsyncMock()
+            mock_products.search = AsyncMock(return_value=[mock_catalog_product])
+            mock_products.get_product = AsyncMock(return_value=mock_catalog_product)
+            mock_products.get_related = AsyncMock(return_value=[])
+
+            mock_inventory = AsyncMock()
+            mock_inventory.get_item = AsyncMock(return_value=mock_inventory_item)
+
+            mock_build.return_value = CatalogAdapters(
+                products=mock_products,
+                inventory=mock_inventory,
+                mapping=AcpCatalogMapper(),
+            )
+
+            agent = CatalogSearchAgent(config=agent_dependencies)
+            result = await agent.handle({"query": "SKU-001", "limit": 3})
+
+            assert len(result["results"]) == 1
+            assert result["results"][0]["item_id"] == "SKU-001"
+            mock_products.search.assert_not_awaited()
             mock_products.get_related.assert_awaited_once()
 
     @pytest.mark.asyncio
@@ -643,6 +756,88 @@ class TestCatalogSearchAgent:
             ranked_ids = [item["item_id"] for item in result["results"]]
             assert ranked_ids[:2] == ["SKU-COAT", "SKU-BOOT"]
             assert mock_search.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_handle_keyword_mode_winter_travel_recovers_from_empty_baseline(
+        self, agent_dependencies
+    ):
+        """High-confidence winter-travel requests should recover apparel results from empty baseline."""
+        adaptive_products = [
+            CatalogProduct(
+                sku="SKU-MUG",
+                name="Winter Travel Mug",
+                description="Insulated mug for trips",
+                category="kitchen",
+                brand="HomeLuxe",
+            ),
+            CatalogProduct(
+                sku="SKU-COAT",
+                name="Insulated Winter Jacket",
+                description="Warm outer layer for winter travel",
+                category="apparel",
+                brand="NorthBound",
+            ),
+            CatalogProduct(
+                sku="SKU-BOOT",
+                name="Waterproof Winter Boots",
+                description="Snow-ready boots for cold-weather travel",
+                category="apparel",
+                brand="TrailStep",
+            ),
+        ]
+
+        with (
+            patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
+            patch("ecommerce_catalog_search.agents.search_catalog_skus_detailed") as mock_search,
+        ):
+
+            async def _search_side_effect(query: str, limit: int) -> AISearchSkuResult:
+                del query, limit
+                return AISearchSkuResult(skus=[])
+
+            async def _text_fallback_side_effect(
+                query: str,
+                limit: int,
+            ) -> list[CatalogProduct]:
+                del limit
+                if "insulated jacket" in query.lower() or "winter boots" in query.lower():
+                    return adaptive_products
+                return []
+
+            async def _inventory_side_effect(sku: str) -> InventoryItem:
+                return InventoryItem(sku=sku, available=8, reserved=0)
+
+            mock_search.side_effect = _search_side_effect
+
+            mock_products = AsyncMock()
+            mock_products.search = AsyncMock(side_effect=_text_fallback_side_effect)
+            mock_products.get_product = AsyncMock(return_value=None)
+            mock_products.get_related = AsyncMock(return_value=[])
+
+            mock_inventory = AsyncMock()
+            mock_inventory.get_item.side_effect = _inventory_side_effect
+
+            mock_build.return_value = CatalogAdapters(
+                products=mock_products,
+                inventory=mock_inventory,
+                mapping=AcpCatalogMapper(),
+            )
+
+            agent = CatalogSearchAgent(config=agent_dependencies)
+            result = await agent.handle(
+                {
+                    "query": "winter travel clothing",
+                    "limit": 3,
+                    "mode": "keyword",
+                }
+            )
+
+            ranked_ids = [item["item_id"] for item in result["results"]]
+            assert ranked_ids[:2] == ["SKU-COAT", "SKU-BOOT"]
+            assert "SKU-MUG" in ranked_ids
+            assert mock_search.await_count == 2
+            assert mock_products.search.await_count == 2
+            mock_products.get_related.assert_awaited_once()
 
     def test_build_sub_queries_from_intent_entities(self, agent_dependencies):
         """Private sub-query builder should include deduped intent entities."""
