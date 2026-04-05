@@ -210,6 +210,41 @@ if ($pdbEnabled -eq "true") {
   }
 }
 
+$isAgentService = $ServiceName -ne "crud-service"
+$resolvedFoundryAgentNameFast = $env:FOUNDRY_AGENT_NAME_FAST
+$resolvedFoundryAgentNameRich = $env:FOUNDRY_AGENT_NAME_RICH
+$resolvedModelDeploymentFast = $env:MODEL_DEPLOYMENT_NAME_FAST
+$resolvedModelDeploymentRich = $env:MODEL_DEPLOYMENT_NAME_RICH
+
+if ($isAgentService) {
+  if ([string]::IsNullOrWhiteSpace($resolvedFoundryAgentNameFast)) {
+    $resolvedFoundryAgentNameFast = "$ServiceName-fast"
+  }
+  if ([string]::IsNullOrWhiteSpace($resolvedFoundryAgentNameRich)) {
+    $resolvedFoundryAgentNameRich = "$ServiceName-rich"
+  }
+  if ([string]::IsNullOrWhiteSpace($resolvedModelDeploymentFast)) {
+    $resolvedModelDeploymentFast = "gpt-5-nano"
+  }
+  if ([string]::IsNullOrWhiteSpace($resolvedModelDeploymentRich)) {
+    $resolvedModelDeploymentRich = "gpt-5"
+  }
+
+  if (-not [string]::IsNullOrWhiteSpace($env:FOUNDRY_AGENT_ID_FAST) -and $env:FOUNDRY_AGENT_ID_FAST.EndsWith("-pending")) {
+    throw "Invalid FOUNDRY_AGENT_ID_FAST for ${ServiceName}: placeholder ids are not deployable."
+  }
+  if (-not [string]::IsNullOrWhiteSpace($env:FOUNDRY_AGENT_ID_RICH) -and $env:FOUNDRY_AGENT_ID_RICH.EndsWith("-pending")) {
+    throw "Invalid FOUNDRY_AGENT_ID_RICH for ${ServiceName}: placeholder ids are not deployable."
+  }
+
+  if ([string]::IsNullOrWhiteSpace($env:FOUNDRY_AGENT_ID_FAST) -and [string]::IsNullOrWhiteSpace($resolvedFoundryAgentNameFast)) {
+    throw "Missing Foundry fast-role definition for $ServiceName (set FOUNDRY_AGENT_ID_FAST or FOUNDRY_AGENT_NAME_FAST)."
+  }
+  if ([string]::IsNullOrWhiteSpace($env:FOUNDRY_AGENT_ID_RICH) -and [string]::IsNullOrWhiteSpace($resolvedFoundryAgentNameRich)) {
+    throw "Missing Foundry rich-role definition for $ServiceName (set FOUNDRY_AGENT_ID_RICH or FOUNDRY_AGENT_NAME_RICH)."
+  }
+}
+
 $envMappings = @{
   # Database
   POSTGRES_HOST = $env:POSTGRES_HOST
@@ -231,8 +266,10 @@ $envMappings = @{
   PROJECT_NAME = $env:PROJECT_NAME
   FOUNDRY_AGENT_ID_FAST = $env:FOUNDRY_AGENT_ID_FAST
   FOUNDRY_AGENT_ID_RICH = $env:FOUNDRY_AGENT_ID_RICH
-  MODEL_DEPLOYMENT_NAME_FAST = $env:MODEL_DEPLOYMENT_NAME_FAST
-  MODEL_DEPLOYMENT_NAME_RICH = $env:MODEL_DEPLOYMENT_NAME_RICH
+  FOUNDRY_AGENT_NAME_FAST = $resolvedFoundryAgentNameFast
+  FOUNDRY_AGENT_NAME_RICH = $resolvedFoundryAgentNameRich
+  MODEL_DEPLOYMENT_NAME_FAST = $resolvedModelDeploymentFast
+  MODEL_DEPLOYMENT_NAME_RICH = $resolvedModelDeploymentRich
   FOUNDRY_STREAM = $env:FOUNDRY_STREAM
   FOUNDRY_STRICT_ENFORCEMENT = $env:FOUNDRY_STRICT_ENFORCEMENT
   FOUNDRY_AUTO_ENSURE_ON_STARTUP = $env:FOUNDRY_AUTO_ENSURE_ON_STARTUP
@@ -345,12 +382,13 @@ if ($ServiceName -eq "search-enrichment-agent") {
   $envMappings["SEARCH_ENRICHMENT_EVENT_HUB_CONSUMER_GROUP"] = $searchEnrichmentConsumerGroup
 }
 
-$isAgentService = $ServiceName -ne "crud-service"
 if ($isAgentService) {
   Assert-RequiredEnvKeys -TargetService $ServiceName -Mappings $envMappings -RequiredKeys @(
     "EVENT_HUB_NAMESPACE",
     "PROJECT_ENDPOINT",
     "PROJECT_NAME",
+    "MODEL_DEPLOYMENT_NAME_FAST",
+    "MODEL_DEPLOYMENT_NAME_RICH",
     "COSMOS_ACCOUNT_URI",
     "COSMOS_DATABASE",
     "REDIS_HOST",
@@ -377,6 +415,38 @@ foreach ($key in $envMappings.Keys) {
 }
 
 & helm @helmArgs | Out-File -FilePath $rendered -Encoding utf8
+
+if ($isAgentService) {
+  $requiredFoundryRenderedKeys = @(
+    "PROJECT_ENDPOINT",
+    "PROJECT_NAME",
+    "MODEL_DEPLOYMENT_NAME_FAST",
+    "MODEL_DEPLOYMENT_NAME_RICH",
+    "FOUNDRY_AGENT_NAME_FAST",
+    "FOUNDRY_AGENT_NAME_RICH"
+  )
+
+  foreach ($foundryKey in $requiredFoundryRenderedKeys) {
+    $present = Select-String -Path $rendered -SimpleMatch "name: $foundryKey" -Quiet
+    if (-not $present) {
+      throw "Rendered manifest missing Foundry env key '$foundryKey' for $ServiceName"
+    }
+  }
+
+  if (-not [string]::IsNullOrWhiteSpace($env:FOUNDRY_AGENT_ID_FAST)) {
+    $presentFastId = Select-String -Path $rendered -SimpleMatch "name: FOUNDRY_AGENT_ID_FAST" -Quiet
+    if (-not $presentFastId) {
+      throw "Rendered manifest missing Foundry env key 'FOUNDRY_AGENT_ID_FAST' for $ServiceName"
+    }
+  }
+
+  if (-not [string]::IsNullOrWhiteSpace($env:FOUNDRY_AGENT_ID_RICH)) {
+    $presentRichId = Select-String -Path $rendered -SimpleMatch "name: FOUNDRY_AGENT_ID_RICH" -Quiet
+    if (-not $presentRichId) {
+      throw "Rendered manifest missing Foundry env key 'FOUNDRY_AGENT_ID_RICH' for $ServiceName"
+    }
+  }
+}
 
 if ($isTruthService) {
   $requiredRenderedKeys = @(

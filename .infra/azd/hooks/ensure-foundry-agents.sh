@@ -120,10 +120,46 @@ call_ensure() {
       --max-time 120 2>/dev/null || echo "000")"
 
     if [ "$HTTP_CODE" = "200" ]; then
-      echo "  [$SVC] OK (HTTP $HTTP_CODE)"
-      cat /tmp/ensure_response.json 2>/dev/null || true
-      echo ""
-      return 0
+      if python3 - "$SVC" <<'PY'
+import json
+import sys
+
+service = sys.argv[1]
+
+try:
+    with open('/tmp/ensure_response.json', encoding='utf-8') as handle:
+        payload = json.load(handle)
+except Exception as exc:  # pragma: no cover - shell integration guard
+    print(f"  [{service}] Invalid ensure response payload: {exc}")
+    sys.exit(1)
+
+results = payload.get('results') or {}
+required_roles = ('fast', 'rich')
+valid_statuses = {'exists', 'found_by_name', 'created'}
+missing = []
+
+for role in required_roles:
+    details = results.get(role)
+    if not isinstance(details, dict):
+        missing.append(f"{role}:missing")
+        continue
+    status = str(details.get('status') or '')
+    agent_id = str(details.get('agent_id') or '')
+    if status not in valid_statuses or not agent_id:
+        missing.append(f"{role}:{status or 'unknown'}")
+
+if missing:
+    print(f"  [{service}] Ensure response incomplete: {', '.join(missing)}")
+    sys.exit(1)
+
+print(f"  [{service}] Ensure response validated: fast+rich roles resolved.")
+PY
+      then
+        echo "  [$SVC] OK (HTTP $HTTP_CODE)"
+        cat /tmp/ensure_response.json 2>/dev/null || true
+        echo ""
+        return 0
+      fi
     fi
 
     echo "  [$SVC] Attempt $attempt failed (HTTP $HTTP_CODE)"

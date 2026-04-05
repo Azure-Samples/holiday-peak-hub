@@ -225,6 +225,35 @@ require_env_keys() {
   fi
 }
 
+if is_agent_service; then
+  FOUNDRY_AGENT_NAME_FAST="${FOUNDRY_AGENT_NAME_FAST:-$SERVICE_NAME-fast}"
+  FOUNDRY_AGENT_NAME_RICH="${FOUNDRY_AGENT_NAME_RICH:-$SERVICE_NAME-rich}"
+  MODEL_DEPLOYMENT_NAME_FAST="${MODEL_DEPLOYMENT_NAME_FAST:-gpt-5-nano}"
+  MODEL_DEPLOYMENT_NAME_RICH="${MODEL_DEPLOYMENT_NAME_RICH:-gpt-5}"
+
+  case "${FOUNDRY_AGENT_ID_FAST:-}" in
+    *-pending)
+      echo "Invalid FOUNDRY_AGENT_ID_FAST for $SERVICE_NAME: placeholder ids are not deployable." >&2
+      exit 1
+      ;;
+  esac
+  case "${FOUNDRY_AGENT_ID_RICH:-}" in
+    *-pending)
+      echo "Invalid FOUNDRY_AGENT_ID_RICH for $SERVICE_NAME: placeholder ids are not deployable." >&2
+      exit 1
+      ;;
+  esac
+
+  if [ -z "${FOUNDRY_AGENT_ID_FAST:-}" ] && [ -z "${FOUNDRY_AGENT_NAME_FAST:-}" ]; then
+    echo "Missing Foundry fast-role definition for $SERVICE_NAME (set FOUNDRY_AGENT_ID_FAST or FOUNDRY_AGENT_NAME_FAST)." >&2
+    exit 1
+  fi
+  if [ -z "${FOUNDRY_AGENT_ID_RICH:-}" ] && [ -z "${FOUNDRY_AGENT_NAME_RICH:-}" ]; then
+    echo "Missing Foundry rich-role definition for $SERVICE_NAME (set FOUNDRY_AGENT_ID_RICH or FOUNDRY_AGENT_NAME_RICH)." >&2
+    exit 1
+  fi
+fi
+
 # Database
 add_env_arg "POSTGRES_HOST" "${POSTGRES_HOST:-}"
 add_env_arg "POSTGRES_USER" "${POSTGRES_USER:-}"
@@ -245,6 +274,8 @@ add_env_arg "PROJECT_ENDPOINT" "${PROJECT_ENDPOINT:-}"
 add_env_arg "PROJECT_NAME" "${PROJECT_NAME:-}"
 add_env_arg "FOUNDRY_AGENT_ID_FAST" "${FOUNDRY_AGENT_ID_FAST:-}"
 add_env_arg "FOUNDRY_AGENT_ID_RICH" "${FOUNDRY_AGENT_ID_RICH:-}"
+add_env_arg "FOUNDRY_AGENT_NAME_FAST" "${FOUNDRY_AGENT_NAME_FAST:-}"
+add_env_arg "FOUNDRY_AGENT_NAME_RICH" "${FOUNDRY_AGENT_NAME_RICH:-}"
 add_env_arg "MODEL_DEPLOYMENT_NAME_FAST" "${MODEL_DEPLOYMENT_NAME_FAST:-}"
 add_env_arg "MODEL_DEPLOYMENT_NAME_RICH" "${MODEL_DEPLOYMENT_NAME_RICH:-}"
 add_env_arg "FOUNDRY_STREAM" "${FOUNDRY_STREAM:-}"
@@ -314,6 +345,8 @@ if is_agent_service; then
     EVENT_HUB_NAMESPACE \
     PROJECT_ENDPOINT \
     PROJECT_NAME \
+    MODEL_DEPLOYMENT_NAME_FAST \
+    MODEL_DEPLOYMENT_NAME_RICH \
     COSMOS_ACCOUNT_URI \
     COSMOS_DATABASE \
     REDIS_HOST \
@@ -332,6 +365,24 @@ fi
 
 # shellcheck disable=SC2086
 helm template "$SERVICE_NAME" "$CHART_PATH" $HELM_ARGS > "$OUT_DIR/all.yaml"
+
+if is_agent_service; then
+  for key in PROJECT_ENDPOINT PROJECT_NAME MODEL_DEPLOYMENT_NAME_FAST MODEL_DEPLOYMENT_NAME_RICH FOUNDRY_AGENT_NAME_FAST FOUNDRY_AGENT_NAME_RICH; do
+    if ! grep -q "name: $key" "$OUT_DIR/all.yaml"; then
+      echo "Rendered manifest missing Foundry env key '$key' for $SERVICE_NAME" >&2
+      exit 1
+    fi
+  done
+
+  if [ -n "${FOUNDRY_AGENT_ID_FAST:-}" ] && ! grep -q "name: FOUNDRY_AGENT_ID_FAST" "$OUT_DIR/all.yaml"; then
+    echo "Rendered manifest missing Foundry env key 'FOUNDRY_AGENT_ID_FAST' for $SERVICE_NAME" >&2
+    exit 1
+  fi
+  if [ -n "${FOUNDRY_AGENT_ID_RICH:-}" ] && ! grep -q "name: FOUNDRY_AGENT_ID_RICH" "$OUT_DIR/all.yaml"; then
+    echo "Rendered manifest missing Foundry env key 'FOUNDRY_AGENT_ID_RICH' for $SERVICE_NAME" >&2
+    exit 1
+  fi
+fi
 
 if is_truth_service; then
   for key in EVENT_HUB_NAMESPACE PROJECT_ENDPOINT COSMOS_ACCOUNT_URI COSMOS_DATABASE TRUTH_EVENT_HUB_NAME TRUTH_EVENT_HUB_CONSUMER_GROUP; do

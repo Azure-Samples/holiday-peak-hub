@@ -73,3 +73,40 @@ async def test_ensure_role_wires_model_target():
 
     assert result["agent_id"] == "agent-fast"
     assert agent.slm == "target-fast"
+
+
+@pytest.mark.asyncio
+async def test_ensure_role_skips_wiring_when_id_remains_pending():
+    agent = _Agent(config=AgentDependencies())
+    cfg = FoundryAgentConfig(
+        endpoint="https://example.test",
+        agent_id="fast-pending",
+        deployment_name="gpt-fast",
+    )
+    ensure_fn = AsyncMock(
+        return_value={
+            "status": "missing",
+            "agent_id": None,
+            "agent_name": "svc-fast",
+            "created": False,
+        }
+    )
+
+    manager = FoundryLifecycleManager(
+        service_name="svc",
+        agent=agent,
+        slm_config=cfg,
+        llm_config=None,
+        ensure_foundry_agent_fn=ensure_fn,
+        build_foundry_model_target_fn=lambda _: "target-fast",
+    )
+
+    result = await manager.ensure_role(
+        selected_role="fast",
+        config=cfg,
+        instructions="instruction",
+        create_if_missing=True,
+    )
+
+    assert result["status"] == "missing"
+    assert agent.slm is None

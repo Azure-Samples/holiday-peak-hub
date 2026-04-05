@@ -71,6 +71,114 @@ class TestBuildServiceApp:
         assert isinstance(app, FastAPI)
         assert app.title == "test-service"
 
+    def test_build_app_skips_pending_foundry_runtime_targets(
+        self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
+    ):
+        """Test invoke requests fail fast when Foundry runtime definitions stay unresolved."""
+
+        class ModelAwareAgent(BaseRetailAgent):
+            async def handle(self, request: dict) -> dict:
+                return {"model_wired": bool(self.slm or self.llm)}
+
+        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.delenv("FOUNDRY_AGENT_ID_FAST", raising=False)
+        monkeypatch.delenv("FOUNDRY_AGENT_ID_RICH", raising=False)
+        monkeypatch.delenv("FOUNDRY_AGENT_NAME_FAST", raising=False)
+        monkeypatch.delenv("FOUNDRY_AGENT_NAME_RICH", raising=False)
+        monkeypatch.setenv("FOUNDRY_AUTO_ENSURE_ON_STARTUP", "false")
+
+        app = build_service_app(
+            service_name="test-service",
+            agent_class=ModelAwareAgent,
+            hot_memory=mock_hot_memory,
+            warm_memory=mock_warm_memory,
+            cold_memory=mock_cold_memory,
+        )
+
+        client = TestClient(app)
+        with patch("holiday_peak_lib.app_factory.ensure_foundry_agent") as mock_ensure:
+            mock_ensure.return_value = {
+                "status": "missing",
+                "agent_id": None,
+                "agent_name": "test-service-fast",
+                "created": False,
+            }
+            response = client.post("/invoke", json={"query": "test"})
+
+        assert response.status_code == 503
+        assert "Foundry runtime definitions are unresolved" in response.json()["detail"]
+
+    def test_invoke_auto_ensures_pending_foundry_runtime_targets(
+        self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
+    ):
+        """Test invoke auto-ensures missing Foundry runtime ids before processing."""
+
+        class RuntimeEnsureAgent(BaseRetailAgent):
+            async def handle(self, request: dict) -> dict:
+                return await self.invoke_model(
+                    request=request,
+                    messages=[{"role": "user", "content": str(request.get("query", ""))}],
+                )
+
+        async def _mock_invoker(**_kwargs):
+            return {"response": "resolved"}
+
+        from holiday_peak_lib.agents.base_agent import ModelTarget
+
+        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.delenv("FOUNDRY_AGENT_ID_FAST", raising=False)
+        monkeypatch.delenv("FOUNDRY_AGENT_ID_RICH", raising=False)
+        monkeypatch.delenv("FOUNDRY_AGENT_NAME_FAST", raising=False)
+        monkeypatch.delenv("FOUNDRY_AGENT_NAME_RICH", raising=False)
+        monkeypatch.setenv("FOUNDRY_AUTO_ENSURE_ON_STARTUP", "false")
+
+        with patch("holiday_peak_lib.app_factory.ensure_foundry_agent") as mock_ensure:
+            mock_ensure.side_effect = [
+                {
+                    "status": "exists",
+                    "agent_id": "agent-fast-123",
+                    "agent_name": "test-service-fast",
+                    "created": False,
+                },
+                {
+                    "status": "exists",
+                    "agent_id": "agent-rich-456",
+                    "agent_name": "test-service-rich",
+                    "created": False,
+                },
+            ]
+
+            with patch("holiday_peak_lib.app_factory.build_foundry_model_target") as mock_target:
+                mock_target.side_effect = [
+                    ModelTarget(
+                        name="slm",
+                        model="gpt-5-nano",
+                        invoker=_mock_invoker,
+                        provider="foundry",
+                    ),
+                    ModelTarget(
+                        name="llm",
+                        model="gpt-5",
+                        invoker=_mock_invoker,
+                        provider="foundry",
+                    ),
+                ]
+
+                app = build_service_app(
+                    service_name="test-service",
+                    agent_class=RuntimeEnsureAgent,
+                    hot_memory=mock_hot_memory,
+                    warm_memory=mock_warm_memory,
+                    cold_memory=mock_cold_memory,
+                )
+
+                client = TestClient(app)
+                response = client.post("/invoke", json={"query": "test"})
+
+        assert response.status_code == 200
+        assert response.json()["response"] == "resolved"
+        assert mock_ensure.call_count == 2
+
     def test_build_app_with_custom_config(
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory
     ):
@@ -500,10 +608,10 @@ class TestBuildServiceApp:
         assert response.status_code == 200
         assert response.json()["status"] == "ready"
 
-    def test_strict_foundry_mode_requires_ensure_before_invoke(
+    def test_strict_foundry_mode_auto_ensures_before_invoke(
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
-        """Test strict mode blocks invoke until ensure endpoint is called."""
+        """Test strict mode auto-runs ensure during invoke before routing."""
         monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-123")
         monkeypatch.setenv("FOUNDRY_STRICT_ENFORCEMENT", "true")
@@ -517,9 +625,6 @@ class TestBuildServiceApp:
         )
 
         client = TestClient(app)
-        pre_response = client.post("/invoke", json={"query": "test"})
-        assert pre_response.status_code == 503
-
         with patch("holiday_peak_lib.app_factory.ensure_foundry_agent") as mock_ensure:
             mock_ensure.return_value = {
                 "status": "exists",
@@ -527,16 +632,11 @@ class TestBuildServiceApp:
                 "agent_name": "test-service-fast",
                 "created": False,
             }
-            ensure_response = client.post(
-                "/foundry/agents/ensure",
-                json={"role": "fast", "create_if_missing": True},
-            )
+            response = client.post("/invoke", json={"query": "test"})
 
-        assert ensure_response.status_code == 200
-        assert ensure_response.json()["foundry_ready"] is True
-
-        post_response = client.post("/invoke", json={"query": "test"})
-        assert post_response.status_code == 200
+        assert response.status_code == 200
+        assert response.json()["status"] == "ok"
+        assert mock_ensure.call_count >= 1
 
     def test_build_foundry_config_from_env(self, monkeypatch):
         """Test building Foundry config from environment."""

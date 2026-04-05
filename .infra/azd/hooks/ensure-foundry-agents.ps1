@@ -101,7 +101,31 @@ function Invoke-EnsureEndpoint {
         try {
             Write-Host "  [$ServiceName] Calling $Url (attempt $attempt/$Retries)..."
             $response = Invoke-RestMethod -Uri $Url -Method POST -ContentType 'application/json' -TimeoutSec 120
-            Write-Host "  [$ServiceName] OK: fast=$($response.fast_agent_id), rich=$($response.rich_agent_id)"
+
+            $results = $response.results
+            $requiredRoles = @('fast', 'rich')
+            $validStatuses = @('exists', 'found_by_name', 'created')
+            $missing = @()
+
+            foreach ($role in $requiredRoles) {
+                $details = $results.$role
+                if (-not $details) {
+                    $missing += "$role:missing"
+                    continue
+                }
+
+                $status = [string]$details.status
+                $agentId = [string]$details.agent_id
+                if (($validStatuses -notcontains $status) -or [string]::IsNullOrWhiteSpace($agentId)) {
+                    $missing += "$role:$status"
+                }
+            }
+
+            if ($missing.Count -gt 0) {
+                throw "Ensure response incomplete ($($missing -join ', '))"
+            }
+
+            Write-Host "  [$ServiceName] OK: fast+rich roles resolved."
             return $true
         }
         catch {

@@ -13,6 +13,11 @@ DEFAULT_FOUNDRY_MODELS = {
 }
 
 
+def _has_resolved_agent_id(agent_id: str | None) -> bool:
+    value = str(agent_id or "").strip()
+    return bool(value) and not value.endswith("-pending")
+
+
 def build_foundry_config(agent_env: str, deployment_env: str) -> FoundryAgentConfig | None:
     """Build Foundry configuration from environment variables."""
     endpoint = os.getenv("PROJECT_ENDPOINT") or os.getenv("FOUNDRY_ENDPOINT")
@@ -104,7 +109,7 @@ class FoundryLifecycleManager:
         if ensured_name:
             config.agent_name = str(ensured_name)
 
-        if config.agent_id:
+        if _has_resolved_agent_id(config.agent_id):
             model_target = self.build_foundry_model_target_fn(config)
             if selected_role == "fast":
                 self.agent.slm = model_target

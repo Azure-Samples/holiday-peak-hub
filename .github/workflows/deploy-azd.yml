@@ -1598,6 +1598,8 @@ jobs:
           AI_SEARCH_AUTH_MODE: ${{ needs.provision.outputs.AI_SEARCH_AUTH_MODE }}
           PROJECT_ENDPOINT: ${{ needs.provision.outputs.PROJECT_ENDPOINT }}
           PROJECT_NAME: ${{ needs.provision.outputs.PROJECT_NAME }}
+          FOUNDRY_AGENT_NAME_FAST: ${{ matrix.service }}-fast
+          FOUNDRY_AGENT_NAME_RICH: ${{ matrix.service }}-rich
           FOUNDRY_AUTO_ENSURE_ON_STARTUP: "true"
           FOUNDRY_STRICT_ENFORCEMENT: "true"
           MODEL_DEPLOYMENT_NAME_FAST: gpt-5-nano

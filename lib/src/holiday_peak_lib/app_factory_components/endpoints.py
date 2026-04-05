@@ -21,9 +21,18 @@ def register_standard_endpoints(
     strict_foundry_mode: bool,
     is_foundry_ready: Callable[[], bool],
     set_foundry_ready: Callable[[bool], None],
+    requires_foundry_runtime_resolution: Callable[[], bool],
     ensure_agents_handler: Callable[[dict | None], Awaitable[dict[str, Any]]],
 ) -> None:
     """Register common health, invoke, telemetry and Foundry endpoints."""
+
+    def _log_info(message: str, extra: dict[str, Any] | None = None) -> None:
+        log_method = getattr(logger, "info", None)
+        if callable(log_method):
+            try:
+                log_method(message, extra=extra or {})
+            except TypeError:
+                log_method(message)
 
     @app.get("/health")
     async def health() -> dict[str, Any]:
@@ -63,12 +72,62 @@ def register_standard_endpoints(
 
     @app.post("/invoke")
     async def invoke(payload: dict) -> dict[str, Any]:
+        needs_runtime_resolution = requires_foundry_runtime_resolution()
+        if needs_runtime_resolution or (strict_foundry_mode and not is_foundry_ready()):
+            _log_info(
+                "foundry_invoke_auto_ensure_start",
+                extra={
+                    "service": service_name,
+                    "strict_mode": strict_foundry_mode,
+                    "needs_runtime_resolution": needs_runtime_resolution,
+                    "foundry_ready_before": is_foundry_ready(),
+                },
+            )
+            try:
+                ensure_result = await ensure_agents_handler(None)
+            except HTTPException:
+                raise
+            except Exception as exc:  # pragma: no cover - defensive endpoint guard
+                raise HTTPException(
+                    status_code=503,
+                    detail=(
+                        "Unable to resolve Foundry runtime definitions before invoke. "
+                        "Call POST /foundry/agents/ensure and retry."
+                    ),
+                ) from exc
+
+            set_foundry_ready(bool(ensure_result.get("foundry_ready", is_foundry_ready())))
+            _log_info(
+                "foundry_invoke_auto_ensure_done",
+                extra={
+                    "service": service_name,
+                    "strict_mode": strict_foundry_mode,
+                    "foundry_ready_after": is_foundry_ready(),
+                    "resolved_roles": [
+                        role
+                        for role, details in (ensure_result.get("results") or {}).items()
+                        if isinstance(details, dict)
+                        and bool(details.get("agent_id"))
+                        and details.get("status") in {"exists", "found_by_name", "created"}
+                    ],
+                },
+            )
+
         if strict_foundry_mode and not is_foundry_ready():
             raise HTTPException(
                 status_code=503,
                 detail=(
                     "Strict Foundry enforcement is enabled and no Foundry target is ready. "
                     "Call POST /foundry/agents/ensure first."
+                ),
+            )
+
+        if requires_foundry_runtime_resolution():
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Foundry runtime definitions are unresolved. "
+                    "Call POST /foundry/agents/ensure and retry."
                 ),
             )
 

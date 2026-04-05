@@ -42,6 +42,24 @@ def _build_foundry_config(agent_env: str, deployment_env: str) -> FoundryAgentCo
     return build_foundry_config(agent_env, deployment_env)
 
 
+def _runtime_foundry_config(config: FoundryAgentConfig | None) -> FoundryAgentConfig | None:
+    """Return a Foundry config only when a resolvable runtime agent id is available.
+
+    The lifecycle builder may emit placeholder ids like ``fast-pending`` when
+    endpoint settings exist but role-specific agent ids are not configured.
+    Wiring those placeholders as live model targets causes runtime 404s during
+    invocation. We keep such configs for ensure/provision endpoints, but avoid
+    binding them as callable SLM/LLM targets.
+    """
+    if config is None:
+        return None
+
+    agent_id = str(config.agent_id or "").strip()
+    if not agent_id or agent_id.endswith("-pending"):
+        return None
+    return config
+
+
 def create_standard_app(
     service_name: str,
     agent_class: type[BaseRetailAgent],
@@ -121,8 +139,33 @@ def build_service_app(
     if slm_config is None and llm_config is None:
         slm_config = _build_foundry_config("FOUNDRY_AGENT_ID_FAST", "MODEL_DEPLOYMENT_NAME_FAST")
         llm_config = _build_foundry_config("FOUNDRY_AGENT_ID_RICH", "MODEL_DEPLOYMENT_NAME_RICH")
-    if slm_config or llm_config:
-        builder = builder.with_foundry_models(slm_config=slm_config, llm_config=llm_config)
+
+    runtime_slm_config = _runtime_foundry_config(slm_config)
+    runtime_llm_config = _runtime_foundry_config(llm_config)
+    if runtime_slm_config or runtime_llm_config:
+        builder = builder.with_foundry_models(
+            slm_config=runtime_slm_config,
+            llm_config=runtime_llm_config,
+        )
+
+    unresolved_roles = []
+    if slm_config and runtime_slm_config is None:
+        unresolved_roles.append("fast")
+    if llm_config and runtime_llm_config is None:
+        unresolved_roles.append("rich")
+    if unresolved_roles:
+        logger.warning(
+            "foundry_runtime_targets_disabled",
+            extra={
+                "service": service_name,
+                "roles": unresolved_roles,
+                "hint": (
+                    "Set FOUNDRY_AGENT_ID_FAST/FOUNDRY_AGENT_ID_RICH (or role names) "
+                    "or enable FOUNDRY_AUTO_ENSURE_ON_STARTUP to provision agents before invoke."
+                ),
+            },
+        )
+
     agent = builder.build()
     tracer = get_foundry_tracer(service_name)
     if hasattr(agent, "connector_registry"):
@@ -163,7 +206,7 @@ def build_service_app(
 
             foundry_ready = all(
                 result.get("status") in {"exists", "found_by_name", "created"}
-                and bool(result.get("agent_id") or result.get("agent_name"))
+                and bool(result.get("agent_id"))
                 for result in results.values()
             )
 
@@ -279,11 +322,32 @@ def build_service_app(
 
             results[selected_role] = ensure_result
 
-        if strict_foundry_mode:
-            foundry_ready = any(
-                bool(result.get("agent_id"))
-                and result.get("status") in {"exists", "found_by_name", "created"}
-                for result in results.values()
+        configured_requested_roles = [
+            selected_role
+            for selected_role in selected_roles
+            if role_to_config.get(selected_role) is not None
+        ]
+
+        resolved_roles = sum(
+            1
+            for selected_role, result in results.items()
+            if selected_role in configured_requested_roles
+            if bool(result.get("agent_id"))
+            and result.get("status") in {"exists", "found_by_name", "created"}
+        )
+        foundry_ready = bool(configured_requested_roles) and (
+            resolved_roles == len(configured_requested_roles)
+        )
+
+        if strict_foundry_mode and not foundry_ready:
+            logger.warning(
+                "foundry_strict_ensure_incomplete",
+                extra={
+                    "service": service_name,
+                    "resolved_roles": resolved_roles,
+                    "configured_requested_roles": configured_requested_roles,
+                    "requested_roles": list(results.keys()),
+                },
             )
 
         return {
@@ -300,6 +364,9 @@ def build_service_app(
         nonlocal foundry_ready
         foundry_ready = value
 
+    def _requires_foundry_runtime_resolution() -> bool:
+        return bool((slm_config or llm_config) and not (agent.slm or agent.llm))
+
     register_standard_endpoints(
         app,
         service_name=service_name,
@@ -310,6 +377,7 @@ def build_service_app(
         strict_foundry_mode=strict_foundry_mode,
         is_foundry_ready=_is_foundry_ready,
         set_foundry_ready=_set_foundry_ready,
+        requires_foundry_runtime_resolution=_requires_foundry_runtime_resolution,
         ensure_agents_handler=ensure_agents,
     )
 

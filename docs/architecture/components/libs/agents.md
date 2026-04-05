@@ -265,6 +265,20 @@ Supported roles:
 
 The service updates in-memory model targets with resolved/created Foundry agent IDs.
 
+`POST /invoke` now performs a lazy Foundry ensure pass when runtime role definitions
+exist but SLM/LLM targets are unresolved (for example, missing role IDs at startup).
+If ensure cannot resolve all configured callable role targets (`fast`/`rich`), the service returns `503`
+with a Foundry runtime resolution error instead of attempting a model call with
+placeholder role IDs.
+
+Deploy-time Helm rendering now validates the Foundry contract for each agent service:
+
+- `PROJECT_ENDPOINT` / `PROJECT_NAME` must be present.
+- Both model roles must be defined (`MODEL_DEPLOYMENT_NAME_FAST` and `MODEL_DEPLOYMENT_NAME_RICH`).
+- Both Foundry role identities must be defined (explicit `FOUNDRY_AGENT_ID_*` or deterministic
+    `FOUNDRY_AGENT_NAME_*` defaults).
+- Placeholder ids ending with `-pending` are rejected at render time.
+
 Default deployment models in this repo are:
 
 - SLM (`fast`): `gpt-5-nano`
