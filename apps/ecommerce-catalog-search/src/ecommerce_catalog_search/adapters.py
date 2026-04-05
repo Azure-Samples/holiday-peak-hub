@@ -110,7 +110,9 @@ class CRUDCatalogProductAdapter(BaseAdapter):
 
         return []
 
-    async def _search_products_by_text(self, *, query_text: str, limit: int) -> list[dict[str, Any]]:
+    async def _search_products_by_text(
+        self, *, query_text: str, limit: int
+    ) -> list[dict[str, Any]]:
         if not query_text or limit <= 0:
             return []
 
