@@ -261,10 +261,7 @@ class SelfHealingKernel:
         status_code = incident.status_code
         recoverable = bool(
             status_code is not None
-            and (
-                400 <= status_code < 500
-                or status_code in _SELECTED_RECOVERABLE_5XX
-            )
+            and (400 <= status_code < 500 or status_code in _SELECTED_RECOVERABLE_5XX)
         )
         incident.incident_class = (
             IncidentClass.INFRASTRUCTURE_MISCONFIGURATION
@@ -279,9 +276,7 @@ class SelfHealingKernel:
             details={
                 "recoverable": recoverable,
                 "incident_class": (
-                    incident.incident_class.value
-                    if incident.incident_class is not None
-                    else None
+                    incident.incident_class.value if incident.incident_class is not None else None
                 ),
             },
         )
@@ -349,7 +344,9 @@ class SelfHealingKernel:
                 deduplicated.append(action_name)
         return deduplicated
 
-    async def _execute_action(self, action_name: str, incident: Incident) -> RemediationActionResult:
+    async def _execute_action(
+        self, action_name: str, incident: Incident
+    ) -> RemediationActionResult:
         try:
             self._assert_action_allowed(action_name)
             handler = self._actions[action_name]
@@ -397,9 +394,7 @@ class SelfHealingKernel:
                 "Image restore/redeploy remediation is forbidden by self-healing policy."
             )
         if action_name not in self._allowed_actions:
-            raise PermissionError(
-                f"Action '{action_name}' is not in the self-healing allowlist."
-            )
+            raise PermissionError(f"Action '{action_name}' is not in the self-healing allowlist.")
 
     def _track_incident(self, incident: Incident) -> None:
         self._incidents[incident.id] = incident

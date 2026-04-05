@@ -96,9 +96,7 @@ def create_standard_app(
         eventhub_kwargs: dict[str, Any] = {}
         if self_healing_kernel is not None:
             eventhub_kwargs["self_healing_kernel"] = self_healing_kernel
-            eventhub_kwargs["reconcile_on_error"] = (
-                self_healing_kernel.reconcile_on_messaging_error
-            )
+            eventhub_kwargs["reconcile_on_error"] = self_healing_kernel.reconcile_on_messaging_error
         lifespan = create_eventhub_lifespan(
             service_name=service_name,
             subscriptions=subscriptions,
