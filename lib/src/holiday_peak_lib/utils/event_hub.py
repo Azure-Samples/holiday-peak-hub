@@ -53,6 +53,15 @@ class EventHubSubscriber:
         self._self_healing_kernel = self_healing_kernel
         self._reconcile_on_error = reconcile_on_error
         self._client: EventHubConsumerClient | None = None
+        self._logger = configure_logging(app_name="eventhub-subscriber")
+
+    def _log_warning(self, message: str, **metadata: Any) -> None:
+        log_method = getattr(self._logger, "warning", None)
+        if callable(log_method):
+            try:
+                log_method(message, **metadata)
+            except TypeError:
+                log_method(message)
 
     async def start(self) -> None:
         """Start receiving events using the configured handler."""
@@ -121,8 +130,12 @@ class EventHubSubscriber:
                 emitted = emitter(signal)
                 if isawaitable(emitted):
                     await emitted
-            except TypeError:
-                pass
+            except TypeError as exc:
+                self._log_warning(
+                    "eventhub_failure_signal_emitter_signature_mismatch",
+                    eventhub=self._config.eventhub_name,
+                    error=str(exc),
+                )
 
         if (
             self._reconcile_on_error

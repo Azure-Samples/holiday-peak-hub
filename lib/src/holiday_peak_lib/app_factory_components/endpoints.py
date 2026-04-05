@@ -181,7 +181,10 @@ def register_standard_endpoints(
                         span.set_attribute("agent.intent", intent)
                         span.set_attribute("agent.payload_size", len(str(request_payload)))
                     except (AttributeError, TypeError, ValueError):
-                        pass
+                        _log_info(
+                            "agent_handle_span_attribute_failed",
+                            extra={"service": service_name, "intent": intent},
+                        )
                     return await router.route(intent, request_payload)
 
             return await log_async_operation(
