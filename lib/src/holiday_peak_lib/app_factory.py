@@ -69,11 +69,16 @@ def create_standard_app(
     subscriptions: list[EventHubSubscription] | None = None,
     handlers: dict[str, Any] | None = None,
     require_foundry_readiness: bool = False,
+    disable_tracing_without_foundry: bool = False,
 ) -> FastAPI:
     """Create a standard agent app with memory + default Foundry wiring.
 
     Foundry is preferred by default, but readiness enforcement is optional and
     controlled via ``require_foundry_readiness``.
+
+    Tracing policy is per service. Set ``disable_tracing_without_foundry=True``
+    to disable Foundry tracer collection whenever no callable Foundry target is
+    bound for that service.
     """
     self_healing_kernel = SelfHealingKernel.from_env(service_name)
     memory_settings = MemorySettings()
@@ -119,6 +124,7 @@ def create_standard_app(
         lifespan=lifespan,
         self_healing_kernel=self_healing_kernel,
         require_foundry_readiness=require_foundry_readiness,
+        disable_tracing_without_foundry=disable_tracing_without_foundry,
     )
 
 
@@ -136,12 +142,16 @@ def build_service_app(
     lifespan: Callable[[FastAPI], AsyncContextManager[None]] | None = None,
     self_healing_kernel: SelfHealingKernel | None = None,
     require_foundry_readiness: bool = False,
+    disable_tracing_without_foundry: bool = False,
 ) -> FastAPI:
     """Return a FastAPI app pre-wired with MCP and required memory tiers.
 
     Args:
         require_foundry_readiness: When ``True``, ``/ready`` and invoke guards
             enforce Foundry runtime availability for this service.
+        disable_tracing_without_foundry: When ``True``, the Foundry tracer is
+            disabled unless the service has at least one callable Foundry model
+            target bound.
     """
     logger = configure_logging(app_name=service_name)
     app = FastAPI(title=service_name)
@@ -208,9 +218,18 @@ def build_service_app(
         return bool(getattr(agent, "slm", None) or getattr(agent, "llm", None))
 
     def _sync_foundry_tracing_state() -> None:
+        if disable_tracing_without_foundry:
+            get_foundry_tracer(service_name, enabled=_has_bound_foundry_target())
+            return
         get_foundry_tracer(service_name)
 
-    tracer = get_foundry_tracer(service_name)
+    if disable_tracing_without_foundry:
+        tracer = get_foundry_tracer(
+            service_name,
+            enabled=_has_bound_foundry_target(),
+        )
+    else:
+        tracer = get_foundry_tracer(service_name)
 
     strict_foundry_mode = strict_foundry_mode_enabled()
     foundry_ready = _has_bound_foundry_target()

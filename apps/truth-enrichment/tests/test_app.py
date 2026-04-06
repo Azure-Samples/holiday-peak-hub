@@ -62,8 +62,9 @@ def test_agent_activity_endpoints(client):
     metrics_response = client.get("/agent/metrics")
     assert metrics_response.status_code == 200
     assert metrics_response.json()["service"] == "truth-enrichment"
+    assert metrics_response.json()["enabled"] is False
 
     evaluation_response = client.get("/agent/evaluation/latest")
     assert evaluation_response.status_code == 200
     assert "latest" in evaluation_response.json()
-    assert evaluation_response.json()["latest"] is not None
+    assert evaluation_response.json()["latest"] is None

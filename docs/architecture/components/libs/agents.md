@@ -331,9 +331,11 @@ Readiness payload now includes a `foundry` capability object with:
 - `runtime_resolution_required`
 - `auto_ensure_on_startup`
 
-Foundry tracer collection is disabled automatically when no Foundry model target
-is bound. This prevents emitting partial/invalid telemetry when services run
-without Foundry.
+Foundry tracer collection can be controlled per service via
+`disable_tracing_without_foundry` on `create_standard_app` / `build_service_app`.
+When set to `true`, tracer collection is disabled whenever no Foundry model
+target is bound. In this repository, all agentic services enable this flag to
+enforce Foundry-bound telemetry semantics.
 
 ### Strict Foundry Enforcement Mode
 
