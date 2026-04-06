@@ -15,7 +15,9 @@ _TRACE_SERVICE_NAME = "search-enrichment-agent"
 
 @pytest.fixture(autouse=True)
 def _clear_service_traces() -> None:
-    get_foundry_tracer(_TRACE_SERVICE_NAME).clear()
+    tracer = get_foundry_tracer(_TRACE_SERVICE_NAME)
+    tracer.set_enabled(True)
+    tracer.clear()
 
 
 def _eventhub_liveness_events() -> list[dict[str, object]]:
