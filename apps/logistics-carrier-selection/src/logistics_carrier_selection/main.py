@@ -7,6 +7,7 @@ from logistics_carrier_selection.event_handlers import build_event_handlers
 
 SERVICE_NAME = "logistics-carrier-selection"
 app = create_standard_app(
+    require_foundry_readiness=True,
     service_name=SERVICE_NAME,
     agent_class=CarrierSelectionAgent,
     mcp_setup=register_mcp_tools,

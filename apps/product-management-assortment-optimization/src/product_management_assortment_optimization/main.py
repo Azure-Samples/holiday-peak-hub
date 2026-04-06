@@ -12,6 +12,7 @@ from product_management_assortment_optimization.event_handlers import (
 
 SERVICE_NAME = "product-management-assortment-optimization"
 app = create_standard_app(
+    require_foundry_readiness=True,
     service_name=SERVICE_NAME,
     agent_class=AssortmentOptimizationAgent,
     mcp_setup=register_mcp_tools,

@@ -273,6 +273,7 @@ def _install_catalog_readiness_guards(service_app: FastAPI) -> FastAPI:
 
 def create_app() -> FastAPI:
     service_app = create_standard_app(
+        require_foundry_readiness=True,
         service_name=SERVICE_NAME,
         agent_class=CatalogSearchAgent,
         mcp_setup=register_mcp_tools,

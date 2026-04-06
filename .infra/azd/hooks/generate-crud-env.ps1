@@ -120,6 +120,8 @@ elseif (-not $postgresUser -or $postgresUser -eq $postgresAdminUser -or $postgre
 $eventHubNamespace = Ensure-Suffix -Value (First-Value -Map $values -Keys @('EVENT_HUB_NAMESPACE', 'eventHubsNamespaceName')) -Suffix '.servicebus.windows.net'
 $keyVaultUri = First-Value -Map $values -Keys @('KEY_VAULT_URI', 'keyVaultUri')
 $redisHost = Ensure-Suffix -Value (First-Value -Map $values -Keys @('REDIS_HOST', 'redisName')) -Suffix '.redis.cache.windows.net'
+$redisPassword = First-Value -Map $values -Keys @('REDIS_PASSWORD')
+$redisPasswordSecretName = First-Value -Map $values -Keys @('REDIS_PASSWORD_SECRET_NAME', 'redisPasswordSecretName') -DefaultValue 'redis-primary-key'
 $apimGatewayUrl = Resolve-ApimGatewayUrl -Map $values -ResourceGroup $resourceGroup
 $entraTenantId = First-Value -Map $values -Keys @('ENTRA_TENANT_ID', 'NEXT_PUBLIC_ENTRA_TENANT_ID')
 $entraClientId = First-Value -Map $values -Keys @('ENTRA_CLIENT_ID', 'NEXT_PUBLIC_ENTRA_CLIENT_ID')
@@ -154,6 +156,8 @@ POSTGRES_SSL=true
 EVENT_HUB_NAMESPACE=$eventHubNamespace
 KEY_VAULT_URI=$keyVaultUri
 REDIS_HOST=$redisHost
+REDIS_PASSWORD=$redisPassword
+REDIS_PASSWORD_SECRET_NAME=$redisPasswordSecretName
 REDIS_PORT=6380
 REDIS_DB=0
 REDIS_SSL=true

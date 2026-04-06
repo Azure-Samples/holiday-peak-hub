@@ -254,9 +254,35 @@ if is_agent_service; then
   fi
 fi
 
+RESOLVED_POSTGRES_AUTH_MODE="${POSTGRES_AUTH_MODE:-password}"
+RESOLVED_POSTGRES_USER="${POSTGRES_USER:-}"
+POSTGRES_ADMIN_USER_VALUE="${POSTGRES_ADMIN_USER:-}"
+
+if [ "$SERVICE_NAME" = "crud-service" ]; then
+  if [ "$RESOLVED_POSTGRES_AUTH_MODE" = "password" ] && [ -n "$POSTGRES_ADMIN_USER_VALUE" ]; then
+    RESOLVED_POSTGRES_USER="$POSTGRES_ADMIN_USER_VALUE"
+  fi
+
+  if [ "$RESOLVED_POSTGRES_AUTH_MODE" = "entra" ]; then
+    if [ -z "$RESOLVED_POSTGRES_USER" ] || [ "$RESOLVED_POSTGRES_USER" = "crud_workload" ] || [ "$RESOLVED_POSTGRES_USER" = "crud_admin" ] || [ "$RESOLVED_POSTGRES_USER" = "$POSTGRES_ADMIN_USER_VALUE" ]; then
+      AKS_CLUSTER_NAME_VALUE="${AZURE_AKS_CLUSTER_NAME:-${AKS_CLUSTER_NAME:-}}"
+      if [ -n "$AKS_CLUSTER_NAME_VALUE" ]; then
+        RESOLVED_POSTGRES_USER="${AKS_CLUSTER_NAME_VALUE}-agentpool"
+      fi
+    fi
+  fi
+fi
+
+RESOLVED_REDIS_HOST="${REDIS_HOST:-}"
+if [ -n "$RESOLVED_REDIS_HOST" ] && ! printf '%s' "$RESOLVED_REDIS_HOST" | grep -q '\.'; then
+  RESOLVED_REDIS_HOST="${RESOLVED_REDIS_HOST}.redis.cache.windows.net"
+fi
+RESOLVED_REDIS_PASSWORD_SECRET_NAME="${REDIS_PASSWORD_SECRET_NAME:-redis-primary-key}"
+
 # Database
 add_env_arg "POSTGRES_HOST" "${POSTGRES_HOST:-}"
-add_env_arg "POSTGRES_USER" "${POSTGRES_USER:-}"
+add_env_arg "POSTGRES_AUTH_MODE" "$RESOLVED_POSTGRES_AUTH_MODE"
+add_env_arg "POSTGRES_USER" "$RESOLVED_POSTGRES_USER"
 add_env_arg "POSTGRES_PASSWORD" "${POSTGRES_PASSWORD:-}"
 add_env_arg "POSTGRES_DATABASE" "${POSTGRES_DATABASE:-}"
 add_env_arg "POSTGRES_PORT" "${POSTGRES_PORT:-}"
@@ -265,7 +291,9 @@ add_env_arg "POSTGRES_SSL" "${POSTGRES_SSL:-}"
 # Messaging & Infrastructure
 add_env_arg "EVENT_HUB_NAMESPACE" "${EVENT_HUB_NAMESPACE:-}"
 add_env_arg "KEY_VAULT_URI" "${KEY_VAULT_URI:-}"
-add_env_arg "REDIS_HOST" "${REDIS_HOST:-}"
+add_env_arg "REDIS_HOST" "$RESOLVED_REDIS_HOST"
+add_env_arg "REDIS_PASSWORD" "${REDIS_PASSWORD:-}"
+add_env_arg "REDIS_PASSWORD_SECRET_NAME" "$RESOLVED_REDIS_PASSWORD_SECRET_NAME"
 add_env_arg "AZURE_CLIENT_ID" "${AZURE_CLIENT_ID:-}"
 add_env_arg "AZURE_TENANT_ID" "${AZURE_TENANT_ID:-}"
 

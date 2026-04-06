@@ -43,14 +43,17 @@ def test_agent_activity_endpoints():
         metrics_response = client.get("/agent/metrics")
         assert metrics_response.status_code == 200
         assert metrics_response.json()["service"] == "ecommerce-catalog-search"
+        assert metrics_response.json()["enabled"] is False
 
         evaluation_response = client.get("/agent/evaluation/latest")
         assert evaluation_response.status_code == 200
         assert "latest" in evaluation_response.json()
-        assert evaluation_response.json()["latest"] is not None
+        assert evaluation_response.json()["latest"] is None
 
 
 def test_ready_returns_503_when_strict_mode_ai_search_not_ready(monkeypatch):
+    monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+    monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-fast-123")
     monkeypatch.setenv("CATALOG_SEARCH_REQUIRE_AI_SEARCH", "true")
 
     with patch(

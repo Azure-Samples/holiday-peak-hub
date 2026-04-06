@@ -43,6 +43,7 @@ var postgresAdminUser = 'crud_admin'
 var postgresWorkloadUser = 'crud_workload'
 var postgresAuthMode = 'password'
 var postgresAdminPasswordSecretName = 'postgres-admin-password'
+var redisPasswordSecretName = 'redis-primary-key'
 var resolvedPostgresAdminPassword = empty(postgresAdminPassword)
   ? '${replace(postgresAdminPasswordSeed, '-', '')}Aa!'
   : postgresAdminPassword
@@ -1105,6 +1106,10 @@ resource keyVaultResource 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
   name: keyVaultName
 }
 
+resource redisResource 'Microsoft.Cache/Redis@2023-08-01' existing = {
+  name: redisName
+}
+
 resource postgresPasswordSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   parent: keyVaultResource
   name: postgresAdminPasswordSecretName
@@ -1114,6 +1119,18 @@ resource postgresPasswordSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' =
   dependsOn: [
     keyVault
     postgres
+  ]
+}
+
+resource redisPasswordSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVaultResource
+  name: redisPasswordSecretName
+  properties: {
+    value: redisResource.listKeys().primaryKey
+  }
+  dependsOn: [
+    keyVault
+    redis
   ]
 }
 
@@ -1261,6 +1278,8 @@ output postgresAuthMode string = postgresAuthMode
 output postgresBreakGlassAdminUser string = postgresAdminUser
 output eventHubsNamespaceName string = eventHubs.outputs.name
 output redisName string = redis.outputs.name
+#disable-next-line outputs-should-not-contain-secrets
+output redisPasswordSecretName string = redisPasswordSecretName
 output storageAccountName string = storage.outputs.name
 output keyVaultName string = keyVault.outputs.name
 output keyVaultUri string = keyVault.outputs.uri

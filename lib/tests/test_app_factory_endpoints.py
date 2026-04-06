@@ -79,9 +79,11 @@ def test_register_standard_endpoints_ready_and_ensure_flow():
         tracer=_Tracer(),
         logger=_Logger(),
         strict_foundry_mode=True,
+        require_foundry_readiness=False,
         is_foundry_ready=_is_ready,
         set_foundry_ready=_set_ready,
         requires_foundry_runtime_resolution=_requires_runtime_resolution,
+        foundry_capabilities=lambda: {"project_configured": True},
         ensure_agents_handler=_ensure_handler,
     )
 
@@ -128,9 +130,11 @@ def test_invoke_auto_ensures_foundry_before_routing():
         tracer=_Tracer(),
         logger=_Logger(),
         strict_foundry_mode=False,
+        require_foundry_readiness=False,
         is_foundry_ready=_is_ready,
         set_foundry_ready=_set_ready,
         requires_foundry_runtime_resolution=_requires_runtime_resolution,
+        foundry_capabilities=lambda: {"project_configured": True},
         ensure_agents_handler=_ensure_handler,
     )
 
@@ -179,9 +183,11 @@ def test_self_healing_endpoints_capture_invoke_failures():
         tracer=_Tracer(),
         logger=_Logger(),
         strict_foundry_mode=False,
+        require_foundry_readiness=False,
         is_foundry_ready=_is_ready,
         set_foundry_ready=_set_ready,
         requires_foundry_runtime_resolution=_requires_runtime_resolution,
+        foundry_capabilities=lambda: {"project_configured": True},
         ensure_agents_handler=_ensure_handler,
         self_healing_kernel=kernel,
     )

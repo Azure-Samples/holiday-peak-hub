@@ -122,8 +122,8 @@ def test_list_products_skips_malformed_records(client):
     assert payload[0]["id"] == _SAMPLE_PRODUCT["id"]
 
 
-def test_list_products_repo_failure_returns_503(client):
-    """Repository/runtime failures should return 503 rather than unhandled 500."""
+def test_list_products_repo_failure_returns_empty_list(client):
+    """Repository/runtime failures should degrade to an empty catalog list."""
     with patch(
         "crud_service.routes.products.product_repo.query",
         new_callable=AsyncMock,
@@ -131,12 +131,12 @@ def test_list_products_repo_failure_returns_503(client):
     ):
         response = client.get("/api/products")
 
-    assert response.status_code == 503
-    assert response.json()["detail"] == "Product catalog is temporarily unavailable"
+    assert response.status_code == 200
+    assert response.json() == []
 
 
-def test_list_products_none_repo_result_returns_503(client):
-    """Non-iterable None result should degrade to stable 503."""
+def test_list_products_none_repo_result_returns_empty_list(client):
+    """Non-iterable None result should degrade to an empty catalog list."""
     with patch(
         "crud_service.routes.products.product_repo.query",
         new_callable=AsyncMock,
@@ -144,12 +144,12 @@ def test_list_products_none_repo_result_returns_503(client):
     ):
         response = client.get("/api/products")
 
-    assert response.status_code == 503
-    assert response.json()["detail"] == "Product catalog is temporarily unavailable"
+    assert response.status_code == 200
+    assert response.json() == []
 
 
-def test_list_products_non_iterable_repo_result_returns_503(client):
-    """Non-iterable result shape should degrade to stable 503."""
+def test_list_products_non_iterable_repo_result_returns_empty_list(client):
+    """Non-iterable result shape should degrade to an empty catalog list."""
     with patch(
         "crud_service.routes.products.product_repo.query",
         new_callable=AsyncMock,
@@ -157,12 +157,12 @@ def test_list_products_non_iterable_repo_result_returns_503(client):
     ):
         response = client.get("/api/products")
 
-    assert response.status_code == 503
-    assert response.json()["detail"] == "Product catalog is temporarily unavailable"
+    assert response.status_code == 200
+    assert response.json() == []
 
 
-def test_list_products_repo_timeout_returns_503(client):
-    """Repository timeout should degrade to stable 503."""
+def test_list_products_repo_timeout_returns_empty_list(client):
+    """Repository timeout should degrade to an empty catalog list."""
     with patch(
         "crud_service.routes.products.product_repo.query",
         new_callable=AsyncMock,
@@ -170,8 +170,8 @@ def test_list_products_repo_timeout_returns_503(client):
     ):
         response = client.get("/api/products")
 
-    assert response.status_code == 503
-    assert response.json()["detail"] == "Product catalog is temporarily unavailable"
+    assert response.status_code == 200
+    assert response.json() == []
 
 
 def test_trigger_product_enrichment_returns_202_and_publishes_product_updated(client):

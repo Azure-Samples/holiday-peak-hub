@@ -245,10 +245,49 @@ if ($isAgentService) {
   }
 }
 
+$resolvedPostgresAuthMode = if ($env:POSTGRES_AUTH_MODE) { $env:POSTGRES_AUTH_MODE } else { 'password' }
+$resolvedPostgresUser = $env:POSTGRES_USER
+$postgresAdminUser = $env:POSTGRES_ADMIN_USER
+
+if ($ServiceName -eq 'crud-service') {
+  if ($resolvedPostgresAuthMode -eq 'password' -and -not [string]::IsNullOrWhiteSpace($postgresAdminUser)) {
+    $resolvedPostgresUser = $postgresAdminUser
+  }
+
+  if (
+    $resolvedPostgresAuthMode -eq 'entra' -and
+    (
+      [string]::IsNullOrWhiteSpace($resolvedPostgresUser) -or
+      $resolvedPostgresUser -eq 'crud_workload' -or
+      $resolvedPostgresUser -eq 'crud_admin' -or
+      $resolvedPostgresUser -eq $postgresAdminUser
+    )
+  ) {
+    $aksClusterName = if ($env:AZURE_AKS_CLUSTER_NAME) {
+      $env:AZURE_AKS_CLUSTER_NAME
+    } elseif ($env:AKS_CLUSTER_NAME) {
+      $env:AKS_CLUSTER_NAME
+    } else {
+      ''
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($aksClusterName)) {
+      $resolvedPostgresUser = "$aksClusterName-agentpool"
+    }
+  }
+}
+
+$resolvedRedisHost = $env:REDIS_HOST
+if (-not [string]::IsNullOrWhiteSpace($resolvedRedisHost) -and -not $resolvedRedisHost.Contains('.')) {
+  $resolvedRedisHost = "$resolvedRedisHost.redis.cache.windows.net"
+}
+$resolvedRedisPasswordSecretName = if ($env:REDIS_PASSWORD_SECRET_NAME) { $env:REDIS_PASSWORD_SECRET_NAME } else { 'redis-primary-key' }
+
 $envMappings = @{
   # Database
   POSTGRES_HOST = $env:POSTGRES_HOST
-  POSTGRES_USER = $env:POSTGRES_USER
+  POSTGRES_AUTH_MODE = $resolvedPostgresAuthMode
+  POSTGRES_USER = $resolvedPostgresUser
   POSTGRES_PASSWORD = $env:POSTGRES_PASSWORD
   POSTGRES_DATABASE = $env:POSTGRES_DATABASE
   POSTGRES_PORT = $env:POSTGRES_PORT
@@ -257,7 +296,9 @@ $envMappings = @{
   # Messaging & Infrastructure
   EVENT_HUB_NAMESPACE = $env:EVENT_HUB_NAMESPACE
   KEY_VAULT_URI = $env:KEY_VAULT_URI
-  REDIS_HOST = $env:REDIS_HOST
+  REDIS_HOST = $resolvedRedisHost
+  REDIS_PASSWORD = $env:REDIS_PASSWORD
+  REDIS_PASSWORD_SECRET_NAME = $resolvedRedisPasswordSecretName
   AZURE_CLIENT_ID = $env:AZURE_CLIENT_ID
   AZURE_TENANT_ID = $env:AZURE_TENANT_ID
 

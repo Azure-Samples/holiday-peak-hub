@@ -317,7 +317,7 @@ function buildDefaultPayload(context: PayloadBuildContext): Record<string, unkno
 
 function buildCatalogSearchPayload(context: PayloadBuildContext): Record<string, unknown> {
   const query = pickFirstString(context.overridePayload, ['query', 'prompt', 'message', 'text']) ?? context.promptText;
-  const mode = pickFirstString(context.overridePayload, ['mode']) ?? 'keyword';
+  const mode = pickFirstString(context.overridePayload, ['mode']) ?? 'intelligent';
 
   return withPayloadMetadata(
     {

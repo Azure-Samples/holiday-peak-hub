@@ -10,6 +10,7 @@ from inventory_reservation_validation.event_handlers import build_event_handlers
 
 SERVICE_NAME = "inventory-reservation-validation"
 app = create_standard_app(
+    require_foundry_readiness=True,
     service_name=SERVICE_NAME,
     agent_class=ReservationValidationAgent,
     mcp_setup=register_mcp_tools,

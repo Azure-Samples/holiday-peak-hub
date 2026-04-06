@@ -10,6 +10,7 @@ from product_management_acp_transformation.event_handlers import build_event_han
 
 SERVICE_NAME = "product-management-acp-transformation"
 app = create_standard_app(
+    require_foundry_readiness=True,
     service_name=SERVICE_NAME,
     agent_class=ProductAcpTransformationAgent,
     mcp_setup=register_mcp_tools,

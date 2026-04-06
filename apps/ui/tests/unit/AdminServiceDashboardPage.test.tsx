@@ -98,7 +98,7 @@ describe('AdminServiceDashboardPage', () => {
     });
   });
 
-  it('uses a scoped timeout for admin invoke calls', async () => {
+  it('uses intelligent as default mode for catalog admin invoke calls with scoped timeout', async () => {
     mockAgentPost.mockResolvedValue({ data: { summary: 'ok' } });
 
     render(<AdminServiceDashboardPage domain="ecommerce" service="catalog" />);
@@ -122,6 +122,39 @@ describe('AdminServiceDashboardPage', () => {
           service: 'catalog',
           query: 'find running shoes',
           prompt: 'find running shoes',
+          mode: 'intelligent',
+        }),
+      },
+      {
+        timeout: 60_000,
+      },
+    );
+  });
+
+  it('preserves explicit mode override from JSON input for catalog admin invoke calls', async () => {
+    mockAgentPost.mockResolvedValue({ data: { summary: 'ok' } });
+
+    render(<AdminServiceDashboardPage domain="ecommerce" service="catalog" />);
+
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: '{"query":"find boots","mode":"keyword"}' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Run agent' }));
+
+    await waitFor(() => {
+      expect(mockAgentPost).toHaveBeenCalledTimes(1);
+    });
+
+    expect(mockAgentPost).toHaveBeenCalledWith(
+      '/ecommerce-catalog-search/invoke',
+      {
+        intent: 'default',
+        payload: expect.objectContaining({
+          source: 'admin_dashboard',
+          domain: 'ecommerce',
+          service: 'catalog',
+          query: 'find boots',
+          prompt: 'find boots',
           mode: 'keyword',
         }),
       },

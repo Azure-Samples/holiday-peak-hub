@@ -38,6 +38,28 @@ def _to_canonical_product(product: dict) -> dict | None:
     return to_canonical_product_service(product)
 
 
+def _log_products_fetch_failure(
+    *,
+    message: str,
+    search: str | None,
+    category: str | None,
+    limit: int,
+    exc: BaseException,
+) -> None:
+    logger.warning(
+        message,
+        extra={
+            "app_role": settings.service_name,
+            "endpoint": "/api/products",
+            "search_present": bool(search),
+            "category_present": bool(category),
+            "limit": limit,
+            "error_type": type(exc).__name__,
+        },
+        exc_info=True,
+    )
+
+
 async def _fetch_products(
     *,
     search: str | None,
@@ -45,18 +67,38 @@ async def _fetch_products(
     limit: int,
     current_user: User | None,
 ) -> list[dict]:
-    return await fetch_products_service(
-        ProductQuery(
+    try:
+        return await fetch_products_service(
+            ProductQuery(
+                search=search,
+                category=category,
+                limit=limit,
+                current_user=current_user,
+            ),
+            product_repo=product_repo,
+            agent_client=agent_client,
+            logger=logger,
+            agent_fallback_exceptions=AGENT_FALLBACK_EXCEPTIONS,
+        )
+    except asyncio.TimeoutError as exc:
+        _log_products_fetch_failure(
+            message="Product list fetch timed out; returning empty fallback list",
             search=search,
             category=category,
             limit=limit,
-            current_user=current_user,
-        ),
-        product_repo=product_repo,
-        agent_client=agent_client,
-        logger=logger,
-        agent_fallback_exceptions=AGENT_FALLBACK_EXCEPTIONS,
-    )
+            exc=exc,
+        )
+        # No GoF pattern applies - this endpoint uses a fail-open fallback for read availability.
+        return []
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        _log_products_fetch_failure(
+            message="Product list fetch failed; returning empty fallback list",
+            search=search,
+            category=category,
+            limit=limit,
+            exc=exc,
+        )
+        return []
 
 
 @router.get("/products", response_model=list[ProductResponse])
@@ -74,57 +116,21 @@ async def list_products(
     the CRUD keyword search is used as fallback.
     Authenticated users may get personalized ordering (via agent).
     """
-    try:
-        products = await _fetch_products(
-            search=search,
-            category=category,
-            limit=limit,
-            current_user=current_user,
-        )
-    except asyncio.TimeoutError as exc:
-        logger.warning(
-            "Product list fetch timed out",
-            extra={
-                "app_role": settings.service_name,
-                "endpoint": "/api/products",
-                "search_present": bool(search),
-                "category_present": bool(category),
-                "limit": limit,
-                "error_type": type(exc).__name__,
-            },
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Product catalog is temporarily unavailable",
-        ) from exc
-    except Exception as exc:
-        logger.warning(
-            "Product list fetch failed: %s",
-            exc,
-            extra={
-                "app_role": settings.service_name,
-                "endpoint": "/api/products",
-                "search_present": bool(search),
-                "category_present": bool(category),
-                "limit": limit,
-                "error_type": type(exc).__name__,
-            },
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Product catalog is temporarily unavailable",
-        ) from exc
+    products = await _fetch_products(
+        search=search,
+        category=category,
+        limit=limit,
+        current_user=current_user,
+    )
 
     try:
         return validate_product_responses(products, logger=logger)
     except TypeError:
-        logger.warning("Product list returned invalid result type: %s", type(products).__name__)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Product catalog is temporarily unavailable",
-        ) from None
+        logger.warning(
+            "Product list returned invalid result type: %s; returning empty fallback list",
+            type(products).__name__,
+        )
+        return []
 
 
 @router.get("/products/{product_id}", response_model=ProductResponse)
