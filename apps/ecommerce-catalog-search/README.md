@@ -9,7 +9,8 @@ Provides product discovery and ACP-aligned catalog search responses.
 - Return inventory-aware and commerce-ready product context.
 - Support intelligent search enrichment for downstream flows.
 - Emit explicit degraded fallback metadata (`result_type`, `degraded_reason`, `fallback_keywords`) when model synthesis times out or fails.
-- Applies deterministic lexical intent routing for travel+apparel language (for example, vacation + clothes) while preserving dedicated winter-travel apparel classification.
+- Uses generic intent classification with model-first evaluation and deterministic fallback.
+- Runs a full retrieval cycle (baseline keyword retrieval, intent-driven query expansion, semantic retrieval, and fallback rerank) to return relevant results.
 
 ## Key endpoints or interfaces
 - `POST /invoke` for synchronous service requests.

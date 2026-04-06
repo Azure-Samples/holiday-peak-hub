@@ -221,7 +221,7 @@ class TestCatalogSearchAgent:
             assert "rain" in result["fallback_keywords"]
             assert isinstance(result.get("summary"), str)
             assert isinstance(result.get("recommendation"), str)
-            agent.invoke_model.assert_awaited_once()
+            assert agent.invoke_model.await_count >= 1
 
     @pytest.mark.asyncio
     async def test_handle_model_error_returns_degraded_fallback_answer(
@@ -838,30 +838,10 @@ class TestCatalogSearchAgent:
             mock_multi.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_classify_intent_uses_deterministic_winter_travel_fallback(
+    async def test_classify_intent_uses_generic_semantic_fallback_for_complex_query(
         self, agent_dependencies
     ):
-        """Intent classifier should deterministically capture winter-travel apparel needs."""
-        with patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build:
-            mock_build.return_value = CatalogAdapters(
-                products=AsyncMock(),
-                inventory=AsyncMock(),
-                mapping=AcpCatalogMapper(),
-            )
-            agent = CatalogSearchAgent(config=agent_dependencies)
-
-        intent = await agent.classify_intent("I want to travel to Russia in winter")
-
-        assert intent.intent == "winter_travel_clothing"
-        assert intent.confidence >= 0.8
-        assert intent.entities["category"] == "apparel"
-        assert "insulated jacket" in intent.entities["keywords"]
-
-    @pytest.mark.asyncio
-    async def test_classify_intent_uses_deterministic_travel_apparel_fallback(
-        self, agent_dependencies
-    ):
-        """Intent classifier should deterministically capture travel + apparel language."""
+        """Complex queries should map to generic semantic intent fallback."""
         with patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build:
             mock_build.return_value = CatalogAdapters(
                 products=AsyncMock(),
@@ -871,99 +851,136 @@ class TestCatalogSearchAgent:
             agent = CatalogSearchAgent(config=agent_dependencies)
 
         intent = await agent.classify_intent(
-            "I'm going to Russia on vacation, which clothes should I buy?"
+            "compare wireless noise cancelling headphones under 200"
         )
 
-        assert intent.intent == "travel_clothing"
-        assert intent.confidence >= 0.6
-        assert intent.category == "apparel"
-        assert intent.use_case == "travel clothing"
-        assert "vacation" in intent.entities["travel_signals"]
-        assert "clothes" in intent.entities["apparel_signals"]
-        assert intent.intent != "keyword_lookup"
+        assert intent.intent == "semantic_search"
+        assert intent.query_type == "complex"
+        assert intent.use_case == "product discovery"
+        assert "headphone" in intent.entities["keywords"]
 
     @pytest.mark.asyncio
-    async def test_handle_keyword_mode_adaptive_reranks_winter_travel_to_apparel(
+    async def test_classify_intent_uses_generic_keyword_fallback_for_simple_query(
         self, agent_dependencies
     ):
-        """Keyword mode should conservatively promote winter-travel clothing essentials."""
-        baseline_products = [
+        """Simple queries should remain generic keyword lookup."""
+        with patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build:
+            mock_build.return_value = CatalogAdapters(
+                products=AsyncMock(),
+                inventory=AsyncMock(),
+                mapping=AcpCatalogMapper(),
+            )
+            agent = CatalogSearchAgent(config=agent_dependencies)
+
+        intent = await agent.classify_intent("running shoes")
+
+        assert intent.intent == "keyword_lookup"
+        assert intent.query_type == "simple"
+        assert any(keyword in intent.entities["keywords"] for keyword in ("shoe", "shoes"))
+
+    @pytest.mark.asyncio
+    async def test_classify_intent_merges_model_keywords_with_generic_fallback(
+        self, agent_dependencies
+    ):
+        """Low-signal model output should be merged with generic fallback keywords."""
+        with patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build:
+            mock_build.return_value = CatalogAdapters(
+                products=AsyncMock(),
+                inventory=AsyncMock(),
+                mapping=AcpCatalogMapper(),
+            )
+            agent = CatalogSearchAgent(config=agent_dependencies)
+
+        agent.slm = object()
+        agent.invoke_model = AsyncMock(
+            return_value={
+                "intent": "keyword_lookup",
+                "confidence": 0.4,
+                "entities": {"keywords": []},
+            }
+        )
+
+        intent = await agent.classify_intent("wireless headphones battery life")
+
+        assert intent.intent == "keyword_lookup"
+        assert any(
+            keyword in intent.entities["keywords"] for keyword in ("wireless", "headphone", "battery")
+        )
+        agent.invoke_model.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_classify_intent_prefers_high_confidence_model_intent(
+        self, agent_dependencies
+    ):
+        """Model-provided generic semantic intent should be honored when high confidence."""
+        with patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build:
+            mock_build.return_value = CatalogAdapters(
+                products=AsyncMock(),
+                inventory=AsyncMock(),
+                mapping=AcpCatalogMapper(),
+            )
+            agent = CatalogSearchAgent(config=agent_dependencies)
+
+        agent.slm = object()
+        agent.invoke_model = AsyncMock(
+            return_value={
+                "intent": "semantic_search",
+                "confidence": 0.91,
+                "queryType": "complex",
+                "useCase": "product discovery",
+                "entities": {
+                    "keywords": ["gaming", "laptop"],
+                    "subQueries": ["gaming laptop", "rtx laptop"],
+                },
+            }
+        )
+
+        intent = await agent.classify_intent("best gaming laptop under 1500")
+
+        assert intent.intent == "semantic_search"
+        assert intent.confidence >= 0.9
+        assert intent.query_type == "complex"
+        assert "gaming" in intent.entities["keywords"]
+
+    @pytest.mark.asyncio
+    async def test_handle_keyword_mode_executes_single_keyword_cycle(self, agent_dependencies):
+        """Keyword mode should run one generic keyword retrieval cycle."""
+        keyword_products = [
             CatalogProduct(
-                sku="SKU-PUZZLE",
-                name="Winter Puzzle Collection",
-                description="Snow village puzzle set",
-                category="toys",
-                brand="NordicPlay",
+                sku="SKU-1",
+                name="Wireless Earbuds",
+                description="Bluetooth earbuds",
+                category="audio",
+                brand="Sonic",
             ),
             CatalogProduct(
-                sku="SKU-MUG",
-                name="Snowflake Travel Mug",
-                description="Ceramic mug with winter print",
-                category="kitchen",
-                brand="HomeLuxe",
-            ),
-            CatalogProduct(
-                sku="SKU-GAME",
-                name="Winter Trivia Game",
-                description="Family board game",
-                category="games",
-                brand="BrightFun",
+                sku="SKU-2",
+                name="Noise Cancelling Headphones",
+                description="Over-ear headset",
+                category="audio",
+                brand="Sonic",
             ),
         ]
-        adaptive_products = [
-            CatalogProduct(
-                sku="SKU-COAT",
-                name="Insulated Travel Parka",
-                description="Warm winter jacket for subzero city trips",
-                category="apparel",
-                brand="NorthBound",
-            ),
-            CatalogProduct(
-                sku="SKU-BOOT",
-                name="Thermal Snow Boots",
-                description="Waterproof insulated boots for winter travel",
-                category="apparel",
-                brand="TrailStep",
-            ),
-            CatalogProduct(
-                sku="SKU-GLOVE",
-                name="Waterproof Gloves",
-                description="Warm gloves for cold-weather trips",
-                category="apparel",
-                brand="NorthBound",
-            ),
-        ]
-        products_by_sku = {
-            product.sku: product for product in baseline_products + adaptive_products
-        }
+        products_by_sku = {product.sku: product for product in keyword_products}
 
         with (
             patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
             patch("ecommerce_catalog_search.agents.search_catalog_skus_detailed") as mock_search,
         ):
-
-            async def _search_side_effect(query: str, limit: int) -> AISearchSkuResult:
-                del limit
-                if "insulated jacket" in query.lower() or "winter boots" in query.lower():
-                    return AISearchSkuResult(
-                        skus=["SKU-COAT", "SKU-BOOT", "SKU-GLOVE"],
-                    )
-                return AISearchSkuResult(skus=["SKU-PUZZLE", "SKU-MUG", "SKU-GAME"])
+            mock_search.return_value = AISearchSkuResult(skus=["SKU-1", "SKU-2"])
 
             async def _get_product_side_effect(sku: str) -> CatalogProduct | None:
                 return products_by_sku.get(sku)
 
             async def _get_inventory_side_effect(sku: str) -> InventoryItem:
-                return InventoryItem(sku=sku, available=12, reserved=0)
-
-            mock_search.side_effect = _search_side_effect
+                return InventoryItem(sku=sku, available=6, reserved=0)
 
             mock_products = AsyncMock()
             mock_products.get_product.side_effect = _get_product_side_effect
             mock_products.get_related = AsyncMock(return_value=[])
 
             mock_inventory = AsyncMock()
-            mock_inventory.get_item.side_effect = _get_inventory_side_effect
+            mock_inventory.get_item = AsyncMock(side_effect=_get_inventory_side_effect)
 
             mock_build.return_value = CatalogAdapters(
                 products=mock_products,
@@ -974,71 +991,55 @@ class TestCatalogSearchAgent:
             agent = CatalogSearchAgent(config=agent_dependencies)
             result = await agent.handle(
                 {
-                    "query": "I want to travel to Russia in winter",
-                    "limit": 3,
+                    "query": "wireless earbuds",
+                    "limit": 2,
                     "mode": "keyword",
                 }
             )
 
             ranked_ids = [item["item_id"] for item in result["results"]]
-            assert ranked_ids[:2] == ["SKU-COAT", "SKU-BOOT"]
-            assert mock_search.await_count == 2
+            assert ranked_ids == ["SKU-1", "SKU-2"]
+            assert mock_search.await_count == 1
 
     @pytest.mark.asyncio
-    async def test_handle_keyword_mode_winter_travel_recovers_from_empty_baseline(
+    async def test_handle_intelligent_mode_expands_keyword_cycle_when_semantic_empty(
         self, agent_dependencies
     ):
-        """High-confidence winter-travel requests should recover apparel results from empty baseline."""
-        adaptive_products = [
-            CatalogProduct(
-                sku="SKU-MUG",
-                name="Winter Travel Mug",
-                description="Insulated mug for trips",
-                category="kitchen",
-                brand="HomeLuxe",
-            ),
-            CatalogProduct(
-                sku="SKU-COAT",
-                name="Insulated Winter Jacket",
-                description="Warm outer layer for winter travel",
-                category="apparel",
-                brand="NorthBound",
-            ),
-            CatalogProduct(
-                sku="SKU-BOOT",
-                name="Waterproof Winter Boots",
-                description="Snow-ready boots for cold-weather travel",
-                category="apparel",
-                brand="TrailStep",
-            ),
-        ]
+        """Intelligent mode should run generic query expansion when semantic retrieval is empty."""
+        expanded_product = CatalogProduct(
+            sku="SKU-EARBUD",
+            name="Commuter Wireless Earbuds",
+            description="Low-latency earbuds for commute",
+            category="audio",
+            brand="TransitSound",
+        )
 
         with (
             patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
             patch("ecommerce_catalog_search.agents.search_catalog_skus_detailed") as mock_search,
+            patch("ecommerce_catalog_search.agents.multi_query_search") as mock_multi,
         ):
 
             async def _search_side_effect(query: str, limit: int) -> AISearchSkuResult:
-                del query, limit
+                del limit
+                if "wireless earbuds" in query.lower():
+                    return AISearchSkuResult(skus=["SKU-EARBUD"])
                 return AISearchSkuResult(skus=[])
 
-            async def _text_fallback_side_effect(
-                query: str,
-                limit: int,
-            ) -> list[CatalogProduct]:
-                del limit
-                if "insulated jacket" in query.lower() or "winter boots" in query.lower():
-                    return adaptive_products
-                return []
+            async def _get_product_side_effect(sku: str) -> CatalogProduct | None:
+                if sku == "SKU-EARBUD":
+                    return expanded_product
+                return None
 
             async def _inventory_side_effect(sku: str) -> InventoryItem:
-                return InventoryItem(sku=sku, available=8, reserved=0)
+                return InventoryItem(sku=sku, available=9, reserved=0)
 
             mock_search.side_effect = _search_side_effect
+            mock_multi.return_value = []
 
             mock_products = AsyncMock()
-            mock_products.search = AsyncMock(side_effect=_text_fallback_side_effect)
-            mock_products.get_product = AsyncMock(return_value=None)
+            mock_products.search = AsyncMock(return_value=[])
+            mock_products.get_product.side_effect = _get_product_side_effect
             mock_products.get_related = AsyncMock(return_value=[])
 
             mock_inventory = AsyncMock()
@@ -1051,20 +1052,34 @@ class TestCatalogSearchAgent:
             )
 
             agent = CatalogSearchAgent(config=agent_dependencies)
-            result = await agent.handle(
-                {
-                    "query": "winter travel clothing",
-                    "limit": 3,
-                    "mode": "keyword",
-                }
-            )
+            with patch.object(
+                agent,
+                "classify_intent",
+                new=AsyncMock(
+                    return_value=IntentClassification(
+                        intent="semantic_search",
+                        confidence=0.9,
+                        queryType="complex",
+                        useCase="product discovery",
+                        entities={
+                            "keywords": ["wireless", "earbuds"],
+                            "subQueries": ["wireless earbuds"],
+                        },
+                    )
+                ),
+            ):
+                result = await agent.handle(
+                    {
+                        "query": "best earbuds for commute",
+                        "limit": 3,
+                        "mode": "intelligent",
+                    }
+                )
 
             ranked_ids = [item["item_id"] for item in result["results"]]
-            assert ranked_ids[:2] == ["SKU-COAT", "SKU-BOOT"]
-            assert "SKU-MUG" in ranked_ids
-            assert mock_search.await_count == 2
-            assert mock_products.search.await_count == 2
-            mock_products.get_related.assert_awaited_once()
+            assert ranked_ids[0] == "SKU-EARBUD"
+            mock_multi.assert_awaited_once()
+            assert mock_search.await_count >= 2
 
     def test_build_sub_queries_from_intent_entities(self, agent_dependencies):
         """Private sub-query builder should include deduped intent entities."""

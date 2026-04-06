@@ -8,6 +8,7 @@ import logging
 import os
 import re
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from typing import Any
 from uuid import uuid4
 
@@ -28,7 +29,7 @@ try:
     from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
 except ImportError:
 
-    def load_prompt_instructions(*args: Any, **kwargs: Any) -> str:
+    def load_prompt_instructions(*_args: Any, **_kwargs: Any) -> str:
         return ""
 
 
@@ -42,19 +43,19 @@ try:
     )
 except ImportError:
 
-    def run_evaluation(*args: Any, **kwargs: Any) -> dict[str, float]:
-        return {}
+    def run_evaluation(*_args: Any, **_kwargs: Any) -> Any:
+        return SimpleNamespace(backend="disabled", status="skipped", metrics={}, details={})
 
-    def precision_at_k(*args: Any, **kwargs: Any) -> float:
+    def precision_at_k(*_args: Any, **_kwargs: Any) -> float:
         return 0.0
 
-    def mean_reciprocal_rank(*args: Any, **kwargs: Any) -> float:
+    def mean_reciprocal_rank(*_args: Any, **_kwargs: Any) -> float:
         return 0.0
 
-    def ndcg_at_k(*args: Any, **kwargs: Any) -> float:
+    def ndcg_at_k(*_args: Any, **_kwargs: Any) -> float:
         return 0.0
 
-    def intent_accuracy(*args: Any, **kwargs: Any) -> float:
+    def intent_accuracy(*_args: Any, **_kwargs: Any) -> float:
         return 0.0
 
 
@@ -76,10 +77,9 @@ logger = logging.getLogger(__name__)
 
 HOT_HISTORY_MAX_ENTRIES = 20
 HOT_HISTORY_TTL_SECONDS = 3600
-WINTER_TRAVEL_INTENT_CONFIDENCE_THRESHOLD = 0.8
-KEYWORD_ADAPTIVE_MIN_QUERY_TOKENS = 6
-KEYWORD_ADAPTIVE_BASELINE_WINDOW = 3
-KEYWORD_ADAPTIVE_APPAREL_COVERAGE_THRESHOLD = 0.34
+INTENT_CONFIDENCE_THRESHOLD = 0.55
+GENERIC_KEYWORD_LIMIT = 8
+QUERY_EXPANSION_QUERY_LIMIT = 4
 DEGRADED_MODEL_FALLBACK_MESSAGE = (
     "Showing the best available catalog guidance while intelligent generation "
     "is temporarily unavailable."
@@ -87,79 +87,55 @@ DEGRADED_MODEL_FALLBACK_MESSAGE = (
 
 _LEXICAL_TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
 
-TRAVEL_LEXICAL_SIGNALS = frozenset(
+GENERIC_KEYWORD_STOPWORDS = frozenset(
     {
-        "travel",
-        "trip",
-        "journey",
-        "vacation",
-        "holiday",
-        "visit",
-        "flight",
-        "airport",
-        "packing",
-        "abroad",
+        "a",
+        "an",
+        "and",
+        "are",
+        "be",
+        "best",
+        "by",
+        "for",
+        "from",
+        "how",
+        "i",
+        "in",
+        "is",
+        "it",
+        "me",
+        "my",
+        "of",
+        "on",
+        "or",
+        "please",
+        "recommend",
+        "show",
+        "suggest",
+        "that",
+        "the",
+        "to",
+        "what",
+        "which",
+        "with",
+        "you",
+        "your",
     }
 )
-WINTER_LEXICAL_SIGNALS = frozenset(
-    {
-        "winter",
-        "cold",
-        "freezing",
-        "snow",
-        "snowy",
-        "blizzard",
-        "subzero",
-        "frigid",
-        "ice",
-        "icy",
-    }
-)
-APPAREL_LEXICAL_SIGNALS = frozenset(
-    {
-        "apparel",
-        "clothing",
-        "clothes",
-        "coat",
-        "jacket",
-        "parka",
-        "boots",
-        "boot",
-        "gloves",
-        "glove",
-        "scarf",
-        "beanie",
-        "thermal",
-        "insulated",
-        "fleece",
-        "sweater",
-        "layers",
-        "layer",
-        "wool",
-    }
-)
-GENERIC_WINTER_NON_APPAREL_SIGNALS = frozenset(
-    {
-        "puzzle",
-        "mug",
-        "game",
-        "decor",
-        "ornament",
-        "candle",
-        "toy",
-        "snow globe",
-        "blanket",
-    }
-)
-WINTER_TRAVEL_APPAREL_ESSENTIALS = (
-    "insulated jacket",
-    "thermal base layer",
-    "winter boots",
-    "wool socks",
-    "waterproof gloves",
-    "beanie",
-    "scarf",
-)
+
+LEXICAL_CANONICAL_OVERRIDES: dict[str, str] = {
+    "bags": "bag",
+    "backpacks": "backpack",
+    "headphones": "headphone",
+    "laptops": "laptop",
+    "phones": "phone",
+    "shoes": "shoe",
+    "sneakers": "sneaker",
+    "watches": "watch",
+    "wearing": "wear",
+    "wears": "wear",
+    "wore": "wear",
+}
 
 
 class CatalogSearchAgent(BaseRetailAgent):
@@ -213,10 +189,6 @@ class CatalogSearchAgent(BaseRetailAgent):
         if not query.strip() or not (self.slm or self.llm):
             return fallback_intent
 
-        # Deterministic lexical intent is already high-confidence for this scenario.
-        if _is_high_confidence_winter_travel_intent(fallback_intent):
-            return fallback_intent
-
         messages = [
             {
                 "role": "system",
@@ -243,7 +215,7 @@ class CatalogSearchAgent(BaseRetailAgent):
                 ),
             )
             parsed = _parse_intent_response(response)
-            return parsed or fallback_intent
+            return _merge_intent_with_fallback(parsed, fallback_intent, query)
         except asyncio.TimeoutError:
             logger.warning(
                 "catalog_intent_classification_timeout",
@@ -527,7 +499,7 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
             intent = await agent.classify_intent(query)
             complexity = agent.assess_complexity(query)
         else:
-            intent = IntentClassification(intent="keyword_lookup", confidence=0.0, entities={})
+            intent = _deterministic_intent_policy(query)
             complexity = 0.0
         return {
             "query": query,
@@ -571,22 +543,30 @@ def _coerce_query_to_sku(query: str) -> str:
 
 
 def _tokenize_lexical_terms(value: str) -> set[str]:
-    return set(_LEXICAL_TOKEN_PATTERN.findall(value.lower()))
+    raw_tokens = set(_LEXICAL_TOKEN_PATTERN.findall(value.lower()))
+    expanded_tokens = set(raw_tokens)
+    for token in raw_tokens:
+        normalized = _normalize_lexical_token(token)
+        if normalized:
+            expanded_tokens.add(normalized)
+    return expanded_tokens
 
 
-def _collect_signal_hits(
-    text: str,
-    tokens: set[str],
-    signals: frozenset[str],
-) -> set[str]:
-    hits: set[str] = set()
-    for signal in signals:
-        if " " in signal:
-            if signal in text:
-                hits.add(signal)
-        elif signal in tokens:
-            hits.add(signal)
-    return hits
+def _normalize_lexical_token(token: str) -> str:
+    normalized = LEXICAL_CANONICAL_OVERRIDES.get(token, token)
+
+    if normalized.endswith("ies") and len(normalized) > 4:
+        normalized = f"{normalized[:-3]}y"
+    elif normalized.endswith("ing") and len(normalized) > 5:
+        normalized = normalized[:-3]
+    elif normalized.endswith("ed") and len(normalized) > 4:
+        normalized = normalized[:-2]
+    elif normalized.endswith("es") and len(normalized) > 4:
+        normalized = normalized[:-2]
+    elif normalized.endswith("s") and len(normalized) > 3:
+        normalized = normalized[:-1]
+
+    return LEXICAL_CANONICAL_OVERRIDES.get(normalized, normalized)
 
 
 def _coerce_keyword_list(raw_keywords: Any) -> list[str]:
@@ -624,91 +604,37 @@ def _build_fallback_keywords(
 
         seen_keywords.add(normalized)
         deduplicated.append(value)
-        if len(deduplicated) >= 8:
+        if len(deduplicated) >= GENERIC_KEYWORD_LIMIT:
             break
 
     return deduplicated
 
 
 def _deterministic_intent_policy(query: str) -> IntentClassification:
-    normalized_query = query.strip().lower()
+    normalized_query = query.strip()
     if not normalized_query:
-        return IntentClassification(intent="keyword_lookup", confidence=0.0, entities={})
+        return IntentClassification(
+            intent="keyword_lookup",
+            queryType="simple",
+            useCase="product discovery",
+            confidence=0.0,
+            entities={},
+            reasoning="Empty query defaults to generic keyword lookup.",
+        )
 
     tokens = _tokenize_lexical_terms(normalized_query)
-    travel_hits = _collect_signal_hits(normalized_query, tokens, TRAVEL_LEXICAL_SIGNALS)
-    winter_hits = _collect_signal_hits(normalized_query, tokens, WINTER_LEXICAL_SIGNALS)
-    apparel_hits = _collect_signal_hits(normalized_query, tokens, APPAREL_LEXICAL_SIGNALS)
-    generic_hits = _collect_signal_hits(
-        normalized_query,
-        tokens,
-        GENERIC_WINTER_NON_APPAREL_SIGNALS,
-    )
-
-    # Strategy-style lexical policy keeps fallback intent routing deterministic.
-    if travel_hits and winter_hits:
-        keywords = sorted(set(WINTER_TRAVEL_APPAREL_ESSENTIALS) | apparel_hits)
-        entities: dict[str, Any] = {
-            "season": "winter",
-            "travel_context": True,
-            "category": "apparel",
-            "use_case": "winter travel",
-            "keywords": keywords,
-            "travel_signals": sorted(travel_hits),
-            "winter_signals": sorted(winter_hits),
-        }
-        if generic_hits:
-            entities["deprioritize_keywords"] = sorted(generic_hits)
-
-        confidence = 0.93 if apparel_hits else 0.88
-        return IntentClassification(
-            intent="winter_travel_clothing",
-            confidence=confidence,
-            category="apparel",
-            use_case="winter travel",
-            entities=entities,
-            reasoning=(
-                "Deterministic lexical signals matched winter + travel context; "
-                "promote travel-clothing essentials."
-            ),
-        )
-
-    if apparel_hits and winter_hits:
-        return IntentClassification(
-            intent="seasonal_apparel_lookup",
-            confidence=0.62,
-            category="apparel",
-            use_case="winter clothing",
-            entities={
-                "season": "winter",
-                "category": "apparel",
-                "keywords": sorted(apparel_hits),
-            },
-            reasoning="Deterministic lexical policy matched winter + apparel signals.",
-        )
-
-    if travel_hits and apparel_hits:
-        return IntentClassification(
-            intent="travel_clothing",
-            confidence=0.72,
-            category="apparel",
-            use_case="travel clothing",
-            entities={
-                "travel_context": True,
-                "category": "apparel",
-                "use_case": "travel clothing",
-                "keywords": sorted(travel_hits | apparel_hits),
-                "travel_signals": sorted(travel_hits),
-                "apparel_signals": sorted(apparel_hits),
-            },
-            reasoning="Deterministic lexical policy matched travel + apparel signals.",
-        )
+    keywords = _extract_generic_keywords(tokens)
+    query_type = "complex" if _is_complex_query(normalized_query, tokens) else "simple"
+    intent_name = "semantic_search" if query_type == "complex" else "keyword_lookup"
+    confidence = 0.72 if intent_name == "semantic_search" else 0.56
 
     return IntentClassification(
-        intent="keyword_lookup",
-        confidence=0.2,
-        entities={"keywords": sorted(travel_hits | winter_hits | apparel_hits)},
-        reasoning="Deterministic fallback defaulted to generic keyword lookup.",
+        intent=intent_name,
+        queryType=query_type,
+        useCase="product discovery",
+        confidence=confidence,
+        entities={"keywords": keywords},
+        reasoning="Generic deterministic fallback derived from query complexity and keywords.",
     )
 
 
@@ -719,30 +645,97 @@ def _is_sku_like_query(query: str) -> bool:
     return normalized.upper().startswith("SKU-") or normalized.replace("-", "").isalnum()
 
 
-def _looks_like_natural_language_query(query: str) -> bool:
-    tokens = _tokenize_lexical_terms(query)
-    return len(tokens) >= KEYWORD_ADAPTIVE_MIN_QUERY_TOKENS and " " in query.strip()
+def _is_complex_query(query: str, tokens: set[str]) -> bool:
+    complexity_hints = {
+        "alternative",
+        "alternatives",
+        "best",
+        "compare",
+        "difference",
+        "recommend",
+        "under",
+        "versus",
+        "vs",
+    }
+    return len(tokens) >= 7 or "?" in query or bool(tokens & complexity_hints)
 
 
-def _is_high_confidence_winter_travel_intent(intent: IntentClassification) -> bool:
-    entities = intent.entities if isinstance(intent.entities, dict) else {}
-    season = str(entities.get("season") or "").lower()
-    use_case = str(intent.use_case or entities.get("use_case") or "").lower()
-    intent_name = str(intent.intent or "").lower()
-    return intent.confidence >= WINTER_TRAVEL_INTENT_CONFIDENCE_THRESHOLD and (
-        intent_name == "winter_travel_clothing" or (season == "winter" and "travel" in use_case)
+def _dedupe_keywords(raw_keywords: list[str]) -> list[str]:
+    deduplicated: list[str] = []
+    seen: set[str] = set()
+    for keyword in raw_keywords:
+        normalized = keyword.strip().lower()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        deduplicated.append(normalized)
+        if len(deduplicated) >= GENERIC_KEYWORD_LIMIT:
+            break
+    return deduplicated
+
+
+def _extract_generic_keywords(tokens: set[str]) -> list[str]:
+    candidate_keywords = [
+        token
+        for token in sorted(tokens)
+        if len(token) >= 3 and token not in GENERIC_KEYWORD_STOPWORDS
+    ]
+    return _dedupe_keywords(candidate_keywords)
+
+
+def _merge_intent_with_fallback(
+    parsed_intent: IntentClassification | None,
+    fallback_intent: IntentClassification,
+    query: str,
+) -> IntentClassification:
+    if parsed_intent is None:
+        return fallback_intent
+
+    resolved_intent = parsed_intent.model_copy(deep=True)
+    fallback_entities = (
+        dict(fallback_intent.entities)
+        if isinstance(fallback_intent.entities, dict)
+        else {}
+    )
+    resolved_entities = (
+        dict(resolved_intent.entities)
+        if isinstance(resolved_intent.entities, dict)
+        else {}
     )
 
+    if not resolved_intent.intent:
+        resolved_intent.intent = fallback_intent.intent
+    if resolved_intent.query_type is None:
+        resolved_intent.query_type = fallback_intent.query_type
+    if not resolved_intent.use_case:
+        resolved_intent.use_case = fallback_intent.use_case
+    if not resolved_intent.category and fallback_intent.category:
+        resolved_intent.category = fallback_intent.category
+    if not resolved_intent.brand and fallback_intent.brand:
+        resolved_intent.brand = fallback_intent.brand
 
-def _has_winter_travel_lexical_signals(query: str) -> bool:
-    normalized_query = query.strip().lower()
-    if not normalized_query:
+    parsed_keywords = _coerce_keyword_list(resolved_entities.get("keywords"))
+    fallback_keywords = _coerce_keyword_list(fallback_entities.get("keywords"))
+    if not parsed_keywords:
+        parsed_keywords = _extract_generic_keywords(_tokenize_lexical_terms(query))
+
+    merged_keywords = _dedupe_keywords(parsed_keywords + fallback_keywords)
+    if merged_keywords:
+        resolved_entities["keywords"] = merged_keywords
+
+    resolved_intent.entities = resolved_entities
+
+    if resolved_intent.confidence < 0.25 and fallback_intent.confidence >= resolved_intent.confidence:
+        return fallback_intent
+
+    return resolved_intent
+
+
+def _should_run_semantic_pass(intent: IntentClassification | None) -> bool:
+    if intent is None:
         return False
-
-    tokens = _tokenize_lexical_terms(normalized_query)
-    travel_hits = _collect_signal_hits(normalized_query, tokens, TRAVEL_LEXICAL_SIGNALS)
-    winter_hits = _collect_signal_hits(normalized_query, tokens, WINTER_LEXICAL_SIGNALS)
-    return bool(travel_hits and winter_hits)
+    intent_name = str(intent.intent or "").lower()
+    return intent_name != "keyword_lookup" and intent.confidence >= INTENT_CONFIDENCE_THRESHOLD
 
 
 def _product_search_text(product: CatalogProduct) -> str:
@@ -761,129 +754,78 @@ def _product_search_text(product: CatalogProduct) -> str:
     return " ".join(values).lower()
 
 
-def _is_apparel_product(product: CatalogProduct) -> bool:
-    text = _product_search_text(product)
-    tokens = _tokenize_lexical_terms(text)
-    apparel_hits = _collect_signal_hits(text, tokens, APPAREL_LEXICAL_SIGNALS)
-    return bool(apparel_hits)
-
-
-def _has_low_apparel_coverage(products: list[CatalogProduct]) -> bool:
-    if not products:
-        return True
-    window = products[:KEYWORD_ADAPTIVE_BASELINE_WINDOW]
-    apparel_hits = sum(1 for product in window if _is_apparel_product(product))
-    coverage = apparel_hits / max(len(window), 1)
-    return coverage < KEYWORD_ADAPTIVE_APPAREL_COVERAGE_THRESHOLD
-
-
-def _winter_travel_product_score(product: CatalogProduct) -> int:
-    text = _product_search_text(product)
-    tokens = _tokenize_lexical_terms(text)
-    apparel_hits = _collect_signal_hits(text, tokens, APPAREL_LEXICAL_SIGNALS)
-    winter_hits = _collect_signal_hits(text, tokens, WINTER_LEXICAL_SIGNALS)
-    generic_hits = _collect_signal_hits(text, tokens, GENERIC_WINTER_NON_APPAREL_SIGNALS)
-    return (len(apparel_hits) * 4) + (len(winter_hits) * 2) - (len(generic_hits) * 3)
-
-
-def _build_winter_travel_adaptive_query(query: str, intent: IntentClassification) -> str:
-    entities = intent.entities if isinstance(intent.entities, dict) else {}
-    candidate_keywords = _coerce_keyword_list(entities.get("keywords"))
-
-    apparel_keywords: list[str] = []
-    for keyword in candidate_keywords:
-        lowered = keyword.lower()
-        tokens = _tokenize_lexical_terms(lowered)
-        if _collect_signal_hits(lowered, tokens, APPAREL_LEXICAL_SIGNALS):
-            apparel_keywords.append(keyword)
-
-    if not apparel_keywords:
-        apparel_keywords = list(WINTER_TRAVEL_APPAREL_ESSENTIALS)
-
-    suffix = " ".join(apparel_keywords[:4])
-    return f"{query.strip()} {suffix}".strip()
-
-
-def _rerank_winter_travel_keyword_results(
+def _rank_products_by_query_relevance(
     *,
-    baseline_products: list[CatalogProduct],
-    adaptive_products: list[CatalogProduct],
+    query: str,
+    products: list[CatalogProduct],
     limit: int,
 ) -> list[CatalogProduct]:
     if limit <= 0:
         return []
 
-    combined: dict[str, CatalogProduct] = {}
-    baseline_rank: dict[str, int] = {}
-    adaptive_rank: dict[str, int] = {}
-
-    for index, product in enumerate(baseline_products):
-        baseline_rank[product.sku] = index
-        combined.setdefault(product.sku, product)
-
-    for index, product in enumerate(adaptive_products):
-        adaptive_rank[product.sku] = index
-        combined.setdefault(product.sku, product)
+    query_tokens = _tokenize_lexical_terms(query)
+    ranked_entries: dict[str, tuple[CatalogProduct, int, int]] = {}
+    for index, product in enumerate(products):
+        product_tokens = _tokenize_lexical_terms(_product_search_text(product))
+        overlap_score = len(query_tokens & product_tokens)
+        existing = ranked_entries.get(product.sku)
+        if existing is None or overlap_score > existing[1]:
+            ranked_entries[product.sku] = (product, overlap_score, index)
 
     ranked = sorted(
-        combined.values(),
-        key=lambda product: (
-            0 if _is_apparel_product(product) else 1,
-            -_winter_travel_product_score(product),
-            0 if product.sku in adaptive_rank else 1,
-            adaptive_rank.get(product.sku, len(adaptive_rank) + len(combined)),
-            baseline_rank.get(product.sku, len(baseline_rank) + len(combined)),
-            product.sku,
-        ),
+        ranked_entries.values(),
+        key=lambda entry: (-entry[1], entry[2], entry[0].sku),
     )
-    return ranked[:limit]
+    return [entry[0] for entry in ranked[:limit]]
 
 
-async def _adapt_keyword_results_for_winter_travel(
-    agent: CatalogSearchAgent,
-    adapters: CatalogAdapters,
+async def _expand_products_with_sub_queries(
     *,
+    adapters: CatalogAdapters,
     query: str,
-    limit: int,
     baseline_products: list[CatalogProduct],
+    sub_queries: list[str],
+    limit: int,
 ) -> list[CatalogProduct]:
-    if (
-        _is_sku_like_query(query)
-        or (
-            not _looks_like_natural_language_query(query)
-            and not _has_winter_travel_lexical_signals(query)
-        )
-        or (baseline_products and not _has_low_apparel_coverage(baseline_products))
-    ):
-        return baseline_products
+    if limit <= 0:
+        return []
 
-    try:
-        intent = await agent.classify_intent(query)
-        if not _is_high_confidence_winter_travel_intent(intent):
-            return baseline_products
+    expansion_queries: list[str] = []
+    seen_queries: set[str] = {query.strip().lower()}
+    for candidate in sub_queries:
+        normalized = candidate.strip().lower()
+        if not normalized or normalized in seen_queries:
+            continue
+        seen_queries.add(normalized)
+        expansion_queries.append(candidate.strip())
+        if len(expansion_queries) >= QUERY_EXPANSION_QUERY_LIMIT:
+            break
 
-        adaptive_query = _build_winter_travel_adaptive_query(query, intent)
-        adaptive_products = await _search_products_keyword(
-            adapters,
-            query=adaptive_query,
-            limit=limit,
-        )
-        if not adaptive_products:
-            return baseline_products
+    if not expansion_queries:
+        return baseline_products[:limit]
 
-        reranked = _rerank_winter_travel_keyword_results(
-            baseline_products=baseline_products,
-            adaptive_products=adaptive_products,
-            limit=limit,
-        )
-        return reranked or baseline_products
-    except Exception:  # pylint: disable=broad-exception-caught
-        logger.warning(
-            "catalog_search_keyword_adaptive_fallback",
-            extra={"query_length": len(query), "limit": limit},
-            exc_info=True,
-        )
-        return baseline_products
+    expanded_batches = await asyncio.gather(
+        *[
+            _search_products_keyword(
+                adapters,
+                query=expanded_query,
+                limit=limit,
+            )
+            for expanded_query in expansion_queries
+        ],
+        return_exceptions=True,
+    )
+
+    expanded_products = list(baseline_products)
+    for batch in expanded_batches:
+        if isinstance(batch, list):
+            expanded_products.extend(product for product in batch if isinstance(product, CatalogProduct))
+
+    return _rank_products_by_query_relevance(
+        query=query,
+        products=expanded_products,
+        limit=limit,
+    )
 
 
 async def _search_products_text_fallback(
@@ -936,15 +878,7 @@ async def _search_products(
         )
 
     products = await _search_products_keyword(adapters, query=query, limit=limit)
-    if agent is not None:
-        products = await _adapt_keyword_results_for_winter_travel(
-            agent,
-            adapters,
-            query=query,
-            limit=limit,
-            baseline_products=products,
-        )
-    return products, {}, None
+    return products, {}, _deterministic_intent_policy(query)
 
 
 async def _search_products_keyword(
@@ -958,7 +892,8 @@ async def _search_products_keyword(
     strict_mode = ai_search_required_runtime_enabled()
     if ai_search_skus:
         resolved_products = await asyncio.gather(
-            *[adapters.products.get_product(sku) for sku in ai_search_skus]
+            *[adapters.products.get_product(sku) for sku in ai_search_skus],
+            return_exceptions=False,
         )
         ai_search_products = [product for product in resolved_products if product is not None]
         if ai_search_products:
@@ -1009,32 +944,26 @@ async def _search_products_intelligent(
     limit: int,
     filters: dict[str, Any] | None,
 ) -> tuple[list[CatalogProduct], dict[str, dict[str, Any]], IntentClassification | None]:
-    if agent is None:
-        products = await _search_products_keyword(adapters, query=query, limit=limit)
-        return products, {}, None
+    baseline_products = await _search_products_keyword(adapters, query=query, limit=limit)
+    fallback_intent = _deterministic_intent_policy(query)
 
-    complexity = agent.assess_complexity(query)
-    if complexity < agent.complexity_threshold:
-        products = await _search_products_keyword(adapters, query=query, limit=limit)
-        return (
-            products,
-            {},
-            IntentClassification(
-                intent="keyword_lookup",
-                confidence=1.0,
-                entities={"reason": "low_complexity"},
-            ),
-        )
+    if agent is None:
+        return baseline_products, {}, fallback_intent
 
     intent = await agent.classify_intent(query)
-    if intent.confidence < 0.6:
-        products = await _search_products_keyword(adapters, query=query, limit=limit)
-        return products, {}, intent
-
     sub_queries = agent.build_sub_queries(query=query, intent=intent)
-    ranked_batches = [
-        await multi_query_search(sub_queries=sub_queries, filters=filters, top_k=limit)
-    ]
+
+    if not _should_run_semantic_pass(intent):
+        expanded_products = await _expand_products_with_sub_queries(
+            adapters=adapters,
+            query=query,
+            baseline_products=baseline_products,
+            sub_queries=sub_queries,
+            limit=limit,
+        )
+        return expanded_products, {}, intent
+
+    ranked_batches = [await multi_query_search(sub_queries=sub_queries, filters=filters, top_k=limit)]
     ranked = agent.merge_results(ranked_batches, limit)
     intelligent_products, enrichment_by_sku = await _resolve_ranked_products(
         adapters,
@@ -1044,14 +973,44 @@ async def _search_products_intelligent(
     if intelligent_products:
         return intelligent_products, enrichment_by_sku, intent
 
-    products = await _search_products_keyword(adapters, query=query, limit=limit)
-    return products, {}, intent
+    expanded_products = await _expand_products_with_sub_queries(
+        adapters=adapters,
+        query=query,
+        baseline_products=baseline_products,
+        sub_queries=sub_queries,
+        limit=limit,
+    )
+    return expanded_products, {}, intent
 
 
 def _build_sub_queries(query: str, intent: IntentClassification) -> list[str]:
     sub_queries = [query.strip()] if query.strip() else []
+
+    if intent.use_case:
+        sub_queries.append(intent.use_case)
+    if intent.category:
+        sub_queries.append(intent.category)
+    if intent.brand:
+        sub_queries.append(intent.brand)
+    sub_queries.extend(
+        item.strip() for item in intent.sub_queries if isinstance(item, str) and item.strip()
+    )
+    sub_queries.extend(
+        item.strip() for item in intent.attributes if isinstance(item, str) and item.strip()
+    )
+
     entities = intent.entities if isinstance(intent.entities, dict) else {}
-    for key in ("category", "brand", "use_case", "features", "keywords"):
+    for key in (
+        "category",
+        "brand",
+        "use_case",
+        "useCase",
+        "features",
+        "keywords",
+        "sub_queries",
+        "subQueries",
+        "attributes",
+    ):
         value = entities.get(key)
         if isinstance(value, str) and value.strip():
             sub_queries.append(value.strip())
@@ -1059,6 +1018,10 @@ def _build_sub_queries(query: str, intent: IntentClassification) -> list[str]:
             sub_queries.extend(
                 item.strip() for item in value if isinstance(item, str) and item.strip()
             )
+
+    if len(sub_queries) <= 1:
+        sub_queries.extend(_extract_generic_keywords(_tokenize_lexical_terms(query)))
+
     unique: list[str] = []
     seen: set[str] = set()
     for candidate in sub_queries:
@@ -1122,7 +1085,8 @@ async def _resolve_availability(
     adapters: CatalogAdapters, products: list[CatalogProduct]
 ) -> list[str]:
     inventory = await asyncio.gather(
-        *[adapters.inventory.get_item(product.sku) for product in products]
+        *[adapters.inventory.get_item(product.sku) for product in products],
+        return_exceptions=False,
     )
     availability: list[str] = []
     for item in inventory:
@@ -1176,28 +1140,36 @@ def _build_catalog_fallback_answer(
     normalized_query = query.strip()
 
     if not products:
-        if intent is not None and _is_high_confidence_winter_travel_intent(intent):
-            essentials = ", ".join(WINTER_TRAVEL_APPAREL_ESSENTIALS[:5])
+        entities = intent.entities if intent is not None and isinstance(intent.entities, dict) else {}
+        keywords = _coerce_keyword_list(entities.get("keywords"))
+        keyword_hint = ", ".join(keywords[:4])
+        if keyword_hint:
             return (
-                "No exact products were returned in time, so I prioritized winter-travel apparel essentials.",
-                f"For your request '{normalized_query}', focus on {essentials}. Prioritize insulated and waterproof layers first.",
+                "No exact products were returned in time.",
+                (
+                    f"For '{normalized_query}', try narrowing by terms like {keyword_hint}, "
+                    "or add a brand, budget, or must-have feature."
+                ),
             )
 
         return (
             "No catalog matches were available in time.",
-            "Try adding product terms like jacket, boots, gloves, or thermal base layer for a more targeted answer.",
+            "Try refining your query with product type, brand, budget, and key features.",
         )
 
     highlighted = ", ".join(product.name for product in products[:3])
-    if intent is not None and _is_high_confidence_winter_travel_intent(intent):
+    if intent is not None and _should_run_semantic_pass(intent):
         return (
-            "Recommended products were selected for winter-travel conditions.",
-            f"Top options for your trip are {highlighted}. Focus on insulated outerwear, waterproof boots, and warm accessories.",
+            "Recommended products were selected using semantic and keyword retrieval.",
+            (
+                f"Top options are {highlighted}. Add constraints like budget, brand, "
+                "or feature preferences to refine further."
+            ),
         )
 
     return (
         "Recommended products were selected from your request.",
-        f"Best matches are {highlighted}. Choose based on warmth, weather protection, and layering.",
+        f"Best matches are {highlighted}. Refine with additional details for tighter ranking.",
     )
 
 
