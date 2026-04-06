@@ -904,14 +904,13 @@ class TestCatalogSearchAgent:
 
         assert intent.intent == "keyword_lookup"
         assert any(
-            keyword in intent.entities["keywords"] for keyword in ("wireless", "headphone", "battery")
+            keyword in intent.entities["keywords"]
+            for keyword in ("wireless", "headphone", "battery")
         )
         agent.invoke_model.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_classify_intent_prefers_high_confidence_model_intent(
-        self, agent_dependencies
-    ):
+    async def test_classify_intent_prefers_high_confidence_model_intent(self, agent_dependencies):
         """Model-provided generic semantic intent should be honored when high confidence."""
         with patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build:
             mock_build.return_value = CatalogAdapters(

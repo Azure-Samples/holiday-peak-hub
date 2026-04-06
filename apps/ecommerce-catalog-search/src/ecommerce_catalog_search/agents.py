@@ -693,14 +693,10 @@ def _merge_intent_with_fallback(
 
     resolved_intent = parsed_intent.model_copy(deep=True)
     fallback_entities = (
-        dict(fallback_intent.entities)
-        if isinstance(fallback_intent.entities, dict)
-        else {}
+        dict(fallback_intent.entities) if isinstance(fallback_intent.entities, dict) else {}
     )
     resolved_entities = (
-        dict(resolved_intent.entities)
-        if isinstance(resolved_intent.entities, dict)
-        else {}
+        dict(resolved_intent.entities) if isinstance(resolved_intent.entities, dict) else {}
     )
 
     if not resolved_intent.intent:
@@ -725,7 +721,10 @@ def _merge_intent_with_fallback(
 
     resolved_intent.entities = resolved_entities
 
-    if resolved_intent.confidence < 0.25 and fallback_intent.confidence >= resolved_intent.confidence:
+    if (
+        resolved_intent.confidence < 0.25
+        and fallback_intent.confidence >= resolved_intent.confidence
+    ):
         return fallback_intent
 
     return resolved_intent
@@ -819,7 +818,9 @@ async def _expand_products_with_sub_queries(
     expanded_products = list(baseline_products)
     for batch in expanded_batches:
         if isinstance(batch, list):
-            expanded_products.extend(product for product in batch if isinstance(product, CatalogProduct))
+            expanded_products.extend(
+                product for product in batch if isinstance(product, CatalogProduct)
+            )
 
     return _rank_products_by_query_relevance(
         query=query,
@@ -963,7 +964,9 @@ async def _search_products_intelligent(
         )
         return expanded_products, {}, intent
 
-    ranked_batches = [await multi_query_search(sub_queries=sub_queries, filters=filters, top_k=limit)]
+    ranked_batches = [
+        await multi_query_search(sub_queries=sub_queries, filters=filters, top_k=limit)
+    ]
     ranked = agent.merge_results(ranked_batches, limit)
     intelligent_products, enrichment_by_sku = await _resolve_ranked_products(
         adapters,
@@ -1140,7 +1143,9 @@ def _build_catalog_fallback_answer(
     normalized_query = query.strip()
 
     if not products:
-        entities = intent.entities if intent is not None and isinstance(intent.entities, dict) else {}
+        entities = (
+            intent.entities if intent is not None and isinstance(intent.entities, dict) else {}
+        )
         keywords = _coerce_keyword_list(entities.get("keywords"))
         keyword_hint = ", ".join(keywords[:4])
         if keyword_hint:
