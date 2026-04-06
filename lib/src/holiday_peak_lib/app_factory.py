@@ -208,15 +208,9 @@ def build_service_app(
         return bool(getattr(agent, "slm", None) or getattr(agent, "llm", None))
 
     def _sync_foundry_tracing_state() -> None:
-        get_foundry_tracer(
-            service_name,
-            enabled=_has_bound_foundry_target(),
-        )
+        get_foundry_tracer(service_name)
 
-    tracer = get_foundry_tracer(
-        service_name,
-        enabled=_has_bound_foundry_target(),
-    )
+    tracer = get_foundry_tracer(service_name)
 
     strict_foundry_mode = strict_foundry_mode_enabled()
     foundry_ready = _has_bound_foundry_target()

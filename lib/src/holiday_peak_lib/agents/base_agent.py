@@ -262,12 +262,7 @@ class BaseRetailAgent(BaseAgent, ABC):
 
     def _get_foundry_tracer(self):
         service = self.service_name or type(self).__name__
-        enabled = bool(self.slm or self.llm)
-        try:
-            return get_foundry_tracer(service, enabled=enabled)
-        except TypeError:
-            # Compatibility fallback for tests or callers patching legacy signature.
-            return get_foundry_tracer(service)
+        return get_foundry_tracer(service)
 
     def _trace_decision(self, decision: str, outcome: str, metadata: dict[str, Any]) -> None:
         try:
