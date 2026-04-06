@@ -333,17 +333,17 @@ Readiness payload now includes a `foundry` capability object with:
 
 Foundry tracer collection can be controlled per service via
 `disable_tracing_without_foundry` on `create_standard_app` / `build_service_app`.
-When set to `true`, tracer collection is disabled whenever no Foundry model
-target is bound. In this repository, all agentic services enable this flag to
-enforce Foundry-bound telemetry semantics.
+This flag is maintained as a per-service compatibility hint. Core telemetry
+remains enabled so fallback/local execution paths keep emitting traces,
+metrics, and latest-evaluation data for admin observability surfaces.
 
 ### Strict Foundry Enforcement Mode
 
 Set `FOUNDRY_STRICT_ENFORCEMENT=true` to require a successful ensure step before
 serving `/invoke` requests:
 
-- Before ensure: `/invoke` returns `503`
-- After successful `POST /foundry/agents/ensure`: `/invoke` is enabled
+- With bound Foundry targets: strict mode enforces Foundry readiness for `/invoke`
+- Without bound Foundry targets: `/invoke` can continue through local/fallback logic
 
 This mode is designed for environments where all agent prompts/instructions must be
 managed exclusively in Foundry.

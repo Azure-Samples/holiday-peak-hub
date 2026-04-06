@@ -74,7 +74,7 @@ class TestBuildServiceApp:
     def test_build_app_skips_pending_foundry_runtime_targets(
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
-        """Test invoke requests fail fast when Foundry runtime definitions stay unresolved."""
+        """Test unresolved Foundry runtime defs do not block fallback invoke paths."""
 
         class ModelAwareAgent(BaseRetailAgent):
             async def handle(self, request: dict) -> dict:
@@ -107,8 +107,8 @@ class TestBuildServiceApp:
             }
             response = client.post("/invoke", json={"query": "test"})
 
-        assert response.status_code == 503
-        assert "Foundry readiness enforcement is enabled" in response.json()["detail"]
+        assert response.status_code == 200
+        assert response.json()["model_wired"] is False
 
     def test_invoke_auto_ensures_pending_foundry_runtime_targets(
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
@@ -628,7 +628,7 @@ class TestBuildServiceApp:
     def test_ready_endpoint_returns_ok_after_ensure_in_strict_mode(
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
-        """Test /ready flips to 200 after agents are ensured in strict mode."""
+        """Test /ready flips to 200 after agents are ensured when readiness is required."""
         monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
         monkeypatch.delenv("FOUNDRY_AGENT_ID_FAST", raising=False)
         monkeypatch.delenv("FOUNDRY_AGENT_ID_RICH", raising=False)
@@ -641,6 +641,7 @@ class TestBuildServiceApp:
             hot_memory=mock_hot_memory,
             warm_memory=mock_warm_memory,
             cold_memory=mock_cold_memory,
+            require_foundry_readiness=True,
         )
         client = TestClient(app)
 
