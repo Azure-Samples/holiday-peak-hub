@@ -2,6 +2,7 @@
 
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
+
 from holiday_peak_lib.app_factory_components.endpoints import register_standard_endpoints
 from holiday_peak_lib.self_healing import SelfHealingKernel, default_surface_manifest
 
@@ -27,6 +28,24 @@ class _FailingRouter:
         raise HTTPException(status_code=503, detail="upstream_unavailable")
 
 
+class _DegradedRouter:
+    async def route(self, _intent: str, _payload: dict) -> dict:
+        return {
+            "service": "svc",
+            "mode": "intelligent",
+            "requested_mode": "intelligent",
+            "search_stage": "rerank",
+            "session_id": "session-123",
+            "trace_id": "trace-123",
+            "result_type": "degraded_fallback",
+            "degraded": True,
+            "degraded_reason": "model_timeout",
+            "model_attempted": True,
+            "model_status": "timeout",
+            "results": [],
+        }
+
+
 class _Tracer:
     def get_traces(self, limit: int = 50) -> list[dict]:
         return [{"limit": limit}]
@@ -39,11 +58,29 @@ class _Tracer:
 
 
 class _Logger:
+    def __init__(self) -> None:
+        self.records: list[dict[str, object]] = []
+
+    def _record(self, level: str, message: object, kwargs: dict) -> None:
+        self.records.append(
+            {
+                "level": level,
+                "message": str(message),
+                "extra": kwargs.get("extra") or {},
+            }
+        )
+
     def info(self, *_args, **_kwargs) -> None:
-        return None
+        self._record("info", _args[0] if _args else "", _kwargs)
+
+    def warning(self, *_args, **_kwargs) -> None:
+        self._record("warning", _args[0] if _args else "", _kwargs)
+
+    def error(self, *_args, **_kwargs) -> None:
+        self._record("error", _args[0] if _args else "", _kwargs)
 
     def exception(self, *_args, **_kwargs) -> None:
-        return None
+        self._record("exception", _args[0] if _args else "", _kwargs)
 
 
 def test_register_standard_endpoints_ready_and_ensure_flow():
@@ -144,6 +181,141 @@ def test_invoke_auto_ensures_foundry_before_routing():
     assert response.status_code == 200
     assert response.json()["ok"] is True
     assert ensure_calls == 1
+
+
+def test_invoke_emits_degraded_outcome_telemetry():
+    app = FastAPI()
+    foundry_ready = True
+    runtime_definitions_missing = False
+    logger = _Logger()
+
+    def _is_ready() -> bool:
+        return foundry_ready
+
+    def _set_ready(value: bool) -> None:
+        nonlocal foundry_ready
+        foundry_ready = value
+
+    def _requires_runtime_resolution() -> bool:
+        return runtime_definitions_missing
+
+    async def _ensure_handler(_payload: dict | None) -> dict:
+        return {
+            "service": "svc",
+            "strict_foundry_mode": False,
+            "foundry_ready": True,
+            "results": {},
+        }
+
+    register_standard_endpoints(
+        app,
+        service_name="svc",
+        registry=_Registry(),
+        router=_DegradedRouter(),
+        tracer=_Tracer(),
+        logger=logger,
+        strict_foundry_mode=False,
+        require_foundry_readiness=False,
+        is_foundry_ready=_is_ready,
+        set_foundry_ready=_set_ready,
+        requires_foundry_runtime_resolution=_requires_runtime_resolution,
+        foundry_capabilities=lambda: {"project_configured": True},
+        ensure_agents_handler=_ensure_handler,
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/invoke",
+        json={
+            "query": "winter jacket",
+            "mode": "intelligent",
+            "correlation_id": "corr-abc",
+            "session_id": "session-123",
+        },
+    )
+
+    assert response.status_code == 200
+
+    outcome_record = next(
+        record for record in logger.records if record["message"] == "service_invoke_outcome"
+    )
+    assert outcome_record["level"] == "warning"
+    extra = outcome_record["extra"]
+    assert extra["outcome_status"] == "degraded"
+    assert extra["result_type"] == "degraded_fallback"
+    assert extra["degraded"] is True
+    assert extra["degraded_reason"] == "model_timeout"
+    assert extra["requested_mode"] == "intelligent"
+    assert extra["resolved_mode"] == "intelligent"
+    assert extra["correlation_id"] == "corr-abc"
+    assert extra["session_id"] == "session-123"
+
+
+def test_invoke_emits_error_outcome_telemetry():
+    app = FastAPI()
+    foundry_ready = True
+    runtime_definitions_missing = False
+    logger = _Logger()
+
+    def _is_ready() -> bool:
+        return foundry_ready
+
+    def _set_ready(value: bool) -> None:
+        nonlocal foundry_ready
+        foundry_ready = value
+
+    def _requires_runtime_resolution() -> bool:
+        return runtime_definitions_missing
+
+    async def _ensure_handler(_payload: dict | None) -> dict:
+        return {
+            "service": "svc",
+            "strict_foundry_mode": False,
+            "foundry_ready": True,
+            "results": {},
+        }
+
+    register_standard_endpoints(
+        app,
+        service_name="svc",
+        registry=_Registry(),
+        router=_FailingRouter(),
+        tracer=_Tracer(),
+        logger=logger,
+        strict_foundry_mode=False,
+        require_foundry_readiness=False,
+        is_foundry_ready=_is_ready,
+        set_foundry_ready=_set_ready,
+        requires_foundry_runtime_resolution=_requires_runtime_resolution,
+        foundry_capabilities=lambda: {"project_configured": True},
+        ensure_agents_handler=_ensure_handler,
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/invoke",
+        json={
+            "query": "winter jacket",
+            "mode": "intelligent",
+            "correlation_id": "corr-xyz",
+            "session_id": "session-999",
+        },
+    )
+
+    assert response.status_code == 503
+
+    outcome_record = next(
+        record for record in logger.records if record["message"] == "service_invoke_outcome"
+    )
+    assert outcome_record["level"] == "error"
+    extra = outcome_record["extra"]
+    assert extra["outcome_status"] == "error"
+    assert extra["result_type"] == "error"
+    assert extra["error_class"] == "HTTPException"
+    assert extra["failure_reason"] == "invoke_error"
+    assert extra["http_status_code"] == 503
+    assert extra["correlation_id"] == "corr-xyz"
+    assert extra["session_id"] == "session-999"
 
 
 def test_self_healing_endpoints_capture_invoke_failures():
