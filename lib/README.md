@@ -9,6 +9,7 @@ It provides:
 - Canonical schemas and truth-layer models
 - Shared app factory and configuration settings
 - Reliability/telemetry helpers (retry, circuit breaker, bulkhead, telemetry)
+- Structured `/invoke` outcome telemetry for success/degraded/error traceability in Azure Monitor/Application Insights
 - Autonomous self-healing runtime (incident lifecycle, remediation policy, audit trail)
 - Connectors and integration contracts for enterprise systems
 

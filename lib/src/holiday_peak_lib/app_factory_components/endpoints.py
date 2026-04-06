@@ -35,12 +35,121 @@ def register_standard_endpoints(
     """
 
     def _log_info(message: str, extra: dict[str, Any] | None = None) -> None:
-        log_method = getattr(logger, "info", None)
+        _log_with_level("info", message, extra=extra)
+
+    def _log_with_level(
+        level: str,
+        message: str,
+        *,
+        extra: dict[str, Any] | None = None,
+    ) -> None:
+        log_method = getattr(logger, level, None)
+        if not callable(log_method):
+            log_method = getattr(logger, "info", None)
+
         if callable(log_method):
             try:
                 log_method(message, extra=extra or {})
             except TypeError:
                 log_method(message)
+
+    def _coerce_optional_string(value: Any) -> str | None:
+        if value is None:
+            return None
+        resolved = str(value).strip()
+        return resolved or None
+
+    def _emit_invoke_outcome_telemetry(
+        *,
+        intent: str,
+        request_payload: dict[str, Any],
+        response_payload: dict[str, Any] | None = None,
+        error: Exception | None = None,
+    ) -> None:
+        payload = response_payload if isinstance(response_payload, dict) else {}
+
+        degraded = bool(payload.get("degraded"))
+        degraded_reason = _coerce_optional_string(payload.get("degraded_reason"))
+        requested_mode = _coerce_optional_string(
+            payload.get("requested_mode")
+            if payload.get("requested_mode") is not None
+            else request_payload.get("mode")
+        )
+        resolved_mode = _coerce_optional_string(payload.get("mode"))
+        search_stage = _coerce_optional_string(payload.get("search_stage"))
+        correlation_id = _coerce_optional_string(request_payload.get("correlation_id"))
+        session_id = _coerce_optional_string(
+            request_payload.get("session_id")
+            if request_payload.get("session_id") is not None
+            else payload.get("session_id")
+        )
+        trace_id = _coerce_optional_string(payload.get("trace_id"))
+        result_type = _coerce_optional_string(payload.get("result_type"))
+        model_status = _coerce_optional_string(payload.get("model_status"))
+        model_attempted = bool(payload.get("model_attempted"))
+
+        if error is not None:
+            outcome_status = "error"
+            log_level = "error"
+            status_code = int(error.status_code) if isinstance(error, HTTPException) else 500
+            failure_reason = "invoke_error"
+            error_class = type(error).__name__
+            result_type = result_type or "error"
+        elif degraded:
+            outcome_status = "degraded"
+            log_level = "warning"
+            status_code = 200
+            failure_reason = degraded_reason
+            error_class = None
+            result_type = result_type or "degraded_fallback"
+        else:
+            outcome_status = "success"
+            log_level = "info"
+            status_code = 200
+            failure_reason = None
+            error_class = None
+            result_type = result_type or "deterministic"
+
+        outcome_metadata = {
+            "service": service_name,
+            "endpoint": "/invoke",
+            "intent": intent,
+            "outcome_status": outcome_status,
+            "result_type": result_type,
+            "degraded": degraded,
+            "degraded_reason": degraded_reason,
+            "failure_reason": failure_reason,
+            "error_class": error_class,
+            "requested_mode": requested_mode,
+            "resolved_mode": resolved_mode,
+            "search_stage": search_stage,
+            "model_attempted": model_attempted,
+            "model_status": model_status,
+            "session_id": session_id,
+            "correlation_id": correlation_id,
+            "trace_id": trace_id,
+            "http_status_code": status_code,
+        }
+
+        _log_with_level(log_level, "service_invoke_outcome", extra=outcome_metadata)
+
+        trace_decision = getattr(tracer, "trace_decision", None)
+        if callable(trace_decision):
+            try:
+                trace_decision(
+                    decision="invoke_outcome",
+                    outcome=outcome_status,
+                    metadata=outcome_metadata,
+                )
+            except (AttributeError, TypeError, ValueError, RuntimeError):
+                _log_info(
+                    "service_invoke_outcome_trace_failed",
+                    extra={
+                        "service": service_name,
+                        "intent": intent,
+                        "outcome_status": outcome_status,
+                    },
+                )
 
     async def _emit_self_healing_failure(
         *,
@@ -214,7 +323,7 @@ def register_standard_endpoints(
                         )
                     return await router.route(intent, request_payload)
 
-            return await log_async_operation(
+            response_payload = await log_async_operation(
                 logger,
                 name="service.invoke",
                 intent=intent,
@@ -225,7 +334,18 @@ def register_standard_endpoints(
                     "service": service_name,
                 },
             )
+            _emit_invoke_outcome_telemetry(
+                intent=intent,
+                request_payload=request_payload,
+                response_payload=response_payload if isinstance(response_payload, dict) else None,
+            )
+            return response_payload
         except Exception as exc:
+            _emit_invoke_outcome_telemetry(
+                intent=intent,
+                request_payload=request_payload,
+                error=exc,
+            )
             await _emit_self_healing_failure(
                 surface=SurfaceType.API,
                 component="/invoke",
