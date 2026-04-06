@@ -1,8 +1,8 @@
 ---
-title: "Azure: Troubleshoot Service"
+name: "Azure: Troubleshoot Service"
 description: "Debug a failing Azure service by coordinating the relevant Azure specialist with platform diagnostics."
 agent: "TechLeadOrchestrator"
-input: "Describe the issue: which Azure service, error messages, affected endpoints, and when it started. Include resource group and service name."
+argument-hint: "Describe the issue: which Azure service, error messages, affected endpoints, and when it started. Include resource group and service name."
 ---
 
 Coordinate Azure service troubleshooting:
@@ -42,3 +42,4 @@ Coordinate Azure service troubleshooting:
    - No new alerts triggered
 
 Deliver a troubleshooting report with root cause, fix applied, and prevention recommendations.
+

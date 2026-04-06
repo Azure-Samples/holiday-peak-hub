@@ -1,8 +1,8 @@
 ---
-title: "Python: Implement Feature"
+name: "Python: Implement Feature"
 description: "Implement a Python feature with type hints, async patterns, and pytest coverage following PEP standards."
 agent: "PythonDeveloper"
-input: "Describe the feature, module, or function to implement. Include any API contracts or data models."
+argument-hint: "Describe the feature, module, or function to implement. Include any API contracts or data models."
 ---
 
 Implement the requested Python feature following these standards:
@@ -15,3 +15,4 @@ Implement the requested Python feature following these standards:
 6. **Paradigm** — Prefer data-oriented (plain dataclasses + standalone functions) over OOP unless encapsulated state is genuinely needed.
 
 Deliver the implementation, tests, and any necessary configuration changes.
+

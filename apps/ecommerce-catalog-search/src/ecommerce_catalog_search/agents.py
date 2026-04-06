@@ -115,6 +115,7 @@ APPAREL_LEXICAL_SIGNALS = frozenset(
     {
         "apparel",
         "clothing",
+        "clothes",
         "coat",
         "jacket",
         "parka",
@@ -622,6 +623,23 @@ def _deterministic_intent_policy(query: str) -> IntentClassification:
                 "keywords": sorted(apparel_hits),
             },
             reasoning="Deterministic lexical policy matched winter + apparel signals.",
+        )
+
+    if travel_hits and apparel_hits:
+        return IntentClassification(
+            intent="travel_clothing",
+            confidence=0.72,
+            category="apparel",
+            use_case="travel clothing",
+            entities={
+                "travel_context": True,
+                "category": "apparel",
+                "use_case": "travel clothing",
+                "keywords": sorted(travel_hits | apparel_hits),
+                "travel_signals": sorted(travel_hits),
+                "apparel_signals": sorted(apparel_hits),
+            },
+            reasoning="Deterministic lexical policy matched travel + apparel signals.",
         )
 
     return IntentClassification(

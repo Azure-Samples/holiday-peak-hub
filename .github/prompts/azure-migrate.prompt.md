@@ -1,8 +1,8 @@
 ---
-title: "Azure: Migration Plan"
+name: "Azure: Migration Plan"
 description: "Plan migration between Azure services, from on-premises, or from other cloud providers with risk assessment and staged rollout."
 agent: "TechLeadOrchestrator"
-input: "Describe the source (current service/provider) and target (desired Azure service). Include data volumes, latency requirements, and downtime tolerance."
+argument-hint: "Describe the source (current service/provider) and target (desired Azure service). Include data volumes, latency requirements, and downtime tolerance."
 ---
 
 Coordinate multi-agent migration planning:
@@ -46,3 +46,4 @@ Coordinate multi-agent migration planning:
    - **Stage 3: Cutover** — Switch reads to target, monitor error rates
    - **Stage 4: Decommission** — Remove source resources after validation period
    - Rollback trigger criteria for each stage
+

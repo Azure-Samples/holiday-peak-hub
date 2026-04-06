@@ -1,8 +1,8 @@
 ---
-title: "UI: Accessibility Audit"
+name: "UI: Accessibility Audit"
 description: "Audit a UI component or page for WCAG 2.2 AA compliance, keyboard navigation, and screen reader compatibility."
 agent: "UIDesigner"
-input: "Specify the component, page, or URL to audit. Include the target platform (web, CLI, desktop)."
+argument-hint: "Specify the component, page, or URL to audit. Include the target platform (web, CLI, desktop)."
 ---
 
 Perform a comprehensive accessibility audit:
@@ -15,3 +15,4 @@ Perform a comprehensive accessibility audit:
 6. **Forms** — Labels programmatically associated. Error messages linked to fields. Required fields marked for assistive tech.
 
 Deliver a compliance report with pass/fail per criterion, remediation steps, and priority ranking.
+

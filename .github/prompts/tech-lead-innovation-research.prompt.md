@@ -1,8 +1,8 @@
 ---
-title: "Tech Lead: Innovation Research"
+name: "Tech Lead: Innovation Research"
 description: "Research innovative solutions by coordinating business strategy agents for opportunity framing and technical agents for feasibility analysis."
 agent: "TechLeadOrchestrator"
-input: "Describe the problem space or opportunity to explore. Include business constraints, current limitations, and desired outcomes."
+argument-hint: "Describe the problem space or opportunity to explore. Include business constraints, current limitations, and desired outcomes."
 ---
 
 Coordinate a multi-agent innovation research cycle:
@@ -33,3 +33,4 @@ Coordinate a multi-agent innovation research cycle:
 5. **Proof of Concept** — If approved, delegate PoC implementation to the appropriate specialist agents with a time-boxed scope.
 
 Deliver an innovation brief with opportunity analysis, candidate comparison matrix, recommended approach, and PoC plan.
+

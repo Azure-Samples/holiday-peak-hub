@@ -7,6 +7,7 @@ Provides product discovery and ACP-aligned catalog search responses.
 - Resolve search queries into relevant product sets.
 - Return inventory-aware and commerce-ready product context.
 - Support intelligent search enrichment for downstream flows.
+- Applies deterministic lexical intent routing for travel+apparel language (for example, vacation + clothes) while preserving dedicated winter-travel apparel classification.
 
 ## Key endpoints or interfaces
 - `POST /invoke` for synchronous service requests.

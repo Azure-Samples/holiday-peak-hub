@@ -1,8 +1,8 @@
 ---
-title: "Tech Lead: Issue Correction"
+name: "Tech Lead: Issue Correction"
 description: "Map identified problems into GitHub issues and delegate each to the appropriate specialist agent for resolution."
 agent: "TechLeadOrchestrator"
-input: "Describe the problems found: error logs, failing tests, user reports, or code smells. Include affected files or modules if known."
+argument-hint: "Describe the problems found: error logs, failing tests, user reports, or code smells. Include affected files or modules if known."
 ---
 
 Analyze the reported problems and create a structured remediation plan:
@@ -25,3 +25,4 @@ Analyze the reported problems and create a structured remediation plan:
 6. **Execution** — Invoke each specialist via `#runSubagent` with the issue brief. Track completion against the issue checklist.
 
 Deliver a table mapping each issue number to its agent, priority, dependencies, and status.
+

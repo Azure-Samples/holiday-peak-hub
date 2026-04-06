@@ -1,8 +1,8 @@
 ---
-title: "Platform: Quality Evaluation"
+name: "Platform: Quality Evaluation"
 description: "Comprehensive platform quality audit delegating to specialist agents for best practices, architecture, and compliance checks."
 agent: "TechLeadOrchestrator"
-input: "Specify the project or repository to evaluate. Optionally narrow scope to specific areas (CI/CD, dependencies, architecture, code quality)."
+argument-hint: "Specify the project or repository to evaluate. Optionally narrow scope to specific areas (CI/CD, dependencies, architecture, code quality)."
 ---
 
 Conduct a full platform quality evaluation by delegating to specialist agents:
@@ -35,3 +35,4 @@ Conduct a full platform quality evaluation by delegating to specialist agents:
    - Comparison with previous evaluation if available
 
 Deliver a quality report with per-category scores, top 10 remediation items, and trend indicators.
+

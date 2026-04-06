@@ -697,6 +697,31 @@ class TestCatalogSearchAgent:
         assert "insulated jacket" in intent.entities["keywords"]
 
     @pytest.mark.asyncio
+    async def test_classify_intent_uses_deterministic_travel_apparel_fallback(
+        self, agent_dependencies
+    ):
+        """Intent classifier should deterministically capture travel + apparel language."""
+        with patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build:
+            mock_build.return_value = CatalogAdapters(
+                products=AsyncMock(),
+                inventory=AsyncMock(),
+                mapping=AcpCatalogMapper(),
+            )
+            agent = CatalogSearchAgent(config=agent_dependencies)
+
+        intent = await agent.classify_intent(
+            "I'm going to Russia on vacation, which clothes should I buy?"
+        )
+
+        assert intent.intent == "travel_clothing"
+        assert intent.confidence >= 0.6
+        assert intent.category == "apparel"
+        assert intent.use_case == "travel clothing"
+        assert "vacation" in intent.entities["travel_signals"]
+        assert "clothes" in intent.entities["apparel_signals"]
+        assert intent.intent != "keyword_lookup"
+
+    @pytest.mark.asyncio
     async def test_handle_keyword_mode_adaptive_reranks_winter_travel_to_apparel(
         self, agent_dependencies
     ):

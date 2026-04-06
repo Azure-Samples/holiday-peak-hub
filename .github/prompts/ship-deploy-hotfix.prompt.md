@@ -1,8 +1,8 @@
 ---
-title: "Ship: Deploy and Hotfix"
+name: "Ship: Deploy and Hotfix"
 description: "End-to-end deployment workflow: issue → branch → PR → merge → deploy → monitor → hotfix. Delegates to all relevant specialists."
 agent: "TechLeadOrchestrator"
-input: "Describe the change to ship. Include the triggering issue/PR number if it exists, or describe the change so an issue can be created."
+argument-hint: "Describe the change to ship. Include the triggering issue/PR number if it exists, or describe the change so an issue can be created."
 ---
 
 Execute the full deployment lifecycle for the described change. This prompt is agent-independent — it handles changes originating from any domain (UI, backend, infrastructure, dependencies).
@@ -86,3 +86,4 @@ After deployment, actively monitor for regressions:
 - [ ] Deployment successful with health checks passing
 - [ ] No P1/P2 regressions within monitoring window
 - [ ] Any hotfixes completed and documented
+

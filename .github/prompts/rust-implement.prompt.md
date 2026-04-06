@@ -1,8 +1,8 @@
 ---
-title: "Rust: Implement Feature"
+name: "Rust: Implement Feature"
 description: "Implement a Rust feature with safe ownership patterns, proper error handling, and cargo test coverage."
 agent: "RustDeveloper"
-input: "Describe the feature, crate, or module to implement. Include any trait contracts or wire formats."
+argument-hint: "Describe the feature, crate, or module to implement. Include any trait contracts or wire formats."
 ---
 
 Implement the requested Rust feature following these standards:
@@ -15,3 +15,4 @@ Implement the requested Rust feature following these standards:
 6. **API Design** — Follow Rust API Guidelines. #[must_use] on fallible returns. Newtype pattern for domain types.
 
 Deliver implementation, tests, and Cargo.toml dependency changes.
+

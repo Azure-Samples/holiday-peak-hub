@@ -1,8 +1,8 @@
 ---
-title: "Azure: Architecture Review"
+name: "Azure: Architecture Review"
 description: "Review Azure resource topology for high availability, security, cost efficiency, and Well-Architected Framework alignment."
 agent: "TechLeadOrchestrator"
-input: "Specify the Azure resource group, subscription, or architecture diagram to review. Include SLA targets and compliance requirements."
+argument-hint: "Specify the Azure resource group, subscription, or architecture diagram to review. Include SLA targets and compliance requirements."
 ---
 
 Coordinate a multi-specialist Azure architecture review:
@@ -43,3 +43,4 @@ Coordinate a multi-specialist Azure architecture review:
    - Top 10 remediation items ranked by impact
 
 Deliver the scorecard, architecture diagram (Mermaid), and prioritized remediation backlog.
+

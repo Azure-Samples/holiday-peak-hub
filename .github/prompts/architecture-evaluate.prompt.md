@@ -1,8 +1,8 @@
 ---
-title: "Architecture: Evaluate Design"
+name: "Architecture: Evaluate Design"
 description: "Evaluate a proposed architecture or system design for pattern correctness, integration safety, and scalability."
 agent: "SystemArchitect"
-input: "Describe the system or component being designed. Include context on scale, integration points, and constraints."
+argument-hint: "Describe the system or component being designed. Include context on scale, integration points, and constraints."
 ---
 
 Evaluate the proposed design:
@@ -16,3 +16,4 @@ Evaluate the proposed design:
 7. **Trade-offs** — Document alternatives considered, why this approach was chosen, and what is sacrificed.
 
 Deliver an assessment with a diagram (Mermaid), risk table, and recommendations.
+

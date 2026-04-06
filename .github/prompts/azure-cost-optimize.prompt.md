@@ -1,8 +1,8 @@
 ---
-title: "Azure: Cost Optimization"
+name: "Azure: Cost Optimization"
 description: "Identify over-provisioned Azure resources and recommend SKU changes, reserved instances, and architectural simplifications."
 agent: "TechLeadOrchestrator"
-input: "Specify the subscription, resource group, or service to optimize. Include current monthly spend if known and target budget."
+argument-hint: "Specify the subscription, resource group, or service to optimize. Include current monthly spend if known and target budget."
 ---
 
 Coordinate Azure cost optimization across all resource types:
@@ -37,3 +37,4 @@ Coordinate Azure cost optimization across all resource types:
    - Estimated monthly savings per change
    - Implementation steps and rollback plan for each
    - Total projected monthly/annual savings
+

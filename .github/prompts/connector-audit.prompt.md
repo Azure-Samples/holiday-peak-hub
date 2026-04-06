@@ -1,8 +1,8 @@
 ---
-title: "Connector: Audit Integrations"
+name: "Connector: Audit Integrations"
 description: "Audit existing enterprise integrations for reliability, error handling, compliance, and operational health."
 agent: "TechLeadOrchestrator"
-input: "Specify the integration(s) to audit. Include the external platform, data flow direction, and any known issues."
+argument-hint: "Specify the integration(s) to audit. Include the external platform, data flow direction, and any known issues."
 ---
 
 Coordinate an enterprise integration audit:
@@ -40,3 +40,4 @@ Coordinate an enterprise integration audit:
    - Critical findings requiring immediate remediation
    - Improvement recommendations ranked by risk reduction
    - Suggested SLA definitions for each integration
+

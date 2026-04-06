@@ -1,8 +1,8 @@
 ---
-title: "TypeScript: Implement Feature"
+name: "TypeScript: Implement Feature"
 description: "Implement a TypeScript/React feature with strict types, React Server Components, and accessibility compliance."
 agent: "TypeScriptDeveloper"
-input: "Describe the feature or component to implement. Include API contracts, UI wireframe description, or data requirements."
+argument-hint: "Describe the feature or component to implement. Include API contracts, UI wireframe description, or data requirements."
 ---
 
 Implement the requested TypeScript feature following these standards:
@@ -15,3 +15,4 @@ Implement the requested TypeScript feature following these standards:
 6. **Testing** — Vitest/Jest with React Testing Library. Test behavior, not implementation. MSW for API mocking.
 
 Deliver the implementation, tests, and any route/config changes.
+

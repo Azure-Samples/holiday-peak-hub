@@ -1,8 +1,8 @@
 ---
-title: "PR: Review Pull Request"
+name: "PR: Review Pull Request"
 description: "Review a pull request for architecture compliance, test coverage, security, and merge readiness."
 agent: "PRReviewer"
-input: "Provide the PR number or let the agent detect the active PR. Optionally specify focus areas."
+argument-hint: "Provide the PR number or let the agent detect the active PR. Optionally specify focus areas."
 ---
 
 Review the pull request for merge readiness:
@@ -16,3 +16,4 @@ Review the pull request for merge readiness:
 7. **Code Quality** — No code smells introduced. Consistent style. Clear naming.
 
 Deliver a review summary with approve/request-changes verdict, blocking issues, and optional improvements.
+

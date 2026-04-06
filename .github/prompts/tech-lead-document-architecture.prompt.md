@@ -1,8 +1,8 @@
 ---
-title: "Tech Lead: Document Architecture"
+name: "Tech Lead: Document Architecture"
 description: "Produce comprehensive platform documentation including architecture diagrams, ADRs, and design principia by coordinating business, architecture, and UI agents."
 agent: "TechLeadOrchestrator"
-input: "Specify the system or project to document. Include target audience (developers, stakeholders, ops) and any existing docs to update."
+argument-hint: "Specify the system or project to document. Include target audience (developers, stakeholders, ops) and any existing docs to update."
 ---
 
 Coordinate multi-agent documentation of the platform:
@@ -37,3 +37,4 @@ Coordinate multi-agent documentation of the platform:
    - Environment setup and prerequisites
 
 Deliver a documentation package with ADRs, diagrams (Mermaid + draw.io), API reference, and runbook organized by audience.
+

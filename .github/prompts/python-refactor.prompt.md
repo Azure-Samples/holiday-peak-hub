@@ -1,8 +1,8 @@
 ---
-title: "Python: Refactor Module"
+name: "Python: Refactor Module"
 description: "Refactor Python code to reduce complexity, eliminate code smells, and improve maintainability."
 agent: "PythonDeveloper"
-input: "Specify the module or file to refactor. Optionally describe the target improvement (performance, readability, testability)."
+argument-hint: "Specify the module or file to refactor. Optionally describe the target improvement (performance, readability, testability)."
 ---
 
 Refactor the specified Python module:
@@ -14,3 +14,4 @@ Refactor the specified Python module:
 5. **Verify** — Run existing tests after each step. Report any behavioral changes.
 
 Deliver the refactored code with a summary of changes made and rationale for each.
+

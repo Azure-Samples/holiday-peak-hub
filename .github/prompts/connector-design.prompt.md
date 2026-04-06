@@ -1,8 +1,8 @@
 ---
-title: "Connector: Design Integration"
+name: "Connector: Design Integration"
 description: "Design a new enterprise integration adapter (REST/GraphQL/OData) with architecture review and implementation plan."
 agent: "TechLeadOrchestrator"
-input: "Describe the target platform (PIM, DAM, CRM, Commerce, etc.), the API type (REST/GraphQL/OData), and the data flows required."
+argument-hint: "Describe the target platform (PIM, DAM, CRM, Commerce, etc.), the API type (REST/GraphQL/OData), and the data flows required."
 ---
 
 Coordinate enterprise connector design:
@@ -37,3 +37,4 @@ Coordinate enterprise connector design:
    - Load tests to validate rate limit handling
 
 Deliver a connector design document with architecture diagram, data mapping table, implementation spec, and test plan.
+

@@ -1,8 +1,8 @@
 ---
-title: "Tech Lead: Execute Issue"
+name: "Tech Lead: Execute Issue"
 description: "Pick up a GitHub issue and drive it to completion — analyze requirements, decompose into tasks, delegate to specialists, verify, and close."
 agent: "TechLeadOrchestrator"
-input: "Paste the GitHub issue URL, number, or full description. Include any additional context such as related PRs, blockers, or stakeholder constraints."
+argument-hint: "Paste the GitHub issue URL, number, or full description. Include any additional context such as related PRs, blockers, or stakeholder constraints."
 ---
 
 Drive a GitHub issue from open to closed:
@@ -46,3 +46,4 @@ Drive a GitHub issue from open to closed:
    - Decisions taken and rationale
    - Any follow-up items or deferred scope
    - Deliver a completion report linking the issue to the changes, with verification evidence.
+
