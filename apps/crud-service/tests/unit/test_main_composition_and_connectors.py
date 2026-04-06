@@ -2,9 +2,8 @@
 
 from types import SimpleNamespace
 
-import pytest
-
 import crud_service.main as main
+import pytest
 
 
 def test_route_groups_keep_expected_api_surfaces() -> None:

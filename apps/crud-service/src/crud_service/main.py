@@ -10,13 +10,13 @@ from importlib import import_module
 from typing import Any
 
 import asyncpg
+from azure.core.exceptions import AzureError
 from crud_service.auth.dependencies import get_key_vault_secret
 from crud_service.composition import register_routes
 from crud_service.config.settings import get_settings
 from crud_service.consumers import get_connector_sync_consumer
 from crud_service.integrations.event_publisher import get_event_publisher
 from crud_service.repositories.base import BaseRepository
-from azure.core.exceptions import AzureError
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
