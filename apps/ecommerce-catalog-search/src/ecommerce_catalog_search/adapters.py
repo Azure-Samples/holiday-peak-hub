@@ -260,11 +260,11 @@ class CRUDCatalogProductAdapter(BaseAdapter):
 
 
 def normalize_search_mode(mode: str | None) -> str:
-    """Normalize incoming search mode while keeping backward-compatible defaults."""
-    normalized = (mode or SEARCH_MODE_KEYWORD).strip().lower()
+    """Normalize incoming search mode and default unknown values to intelligent."""
+    normalized = (mode or SEARCH_MODE_INTELLIGENT).strip().lower()
     if normalized in SUPPORTED_SEARCH_MODES:
         return normalized
-    return SEARCH_MODE_KEYWORD
+    return SEARCH_MODE_INTELLIGENT
 
 
 def merge_enriched_fields(

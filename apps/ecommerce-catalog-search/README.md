@@ -5,6 +5,7 @@ Provides product discovery and ACP-aligned catalog search responses.
 
 ## Responsibilities
 - Resolve search queries into relevant product sets.
+- Default to intelligent search mode when no mode is specified, while keeping explicit keyword mode available for demos and compatibility.
 - Return inventory-aware and commerce-ready product context.
 - Support intelligent search enrichment for downstream flows.
 - Applies deterministic lexical intent routing for travel+apparel language (for example, vacation + clothes) while preserving dedicated winter-travel apparel classification.

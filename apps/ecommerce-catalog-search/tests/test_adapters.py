@@ -3,8 +3,11 @@
 import httpx
 import pytest
 from ecommerce_catalog_search.adapters import (
+    SEARCH_MODE_INTELLIGENT,
+    SEARCH_MODE_KEYWORD,
     CRUDCatalogProductAdapter,
     build_catalog_adapters,
+    normalize_search_mode,
 )
 from holiday_peak_lib.adapters.mock_adapters import MockProductAdapter
 
@@ -161,3 +164,16 @@ class TestCrudCatalogProductAdapter:
 
         assert [item.sku for item in matches] == ["SKU-COAT", "SKU-BOOT"]
         assert search_terms[:3] == ["winter travel clothing", "winter", "travel"]
+
+
+class TestSearchModeNormalization:
+    """Tests for centralized mode normalization strategy."""
+
+    @pytest.mark.parametrize("raw_mode", [None, "", "unsupported"])
+    def test_normalize_search_mode_defaults_to_intelligent(self, raw_mode):
+        """Missing or invalid mode should default to intelligent retrieval."""
+        assert normalize_search_mode(raw_mode) == SEARCH_MODE_INTELLIGENT
+
+    def test_normalize_search_mode_preserves_explicit_keyword(self):
+        """Explicit keyword mode remains supported for deterministic demos."""
+        assert normalize_search_mode("keyword") == SEARCH_MODE_KEYWORD

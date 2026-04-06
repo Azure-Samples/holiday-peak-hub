@@ -309,7 +309,7 @@ class CatalogSearchAgent(BaseRetailAgent):
     async def handle(self, request: dict[str, Any]) -> dict[str, Any]:
         query = request.get("query", "")
         limit = int(request.get("limit", 5))
-        requested_mode = str(request.get("mode") or "keyword")
+        requested_mode = str(request.get("mode") or "intelligent")
         mode = normalize_search_mode(requested_mode)
         search_stage = _normalize_search_stage(request.get("search_stage"))
         user_id = _coerce_optional_str(request.get("user_id"))
@@ -458,7 +458,7 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
     async def search_catalog(payload: dict[str, Any]) -> dict[str, Any]:
         query = payload.get("query", "")
         limit = int(payload.get("limit", 5))
-        mode = normalize_search_mode(str(payload.get("mode") or "keyword"))
+        mode = normalize_search_mode(str(payload.get("mode") or "intelligent"))
         filters = payload.get("filters")
         filter_payload = filters if isinstance(filters, dict) else None
 

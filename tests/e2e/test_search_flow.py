@@ -231,7 +231,7 @@ async def test_indexer_lag_returns_no_results(agent_config_without_models, build
         agent = CatalogSearchAgent(config=agent_config_without_models)
         result = await agent.handle({"query": "new arrivals from 5 minutes ago", "limit": 5})
 
-    assert result["mode"] == "keyword"
+    assert result["mode"] == "intelligent"
     assert result["results"] == []
 
 

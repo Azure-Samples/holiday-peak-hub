@@ -143,10 +143,37 @@ class TestCatalogSearchAgent:
                 }
             )
 
-            assert result["mode"] == "keyword"
+            assert result["mode"] == "intelligent"
             assert result["requested_mode"] == "unsupported-mode"
             assert result["search_stage"] == "baseline"
             assert result["session_id"] == "session-123"
+
+    @pytest.mark.asyncio
+    async def test_handle_defaults_requested_mode_to_intelligent_when_mode_missing(
+        self, agent_dependencies, mock_catalog_product
+    ):
+        """Missing mode should default requested/effective mode to intelligent."""
+        mock_inventory_item = InventoryItem(sku="SKU-001", available=10, reserved=0)
+
+        with patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build:
+            mock_products = AsyncMock()
+            mock_products.get_product = AsyncMock(return_value=mock_catalog_product)
+            mock_products.get_related = AsyncMock(return_value=[])
+
+            mock_inventory = AsyncMock()
+            mock_inventory.get_item = AsyncMock(return_value=mock_inventory_item)
+
+            mock_build.return_value = CatalogAdapters(
+                products=mock_products,
+                inventory=mock_inventory,
+                mapping=AcpCatalogMapper(),
+            )
+
+            agent = CatalogSearchAgent(config=agent_dependencies)
+            result = await agent.handle({"query": "test product", "limit": 5})
+
+            assert result["requested_mode"] == "intelligent"
+            assert result["mode"] == "intelligent"
 
     @pytest.mark.asyncio
     async def test_handle_model_timeout_returns_fallback_answer(
@@ -353,7 +380,7 @@ class TestCatalogSearchAgent:
             )
 
             agent = CatalogSearchAgent(config=agent_dependencies)
-            result = await agent.handle({"query": "running shoes", "limit": 5})
+            result = await agent.handle({"query": "running shoes", "limit": 5, "mode": "keyword"})
 
             assert len(result["results"]) == 1
             assert result["results"][0]["item_id"] == "SKU-001"
@@ -389,7 +416,7 @@ class TestCatalogSearchAgent:
             )
 
             agent = CatalogSearchAgent(config=agent_dependencies)
-            result = await agent.handle({"query": "fallback query", "limit": 3})
+            result = await agent.handle({"query": "fallback query", "limit": 3, "mode": "keyword"})
 
             assert len(result["results"]) == 1
             mock_search.assert_awaited_once_with(query="fallback query", limit=3)
@@ -425,7 +452,7 @@ class TestCatalogSearchAgent:
             )
 
             agent = CatalogSearchAgent(config=agent_dependencies)
-            result = await agent.handle({"query": "rain jacket", "limit": 3})
+            result = await agent.handle({"query": "rain jacket", "limit": 3, "mode": "keyword"})
 
             assert len(result["results"]) == 1
             assert result["results"][0]["item_id"] == "SKU-001"
@@ -461,7 +488,7 @@ class TestCatalogSearchAgent:
             )
 
             agent = CatalogSearchAgent(config=agent_dependencies)
-            result = await agent.handle({"query": "SKU-001", "limit": 3})
+            result = await agent.handle({"query": "SKU-001", "limit": 3, "mode": "keyword"})
 
             assert len(result["results"]) == 1
             assert result["results"][0]["item_id"] == "SKU-001"

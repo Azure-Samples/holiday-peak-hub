@@ -80,7 +80,7 @@ class TestMCPToolExecution:
         result = await tool({"query": "test product", "limit": 5})
 
         assert "query" in result
-        assert result["mode"] == "keyword"
+        assert result["mode"] == "intelligent"
         assert "results" in result
         assert len(result["results"]) > 0
         # Verify ACP format
@@ -114,6 +114,20 @@ class TestMCPToolExecution:
         result = await tool({"query": "best travel backpack", "mode": "intelligent", "limit": 3})
 
         assert result["mode"] == "intelligent"
+        assert "results" in result
+
+    @pytest.mark.asyncio
+    async def test_search_catalog_explicit_keyword_mode_is_preserved(
+        self, mock_mcp_server, mock_agent
+    ):
+        """Explicit keyword mode must remain available for demos and compatibility."""
+        with patch.dict("os.environ", {}, clear=False):
+            register_mcp_tools(mock_mcp_server, mock_agent)
+
+        tool = mock_mcp_server.tools["/catalog/search"]
+        result = await tool({"query": "travel jacket", "mode": "keyword", "limit": 3})
+
+        assert result["mode"] == "keyword"
         assert "results" in result
 
     @pytest.mark.asyncio

@@ -13,6 +13,7 @@ export interface IntelligentSearchOptions {
   enableTwoStage?: boolean;
 }
 
+const DEFAULT_SEARCH_PREFERENCE: IntelligentSearchPreference = 'intelligent';
 const SEARCH_MODE_STORAGE_KEY = 'hp.search.mode.preference';
 const SEARCH_QUERY_HISTORY_STORAGE_PREFIX = 'hp.search.query.history';
 const SEARCH_SESSION_STORAGE_PREFIX = 'hp.search.session';
@@ -24,14 +25,14 @@ function isValidPreference(value: string | null): value is IntelligentSearchPref
 
 function readStoredPreference(): IntelligentSearchPreference {
   if (typeof window === 'undefined') {
-    return 'auto';
+    return DEFAULT_SEARCH_PREFERENCE;
   }
 
   try {
     const rawValue = window.localStorage.getItem(SEARCH_MODE_STORAGE_KEY);
-    return isValidPreference(rawValue) ? rawValue : 'auto';
+    return isValidPreference(rawValue) ? rawValue : DEFAULT_SEARCH_PREFERENCE;
   } catch {
-    return 'auto';
+    return DEFAULT_SEARCH_PREFERENCE;
   }
 }
 
@@ -153,7 +154,7 @@ function readOrCreateSessionId(scope: string): string {
 
 export function useIntelligentSearch(query: string, limit = 20, options: IntelligentSearchOptions = {}) {
   const queryClient = useQueryClient();
-  const [preference, setPreference] = useState<IntelligentSearchPreference>('auto');
+  const [preference, setPreference] = useState<IntelligentSearchPreference>(() => readStoredPreference());
   const [debouncedQuery, setDebouncedQuery] = useState(query);
   const scopeKey = useMemo(() => resolveUserScopeKey(options.userId), [options.userId]);
   const [sessionId, setSessionId] = useState(() => readOrCreateSessionId(scopeKey));
@@ -169,10 +170,6 @@ export function useIntelligentSearch(query: string, limit = 20, options: Intelli
       window.clearTimeout(debounceId);
     };
   }, [query]);
-
-  useEffect(() => {
-    setPreference(readStoredPreference());
-  }, []);
 
   useEffect(() => {
     setSessionId(readOrCreateSessionId(scopeKey));
@@ -203,7 +200,13 @@ export function useIntelligentSearch(query: string, limit = 20, options: Intelli
     [options.userId, options.tenantId, sessionId, queryHistory, hasQuery, trimmedDebouncedQuery],
   );
 
-  const baselineMode: IntelligentSearchPreference = shouldUseTwoStage ? 'keyword' : preference;
+  const baselineMode: IntelligentSearchPreference = useMemo(() => {
+    if (preference === 'auto') {
+      return shouldUseTwoStage ? 'keyword' : 'intelligent';
+    }
+
+    return preference;
+  }, [preference, shouldUseTwoStage]);
   const baselineQuery = useSemanticSearch(
     debouncedQuery,
     limit,
@@ -218,7 +221,7 @@ export function useIntelligentSearch(query: string, limit = 20, options: Intelli
     [baselineData?.items],
   );
 
-  const shouldAttemptRerank = preference === 'auto' || preference === 'intelligent';
+  const shouldAttemptRerank = preference === 'auto';
   const rerankEnabled = Boolean(
     shouldUseTwoStage
       && hasQuery
