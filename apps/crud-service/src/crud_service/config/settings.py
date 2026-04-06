@@ -221,10 +221,7 @@ class Settings(BaseSettings):
             encoded_password = quote(self.redis_password, safe="")
             auth_segment = f":{encoded_password}@"
 
-        return (
-            f"{protocol}://{auth_segment}{self.redis_host}:"
-            f"{self.redis_port}/{self.redis_db}"
-        )
+        return f"{protocol}://{auth_segment}{self.redis_host}:" f"{self.redis_port}/{self.redis_db}"
 
     @property
     def postgres_dsn(self) -> str:

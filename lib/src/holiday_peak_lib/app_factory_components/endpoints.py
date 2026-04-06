@@ -176,8 +176,7 @@ def register_standard_endpoints(
                                 for role, details in (ensure_result.get("results") or {}).items()
                                 if isinstance(details, dict)
                                 and bool(details.get("agent_id"))
-                                and details.get("status")
-                                in {"exists", "found_by_name", "created"}
+                                and details.get("status") in {"exists", "found_by_name", "created"}
                             ],
                         },
                     )
