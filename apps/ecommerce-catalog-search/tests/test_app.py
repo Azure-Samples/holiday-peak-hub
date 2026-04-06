@@ -39,16 +39,16 @@ def test_agent_activity_endpoints():
         traces_response = client.get("/agent/traces")
         assert traces_response.status_code == 200
         assert "traces" in traces_response.json()
+        assert len(traces_response.json()["traces"]) >= 1
 
         metrics_response = client.get("/agent/metrics")
         assert metrics_response.status_code == 200
         assert metrics_response.json()["service"] == "ecommerce-catalog-search"
-        assert metrics_response.json()["enabled"] is False
+        assert metrics_response.json()["enabled"] is True
 
         evaluation_response = client.get("/agent/evaluation/latest")
         assert evaluation_response.status_code == 200
         assert "latest" in evaluation_response.json()
-        assert evaluation_response.json()["latest"] is None
 
 
 def test_ready_returns_503_when_strict_mode_ai_search_not_ready(monkeypatch):
