@@ -4,7 +4,6 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
-
 from holiday_peak_lib.agents.orchestration.router import RoutingStrategy
 from holiday_peak_lib.connectors.registry import ConnectorRegistry
 from holiday_peak_lib.self_healing import FailureSignal, SelfHealingKernel, SurfaceType

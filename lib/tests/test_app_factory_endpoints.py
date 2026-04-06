@@ -2,7 +2,6 @@
 
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
-
 from holiday_peak_lib.app_factory_components.endpoints import register_standard_endpoints
 from holiday_peak_lib.self_healing import SelfHealingKernel, default_surface_manifest
 
