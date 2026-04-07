@@ -29,6 +29,7 @@ Python package management in this repository is uv-first. In CI, dependency inst
 - Run tests: `python -m pytest`
 - Run lint: `python -m pylint lib/src apps/**/src`
 - Run format: `python -m black lib apps && python -m isort lib apps`
+- App smoke tests under `apps/**/tests/test_app.py` can use the shared fixture in `apps/conftest.py` to satisfy Foundry readiness when exercising local business-route behavior for services that set `require_foundry_readiness=True`.
 
 ## Infrastructure CLI
 

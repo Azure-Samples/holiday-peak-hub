@@ -1,7 +1,10 @@
 """Unit tests for the Truth HITL service app."""
 
+import pytest
 from fastapi.testclient import TestClient
 from truth_hitl.main import app
+
+pytestmark = pytest.mark.usefixtures("mock_foundry_readiness")
 
 
 def test_health():

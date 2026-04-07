@@ -7,6 +7,8 @@ from fastapi.testclient import TestClient
 
 TEST_PROJECT_ENDPOINT = "https://test.services.ai.azure.com/api/projects/test-project"
 
+pytestmark = pytest.mark.usefixtures("mock_foundry_readiness")
+
 
 @pytest.fixture(autouse=True)
 def clear_ai_search_environment(monkeypatch):

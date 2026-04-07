@@ -5,6 +5,8 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
+pytestmark = pytest.mark.usefixtures("mock_foundry_readiness")
+
 
 @pytest.fixture()
 def client():
