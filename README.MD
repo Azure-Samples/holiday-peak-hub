@@ -26,7 +26,6 @@ Agent-driven retail accelerator for building and operating intelligent, cloud-na
 - Python 3.13+
 - Node.js 20+
 - Yarn
-- Docker (recommended)
 - Azure CLI and Azure Developer CLI (`azd`)
 - Docker (required for `azd` deployment)
 
