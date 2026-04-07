@@ -28,6 +28,7 @@ Agent-driven retail accelerator for building and operating intelligent, cloud-na
 - Yarn
 - Docker (recommended)
 - Azure CLI and Azure Developer CLI (`azd`)
+- Docker (required for `azd` deployment)
 
 ### Run locally
 
@@ -52,7 +53,7 @@ For complete local setup across services, see [apps/README.md](apps/README.md) a
 
 ## Provision to Azure (azd)
 
-This is the primary path for provisioning and deployment.
+This is the primary path for provisioning and deployment. Be sure to have Docker running locally before running.
 
 ```bash
 # 1) Sign in
