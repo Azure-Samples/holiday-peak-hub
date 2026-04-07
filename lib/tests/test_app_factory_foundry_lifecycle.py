@@ -27,7 +27,21 @@ def test_build_foundry_config_from_env(monkeypatch):
     assert cfg is not None
     assert cfg.endpoint == "https://example.test"
     assert cfg.agent_id == "agent-fast"
+    assert cfg.runtime_agent_id == "agent-fast"
     assert cfg.deployment_name == "gpt-fast"
+
+
+def test_build_foundry_config_name_only_stays_unresolved(monkeypatch):
+    monkeypatch.setenv("PROJECT_ENDPOINT", "https://example.test")
+    monkeypatch.delenv("FOUNDRY_AGENT_ID_FAST", raising=False)
+    monkeypatch.setenv("FOUNDRY_AGENT_NAME_FAST", "svc-fast")
+
+    cfg = build_foundry_config("FOUNDRY_AGENT_ID_FAST", "MODEL_DEPLOYMENT_NAME_FAST")
+
+    assert cfg is not None
+    assert cfg.agent_id == "fast-pending"
+    assert cfg.agent_name == "svc-fast"
+    assert cfg.runtime_agent_id is None
 
 
 def test_foundry_mode_flags(monkeypatch):
@@ -72,6 +86,7 @@ async def test_ensure_role_wires_model_target():
     )
 
     assert result["agent_id"] == "agent-fast"
+    assert cfg.runtime_agent_id == "agent-fast"
     assert agent.slm == "target-fast"
 
 
@@ -109,4 +124,5 @@ async def test_ensure_role_skips_wiring_when_id_remains_pending():
     )
 
     assert result["status"] == "missing"
+    assert cfg.runtime_agent_id is None
     assert agent.slm is None

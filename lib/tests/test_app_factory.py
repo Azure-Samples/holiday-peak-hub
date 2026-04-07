@@ -110,6 +110,37 @@ class TestBuildServiceApp:
         assert response.status_code == 200
         assert response.json()["model_wired"] is False
 
+    def test_build_app_skips_name_only_foundry_runtime_targets(
+        self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
+    ):
+        """Test name-only Foundry config remains unbound until ensure resolves an id."""
+
+        class ModelAwareAgent(BaseRetailAgent):
+            async def handle(self, request: dict) -> dict:
+                return {"model_wired": bool(self.slm or self.llm)}
+
+        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.delenv("FOUNDRY_AGENT_ID_FAST", raising=False)
+        monkeypatch.delenv("FOUNDRY_AGENT_ID_RICH", raising=False)
+        monkeypatch.setenv("FOUNDRY_AGENT_NAME_FAST", "catalog-fast")
+        monkeypatch.delenv("FOUNDRY_AGENT_NAME_RICH", raising=False)
+        monkeypatch.setenv("FOUNDRY_AUTO_ENSURE_ON_STARTUP", "false")
+
+        app = build_service_app(
+            service_name="test-service",
+            agent_class=ModelAwareAgent,
+            hot_memory=mock_hot_memory,
+            warm_memory=mock_warm_memory,
+            cold_memory=mock_cold_memory,
+            require_foundry_readiness=True,
+        )
+
+        client = TestClient(app)
+        response = client.post("/invoke", json={"query": "test"})
+
+        assert response.status_code == 200
+        assert response.json()["model_wired"] is False
+
     def test_invoke_auto_ensures_pending_foundry_runtime_targets(
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
@@ -715,7 +746,9 @@ class TestBuildServiceApp:
         assert slm_config is not None
         assert slm_config.endpoint == "https://test.endpoint.com"
         assert slm_config.agent_id == "agent-fast-123"
+        assert slm_config.runtime_agent_id == "agent-fast-123"
         assert llm_config.agent_id == "agent-rich-456"
+        assert llm_config.runtime_agent_id == "agent-rich-456"
 
     def test_build_foundry_config_missing_env(self, monkeypatch):
         """Test building Foundry config with missing environment vars."""
@@ -740,6 +773,21 @@ class TestBuildServiceApp:
 
         assert config is not None
         assert config.stream is True
+
+    def test_build_foundry_config_name_only_requires_later_resolution(self, monkeypatch):
+        """Test role names stay available for ensure but unbound for runtime."""
+        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.delenv("FOUNDRY_AGENT_ID_FAST", raising=False)
+        monkeypatch.setenv("FOUNDRY_AGENT_NAME_FAST", "catalog-fast")
+
+        from holiday_peak_lib.app_factory import _build_foundry_config
+
+        config = _build_foundry_config("FOUNDRY_AGENT_ID_FAST", "MODEL_DEPLOYMENT_NAME_FAST")
+
+        assert config is not None
+        assert config.agent_id == "fast-pending"
+        assert config.agent_name == "catalog-fast"
+        assert config.runtime_agent_id is None
 
 
 class TestAppFactoryIntegration:
