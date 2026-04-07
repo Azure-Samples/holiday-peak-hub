@@ -177,8 +177,8 @@ response = await agent.handle({"query": "Find Nike shoes", "requires_multi_tool"
 ```
 
 **Env vars expected**
-- `PROJECT_ENDPOINT` (or `FOUNDRY_ENDPOINT`): Azure AI Foundry project endpoint
-- `PROJECT_NAME` (or `FOUNDRY_PROJECT_NAME`): Azure AI Foundry project name (optional)
+- `PROJECT_ENDPOINT` (or `FOUNDRY_ENDPOINT`): Azure AI Foundry project endpoint of the form `https://<resource>.services.ai.azure.com/api/projects/<project-name>`. The runtime also accepts an Azure AI Services account endpoint and derives the project-scoped endpoint when `PROJECT_NAME` is set.
+- `PROJECT_NAME` (or `FOUNDRY_PROJECT_NAME`): Azure AI Foundry project name. Required when the endpoint is not already project-scoped.
 - `FOUNDRY_AGENT_ID_FAST` / `FOUNDRY_AGENT_ID_RICH`: Agent IDs created in Foundry
 - `FOUNDRY_AGENT_NAME_FAST` / `FOUNDRY_AGENT_NAME_RICH`: Agent names (used for V2 lookup/creation)
 - `MODEL_DEPLOYMENT_NAME_FAST` / `MODEL_DEPLOYMENT_NAME_RICH` (optional): Deployment backing the Agent (defaults to `gpt-5-nano` / `gpt-5`)

@@ -12,6 +12,12 @@ from holiday_peak_lib.app_factory_components.foundry_lifecycle import (
     strict_foundry_mode_enabled,
 )
 
+TEST_PROJECT_NAME = "catalog-search"
+TEST_PROJECT_ENDPOINT = (
+    f"https://example.services.ai.azure.com/api/projects/{TEST_PROJECT_NAME}"
+)
+TEST_RESOURCE_ENDPOINT = "https://example.cognitiveservices.azure.com"
+
 
 class _Agent(BaseRetailAgent):
     async def handle(self, request: dict) -> dict:
@@ -19,13 +25,15 @@ class _Agent(BaseRetailAgent):
 
 
 def test_build_foundry_config_from_env(monkeypatch):
-    monkeypatch.setenv("PROJECT_ENDPOINT", "https://example.test")
+    monkeypatch.setenv("PROJECT_ENDPOINT", TEST_RESOURCE_ENDPOINT)
+    monkeypatch.setenv("PROJECT_NAME", TEST_PROJECT_NAME)
     monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-fast")
     monkeypatch.setenv("MODEL_DEPLOYMENT_NAME_FAST", "gpt-fast")
 
     cfg = build_foundry_config("FOUNDRY_AGENT_ID_FAST", "MODEL_DEPLOYMENT_NAME_FAST")
     assert cfg is not None
-    assert cfg.endpoint == "https://example.test"
+    assert cfg.endpoint == TEST_PROJECT_ENDPOINT
+    assert cfg.project_name == TEST_PROJECT_NAME
     assert cfg.agent_id == "agent-fast"
     assert cfg.deployment_name == "gpt-fast"
 
@@ -42,7 +50,7 @@ def test_foundry_mode_flags(monkeypatch):
 async def test_ensure_role_wires_model_target():
     agent = _Agent(config=AgentDependencies())
     cfg = FoundryAgentConfig(
-        endpoint="https://example.test",
+        endpoint=TEST_PROJECT_ENDPOINT,
         agent_id="pending",
         deployment_name="gpt-fast",
     )
@@ -79,7 +87,7 @@ async def test_ensure_role_wires_model_target():
 async def test_ensure_role_skips_wiring_when_id_remains_pending():
     agent = _Agent(config=AgentDependencies())
     cfg = FoundryAgentConfig(
-        endpoint="https://example.test",
+        endpoint=TEST_PROJECT_ENDPOINT,
         agent_id="fast-pending",
         deployment_name="gpt-fast",
     )

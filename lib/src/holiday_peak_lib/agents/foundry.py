@@ -12,12 +12,105 @@ import os
 from dataclasses import dataclass
 from time import perf_counter
 from typing import Any
+from urllib.parse import quote, unquote, urlsplit, urlunsplit
 
 from azure.ai.projects.aio import AIProjectClient
 from azure.core.exceptions import HttpResponseError
 from azure.identity.aio import DefaultAzureCredential
 
 from .base_agent import ModelTarget
+
+_FOUNDRY_PROJECT_HOST_SUFFIX = ".services.ai.azure.com"
+_FOUNDRY_RESOURCE_HOST_SUFFIX = ".cognitiveservices.azure.com"
+_FOUNDRY_PROJECT_PATH_PREFIX = "/api/projects/"
+
+
+class FoundryConfigurationError(ValueError):
+    """Raised when Foundry settings do not resolve to a valid project endpoint."""
+
+
+@dataclass(frozen=True)
+class _FoundryProjectEndpoint:
+    endpoint: str
+    project_name: str
+
+
+def _normalize_foundry_project_endpoint(
+    endpoint: str, project_name: str | None
+) -> _FoundryProjectEndpoint:
+    """Return a canonical project-scoped Foundry endpoint.
+
+    Accepts either a full project endpoint or an Azure AI Services account
+    endpoint that can be deterministically expanded when the project name is
+    available.
+    """
+
+    # No GoF pattern applies here; this is a simple configuration boundary normalizer.
+    raw_endpoint = str(endpoint or "").strip()
+    raw_project_name = str(project_name or "").strip() or None
+    if not raw_endpoint:
+        raise FoundryConfigurationError("PROJECT_ENDPOINT/FOUNDRY_ENDPOINT is required")
+
+    parsed = urlsplit(raw_endpoint)
+    if parsed.scheme.lower() != "https" or not parsed.hostname:
+        raise FoundryConfigurationError(
+            "PROJECT_ENDPOINT/FOUNDRY_ENDPOINT must be an absolute https URL"
+        )
+    if parsed.query or parsed.fragment:
+        raise FoundryConfigurationError(
+            "PROJECT_ENDPOINT/FOUNDRY_ENDPOINT must not include query parameters or fragments"
+        )
+
+    hostname = parsed.hostname.lower()
+    if hostname.endswith(_FOUNDRY_RESOURCE_HOST_SUFFIX):
+        resource_name = hostname[: -len(_FOUNDRY_RESOURCE_HOST_SUFFIX)]
+        normalized_host = f"{resource_name}{_FOUNDRY_PROJECT_HOST_SUFFIX}"
+    elif hostname.endswith(_FOUNDRY_PROJECT_HOST_SUFFIX):
+        normalized_host = hostname
+    else:
+        raise FoundryConfigurationError(
+            "PROJECT_ENDPOINT/FOUNDRY_ENDPOINT must use a '.services.ai.azure.com' "
+            "project host or a '.cognitiveservices.azure.com' resource host"
+        )
+
+    if parsed.port is not None:
+        normalized_host = f"{normalized_host}:{parsed.port}"
+
+    resolved_project_name: str | None = None
+    path = parsed.path or ""
+    if path not in {"", "/"}:
+        if not path.startswith(_FOUNDRY_PROJECT_PATH_PREFIX):
+            raise FoundryConfigurationError(
+                "PROJECT_ENDPOINT/FOUNDRY_ENDPOINT must be either a Foundry account "
+                "host or a project endpoint ending with '/api/projects/<project-name>'"
+            )
+
+        project_segment = path[len(_FOUNDRY_PROJECT_PATH_PREFIX) :].strip("/")
+        if not project_segment or "/" in project_segment:
+            raise FoundryConfigurationError(
+                "PROJECT_ENDPOINT/FOUNDRY_ENDPOINT must end with '/api/projects/<project-name>'"
+            )
+        resolved_project_name = unquote(project_segment)
+
+    if raw_project_name and resolved_project_name and raw_project_name != resolved_project_name:
+        raise FoundryConfigurationError(
+            "PROJECT_NAME/FOUNDRY_PROJECT_NAME must match the project encoded in "
+            "PROJECT_ENDPOINT/FOUNDRY_ENDPOINT"
+        )
+
+    resolved_project_name = resolved_project_name or raw_project_name
+    if not resolved_project_name:
+        raise FoundryConfigurationError(
+            "PROJECT_NAME/FOUNDRY_PROJECT_NAME is required when "
+            "PROJECT_ENDPOINT/FOUNDRY_ENDPOINT is not already project-scoped"
+        )
+
+    normalized_path = f"{_FOUNDRY_PROJECT_PATH_PREFIX}{quote(resolved_project_name, safe='')}"
+    normalized_endpoint = urlunsplit(("https", normalized_host, normalized_path, "", ""))
+    return _FoundryProjectEndpoint(
+        endpoint=normalized_endpoint,
+        project_name=resolved_project_name,
+    )
 
 
 @dataclass
@@ -28,8 +121,11 @@ class FoundryAgentConfig:
     :class:`azure.ai.projects.aio.AIProjectClient` and its ``agents`` subclient.
 
     Env vars (defaults):
-    - PROJECT_ENDPOINT or FOUNDRY_ENDPOINT: Azure AI Foundry project endpoint.
-    - PROJECT_NAME or FOUNDRY_PROJECT_NAME: Azure AI Foundry project name (optional).
+        - PROJECT_ENDPOINT or FOUNDRY_ENDPOINT: Azure AI Foundry project endpoint, or
+            an Azure AI Services account endpoint that can be expanded to a project
+            endpoint when the project name is supplied.
+        - PROJECT_NAME or FOUNDRY_PROJECT_NAME: Azure AI Foundry project name.
+            Required when the endpoint is not already project-scoped.
     - FOUNDRY_AGENT_ID: Agent ID created in the project.
     - MODEL_DEPLOYMENT_NAME: Optional model deployment associated with the agent.
     - FOUNDRY_STREAM: ``true`` to enable streaming aggregation by default.
@@ -42,6 +138,15 @@ class FoundryAgentConfig:
     project_name: str | None = None
     stream: bool = False
     credential: Any | None = None
+
+    def __post_init__(self) -> None:
+        self.apply_project_contract()
+
+    def apply_project_contract(self) -> None:
+        """Normalize endpoint/project settings to the canonical Foundry contract."""
+        resolved = _normalize_foundry_project_endpoint(self.endpoint, self.project_name)
+        self.endpoint = resolved.endpoint
+        self.project_name = resolved.project_name
 
     @classmethod
     def from_env(cls) -> "FoundryAgentConfig":
@@ -83,6 +188,7 @@ def _ensure_client(config: FoundryAgentConfig):
     :raises ImportError: If the required SDK packages are missing.
     """
     try:
+        config.apply_project_contract()
         credential = config.credential or DefaultAzureCredential()
         client = AIProjectClient(endpoint=config.endpoint, credential=credential)
         if config.credential is None:
@@ -104,6 +210,7 @@ def _ensure_agents_client(config: FoundryAgentConfig):
     try:
         from azure.ai.agents.aio import AgentsClient
 
+        config.apply_project_contract()
         credential = config.credential or DefaultAzureCredential()
         client = AgentsClient(endpoint=config.endpoint, credential=credential)
         if config.credential is None:
@@ -576,6 +683,8 @@ def build_foundry_model_target(config: FoundryAgentConfig) -> ModelTarget:
     :param config: Foundry configuration describing the target agent.
     :returns: A :class:`ModelTarget` that delegates to :class:`FoundryInvoker`.
     """
+
+    config.apply_project_contract()
 
     return ModelTarget(
         name=config.agent_name or config.agent_id,

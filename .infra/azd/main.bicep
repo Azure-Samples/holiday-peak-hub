@@ -84,7 +84,9 @@ output AI_SEARCH_INDEXER_NAME string = deployShared ? sharedInfra!.outputs.aiSea
 output EMBEDDING_DEPLOYMENT_NAME string = deployShared ? sharedInfra!.outputs.embeddingDeploymentName : ''
 output AI_SEARCH_AUTH_MODE string = deployShared ? sharedInfra!.outputs.aiSearchAuthMode : ''
 output PROJECT_NAME string = deployShared ? sharedInfra!.outputs.aiProjectName : ''
-output PROJECT_ENDPOINT string = deployShared ? 'https://${sharedInfra!.outputs.aiServicesName}.cognitiveservices.azure.com' : ''
+output PROJECT_ENDPOINT string = deployShared
+  ? 'https://${sharedInfra!.outputs.aiServicesName}.services.ai.azure.com/api/projects/${sharedInfra!.outputs.aiProjectName}'
+  : ''
 output COSMOS_ACCOUNT_URI string = deployShared ? sharedInfra!.outputs.cosmosEndpoint : ''
 output COSMOS_DATABASE string = deployShared ? sharedInfra!.outputs.databaseName : ''
 output KEY_VAULT_URI string = deployShared ? sharedInfra!.outputs.keyVaultUri : ''

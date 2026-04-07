@@ -12,6 +12,8 @@ from holiday_peak_lib.agents.memory.warm import WarmMemory
 from holiday_peak_lib.app_factory import build_service_app
 from holiday_peak_lib.connectors.registry import ConnectorRegistry
 
+TEST_PROJECT_ENDPOINT = "https://test.services.ai.azure.com/api/projects/test-project"
+
 
 class SampleServiceAgent(BaseRetailAgent):
     """Test agent for app factory."""
@@ -56,7 +58,7 @@ class TestBuildServiceApp:
     ):
         """Test building app with minimal configuration."""
         # Mock the foundry config builder
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-fast-123")
         monkeypatch.setenv("MODEL_DEPLOYMENT_NAME_FAST", "gpt-4o-mini")
 
@@ -80,7 +82,7 @@ class TestBuildServiceApp:
             async def handle(self, request: dict) -> dict:
                 return {"model_wired": bool(self.slm or self.llm)}
 
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.delenv("FOUNDRY_AGENT_ID_FAST", raising=False)
         monkeypatch.delenv("FOUNDRY_AGENT_ID_RICH", raising=False)
         monkeypatch.delenv("FOUNDRY_AGENT_NAME_FAST", raising=False)
@@ -127,7 +129,7 @@ class TestBuildServiceApp:
 
         from holiday_peak_lib.agents.base_agent import ModelTarget
 
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.delenv("FOUNDRY_AGENT_ID_FAST", raising=False)
         monkeypatch.delenv("FOUNDRY_AGENT_ID_RICH", raising=False)
         monkeypatch.delenv("FOUNDRY_AGENT_NAME_FAST", raising=False)
@@ -191,7 +193,7 @@ class TestBuildServiceApp:
             return {"response": "test"}
 
         slm_config = FoundryAgentConfig(
-            endpoint="https://test.endpoint.com",
+            endpoint=TEST_PROJECT_ENDPOINT,
             agent_id="slm-agent-123",
             deployment_name="gpt-4o-mini",
         )
@@ -218,7 +220,7 @@ class TestBuildServiceApp:
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
         """Test health endpoint."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-123")
 
         app = build_service_app(
@@ -240,7 +242,7 @@ class TestBuildServiceApp:
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
         """Test correlation ID is propagated to response headers."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-123")
 
         app = build_service_app(
@@ -262,7 +264,7 @@ class TestBuildServiceApp:
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
         """Test invoke endpoint."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-123")
 
         app = build_service_app(
@@ -284,7 +286,7 @@ class TestBuildServiceApp:
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
         """Test app with MCP setup callback."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-123")
 
         setup_called = {"value": False}
@@ -310,7 +312,7 @@ class TestBuildServiceApp:
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
         """Test that required routes are registered."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-123")
 
         app = build_service_app(
@@ -333,7 +335,7 @@ class TestBuildServiceApp:
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
         """Test route handlers can reuse the exact built agent instance via app.state."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-123")
 
         app = build_service_app(
@@ -351,7 +353,7 @@ class TestBuildServiceApp:
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
         """Test connector registry is attached to app state and used by endpoints."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-123")
 
         registry = ConnectorRegistry()
@@ -381,7 +383,7 @@ class TestBuildServiceApp:
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
         """Test service exposes endpoint to ensure/create Foundry agents."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-fast-123")
         monkeypatch.setenv("MODEL_DEPLOYMENT_NAME_FAST", "gpt-4o-mini")
 
@@ -415,7 +417,7 @@ class TestBuildServiceApp:
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
         """Test ensure endpoint passes structured defaults when request has no instructions."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-fast-123")
 
         app = build_service_app(
@@ -453,7 +455,7 @@ class TestBuildServiceApp:
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
         """Test request instruction override is blocked unless explicitly enabled."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-fast-123")
         monkeypatch.delenv("FOUNDRY_ALLOW_INSTRUCTION_OVERRIDE", raising=False)
 
@@ -482,7 +484,7 @@ class TestBuildServiceApp:
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
         """Test request instructions override defaults when explicitly enabled."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-fast-123")
         monkeypatch.setenv("FOUNDRY_ALLOW_INSTRUCTION_OVERRIDE", "true")
 
@@ -524,7 +526,7 @@ class TestBuildServiceApp:
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
         """Test /ready returns 200 when strict enforcement is not enabled."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-123")
         monkeypatch.delenv("FOUNDRY_STRICT_ENFORCEMENT", raising=False)
 
@@ -602,7 +604,7 @@ class TestBuildServiceApp:
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
         """Test /ready returns 503 when strict mode active and agents not ensured."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.delenv("FOUNDRY_AGENT_ID_FAST", raising=False)
         monkeypatch.delenv("FOUNDRY_AGENT_ID_RICH", raising=False)
         monkeypatch.setenv("FOUNDRY_STRICT_ENFORCEMENT", "true")
@@ -629,7 +631,7 @@ class TestBuildServiceApp:
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
         """Test /ready flips to 200 after agents are ensured when readiness is required."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.delenv("FOUNDRY_AGENT_ID_FAST", raising=False)
         monkeypatch.delenv("FOUNDRY_AGENT_ID_RICH", raising=False)
         monkeypatch.setenv("FOUNDRY_STRICT_ENFORCEMENT", "true")
@@ -672,7 +674,7 @@ class TestBuildServiceApp:
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
         """Test strict mode auto-runs ensure during invoke before routing."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.delenv("FOUNDRY_AGENT_ID_FAST", raising=False)
         monkeypatch.delenv("FOUNDRY_AGENT_ID_RICH", raising=False)
         monkeypatch.setenv("FOUNDRY_STRICT_ENFORCEMENT", "true")
@@ -701,7 +703,7 @@ class TestBuildServiceApp:
 
     def test_build_foundry_config_from_env(self, monkeypatch):
         """Test building Foundry config from environment."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-fast-123")
         monkeypatch.setenv("MODEL_DEPLOYMENT_NAME_FAST", "gpt-4o-mini")
         monkeypatch.setenv("FOUNDRY_AGENT_ID_RICH", "agent-rich-456")
@@ -713,7 +715,7 @@ class TestBuildServiceApp:
         llm_config = _build_foundry_config("FOUNDRY_AGENT_ID_RICH", "MODEL_DEPLOYMENT_NAME_RICH")
 
         assert slm_config is not None
-        assert slm_config.endpoint == "https://test.endpoint.com"
+        assert slm_config.endpoint == TEST_PROJECT_ENDPOINT
         assert slm_config.agent_id == "agent-fast-123"
         assert llm_config.agent_id == "agent-rich-456"
 
@@ -730,7 +732,7 @@ class TestBuildServiceApp:
 
     def test_build_foundry_config_with_streaming(self, monkeypatch):
         """Test building Foundry config with streaming enabled."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-123")
         monkeypatch.setenv("FOUNDRY_STREAM", "true")
 
@@ -749,7 +751,7 @@ class TestAppFactoryIntegration:
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
         """Test complete service setup."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-fast")
         monkeypatch.setenv("FOUNDRY_AGENT_ID_RICH", "agent-rich")
 
@@ -775,7 +777,7 @@ class TestAppFactoryIntegration:
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
         """Test building apps with different agent classes."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-123")
 
         class CustomAgent(BaseRetailAgent):

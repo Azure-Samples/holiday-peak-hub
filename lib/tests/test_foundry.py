@@ -8,9 +8,21 @@ from azure.core.exceptions import HttpResponseError
 from holiday_peak_lib.agents.foundry import (
     FoundryAgentConfig,
     FoundryInvoker,
+    _ensure_client,
     build_foundry_model_target,
     ensure_foundry_agent,
 )
+
+TEST_PROJECT_NAME = "test-project"
+TEST_PROJECT_ENDPOINT = (
+    f"https://test.services.ai.azure.com/api/projects/{TEST_PROJECT_NAME}"
+)
+TEST_RESOURCE_ENDPOINT = "https://test.cognitiveservices.azure.com"
+ALTERNATE_PROJECT_NAME = "alternate-project"
+ALTERNATE_PROJECT_ENDPOINT = (
+    f"https://alternate.services.ai.azure.com/api/projects/{ALTERNATE_PROJECT_NAME}"
+)
+ALTERNATE_RESOURCE_ENDPOINT = "https://alternate.cognitiveservices.azure.com"
 
 
 class TestFoundryAgentConfig:
@@ -18,16 +30,16 @@ class TestFoundryAgentConfig:
 
     def test_from_env_with_all_vars(self, monkeypatch):
         """Test config creation from environment variables."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.openai.azure.com")
-        monkeypatch.setenv("PROJECT_NAME", "test-project")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_RESOURCE_ENDPOINT)
+        monkeypatch.setenv("PROJECT_NAME", TEST_PROJECT_NAME)
         monkeypatch.setenv("FOUNDRY_AGENT_ID", "agent-123")
         monkeypatch.setenv("MODEL_DEPLOYMENT_NAME", "gpt-4")
         monkeypatch.setenv("FOUNDRY_STREAM", "true")
 
         config = FoundryAgentConfig.from_env()
 
-        assert config.endpoint == "https://test.openai.azure.com"
-        assert config.project_name == "test-project"
+        assert config.endpoint == TEST_PROJECT_ENDPOINT
+        assert config.project_name == TEST_PROJECT_NAME
         assert config.agent_id == "agent-123"
         assert config.deployment_name == "gpt-4"
         assert config.stream is True
@@ -37,15 +49,44 @@ class TestFoundryAgentConfig:
         monkeypatch.delenv("PROJECT_ENDPOINT", raising=False)
         monkeypatch.delenv("PROJECT_NAME", raising=False)
         monkeypatch.delenv("FOUNDRY_AGENT_ID", raising=False)
-        monkeypatch.setenv("FOUNDRY_ENDPOINT", "https://alternate.openai.azure.com")
-        monkeypatch.setenv("FOUNDRY_PROJECT_NAME", "alternate-project")
+        monkeypatch.setenv("FOUNDRY_ENDPOINT", ALTERNATE_RESOURCE_ENDPOINT)
+        monkeypatch.setenv("FOUNDRY_PROJECT_NAME", ALTERNATE_PROJECT_NAME)
         monkeypatch.setenv("AGENT_ID", "agent-456")
 
         config = FoundryAgentConfig.from_env()
 
-        assert config.endpoint == "https://alternate.openai.azure.com"
-        assert config.project_name == "alternate-project"
+        assert config.endpoint == ALTERNATE_PROJECT_ENDPOINT
+        assert config.project_name == ALTERNATE_PROJECT_NAME
         assert config.agent_id == "agent-456"
+
+    def test_from_env_extracts_project_name_from_project_endpoint(self, monkeypatch):
+        """Test project-scoped endpoints remain valid without a separate project name."""
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
+        monkeypatch.delenv("PROJECT_NAME", raising=False)
+        monkeypatch.setenv("FOUNDRY_AGENT_ID", "agent-123")
+
+        config = FoundryAgentConfig.from_env()
+
+        assert config.endpoint == TEST_PROJECT_ENDPOINT
+        assert config.project_name == TEST_PROJECT_NAME
+
+    def test_from_env_rejects_mismatched_project_name(self, monkeypatch):
+        """Test mismatch between endpoint path and project name fails fast."""
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
+        monkeypatch.setenv("PROJECT_NAME", "other-project")
+        monkeypatch.setenv("FOUNDRY_AGENT_ID", "agent-123")
+
+        with pytest.raises(ValueError, match="must match the project encoded"):
+            FoundryAgentConfig.from_env()
+
+    def test_from_env_rejects_unscoped_endpoint_without_project_name(self, monkeypatch):
+        """Test account endpoints require a project name for derivation."""
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_RESOURCE_ENDPOINT)
+        monkeypatch.delenv("PROJECT_NAME", raising=False)
+        monkeypatch.setenv("FOUNDRY_AGENT_ID", "agent-123")
+
+        with pytest.raises(ValueError, match="PROJECT_NAME/FOUNDRY_PROJECT_NAME is required"):
+            FoundryAgentConfig.from_env()
 
     def test_from_env_missing_endpoint(self, monkeypatch):
         """Test error when endpoint is missing."""
@@ -58,7 +99,7 @@ class TestFoundryAgentConfig:
 
     def test_from_env_missing_agent_id(self, monkeypatch):
         """Test error when agent ID is missing."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.openai.azure.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.delenv("FOUNDRY_AGENT_ID", raising=False)
         monkeypatch.delenv("FOUNDRY_AGENT_NAME", raising=False)
         monkeypatch.delenv("AGENT_ID", raising=False)
@@ -68,7 +109,7 @@ class TestFoundryAgentConfig:
 
     def test_stream_flag_variants(self, monkeypatch):
         """Test different stream flag values."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.openai.azure.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID", "agent-123")
 
         # Test "1"
@@ -92,7 +133,7 @@ class TestFoundryInvoker:
     async def test_invoke_non_streaming(self, mock_ensure_agents_client):
         """Test non-streaming invocation."""
         config = FoundryAgentConfig(
-            endpoint="https://test.openai.azure.com",
+            endpoint=TEST_PROJECT_ENDPOINT,
             agent_id="agent-123",
             agent_name="catalog-fast",
             stream=False,
@@ -133,6 +174,7 @@ class TestFoundryInvoker:
         assert result["response_id"] == "run-123"
         assert not result["stream"]
         assert "telemetry" in result
+        assert result["telemetry"]["endpoint"] == TEST_PROJECT_ENDPOINT
         assert result["telemetry"]["api_version"] == "v2"
         mock_client_instance.runs.create_and_process.assert_called_once()
 
@@ -140,7 +182,7 @@ class TestFoundryInvoker:
     async def test_invoke_with_existing_conversation(self, mock_ensure_agents_client):
         """Test invocation with an existing conversation id (thread id)."""
         config = FoundryAgentConfig(
-            endpoint="https://test.openai.azure.com",
+            endpoint=TEST_PROJECT_ENDPOINT,
             agent_id="agent-123",
             agent_name="catalog-fast",
             stream=True,
@@ -183,7 +225,7 @@ class TestBuildFoundryModelTarget:
     def test_build_model_target_basic(self):
         """Test building a basic foundry model target."""
         config = FoundryAgentConfig(
-            endpoint="https://test.openai.azure.com",
+            endpoint=TEST_PROJECT_ENDPOINT,
             agent_id="agent-123",
             deployment_name="gpt-4",
         )
@@ -198,7 +240,7 @@ class TestBuildFoundryModelTarget:
     def test_build_model_target_with_streaming(self):
         """Test building a streaming model target."""
         config = FoundryAgentConfig(
-            endpoint="https://test.openai.azure.com", agent_id="agent-456", stream=True
+            endpoint=TEST_PROJECT_ENDPOINT, agent_id="agent-456", stream=True
         )
 
         target = build_foundry_model_target(config)
@@ -212,8 +254,30 @@ class TestBuildFoundryModelTarget:
 class TestEnsureFoundryAgent:
     """Tests for ensure_foundry_agent helper."""
 
+    @patch("holiday_peak_lib.agents.foundry.AIProjectClient")
+    @patch("holiday_peak_lib.agents.foundry.DefaultAzureCredential")
+    async def test_ensure_client_derives_project_endpoint(self, mock_credential_cls, mock_client_cls):
+        """Test ensure path always uses the normalized project endpoint."""
+        credential = MagicMock()
+        mock_credential_cls.return_value = credential
+        mock_client = MagicMock()
+        mock_client_cls.return_value = mock_client
+        config = FoundryAgentConfig(
+            endpoint=TEST_RESOURCE_ENDPOINT,
+            project_name=TEST_PROJECT_NAME,
+            agent_id="agent-123",
+        )
+
+        result = _ensure_client(config)
+
+        assert result is mock_client
+        mock_client_cls.assert_called_once_with(
+            endpoint=TEST_PROJECT_ENDPOINT,
+            credential=credential,
+        )
+
     async def test_ensure_agent_exists_by_id(self):
-        config = FoundryAgentConfig(endpoint="https://test", agent_id="agent-123")
+        config = FoundryAgentConfig(endpoint=TEST_PROJECT_ENDPOINT, agent_id="agent-123")
         mock_client = MagicMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=None)
@@ -230,7 +294,7 @@ class TestEnsureFoundryAgent:
         assert result["created"] is False
 
     async def test_ensure_agent_found_by_name(self):
-        config = FoundryAgentConfig(endpoint="https://test", agent_id="missing-id")
+        config = FoundryAgentConfig(endpoint=TEST_PROJECT_ENDPOINT, agent_id="missing-id")
         mock_client = MagicMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=None)
@@ -247,7 +311,7 @@ class TestEnsureFoundryAgent:
         assert result["created"] is False
 
     async def test_ensure_agent_creates_when_missing(self):
-        config = FoundryAgentConfig(endpoint="https://test", agent_id="missing-id")
+        config = FoundryAgentConfig(endpoint=TEST_PROJECT_ENDPOINT, agent_id="missing-id")
         mock_client = MagicMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=None)
@@ -273,7 +337,7 @@ class TestEnsureFoundryAgent:
 
     async def test_ensure_agent_creates_when_list_fails(self):
         config = FoundryAgentConfig(
-            endpoint="https://test",
+            endpoint=TEST_PROJECT_ENDPOINT,
             agent_id="missing-id",
             deployment_name="gpt-4o-mini",
         )
@@ -298,7 +362,7 @@ class TestEnsureFoundryAgent:
         assert result["agent_id"] == "svc-fast:2"
 
     async def test_ensure_agent_returns_missing_model_when_create_requested(self):
-        config = FoundryAgentConfig(endpoint="https://test", agent_id="missing-id")
+        config = FoundryAgentConfig(endpoint=TEST_PROJECT_ENDPOINT, agent_id="missing-id")
         mock_client = MagicMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=None)
@@ -319,7 +383,7 @@ class TestEnsureFoundryAgent:
 
     async def test_ensure_agent_returns_create_failed_on_service_invocation(self):
         config = FoundryAgentConfig(
-            endpoint="https://test",
+            endpoint=TEST_PROJECT_ENDPOINT,
             agent_id="missing-id",
             deployment_name="gpt-4o-mini",
         )
@@ -347,7 +411,7 @@ class TestEnsureFoundryAgent:
         assert result["error_code"] == "UserError.ServiceInvocationException"
 
     async def test_ensure_agent_returns_agents_unavailable_on_list(self):
-        config = FoundryAgentConfig(endpoint="https://test", agent_id="missing-id")
+        config = FoundryAgentConfig(endpoint=TEST_PROJECT_ENDPOINT, agent_id="missing-id")
         mock_client = MagicMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=None)

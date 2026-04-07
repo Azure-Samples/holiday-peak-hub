@@ -5,6 +5,8 @@ from ecommerce_catalog_search.ai_search import AISearchIndexStatus, AISearchSeed
 from ecommerce_catalog_search.main import create_app
 from fastapi.testclient import TestClient
 
+TEST_PROJECT_ENDPOINT = "https://test.services.ai.azure.com/api/projects/test-project"
+
 
 @pytest.fixture(autouse=True)
 def clear_ai_search_environment(monkeypatch):
@@ -52,7 +54,7 @@ def test_agent_activity_endpoints():
 
 
 def test_ready_returns_503_when_strict_mode_ai_search_not_ready(monkeypatch):
-    monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+    monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
     monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-fast-123")
     monkeypatch.setenv("CATALOG_SEARCH_REQUIRE_AI_SEARCH", "true")
 
