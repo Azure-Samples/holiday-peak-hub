@@ -14,9 +14,7 @@ from holiday_peak_lib.agents.foundry import (
 )
 
 TEST_PROJECT_NAME = "test-project"
-TEST_PROJECT_ENDPOINT = (
-    f"https://test.services.ai.azure.com/api/projects/{TEST_PROJECT_NAME}"
-)
+TEST_PROJECT_ENDPOINT = f"https://test.services.ai.azure.com/api/projects/{TEST_PROJECT_NAME}"
 TEST_RESOURCE_ENDPOINT = "https://test.cognitiveservices.azure.com"
 ALTERNATE_PROJECT_NAME = "alternate-project"
 ALTERNATE_PROJECT_ENDPOINT = (
@@ -256,7 +254,9 @@ class TestEnsureFoundryAgent:
 
     @patch("holiday_peak_lib.agents.foundry.AIProjectClient")
     @patch("holiday_peak_lib.agents.foundry.DefaultAzureCredential")
-    async def test_ensure_client_derives_project_endpoint(self, mock_credential_cls, mock_client_cls):
+    async def test_ensure_client_derives_project_endpoint(
+        self, mock_credential_cls, mock_client_cls
+    ):
         """Test ensure path always uses the normalized project endpoint."""
         credential = MagicMock()
         mock_credential_cls.return_value = credential

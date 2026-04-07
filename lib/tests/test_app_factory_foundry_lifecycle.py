@@ -13,9 +13,7 @@ from holiday_peak_lib.app_factory_components.foundry_lifecycle import (
 )
 
 TEST_PROJECT_NAME = "catalog-search"
-TEST_PROJECT_ENDPOINT = (
-    f"https://example.services.ai.azure.com/api/projects/{TEST_PROJECT_NAME}"
-)
+TEST_PROJECT_ENDPOINT = f"https://example.services.ai.azure.com/api/projects/{TEST_PROJECT_NAME}"
 TEST_RESOURCE_ENDPOINT = "https://example.cognitiveservices.azure.com"
 
 
