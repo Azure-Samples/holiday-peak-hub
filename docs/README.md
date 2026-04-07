@@ -58,7 +58,7 @@ Use environment-specific entry workflows:
 
 For the protected live suite, store these values in the GitHub Environment `dev` and keep Azure authentication OIDC-only. Do not add client secrets, connection strings, or API keys for live validation.
 
-Repository code establishes this environment-scoped secret boundary. To complete the protected-environment model, a repo admin must enable selected-branch deployment protection on `main` for the `dev` environment.
+Repository code establishes this environment-scoped secret boundary. The `dev` environment must remain configured with selected-branch deployment protection on `main`.
 
 **Entry workflow inputs**:
 
@@ -107,7 +107,7 @@ Core workflow note: `.github/workflows/deploy-azd.yml` is reusable-only and not 
 - UI deployment intentionally uses the SWA GitHub Action path (not `azd deploy --service ui`) so App Router dynamic segments (`[id]`, `[slug]`) are built in the same mode as standard SWA workflows.
 - Frontend API calls must always use APIM via validated runtime env aliases (`NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_CRUD_API_URL` are set together in deployment workflows).
 - Demo seeding uses a curated catalog of 10 categories and 100 products with realistic retail data. Re-runs are idempotent by item ID (`cat-*`, `prd-*`): existing seeded records are updated instead of duplicated.
-- Use GitHub Environment protection rules for privileged `dev` validation and for `staging`/`prod` deployment paths; for `dev`, enabling selected-branch deployment protection on `main` is a repo-admin follow-up.
+- Use GitHub Environment protection rules for privileged `dev` validation and for `staging`/`prod` deployment paths; for `dev`, selected-branch deployment protection on `main` is required.
 - Keep image tags immutable for reproducible rollback.
 
 **Local demo seeding (manual)**:

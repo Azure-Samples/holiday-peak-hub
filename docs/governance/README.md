@@ -73,7 +73,7 @@ Detailed policy is defined in [Infrastructure Governance](infrastructure-governa
 - `.github/workflows/protected-dev-live-agent-readiness.yml` is the only approved privileged live validation workflow for the dev environment.
 - The workflow is bound to the GitHub Environment `dev` with environment-scoped `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and `AZURE_SUBSCRIPTION_ID` values for Azure OIDC login.
 - Allowed triggers are `workflow_run` after successful `deploy-azd-dev (entrypoint)` runs on `main`, `workflow_dispatch`, and `schedule`.
-- Repository code establishes the privileged workflow and environment-scoped secret boundary. To complete the protected-environment model, a repo admin must enable selected-branch deployment protection on `main` for the `dev` environment.
+- Repository code establishes the privileged workflow and environment-scoped secret boundary. The `dev` environment must remain configured with selected-branch deployment protection on `main`.
 - The workflow must not run on `pull_request`, `pull_request_target`, or other untrusted contributor contexts because it reaches live Azure resources behind a privileged environment boundary.
 
 ## Enforcement Model

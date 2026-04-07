@@ -33,7 +33,7 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 | --- | --- | --- | --- |
 | Entrypoint workflow | `deploy-azd-dev.yml` | `deploy-azd-prod.yml` | Not currently provisioned as dedicated workflow |
 | Trigger model | `push` to `main` + `workflow_dispatch` | Stable tag push `v*.*.*` | Manual via reusable workflow only if explicitly configured |
-| Protected live validation | `protected-dev-live-agent-readiness.yml` via the `dev` environment boundary on trusted `workflow_run`, `workflow_dispatch`, and `schedule`; selected-branch deployment protection on `main` remains a repo-admin step | N/A | N/A |
+| Protected live validation | `protected-dev-live-agent-readiness.yml` via the `dev` environment boundary on trusted `workflow_run`, `workflow_dispatch`, and `schedule`; the `dev` environment must remain restricted to the selected branch `main` | N/A | N/A |
 | Release gate | Not required | Required: published, non-draft, non-prerelease GitHub Release | N/A |
 | Main lineage gate | Not required | Required: tagged commit must be reachable from `main` | N/A |
 | Demo data seeding mode | Local/manual only (not part of CI deploy) | Local/manual only | Local/manual only |
@@ -55,7 +55,7 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 - Forbidden triggers are `pull_request`, `pull_request_target`, and other untrusted contributor contexts.
 - Authentication must use OIDC-backed `azure/login`; do not introduce Azure client secrets, API keys, connection strings, or repository-committed credentials.
 - Store `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and `AZURE_SUBSCRIPTION_ID` in the `dev` environment so privileged live checks remain isolated from standard PR automation.
-- Repository code establishes the privileged workflow and environment-scoped secret boundary, but GitHub Environment protection rules are external to repository code. A repo admin must enable selected-branch deployment protection on `main` for `dev` to complete the protected-environment model.
+- Repository code establishes the privileged workflow and environment-scoped secret boundary, while GitHub Environment protection rules remain external to repository code. The `dev` environment must remain configured with selected-branch deployment protection on `main`.
 - This workflow is operational evidence and must not be added to required PR status checks.
 
 ## Security and Access Controls
@@ -120,7 +120,7 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 4. Smoke checks passed for CRUD/API/UI scope deployed.
 5. Any temporary firewall exceptions removed after deployment.
 6. Architecture/governance docs updated when policy changes.
-7. Privileged live validation remains bound to the `dev` environment and excluded from PR contexts; selected-branch deployment protection on `main` must be enabled on that environment by a repo admin.
+7. Privileged live validation remains bound to the `dev` environment, excluded from PR contexts, and constrained by selected-branch deployment protection on `main`.
 8. Changed agent services passed the Foundry runtime contract gate across workflow intent, rendered manifests, live Deployment env values, ensure responses, and `/ready` validation.
 
 ## ADR References
