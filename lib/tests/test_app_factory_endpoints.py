@@ -182,6 +182,63 @@ def test_invoke_auto_ensures_foundry_before_routing():
     assert ensure_calls == 1
 
 
+def test_invoke_fails_closed_when_foundry_required_and_unresolved():
+    app = FastAPI()
+    foundry_ready = False
+    runtime_definitions_missing = True
+    ensure_calls = 0
+
+    def _is_ready() -> bool:
+        return foundry_ready
+
+    def _set_ready(value: bool) -> None:
+        nonlocal foundry_ready
+        foundry_ready = value
+
+    def _requires_runtime_resolution() -> bool:
+        return runtime_definitions_missing
+
+    async def _ensure_handler(_payload: dict | None) -> dict:
+        nonlocal ensure_calls
+        ensure_calls += 1
+        return {
+            "service": "svc",
+            "strict_foundry_mode": False,
+            "foundry_ready": False,
+            "results": {"fast": {"status": "missing", "agent_id": None}},
+        }
+
+    register_standard_endpoints(
+        app,
+        service_name="svc",
+        registry=_Registry(),
+        router=_Router(),
+        tracer=_Tracer(),
+        logger=_Logger(),
+        strict_foundry_mode=False,
+        require_foundry_readiness=True,
+        is_foundry_ready=_is_ready,
+        set_foundry_ready=_set_ready,
+        requires_foundry_runtime_resolution=_requires_runtime_resolution,
+        foundry_capabilities=lambda: {
+            "project_configured": True,
+            "ready": foundry_ready,
+            "configured_roles": ["fast"],
+            "resolved_roles": [],
+            "unresolved_roles": ["fast"],
+            "runtime_resolution_required": runtime_definitions_missing,
+            "last_error": {"status": "missing", "role": "fast"},
+        },
+        ensure_agents_handler=_ensure_handler,
+    )
+
+    client = TestClient(app)
+    response = client.post("/invoke", json={"query": "hello"})
+
+    assert response.status_code == 503
+    assert ensure_calls == 1
+
+
 def test_invoke_emits_degraded_outcome_telemetry():
     app = FastAPI()
     foundry_ready = True

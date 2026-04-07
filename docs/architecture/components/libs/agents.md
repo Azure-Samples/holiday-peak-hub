@@ -314,11 +314,11 @@ When `create_if_missing=true`, agent creation requires a model to be provided vi
 
 - Library default (`build_service_app` / `create_standard_app`) is **Foundry-preferred, not required**.
 - Agentic services opt into enforcement with `require_foundry_readiness=True`.
-- When enforcement is enabled, `/ready` returns `503` if no callable Foundry target is bound.
-- When enforcement is disabled, `/ready` remains `200` and reports `foundry_ready=false`.
+- When enforcement is enabled, `/ready` returns `503` until every configured Foundry role has a verified runtime binding.
+- When enforcement is disabled, `/ready` remains `200`; `foundry_ready` reflects whether at least one callable Foundry target is available, and unresolved roles are still reported in the payload.
 
-- `ready` means at least one Foundry model target (SLM or LLM) is active.
-- `not_ready` means Foundry is unresolved for runtime calls and traffic should not be routed.
+- `ready` is contextual to the service contract: non-enforced services report callable-target readiness, while enforced services require every configured role to verify successfully.
+- `not_ready` means enforced traffic should not be routed because one or more configured roles remain unresolved or the latest Foundry ensure/verification attempt recorded an error state.
 - Use `POST /foundry/agents/ensure` to provision/resolve targets before serving requests.
 
 Readiness payload now includes a `foundry` capability object with:
@@ -326,10 +326,14 @@ Readiness payload now includes a `foundry` capability object with:
 - `project_configured`
 - `endpoint_configured`
 - `configured_roles`
+- `resolved_roles`
 - `unresolved_roles`
+- `last_error`
 - `agent_targets_bound`
 - `runtime_resolution_required`
 - `auto_ensure_on_startup`
+
+`POST /invoke` reuses the same ensure path and fails closed for enforced agentic services when configured roles remain unresolved or Foundry verification fails.
 
 Foundry tracer collection can be controlled per service via
 `disable_tracing_without_foundry` on `create_standard_app` / `build_service_app`.
@@ -516,7 +520,7 @@ async def call_tool(self, tool_name: str, args: dict) -> ToolResult:
         return ToolResult.from_dict(cached)
     
     # Call tool
-    result = await self.tools[tool_name](**args)
+    result = await self._invoke_tool(tool_name, args)
     
     # Cache for 5 minutes
     await self.memory.hot.set(cache_key, result.to_dict(), ttl=300)

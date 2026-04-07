@@ -73,10 +73,10 @@ class TestBuildServiceApp:
         assert isinstance(app, FastAPI)
         assert app.title == "test-service"
 
-    def test_build_app_skips_pending_foundry_runtime_targets(
+    def test_build_app_fails_closed_for_pending_foundry_runtime_targets_when_required(
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
-        """Test unresolved Foundry runtime defs do not block fallback invoke paths."""
+        """Test unresolved Foundry runtime defs fail closed when readiness is required."""
 
         class ModelAwareAgent(BaseRetailAgent):
             async def handle(self, request: dict) -> dict:
@@ -109,13 +109,21 @@ class TestBuildServiceApp:
             }
             response = client.post("/invoke", json={"query": "test"})
 
-        assert response.status_code == 200
-        assert response.json()["model_wired"] is False
+        assert response.status_code == 503
+
+        ready_response = client.get("/ready")
+        assert ready_response.status_code == 503
+        foundry_detail = ready_response.json()["detail"]["foundry"]
+        assert foundry_detail["configured_roles"] == ["fast", "rich"]
+        assert foundry_detail["resolved_roles"] == []
+        assert foundry_detail["unresolved_roles"] == ["fast", "rich"]
+        assert foundry_detail["last_error"]["status"] == "missing"
+        assert foundry_detail["last_error"]["role"] == "fast"
 
     def test_build_app_skips_name_only_foundry_runtime_targets(
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
-        """Test name-only Foundry config remains unbound until ensure resolves an id."""
+        """Test optional name-only Foundry config still allows fallback invoke paths."""
 
         class ModelAwareAgent(BaseRetailAgent):
             async def handle(self, request: dict) -> dict:
@@ -134,11 +142,17 @@ class TestBuildServiceApp:
             hot_memory=mock_hot_memory,
             warm_memory=mock_warm_memory,
             cold_memory=mock_cold_memory,
-            require_foundry_readiness=True,
         )
 
         client = TestClient(app)
-        response = client.post("/invoke", json={"query": "test"})
+        with patch("holiday_peak_lib.app_factory.ensure_foundry_agent") as mock_ensure:
+            mock_ensure.return_value = {
+                "status": "missing",
+                "agent_id": None,
+                "agent_name": "catalog-fast",
+                "created": False,
+            }
+            response = client.post("/invoke", json={"query": "test"})
 
         assert response.status_code == 200
         assert response.json()["model_wired"] is False
@@ -577,6 +591,8 @@ class TestBuildServiceApp:
         assert data["service"] == "test-service"
         assert data["foundry_ready"] is True
         assert data["foundry_required"] is False
+        assert data["foundry"]["resolved_roles"] == ["fast"]
+        assert data["foundry"]["unresolved_roles"] == ["rich"]
 
     def test_ready_endpoint_returns_ok_when_foundry_missing_and_not_required(
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
@@ -657,6 +673,35 @@ class TestBuildServiceApp:
         detail = response.json()["detail"]
         assert detail["status"] == "not_ready"
         assert detail["service"] == "test-service"
+        assert detail["foundry"]["configured_roles"] == ["fast", "rich"]
+        assert detail["foundry"]["resolved_roles"] == []
+        assert detail["foundry"]["unresolved_roles"] == ["fast", "rich"]
+        assert detail["foundry"]["last_error"] is None
+
+    def test_ready_endpoint_returns_503_when_strict_mode_has_configured_unbound_roles(
+        self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
+    ):
+        """Test strict Foundry mode is driven by configured roles, not pre-bound targets."""
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
+        monkeypatch.delenv("FOUNDRY_AGENT_ID_FAST", raising=False)
+        monkeypatch.delenv("FOUNDRY_AGENT_ID_RICH", raising=False)
+        monkeypatch.setenv("FOUNDRY_STRICT_ENFORCEMENT", "true")
+        monkeypatch.setenv("FOUNDRY_AUTO_ENSURE_ON_STARTUP", "false")
+
+        app = build_service_app(
+            service_name="test-service",
+            agent_class=SampleServiceAgent,
+            hot_memory=mock_hot_memory,
+            warm_memory=mock_warm_memory,
+            cold_memory=mock_cold_memory,
+        )
+        client = TestClient(app)
+        response = client.get("/ready")
+
+        assert response.status_code == 503
+        detail = response.json()["detail"]
+        assert detail["foundry"]["strict_mode"] is True
+        assert detail["foundry"]["configured_roles"] == ["fast", "rich"]
 
     def test_ready_endpoint_returns_ok_after_ensure_in_strict_mode(
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
@@ -683,15 +728,23 @@ class TestBuildServiceApp:
 
         # Ensure agents
         with patch("holiday_peak_lib.app_factory.ensure_foundry_agent") as mock_ensure:
-            mock_ensure.return_value = {
-                "status": "exists",
-                "agent_id": "agent-123",
-                "agent_name": "test-service-fast",
-                "created": False,
-            }
+            mock_ensure.side_effect = [
+                {
+                    "status": "exists",
+                    "agent_id": "agent-fast-123",
+                    "agent_name": "test-service-fast",
+                    "created": False,
+                },
+                {
+                    "status": "exists",
+                    "agent_id": "agent-rich-456",
+                    "agent_name": "test-service-rich",
+                    "created": False,
+                },
+            ]
             ensure_resp = client.post(
                 "/foundry/agents/ensure",
-                json={"role": "fast", "create_if_missing": True},
+                json={"role": "both", "create_if_missing": True},
             )
         assert ensure_resp.status_code == 200
         assert ensure_resp.json()["foundry_ready"] is True

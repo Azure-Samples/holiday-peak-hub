@@ -9,6 +9,8 @@ from holiday_peak_lib.app_factory_components.foundry_lifecycle import (
     FoundryLifecycleManager,
     auto_ensure_on_startup_enabled,
     build_foundry_config,
+    build_foundry_readiness_snapshot,
+    first_foundry_error_state,
     strict_foundry_mode_enabled,
 )
 
@@ -56,6 +58,62 @@ def test_foundry_mode_flags(monkeypatch):
 
     monkeypatch.setenv("FOUNDRY_AUTO_ENSURE_ON_STARTUP", "true")
     assert auto_ensure_on_startup_enabled(strict_foundry_mode=True) is True
+
+
+def test_build_foundry_readiness_snapshot_requires_all_configured_roles():
+    agent = _Agent(config=AgentDependencies())
+    agent.slm = "target-fast"
+
+    slm_cfg = FoundryAgentConfig(
+        endpoint=TEST_PROJECT_ENDPOINT,
+        agent_id="agent-fast",
+        deployment_name="gpt-fast",
+    )
+    llm_cfg = FoundryAgentConfig(
+        endpoint=TEST_PROJECT_ENDPOINT,
+        agent_id="rich-pending",
+        agent_name="svc-rich",
+        deployment_name="gpt-rich",
+        resolved_agent_id=None,
+    )
+
+    snapshot = build_foundry_readiness_snapshot(
+        agent=agent,
+        slm_config=slm_cfg,
+        llm_config=llm_cfg,
+        require_foundry_readiness=True,
+        strict_foundry_mode=True,
+        auto_ensure_on_startup=False,
+        last_error=None,
+    )
+
+    assert snapshot.ready is False
+    assert snapshot.configured_roles == ("fast", "rich")
+    assert snapshot.resolved_roles == ("fast",)
+    assert snapshot.unresolved_roles == ("rich",)
+    assert snapshot.runtime_resolution_required is True
+
+
+def test_first_foundry_error_state_returns_role_context():
+    error_state = first_foundry_error_state(
+        {
+            "fast": {
+                "status": "agents_service_unavailable",
+                "agent_id": None,
+                "agent_name": "svc-fast",
+                "created": False,
+                "error_code": "UserError.ServiceInvocationException",
+                "detail": "Foundry backend unavailable",
+            }
+        },
+        configured_roles=("fast", "rich"),
+    )
+
+    assert error_state is not None
+    assert error_state["role"] == "fast"
+    assert error_state["status"] == "agents_service_unavailable"
+    assert error_state["error_code"] == "UserError.ServiceInvocationException"
+    assert error_state["detail"] == "Foundry backend unavailable"
 
 
 @pytest.mark.asyncio

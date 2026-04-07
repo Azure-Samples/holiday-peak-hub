@@ -204,7 +204,8 @@ def register_standard_endpoints(
     async def ready() -> dict[str, Any]:
         capability_payload = foundry_capabilities()
         foundry_enforced = require_foundry_readiness or strict_foundry_mode
-        if foundry_enforced and not is_foundry_ready():
+        foundry_ready = bool(capability_payload.get("ready", is_foundry_ready()))
+        if foundry_enforced and not foundry_ready:
             raise HTTPException(
                 status_code=503,
                 detail={
@@ -219,7 +220,7 @@ def register_standard_endpoints(
         return {
             "status": "ready",
             "service": service_name,
-            "foundry_ready": is_foundry_ready(),
+            "foundry_ready": foundry_ready,
             "foundry_required": foundry_enforced,
             "foundry": capability_payload,
             "integrations_registered": await registry.count(),
@@ -233,9 +234,16 @@ def register_standard_endpoints(
             request_payload = {"query": str(request_payload)}
 
         try:
-            invoke_foundry_enforced = strict_foundry_mode
-            needs_runtime_resolution = requires_foundry_runtime_resolution()
-            if needs_runtime_resolution or (invoke_foundry_enforced and not is_foundry_ready()):
+            invoke_foundry_enforced = require_foundry_readiness or strict_foundry_mode
+            capability_payload = foundry_capabilities()
+            needs_runtime_resolution = bool(
+                capability_payload.get(
+                    "runtime_resolution_required",
+                    requires_foundry_runtime_resolution(),
+                )
+            )
+            foundry_ready = bool(capability_payload.get("ready", is_foundry_ready()))
+            if needs_runtime_resolution or (invoke_foundry_enforced and not foundry_ready):
                 _log_info(
                     "foundry_invoke_auto_ensure_start",
                     extra={
@@ -243,14 +251,21 @@ def register_standard_endpoints(
                         "require_foundry_readiness": require_foundry_readiness,
                         "strict_mode": strict_foundry_mode,
                         "needs_runtime_resolution": needs_runtime_resolution,
-                        "foundry_ready_before": is_foundry_ready(),
+                        "foundry_ready_before": foundry_ready,
+                        "configured_roles": capability_payload.get("configured_roles"),
+                        "unresolved_roles": capability_payload.get("unresolved_roles"),
                     },
                 )
+                ensure_result: dict[str, Any] | None = None
+                ensure_failure: (
+                    AttributeError | ImportError | RuntimeError | TypeError | ValueError | None
+                ) = None
                 try:
                     ensure_result = await ensure_agents_handler(None)
-                except HTTPException:
-                    raise
-                except Exception as exc:  # pragma: no cover - defensive endpoint guard
+                except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+                    ensure_failure = exc
+
+                if ensure_failure is not None:
                     if invoke_foundry_enforced:
                         raise HTTPException(
                             status_code=503,
@@ -258,7 +273,7 @@ def register_standard_endpoints(
                                 "Unable to resolve Foundry runtime definitions before invoke. "
                                 "Call POST /foundry/agents/ensure and retry."
                             ),
-                        ) from exc
+                        ) from ensure_failure
 
                     _log_info(
                         "foundry_invoke_auto_ensure_non_blocking_failure",
@@ -266,20 +281,29 @@ def register_standard_endpoints(
                             "service": service_name,
                             "require_foundry_readiness": require_foundry_readiness,
                             "strict_mode": strict_foundry_mode,
-                            "error_type": type(exc).__name__,
+                            "error_type": type(ensure_failure).__name__,
                         },
                     )
-                    ensure_result = None
 
                 if isinstance(ensure_result, dict):
-                    set_foundry_ready(bool(ensure_result.get("foundry_ready", is_foundry_ready())))
+                    set_foundry_ready(bool(ensure_result.get("foundry_ready", foundry_ready)))
+                    capability_payload = foundry_capabilities()
+                    foundry_ready = bool(capability_payload.get("ready", is_foundry_ready()))
+                    needs_runtime_resolution = bool(
+                        capability_payload.get(
+                            "runtime_resolution_required",
+                            requires_foundry_runtime_resolution(),
+                        )
+                    )
                     _log_info(
                         "foundry_invoke_auto_ensure_done",
                         extra={
                             "service": service_name,
                             "require_foundry_readiness": require_foundry_readiness,
                             "strict_mode": strict_foundry_mode,
-                            "foundry_ready_after": is_foundry_ready(),
+                            "foundry_ready_after": foundry_ready,
+                            "unresolved_roles": capability_payload.get("unresolved_roles"),
+                            "last_error": capability_payload.get("last_error"),
                             "resolved_roles": [
                                 role
                                 for role, details in (ensure_result.get("results") or {}).items()
@@ -290,7 +314,7 @@ def register_standard_endpoints(
                         },
                     )
 
-            if invoke_foundry_enforced and not is_foundry_ready():
+            if invoke_foundry_enforced and not foundry_ready:
                 raise HTTPException(
                     status_code=503,
                     detail=(
@@ -299,7 +323,7 @@ def register_standard_endpoints(
                     ),
                 )
 
-            if invoke_foundry_enforced and requires_foundry_runtime_resolution():
+            if invoke_foundry_enforced and needs_runtime_resolution:
                 raise HTTPException(
                     status_code=503,
                     detail=(

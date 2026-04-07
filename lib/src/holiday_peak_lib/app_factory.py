@@ -16,8 +16,12 @@ from holiday_peak_lib.agents.prompt_loader import load_service_prompt_instructio
 from holiday_peak_lib.app_factory_components.endpoints import register_standard_endpoints
 from holiday_peak_lib.app_factory_components.foundry_lifecycle import (
     FoundryLifecycleManager,
+    FoundryReadinessSnapshot,
     auto_ensure_on_startup_enabled,
     build_foundry_config,
+    build_foundry_readiness_snapshot,
+    exception_to_foundry_error_state,
+    first_foundry_error_state,
     strict_foundry_mode_enabled,
 )
 from holiday_peak_lib.app_factory_components.middleware import register_correlation_middleware
@@ -221,8 +225,10 @@ def build_service_app(
 
     tracer = get_foundry_tracer(service_name)
 
-    strict_foundry_mode = strict_foundry_mode_enabled() and _has_bound_foundry_target()
-    foundry_ready = _has_bound_foundry_target()
+    configured_foundry_roles = tuple(
+        role for role, config in (("fast", slm_config), ("rich", llm_config)) if config is not None
+    )
+    strict_foundry_mode = strict_foundry_mode_enabled() and bool(configured_foundry_roles)
     auto_ensure_on_startup = auto_ensure_on_startup_enabled(strict_foundry_mode=strict_foundry_mode)
 
     if hasattr(agent, "service_name"):
@@ -247,25 +253,66 @@ def build_service_app(
         build_foundry_model_target_fn=build_foundry_model_target,
     )
 
+    last_foundry_error: dict[str, Any] | None = None
+
+    def _current_foundry_readiness() -> FoundryReadinessSnapshot:
+        return build_foundry_readiness_snapshot(
+            agent=agent,
+            slm_config=slm_config,
+            llm_config=llm_config,
+            require_foundry_readiness=require_foundry_readiness,
+            strict_foundry_mode=strict_foundry_mode,
+            auto_ensure_on_startup=auto_ensure_on_startup,
+            last_error=last_foundry_error,
+        )
+
+    _UNSET = object()
+
+    def _apply_foundry_error_state(
+        error_state: dict[str, Any] | None | object = _UNSET,
+    ) -> FoundryReadinessSnapshot:
+        nonlocal last_foundry_error
+
+        if error_state is not _UNSET:
+            last_foundry_error = cast(dict[str, Any] | None, error_state)
+
+        snapshot = _current_foundry_readiness()
+        if snapshot.ready and last_foundry_error is not None:
+            last_foundry_error = None
+            snapshot = _current_foundry_readiness()
+
+        _sync_foundry_tracing_state()
+        return snapshot
+
     @asynccontextmanager
     async def _service_lifespan(wrapped_app: FastAPI) -> AsyncIterator[None]:
-        nonlocal foundry_ready
         if auto_ensure_on_startup:
             foundry_manager.ensure_foundry_agent_fn = ensure_foundry_agent
-            results = await foundry_manager.ensure_startup_roles(default_instructions)
-
-            startup_ready = all(
-                result.get("status") in {"exists", "found_by_name", "created"}
-                and bool(result.get("agent_id"))
-                for result in results.values()
-            )
-            foundry_ready = _has_bound_foundry_target()
-            _sync_foundry_tracing_state()
-
-            if strict_foundry_mode and not startup_ready:
-                raise RuntimeError(
-                    f"Foundry auto-ensure failed for service '{service_name}': {results}"
+            try:
+                results = await foundry_manager.ensure_startup_roles(default_instructions)
+            except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+                snapshot = _apply_foundry_error_state(
+                    exception_to_foundry_error_state(
+                        exc,
+                        status="startup_ensure_failed",
+                    )
                 )
+                if strict_foundry_mode:
+                    raise RuntimeError(
+                        "Foundry auto-ensure failed for service "
+                        f"'{service_name}': {snapshot.to_payload()}"
+                    ) from exc
+            else:
+                startup_error = first_foundry_error_state(
+                    results,
+                    configured_roles=configured_foundry_roles,
+                )
+                snapshot = _apply_foundry_error_state(startup_error)
+
+                if strict_foundry_mode and not snapshot.ready:
+                    raise RuntimeError(
+                        f"Foundry auto-ensure failed for service '{service_name}': {results}"
+                    )
 
         if lifespan is not None:
             async with lifespan(wrapped_app):
@@ -277,7 +324,6 @@ def build_service_app(
     router.register("default", agent.handle)
 
     async def ensure_agents(payload: dict | None = None) -> dict[str, Any]:
-        nonlocal foundry_ready
         foundry_manager.ensure_foundry_agent_fn = ensure_foundry_agent
         body: dict = payload if isinstance(payload, dict) else {}
         fallback_instructions = (
@@ -363,14 +409,24 @@ def build_service_app(
 
             selected_instructions = instructions.get(selected_role) or fallback_instructions
 
-            ensure_result = await foundry_manager.ensure_role(
-                selected_role=selected_role,
-                config=config,
-                instructions=selected_instructions,
-                create_if_missing=create_if_missing,
-                name_override=str(configured_name),
-                model_override=str(configured_model),
-            )
+            try:
+                ensure_result = await foundry_manager.ensure_role(
+                    selected_role=selected_role,
+                    config=config,
+                    instructions=selected_instructions,
+                    create_if_missing=create_if_missing,
+                    name_override=str(configured_name),
+                    model_override=str(configured_model),
+                )
+            except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+                _apply_foundry_error_state(
+                    exception_to_foundry_error_state(
+                        exc,
+                        status="ensure_failed",
+                        role=selected_role,
+                    )
+                )
+                raise
 
             results[selected_role] = ensure_result
 
@@ -387,73 +443,52 @@ def build_service_app(
             if bool(result.get("agent_id"))
             and result.get("status") in {"exists", "found_by_name", "created"}
         )
-        foundry_ready = bool(configured_requested_roles) and (
-            resolved_roles == len(configured_requested_roles)
+        ensure_error = first_foundry_error_state(
+            results,
+            configured_roles=configured_requested_roles,
+        )
+        snapshot = (
+            _apply_foundry_error_state(ensure_error)
+            if ensure_error is not None
+            else _apply_foundry_error_state()
         )
 
-        foundry_ready = foundry_ready and _has_bound_foundry_target()
-        _sync_foundry_tracing_state()
-
-        if strict_foundry_mode and not foundry_ready:
+        if (require_foundry_readiness or strict_foundry_mode) and not snapshot.ready:
             logger.warning(
                 "foundry_strict_ensure_incomplete",
                 extra={
                     "service": service_name,
                     "resolved_roles": resolved_roles,
+                    "configured_roles": list(snapshot.configured_roles),
                     "configured_requested_roles": configured_requested_roles,
+                    "unresolved_roles": list(snapshot.unresolved_roles),
                     "requested_roles": list(results.keys()),
+                    "last_error": snapshot.last_error,
                 },
             )
 
         return {
             "service": service_name,
             "strict_foundry_mode": strict_foundry_mode,
-            "foundry_ready": foundry_ready,
+            "foundry_ready": snapshot.ready,
+            "foundry": snapshot.to_payload(),
             "results": results,
         }
 
     def _is_foundry_ready() -> bool:
-        return foundry_ready
+        return _current_foundry_readiness().ready
 
     def _set_foundry_ready(value: bool) -> None:
-        nonlocal foundry_ready
-        foundry_ready = bool(value) and _has_bound_foundry_target()
+        if value:
+            _apply_foundry_error_state(None)
+            return
         _sync_foundry_tracing_state()
 
     def _requires_foundry_runtime_resolution() -> bool:
-        return bool((slm_config or llm_config) and not (agent.slm or agent.llm))
+        return _current_foundry_readiness().runtime_resolution_required
 
     def _foundry_capabilities() -> dict[str, Any]:
-        configured_roles: list[str] = []
-        unresolved_roles: list[str] = []
-
-        if slm_config is not None:
-            configured_roles.append("fast")
-            if getattr(agent, "slm", None) is None:
-                unresolved_roles.append("fast")
-
-        if llm_config is not None:
-            configured_roles.append("rich")
-            if getattr(agent, "llm", None) is None:
-                unresolved_roles.append("rich")
-
-        endpoint_configured = any(
-            bool(str(config.endpoint or "").strip())
-            for config in (slm_config, llm_config)
-            if config is not None
-        )
-
-        return {
-            "required": require_foundry_readiness,
-            "strict_mode": strict_foundry_mode,
-            "project_configured": bool(slm_config or llm_config),
-            "endpoint_configured": endpoint_configured,
-            "configured_roles": configured_roles,
-            "unresolved_roles": unresolved_roles,
-            "agent_targets_bound": _has_bound_foundry_target(),
-            "runtime_resolution_required": _requires_foundry_runtime_resolution(),
-            "auto_ensure_on_startup": auto_ensure_on_startup,
-        }
+        return _current_foundry_readiness().to_payload()
 
     endpoint_kwargs: dict[str, Any] = {"self_healing_kernel": healing_kernel}
 
