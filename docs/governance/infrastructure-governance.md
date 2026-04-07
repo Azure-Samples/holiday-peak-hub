@@ -1,7 +1,7 @@
 # Infrastructure Governance and Compliance Guidelines
 
-**Version**: 2.2  
-**Last Updated**: 2026-03-17  
+**Version**: 2.3
+**Last Updated**: 2026-04-06
 **Owner**: Infrastructure Team
 
 ## Scope
@@ -18,6 +18,7 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 - `.github/workflows/deploy-azd-dev.yml` (dev entrypoint)
 - `.github/workflows/deploy-azd-prod.yml` (prod entrypoint)
 - `.github/workflows/deploy-azd.yml` (reusable deployment engine)
+- `.github/workflows/protected-dev-live-agent-readiness.yml` (protected dev live validation)
 
 ### Core policy
 
@@ -32,6 +33,7 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 | --- | --- | --- | --- |
 | Entrypoint workflow | `deploy-azd-dev.yml` | `deploy-azd-prod.yml` | Not currently provisioned as dedicated workflow |
 | Trigger model | `push` to `main` + `workflow_dispatch` | Stable tag push `v*.*.*` | Manual via reusable workflow only if explicitly configured |
+| Protected live validation | `protected-dev-live-agent-readiness.yml` via the `dev` environment boundary on trusted `workflow_run`, `workflow_dispatch`, and `schedule`; selected-branch deployment protection on `main` remains a repo-admin step | N/A | N/A |
 | Release gate | Not required | Required: published, non-draft, non-prerelease GitHub Release | N/A |
 | Main lineage gate | Not required | Required: tagged commit must be reachable from `main` | N/A |
 | Demo data seeding mode | Local/manual only (not part of CI deploy) | Local/manual only | Local/manual only |
@@ -45,12 +47,24 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 - Entrypoint workflows should avoid duplicated job blocks for push/manual variants when the same reusable workflow call can be parameterized with event-aware expressions.
 - `deploy-azd-dev.yml` is maintained as a single reusable-workflow invocation path to reduce drift between trigger types.
 
+### Protected live validation boundary
+
+- The GitHub Environment `dev` is the approved boundary for privileged live validation against the deployed dev environment.
+- `protected-dev-live-agent-readiness.yml` is the approved workflow for this boundary and validates one representative agent service end to end: Foundry ensure, direct `/ready`, and live APIM `/agents/<service>/invoke`.
+- Allowed triggers are `workflow_run` after successful `deploy-azd-dev (entrypoint)` runs on `main`, `workflow_dispatch`, and `schedule`.
+- Forbidden triggers are `pull_request`, `pull_request_target`, and other untrusted contributor contexts.
+- Authentication must use OIDC-backed `azure/login`; do not introduce Azure client secrets, API keys, connection strings, or repository-committed credentials.
+- Store `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and `AZURE_SUBSCRIPTION_ID` in the `dev` environment so privileged live checks remain isolated from standard PR automation.
+- Repository code establishes the privileged workflow and environment-scoped secret boundary, but GitHub Environment protection rules are external to repository code. A repo admin must enable selected-branch deployment protection on `main` for `dev` to complete the protected-environment model.
+- This workflow is operational evidence and must not be added to required PR status checks.
+
 ## Security and Access Controls
 
 - Use Managed Identity and Entra-based federation for deployment identities.
 - Keep Key Vault as secret authority; no direct secret literals in IaC templates or workflows.
 - Enforce RBAC-scoped assignments for deployment principal operations.
 - Use private networking posture for backend services where configured.
+- Protected live validation must use GitHub-hosted runners plus OIDC-backed Azure auth; do not rely on self-hosted managed-identity runners for this public repository path.
 
 ## Runtime Deployment Controls
 
@@ -104,6 +118,7 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 4. Smoke checks passed for CRUD/API/UI scope deployed.
 5. Any temporary firewall exceptions removed after deployment.
 6. Architecture/governance docs updated when policy changes.
+7. Privileged live validation remains bound to the `dev` environment and excluded from PR contexts; selected-branch deployment protection on `main` must be enabled on that environment by a repo admin.
 
 ## ADR References
 

@@ -1,7 +1,7 @@
 # Governance and Compliance Guidelines
 
-**Version**: 2.0  
-**Last Updated**: 2026-03-11  
+**Version**: 2.1
+**Last Updated**: 2026-04-06
 **Owner**: Architecture Team
 
 ## Overview
@@ -64,8 +64,17 @@ This folder is the governance source of truth for engineering standards, runtime
 Detailed policy is defined in [Infrastructure Governance](infrastructure-governance.md#environment-policy-matrix).
 
 - **dev**: `deploy-azd-dev.yml` (main push + manual dispatch)
+- **dev protected live validation**: `protected-dev-live-agent-readiness.yml` (trusted `workflow_run` after successful dev deploy on `main`, plus manual dispatch and schedule; uses the `dev` GitHub Environment boundary for environment-scoped OIDC inputs)
 - **prod**: `deploy-azd-prod.yml` (stable tag only, release + lineage gates)
 - **staging**: reserved for future environment expansion; currently no dedicated entrypoint workflow
+
+## Protected Live Validation Policy
+
+- `.github/workflows/protected-dev-live-agent-readiness.yml` is the only approved privileged live validation workflow for the dev environment.
+- The workflow is bound to the GitHub Environment `dev` with environment-scoped `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and `AZURE_SUBSCRIPTION_ID` values for Azure OIDC login.
+- Allowed triggers are `workflow_run` after successful `deploy-azd-dev (entrypoint)` runs on `main`, `workflow_dispatch`, and `schedule`.
+- Repository code establishes the privileged workflow and environment-scoped secret boundary. To complete the protected-environment model, a repo admin must enable selected-branch deployment protection on `main` for the `dev` environment.
+- The workflow must not run on `pull_request`, `pull_request_target`, or other untrusted contributor contexts because it reaches live Azure resources behind a privileged environment boundary.
 
 ## Enforcement Model
 
@@ -73,6 +82,7 @@ Detailed policy is defined in [Infrastructure Governance](infrastructure-governa
 
 - PR/build automation via GitHub Actions workflows under `.github/workflows/`
 - Deployment gates via `deploy-azd-dev.yml`, `deploy-azd-prod.yml`, and reusable `deploy-azd.yml`
+- Protected dev live validation via `protected-dev-live-agent-readiness.yml` using the `dev` environment boundary and OIDC-only Azure auth
 - Weekly security burn-down artifact via `security-triage-report.yml`
 - Lint/test tasks exposed in workspace (`lint`, `format`, `test`)
 
@@ -96,6 +106,7 @@ Detailed policy is defined in [Infrastructure Governance](infrastructure-governa
 
 - Required checks should be limited to `lint` and `test` in strict mode to reduce merge queue pressure while preserving core quality gates.
 - Additional workflows (for example CodeQL and non-blocking governance audits) remain recommended but should not be configured as required merge checks unless explicitly approved.
+- `protected-dev-live-agent-readiness` is an operational workflow with privileged environment access and must not be configured as a required PR or merge-queue check.
 
 ## Verification Procedure (PR-only governance)
 
