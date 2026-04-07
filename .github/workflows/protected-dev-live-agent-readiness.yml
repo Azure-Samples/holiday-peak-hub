@@ -1,0 +1,237 @@
+name: protected-dev-live-agent-readiness
+
+on:
+  workflow_run:
+    workflows:
+      - deploy-azd-dev (entrypoint)
+    types:
+      - completed
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      projectName:
+        description: Project prefix used by naming convention
+        required: true
+        default: holidaypeakhub405
+      targetService:
+        description: Agent service used for live readiness validation
+        required: true
+        default: crm-campaign-intelligence
+      invokePayload:
+        description: JSON payload posted to the live APIM invoke endpoint
+        required: true
+        default: '{"query":"Campaign performance summary","campaign_id":"campaign-123"}'
+  schedule:
+    - cron: '17 7 * * 1-5'
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: protected-dev-live-agent-readiness
+  cancel-in-progress: false
+
+jobs:
+  live-readiness:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    environment: dev
+    env:
+      AZURE_CORE_OUTPUT: none
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      INPUT_PROJECT_NAME: ${{ github.event.inputs.projectName || '' }}
+      INPUT_TARGET_SERVICE: ${{ github.event.inputs.targetService || '' }}
+      INPUT_INVOKE_PAYLOAD: ${{ github.event.inputs.invokePayload || '' }}
+      K8S_NAMESPACE: holiday-peak
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Resolve live suite inputs
+        id: inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          DEFAULT_PROJECT_NAME="holidaypeakhub405"
+          DEFAULT_TARGET_SERVICE="crm-campaign-intelligence"
+          DEFAULT_INVOKE_PAYLOAD='{"query":"Campaign performance summary","campaign_id":"campaign-123"}'
+
+          PROJECT_NAME="${INPUT_PROJECT_NAME:-$DEFAULT_PROJECT_NAME}"
+          TARGET_SERVICE="${INPUT_TARGET_SERVICE:-$DEFAULT_TARGET_SERVICE}"
+          INVOKE_PAYLOAD="${INPUT_INVOKE_PAYLOAD:-$DEFAULT_INVOKE_PAYLOAD}"
+
+          python3 -c 'import json, sys; json.loads(sys.argv[1])' "$INVOKE_PAYLOAD"
+
+          echo "project_name=$PROJECT_NAME" >> "$GITHUB_OUTPUT"
+          echo "target_service=$TARGET_SERVICE" >> "$GITHUB_OUTPUT"
+          {
+            echo "invoke_payload<<EOF"
+            printf '%s\n' "$INVOKE_PAYLOAD"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install kubelogin
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for attempt in 1 2 3 4 5; do
+            if az aks install-cli --kubelogin-version latest; then
+              exit 0
+            fi
+            echo "kubelogin install failed on attempt ${attempt}; retrying..."
+            sleep 15
+          done
+
+          echo "kubelogin install failed after retries" >&2
+          exit 1
+
+      - name: Get AKS credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PROJECT_NAME="${{ steps.inputs.outputs.project_name }}"
+          az aks get-credentials \
+            --resource-group "${PROJECT_NAME}-dev-rg" \
+            --name "${PROJECT_NAME}-dev-aks" \
+            --overwrite-existing
+
+      - name: Ensure hook scripts executable
+        shell: bash
+        run: chmod +x ./.infra/azd/hooks/*.sh
+
+      - name: Ensure Foundry runtime resolution for target service
+        shell: bash
+        env:
+          CHANGED_SERVICES: ${{ steps.inputs.outputs.target_service }}
+        run: |
+          set -euo pipefail
+          bash .infra/azd/hooks/ensure-foundry-agents.sh --port-forward --fail-on-error
+
+      - name: Verify target service readiness directly from AKS
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TARGET_SERVICE="${{ steps.inputs.outputs.target_service }}"
+          RESOLVED_NAME=$(kubectl get svc -n "$K8S_NAMESPACE" -l "app=$TARGET_SERVICE" -o jsonpath='{.items[0].metadata.name}')
+          if [ -z "$RESOLVED_NAME" ]; then
+            echo "Failed to resolve Kubernetes service for '$TARGET_SERVICE'." >&2
+            exit 1
+          fi
+
+          SERVICE_PORT=$(kubectl get svc "$RESOLVED_NAME" -n "$K8S_NAMESPACE" -o jsonpath='{.spec.ports[0].port}')
+          if [ -z "$SERVICE_PORT" ]; then
+            SERVICE_PORT="80"
+          fi
+
+          LOCAL_PORT=$(python3 -c 'import socket; s = socket.socket(); s.bind(("", 0)); print(s.getsockname()[1]); s.close()')
+          kubectl port-forward "svc/$RESOLVED_NAME" "$LOCAL_PORT:$SERVICE_PORT" -n "$K8S_NAMESPACE" >/tmp/live-ready-port-forward.log 2>&1 &
+          PF_PID=$!
+
+          cleanup() {
+            kill "$PF_PID" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          sleep 3
+
+          for attempt in $(seq 1 15); do
+            if ! STATUS_CODE=$(curl -sS -o /tmp/live-ready.json -w "%{http_code}" "http://localhost:$LOCAL_PORT/ready"); then
+              STATUS_CODE="000"
+            fi
+
+            if [ "$STATUS_CODE" = "200" ]; then
+                    python3 -c "import json, sys; target_service = sys.argv[1]; payload = json.load(open(sys.argv[2], encoding='utf-8')); payload.get('status') == 'ready' or (_ for _ in ()).throw(SystemExit(f'Unexpected ready payload: {payload}')); str(payload.get('service') or '') == target_service or (_ for _ in ()).throw(SystemExit(f'Unexpected service in ready payload: {payload}')); bool(payload.get('foundry_ready')) or (_ for _ in ()).throw(SystemExit(f'Foundry readiness was not confirmed: {payload}')); print(f'Ready payload validated for {target_service}.')" "$TARGET_SERVICE" /tmp/live-ready.json
+              echo "[OK] live-ready: $TARGET_SERVICE"
+              exit 0
+            fi
+
+            echo "Attempt $attempt/15 failed for $TARGET_SERVICE /ready with HTTP $STATUS_CODE"
+            sleep 10
+          done
+
+          echo "[FAIL] live-ready: $TARGET_SERVICE" >&2
+          cat /tmp/live-ready.json 2>/dev/null || true
+          exit 1
+
+      - name: Resolve APIM gateway URL
+        id: apim
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PROJECT_NAME="${{ steps.inputs.outputs.project_name }}"
+          APIM_URL=$(az apim show \
+            --name "${PROJECT_NAME}-dev-apim" \
+            --resource-group "${PROJECT_NAME}-dev-rg" \
+            --query "gatewayUrl" \
+            -o tsv)
+
+          APIM_URL="$(echo "$APIM_URL" | xargs)"
+          APIM_URL="${APIM_URL%/}"
+
+          if [ -z "$APIM_URL" ]; then
+            echo "Failed to resolve APIM gateway URL for protected live validation." >&2
+            exit 1
+          fi
+
+          echo "gateway_url=$APIM_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Invoke representative agent through APIM
+        shell: bash
+        env:
+          INVOKE_PAYLOAD: ${{ steps.inputs.outputs.invoke_payload }}
+        run: |
+          set -euo pipefail
+
+          TARGET_SERVICE="${{ steps.inputs.outputs.target_service }}"
+          APIM_URL="${{ steps.apim.outputs.gateway_url }}"
+
+          PAYLOAD_FILE=$(mktemp)
+          printf '%s' "$INVOKE_PAYLOAD" > "$PAYLOAD_FILE"
+
+          for attempt in $(seq 1 15); do
+            if ! STATUS_CODE=$(curl -sS -o /tmp/live-invoke.json -w "%{http_code}" \
+              -X POST \
+              -H "Content-Type: application/json" \
+              --data @"$PAYLOAD_FILE" \
+              "${APIM_URL}/agents/${TARGET_SERVICE}/invoke"); then
+              STATUS_CODE="000"
+            fi
+
+            if [ "$STATUS_CODE" = "200" ]; then
+                    python3 -c "import json, sys; target_service = sys.argv[1]; payload = json.load(open(sys.argv[2], encoding='utf-8')); service_name = str(payload.get('service') or ''); service_name == target_service or (_ for _ in ()).throw(SystemExit(f\"Unexpected invoke response service '{service_name}' (expected '{target_service}').\")); print(f'Invoke payload validated for {service_name}.')" "$TARGET_SERVICE" /tmp/live-invoke.json
+              echo "[OK] live-agent-invoke: ${APIM_URL}/agents/${TARGET_SERVICE}/invoke"
+              rm -f "$PAYLOAD_FILE"
+              exit 0
+            fi
+
+            echo "Attempt $attempt/15 failed for live invoke with HTTP $STATUS_CODE"
+            sleep 10
+          done
+
+          echo "[FAIL] live-agent-invoke: ${APIM_URL}/agents/${TARGET_SERVICE}/invoke" >&2
+          cat /tmp/live-invoke.json 2>/dev/null || true
+          rm -f "$PAYLOAD_FILE"
+          exit 1

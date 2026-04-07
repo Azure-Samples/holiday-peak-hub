@@ -1,10 +1,10 @@
 # Holiday Peak Hub - Architecture Documentation
 
-**Last Updated**: April 3, 2026  
+**Last Updated**: April 6, 2026
 **Version**: main (post PR #559)  
 **Status**: Active Development
 
-## Latest Update Snapshot (April 3, 2026)
+## Latest Update Snapshot (April 6, 2026)
 
 - Enrichment/search orchestration hardening merged via PR #559 (Issue #558).
 - Truth flow now enforces human-gated enrichment validation (`pending_review`) with dual HITL publish (`export-jobs` and `search-enrichment-jobs`).
@@ -13,6 +13,7 @@
 - Validation status: local repository test run reports 1647 passed (2 warnings).
 - Agentic app README deployment docs are standardized with standalone azd-first guidance and app-specific ACR/AKS paths.
 - UI/UX modernization review added with per-view recommendations for customer, staff, admin, and observability surfaces.
+- Protected dev live validation now has a dedicated GitHub Actions workflow with trusted triggers, OIDC-only Azure auth, and the `dev` environment boundary; final environment protection remains a repo-admin step.
 
 ## Overview
 
@@ -42,6 +43,7 @@ Use environment-specific entry workflows:
 - `.github/workflows/deploy-azd-dev.yml` as the default development path (auto-runs on `main` changes and supports manual dispatch).
 - `.github/workflows/deploy-azd-prod.yml` for production deployments triggered only by stable release tags (`v*.*.*` without pre-release suffixes) that also have a published GitHub Release and point to a commit reachable from `main`.
 - `.github/workflows/deploy-azd.yml` remains the shared core workflow invoked by both entry workflows.
+- `.github/workflows/protected-dev-live-agent-readiness.yml` runs protected live validation against dev after successful `deploy-azd-dev` runs on `main`, or by explicit manual/scheduled execution through the `dev` environment boundary.
 - `.github/workflows/ci.yml` publishes GHCR images automatically for stable tags (`v*.*.*`) and can still be run manually for build/optional publish.
 
 > Provisioning is mandatory before frontend/backend consumption in any environment. Always run `azd provision` (and then `azd deploy`) before validating APIs or UI integration.
@@ -51,6 +53,10 @@ Use environment-specific entry workflows:
 - `AZURE_CLIENT_ID`
 - `AZURE_TENANT_ID`
 - `AZURE_SUBSCRIPTION_ID`
+
+For the protected live suite, store these values in the GitHub Environment `dev` and keep Azure authentication OIDC-only. Do not add client secrets, connection strings, or API keys for live validation.
+
+Repository code establishes this environment-scoped secret boundary. To complete the protected-environment model, a repo admin must enable selected-branch deployment protection on `main` for the `dev` environment.
 
 **Entry workflow inputs**:
 
@@ -97,7 +103,7 @@ Core workflow note: `.github/workflows/deploy-azd.yml` is reusable-only and not 
 - UI deployment intentionally uses the SWA GitHub Action path (not `azd deploy --service ui`) so App Router dynamic segments (`[id]`, `[slug]`) are built in the same mode as standard SWA workflows.
 - Frontend API calls must always use APIM via validated runtime env aliases (`NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_CRUD_API_URL` are set together in deployment workflows).
 - Demo seeding uses a curated catalog of 10 categories and 100 products with realistic retail data. Re-runs are idempotent by item ID (`cat-*`, `prd-*`): existing seeded records are updated instead of duplicated.
-- Use environment approvals in GitHub Environments for `staging`/`prod`.
+- Use GitHub Environment protection rules for privileged `dev` validation and for `staging`/`prod` deployment paths; for `dev`, enabling selected-branch deployment protection on `main` is a repo-admin follow-up.
 - Keep image tags immutable for reproducible rollback.
 
 **Local demo seeding (manual)**:
@@ -138,6 +144,7 @@ The script exercises all CRUD `POST` routes and reports `PASS` / `SKIPPED` / `FA
 - Use environment entrypoint workflows only (`deploy-azd-dev.yml`, `deploy-azd-prod.yml`).
 - Apply production gates: stable tag, published release, and commit lineage from `main`.
 - Enforce OIDC authentication and Key Vault secret management.
+- Keep `protected-dev-live-agent-readiness.yml` limited to trusted triggers and the `dev` environment boundary; do not add it as a required PR check.
 - Preserve changed-service deployment and APIM sync/smoke behavior per environment defaults.
 - Run lint/test quality gates before deployment (repo minimum 75% coverage).
 - Update governance docs when workflow behavior or runtime controls change:
