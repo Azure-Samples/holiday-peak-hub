@@ -534,6 +534,10 @@ module postgres 'br/public:avm/res/db-for-postgre-sql/flexible-server:0.15.2' = 
 }
 
 // Redis Cache (AVM)
+// NOTE: zoneRedundant is explicitly set to false so tear-down and re-provisioning
+// (e.g. `azd down && azd up`) works reliably in dev/test. The AVM module defaults
+// zoneRedundant to true, which can cause provider errors on re-creation. Production
+// deployments should set this to true for high availability.
 module redis 'br/public:avm/res/cache/redis:0.16.5' = {
   name: 'redis'
   params: {
@@ -541,6 +545,7 @@ module redis 'br/public:avm/res/cache/redis:0.16.5' = {
     location: location
     skuName: 'Premium'
     capacity: 1
+    zoneRedundant: false
     minimumTlsVersion: '1.2'
     publicNetworkAccess: 'Disabled'
     redisConfiguration: {
