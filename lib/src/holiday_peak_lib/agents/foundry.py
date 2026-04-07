@@ -344,7 +344,10 @@ async def ensure_foundry_agent(
             if configured_agent_id or resolved_agent_name:
                 try:
                     for candidate in await _list_agents(agents_client):
-                        if configured_agent_id and (_agent_id(candidate) or "") == configured_agent_id:
+                        if (
+                            configured_agent_id
+                            and (_agent_id(candidate) or "") == configured_agent_id
+                        ):
                             return {
                                 "status": "exists",
                                 "agent_id": _agent_id(candidate),
