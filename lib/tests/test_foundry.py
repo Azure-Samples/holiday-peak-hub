@@ -39,6 +39,7 @@ class TestFoundryAgentConfig:
         assert config.endpoint == TEST_PROJECT_ENDPOINT
         assert config.project_name == TEST_PROJECT_NAME
         assert config.agent_id == "agent-123"
+        assert config.runtime_agent_id == "agent-123"
         assert config.deployment_name == "gpt-4"
         assert config.stream is True
 
@@ -56,6 +57,20 @@ class TestFoundryAgentConfig:
         assert config.endpoint == ALTERNATE_PROJECT_ENDPOINT
         assert config.project_name == ALTERNATE_PROJECT_NAME
         assert config.agent_id == "agent-456"
+        assert config.runtime_agent_id == "agent-456"
+
+    def test_from_env_with_name_only_stays_unresolved_for_runtime(self, monkeypatch):
+        """Test name-only config remains lookup-capable but unbound for runtime."""
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
+        monkeypatch.delenv("FOUNDRY_AGENT_ID", raising=False)
+        monkeypatch.delenv("AGENT_ID", raising=False)
+        monkeypatch.setenv("FOUNDRY_AGENT_NAME", "catalog-fast")
+
+        config = FoundryAgentConfig.from_env()
+
+        assert config.agent_id == "pending"
+        assert config.agent_name == "catalog-fast"
+        assert config.runtime_agent_id is None
 
     def test_from_env_extracts_project_name_from_project_endpoint(self, monkeypatch):
         """Test project-scoped endpoints remain valid without a separate project name."""
@@ -247,6 +262,17 @@ class TestBuildFoundryModelTarget:
         assert target.model == "agent-456"  # Falls back to agent_id when no deployment
         assert target.stream is True
 
+    def test_build_model_target_requires_resolved_runtime_id(self):
+        """Test name-only or pending configs cannot bind as live runtime targets."""
+        config = FoundryAgentConfig(
+            endpoint=TEST_PROJECT_ENDPOINT,
+            agent_id="pending",
+            agent_name="catalog-fast",
+        )
+
+        with pytest.raises(ValueError, match="resolved agent id"):
+            build_foundry_model_target(config)
+
 
 @pytest.mark.asyncio
 class TestEnsureFoundryAgent:
@@ -277,24 +303,28 @@ class TestEnsureFoundryAgent:
         )
 
     async def test_ensure_agent_exists_by_id(self):
-        config = FoundryAgentConfig(endpoint=TEST_PROJECT_ENDPOINT, agent_id="agent-123")
+        config = FoundryAgentConfig(endpoint=TEST_PROJECT_ENDPOINT, agent_id="agent-123:1")
         mock_client = MagicMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=None)
         mock_agents = MagicMock()
         mock_agents.create_version = AsyncMock()
-        mock_agents.list = AsyncMock(return_value=[{"id": "agent-123:1", "name": "agent-123"}])
+        mock_agents.list = AsyncMock(return_value=[{"id": "agent-123:1", "name": "svc-fast"}])
         mock_client.agents = mock_agents
 
         with patch("holiday_peak_lib.agents.foundry._ensure_client", return_value=mock_client):
             result = await ensure_foundry_agent(config)
 
-        assert result["status"] == "found_by_name"
+        assert result["status"] == "exists"
         assert result["agent_id"] == "agent-123:1"
         assert result["created"] is False
 
     async def test_ensure_agent_found_by_name(self):
-        config = FoundryAgentConfig(endpoint=TEST_PROJECT_ENDPOINT, agent_id="missing-id")
+        config = FoundryAgentConfig(
+            endpoint=TEST_PROJECT_ENDPOINT,
+            agent_id="pending",
+            agent_name="svc-fast",
+        )
         mock_client = MagicMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=None)
@@ -304,7 +334,7 @@ class TestEnsureFoundryAgent:
         mock_client.agents = mock_agents
 
         with patch("holiday_peak_lib.agents.foundry._ensure_client", return_value=mock_client):
-            result = await ensure_foundry_agent(config, agent_name="svc-fast")
+            result = await ensure_foundry_agent(config)
 
         assert result["status"] == "found_by_name"
         assert result["agent_id"] == "agent-999"

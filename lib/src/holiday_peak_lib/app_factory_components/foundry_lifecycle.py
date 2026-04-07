@@ -15,7 +15,7 @@ DEFAULT_FOUNDRY_MODELS = {
 
 def _has_resolved_agent_id(agent_id: str | None) -> bool:
     value = str(agent_id or "").strip()
-    return bool(value) and not value.endswith("-pending")
+    return bool(value) and value != "pending" and not value.endswith("-pending")
 
 
 def build_foundry_config(agent_env: str, deployment_env: str) -> FoundryAgentConfig | None:
@@ -31,11 +31,12 @@ def build_foundry_config(agent_env: str, deployment_env: str) -> FoundryAgentCon
         return None
     return FoundryAgentConfig(
         endpoint=endpoint,
-        agent_id=agent_id or agent_name or f"{role}-pending",
+        agent_id=agent_id or f"{role}-pending",
         agent_name=agent_name,
         deployment_name=deployment,
         project_name=project_name,
         stream=stream,
+        resolved_agent_id=agent_id or None,
     )
 
 
@@ -106,10 +107,11 @@ class FoundryLifecycleManager:
         ensured_name = ensure_result.get("agent_name")
         if ensured_id:
             config.agent_id = str(ensured_id)
+            config.resolved_agent_id = str(ensured_id)
         if ensured_name:
             config.agent_name = str(ensured_name)
 
-        if _has_resolved_agent_id(config.agent_id):
+        if _has_resolved_agent_id(config.runtime_agent_id):
             model_target = self.build_foundry_model_target_fn(config)
             if selected_role == "fast":
                 self.agent.slm = model_target

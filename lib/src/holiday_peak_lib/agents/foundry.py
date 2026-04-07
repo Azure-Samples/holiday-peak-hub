@@ -113,6 +113,16 @@ def _normalize_foundry_project_endpoint(
     )
 
 
+def _normalize_foundry_reference(value: str | None) -> str | None:
+    text = str(value or "").strip()
+    return text or None
+
+
+def _is_pending_agent_reference(value: str | None) -> bool:
+    normalized = _normalize_foundry_reference(value)
+    return normalized in {None, "pending"} or str(normalized).endswith("-pending")
+
+
 @dataclass
 class FoundryAgentConfig:
     """Configuration required to call a Foundry Agent.
@@ -127,8 +137,13 @@ class FoundryAgentConfig:
         - PROJECT_NAME or FOUNDRY_PROJECT_NAME: Azure AI Foundry project name.
             Required when the endpoint is not already project-scoped.
     - FOUNDRY_AGENT_ID: Agent ID created in the project.
+    - FOUNDRY_AGENT_NAME: Optional name-only lookup/provisioning reference.
     - MODEL_DEPLOYMENT_NAME: Optional model deployment associated with the agent.
     - FOUNDRY_STREAM: ``true`` to enable streaming aggregation by default.
+
+    ``agent_id`` carries the configured or ensured identifier reference, while
+    ``resolved_agent_id`` tracks when that reference is safe to bind as a live
+    runtime target.
     """
 
     endpoint: str
@@ -138,9 +153,35 @@ class FoundryAgentConfig:
     project_name: str | None = None
     stream: bool = False
     credential: Any | None = None
+    resolved_agent_id: str | None = None
 
     def __post_init__(self) -> None:
         self.apply_project_contract()
+
+        configured_agent_name = _normalize_foundry_reference(self.agent_name)
+        if self.resolved_agent_id is not None:
+            normalized_runtime_id = _normalize_foundry_reference(self.resolved_agent_id)
+            if (
+                normalized_runtime_id
+                and not _is_pending_agent_reference(normalized_runtime_id)
+                and normalized_runtime_id != configured_agent_name
+            ):
+                self.resolved_agent_id = normalized_runtime_id
+            else:
+                self.resolved_agent_id = None
+            return
+
+        configured_agent_id = _normalize_foundry_reference(self.agent_id)
+        if (
+            configured_agent_id
+            and not _is_pending_agent_reference(configured_agent_id)
+            and configured_agent_id != configured_agent_name
+        ):
+            self.resolved_agent_id = configured_agent_id
+
+    @property
+    def runtime_agent_id(self) -> str | None:
+        return _normalize_foundry_reference(self.resolved_agent_id)
 
     def apply_project_contract(self) -> None:
         """Normalize endpoint/project settings to the canonical Foundry contract."""
@@ -163,16 +204,16 @@ class FoundryAgentConfig:
         stream = (os.getenv("FOUNDRY_STREAM") or "").lower() in {"1", "true", "yes"}
         if not endpoint:
             raise ValueError("PROJECT_ENDPOINT/FOUNDRY_ENDPOINT is required")
-        resolved_agent_id = agent_id or agent_name
-        if not resolved_agent_id:
+        if not agent_id and not agent_name:
             raise ValueError("FOUNDRY_AGENT_ID or FOUNDRY_AGENT_NAME is required")
         return cls(
             endpoint=endpoint,
-            agent_id=resolved_agent_id,
+            agent_id=agent_id or "pending",
             agent_name=agent_name,
             deployment_name=deployment,
             project_name=project_name,
             stream=stream,
+            resolved_agent_id=agent_id or None,
         )
 
 
@@ -393,6 +434,7 @@ async def ensure_foundry_agent(
     """
 
     project_client = _ensure_client(config)
+    configured_agent_id = config.runtime_agent_id
     resolved_agent_name = (
         agent_name or config.agent_name or _agent_name_from_identifier(config.agent_id)
     )
@@ -413,9 +455,20 @@ async def ensure_foundry_agent(
                     ),
                 }
 
-            if resolved_agent_name:
+            if configured_agent_id or resolved_agent_name:
                 try:
                     for candidate in await _list_agents(agents_client):
+                        if (
+                            configured_agent_id
+                            and (_agent_id(candidate) or "") == configured_agent_id
+                        ):
+                            return {
+                                "status": "exists",
+                                "agent_id": _agent_id(candidate),
+                                "agent_name": _agent_name(candidate),
+                                "created": False,
+                                "api_version": "v2",
+                            }
                         if (_agent_name(candidate) or "") == resolved_agent_name:
                             return {
                                 "status": "found_by_name",
@@ -575,12 +628,16 @@ class FoundryInvoker:
         # No GoF pattern applies here; this is a thin data-oriented SDK adapter.
         messages = _normalize_messages(kwargs.pop("messages", []))
         started = perf_counter()
+        runtime_agent_id = self.config.runtime_agent_id
         thread_id = kwargs.pop("thread_id", None) or kwargs.pop("conversation_id", None)
         requested_model = kwargs.pop("model", None)
         temperature = kwargs.pop("temperature", None)
         top_p = kwargs.pop("top_p", None)
         kwargs.pop("tools", None)
         kwargs.pop("stream", None)
+
+        if runtime_agent_id is None:
+            raise RuntimeError("Foundry runtime target requires a resolved agent id")
 
         if not _is_agents_runtime_client(client):
             raise TypeError(
@@ -614,9 +671,9 @@ class FoundryInvoker:
 
         run_kwargs: dict[str, Any] = {
             "thread_id": str(thread_id),
-            "agent_id": self.config.agent_id,
+            "agent_id": runtime_agent_id,
         }
-        if requested_model and requested_model != self.config.agent_id:
+        if requested_model and requested_model != runtime_agent_id:
             run_kwargs["model"] = requested_model
         if temperature is not None:
             run_kwargs["temperature"] = temperature
@@ -651,13 +708,13 @@ class FoundryInvoker:
         usage_payload = run_dict.get("usage") or getattr(run, "usage", None)
         usage = usage_payload if isinstance(usage_payload, dict) else _to_dict(usage_payload)
 
-        reference_name = self.config.agent_name or _agent_name_from_identifier(self.config.agent_id)
+        reference_name = self.config.agent_name or _agent_name_from_identifier(runtime_agent_id)
         telemetry = {
             "endpoint": self.config.endpoint,
-            "agent_id": self.config.agent_id,
+            "agent_id": runtime_agent_id,
             "agent_name": reference_name,
             "deployment_name": self.config.deployment_name
-            or (requested_model if isinstance(requested_model, str) else self.config.agent_id),
+            or (requested_model if isinstance(requested_model, str) else runtime_agent_id),
             "stream": False,
             "messages_sent": len(messages),
             "duration_ms": (perf_counter() - started) * 1000,
@@ -683,12 +740,14 @@ def build_foundry_model_target(config: FoundryAgentConfig) -> ModelTarget:
     :param config: Foundry configuration describing the target agent.
     :returns: A :class:`ModelTarget` that delegates to :class:`FoundryInvoker`.
     """
-
     config.apply_project_contract()
+    runtime_agent_id = config.runtime_agent_id
+    if runtime_agent_id is None:
+        raise ValueError("Foundry runtime target requires a resolved agent id")
 
     return ModelTarget(
-        name=config.agent_name or config.agent_id,
-        model=config.deployment_name or config.agent_id,
+        name=config.agent_name or runtime_agent_id,
+        model=config.deployment_name or runtime_agent_id,
         invoker=FoundryInvoker(config),
         stream=config.stream,
         provider="foundry",

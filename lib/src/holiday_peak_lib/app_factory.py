@@ -46,17 +46,16 @@ def _build_foundry_config(agent_env: str, deployment_env: str) -> FoundryAgentCo
 def _runtime_foundry_config(config: FoundryAgentConfig | None) -> FoundryAgentConfig | None:
     """Return a Foundry config only when a resolvable runtime agent id is available.
 
-    The lifecycle builder may emit placeholder ids like ``fast-pending`` when
-    endpoint settings exist but role-specific agent ids are not configured.
-    Wiring those placeholders as live model targets causes runtime 404s during
-    invocation. We keep such configs for ensure/provision endpoints, but avoid
-    binding them as callable SLM/LLM targets.
+    Foundry config may carry lookup-only references such as role names while the
+    actual runtime agent id is still unresolved. We keep those configs for
+    ensure/provision endpoints, but avoid binding them as callable SLM/LLM
+    targets until a real runtime id is available.
     """
     if config is None:
         return None
 
-    agent_id = str(config.agent_id or "").strip()
-    if not agent_id or agent_id.endswith("-pending"):
+    agent_id = str(config.runtime_agent_id or "").strip()
+    if not agent_id or agent_id == "pending" or agent_id.endswith("-pending"):
         return None
     return config
 
