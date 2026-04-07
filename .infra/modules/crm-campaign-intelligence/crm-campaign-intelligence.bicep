@@ -16,7 +16,7 @@ var searchIndexName = 'agent-${safeApp}-retrieval'
 var openaiName = 'aoai-${safeApp}'
 var aksName = 'aks-${safeApp}'
 
-resource cosmos 'Microsoft.DocumentDB/databaseAccounts@2023-04-15' = {
+resource cosmos 'Microsoft.DocumentDB/databaseAccounts@2025-10-15' = {
   name: cosmosAccountName
   location: location
   kind: 'GlobalDocumentDB'
@@ -34,8 +34,9 @@ resource cosmos 'Microsoft.DocumentDB/databaseAccounts@2023-04-15' = {
   }
 }
 
-resource cosmosDb 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2023-04-15' = {
-  name: '${cosmos.name}/${databaseName}'
+resource cosmosDb 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2025-10-15' = {
+  parent: cosmos
+  name: databaseName
   properties: {
     resource: {
       id: databaseName
@@ -43,8 +44,9 @@ resource cosmosDb 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2023-04-15
   }
 }
 
-resource cosmosContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2023-04-15' = {
-  name: '${cosmos.name}/${databaseName}/${containerName}'
+resource cosmosContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2025-10-15' = {
+  parent: cosmosDb
+  name: containerName
   properties: {
     resource: {
       id: containerName
@@ -56,20 +58,20 @@ resource cosmosContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/con
   }
 }
 
-resource redis 'Microsoft.Cache/Redis@2023-08-01' = {
+resource redis 'Microsoft.Cache/Redis@2024-11-01' = {
   name: redisName
   location: location
-  sku: {
-    name: 'Standard'
-    family: 'C'
-    capacity: 0
-  }
   properties: {
+    sku: {
+      name: 'Standard'
+      family: 'C'
+      capacity: 0
+    }
     enableNonSslPort: false
   }
 }
 
-resource storage 'Microsoft.Storage/storageAccounts@2022-09-01' = {
+resource storage 'Microsoft.Storage/storageAccounts@2025-08-01' = {
   name: storageAccountName
   location: location
   sku: {
@@ -81,19 +83,21 @@ resource storage 'Microsoft.Storage/storageAccounts@2022-09-01' = {
   }
 }
 
-resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-01-01' = {
-  name: '${storage.name}/default'
+resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2025-08-01' = {
+  parent: storage
+  name: 'default'
   properties: {}
 }
 
-resource blobContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-01-01' = {
-  name: '${storage.name}/default/${blobContainerName}'
+resource blobContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2025-08-01' = {
+  parent: blobService
+  name: blobContainerName
   properties: {
     publicAccess: 'None'
   }
 }
 
-resource searchService 'Microsoft.Search/searchServices@2022-09-01' = {
+resource searchService 'Microsoft.Search/searchServices@2025-05-01' = {
   name: searchServiceName
   location: location
   sku: {
@@ -105,8 +109,9 @@ resource searchService 'Microsoft.Search/searchServices@2022-09-01' = {
   }
 }
 
-resource searchIndex 'Microsoft.Search/searchServices/indexes@2022-09-01' = {
-  name: '${searchService.name}/${searchIndexName}'
+resource searchIndex 'Microsoft.Search/searchServices/indexes@2025-05-01' = {
+  parent: searchService
+  name: searchIndexName
   properties: {
     fields: [
       {
@@ -145,7 +150,7 @@ resource searchIndex 'Microsoft.Search/searchServices/indexes@2022-09-01' = {
   }
 }
 
-resource openai 'Microsoft.CognitiveServices/accounts@2023-05-01' = {
+resource openai 'Microsoft.CognitiveServices/accounts@2025-12-01' = {
   name: openaiName
   location: location
   kind: 'OpenAI'
@@ -157,52 +162,55 @@ resource openai 'Microsoft.CognitiveServices/accounts@2023-05-01' = {
   }
 }
 
-resource gpt41 'Microsoft.CognitiveServices/accounts/deployments@2023-05-01' = {
-  name: '${openai.name}/gpt-4-1'
+resource gpt41 'Microsoft.CognitiveServices/accounts/deployments@2025-12-01' = {
+  parent: openai
+  name: 'gpt-4-1'
+  sku: {
+    name: 'Standard'
+  }
   properties: {
     model: {
       format: 'OpenAI'
       name: 'gpt-4.1'
       version: '2024-10-01'
     }
-    sku: {
-      name: 'Standard'
-    }
     raiPolicyName: 'Microsoft.Default'
   }
 }
 
-resource gpt41Mini 'Microsoft.CognitiveServices/accounts/deployments@2023-05-01' = {
-  name: '${openai.name}/gpt-4-1-mini'
+resource gpt41Mini 'Microsoft.CognitiveServices/accounts/deployments@2025-12-01' = {
+  parent: openai
+  name: 'gpt-4-1-mini'
+  sku: {
+    name: 'Standard'
+  }
   properties: {
     model: {
       format: 'OpenAI'
       name: 'gpt-4.1-mini'
       version: '2024-10-01'
     }
-    sku: {
-      name: 'Standard'
-    }
     raiPolicyName: 'Microsoft.Default'
   }
 }
 
-resource gpt41Nano 'Microsoft.CognitiveServices/accounts/deployments@2023-05-01' = {
-  name: '${openai.name}/gpt-4-1-nano'
+resource gpt41Nano 'Microsoft.CognitiveServices/accounts/deployments@2025-12-01' = {
+  parent: openai
+  name: 'gpt-4-1-nano'
+  sku: {
+    name: 'Standard'
+  }
   properties: {
     model: {
       format: 'OpenAI'
       name: 'gpt-4.1-nano'
       version: '2024-10-01'
     }
-    sku: {
-      name: 'Standard'
-    }
     raiPolicyName: 'Microsoft.Default'
   }
 }
 
-resource aks 'Microsoft.ContainerService/managedClusters@2023-06-01' = {
+resource aks 'Microsoft.ContainerService/managedClusters@2026-01-01' = {
   name: aksName
   location: location
   identity: {
@@ -225,12 +233,10 @@ resource aks 'Microsoft.ContainerService/managedClusters@2023-06-01' = {
   }
 }
 
-resource deployApp 'Microsoft.ContainerService/managedClusters/runCommands@2023-04-02-preview' = {
-  name: '${aks.name}/deploy-${safeApp}'
+resource deployApp 'Microsoft.ContainerService/managedClusters/runCommands@2026-01-01' = {
+  parent: aks
+  name: 'deploy-${safeApp}'
   properties: {
     command: 'kubectl create deployment ${safeApp} --image=${appImage} --replicas=1 --dry-run=client -o yaml | kubectl apply -f -'
   }
-  dependsOn: [
-    aks
-  ]
 }

@@ -6,7 +6,7 @@ param deployShared bool = true
 @description('Deploy static web app module.')
 param deployStatic bool = false
 
-param location string = 'eastus2'
+param location string = 'westus2'
 param environment string = 'dev'
 param projectName string = 'holidaypeakhub405'
 @description('Optional override for Key Vault name (3-24 chars, lowercase letters, numbers, and hyphens).')

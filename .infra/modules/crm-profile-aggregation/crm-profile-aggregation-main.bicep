@@ -6,7 +6,7 @@ param appName string
 param resourceGroupName string = '${appName}-rg'
 param appImage string = 'ghcr.io/OWNER/crm-profile-aggregation:latest'
 
-resource rg 'Microsoft.Resources/resourceGroups@2021-04-01' = {
+resource rg 'Microsoft.Resources/resourceGroups@2025-04-01' = {
   name: resourceGroupName
   location: location
 }
