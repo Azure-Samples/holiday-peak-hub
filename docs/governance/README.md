@@ -113,10 +113,13 @@ Detailed policy is defined in [Infrastructure Governance](infrastructure-governa
 Use both checks below for governance hardening and drift detection:
 
 1. Docs reference validation (local + CI)
-	- `python scripts/ops/check_markdown_links.py --roots docs/governance docs/architecture/README.md`
-	- Fails on unresolved internal markdown links in governance docs and architecture entrypoint docs.
+	- `python scripts/ops/check_prompt_agent_consistency.py --report-file governance-drift-report.md`
+	- Enforces ADR preflight and canonical prompt-to-agent consistency for issue-engineering workflows.
+	- `python scripts/ops/check_markdown_links.py --roots docs/governance docs/architecture`
+	- Fails on unresolved internal markdown links across governance and architecture docs.
 	- `grep -RInE "OPERATIONAL-WORKFLOWS\.md|REPOSITORY-SURFACES\.md|governance-map\.md" .github/agents`
 	- CI fails if stale canonical governance reference tokens appear in tracked agent docs.
+	- CI uploads `governance-drift-reports` artifacts from `lint.yml` for PR validation evidence.
 
 2. Main protection audit (manual/CI)
 	- `python scripts/ops/audit_main_governance.py --repo <owner/repo> --required-check lint --required-check test --min-approvals 0 --require-conversation-resolution`

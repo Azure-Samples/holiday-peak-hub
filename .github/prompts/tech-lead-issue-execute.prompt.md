@@ -27,23 +27,23 @@ Drive a GitHub issue from open to closed:
    - Identify dependencies between sub-tasks and sequence them
    - Estimate complexity (trivial / small / medium / large)
 
-5. **Architecture Check** — If the issue crosses service boundaries or changes data flow, invoke `SystemArchitect` via `#runSubagent` to:
+5. **Architecture Check** — If the issue crosses service boundaries or changes data flow, invoke `system-architect` via `#runSubagent` to:
    - Validate the approach against established patterns
    - Identify integration contracts that need updating
    - Flag any ADR that should be created or amended
 
 6. **Implementation** — Delegate each sub-task to the appropriate specialist via `#runSubagent`:
-   - `PythonDeveloper` — Python implementation, tests, type checking
-   - `RustDeveloper` — Rust implementation, ownership correctness, cargo tests
-   - `TypeScriptDeveloper` — TypeScript/React implementation, type safety, Vitest
-   - `UIDesigner` — UI components, accessibility, responsive design
-   - `PlatformEngineer` — CI/CD changes, infrastructure, dependency updates
+   - `python-specialist` — Python implementation, tests, type checking
+   - `rust-specialist` — Rust implementation, ownership correctness, cargo tests
+   - `typescript-specialist` — TypeScript/React implementation, type safety, Vitest
+   - `ui-agent` — UI components, accessibility, responsive design
+   - `platform-quality` — CI/CD changes, infrastructure, dependency updates
    - `enterprise-connectors` — External API integrations, connector changes
 
 7. **Verification** — After implementation:
    - Confirm all acceptance criteria are met
    - Run tests and verify no regressions
-   - Invoke `PRReviewer` via `#runSubagent` for merge-readiness review
+   - Invoke `pr-evaluator` via `#runSubagent` for merge-readiness review
 
 8. **Closure** — Summarize what was done:
    - Changes made (files, modules, tests)

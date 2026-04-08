@@ -19,8 +19,8 @@ Execute issue engineering with strict process control:
    - Read the relevant code paths first.
    - Use workspace search and file reads to confirm current behavior.
    - Call relevant specialists via `#runSubagent` before implementation when cross-domain analysis is needed:
-     - `SystemArchitect` for architecture/integration concerns
-     - `PythonDeveloper`, `TypeScriptDeveloper`, `RustDeveloper`, `UIDesigner`, `PlatformEngineer` as applicable
+       - `system-architect` for architecture/integration concerns
+       - `python-specialist`, `typescript-specialist`, `rust-specialist`, `ui-agent`, `platform-quality` as applicable
    - Do not implement or open PRs before reconnaissance is complete.
 
 2. **Per-Change Engineering Analysis (for every requested change item)**

@@ -17,6 +17,12 @@ on:
     paths:
       - lib/**
       - apps/**
+      - docs/architecture/**
+      - docs/governance/**
+      - scripts/ops/**
+      - .github/prompts/**
+      - .github/agents/**
+      - .github/skills/**
       - pyproject.toml
       - conftest.py
       - .github/workflows/test.yml
@@ -59,12 +65,25 @@ jobs:
       - name: Type check (mypy)
         run: |
           python -m mypy --config-file pyproject.toml --ignore-missing-imports --follow-imports=skip lib/src/holiday_peak_lib/agents/service_agent.py lib/src/holiday_peak_lib/agents/memory/builder.py
+      - name: Check prompt and agent governance consistency
+        run: |
+          python scripts/ops/check_prompt_agent_consistency.py --report-file governance-drift-report.md
       - name: Validate governance and architecture docs links
         run: |
-          python scripts/ops/check_markdown_links.py --roots docs/governance docs/architecture/README.md
+          set -o pipefail
+          python scripts/ops/check_markdown_links.py --roots docs/governance docs/architecture | tee architecture-link-drift-report.txt
       - name: Block stale canonical governance references in agent docs
         run: |
           if grep -RInE "OPERATIONAL-WORKFLOWS\.md|REPOSITORY-SURFACES\.md|governance-map\.md" .github/agents; then
             echo "Found stale canonical governance references in .github/agents"
             exit 1
           fi
+      - name: Upload governance drift reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: governance-drift-reports
+          path: |
+            governance-drift-report.md
+            architecture-link-drift-report.txt
+          if-no-files-found: warn
