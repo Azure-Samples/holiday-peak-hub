@@ -62,10 +62,12 @@ Foundation for unified product data management.
 |-----------|------|---------|
 | Truth Schemas | `schemas/truth.py` | `TruthAttribute`, `ProposedAttribute`, `GapReport`, `AuditEvent` |
 | Truth Ingestion | `apps/truth-ingestion/` | Event-driven product record processing |
+| Truth Enrichment Service | `apps/truth-enrichment/` | Candidate attribute enrichment and confidence scoring |
 | HITL Review UI | `apps/ui/app/staff/review/` | Human-in-the-loop attribute validation |
 | Admin UI | `apps/ui/app/admin/` | Schema management, tenant config, analytics |
 | Truth HITL Service | `apps/truth-hitl/` | Human approval workflow and review queue orchestration |
 | Truth Export Service | `apps/truth-export/` | Approved data export and writeback pipeline |
+| Search Enrichment Agent | `apps/search-enrichment-agent/` | Search-side enrichment and retrieval augmentation |
 
 ## Apps (Domain Services)
 
@@ -132,12 +134,12 @@ Next.js 15 application with atomic design component library connecting to all ba
 
 | Category | Count | Location | Description |
 |----------|-------|----------|-------------|
-| **Atoms** | 19 | `ui/components/atoms/` | Basic building blocks (Button, Input, Icon, etc.) |
+| **Atoms** | 20 | `ui/components/atoms/` | Basic building blocks (Button, Input, Icon, etc.) |
 | **Molecules** | 20 | `ui/components/molecules/` | Simple composed components (Card, FormField, etc.) |
-| **Organisms** | 9 | `ui/components/organisms/` | Complex composed components (Navigation, ProductGrid, etc.) |
+| **Organisms** | 15 | `ui/components/organisms/` | Complex composed components (Navigation, ProductGrid, etc.) |
 | **Templates** | 4 | `ui/components/templates/` | Page-level layouts (MainLayout, ShopLayout, etc.) |
 
-See [Component Library Documentation](../../ui/components/COMPONENT_README.md) for details.
+See [Component Library Documentation](../../apps/ui/components/ATOMIC_README.md) for details.
 
 ### Page Structure
 

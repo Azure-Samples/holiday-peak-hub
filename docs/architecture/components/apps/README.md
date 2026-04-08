@@ -38,3 +38,11 @@ Links to all app-level component docs.
 - [ETA Computation](logistics-eta-computation.md)
 - [Returns Support](logistics-returns-support.md)
 - [Route Issue Detection](logistics-route-issue-detection.md)
+
+## Truth Layer and Search Enrichment
+
+- [Search Enrichment Agent](../../../../apps/search-enrichment-agent/README.md)
+- [Truth Ingestion](../../../../apps/truth-ingestion/README.md)
+- [Truth Enrichment](../../../../apps/truth-enrichment/README.md)
+- [Truth HITL](../../../../apps/truth-hitl/README.md)
+- [Truth Export](../../../../apps/truth-export/README.md)

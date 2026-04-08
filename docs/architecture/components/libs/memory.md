@@ -666,8 +666,8 @@ az cosmosdb sql container show \
 ## Related ADRs
 
 - [ADR-002: Azure Services](../../adrs/adr-002-azure-services.md) — Rationale for Redis/Cosmos/Blob
-- [ADR-004: Builder Pattern](../../adrs/adr-004-builder-pattern.md) — Memory tier configuration
-- [ADR-008: Three-Tier Memory](../../adrs/adr-008-three-tier-memory.md) — Architecture and SLAs
+- [ADR-004: Builder Pattern](../../adrs/adr-004-builder-pattern-memory.md) — Memory tier configuration
+- [ADR-008: Memory Tiers](../../adrs/adr-008-memory-tiers.md) — Architecture and SLAs
 
 ---
 
