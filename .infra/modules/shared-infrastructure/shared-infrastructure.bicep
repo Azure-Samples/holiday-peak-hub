@@ -27,6 +27,10 @@ param alertNotificationEmail string = ''
 @secure()
 @description('Optional Microsoft Teams incoming webhook URL for infrastructure alerts action group.')
 param alertTeamsWebhookUrl string = ''
+@description('Initial node count for AKS system and user pools. For non-prod, the pre-provision hook auto-detects available availability zones and sets this value. Defaults to 1.')
+param aksNodeCount int = 1
+@description('Availability zones for AKS node pools. Set by the pre-provision hook based on VM SKU zone availability in the target region. Defaults to zones 1,2,3.')
+param aksAvailabilityZones array = [1, 2, 3]
 
 // Naming convention with environment suffix
 var envSuffix = environment == 'prod' ? '' : '-${environment}'
@@ -47,6 +51,7 @@ var resolvedPostgresAdminPassword = empty(postgresAdminPassword)
   ? '${replace(postgresAdminPasswordSeed, '-', '')}Aa!'
   : postgresAdminPassword
 var eventHubsNamespaceName = '${projectName}${envSuffix}-eventhub'
+var platformJobsNamespaceName = '${projectName}${envSuffix}-jobs-eh'
 var redisName = '${projectName}${envSuffix}-redis'
 var storageAccountName = take('${safeProjectName}${replace(envSuffix, '-', '')}store', 24)
 var keyVaultName = empty(keyVaultNameOverride)
@@ -382,6 +387,14 @@ module acr 'br/public:avm/res/container-registry/registry:0.12.0' = {
     managedIdentities: {
       systemAssigned: true
     }
+    roleAssignments: [
+      {
+        // AKS kubelet identity -> ACR (pull images)
+        roleDefinitionIdOrName: '7f951dda-4ed3-4680-a7ca-43fe172d538d' // AcrPull
+        principalId: aks.outputs.?kubeletIdentityObjectId ?? ''
+        principalType: 'ServicePrincipal'
+      }
+    ]
     privateEndpoints: [
       {
         subnetResourceId: peSubnetId
@@ -491,6 +504,13 @@ module cosmos 'br/public:avm/res/document-db/database-account:0.19.0' = {
         containers: cosmosContainers
       }
     ]
+    sqlRoleAssignments: [
+      {
+        // AKS system MI -> Cosmos DB (Data Contributor)
+        principalId: aks.outputs.?systemAssignedMIPrincipalId ?? ''
+        roleDefinitionId: '00000000-0000-0000-0000-000000000002' // Built-in Data Contributor
+      }
+    ]
     tags: tags
   }
 }
@@ -534,10 +554,6 @@ module postgres 'br/public:avm/res/db-for-postgre-sql/flexible-server:0.15.2' = 
 }
 
 // Redis Cache (AVM)
-// NOTE: zoneRedundant is explicitly set to false so tear-down and re-provisioning
-// (e.g. `azd down && azd up`) works reliably in dev/test. The AVM module defaults
-// zoneRedundant to true, which can cause provider errors on re-creation. Production
-// deployments should set this to true for high availability.
 module redis 'br/public:avm/res/cache/redis:0.16.5' = {
   name: 'redis'
   params: {
@@ -545,7 +561,6 @@ module redis 'br/public:avm/res/cache/redis:0.16.5' = {
     location: location
     skuName: 'Premium'
     capacity: 1
-    zoneRedundant: false
     minimumTlsVersion: '1.2'
     publicNetworkAccess: 'Disabled'
     redisConfiguration: {
@@ -585,6 +600,14 @@ module storage 'br/public:avm/res/storage/storage-account:0.32.0' = {
     managedIdentities: {
       systemAssigned: true
     }
+    roleAssignments: [
+      {
+        // AKS system MI -> Storage (Blob Data Contributor)
+        roleDefinitionIdOrName: 'ba92f5b4-2d11-453d-a403-e96b0029c9fe' // Storage Blob Data Contributor
+        principalId: aks.outputs.?systemAssignedMIPrincipalId ?? ''
+        principalType: 'ServicePrincipal'
+      }
+    ]
     privateEndpoints: [
       {
         subnetResourceId: peSubnetId
@@ -631,6 +654,20 @@ module eventHubs 'br/public:avm/res/event-hub/namespace:0.14.1' = {
         }
       }
     ]
+    roleAssignments: [
+      {
+        // AKS -> Event Hubs (Data Sender)
+        roleDefinitionIdOrName: '2b629674-e913-4c01-ae53-ef4638d8f975' // Azure Event Hubs Data Sender
+        principalId: aks.outputs.?systemAssignedMIPrincipalId ?? ''
+        principalType: 'ServicePrincipal'
+      }
+      {
+        // AKS -> Event Hubs (Data Receiver)
+        roleDefinitionIdOrName: 'a638d3c7-ab3a-418d-83e6-5f17a39d4fde' // Azure Event Hubs Data Receiver
+        principalId: aks.outputs.?systemAssignedMIPrincipalId ?? ''
+        principalType: 'ServicePrincipal'
+      }
+    ]
     eventhubs: [
       {
         name: 'order-events'
@@ -663,6 +700,58 @@ module eventHubs 'br/public:avm/res/event-hub/namespace:0.14.1' = {
         partitionCount: 4
       }
       {
+        name: 'user-events'
+        messageRetentionInDays: 7
+        partitionCount: 2
+      }
+    ]
+    tags: tags
+  }
+}
+
+// Platform Jobs Event Hubs Namespace (AVM)
+// Separated from the domain events namespace to stay within the Standard tier
+// limit of 10 event hubs per namespace.
+module platformJobsEventHubs 'br/public:avm/res/event-hub/namespace:0.14.1' = {
+  name: 'platform-jobs-event-hubs'
+  params: {
+    name: platformJobsNamespaceName
+    location: location
+    skuName: 'Standard'
+    skuCapacity: 1
+    minimumTlsVersion: '1.2'
+    publicNetworkAccess: 'Disabled'
+    managedIdentities: {
+      systemAssigned: true
+    }
+    privateEndpoints: [
+      {
+        subnetResourceId: peSubnetId
+        privateDnsZoneGroup: {
+          privateDnsZoneGroupConfigs: [
+            {
+              privateDnsZoneResourceId: eventHubsPrivateDnsZone.outputs.resourceId
+            }
+          ]
+        }
+      }
+    ]
+    roleAssignments: [
+      {
+        // AKS -> Platform Jobs Event Hubs (Data Sender)
+        roleDefinitionIdOrName: '2b629674-e913-4c01-ae53-ef4638d8f975' // Azure Event Hubs Data Sender
+        principalId: aks.outputs.?systemAssignedMIPrincipalId ?? ''
+        principalType: 'ServicePrincipal'
+      }
+      {
+        // AKS -> Platform Jobs Event Hubs (Data Receiver)
+        roleDefinitionIdOrName: 'a638d3c7-ab3a-418d-83e6-5f17a39d4fde' // Azure Event Hubs Data Receiver
+        principalId: aks.outputs.?systemAssignedMIPrincipalId ?? ''
+        principalType: 'ServicePrincipal'
+      }
+    ]
+    eventhubs: [
+      {
         name: 'ingest-jobs'
         messageRetentionInDays: 7
         partitionCount: 4
@@ -692,11 +781,6 @@ module eventHubs 'br/public:avm/res/event-hub/namespace:0.14.1' = {
         messageRetentionInDays: 7
         partitionCount: 4
       }
-      {
-        name: 'user-events'
-        messageRetentionInDays: 7
-        partitionCount: 2
-      }
     ]
     tags: tags
   }
@@ -724,6 +808,14 @@ module keyVault 'br/public:avm/res/key-vault/vault:0.13.3' = {
       defaultAction: 'Deny'
       bypass: 'AzureServices'
     }
+    roleAssignments: [
+      {
+        // AKS keyvault identity -> Key Vault (Secrets User)
+        roleDefinitionIdOrName: '4633458b-17de-408a-b874-0445c86b69e6' // Key Vault Secrets User
+        principalId: aks.outputs.?keyvaultIdentityObjectId ?? ''
+        principalType: 'ServicePrincipal'
+      }
+    ]
     privateEndpoints: [
       {
         subnetResourceId: peSubnetId
@@ -770,13 +862,25 @@ module aiFoundry 'br/public:avm/ptn/ai-ml/ai-foundry:0.6.0' = {
     }
     aiSearchConfiguration: {
       name: aiSearchName
+      roleAssignments: [
+        {
+          // AKS kubelet identity -> AI Search (index data contributor)
+          roleDefinitionIdOrName: '8ebe5a00-799e-43f5-93ac-243d3dce84a7' // Search Index Data Contributor
+          principalId: aks.outputs.?kubeletIdentityObjectId ?? ''
+          principalType: 'ServicePrincipal'
+        }
+      ]
     }
   }
 }
 
 // Reference the AI Search service created by the AVM ai-foundry module for role assignments.
+// Uses the aiSearchName variable (compile-time known) so Bicep can resolve .identity.principalId.
 resource aiSearchFromFoundry 'Microsoft.Search/searchServices@2025-05-01' existing = {
   name: aiSearchName
+  dependsOn: [
+    aiFoundry
+  ]
 }
 
 // Azure Kubernetes Service (AVM)
@@ -813,10 +917,11 @@ module aks 'br/public:avm/res/container-service/managed-cluster:0.13.0' = {
     primaryAgentPoolProfiles: [
       {
         name: 'system'
-        count: environment == 'prod' ? 3 : 1
+        count: environment == 'prod' ? 3 : aksNodeCount
         vmSize: 'Standard_D8ds_v5'
         osType: 'Linux'
         mode: 'System'
+        availabilityZones: aksAvailabilityZones
         vnetSubnetResourceId: aksSystemSubnetId
         enableAutoScaling: true
         minCount: 1
@@ -826,13 +931,14 @@ module aks 'br/public:avm/res/container-service/managed-cluster:0.13.0' = {
     agentPools: [
       {
         name: 'agents'
-        count: environment == 'prod' ? 5 : 2
+        count: environment == 'prod' ? 5 : aksNodeCount
         vmSize: 'Standard_D8ds_v5'
         osType: 'Linux'
         mode: 'User'
+        availabilityZones: aksAvailabilityZones
         vnetSubnetResourceId: aksAgentsSubnetId
         enableAutoScaling: true
-        minCount: 2
+        minCount: 1
         maxCount: environment == 'prod' ? 20 : 10
         nodeTaints: [
           'workload=agents:NoSchedule'
@@ -840,10 +946,11 @@ module aks 'br/public:avm/res/container-service/managed-cluster:0.13.0' = {
       }
       {
         name: 'crud'
-        count: environment == 'prod' ? 3 : 1
+        count: environment == 'prod' ? 3 : aksNodeCount
         vmSize: 'Standard_D8ds_v5'
         osType: 'Linux'
         mode: 'User'
+        availabilityZones: aksAvailabilityZones
         vnetSubnetResourceId: aksCrudSubnetId
         enableAutoScaling: true
         minCount: 1
@@ -865,6 +972,9 @@ resource agcControllerIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities
 
 resource aksClusterResource 'Microsoft.ContainerService/managedClusters@2025-09-01' existing = {
   name: aksClusterName
+  dependsOn: [
+    aks
+  ]
 }
 
 resource agcControllerFederatedCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2025-01-31-preview' = if (agcSupportEnabled) {
@@ -924,11 +1034,6 @@ module monitoring '../monitoring/monitoring.bicep' = if (monitoringEnabled) {
   }
 }
 
-resource acrResource 'Microsoft.ContainerRegistry/registries@2025-11-01' existing = {
-  #disable-next-line BCP334 // projectName @minLength(5) ensures acrName >= 8 chars
-  name: acrName
-}
-
 resource cosmosAccount 'Microsoft.DocumentDB/databaseAccounts@2025-10-15' existing = {
   name: cosmosAccountName
 }
@@ -937,28 +1042,35 @@ resource eventHubsNamespaceResource 'Microsoft.EventHub/namespaces@2024-01-01' e
   name: eventHubsNamespaceName
 }
 
+resource platformJobsNamespaceResource 'Microsoft.EventHub/namespaces@2024-01-01' existing = {
+  name: platformJobsNamespaceName
+  dependsOn: [
+    platformJobsEventHubs
+  ]
+}
+
 resource searchEnrichmentJobsEventHub 'Microsoft.EventHub/namespaces/eventhubs@2024-01-01' existing = {
-  parent: eventHubsNamespaceResource
+  parent: platformJobsNamespaceResource
   name: 'search-enrichment-jobs'
 }
 
 resource ingestJobsEventHub 'Microsoft.EventHub/namespaces/eventhubs@2024-01-01' existing = {
-  parent: eventHubsNamespaceResource
+  parent: platformJobsNamespaceResource
   name: 'ingest-jobs'
 }
 
 resource enrichmentJobsEventHub 'Microsoft.EventHub/namespaces/eventhubs@2024-01-01' existing = {
-  parent: eventHubsNamespaceResource
+  parent: platformJobsNamespaceResource
   name: 'enrichment-jobs'
 }
 
 resource completenessJobsEventHub 'Microsoft.EventHub/namespaces/eventhubs@2024-01-01' existing = {
-  parent: eventHubsNamespaceResource
+  parent: platformJobsNamespaceResource
   name: 'completeness-jobs'
 }
 
 resource exportJobsEventHub 'Microsoft.EventHub/namespaces/eventhubs@2024-01-01' existing = {
-  parent: eventHubsNamespaceResource
+  parent: platformJobsNamespaceResource
   name: 'export-jobs'
 }
 
@@ -982,7 +1094,7 @@ resource ingestionGroupConsumerGroup 'Microsoft.EventHub/namespaces/eventhubs/co
   name: 'ingestion-group'
   properties: {}
   dependsOn: [
-    eventHubs
+    platformJobsEventHubs
   ]
 }
 
@@ -991,7 +1103,7 @@ resource enrichmentEngineConsumerGroup 'Microsoft.EventHub/namespaces/eventhubs/
   name: 'enrichment-engine'
   properties: {}
   dependsOn: [
-    eventHubs
+    platformJobsEventHubs
   ]
 }
 
@@ -1000,7 +1112,7 @@ resource exportEngineConsumerGroup 'Microsoft.EventHub/namespaces/eventhubs/cons
   name: 'export-engine'
   properties: {}
   dependsOn: [
-    eventHubs
+    platformJobsEventHubs
   ]
 }
 
@@ -1009,7 +1121,7 @@ resource hitlServiceConsumerGroup 'Microsoft.EventHub/namespaces/eventhubs/consu
   name: 'hitl-service'
   properties: {}
   dependsOn: [
-    eventHubs
+    platformJobsEventHubs
   ]
 }
 
@@ -1018,7 +1130,7 @@ resource searchEnrichmentAgentConsumerGroup 'Microsoft.EventHub/namespaces/event
   name: 'search-enrichment-agent'
   properties: {}
   dependsOn: [
-    eventHubs
+    platformJobsEventHubs
   ]
 }
 
@@ -1027,7 +1139,7 @@ resource searchEnrichmentConsumerGroup 'Microsoft.EventHub/namespaces/eventhubs/
   name: 'search-enrichment-consumer'
   properties: {}
   dependsOn: [
-    eventHubs
+    platformJobsEventHubs
   ]
 }
 
@@ -1090,7 +1202,7 @@ resource completenessEngineConsumerGroup 'Microsoft.EventHub/namespaces/eventhub
   name: 'completeness-engine'
   properties: {}
   dependsOn: [
-    eventHubs
+    platformJobsEventHubs
   ]
 }
 
@@ -1128,104 +1240,10 @@ resource postgresPasswordSecret 'Microsoft.KeyVault/vaults/secrets@2025-05-01' =
   ]
 }
 
-resource storageResource 'Microsoft.Storage/storageAccounts@2025-08-01' existing = {
-  name: storageAccountName
-}
-
-// RBAC Assignments
-// AKS -> ACR (pull images)
-resource aksAcrPullRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, aksClusterName, acrName, 'AcrPull')
-  scope: acrResource
-  properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d') // AcrPull
-    principalId: aks.outputs.?kubeletIdentityObjectId ?? ''
-    principalType: 'ServicePrincipal'
-  }
-  dependsOn: [
-    acr
-  ]
-}
-
-// AKS -> Cosmos DB (Data Contributor)
-resource aksCosmosRole 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2025-10-15' = {
-  parent: cosmosAccount
-  name: guid(resourceGroup().id, aksClusterName, cosmosAccountName, 'CosmosDataContributor')
-  properties: {
-    roleDefinitionId: '${cosmosAccount.id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002' // Built-in Data Contributor
-    principalId: aks.outputs.?systemAssignedMIPrincipalId ?? ''
-    scope: cosmosAccount.id
-  }
-  dependsOn: [
-    cosmos
-  ]
-}
-
-// AKS -> Event Hubs (Data Sender/Receiver)
-resource aksEventHubSenderRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, aksClusterName, eventHubsNamespaceName, 'EventHubSender')
-  scope: eventHubsNamespaceResource
-  properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '2b629674-e913-4c01-ae53-ef4638d8f975') // Azure Event Hubs Data Sender
-    principalId: aks.outputs.?systemAssignedMIPrincipalId ?? ''
-    principalType: 'ServicePrincipal'
-  }
-  dependsOn: [
-    eventHubs
-  ]
-}
-
-resource aksEventHubReceiverRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, aksClusterName, eventHubsNamespaceName, 'EventHubReceiver')
-  scope: eventHubsNamespaceResource
-  properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a638d3c7-ab3a-418d-83e6-5f17a39d4fde') // Azure Event Hubs Data Receiver
-    principalId: aks.outputs.?systemAssignedMIPrincipalId ?? ''
-    principalType: 'ServicePrincipal'
-  }
-  dependsOn: [
-    eventHubs
-  ]
-}
-
-// AKS -> Key Vault (Secrets User)
-resource aksKeyVaultRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, aksClusterName, keyVaultName, 'KeyVaultSecretsUser')
-  scope: keyVaultResource
-  properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6') // Key Vault Secrets User
-    principalId: aks.outputs.?keyvaultIdentityObjectId ?? ''
-    principalType: 'ServicePrincipal'
-  }
-  dependsOn: [
-    keyVault
-  ]
-}
-
-// AKS -> Storage (Blob Data Contributor)
-resource aksStorageRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, aksClusterName, storageAccountName, 'BlobDataContributor')
-  scope: storageResource
-  properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe') // Storage Blob Data Contributor
-    principalId: aks.outputs.?systemAssignedMIPrincipalId ?? ''
-    principalType: 'ServicePrincipal'
-  }
-  dependsOn: [
-    storage
-  ]
-}
-
-// AKS workload identity -> Azure AI Search (index data query + document upsert/delete)
-resource aksSearchIndexDataContributorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, aksClusterName, aiSearchName, 'SearchIndexDataContributor')
-  scope: aiSearchFromFoundry
-  properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8ebe5a00-799e-43f5-93ac-243d3dce84a7') // Search Index Data Contributor
-    principalId: aks.outputs.?kubeletIdentityObjectId ?? ''
-    principalType: 'ServicePrincipal'
-  }
-}
+// RBAC Assignments — AKS → resource roles are now declared inline via AVM module
+// roleAssignments parameters (ACR, Cosmos, EventHubs, KeyVault, Storage, AI Search).
+// Only AI Search → Cosmos roles remain standalone because the AI Search principal ID
+// is only available after the AI Foundry module completes (circular dependency).
 
 // Azure AI Search managed identity -> Cosmos DB (control plane)
 resource aiSearchCosmosAccountReaderRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
@@ -1236,10 +1254,6 @@ resource aiSearchCosmosAccountReaderRole 'Microsoft.Authorization/roleAssignment
     principalId: aiSearchFromFoundry.identity.principalId
     principalType: 'ServicePrincipal'
   }
-  dependsOn: [
-    aiFoundry
-    cosmos
-  ]
 }
 
 // Azure AI Search managed identity -> Cosmos DB (data plane)
@@ -1251,10 +1265,6 @@ resource aiSearchCosmosDataReaderRole 'Microsoft.DocumentDB/databaseAccounts/sql
     principalId: aiSearchFromFoundry.identity.principalId
     scope: cosmosAccount.id
   }
-  dependsOn: [
-    aiFoundry
-    cosmos
-  ]
 }
 
 // Outputs
@@ -1271,6 +1281,7 @@ output postgresWorkloadUser string = postgresWorkloadUser
 output postgresAuthMode string = postgresAuthMode
 output postgresBreakGlassAdminUser string = postgresAdminUser
 output eventHubsNamespaceName string = eventHubs.outputs.name
+output platformJobsNamespaceName string = platformJobsEventHubs.outputs.name
 output redisName string = redis.outputs.name
 output storageAccountName string = storage.outputs.name
 output keyVaultName string = keyVault.outputs.name

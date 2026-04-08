@@ -25,6 +25,10 @@ param alertNotificationEmail string = ''
 @secure()
 @description('Optional Microsoft Teams incoming webhook URL for infrastructure alerts action group.')
 param alertTeamsWebhookUrl string = ''
+@description('Initial node count for AKS node pools. Auto-set by pre-provision hook based on VM SKU zone availability in the target region.')
+param aksNodeCount int = 1
+@description('Availability zones for AKS node pools as a JSON string. Auto-set by pre-provision hook. Defaults to [1,2,3].')
+param aksAvailabilityZones string = '[1,2,3]'
 param resourceGroupName string = '${projectName}-${environment}-rg'
 
 @description('Optional override for the Static Web App base name. Defaults to projectName-ui.')
@@ -37,8 +41,11 @@ var postgresAuthMode = 'password'
 var postgresWorkloadUser = 'crud_workload'
 var staticWebAppBaseName = empty(appName) ? '${projectName}-ui' : appName
 
+@description('UTC timestamp for unique deployment naming. Do not override.')
+param deploymentTimestamp string = utcNow()
+
 module sharedInfra '../modules/shared-infrastructure/shared-infrastructure-main.bicep' = if (deployShared) {
-  name: 'shared-infrastructure-azd'
+  name: 'shared-infrastructure-azd${deploymentTimestamp}'
   params: {
     location: location
     environment: environment
@@ -50,6 +57,8 @@ module sharedInfra '../modules/shared-infrastructure/shared-infrastructure-main.
     postgresAdminPassword: postgresAdminPassword
     alertNotificationEmail: alertNotificationEmail
     alertTeamsWebhookUrl: alertTeamsWebhookUrl
+    aksNodeCount: aksNodeCount
+    aksAvailabilityZones: json(aksAvailabilityZones)
     resourceGroupName: resourceGroupName
   }
 }
@@ -90,6 +99,7 @@ output COSMOS_DATABASE string = deployShared ? sharedInfra!.outputs.databaseName
 output KEY_VAULT_URI string = deployShared ? sharedInfra!.outputs.keyVaultUri : ''
 output REDIS_HOST string = deployShared ? sharedInfra!.outputs.redisName : ''
 output EVENT_HUB_NAMESPACE string = deployShared ? sharedInfra!.outputs.eventHubsNamespaceName : ''
+output PLATFORM_JOBS_EVENT_HUB_NAMESPACE string = deployShared ? sharedInfra!.outputs.platformJobsNamespaceName : ''
 output APPLICATIONINSIGHTS_CONNECTION_STRING string = deployShared ? sharedInfra!.outputs.appInsightsConnectionString : ''
 output POSTGRES_HOST string = deployShared ? sharedInfra!.outputs.postgresFqdn : ''
 output POSTGRES_USER string = deployShared ? postgresWorkloadUser : ''

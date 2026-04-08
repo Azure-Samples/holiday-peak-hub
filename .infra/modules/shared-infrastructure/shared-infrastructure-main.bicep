@@ -20,6 +20,10 @@ param alertNotificationEmail string = ''
 @secure()
 @description('Optional Microsoft Teams incoming webhook URL for infrastructure alerts action group.')
 param alertTeamsWebhookUrl string = ''
+@description('Initial node count for AKS system and user pools. Set by the pre-provision hook based on VM SKU zone availability.')
+param aksNodeCount int = 1
+@description('Availability zones for AKS node pools. Parsed from JSON string at the azd layer.')
+param aksAvailabilityZones array = [1, 2, 3]
 param resourceGroupName string = '${projectName}-${environment}-rg'
 
 // Create Resource Group
@@ -48,6 +52,8 @@ module sharedInfra './shared-infrastructure.bicep' = {
     postgresAdminPassword: postgresAdminPassword
     alertNotificationEmail: alertNotificationEmail
     alertTeamsWebhookUrl: alertTeamsWebhookUrl
+    aksNodeCount: aksNodeCount
+    aksAvailabilityZones: aksAvailabilityZones
   }
   dependsOn: [
     rg
@@ -66,6 +72,7 @@ output postgresFqdn string = sharedInfra.outputs.postgresFqdn
 output postgresDatabaseName string = sharedInfra.outputs.postgresDatabaseName
 output postgresAdminUser string = sharedInfra.outputs.postgresAdminUser
 output eventHubsNamespaceName string = sharedInfra.outputs.eventHubsNamespaceName
+output platformJobsNamespaceName string = sharedInfra.outputs.platformJobsNamespaceName
 output redisName string = sharedInfra.outputs.redisName
 output storageAccountName string = sharedInfra.outputs.storageAccountName
 output keyVaultName string = sharedInfra.outputs.keyVaultName
