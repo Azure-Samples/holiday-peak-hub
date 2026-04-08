@@ -114,6 +114,13 @@ You **must** delegate to the appropriate specialist agent for any work involving
 5. **Verify integration** — ensure platform + code changes work together
 6. **Report back** — summarize completed work, delegations, and any follow-up items
 
+### Issue Engineering Skill Usage
+
+When converting platform findings into executable backlog items, load and apply:
+- `.github/skills/issue-engineering-workflows/SKILL.md`
+
+Use the skill templates to standardize issue quality (problem statement, acceptance criteria, risks/dependencies, BPMN section) before branch and PR execution.
+
 ## Repository-Specific Instructions
 
 When working inside any repository, discover local platform standards and load authoritative files for:
