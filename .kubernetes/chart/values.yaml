@@ -42,6 +42,7 @@ agc:
 image:
   repository: "ghcr.io/azure-samples/holiday-peak-hub/example"
   tag: "latest"
+  digest: ""
 
 replicaCount: 2
 
@@ -128,6 +129,7 @@ canary:
   image:
     repository: ""  # Uses main image.repository if empty
     tag: ""  # Uses main image.tag if empty
+    digest: ""  # Uses main image.digest if empty
   ingress:
     enabled: false
     annotations: {}

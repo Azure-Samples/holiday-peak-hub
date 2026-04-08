@@ -6,6 +6,7 @@ SERVICE_NAME="$1"
 NAMESPACE="${K8S_NAMESPACE:-holiday-peak}"
 IMAGE_PREFIX="${IMAGE_PREFIX:-ghcr.io/azure-samples}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
+IMAGE_DIGEST="${IMAGE_DIGEST:-}"
 KEDA_ENABLED="${KEDA_ENABLED:-false}"
 PUBLICATION_MODE="${PUBLICATION_MODE:-agc}"
 LEGACY_INGRESS_ENABLED="false"
@@ -95,12 +96,22 @@ SERVICE_IMAGE_VAR_NAME="SERVICE_$(printf '%s' "$SERVICE_NAME" | tr '[:lower:]-' 
 SERVICE_IMAGE="$(printenv "$SERVICE_IMAGE_VAR_NAME" || true)"
 
 if [ -n "$SERVICE_IMAGE" ]; then
-  IMAGE_PREFIX="${SERVICE_IMAGE%:*}"
-  if [ "$IMAGE_PREFIX" = "$SERVICE_IMAGE" ]; then
-    IMAGE_TAG="latest"
-  else
-    IMAGE_TAG="${SERVICE_IMAGE##*:}"
-  fi
+  case "$SERVICE_IMAGE" in
+    *@*)
+      IMAGE_PREFIX="${SERVICE_IMAGE%@*}"
+      IMAGE_DIGEST="${SERVICE_IMAGE#*@}"
+      IMAGE_TAG="latest"
+      ;;
+    *)
+      IMAGE_PREFIX="${SERVICE_IMAGE%:*}"
+      if [ "$IMAGE_PREFIX" = "$SERVICE_IMAGE" ]; then
+        IMAGE_TAG="latest"
+      else
+        IMAGE_TAG="${SERVICE_IMAGE##*:}"
+      fi
+      IMAGE_DIGEST=""
+      ;;
+  esac
 else
   IMAGE_PREFIX="$IMAGE_PREFIX/$SERVICE_NAME"
 fi
@@ -115,7 +126,11 @@ mkdir -p "$OUT_DIR"
 HELM_ARGS="--namespace $NAMESPACE"
 HELM_ARGS="$HELM_ARGS --set serviceName=$SERVICE_NAME"
 HELM_ARGS="$HELM_ARGS --set image.repository=$IMAGE_PREFIX"
-HELM_ARGS="$HELM_ARGS --set image.tag=$IMAGE_TAG"
+if [ -n "$IMAGE_DIGEST" ]; then
+  HELM_ARGS="$HELM_ARGS --set-string image.digest=$IMAGE_DIGEST"
+else
+  HELM_ARGS="$HELM_ARGS --set image.tag=$IMAGE_TAG"
+fi
 HELM_ARGS="$HELM_ARGS --set keda.enabled=$KEDA_ENABLED"
 HELM_ARGS="$HELM_ARGS --set ingress.enabled=$LEGACY_INGRESS_ENABLED"
 HELM_ARGS="$HELM_ARGS --set-string ingress.className=$LEGACY_INGRESS_CLASS_NAME"

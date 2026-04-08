@@ -1,16 +1,13 @@
 name: deploy-azd-dev (entrypoint)
 
 on:
-  push:
+  workflow_run:
+    workflows:
+      - test
+    types:
+      - completed
     branches:
       - main
-    paths:
-      - azure.yaml
-      - apps/**
-      - lib/**
-      - .infra/**
-      - .github/workflows/deploy-azd.yml
-      - .github/workflows/deploy-azd-dev.yml
   workflow_dispatch:
     inputs:
       location:
@@ -25,6 +22,14 @@ on:
         description: Image tag to deploy
         required: true
         default: latest
+      testedSourceSha:
+        description: Optional tested source commit SHA to deploy (empty = current ref)
+        required: false
+        default: ''
+      testedSourceRef:
+        description: Optional tested source ref to deploy (empty = current ref)
+        required: false
+        default: ''
       deployStatic:
         description: Provision static web app resources
         required: true
@@ -61,6 +66,10 @@ permissions:
 
 jobs:
   deploy:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
     permissions:
       id-token: write
       contents: read
@@ -70,7 +79,9 @@ jobs:
       environment: dev
       location: ${{ github.event_name == 'workflow_dispatch' && inputs.location || 'centralus' }}
       projectName: ${{ github.event_name == 'workflow_dispatch' && inputs.projectName || 'holidaypeakhub405' }}
-      imageTag: ${{ github.event_name == 'workflow_dispatch' && inputs.imageTag || github.sha }}
+      imageTag: ${{ github.event_name == 'workflow_dispatch' && inputs.imageTag || github.event.workflow_run.head_sha }}
+      sourceSha: ${{ github.event_name == 'workflow_dispatch' && inputs.testedSourceSha || (github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || '') }}
+      sourceRef: ${{ github.event_name == 'workflow_dispatch' && inputs.testedSourceRef || (github.event_name == 'workflow_run' && format('refs/heads/{0}', github.event.workflow_run.head_branch) || '') }}
       deployStatic: ${{ github.event_name != 'workflow_dispatch' || inputs.deployStatic }}
       uiOnly: ${{ github.event_name == 'workflow_dispatch' && inputs.uiOnly }}
       apiBaseUrl: ${{ github.event_name == 'workflow_dispatch' && inputs.apiBaseUrl || '' }}

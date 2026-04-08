@@ -6,6 +6,7 @@ param(
 $namespace = if ($env:K8S_NAMESPACE) { $env:K8S_NAMESPACE } else { "holiday-peak" }
 $imagePrefix = if ($env:IMAGE_PREFIX) { $env:IMAGE_PREFIX } else { "ghcr.io/azure-samples" }
 $imageTag = if ($env:IMAGE_TAG) { $env:IMAGE_TAG } else { "latest" }
+$imageDigest = if ($env:IMAGE_DIGEST) { $env:IMAGE_DIGEST } else { "" }
 $kedaEnabled = if ($env:KEDA_ENABLED) { $env:KEDA_ENABLED } else { "false" }
 $publicationMode = if ($env:PUBLICATION_MODE) { $env:PUBLICATION_MODE } else { "agc" }
 $legacyIngressEnabled = "false"
@@ -87,12 +88,20 @@ $serviceImageVarName = "SERVICE_$($ServiceName.ToUpper().Replace('-', '_'))_IMAG
 $serviceImage = [Environment]::GetEnvironmentVariable($serviceImageVarName)
 
 if ($serviceImage) {
-  $lastColon = $serviceImage.LastIndexOf(':')
-  if ($lastColon -gt 0) {
-    $imagePrefix = $serviceImage.Substring(0, $lastColon)
-    $imageTag = $serviceImage.Substring($lastColon + 1)
+  if ($serviceImage.Contains('@')) {
+    $parts = $serviceImage.Split('@', 2)
+    $imagePrefix = $parts[0]
+    $imageDigest = $parts[1]
+    $imageTag = 'latest'
   } else {
-    $imagePrefix = $serviceImage
+    $lastColon = $serviceImage.LastIndexOf(':')
+    if ($lastColon -gt 0) {
+      $imagePrefix = $serviceImage.Substring(0, $lastColon)
+      $imageTag = $serviceImage.Substring($lastColon + 1)
+    } else {
+      $imagePrefix = $serviceImage
+    }
+    $imageDigest = ''
   }
 } else {
   $imagePrefix = "$imagePrefix/$ServiceName"
@@ -115,8 +124,6 @@ $helmArgs = @(
   "serviceName=$ServiceName",
   '--set',
   "image.repository=$imagePrefix",
-  '--set',
-  "image.tag=$imageTag",
   '--set',
   "keda.enabled=$kedaEnabled",
   '--set',
@@ -160,6 +167,12 @@ $helmArgs = @(
   '--set',
   "tolerations[0].effect=NoSchedule"
 )
+
+if ($imageDigest) {
+  $helmArgs += @('--set-string', "image.digest=$imageDigest")
+} else {
+  $helmArgs += @('--set', "image.tag=$imageTag")
+}
 
 if ($ServiceName -eq "crud-service") {
   $helmArgs += @('--set', 'ingress.paths[0].path=/health')

@@ -21,6 +21,16 @@ on:
         required: false
         type: string
         default: latest
+      sourceSha:
+        description: Explicit tested source commit SHA to checkout across the workflow
+        required: false
+        type: string
+        default: ''
+      sourceRef:
+        description: Explicit tested source ref to checkout when sourceSha is not provided
+        required: false
+        type: string
+        default: ''
       deployStatic:
         description: Provision static web app resources
         required: false
@@ -76,6 +86,9 @@ permissions:
 env:
   FOUNDRY_RUNTIME_STRICT_ENFORCEMENT: "true"
   FOUNDRY_RUNTIME_AUTO_ENSURE_ON_STARTUP: "true"
+  DEPLOY_SOURCE_SHA: ${{ inputs.sourceSha != '' && inputs.sourceSha || github.sha }}
+  DEPLOY_SOURCE_REF: ${{ inputs.sourceRef != '' && inputs.sourceRef || github.ref }}
+  DEPLOY_SOURCE_CHECKOUT_REF: ${{ inputs.sourceSha != '' && inputs.sourceSha || (inputs.sourceRef != '' && inputs.sourceRef || github.sha) }}
 
 concurrency:
   group: deploy-azd-${{ inputs.environment }}
@@ -92,11 +105,13 @@ jobs:
       changed_agents_matrix: ${{ steps.detect.outputs.changed_agents_matrix }}
       changed_agent_services_csv: ${{ steps.detect.outputs.changed_agent_services_csv }}
       changed_aks_services_csv: ${{ steps.detect.outputs.changed_aks_services_csv }}
+      changed_aks_matrix: ${{ steps.detect.outputs.changed_aks_matrix }}
       lib_changed: ${{ steps.detect.outputs.lib_changed }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ env.DEPLOY_SOURCE_CHECKOUT_REF }}
 
       - name: Detect changed services
         id: detect
@@ -105,6 +120,9 @@ jobs:
           set -euo pipefail
 
           DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
+          TARGET_SHA="${DEPLOY_SOURCE_SHA}"
+          echo "Detected deploy source SHA: ${TARGET_SHA}"
+          echo "Detected deploy source ref: ${DEPLOY_SOURCE_REF}"
           git fetch origin "$DEFAULT_BRANCH" --depth=1 || true
 
           CHANGED_FILES=""
@@ -114,17 +132,24 @@ jobs:
           if [ "${{ github.event_name }}" = "push" ] && [ -n "${{ github.event.before }}" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
             if git cat-file -e "${{ github.event.before }}^{commit}" 2>/dev/null; then
               PUSH_BASE="${{ github.event.before }}"
-              MERGE_BASE=$(git merge-base "$PUSH_BASE" "${{ github.sha }}" || true)
+              MERGE_BASE=$(git merge-base "$PUSH_BASE" "$TARGET_SHA" || true)
               if [ -n "$MERGE_BASE" ]; then
-                DIFF_RANGE="$PUSH_BASE...${{ github.sha }}"
+                DIFF_RANGE="$PUSH_BASE...$TARGET_SHA"
                 DIFF_STRATEGY="push-before-three-dot"
               else
-                DIFF_RANGE="$PUSH_BASE..${{ github.sha }}"
+                DIFF_RANGE="$PUSH_BASE..$TARGET_SHA"
                 DIFF_STRATEGY="push-before-two-dot-fallback"
                 echo "::warning::No common ancestor between push before SHA and current SHA; using two-dot fallback diff range '$DIFF_RANGE'."
               fi
             else
               echo "::warning::Push before SHA '${{ github.event.before }}' is not available in local clone; falling back to default branch baseline."
+            fi
+          fi
+
+          if [ -z "$DIFF_RANGE" ] && [ -n "${{ inputs.sourceSha }}" ] && [ -n "$TARGET_SHA" ] && git cat-file -e "${TARGET_SHA}^{commit}" 2>/dev/null; then
+            if git rev-parse --verify "${TARGET_SHA}^1" >/dev/null 2>&1; then
+              DIFF_RANGE="${TARGET_SHA}^1...${TARGET_SHA}"
+              DIFF_STRATEGY="source-sha-first-parent-three-dot"
             fi
           fi
 
@@ -279,12 +304,18 @@ jobs:
             fi
           fi
 
+          CHANGED_AKS_MATRIX='[]'
+          if [ -n "$CHANGED_AKS_SERVICES_CSV" ]; then
+            CHANGED_AKS_MATRIX=$(printf '%s\n' "$CHANGED_AKS_SERVICES_CSV" | tr ',' '\n' | jq -Rcs 'split("\n")[:-1] | map(select(length > 0)) | map({service: .})')
+          fi
+
           echo "crud_changed=$CRUD_CHANGED" >> "$GITHUB_OUTPUT"
           echo "ui_changed=$UI_CHANGED" >> "$GITHUB_OUTPUT"
           echo "agents_changed=$AGENTS_CHANGED" >> "$GITHUB_OUTPUT"
           printf 'changed_agents_matrix=%s\n' "$MATRIX" >> "$GITHUB_OUTPUT"
           echo "changed_agent_services_csv=$CHANGED_AGENT_SERVICES_CSV" >> "$GITHUB_OUTPUT"
           echo "changed_aks_services_csv=$CHANGED_AKS_SERVICES_CSV" >> "$GITHUB_OUTPUT"
+          printf 'changed_aks_matrix=%s\n' "$CHANGED_AKS_MATRIX" >> "$GITHUB_OUTPUT"
           echo "lib_changed=$LIB_CHANGED" >> "$GITHUB_OUTPUT"
 
   provision:
@@ -326,6 +357,8 @@ jobs:
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SOURCE_CHECKOUT_REF }}
 
       - name: Azure login (OIDC)
         uses: azure/login@v2
@@ -671,6 +704,270 @@ jobs:
             echo "AGC_FRONTEND_REFERENCE=${AGC_FRONTEND_REFERENCE}"
           } >> "$GITHUB_OUTPUT"
 
+  build-aks-images:
+    runs-on: ubuntu-latest
+    if: ${{ !inputs.uiOnly && needs.detect-changes.outputs.changed_aks_services_csv != '' }}
+    needs:
+      - provision
+      - detect-changes
+    environment: ${{ inputs.environment }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.detect-changes.outputs.changed_aks_matrix) }}
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ env.DEPLOY_SOURCE_CHECKOUT_REF }}
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Resolve ACR registry
+        id: registry
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          RG_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+          ACR_NAME=$(echo "${{ inputs.projectName }}${{ inputs.environment }}acr" | tr -cd '[:alnum:]' | tr '[:upper:]' '[:lower:]')
+
+          if ! az acr show --resource-group "$RG_NAME" --name "$ACR_NAME" >/dev/null 2>&1; then
+            echo "ACR registry '$ACR_NAME' was not found in resource group '$RG_NAME'." >&2
+            exit 1
+          fi
+
+          ACR_LOGIN_SERVER=$(az acr show \
+            --resource-group "$RG_NAME" \
+            --name "$ACR_NAME" \
+            --query "loginServer" -o tsv)
+
+          echo "acr_name=${ACR_NAME}" >> "$GITHUB_OUTPUT"
+          echo "rg_name=${RG_NAME}" >> "$GITHUB_OUTPUT"
+          echo "login_server=${ACR_LOGIN_SERVER}" >> "$GITHUB_OUTPUT"
+
+      - name: Preflight ACR data-plane accessibility
+        id: acr_preflight_build
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ACR_LOGIN_SERVER="${{ steps.registry.outputs.login_server }}"
+
+          if ! STATUS_CODE=$(curl -sS -o /tmp/acr-v2-probe-build.txt -w "%{http_code}" --max-time 25 "https://${ACR_LOGIN_SERVER}/v2/"); then
+            STATUS_CODE="000"
+          fi
+
+          if [ "$STATUS_CODE" = "200" ] || [ "$STATUS_CODE" = "401" ]; then
+            echo "runner_ip=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          RUNNER_IP=""
+          if ! RUNNER_IP=$(curl -sS --max-time 10 https://api.ipify.org); then
+            RUNNER_IP=""
+          fi
+
+          if [ -n "$RUNNER_IP" ] && [ "${{ inputs.autoAllowAcrRunnerIp }}" = "true" ] && [ "$STATUS_CODE" = "403" ]; then
+            az acr network-rule add \
+              --name "${{ steps.registry.outputs.acr_name }}" \
+              --resource-group "${{ steps.registry.outputs.rg_name }}" \
+              --ip-address "$RUNNER_IP" >/dev/null
+            echo "runner_ip=${RUNNER_IP}" >> "$GITHUB_OUTPUT"
+            sleep 15
+            if ! RETRY_CODE=$(curl -sS -o /tmp/acr-v2-probe-build-retry.txt -w "%{http_code}" --max-time 25 "https://${ACR_LOGIN_SERVER}/v2/"); then
+              RETRY_CODE="000"
+            fi
+            if [ "$RETRY_CODE" = "200" ] || [ "$RETRY_CODE" = "401" ]; then
+              exit 0
+            fi
+          fi
+
+          echo "ACR preflight failed for tested-image build path (HTTP $STATUS_CODE)." >&2
+          exit 1
+
+      - name: Login to ACR
+        shell: bash
+        run: |
+          set -euo pipefail
+          az acr login --name "${{ steps.registry.outputs.acr_name }}"
+
+      - name: Resolve Docker build inputs
+        id: docker_inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 - <<'PY'
+          import os
+          import re
+          import sys
+          from pathlib import Path
+
+          service_name = os.environ["SERVICE_NAME"]
+          github_output = Path(os.environ["GITHUB_OUTPUT"])
+          repo_root = Path.cwd()
+          azure_yaml = repo_root / "azure.yaml"
+
+          with azure_yaml.open(encoding="utf-8") as handle:
+              lines = handle.readlines()
+
+          in_services = False
+          current_service = None
+          project_path = None
+          docker_path = None
+          docker_context = None
+          in_docker_block = False
+
+          for raw in lines:
+              line = raw.rstrip("\n")
+              if not in_services:
+                  if re.match(r"^services:\s*$", line):
+                      in_services = True
+                  continue
+
+              if re.match(r"^[^\s]", line):
+                  break
+
+              service_match = re.match(r"^  ([a-z0-9\-]+):\s*$", line)
+              if service_match:
+                  current_service = service_match.group(1)
+                  project_path = None
+                  docker_path = None
+                  docker_context = None
+                  in_docker_block = False
+                  continue
+
+              if current_service != service_name:
+                  continue
+
+              if re.match(r"^    docker:\s*$", line):
+                  in_docker_block = True
+                  continue
+
+              if re.match(r"^    [a-zA-Z]", line):
+                  in_docker_block = False
+
+              project_match = re.match(r"^    project:\s*(\S+)\s*$", line)
+              if project_match:
+                  project_path = project_match.group(1)
+                  continue
+
+              if in_docker_block:
+                  docker_path_match = re.match(r"^      path:\s*(\S+)\s*$", line)
+                  if docker_path_match:
+                      docker_path = docker_path_match.group(1)
+                      continue
+
+                  docker_context_match = re.match(r"^      context:\s*(\S+)\s*$", line)
+                  if docker_context_match:
+                      docker_context = docker_context_match.group(1)
+                      continue
+
+          if project_path is None:
+              raise SystemExit(f"Could not resolve azure.yaml project metadata for service '{service_name}'.")
+
+          project_dir = repo_root / project_path
+          dockerfile_path = (project_dir / (docker_path or "Dockerfile")).resolve()
+          build_context = (project_dir / (docker_context or ".")).resolve()
+
+          try:
+              dockerfile_rel = dockerfile_path.relative_to(repo_root).as_posix()
+          except ValueError as exc:
+              raise SystemExit(f"Resolved dockerfile path escapes repository root: {dockerfile_path}") from exc
+
+          try:
+              build_context_rel = build_context.relative_to(repo_root).as_posix()
+          except ValueError as exc:
+              raise SystemExit(f"Resolved build context path escapes repository root: {build_context}") from exc
+
+          if not dockerfile_path.is_file():
+              raise SystemExit(f"Dockerfile not found for service '{service_name}': {dockerfile_rel}")
+
+          with github_output.open("a", encoding="utf-8") as output:
+              output.write(f"dockerfile={dockerfile_rel}\n")
+              output.write(f"context={build_context_rel}\n")
+          PY
+        env:
+          SERVICE_NAME: ${{ matrix.service }}
+
+      - name: Resolve or build immutable image
+        id: image
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          SERVICE_NAME="${{ matrix.service }}"
+          SOURCE_SHA="${DEPLOY_SOURCE_SHA}"
+          IMAGE_REPOSITORY="${{ steps.registry.outputs.login_server }}/${SERVICE_NAME}"
+          IMAGE_TAGGED_REF="${IMAGE_REPOSITORY}:${SOURCE_SHA}"
+          EXISTING_DIGEST=""
+
+          if INSPECT_OUTPUT=$(docker buildx imagetools inspect "$IMAGE_TAGGED_REF" 2>/dev/null); then
+            EXISTING_DIGEST=$(printf '%s\n' "$INSPECT_OUTPUT" | awk '/^Digest:/ {print $2; exit}')
+          fi
+
+          if [ -z "$EXISTING_DIGEST" ]; then
+            EXTRA_TAG_ARGS=()
+            if [ -n "${{ inputs.imageTag }}" ] && [ "${{ inputs.imageTag }}" != "$SOURCE_SHA" ] && [ "${{ inputs.imageTag }}" != "latest" ]; then
+              EXTRA_TAG_ARGS+=( -t "${IMAGE_REPOSITORY}:${{ inputs.imageTag }}" )
+            fi
+
+            docker buildx build \
+              --push \
+              --pull \
+              --cache-from=type=gha,scope="${SERVICE_NAME}" \
+              --cache-to=type=gha,mode=max,scope="${SERVICE_NAME}" \
+              -t "$IMAGE_TAGGED_REF" \
+              "${EXTRA_TAG_ARGS[@]}" \
+              -f "${{ steps.docker_inputs.outputs.dockerfile }}" \
+              "${{ steps.docker_inputs.outputs.context }}"
+
+            INSPECT_OUTPUT=$(docker buildx imagetools inspect "$IMAGE_TAGGED_REF")
+            EXISTING_DIGEST=$(printf '%s\n' "$INSPECT_OUTPUT" | awk '/^Digest:/ {print $2; exit}')
+          fi
+
+          if [ -z "$EXISTING_DIGEST" ]; then
+            echo "Failed to resolve immutable digest for ${IMAGE_TAGGED_REF}." >&2
+            exit 1
+          fi
+
+          IMAGE_REF="${IMAGE_REPOSITORY}@${EXISTING_DIGEST}"
+          ARTIFACT_DIR="${RUNNER_TEMP}/tested-image/${SERVICE_NAME}"
+          mkdir -p "$ARTIFACT_DIR"
+          printf '%s\n' "$IMAGE_REF" > "$ARTIFACT_DIR/image-ref.txt"
+          echo "image_ref=${IMAGE_REF}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload tested image reference
+        uses: actions/upload-artifact@v4
+        with:
+          name: tested-image-${{ matrix.service }}
+          path: ${{ runner.temp }}/tested-image/${{ matrix.service }}/image-ref.txt
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Cleanup temporary ACR runner IP allowlist (build)
+        if: ${{ always() && inputs.autoAllowAcrRunnerIp && steps.acr_preflight_build.outputs.runner_ip != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          az acr network-rule remove \
+            --name "${{ steps.registry.outputs.acr_name }}" \
+            --resource-group "${{ steps.registry.outputs.rg_name }}" \
+            --ip-address "${{ steps.acr_preflight_build.outputs.runner_ip }}" >/dev/null || true
+
   deploy-foundry-models:
     runs-on: ubuntu-latest
     needs: provision
@@ -681,6 +978,8 @@ jobs:
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SOURCE_CHECKOUT_REF }}
 
       - name: Azure login (OIDC)
         uses: azure/login@v2
@@ -703,6 +1002,7 @@ jobs:
     needs:
       - provision
       - detect-changes
+      - build-aks-images
     if: ${{ !inputs.uiOnly && needs.detect-changes.outputs.crud_changed == 'true' }}
     environment: ${{ inputs.environment }}
     env:
@@ -711,6 +1011,8 @@ jobs:
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SOURCE_CHECKOUT_REF }}
 
       - name: Azure login (OIDC)
         uses: azure/login@v2
@@ -718,28 +1020,6 @@ jobs:
           client-id: ${{ env.AZURE_CLIENT_ID }}
           tenant-id: ${{ env.AZURE_TENANT_ID }}
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Setup azd
-        uses: Azure/setup-azd@v2
-
-      - name: Authenticate azd (OIDC)
-        run: |
-          azd auth login \
-            --client-id "${AZURE_CLIENT_ID}" \
-            --tenant-id "${AZURE_TENANT_ID}" \
-            --federated-credential-provider github \
-            --no-prompt
-
-      - name: Configure azd environment context
-        run: |
-          azd env set AZURE_SUBSCRIPTION_ID "${AZURE_SUBSCRIPTION_ID}" -e "${{ inputs.environment }}"
-          azd env set AZURE_LOCATION "${{ inputs.location }}" -e "${{ inputs.environment }}"
-          azd env set AZURE_ENV_NAME "${{ inputs.environment }}" -e "${{ inputs.environment }}"
-          azd env set AZURE_RESOURCE_GROUP "${{ inputs.projectName }}-${{ inputs.environment }}-rg" -e "${{ inputs.environment }}"
-          azd env set resourceGroupName "${{ inputs.projectName }}-${{ inputs.environment }}-rg" -e "${{ inputs.environment }}"
-          azd env set AZURE_AKS_CLUSTER_NAME "${{ inputs.projectName }}-${{ inputs.environment }}-aks" -e "${{ inputs.environment }}"
-          azd env set AKS_CLUSTER_NAME "${{ inputs.projectName }}-${{ inputs.environment }}-aks" -e "${{ inputs.environment }}"
-          azd env set AZURE_CONTAINER_REGISTRY_ENDPOINT "${{ inputs.projectName }}${{ inputs.environment }}acr.azurecr.io" -e "${{ inputs.environment }}"
 
       - name: Install kubelogin
         run: |
@@ -793,71 +1073,11 @@ jobs:
           fi
           echo "Legacy ingress classes are ignored by default. Use PUBLICATION_MODE=legacy or dual with an explicit LEGACY_INGRESS_CLASS_NAME only for rollback."
 
-      - name: Preflight ACR data-plane accessibility
-        id: acr_preflight
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          RG_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
-          ACR_NAME=$(echo "${{ inputs.projectName }}${{ inputs.environment }}acr" | tr -cd '[:alnum:]' | tr '[:upper:]' '[:lower:]')
-
-          if ! az acr show --resource-group "$RG_NAME" --name "$ACR_NAME" >/dev/null 2>&1; then
-            echo "ACR preflight could not find registry '$ACR_NAME' in resource group '$RG_NAME'." >&2
-            echo "Verify naming convention or set AZURE_CONTAINER_REGISTRY_ENDPOINT in azd env before deploy." >&2
-            exit 1
-          fi
-
-          ACR_LOGIN_SERVER=$(az acr show \
-            --resource-group "$RG_NAME" \
-            --name "$ACR_NAME" \
-            --query "loginServer" -o tsv)
-
-          if ! STATUS_CODE=$(curl -sS -o /tmp/acr-v2-probe.txt -w "%{http_code}" --max-time 25 "https://${ACR_LOGIN_SERVER}/v2/"); then
-            STATUS_CODE="000"
-          fi
-
-          if [ "$STATUS_CODE" = "200" ] || [ "$STATUS_CODE" = "401" ]; then
-            echo "ACR preflight passed: ${ACR_LOGIN_SERVER} is reachable from this runner (HTTP $STATUS_CODE)."
-            echo "runner_ip=" >> "$GITHUB_OUTPUT"
-            echo "acr_name=${ACR_NAME}" >> "$GITHUB_OUTPUT"
-            echo "rg_name=${RG_NAME}" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          RUNNER_IP=""
-          if ! RUNNER_IP=$(curl -sS --max-time 10 https://api.ipify.org); then
-            RUNNER_IP=""
-          fi
-          echo "ACR preflight failed: ${ACR_LOGIN_SERVER}/v2/ returned HTTP ${STATUS_CODE}." >&2
-          if [ "$STATUS_CODE" = "403" ]; then
-            echo "Likely cause: ACR firewall/network rules are blocking this GitHub-hosted runner." >&2
-          fi
-          if [ -n "$RUNNER_IP" ]; then
-            echo "Runner egress IP detected: $RUNNER_IP" >&2
-            if [ "${{ inputs.autoAllowAcrRunnerIp }}" = "true" ] && [ "$STATUS_CODE" = "403" ]; then
-              echo "Temporarily allowing runner IP on ACR firewall for this deploy run..."
-              az acr network-rule add --name "$ACR_NAME" --resource-group "$RG_NAME" --ip-address "$RUNNER_IP" >/dev/null
-              echo "runner_ip=${RUNNER_IP}" >> "$GITHUB_OUTPUT"
-              echo "acr_name=${ACR_NAME}" >> "$GITHUB_OUTPUT"
-              echo "rg_name=${RG_NAME}" >> "$GITHUB_OUTPUT"
-              sleep 15
-              if ! RETRY_CODE=$(curl -sS -o /tmp/acr-v2-probe-retry.txt -w "%{http_code}" --max-time 25 "https://${ACR_LOGIN_SERVER}/v2/"); then
-                RETRY_CODE="000"
-              fi
-              if [ "$RETRY_CODE" = "200" ] || [ "$RETRY_CODE" = "401" ]; then
-                echo "ACR preflight passed after temporary runner IP allowlist (HTTP $RETRY_CODE)."
-                exit 0
-              fi
-              echo "ACR preflight still failing after temporary allowlist (HTTP $RETRY_CODE)." >&2
-            else
-              echo "Action: allow this IP (or CIDR) on ACR '$ACR_NAME' or use a self-hosted runner in an allowed network." >&2
-              echo "Example: az acr network-rule add --name '$ACR_NAME' --resource-group '$RG_NAME' --ip-address '$RUNNER_IP'" >&2
-            fi
-          else
-            echo "Action: check ACR firewall/network rules for GitHub runner egress and retry." >&2
-          fi
-          exit 1
+      - name: Download tested image reference
+        uses: actions/download-artifact@v4
+        with:
+          name: tested-image-crud-service
+          path: ${{ runner.temp }}/tested-image/crud-service
 
       - name: Deploy CRUD service
         timeout-minutes: 25
@@ -867,9 +1087,25 @@ jobs:
           export AZURE_CLIENT_ID="${WORKLOAD_AZURE_CLIENT_ID}"
           TRIAGE_DIR="${RUNNER_TEMP}/deploy-triage"
           mkdir -p "$TRIAGE_DIR"
+          CRUD_IMAGE_REF=$(tr -d '\r\n' < "${RUNNER_TEMP}/tested-image/crud-service/image-ref.txt")
 
-          if azd deploy --service crud-service --no-prompt -e "${{ inputs.environment }}"; then
-            echo "CRUD deploy succeeded."
+          deploy_crud() {
+            export SERVICE_CRUD_SERVICE_IMAGE_NAME="$CRUD_IMAGE_REF"
+            bash .infra/azd/hooks/render-helm.sh crud-service
+            kubectl apply --dry-run=server -f .kubernetes/rendered/crud-service/all.yaml -n holiday-peak >/dev/null
+            kubectl apply -f .kubernetes/rendered/crud-service/all.yaml -n holiday-peak >/dev/null
+
+            DEPLOYMENT_NAME=$(kubectl get deployment -n holiday-peak -l 'app=crud-service,canary=false' -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+            if [ -z "$DEPLOYMENT_NAME" ]; then
+              echo "Failed to resolve CRUD deployment name after manifest apply." >&2
+              return 1
+            fi
+
+            kubectl rollout status "deployment/${DEPLOYMENT_NAME}" -n holiday-peak --timeout=300s
+          }
+
+          if deploy_crud; then
+            echo "CRUD deploy succeeded with tested image ${CRUD_IMAGE_REF}."
             exit 0
           fi
 
@@ -879,23 +1115,25 @@ jobs:
             echo "run_attempt=${{ github.run_attempt }}"
             echo "job=deploy-crud"
             echo "workflow=${{ github.workflow }}"
-            echo "sha=${{ github.sha }}"
-            echo "ref=${{ github.ref }}"
+            echo "sha=${DEPLOY_SOURCE_SHA}"
+            echo "ref=${DEPLOY_SOURCE_REF}"
             echo "actor=${{ github.actor }}"
             echo "event=${{ github.event_name }}"
             echo "environment=${{ inputs.environment }}"
-            echo "first_failed_step_hint=Deploy CRUD service"
+            echo "tested_image_ref=${CRUD_IMAGE_REF}"
+            echo "first_failed_step_hint=Render/apply CRUD manifest"
           } > "$TRIAGE_DIR/run-metadata.txt"
 
           kubectl get ingressclass -o wide > "$TRIAGE_DIR/kubectl-ingressclass.txt" 2>&1 || true
           kubectl get ingress -n holiday-peak -o wide > "$TRIAGE_DIR/kubectl-ingress.txt" 2>&1 || true
           kubectl get pods -n app-routing-system -o wide > "$TRIAGE_DIR/kubectl-app-routing-pods.txt" 2>&1 || true
           kubectl get pods -n ingress-nginx -o wide > "$TRIAGE_DIR/kubectl-ingress-nginx-pods.txt" 2>&1 || true
-          kubectl -n holiday-peak get deployment crud-service-crud-service -o wide > "$TRIAGE_DIR/kubectl-crud-deployment.txt" 2>&1 || true
-          kubectl -n holiday-peak describe deployment crud-service-crud-service > "$TRIAGE_DIR/kubectl-crud-deployment-describe.txt" 2>&1 || true
+          kubectl -n holiday-peak get deployment -l app=crud-service,canary=false -o wide > "$TRIAGE_DIR/kubectl-crud-deployment.txt" 2>&1 || true
+          kubectl -n holiday-peak describe deployment $(kubectl get deployment -n holiday-peak -l app=crud-service,canary=false -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo crud-service-crud-service) > "$TRIAGE_DIR/kubectl-crud-deployment-describe.txt" 2>&1 || true
           kubectl -n holiday-peak get rs -l app=crud-service -o wide > "$TRIAGE_DIR/kubectl-crud-rs.txt" 2>&1 || true
           kubectl -n holiday-peak get pods -l app=crud-service -o wide > "$TRIAGE_DIR/kubectl-crud-pods.txt" 2>&1 || true
           kubectl -n holiday-peak get events --sort-by='.lastTimestamp' | tail -n 200 > "$TRIAGE_DIR/kubectl-events-tail.txt" 2>&1 || true
+          cp .kubernetes/rendered/crud-service/all.yaml "$TRIAGE_DIR/rendered-crud-all.yaml" 2>/dev/null || true
 
           NEW_POD=$(kubectl -n holiday-peak get pods -l app=crud-service --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1:].metadata.name}' 2>/dev/null || true)
           if [ -n "$NEW_POD" ]; then
@@ -1026,17 +1264,6 @@ jobs:
             cat /tmp/crud-port-forward.log 2>/dev/null || true
             exit 1
           fi
-
-      - name: Cleanup temporary ACR runner IP allowlist
-        if: ${{ always() && inputs.autoAllowAcrRunnerIp && steps.acr_preflight.outputs.runner_ip != '' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          az acr network-rule remove \
-            --name "${{ steps.acr_preflight.outputs.acr_name }}" \
-            --resource-group "${{ steps.acr_preflight.outputs.rg_name }}" \
-            --ip-address "${{ steps.acr_preflight.outputs.runner_ip }}" >/dev/null || true
-          echo "Removed temporary ACR firewall rule for runner IP ${{ steps.acr_preflight.outputs.runner_ip }}."
 
   deploy-ui:
     runs-on: ubuntu-latest
@@ -1481,6 +1708,7 @@ jobs:
       - deploy-crud
       - deploy-foundry-models
       - detect-changes
+      - build-aks-images
     environment: ${{ inputs.environment }}
     strategy:
       fail-fast: false
@@ -1492,6 +1720,8 @@ jobs:
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SOURCE_CHECKOUT_REF }}
 
       - name: Azure login (OIDC)
         uses: azure/login@v2
@@ -1499,17 +1729,6 @@ jobs:
           client-id: ${{ env.AZURE_CLIENT_ID }}
           tenant-id: ${{ env.AZURE_TENANT_ID }}
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Setup azd
-        uses: Azure/setup-azd@v2
-
-      - name: Authenticate azd (OIDC)
-        run: |
-          azd auth login \
-            --client-id "${AZURE_CLIENT_ID}" \
-            --tenant-id "${AZURE_TENANT_ID}" \
-            --federated-credential-provider github \
-            --no-prompt
 
       - name: Get AKS credentials
         run: |
@@ -1538,60 +1757,33 @@ jobs:
           echo "AGC_HOSTNAME=${{ needs.provision.outputs.AGC_FRONTEND_HOSTNAME }}" >> "$GITHUB_ENV"
           echo "AGC_FRONTEND_HOSTNAME=${{ needs.provision.outputs.AGC_FRONTEND_HOSTNAME }}" >> "$GITHUB_ENV"
 
-      - name: Preflight ACR data-plane accessibility
-        id: acr_preflight_agents
+      - name: Download tested image reference
+        uses: actions/download-artifact@v4
+        with:
+          name: tested-image-${{ matrix.service }}
+          path: ${{ runner.temp }}/tested-image/${{ matrix.service }}
+
+      - name: Deploy service
         shell: bash
         run: |
           set -euo pipefail
+          export AZURE_CLIENT_ID="${WORKLOAD_AZURE_CLIENT_ID}"
+          SERVICE_NAME="${{ matrix.service }}"
+          IMAGE_REF=$(tr -d '\r\n' < "${RUNNER_TEMP}/tested-image/${SERVICE_NAME}/image-ref.txt")
+          SERVICE_IMAGE_VAR_NAME="SERVICE_$(printf '%s' "$SERVICE_NAME" | tr '[:lower:]-' '[:upper:]_')_IMAGE_NAME"
+          export "${SERVICE_IMAGE_VAR_NAME}=${IMAGE_REF}"
 
-          RG_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
-          ACR_NAME=$(echo "${{ inputs.projectName }}${{ inputs.environment }}acr" | tr -cd '[:alnum:]' | tr '[:upper:]' '[:lower:]')
+          bash .infra/azd/hooks/render-helm.sh "$SERVICE_NAME"
+          kubectl apply --dry-run=server -f ".kubernetes/rendered/${SERVICE_NAME}/all.yaml" -n holiday-peak >/dev/null
+          kubectl apply -f ".kubernetes/rendered/${SERVICE_NAME}/all.yaml" -n holiday-peak >/dev/null
 
-          if ! az acr show --resource-group "$RG_NAME" --name "$ACR_NAME" >/dev/null 2>&1; then
-            echo "ACR preflight could not find registry '$ACR_NAME' in resource group '$RG_NAME'." >&2
+          DEPLOYMENT_NAME=$(kubectl get deployment -n holiday-peak -l "app=${SERVICE_NAME},canary=false" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+          if [ -z "$DEPLOYMENT_NAME" ]; then
+            echo "Failed to resolve deployment name for ${SERVICE_NAME} after manifest apply." >&2
             exit 1
           fi
 
-          ACR_LOGIN_SERVER=$(az acr show \
-            --resource-group "$RG_NAME" \
-            --name "$ACR_NAME" \
-            --query "loginServer" -o tsv)
-
-          if ! STATUS_CODE=$(curl -sS -o /tmp/acr-v2-probe-agents.txt -w "%{http_code}" --max-time 25 "https://${ACR_LOGIN_SERVER}/v2/"); then
-            STATUS_CODE="000"
-          fi
-          if [ "$STATUS_CODE" = "200" ] || [ "$STATUS_CODE" = "401" ]; then
-            echo "runner_ip=" >> "$GITHUB_OUTPUT"
-            echo "acr_name=${ACR_NAME}" >> "$GITHUB_OUTPUT"
-            echo "rg_name=${RG_NAME}" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          RUNNER_IP=""
-          if ! RUNNER_IP=$(curl -sS --max-time 10 https://api.ipify.org); then
-            RUNNER_IP=""
-          fi
-          if [ -n "$RUNNER_IP" ] && [ "${{ inputs.autoAllowAcrRunnerIp }}" = "true" ] && [ "$STATUS_CODE" = "403" ]; then
-            az acr network-rule add --name "$ACR_NAME" --resource-group "$RG_NAME" --ip-address "$RUNNER_IP" >/dev/null
-            echo "runner_ip=${RUNNER_IP}" >> "$GITHUB_OUTPUT"
-            echo "acr_name=${ACR_NAME}" >> "$GITHUB_OUTPUT"
-            echo "rg_name=${RG_NAME}" >> "$GITHUB_OUTPUT"
-            sleep 15
-            if ! RETRY_CODE=$(curl -sS -o /tmp/acr-v2-probe-agents-retry.txt -w "%{http_code}" --max-time 25 "https://${ACR_LOGIN_SERVER}/v2/"); then
-              RETRY_CODE="000"
-            fi
-            if [ "$RETRY_CODE" = "200" ] || [ "$RETRY_CODE" = "401" ]; then
-              exit 0
-            fi
-          fi
-
-          echo "ACR preflight failed for deploy-agents path (HTTP $STATUS_CODE)." >&2
-          exit 1
-
-      - name: Deploy service
-        run: |
-          export AZURE_CLIENT_ID="${WORKLOAD_AZURE_CLIENT_ID}"
-          azd deploy --service "${{ matrix.service }}" --no-prompt -e "${{ inputs.environment }}"
+          kubectl rollout status "deployment/${DEPLOYMENT_NAME}" -n holiday-peak --timeout=300s
         env:
           DEPLOY_ENV: ${{ inputs.environment }}
           AZURE_TENANT_ID: ${{ env.AZURE_TENANT_ID }}
@@ -1620,16 +1812,6 @@ jobs:
           POSTGRES_HOST: ${{ needs.provision.outputs.POSTGRES_HOST }}
           POSTGRES_USER: ${{ needs.provision.outputs.POSTGRES_AUTH_MODE == 'password' && needs.provision.outputs.POSTGRES_ADMIN_USER || needs.provision.outputs.POSTGRES_USER }}
           POSTGRES_DATABASE: ${{ needs.provision.outputs.POSTGRES_DATABASE }}
-
-      - name: Cleanup temporary ACR runner IP allowlist (agents)
-        if: ${{ always() && inputs.autoAllowAcrRunnerIp && steps.acr_preflight_agents.outputs.runner_ip != '' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          az acr network-rule remove \
-            --name "${{ steps.acr_preflight_agents.outputs.acr_name }}" \
-            --resource-group "${{ steps.acr_preflight_agents.outputs.rg_name }}" \
-            --ip-address "${{ steps.acr_preflight_agents.outputs.runner_ip }}" >/dev/null || true
 
   validate-agc-readiness:
     runs-on: ubuntu-latest
@@ -1756,6 +1938,8 @@ jobs:
       APIM_APPROVED_BACKEND_SCHEME: ${{ needs.validate-agc-readiness.outputs.approved_backend_scheme }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SOURCE_CHECKOUT_REF }}
 
       - name: Azure login (OIDC)
         uses: azure/login@v2
@@ -2027,6 +2211,8 @@ jobs:
       CHANGED_SERVICES: ${{ needs.detect-changes.outputs.changed_agent_services_csv }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SOURCE_CHECKOUT_REF }}
 
       - name: Azure login (OIDC)
         uses: azure/login@v2
@@ -2165,6 +2351,8 @@ jobs:
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SOURCE_CHECKOUT_REF }}
 
       - name: Azure login (OIDC)
         uses: azure/login@v2

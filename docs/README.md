@@ -14,6 +14,7 @@
 - Agentic app README deployment docs are standardized with standalone azd-first guidance and app-specific ACR/AKS paths.
 - UI/UX modernization review added with per-view recommendations for customer, staff, admin, and observability surfaces.
 - Protected dev live validation now has a dedicated GitHub Actions workflow with trusted triggers, OIDC-only Azure auth, and the `dev` environment boundary; final environment protection remains a repo-admin step.
+- Dev deployment now promotes tested `main` commits only: `deploy-azd-dev` auto-starts from successful `test` workflow runs on `main`, builds changed AKS images once per tested SHA, and deploys rendered manifests pinned to immutable image digests.
 - Reusable deployment now includes a blocking Foundry contract drift gate that compares workflow intent, rendered Helm manifests, live AKS Deployment env values, ensure results, and `/ready` responses for changed agent services.
 
 ## Overview
@@ -42,7 +43,7 @@ The Python CLI in `.infra/cli.py` is scaffolding-only (`generate-bicep`, `genera
 
 Use environment-specific entry workflows:
 
-- `.github/workflows/deploy-azd-dev.yml` as the default development path (auto-runs on `main` changes and supports manual dispatch).
+- `.github/workflows/deploy-azd-dev.yml` as the default development path (auto-runs after successful `test` workflow completion for a push to `main` and supports manual dispatch).
 - `.github/workflows/deploy-azd-prod.yml` for production deployments triggered only by stable release tags (`v*.*.*` without pre-release suffixes) that also have a published GitHub Release and point to a commit reachable from `main`.
 - `.github/workflows/deploy-azd.yml` remains the shared core workflow invoked by both entry workflows.
 - `.github/workflows/protected-dev-live-agent-readiness.yml` runs protected live validation against dev after successful `deploy-azd-dev` runs on `main`, or by explicit manual/scheduled execution through the `dev` environment boundary.
@@ -62,7 +63,7 @@ Repository code establishes this environment-scoped secret boundary. The `dev` e
 
 **Entry workflow inputs**:
 
-- Dev entrypoint (`deploy-azd-dev.yml`): `location`, `projectName`, `imageTag`, `deployStatic`, `uiOnly`, `apiBaseUrl`, `forceApimSync`, `autoAllowAcrRunnerIp`.
+- Dev entrypoint (`deploy-azd-dev.yml`): `location`, `projectName`, `imageTag`, `testedSourceSha`, `testedSourceRef`, `deployStatic`, `uiOnly`, `apiBaseUrl`, `forceApimSync`, `autoAllowAcrRunnerIp`.
 - Prod entrypoint (`deploy-azd-prod.yml`): no manual inputs; runs only from stable release tags and deploys using the tag name as `imageTag`.
 
 **Manual trigger examples**:
@@ -93,16 +94,18 @@ Core workflow note: `.github/workflows/deploy-azd.yml` is reusable-only and not 
 **Execution order**:
 
 1. `provision` job: sets azd env values and runs `azd provision`.
-2. `deploy-crud` job: deploys `crud-service` when CRUD/lib changes are detected.
-3. `deploy-foundry-models` and `deploy-agents` jobs: run after provision; `deploy-agents` deploys changed agent services (and can proceed when `deploy-crud` is skipped for agent-only changes).
-4. `ensure-foundry-agents` job: re-renders changed agent manifests with the workflow's strict/auto-ensure contract, compares rendered env values against live AKS Deployments, then validates `POST /foundry/agents/ensure` plus `/ready` for each changed agent service.
-5. `sync-apim` and `smoke-apim` jobs: run when CRUD/agent changes are present or `forceApimSync=true`.
-6. `deploy-ui` job (when `deployStatic=true`): runs after APIM sync/smoke gates, resolves APIM URL with fail-fast validation, fetches the SWA deployment token from Azure, and deploys `apps/ui` via `Azure/static-web-apps-deploy@v1` (framework-aware build for dynamic Next.js routes).
-7. Demo data seeding is operator-driven and must be run locally (outside CI) when needed.
+2. `build-aks-images` job: builds changed AKS workloads from the tested source SHA into the existing ACR (or reuses an existing per-SHA image), then records immutable digest refs for downstream deploy jobs.
+3. `deploy-crud` job: renders and applies the `crud-service` Helm manifest pinned to the tested image digest when CRUD/lib changes are detected.
+4. `deploy-foundry-models` and `deploy-agents` jobs: run after provision; `deploy-agents` deploys changed agent services from prebuilt digest-pinned manifests (and can proceed when `deploy-crud` is skipped for agent-only changes).
+5. `ensure-foundry-agents` job: re-renders changed agent manifests with the workflow's strict/auto-ensure contract, compares rendered env values against live AKS Deployments, then validates `POST /foundry/agents/ensure` plus `/ready` for each changed agent service.
+6. `sync-apim` and `smoke-apim` jobs: run when CRUD/agent changes are present or `forceApimSync=true`.
+7. `deploy-ui` job (when `deployStatic=true`): runs after APIM sync/smoke gates, resolves APIM URL with fail-fast validation, fetches the SWA deployment token from Azure, and deploys `apps/ui` via `Azure/static-web-apps-deploy@v1` (framework-aware build for dynamic Next.js routes).
+8. Demo data seeding is operator-driven and must be run locally (outside CI) when needed.
 
 **Operational notes**:
 
 - Keep `deployShared=true` for all shared-environment rollouts.
+- Dev AKS rollouts must use the tested source checkout plus immutable image digests (`repo@sha256:...`); deploy jobs render/apply Kubernetes manifests directly and must not rebuild service images inline.
 - For changed AKS agent services, treat the Foundry runtime contract as a blocking gate: expected `FOUNDRY_STRICT_ENFORCEMENT=true` and `FOUNDRY_AUTO_ENSURE_ON_STARTUP=true` must survive render and rollout, and `/ready` is only accepted when it matches successful Foundry ensure results.
 - UI deployment intentionally uses the SWA GitHub Action path (not `azd deploy --service ui`) so App Router dynamic segments (`[id]`, `[slug]`) are built in the same mode as standard SWA workflows.
 - Frontend API calls must always use APIM via validated runtime env aliases (`NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_CRUD_API_URL` are set together in deployment workflows).

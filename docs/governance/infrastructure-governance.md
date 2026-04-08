@@ -32,7 +32,7 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 | Policy Area | dev | prod | staging |
 | --- | --- | --- | --- |
 | Entrypoint workflow | `deploy-azd-dev.yml` | `deploy-azd-prod.yml` | Not currently provisioned as dedicated workflow |
-| Trigger model | `push` to `main` + `workflow_dispatch` | Stable tag push `v*.*.*` | Manual via reusable workflow only if explicitly configured |
+| Trigger model | Successful `test` `workflow_run` for a push to `main` + `workflow_dispatch` | Stable tag push `v*.*.*` | Manual via reusable workflow only if explicitly configured |
 | Protected live validation | `protected-dev-live-agent-readiness.yml` via the `dev` environment boundary on trusted `workflow_run`, `workflow_dispatch`, and `schedule`; the `dev` environment must remain restricted to the selected branch `main` | N/A | N/A |
 | Release gate | Not required | Required: published, non-draft, non-prerelease GitHub Release | N/A |
 | Main lineage gate | Not required | Required: tagged commit must be reachable from `main` | N/A |
@@ -74,7 +74,9 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 - APIM backends must not target pod IPs, node IPs, `ClusterIP` addresses, or `*.svc.cluster.local` names.
 - AKS services published through APIM must remain `ClusterIP` unless a newer accepted ADR documents an exception.
 - CRUD-first sequencing before dependent agent rollouts.
+- AKS service deployment must build or resolve immutable per-SHA images first, then render/apply manifests pinned by digest (`repo@sha256:...`); deploy jobs must not rebuild service images during manifest rollout.
 - Changed-service detection to reduce blast radius and deployment duration.
+- Reusable deploy workflows must accept an explicit tested source SHA/ref and use that checkout consistently across detection, build, render, sync, and validation jobs.
 - Push-event changed-service detection must diff `${{ github.event.before }}...${{ github.sha }}` to avoid empty comparisons against `origin/main` after merge.
 - APIM sync/smoke checks for API path health after relevant changes.
 - Deployment workflows must validate AGC GatewayClass readiness and direct CRUD `/health` reachability on the approved AGC frontend hostname before APIM sync.
