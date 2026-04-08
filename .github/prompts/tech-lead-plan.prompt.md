@@ -1,6 +1,6 @@
 ---
 name: "Tech Lead: Plan Feature"
-description: "Decompose a feature request into sequenced, agent-assignable tasks with acceptance criteria and risk assessment."
+description: "Decompose a feature request into sequenced, agent-assignable tasks with acceptance criteria and risk assessment, then draft feature issues using issue-engineering-workflows templates."
 agent: "TechLeadOrchestrator"
 argument-hint: "Describe the feature or initiative. Include business context, scope boundaries, and any known constraints."
 ---
@@ -21,6 +21,7 @@ Plan the requested feature:
 5. **Dependency Graph** — Sequence tasks. Identify which can run in parallel vs which block others.
 6. **Risk Assessment** — Document risks (breaking changes, security, performance, scope creep) with mitigations.
 7. **Acceptance Criteria** — Define "done" for each sub-task and for the feature as a whole.
+8. **Issue Drafting** — Load `.github/skills/issue-engineering-workflows/SKILL.md` and use the new feature template to draft one issue per atomic sub-task.
 
 Deliver a plan as a structured table with task ID, title, agent name, dependencies, acceptance criteria, and risk level. Then execute the plan by invoking each agent via `#runSubagent` in dependency order.
 

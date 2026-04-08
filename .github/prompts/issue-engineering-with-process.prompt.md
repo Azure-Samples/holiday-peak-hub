@@ -1,11 +1,15 @@
 ---
 name: "Issue Engineering With Process"
-description: "Run issue engineering with mandatory code-first investigation, BPMN issue creation, branch-per-issue execution, PR validation, merge monitoring, and branch cleanup."
+description: "Run issue engineering with mandatory code-first investigation, BPMN issue creation, branch-per-issue execution, PR validation, merge monitoring, and branch cleanup. Use the issue-engineering-workflows skill templates."
 agent: "TechLeadOrchestrator"
 argument-hint: "Provide the list of requested changes, issue references (if any), constraints, and expected outcomes."
 ---
 
 Execute issue engineering with strict process control:
+
+0. **Skill Bootstrap (mandatory)**
+   - Load `.github/skills/issue-engineering-workflows/SKILL.md`.
+   - Select the matching template for create/correct/improve/feature/risk issue flows before drafting issues.
 
 1. **Code-First Reconnaissance (mandatory before any action)**
    - Read the relevant code paths first.
@@ -32,6 +36,14 @@ Execute issue engineering with strict process control:
      - BPMN-formatted process section using Mermaid (required), for example:
 
      ```mermaid
+       %%{init: {'theme':'base', 'themeVariables': {
+          'primaryColor':'#FFB3BA',
+          'primaryTextColor':'#000',
+          'primaryBorderColor':'#FF8B94',
+          'lineColor':'#BAE1FF',
+          'secondaryColor':'#BAE1FF',
+          'tertiaryColor':'#FFFFFF'
+       }}}%%
      flowchart LR
        A[Analyze Current Code] --> B[Design Change]
        B --> C[Implement on Issue Branch]
