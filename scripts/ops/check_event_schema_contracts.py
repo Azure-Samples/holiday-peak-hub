@@ -8,19 +8,25 @@ import sys
 from copy import deepcopy
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[2]
+LIB_SRC = (ROOT / "lib" / "src").resolve()
+sys.path.insert(0, str(LIB_SRC))
+
 from pydantic import ValidationError
 
-from holiday_peak_lib.events import (
-    CURRENT_EVENT_SCHEMA_VERSION,
-    RETAIL_EVENT_TOPICS,
-    SchemaCompatibilityPolicy,
+from holiday_peak_lib.events.connector_events import (
     build_connector_event_payload,
-    build_retail_event_payload,
     parse_connector_event,
+)
+from holiday_peak_lib.events.retail_events import (
+    RETAIL_EVENT_TOPICS,
+    build_retail_event_payload,
     parse_retail_event,
 )
-
-ROOT = Path(__file__).resolve().parents[2]
+from holiday_peak_lib.events.versioning import (
+    CURRENT_EVENT_SCHEMA_VERSION,
+    SchemaCompatibilityPolicy,
+)
 FIXTURE_DIR = ROOT / "lib" / "tests" / "fixtures" / "event_schema_contracts"
 
 EXPECTED_RETAIL_TOPICS = (
