@@ -637,6 +637,42 @@ jobs:
           echo "Provision infrastructure failed with non-ignorable errors." >&2
           exit 1
 
+      - name: Ensure deploy principal has AcrPush on ACR
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          RG_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+          ACR_NAME=$(echo "${{ inputs.projectName }}${{ inputs.environment }}acr" | tr -cd '[:alnum:]' | tr '[:upper:]' '[:lower:]')
+          DEPLOY_SP_OBJECT_ID=$(az ad sp show --id "${AZURE_CLIENT_ID}" --query id -o tsv)
+          ACR_ID=$(az acr show --resource-group "$RG_NAME" --name "$ACR_NAME" --query id -o tsv)
+
+          EXISTING=$(az role assignment list \
+            --scope "$ACR_ID" \
+            --assignee-object-id "$DEPLOY_SP_OBJECT_ID" \
+            --query "[?roleDefinitionName=='AcrPush'] | length(@)" -o tsv)
+
+          if [ "$EXISTING" = "0" ]; then
+            echo "Assigning AcrPush to deploy principal on ACR $ACR_NAME."
+            az role assignment create \
+              --assignee-object-id "$DEPLOY_SP_OBJECT_ID" \
+              --assignee-principal-type ServicePrincipal \
+              --role "AcrPush" \
+              --scope "$ACR_ID"
+          else
+            echo "Deploy principal already has AcrPush on ACR $ACR_NAME."
+          fi
+
+          VERIFIED=$(az role assignment list \
+            --scope "$ACR_ID" \
+            --assignee-object-id "$DEPLOY_SP_OBJECT_ID" \
+            --query "[?roleDefinitionName=='AcrPush'] | length(@)" -o tsv)
+
+          if [ "$VERIFIED" = "0" ]; then
+            echo "Failed to verify AcrPush assignment for deploy principal on scope $ACR_ID."
+            exit 1
+          fi
+
       - name: Ensure AKS identity can read Key Vault secrets
         run: |
           AKS_RG="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
@@ -704,12 +740,148 @@ jobs:
             echo "AGC_FRONTEND_REFERENCE=${AGC_FRONTEND_REFERENCE}"
           } >> "$GITHUB_OUTPUT"
 
+  prepare-acr-build-access:
+    runs-on: ubuntu-latest
+    if: ${{ !inputs.uiOnly && needs.detect-changes.outputs.changed_aks_services_csv != '' }}
+    needs:
+      - provision
+      - detect-changes
+    environment: ${{ inputs.environment }}
+    outputs:
+      acr_name: ${{ steps.registry.outputs.acr_name }}
+      rg_name: ${{ steps.registry.outputs.rg_name }}
+      login_server: ${{ steps.registry.outputs.login_server }}
+      public_network_access_before: ${{ steps.access.outputs.public_network_access_before }}
+      default_action_before: ${{ steps.access.outputs.default_action_before }}
+      public_access_temporarily_enabled: ${{ steps.access.outputs.public_access_temporarily_enabled }}
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Resolve ACR registry
+        id: registry
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          RG_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+          ACR_NAME=$(echo "${{ inputs.projectName }}${{ inputs.environment }}acr" | tr -cd '[:alnum:]' | tr '[:upper:]' '[:lower:]')
+
+          if ! az acr show --resource-group "$RG_NAME" --name "$ACR_NAME" >/dev/null 2>&1; then
+            echo "ACR registry '$ACR_NAME' was not found in resource group '$RG_NAME'." >&2
+            exit 1
+          fi
+
+          ACR_LOGIN_SERVER=$(az acr show \
+            --resource-group "$RG_NAME" \
+            --name "$ACR_NAME" \
+            --query "loginServer" -o tsv)
+
+          echo "acr_name=${ACR_NAME}" >> "$GITHUB_OUTPUT"
+          echo "rg_name=${RG_NAME}" >> "$GITHUB_OUTPUT"
+          echo "login_server=${ACR_LOGIN_SERVER}" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare temporary ACR public access for tested-image builds
+        id: access
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ACR_NAME="${{ steps.registry.outputs.acr_name }}"
+          RG_NAME="${{ steps.registry.outputs.rg_name }}"
+          RESTORE_ON_ERROR=false
+
+          cleanup() {
+            if [ "$RESTORE_ON_ERROR" != "true" ]; then
+              return
+            fi
+
+            if [ -n "${DEFAULT_ACTION_BEFORE:-}" ]; then
+              az acr update \
+                --name "$ACR_NAME" \
+                --resource-group "$RG_NAME" \
+                --default-action "$DEFAULT_ACTION_BEFORE" >/dev/null || true
+            fi
+
+            if [ "${PUBLIC_NETWORK_ACCESS_BEFORE:-}" = "Disabled" ]; then
+              az acr update \
+                --name "$ACR_NAME" \
+                --resource-group "$RG_NAME" \
+                --public-network-enabled false >/dev/null || true
+            fi
+          }
+          trap cleanup EXIT
+
+          PUBLIC_NETWORK_ACCESS_BEFORE=$(az acr show \
+            --resource-group "$RG_NAME" \
+            --name "$ACR_NAME" \
+            --query "publicNetworkAccess" -o tsv)
+          DEFAULT_ACTION_BEFORE=$(az acr show \
+            --resource-group "$RG_NAME" \
+            --name "$ACR_NAME" \
+            --query "networkRuleSet.defaultAction" -o tsv)
+
+          if [ -z "$DEFAULT_ACTION_BEFORE" ] || [ "$DEFAULT_ACTION_BEFORE" = "null" ]; then
+            DEFAULT_ACTION_BEFORE="Allow"
+          fi
+
+          echo "public_network_access_before=${PUBLIC_NETWORK_ACCESS_BEFORE}" >> "$GITHUB_OUTPUT"
+          echo "default_action_before=${DEFAULT_ACTION_BEFORE}" >> "$GITHUB_OUTPUT"
+          echo "public_access_temporarily_enabled=false" >> "$GITHUB_OUTPUT"
+
+          if [ "${{ inputs.autoAllowAcrRunnerIp }}" != "true" ] || [ "$PUBLIC_NETWORK_ACCESS_BEFORE" != "Disabled" ]; then
+            exit 0
+          fi
+
+          RESTORE_ON_ERROR=true
+          az acr update \
+            --name "$ACR_NAME" \
+            --resource-group "$RG_NAME" \
+            --public-network-enabled true \
+            --default-action Deny >/dev/null
+
+          CURRENT_PUBLIC_NETWORK_ACCESS=""
+          CURRENT_DEFAULT_ACTION=""
+          for attempt in 1 2 3 4 5; do
+            CURRENT_PUBLIC_NETWORK_ACCESS=$(az acr show \
+              --resource-group "$RG_NAME" \
+              --name "$ACR_NAME" \
+              --query "publicNetworkAccess" -o tsv)
+            CURRENT_DEFAULT_ACTION=$(az acr show \
+              --resource-group "$RG_NAME" \
+              --name "$ACR_NAME" \
+              --query "networkRuleSet.defaultAction" -o tsv)
+
+            if [ "$CURRENT_PUBLIC_NETWORK_ACCESS" = "Enabled" ] && [ "$CURRENT_DEFAULT_ACTION" = "Deny" ]; then
+              break
+            fi
+
+            sleep 10
+          done
+
+          if [ "$CURRENT_PUBLIC_NETWORK_ACCESS" != "Enabled" ] || [ "$CURRENT_DEFAULT_ACTION" != "Deny" ]; then
+            echo "Failed to temporarily enable least-open ACR public access on ${ACR_NAME} for GitHub-hosted tested-image builds." >&2
+            exit 1
+          fi
+
+          echo "public_access_temporarily_enabled=true" >> "$GITHUB_OUTPUT"
+          RESTORE_ON_ERROR=false
+
   build-aks-images:
     runs-on: ubuntu-latest
     if: ${{ !inputs.uiOnly && needs.detect-changes.outputs.changed_aks_services_csv != '' }}
     needs:
       - provision
       - detect-changes
+      - prepare-acr-build-access
     environment: ${{ inputs.environment }}
     strategy:
       fail-fast: false
@@ -735,36 +907,18 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Resolve ACR registry
-        id: registry
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          RG_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
-          ACR_NAME=$(echo "${{ inputs.projectName }}${{ inputs.environment }}acr" | tr -cd '[:alnum:]' | tr '[:upper:]' '[:lower:]')
-
-          if ! az acr show --resource-group "$RG_NAME" --name "$ACR_NAME" >/dev/null 2>&1; then
-            echo "ACR registry '$ACR_NAME' was not found in resource group '$RG_NAME'." >&2
-            exit 1
-          fi
-
-          ACR_LOGIN_SERVER=$(az acr show \
-            --resource-group "$RG_NAME" \
-            --name "$ACR_NAME" \
-            --query "loginServer" -o tsv)
-
-          echo "acr_name=${ACR_NAME}" >> "$GITHUB_OUTPUT"
-          echo "rg_name=${RG_NAME}" >> "$GITHUB_OUTPUT"
-          echo "login_server=${ACR_LOGIN_SERVER}" >> "$GITHUB_OUTPUT"
-
       - name: Preflight ACR data-plane accessibility
         id: acr_preflight_build
         shell: bash
         run: |
           set -euo pipefail
 
-          ACR_LOGIN_SERVER="${{ steps.registry.outputs.login_server }}"
+          ACR_NAME="${{ needs.prepare-acr-build-access.outputs.acr_name }}"
+          RG_NAME="${{ needs.prepare-acr-build-access.outputs.rg_name }}"
+          ACR_LOGIN_SERVER="${{ needs.prepare-acr-build-access.outputs.login_server }}"
+
+          echo "runner_ip=" >> "$GITHUB_OUTPUT"
+          echo "runner_ip_allowlist_added=false" >> "$GITHUB_OUTPUT"
 
           if ! STATUS_CODE=$(curl -sS -o /tmp/acr-v2-probe-build.txt -w "%{http_code}" --max-time 25 "https://${ACR_LOGIN_SERVER}/v2/"); then
             STATUS_CODE="000"
@@ -781,10 +935,20 @@ jobs:
           fi
 
           if [ -n "$RUNNER_IP" ] && [ "${{ inputs.autoAllowAcrRunnerIp }}" = "true" ] && [ "$STATUS_CODE" = "403" ]; then
-            az acr network-rule add \
-              --name "${{ steps.registry.outputs.acr_name }}" \
-              --resource-group "${{ steps.registry.outputs.rg_name }}" \
-              --ip-address "$RUNNER_IP" >/dev/null
+            EXISTING_RULE_COUNT=$(az acr network-rule list \
+              --name "$ACR_NAME" \
+              --resource-group "$RG_NAME" \
+              --query "ipRules[].value" -o tsv 2>/dev/null | grep -Ec "^${RUNNER_IP}(/32)?$" || true)
+            EXISTING_RULE_COUNT="${EXISTING_RULE_COUNT:-0}"
+
+            if [ "$EXISTING_RULE_COUNT" = "0" ]; then
+              az acr network-rule add \
+                --name "$ACR_NAME" \
+                --resource-group "$RG_NAME" \
+                --ip-address "$RUNNER_IP" >/dev/null
+              echo "runner_ip_allowlist_added=true" >> "$GITHUB_OUTPUT"
+            fi
+
             echo "runner_ip=${RUNNER_IP}" >> "$GITHUB_OUTPUT"
             sleep 15
             if ! RETRY_CODE=$(curl -sS -o /tmp/acr-v2-probe-build-retry.txt -w "%{http_code}" --max-time 25 "https://${ACR_LOGIN_SERVER}/v2/"); then
@@ -802,7 +966,39 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          az acr login --name "${{ steps.registry.outputs.acr_name }}"
+
+          ACR_NAME="${{ needs.prepare-acr-build-access.outputs.acr_name }}"
+          ACR_SCOPE=$(az acr show \
+            --resource-group "${{ needs.prepare-acr-build-access.outputs.rg_name }}" \
+            --name "$ACR_NAME" \
+            --query id -o tsv)
+          DEPLOY_SP_OBJECT_ID=$(az ad sp show --id "${AZURE_CLIENT_ID}" --query id -o tsv)
+          RETRY_DELAYS=(15 30 60 90)
+          LOGIN_SUCCESS=false
+
+          for attempt in 1 2 3 4 5; do
+            if az acr login --name "$ACR_NAME"; then
+              LOGIN_SUCCESS=true
+              break
+            fi
+
+            ACR_PUSH_ASSIGNMENTS=$(az role assignment list \
+              --scope "$ACR_SCOPE" \
+              --assignee-object-id "$DEPLOY_SP_OBJECT_ID" \
+              --query "[?roleDefinitionName=='AcrPush'] | length(@)" -o tsv 2>/dev/null || true)
+            ACR_PUSH_ASSIGNMENTS="${ACR_PUSH_ASSIGNMENTS:-0}"
+
+            if [ "$attempt" -lt 5 ]; then
+              delay=${RETRY_DELAYS[$((attempt-1))]}
+              echo "::warning::az acr login failed on attempt ${attempt}/5 for ${ACR_NAME}. Visible AcrPush assignments for deploy principal ${DEPLOY_SP_OBJECT_ID} at ${ACR_SCOPE}: ${ACR_PUSH_ASSIGNMENTS}. This usually indicates RBAC propagation delay between ARM and the ACR data plane. Retrying in ${delay}s."
+              sleep "$delay"
+            fi
+          done
+
+          if [ "$LOGIN_SUCCESS" != "true" ]; then
+            echo "ACR login failed after 5 attempts for ${ACR_NAME}. Verify deploy principal object id ${DEPLOY_SP_OBJECT_ID} has AcrPush on ${ACR_SCOPE}, then rerun after RBAC propagation completes. OIDC-only auth is required; do not enable admin-user or add static registry credentials." >&2
+            exit 1
+          fi
 
       - name: Resolve Docker build inputs
         id: docker_inputs
@@ -911,7 +1107,7 @@ jobs:
 
           SERVICE_NAME="${{ matrix.service }}"
           SOURCE_SHA="${DEPLOY_SOURCE_SHA}"
-          IMAGE_REPOSITORY="${{ steps.registry.outputs.login_server }}/${SERVICE_NAME}"
+          IMAGE_REPOSITORY="${{ needs.prepare-acr-build-access.outputs.login_server }}/${SERVICE_NAME}"
           IMAGE_TAGGED_REF="${IMAGE_REPOSITORY}:${SOURCE_SHA}"
           EXISTING_DIGEST=""
 
@@ -959,14 +1155,86 @@ jobs:
           retention-days: 7
 
       - name: Cleanup temporary ACR runner IP allowlist (build)
-        if: ${{ always() && inputs.autoAllowAcrRunnerIp && steps.acr_preflight_build.outputs.runner_ip != '' }}
+        if: ${{ always() && steps.acr_preflight_build.outputs.runner_ip_allowlist_added == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
           az acr network-rule remove \
-            --name "${{ steps.registry.outputs.acr_name }}" \
-            --resource-group "${{ steps.registry.outputs.rg_name }}" \
+            --name "${{ needs.prepare-acr-build-access.outputs.acr_name }}" \
+            --resource-group "${{ needs.prepare-acr-build-access.outputs.rg_name }}" \
             --ip-address "${{ steps.acr_preflight_build.outputs.runner_ip }}" >/dev/null || true
+
+  restore-acr-build-access:
+    runs-on: ubuntu-latest
+    if: ${{ always() && !inputs.uiOnly && needs.detect-changes.outputs.changed_aks_services_csv != '' }}
+    needs:
+      - detect-changes
+      - prepare-acr-build-access
+      - build-aks-images
+    environment: ${{ inputs.environment }}
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Restore ACR public access state
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${{ needs.prepare-acr-build-access.outputs.public_access_temporarily_enabled }}" != "true" ]; then
+            echo "ACR public access state did not require temporary changes."
+            exit 0
+          fi
+
+          ACR_NAME="${{ needs.prepare-acr-build-access.outputs.acr_name }}"
+          RG_NAME="${{ needs.prepare-acr-build-access.outputs.rg_name }}"
+          PUBLIC_NETWORK_ACCESS_BEFORE="${{ needs.prepare-acr-build-access.outputs.public_network_access_before }}"
+          DEFAULT_ACTION_BEFORE="${{ needs.prepare-acr-build-access.outputs.default_action_before }}"
+
+          if [ -n "$DEFAULT_ACTION_BEFORE" ] && [ "$DEFAULT_ACTION_BEFORE" != "null" ]; then
+            az acr update \
+              --name "$ACR_NAME" \
+              --resource-group "$RG_NAME" \
+              --default-action "$DEFAULT_ACTION_BEFORE" >/dev/null
+          fi
+
+          if [ "$PUBLIC_NETWORK_ACCESS_BEFORE" = "Disabled" ]; then
+            az acr update \
+              --name "$ACR_NAME" \
+              --resource-group "$RG_NAME" \
+              --public-network-enabled false >/dev/null
+          fi
+
+          CURRENT_PUBLIC_NETWORK_ACCESS=$(az acr show \
+            --resource-group "$RG_NAME" \
+            --name "$ACR_NAME" \
+            --query "publicNetworkAccess" -o tsv)
+          CURRENT_DEFAULT_ACTION=$(az acr show \
+            --resource-group "$RG_NAME" \
+            --name "$ACR_NAME" \
+            --query "networkRuleSet.defaultAction" -o tsv)
+
+          if [ -z "$CURRENT_DEFAULT_ACTION" ] || [ "$CURRENT_DEFAULT_ACTION" = "null" ]; then
+            CURRENT_DEFAULT_ACTION="Allow"
+          fi
+
+          if [ "$CURRENT_PUBLIC_NETWORK_ACCESS" != "$PUBLIC_NETWORK_ACCESS_BEFORE" ]; then
+            echo "Failed to restore ACR public network access state for ${ACR_NAME}: expected ${PUBLIC_NETWORK_ACCESS_BEFORE}, got ${CURRENT_PUBLIC_NETWORK_ACCESS}." >&2
+            exit 1
+          fi
+
+          if [ "$CURRENT_DEFAULT_ACTION" != "$DEFAULT_ACTION_BEFORE" ]; then
+            echo "Failed to restore ACR default network action for ${ACR_NAME}: expected ${DEFAULT_ACTION_BEFORE}, got ${CURRENT_DEFAULT_ACTION}." >&2
+            exit 1
+          fi
 
   deploy-foundry-models:
     runs-on: ubuntu-latest
@@ -1003,6 +1271,7 @@ jobs:
       - provision
       - detect-changes
       - build-aks-images
+      - restore-acr-build-access
     if: ${{ !inputs.uiOnly && needs.detect-changes.outputs.crud_changed == 'true' }}
     environment: ${{ inputs.environment }}
     env:
@@ -1709,6 +1978,7 @@ jobs:
       - deploy-foundry-models
       - detect-changes
       - build-aks-images
+      - restore-acr-build-access
     environment: ${{ inputs.environment }}
     strategy:
       fail-fast: false

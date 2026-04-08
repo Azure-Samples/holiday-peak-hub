@@ -1,7 +1,7 @@
 # Infrastructure Governance and Compliance Guidelines
 
-**Version**: 2.3
-**Last Updated**: 2026-04-07
+**Version**: 2.4
+**Last Updated**: 2026-04-08
 **Owner**: Infrastructure Team
 
 ## Scope
@@ -63,8 +63,10 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 - Use Managed Identity and Entra-based federation for deployment identities.
 - Keep Key Vault as secret authority; no direct secret literals in IaC templates or workflows.
 - Enforce RBAC-scoped assignments for deployment principal operations.
+- The GitHub OIDC deploy principal (`AZURE_CLIENT_ID`) must retain permission to write RBAC assignments at the environment scope so `deploy-azd.yml` can idempotently ensure `Azure Kubernetes Service RBAC Cluster Admin` on the environment resource group and `AcrPush` on the environment ACR.
 - Use private networking posture for backend services where configured.
 - Protected live validation must use GitHub-hosted runners plus OIDC-backed Azure auth; do not rely on self-hosted managed-identity runners for this public repository path.
+- GitHub-hosted runners do not have private network line of sight to a private-only ACR. When `autoAllowAcrRunnerIp=true` and `publicNetworkAccess=Disabled`, `deploy-azd.yml` may temporarily enable the registry public endpoint with `defaultAction=Deny`, reuse the existing runner-IP allowlist behavior for the active build window, and then restore the original ACR public-access state.
 
 ## Runtime Deployment Controls
 
@@ -74,9 +76,11 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 - APIM backends must not target pod IPs, node IPs, `ClusterIP` addresses, or `*.svc.cluster.local` names.
 - AKS services published through APIM must remain `ClusterIP` unless a newer accepted ADR documents an exception.
 - CRUD-first sequencing before dependent agent rollouts.
+- Before `build-aks-images` runs, the reusable deploy workflow must verify or create `AcrPush` for the OIDC deploy principal at the environment ACR scope.
 - AKS service deployment must build or resolve immutable per-SHA images first, then render/apply manifests pinned by digest (`repo@sha256:...`); deploy jobs must not rebuild service images during manifest rollout.
 - Changed-service detection to reduce blast radius and deployment duration.
 - Reusable deploy workflows must accept an explicit tested source SHA/ref and use that checkout consistently across detection, build, render, sync, and validation jobs.
+- ACR login in tested-image build jobs must use the OIDC Azure CLI session and bounded retry with actionable failure text to absorb ARM-to-data-plane RBAC propagation delay; admin-user and static registry credentials are prohibited.
 - Push-event changed-service detection must diff `${{ github.event.before }}...${{ github.sha }}` to avoid empty comparisons against `origin/main` after merge.
 - APIM sync/smoke checks for API path health after relevant changes.
 - Deployment workflows must validate AGC GatewayClass readiness and direct CRUD `/health` reachability on the approved AGC frontend hostname before APIM sync.
@@ -90,7 +94,8 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 - A changed agent service is a hard deployment failure when any Foundry contract seam drifts: missing rendered keys, rendered-versus-live env mismatch, ensure responses without resolved `fast` and `rich` agent ids, or `/ready` responses that remain healthy while the strict Foundry contract is not actually enforced.
 - During migration, legacy AGIC or Web App Routing configuration may exist only as transitional state and must not be described as the target architecture.
 - Optional UI-only deployment path constrained by SWA token flow and health checks.
-- ACR network-rule temporary exceptions may be applied/removed automatically when enabled.
+- ACR runner-IP allowlist exceptions may be applied/removed automatically when enabled.
+- If the environment ACR public endpoint is disabled, the tested-image build guard must temporarily enable public access with `defaultAction=Deny`, reuse the runner-IP allowlist flow, and restore the prior `publicNetworkAccess` and `networkRuleSet.defaultAction` after the build phase completes.
 
 ## Data Connectivity Guardrails
 
