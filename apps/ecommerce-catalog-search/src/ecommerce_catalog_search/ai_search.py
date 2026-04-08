@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
 
+import httpx
 from azure.core.credentials import AzureKeyCredential
 from azure.core.exceptions import (
     AzureError,
@@ -53,6 +54,27 @@ class AISearchDocumentResult:
     enriched_fields: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class AISearchIndexStatus:
+    """Health snapshot for AI Search runtime enforcement checks."""
+
+    configured: bool
+    reachable: bool
+    non_empty: bool
+    reason: str | None = None
+
+
+@dataclass(frozen=True)
+class AISearchSeedResult:
+    """Result payload for bounded AI Search index seeding attempts."""
+
+    attempted: bool
+    success: bool
+    attempt_count: int
+    seeded_documents: int
+    reason: str | None = None
+
+
 _SEARCH_SELECT_FIELDS = [
     "sku",
     "id",
@@ -70,6 +92,10 @@ _ENRICHED_FIELDS = (
     "substitute_products",
     "enriched_description",
 )
+_TRUE_VALUES = {"1", "true", "yes", "on"}
+_FALSE_VALUES = {"0", "false", "no", "off"}
+_DEFAULT_SEED_MAX_ATTEMPTS = 2
+_DEFAULT_SEED_BATCH_SIZE = 50
 
 
 def load_ai_search_config() -> AISearchConfig | None:
@@ -93,6 +119,65 @@ def load_ai_search_config() -> AISearchConfig | None:
         embedding_deployment_name=embedding_deployment_name,
         auth_mode=auth_mode,
         key=key,
+    )
+
+
+def _parse_bool(value: str | None, default: bool) -> bool:
+    if value is None:
+        return default
+
+    normalized = value.strip().lower()
+    if not normalized:
+        return default
+    if normalized in _TRUE_VALUES:
+        return True
+    if normalized in _FALSE_VALUES:
+        return False
+    return default
+
+
+def _parse_positive_int(
+    value: str | None,
+    *,
+    default: int,
+    minimum: int,
+    maximum: int,
+) -> int:
+    if value is None:
+        return default
+
+    try:
+        resolved = int(value)
+    except (TypeError, ValueError):
+        return default
+
+    return max(minimum, min(maximum, resolved))
+
+
+def ai_search_required_runtime_enabled() -> bool:
+    """Resolve strict AI Search mode (AKS default, env override supported)."""
+    aks_default = bool((os.getenv("KUBERNETES_SERVICE_HOST") or "").strip())
+    override = os.getenv("CATALOG_SEARCH_REQUIRE_AI_SEARCH")
+    return _parse_bool(override, default=aks_default)
+
+
+def resolve_seed_max_attempts() -> int:
+    """Return bounded max seeding attempts for startup/readiness self-healing."""
+    return _parse_positive_int(
+        os.getenv("CATALOG_SEARCH_SEED_MAX_ATTEMPTS"),
+        default=_DEFAULT_SEED_MAX_ATTEMPTS,
+        minimum=1,
+        maximum=10,
+    )
+
+
+def resolve_seed_batch_size() -> int:
+    """Return bounded product batch size used while seeding AI Search index."""
+    return _parse_positive_int(
+        os.getenv("CATALOG_SEARCH_SEED_BATCH_SIZE"),
+        default=_DEFAULT_SEED_BATCH_SIZE,
+        minimum=1,
+        maximum=100,
     )
 
 
@@ -376,7 +461,9 @@ def _safe_error_context(config: AISearchConfig, operation: str) -> dict[str, Any
 async def search_catalog_skus_detailed(query: str, limit: int) -> AISearchSkuResult:
     """Query AI Search index and include explicit fallback metadata when degraded."""
     config = load_ai_search_config()
-    if config is None or not query.strip() or limit <= 0:
+    if config is None:
+        return AISearchSkuResult(skus=[], fallback_reason="ai_search_not_configured")
+    if not query.strip() or limit <= 0:
         return AISearchSkuResult(skus=[])
 
     credential = _resolve_credential(config)
@@ -487,3 +574,315 @@ async def delete_catalog_document(sku: str) -> bool:
     finally:
         await _safe_close(client)
         await _safe_close(credential)
+
+
+async def get_catalog_index_status() -> AISearchIndexStatus:
+    """Inspect index configuration, reachability, and whether at least one document exists."""
+    config = load_ai_search_config()
+    if config is None:
+        return AISearchIndexStatus(
+            configured=False,
+            reachable=False,
+            non_empty=False,
+            reason="ai_search_not_configured",
+        )
+
+    credential = _resolve_credential(config)
+    client = SearchClient(
+        endpoint=config.endpoint,
+        index_name=config.index_name,
+        credential=credential,
+    )
+
+    try:
+        results = await client.search(
+            search_text="*",
+            top=1,
+            select=["id", "sku"],
+        )
+        async for _ in results:
+            return AISearchIndexStatus(
+                configured=True,
+                reachable=True,
+                non_empty=True,
+            )
+
+        return AISearchIndexStatus(
+            configured=True,
+            reachable=True,
+            non_empty=False,
+            reason="ai_search_index_empty",
+        )
+    except AzureError as error:
+        reason = _fallback_reason_from_error(error)
+        logger.warning(
+            "catalog_ai_search_index_status_failed",
+            extra={
+                **_safe_error_context(config, operation="index_status"),
+                "reason": reason,
+                "error_type": type(error).__name__,
+            },
+            exc_info=True,
+        )
+        return AISearchIndexStatus(
+            configured=True,
+            reachable=False,
+            non_empty=False,
+            reason=reason,
+        )
+    finally:
+        await _safe_close(client)
+        await _safe_close(credential)
+
+
+async def upsert_catalog_documents(documents: list[dict[str, Any]]) -> bool:
+    """Bulk upload or merge catalog documents for startup/readiness seed flows."""
+    if not documents:
+        return False
+
+    config = load_ai_search_config()
+    if config is None:
+        return False
+
+    credential = _resolve_credential(config)
+    client = SearchClient(
+        endpoint=config.endpoint,
+        index_name=config.index_name,
+        credential=credential,
+    )
+
+    try:
+        await client.merge_or_upload_documents(documents=documents)
+        return True
+    except AzureError as error:
+        logger.warning(
+            "ai_search_bulk_upsert_failed",
+            extra={
+                **_safe_error_context(config, operation="bulk_upsert"),
+                "fallback_reason": _fallback_reason_from_error(error),
+                "document_count": len(documents),
+                "error_type": type(error).__name__,
+            },
+            exc_info=True,
+        )
+        return False
+    finally:
+        await _safe_close(client)
+        await _safe_close(credential)
+
+
+def _resolve_availability_from_product(product: dict[str, Any]) -> str:
+    inventory = product.get("inventory")
+    available_raw: Any | None = None
+    if isinstance(inventory, dict):
+        available_raw = inventory.get("available")
+    if available_raw is None:
+        available_raw = product.get("available")
+
+    if isinstance(available_raw, (int, float)):
+        return "in_stock" if available_raw > 0 else "out_of_stock"
+    return "unknown"
+
+
+def _to_search_document(product: dict[str, Any]) -> dict[str, Any] | None:
+    sku = str(product.get("sku") or product.get("id") or "").strip()
+    if not sku:
+        return None
+
+    title = str(product.get("name") or sku).strip() or sku
+    description = str(product.get("description") or "")
+    category = str(product.get("category") or "")
+    brand = str(product.get("brand") or "")
+
+    price_raw = product.get("price")
+    try:
+        price = float(price_raw or 0.0)
+    except (TypeError, ValueError):
+        price = 0.0
+
+    return {
+        "id": sku,
+        "sku": sku,
+        "title": title,
+        "description": description,
+        "content": " ".join(part for part in (title, description, category, brand) if part).strip(),
+        "category": category,
+        "brand": brand,
+        "availability": _resolve_availability_from_product(product),
+        "price": price,
+    }
+
+
+async def _fetch_seed_products_from_crud(limit: int) -> tuple[list[dict[str, Any]], str | None]:
+    crud_service_url = (os.getenv("CRUD_SERVICE_URL") or "").strip().rstrip("/")
+    if not crud_service_url:
+        return [], "crud_service_not_configured"
+
+    timeout_seconds = _parse_positive_int(
+        os.getenv("CATALOG_SEARCH_SEED_HTTP_TIMEOUT_SECONDS"),
+        default=5,
+        minimum=1,
+        maximum=60,
+    )
+
+    try:
+        async with httpx.AsyncClient(timeout=float(timeout_seconds)) as client:
+            response = await client.get(
+                f"{crud_service_url}/api/products",
+                params={"limit": limit},
+            )
+            response.raise_for_status()
+            payload = response.json()
+    except httpx.HTTPError:
+        logger.warning(
+            "catalog_ai_search_seed_crud_fetch_failed",
+            extra={
+                "crud_service_url": crud_service_url,
+                "limit": limit,
+            },
+            exc_info=True,
+        )
+        return [], "crud_fetch_failed"
+
+    if not isinstance(payload, list):
+        return [], "crud_invalid_payload"
+
+    products = [item for item in payload if isinstance(item, dict)]
+    if not products:
+        return [], "crud_no_products"
+    return products, None
+
+
+async def seed_catalog_index_from_crud(
+    *,
+    max_attempts: int | None = None,
+    batch_size: int | None = None,
+) -> AISearchSeedResult:
+    """Attempt bounded CRUD-based seeding when AI Search index is empty/unusable."""
+    config = load_ai_search_config()
+    if config is None:
+        return AISearchSeedResult(
+            attempted=False,
+            success=False,
+            attempt_count=0,
+            seeded_documents=0,
+            reason="ai_search_not_configured",
+        )
+
+    if max_attempts is not None and max_attempts <= 0:
+        return AISearchSeedResult(
+            attempted=False,
+            success=False,
+            attempt_count=0,
+            seeded_documents=0,
+            reason="seed_attempt_budget_exhausted",
+        )
+
+    resolved_attempts = (
+        _parse_positive_int(
+            str(max_attempts),
+            default=resolve_seed_max_attempts(),
+            minimum=1,
+            maximum=10,
+        )
+        if max_attempts is not None
+        else resolve_seed_max_attempts()
+    )
+    resolved_batch_size = (
+        _parse_positive_int(
+            str(batch_size),
+            default=resolve_seed_batch_size(),
+            minimum=1,
+            maximum=100,
+        )
+        if batch_size is not None
+        else resolve_seed_batch_size()
+    )
+
+    last_reason: str | None = None
+    best_seed_count = 0
+    for attempt in range(1, resolved_attempts + 1):
+        logger.info(
+            "catalog_ai_search_seed_attempt",
+            extra={
+                "attempt": attempt,
+                "max_attempts": resolved_attempts,
+                "batch_size": resolved_batch_size,
+                "endpoint_host": _safe_endpoint_host(config.endpoint),
+                "index_name": config.index_name,
+            },
+        )
+
+        products, fetch_reason = await _fetch_seed_products_from_crud(resolved_batch_size)
+        if fetch_reason is not None:
+            last_reason = fetch_reason
+            continue
+
+        documents = [
+            document
+            for product in products
+            if (document := _to_search_document(product)) is not None
+        ]
+        if not documents:
+            last_reason = "crud_no_seedable_products"
+            continue
+
+        best_seed_count = max(best_seed_count, len(documents))
+        indexed = await upsert_catalog_documents(documents)
+        if not indexed:
+            last_reason = "ai_search_seed_upsert_failed"
+            continue
+
+        status = await get_catalog_index_status()
+        if status.non_empty:
+            logger.info(
+                "catalog_ai_search_seed_success",
+                extra={
+                    "attempt": attempt,
+                    "seeded_documents": len(documents),
+                    "endpoint_host": _safe_endpoint_host(config.endpoint),
+                    "index_name": config.index_name,
+                },
+            )
+            return AISearchSeedResult(
+                attempted=True,
+                success=True,
+                attempt_count=attempt,
+                seeded_documents=len(documents),
+            )
+
+        last_reason = status.reason or "ai_search_index_empty_after_seed"
+        logger.warning(
+            "catalog_ai_search_seed_check_failed",
+            extra={
+                "attempt": attempt,
+                "seeded_documents": len(documents),
+                "reason": last_reason,
+            },
+        )
+
+    return AISearchSeedResult(
+        attempted=True,
+        success=False,
+        attempt_count=resolved_attempts,
+        seeded_documents=best_seed_count,
+        reason=last_reason or "catalog_ai_search_seed_failed",
+    )
+
+
+async def ensure_catalog_index_seeded_if_empty(
+    *,
+    max_attempts: int | None = None,
+    batch_size: int | None = None,
+) -> tuple[AISearchIndexStatus, AISearchSeedResult | None]:
+    """Return current index status and seed once when index is missing documents."""
+    status = await get_catalog_index_status()
+    if status.non_empty:
+        return status, None
+
+    seed_result = await seed_catalog_index_from_crud(
+        max_attempts=max_attempts,
+        batch_size=batch_size,
+    )
+    refreshed = await get_catalog_index_status()
+    return refreshed, seed_result

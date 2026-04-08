@@ -1,8 +1,8 @@
 ---
-title: "UI: Design Component"
+name: "UI: Design Component"
 description: "Design and implement a responsive, accessible UI component with proper semantic HTML and design tokens."
 agent: "UIDesigner"
-input: "Describe the component (purpose, content, interactions). Specify platform: web (Tailwind), CLI (Ink), or desktop (Tauri)."
+argument-hint: "Describe the component (purpose, content, interactions). Specify platform: web (Tailwind), CLI (Ink), or desktop (Tauri)."
 ---
 
 Design and implement the requested UI component:
@@ -15,3 +15,4 @@ Design and implement the requested UI component:
 6. **Cross-Platform** — If web: Tailwind + logical properties. If CLI: Ink components. If desktop: Tauri + web stack.
 
 Deliver the component code, usage example, and accessibility notes.
+

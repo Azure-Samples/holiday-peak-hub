@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Bumped `holiday-peak-lib` from `0.1.0` to `0.2.0` in `lib/src/pyproject.toml` and updated all agent/service Python package references to require `holiday-peak-lib>=0.2.0` for cross-module dependency alignment.
+
+- Foundry runtime invocation in `holiday_peak_lib.agents.foundry.FoundryInvoker` now uses the Azure AI Agents SDK thread/message/run APIs (provider-agnostic) instead of the OpenAI conversations/responses client path, while preserving compatibility response fields (`conversation_id`/`response_id`) for existing callers.
+
 - Enrichment/search orchestration hardening: truth-ingestion now emits `enrichment-jobs`; truth-hitl approval now emits both `export-jobs` and `search-enrichment-jobs`; truth-enrichment proposals are now always `pending_review` (human-only promotion path), removing direct auto-approval writes from enrichment.
 
 - Catalog and UI two-stage search flow: UI now renders keyword baseline first and applies background intelligent rerank updates, proxy forwarding now enriches correlation/user-session-IP headers, and catalog-search now records stage/session metadata plus best-effort search history persistence across hot/warm/cold memory tiers.

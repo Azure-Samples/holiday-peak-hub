@@ -7,14 +7,17 @@ import json
 import os
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from inspect import isawaitable, signature
 from typing import Any, AsyncContextManager, AsyncIterator, Awaitable, Callable, Iterable
 
 from azure.eventhub.aio import EventHubConsumerClient
 from azure.identity.aio import DefaultAzureCredential
+from holiday_peak_lib.self_healing import FailureSignal, SelfHealingKernel, SurfaceType
 from holiday_peak_lib.utils.logging import configure_logging
 
 EventHandler = Callable[[Any, Any], Awaitable[None]]
-ErrorHandler = Callable[[Any], Awaitable[None]]
+ErrorHandler = Callable[..., Awaitable[None] | None]
+FailureSignalEmitter = Callable[[FailureSignal], Awaitable[Any] | Any]
 
 
 @dataclass(frozen=True)
@@ -38,12 +41,27 @@ class EventHubSubscriber:
         on_event: EventHandler,
         on_error: ErrorHandler | None = None,
         client_factory: Callable[[], EventHubConsumerClient] | None = None,
+        failure_signal_emitter: FailureSignalEmitter | None = None,
+        self_healing_kernel: SelfHealingKernel | None = None,
+        reconcile_on_error: bool = False,
     ) -> None:
         self._config = config
         self._on_event = on_event
         self._on_error = on_error
         self._client_factory = client_factory
+        self._failure_signal_emitter = failure_signal_emitter
+        self._self_healing_kernel = self_healing_kernel
+        self._reconcile_on_error = reconcile_on_error
         self._client: EventHubConsumerClient | None = None
+        self._logger = configure_logging(app_name="eventhub-subscriber")
+
+    def _log_warning(self, message: str, **metadata: Any) -> None:
+        log_method = getattr(self._logger, "warning", None)
+        if callable(log_method):
+            try:
+                log_method(message, **metadata)
+            except TypeError:
+                log_method(message)
 
     async def start(self) -> None:
         """Start receiving events using the configured handler."""
@@ -55,10 +73,14 @@ class EventHubSubscriber:
             if self._config.checkpoint:
                 await partition_context.update_checkpoint(event)
 
+        async def _on_error(partition_context: Any, error: Any) -> None:
+            await self._run_error_handler(partition_context, error)
+            await self._emit_failure_signal(partition_context, error)
+
         async with client:
             await client.receive(
                 on_event=_on_event,
-                on_error=self._on_error,
+                on_error=_on_error,
                 starting_position=self._config.starting_position,
             )
 
@@ -69,6 +91,64 @@ class EventHubSubscriber:
             eventhub_name=self._config.eventhub_name,
         )
 
+    async def _run_error_handler(self, partition_context: Any, error: Any) -> None:
+        if self._on_error is None:
+            return
+
+        try:
+            expects_partition_context = len(signature(self._on_error).parameters) >= 2
+        except (TypeError, ValueError):
+            expects_partition_context = True
+
+        if expects_partition_context:
+            result = self._on_error(partition_context, error)
+        else:
+            result = self._on_error(error)
+
+        if isawaitable(result):
+            await result
+
+    async def _emit_failure_signal(self, partition_context: Any, error: Any) -> None:
+        emitter = self._failure_signal_emitter
+        if emitter is None and self._self_healing_kernel is not None:
+            emitter = self._self_healing_kernel.handle_failure_signal
+
+        signal = FailureSignal(
+            service_name=(
+                self._self_healing_kernel.service_name
+                if self._self_healing_kernel is not None
+                else "eventhub-subscriber"
+            ),
+            surface=SurfaceType.MESSAGING,
+            component=self._config.eventhub_name,
+            status_code=getattr(error, "status_code", 500),
+            error_type=type(error).__name__,
+            error_message=str(error),
+            metadata={
+                "consumer_group": self._config.consumer_group,
+                "partition": getattr(partition_context, "partition_id", None),
+            },
+        )
+
+        if emitter is not None:
+            try:
+                emitted = emitter(signal)
+                if isawaitable(emitted):
+                    await emitted
+            except TypeError as exc:
+                self._log_warning(
+                    "eventhub_failure_signal_emitter_signature_mismatch",
+                    eventhub=self._config.eventhub_name,
+                    error=str(exc),
+                )
+
+        if (
+            self._reconcile_on_error
+            and self._self_healing_kernel is not None
+            and self._self_healing_kernel.enabled
+        ):
+            await self._self_healing_kernel.reconcile()
+
 
 @dataclass(frozen=True)
 class EventHubSubscription:
@@ -78,12 +158,27 @@ class EventHubSubscription:
     consumer_group: str
 
 
+def build_basic_error_handler(*, logger: Any, eventhub_name: str) -> ErrorHandler:
+    """Return a lightweight error logger used by default subscribers."""
+
+    async def _on_error(_partition_context: Any, error: Any) -> None:
+        logger.warning(
+            "eventhub_receive_error",
+            eventhub=eventhub_name,
+            error=str(error),
+        )
+
+    return _on_error
+
+
 def create_eventhub_lifespan(
     *,
     service_name: str,
     subscriptions: Iterable[EventHubSubscription],
     connection_string_env: str = "EVENTHUB_CONNECTION_STRING",
     handlers: dict[str, EventHandler] | None = None,
+    self_healing_kernel: SelfHealingKernel | None = None,
+    reconcile_on_error: bool = False,
 ) -> Callable[[Any], AsyncContextManager[None]]:
     """Create a FastAPI lifespan that starts Event Hub subscribers."""
 
@@ -154,7 +249,19 @@ def create_eventhub_lifespan(
                     consumer_group=subscription.consumer_group,
                 ),
                 on_event=make_handler(subscription.eventhub_name),
+                on_error=build_basic_error_handler(
+                    logger=logger,
+                    eventhub_name=subscription.eventhub_name,
+                ),
                 client_factory=make_client_factory(subscription),
+                **(
+                    {
+                        "self_healing_kernel": self_healing_kernel,
+                        "reconcile_on_error": reconcile_on_error,
+                    }
+                    if self_healing_kernel is not None or reconcile_on_error
+                    else {}
+                ),
             )
             tasks.append(asyncio.create_task(subscriber.start()))
 

@@ -3,6 +3,7 @@
 import logging
 import os
 
+from crud_service.config.settings import get_settings
 from crud_service.repositories.base import BaseRepository
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
@@ -13,15 +14,11 @@ logger = logging.getLogger(__name__)
 
 async def _check_redis() -> tuple[str, str]:
     """Return (status, detail) for the Redis connection."""
-    redis_host = os.getenv("REDIS_HOST", "")
-    if not redis_host:
-        return "unconfigured", "REDIS_HOST not set"
     try:
         import redis.asyncio as aioredis  # type: ignore[import]
 
-        redis_port = int(os.getenv("REDIS_PORT", "6380"))
-        redis_ssl = os.getenv("REDIS_SSL", "true").lower() == "true"
-        client = aioredis.Redis(host=redis_host, port=redis_port, ssl=redis_ssl, socket_timeout=2)
+        redis_url = get_settings().redis_url
+        client = aioredis.Redis.from_url(redis_url, socket_timeout=2)
         await client.ping()
         await client.aclose()
         return "healthy", "ping ok"

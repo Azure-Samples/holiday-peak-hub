@@ -1,8 +1,8 @@
 ---
-title: "Rust: Review Code"
+name: "Rust: Review Code"
 description: "Review Rust code for safety, ownership correctness, performance, and idiomatic patterns."
 agent: "RustDeveloper"
-input: "Provide the crate or file(s) to review. Optionally specify focus (safety, performance, API design)."
+argument-hint: "Provide the crate or file(s) to review. Optionally specify focus (safety, performance, API design)."
 ---
 
 Review the specified Rust code checking for:
@@ -15,3 +15,4 @@ Review the specified Rust code checking for:
 6. **Idioms** — Match exhaustiveness. Builder pattern usage. Trait object vs generic trade-offs.
 
 Deliver findings as a prioritized list with severity, location, and fix recommendations.
+

@@ -178,6 +178,16 @@ class TestFoundryTracer:
         tracer_b = get_foundry_tracer("svc-singleton")
         assert tracer_a is tracer_b
 
+    def test_get_foundry_tracer_updates_enabled_state(self, monkeypatch):
+        monkeypatch.setenv("FOUNDRY_TRACING_ENABLED", "true")
+
+        tracer = get_foundry_tracer("svc-toggle", enabled=False)
+        assert tracer.enabled is False
+
+        same_tracer = get_foundry_tracer("svc-toggle", enabled=True)
+        assert same_tracer is tracer
+        assert same_tracer.enabled is True
+
 
 class TestNormalizeOutcomeStatus:
     """Tests for _normalize_outcome_status()."""

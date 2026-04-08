@@ -64,18 +64,18 @@ describe('useIntelligentSearch', () => {
     jest.useRealTimers();
   });
 
-  it('defaults to auto preference and keyword resolved mode', () => {
+  it('defaults to intelligent preference and intelligent resolved mode', () => {
     const { result } = renderHook(() => useIntelligentSearch('headphones', 20));
     act(() => {
       jest.advanceTimersByTime(300);
     });
 
-    expect(result.current.preference).toBe('auto');
-    expect(result.current.resolvedMode).toBe('keyword');
+    expect(result.current.preference).toBe('intelligent');
+    expect(result.current.resolvedMode).toBe('intelligent');
     expect(mockUseSemanticSearch).toHaveBeenCalledWith(
       'headphones',
       20,
-      'keyword',
+      'intelligent',
       expect.objectContaining({
         search_stage: 'baseline',
         session_id: expect.any(String),
@@ -107,6 +107,7 @@ describe('useIntelligentSearch', () => {
 
   it('returns baseline results first and replaces them with reranked results when available', () => {
     let rerankReady = false;
+    window.localStorage.setItem('hp.search.mode.preference', 'auto');
 
     mockUseSemanticSearch.mockImplementation((
       _query: string,
@@ -159,6 +160,7 @@ describe('useIntelligentSearch', () => {
       jest.advanceTimersByTime(300);
     });
 
+    expect(result.current.preference).toBe('auto');
     expect(result.current.searchStage).toBe('baseline');
     expect(result.current.data?.items[0].sku).toBe('sku-baseline');
     expect(result.current.isReranking).toBe(true);

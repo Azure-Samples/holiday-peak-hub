@@ -97,19 +97,19 @@ export default function DashboardPage() {
 
   return (
     <MainLayout>
-      <div className="max-w-7xl mx-auto py-8">
+      <div className="max-w-7xl mx-auto px-4 md:px-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-            My Dashboard
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
+            Dashboard
           </h1>
-          <p className="text-gray-600 dark:text-gray-400">
-            Welcome back! Here&apos;s what&apos;s happening with your account.
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            Welcome back. Here&apos;s what&apos;s happening with your account.
           </p>
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {stats.map((stat) => (
             <StatCard key={stat.label} {...stat} />
           ))}
@@ -378,37 +378,29 @@ export default function DashboardPage() {
   );
 }
 
-function StatCard({ label, value, icon: Icon, color }: {
+function StatCard({ label, value, icon: Icon, color: _color }: {
   label: string;
   value: string;
   icon: React.ComponentType<{ className?: string }>;
   color: 'ocean' | 'lime' | 'cyan';
 }) {
-  const colorClasses = {
-    ocean: 'bg-ocean-100 dark:bg-ocean-900 text-ocean-500 dark:text-ocean-300',
-    lime: 'bg-lime-100 dark:bg-lime-900 text-lime-500 dark:text-lime-300',
-    cyan: 'bg-cyan-100 dark:bg-cyan-900 text-cyan-500 dark:text-cyan-300',
-  };
-
   return (
-    <Card className="p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{label}</p>
-          <p
-            className="text-3xl font-bold text-gray-900 dark:text-white"
-            aria-label={value === 'Unavailable'
-              ? `${label} unavailable in the current API contract`
-              : `${label}: ${value}`}
-          >
-            {value}
-          </p>
-        </div>
-        <div className={`w-14 h-14 rounded-full flex items-center justify-center ${colorClasses[color]}`}>
-          <Icon className="w-7 h-7" />
+    <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 p-5 shadow-sm">
+      <div className="flex items-center gap-3 mb-3">
+        <div className="w-9 h-9 rounded-xl bg-gray-50 dark:bg-gray-800 flex items-center justify-center">
+          <Icon className="w-4 h-4 text-gray-500 dark:text-gray-400" />
         </div>
       </div>
-    </Card>
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-1">{label}</p>
+      <p
+        className="text-2xl font-bold text-gray-900 dark:text-white tabular-nums"
+        aria-label={value === 'Unavailable'
+          ? `${label} unavailable in the current API contract`
+          : `${label}: ${value}`}
+      >
+        {value}
+      </p>
+    </div>
   );
 }
 
@@ -416,12 +408,12 @@ function RecommendedProduct({ sku, title, score }: { sku: string; title: string;
   return (
     <Link href={`/product/${encodeURIComponent(sku)}`}>
       <div className="group cursor-pointer">
-        <div className="aspect-square bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 rounded-lg mb-2 group-hover:scale-105 transition-transform" />
-        <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-1 line-clamp-2">
+        <div className="aspect-square bg-gray-50 dark:bg-gray-800 rounded-xl mb-2 group-hover:shadow-md transition-shadow duration-200 border border-gray-100 dark:border-gray-800" />
+        <h4 className="text-xs font-medium text-gray-900 dark:text-white mb-0.5 line-clamp-2">
           {title}
         </h4>
-        <p className="text-xs text-gray-600 dark:text-gray-400">{sku}</p>
-        <p className="text-sm font-bold text-ocean-500 dark:text-ocean-300">Score: {score.toFixed(2)}</p>
+        <p className="text-[11px] text-gray-400">{sku}</p>
+        <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mt-1">Score: {score.toFixed(2)}</p>
       </div>
     </Link>
   );

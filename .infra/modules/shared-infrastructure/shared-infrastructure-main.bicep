@@ -74,6 +74,8 @@ output postgresAdminUser string = sharedInfra.outputs.postgresAdminUser
 output eventHubsNamespaceName string = sharedInfra.outputs.eventHubsNamespaceName
 output platformJobsNamespaceName string = sharedInfra.outputs.platformJobsNamespaceName
 output redisName string = sharedInfra.outputs.redisName
+#disable-next-line outputs-should-not-contain-secrets
+output redisPasswordSecretName string = sharedInfra.outputs.redisPasswordSecretName
 output storageAccountName string = sharedInfra.outputs.storageAccountName
 output keyVaultName string = sharedInfra.outputs.keyVaultName
 output keyVaultUri string = sharedInfra.outputs.keyVaultUri

@@ -47,6 +47,7 @@ var postgresAdminUser = 'crud_admin'
 var postgresWorkloadUser = 'crud_workload'
 var postgresAuthMode = 'password'
 var postgresAdminPasswordSecretName = 'postgres-admin-password'
+var redisPasswordSecretName = 'redis-primary-key'
 var resolvedPostgresAdminPassword = empty(postgresAdminPassword)
   ? '${replace(postgresAdminPasswordSeed, '-', '')}Aa!'
   : postgresAdminPassword
@@ -1283,6 +1284,8 @@ output postgresBreakGlassAdminUser string = postgresAdminUser
 output eventHubsNamespaceName string = eventHubs.outputs.name
 output platformJobsNamespaceName string = platformJobsEventHubs.outputs.name
 output redisName string = redis.outputs.name
+#disable-next-line outputs-should-not-contain-secrets
+output redisPasswordSecretName string = redisPasswordSecretName
 output storageAccountName string = storage.outputs.name
 output keyVaultName string = keyVault.outputs.name
 output keyVaultUri string = keyVault.outputs.uri

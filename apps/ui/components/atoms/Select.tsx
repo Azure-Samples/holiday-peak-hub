@@ -90,18 +90,19 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
         aria-required={required}
         className={cn(
           // Base styles
-          'block w-full',
-          'border rounded-md',
-          'bg-white dark:bg-gray-800',
+          'block w-full appearance-none',
+          'border rounded-xl',
+          'bg-white dark:bg-gray-900',
           'text-gray-900 dark:text-white',
-          'transition-colors duration-200',
+          'transition-all duration-200 ease-[cubic-bezier(0.23,1,0.32,1)]',
+          'shadow-sm hover:shadow',
           
           // Border and focus states
           hasError
-            ? 'border-red-300 dark:border-red-700 focus:border-red-500 focus:ring-red-500'
-            : 'border-gray-300 dark:border-gray-700 focus:border-blue-500 focus:ring-blue-500',
+            ? 'border-red-300 dark:border-red-700 focus:border-red-500 focus:ring-red-500/20'
+            : 'border-gray-200 dark:border-gray-700 focus:border-gray-900 dark:focus:border-white focus:ring-gray-900/10 dark:focus:ring-white/10',
           
-          'focus:outline-none focus:ring-1',
+          'focus:outline-none focus:ring-2',
           
           // Disabled state
           disabled && 'opacity-50 cursor-not-allowed bg-gray-50 dark:bg-gray-900',

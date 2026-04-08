@@ -92,6 +92,19 @@ class ProductConnector(BaseConnector):
         records = await self._fetch_many(entity="related", sku=sku, limit=limit)
         return await self._map_many(CatalogProduct, records)
 
+    async def search(self, query: str, limit: int = 5) -> list[CatalogProduct]:
+        """Search products by text query for deterministic fallback retrieval."""
+        normalized_query = query.strip()
+        if not normalized_query or limit <= 0:
+            return []
+
+        records = await self._fetch_many(
+            entity="search",
+            query=normalized_query,
+            limit=limit,
+        )
+        return await self._map_many(CatalogProduct, records)
+
     async def build_product_context(
         self, sku: str, related_limit: int = 5
     ) -> ProductContext | None:

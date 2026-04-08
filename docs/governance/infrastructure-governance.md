@@ -1,7 +1,7 @@
 # Infrastructure Governance and Compliance Guidelines
 
-**Version**: 2.2  
-**Last Updated**: 2026-03-17  
+**Version**: 2.4
+**Last Updated**: 2026-04-08
 **Owner**: Infrastructure Team
 
 ## Scope
@@ -18,10 +18,11 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 - `.github/workflows/deploy-azd-dev.yml` (dev entrypoint)
 - `.github/workflows/deploy-azd-prod.yml` (prod entrypoint)
 - `.github/workflows/deploy-azd.yml` (reusable deployment engine)
+- `.github/workflows/protected-dev-live-agent-readiness.yml` (protected dev live validation)
 
 ### Core policy
 
-- **azd-first deployment is mandatory** (ADR-021).
+- **azd-first deployment is mandatory** (ADR-021). The only approved exception is the manual dev emergency redeploy path in `deploy-azd-dev.yml` with `skipProvision=true`, which reuses already-provisioned infrastructure and skips only `azd provision`.
 - Reusable workflow `deploy-azd.yml` is not the primary operator entrypoint; use env-specific entrypoint workflows.
 - OIDC Azure login is required in CI/CD; no static cloud credentials committed to repository.
 - Provisioning must fail fast when `projectName` is not `holidaypeakhub405` or when `resourceGroupName`/`AZURE_RESOURCE_GROUP` are not `holidaypeakhub405-<environment>-rg`; this is enforced through azd `preprovision` hooks.
@@ -31,11 +32,13 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 | Policy Area | dev | prod | staging |
 | --- | --- | --- | --- |
 | Entrypoint workflow | `deploy-azd-dev.yml` | `deploy-azd-prod.yml` | Not currently provisioned as dedicated workflow |
-| Trigger model | `push` to `main` + `workflow_dispatch` | Stable tag push `v*.*.*` | Manual via reusable workflow only if explicitly configured |
+| Trigger model | Successful `test` `workflow_run` for a push to `main` + `workflow_dispatch` | Stable tag push `v*.*.*` | Manual via reusable workflow only if explicitly configured |
+| Protected live validation | `protected-dev-live-agent-readiness.yml` via the `dev` environment boundary on trusted `workflow_run`, `workflow_dispatch`, and `schedule`; the `dev` environment must remain restricted to the selected branch `main` | N/A | N/A |
 | Release gate | Not required | Required: published, non-draft, non-prerelease GitHub Release | N/A |
 | Main lineage gate | Not required | Required: tagged commit must be reachable from `main` | N/A |
 | Demo data seeding mode | Local/manual only (not part of CI deploy) | Local/manual only | Local/manual only |
 | Changed-only deployment | Enabled | Enabled | N/A |
+| Manual skip-provision redeploy | Allowed only through `workflow_dispatch` on `deploy-azd-dev.yml` for already-provisioned infrastructure; may optionally set `serviceFilter` to scope AKS services | Not exposed | Not exposed |
 | Force APIM sync default | `true` | `true` | N/A |
 | Auto allow ACR runner IP | `true` default | `false` default | N/A |
 | Non-prod drift remediation | Enabled | Disabled | Would be treated as non-prod if introduced |
@@ -45,12 +48,26 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 - Entrypoint workflows should avoid duplicated job blocks for push/manual variants when the same reusable workflow call can be parameterized with event-aware expressions.
 - `deploy-azd-dev.yml` is maintained as a single reusable-workflow invocation path to reduce drift between trigger types.
 
+### Protected live validation boundary
+
+- The GitHub Environment `dev` is the approved boundary for privileged live validation against the deployed dev environment.
+- `protected-dev-live-agent-readiness.yml` is the approved workflow for this boundary and validates one representative agent service end to end: Foundry ensure, direct `/ready`, and live APIM `/agents/<service>/invoke`.
+- Allowed triggers are `workflow_run` after successful `deploy-azd-dev (entrypoint)` runs on `main`, `workflow_dispatch`, and `schedule`.
+- Forbidden triggers are `pull_request`, `pull_request_target`, and other untrusted contributor contexts.
+- Authentication must use OIDC-backed `azure/login`; do not introduce Azure client secrets, API keys, connection strings, or repository-committed credentials.
+- Store `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and `AZURE_SUBSCRIPTION_ID` in the `dev` environment so privileged live checks remain isolated from standard PR automation.
+- Repository code establishes the privileged workflow and environment-scoped secret boundary, while GitHub Environment protection rules remain external to repository code. The `dev` environment must remain configured with selected-branch deployment protection on `main`.
+- This workflow is operational evidence and must not be added to required PR status checks.
+
 ## Security and Access Controls
 
 - Use Managed Identity and Entra-based federation for deployment identities.
 - Keep Key Vault as secret authority; no direct secret literals in IaC templates or workflows.
 - Enforce RBAC-scoped assignments for deployment principal operations.
+- The GitHub OIDC deploy principal (`AZURE_CLIENT_ID`) must retain permission to write RBAC assignments at the environment scope so `deploy-azd.yml` can idempotently ensure `Azure Kubernetes Service RBAC Cluster Admin` on the environment resource group and `AcrPush` on the environment ACR.
 - Use private networking posture for backend services where configured.
+- Protected live validation must use GitHub-hosted runners plus OIDC-backed Azure auth; do not rely on self-hosted managed-identity runners for this public repository path.
+- GitHub-hosted runners do not have private network line of sight to a private-only ACR. When `autoAllowAcrRunnerIp=true` and `publicNetworkAccess=Disabled`, `deploy-azd.yml` may temporarily enable the registry public endpoint with `defaultAction=Deny`, reuse the existing runner-IP allowlist behavior for the active build window, and then restore the original ACR public-access state.
 
 ## Runtime Deployment Controls
 
@@ -60,7 +77,13 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 - APIM backends must not target pod IPs, node IPs, `ClusterIP` addresses, or `*.svc.cluster.local` names.
 - AKS services published through APIM must remain `ClusterIP` unless a newer accepted ADR documents an exception.
 - CRUD-first sequencing before dependent agent rollouts.
+- Before `build-aks-images` runs, the reusable deploy workflow must verify or create `AcrPush` for the OIDC deploy principal at the environment ACR scope.
+- AKS service deployment must build or resolve immutable per-SHA images first, then render/apply manifests pinned by digest (`repo@sha256:...`); deploy jobs must not rebuild service images during manifest rollout.
 - Changed-service detection to reduce blast radius and deployment duration.
+- Manual dev emergency redeploys may set `serviceFilter` to scope AKS rollout to a comma-separated subset of already-defined services; services outside the filter remain untouched.
+- Reusable deploy workflows must accept an explicit tested source SHA/ref and use that checkout consistently across detection, build, render, sync, and validation jobs.
+- When the dev entrypoint explicitly sets `skipProvision=true`, the reusable deploy workflow may skip only the `azd provision` step. OIDC login, azd auth/context setup, AKS/ACR/Key Vault role guards, azd env output export, image build, deploy, Foundry ensure, and downstream smoke/deploy gates must remain active.
+- ACR login in tested-image build jobs must use the OIDC Azure CLI session and bounded retry with actionable failure text to absorb ARM-to-data-plane RBAC propagation delay; admin-user and static registry credentials are prohibited.
 - Push-event changed-service detection must diff `${{ github.event.before }}...${{ github.sha }}` to avoid empty comparisons against `origin/main` after merge.
 - APIM sync/smoke checks for API path health after relevant changes.
 - Deployment workflows must validate AGC GatewayClass readiness and direct CRUD `/health` reachability on the approved AGC frontend hostname before APIM sync.
@@ -70,9 +93,12 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 - APIM sync filtering must always include `crud-service` when CRUD sync is enabled, even under changed-services filtering.
 - For AGC-backed CRUD routing, ingress must expose app-native paths (`/health`, `/api`) and APIM CRUD backend must target the AGC listener root with no workload-specific suffix.
 - Path translation must not be split across AGC and APIM for CRUD. APIM keeps health rewrite (`/api/health -> /health`), while `/api/*` routes are forwarded as-is.
+- Agent-service deployments must enforce the Foundry runtime contract end to end: workflow intent currently requires `FOUNDRY_STRICT_ENFORCEMENT=true` and `FOUNDRY_AUTO_ENSURE_ON_STARTUP=true`, render hooks must emit both keys into Helm output, and the post-deploy gate must compare workflow intent, rendered manifests, live Deployment env values, `POST /foundry/agents/ensure`, and live `/ready` behavior for each changed agent service.
+- A changed agent service is a hard deployment failure when any Foundry contract seam drifts: missing rendered keys, rendered-versus-live env mismatch, ensure responses without resolved `fast` and `rich` agent ids, or `/ready` responses that remain healthy while the strict Foundry contract is not actually enforced.
 - During migration, legacy AGIC or Web App Routing configuration may exist only as transitional state and must not be described as the target architecture.
 - Optional UI-only deployment path constrained by SWA token flow and health checks.
-- ACR network-rule temporary exceptions may be applied/removed automatically when enabled.
+- ACR runner-IP allowlist exceptions may be applied/removed automatically when enabled.
+- If the environment ACR public endpoint is disabled, the tested-image build guard must temporarily enable public access with `defaultAction=Deny`, reuse the runner-IP allowlist flow, and restore the prior `publicNetworkAccess` and `networkRuleSet.defaultAction` after the build phase completes.
 
 ## Data Connectivity Guardrails
 
@@ -104,6 +130,8 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 4. Smoke checks passed for CRUD/API/UI scope deployed.
 5. Any temporary firewall exceptions removed after deployment.
 6. Architecture/governance docs updated when policy changes.
+7. Privileged live validation remains bound to the `dev` environment, excluded from PR contexts, and constrained by selected-branch deployment protection on `main`.
+8. Changed agent services passed the Foundry runtime contract gate across workflow intent, rendered manifests, live Deployment env values, ensure responses, and `/ready` validation.
 
 ## ADR References
 

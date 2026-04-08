@@ -1,8 +1,8 @@
 ---
-title: "Architecture: Design Integration"
+name: "Architecture: Design Integration"
 description: "Design a cross-service integration with event contracts, API versioning, and failure handling."
 agent: "SystemArchitect"
-input: "Describe the services to integrate, data flows, and consistency requirements (eventual vs strong)."
+argument-hint: "Describe the services to integrate, data flows, and consistency requirements (eventual vs strong)."
 ---
 
 Design the integration between the specified services:
@@ -15,3 +15,4 @@ Design the integration between the specified services:
 6. **Security** — Authentication between services (mTLS, token exchange). Authorization at gateway. Input validation at each boundary.
 
 Deliver a Mermaid sequence diagram, contract specifications, and implementation guidance for each service.
+

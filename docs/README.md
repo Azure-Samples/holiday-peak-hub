@@ -1,17 +1,23 @@
 # Holiday Peak Hub - Architecture Documentation
 
-**Last Updated**: April 2, 2026  
+**Last Updated**: April 8, 2026
 **Version**: main (post PR #559)  
 **Status**: Active Development
 
-## Latest Update Snapshot (April 2, 2026)
+## Latest Update Snapshot (April 8, 2026)
 
+- Reusable deployment now temporarily re-enables ACR public access with `defaultAction=Deny` for GitHub-hosted tested-image builds when the registry public endpoint is disabled, reuses the existing runner-IP allowlist, and restores the original ACR network posture after the build phase.
 - Enrichment/search orchestration hardening merged via PR #559 (Issue #558).
 - Truth flow now enforces human-gated enrichment validation (`pending_review`) with dual HITL publish (`export-jobs` and `search-enrichment-jobs`).
 - Search flow now supports two-stage UX (baseline first, background rerank) and request context propagation.
 - Catalog search now stores stage/session search context with best-effort persistence across hot/warm/cold memory tiers.
 - Validation status: local repository test run reports 1647 passed (2 warnings).
 - Agentic app README deployment docs are standardized with standalone azd-first guidance and app-specific ACR/AKS paths.
+- UI/UX modernization review added with per-view recommendations for customer, staff, admin, and observability surfaces.
+- Protected dev live validation now has a dedicated GitHub Actions workflow with trusted triggers, OIDC-only Azure auth, and the `dev` environment boundary; final environment protection remains a repo-admin step.
+- Dev deployment now promotes tested `main` commits only: `deploy-azd-dev` auto-starts from successful `test` workflow runs on `main`, builds changed AKS images once per tested SHA, and deploys rendered manifests pinned to immutable image digests.
+- Reusable deployment now includes a blocking Foundry contract drift gate that compares workflow intent, rendered Helm manifests, live AKS Deployment env values, ensure results, and `/ready` responses for changed agent services.
+- Reusable deployment now idempotently ensures `AcrPush` on the environment ACR for the OIDC deploy principal and retries `az acr login` with bounded backoff so tested-image builds survive RBAC propagation delay without adding static registry credentials.
 
 ## Overview
 
@@ -28,6 +34,7 @@ Python package management in this repository is uv-first. In CI, dependency inst
 - Run tests: `python -m pytest`
 - Run lint: `python -m pylint lib/src apps/**/src`
 - Run format: `python -m black lib apps && python -m isort lib apps`
+- App smoke tests under `apps/**/tests/test_app.py` can use the shared fixture in `apps/conftest.py` to satisfy Foundry readiness when exercising local business-route behavior for services that set `require_foundry_readiness=True`.
 
 ## Infrastructure CLI
 
@@ -38,12 +45,13 @@ The Python CLI in `.infra/cli.py` is scaffolding-only (`generate-bicep`, `genera
 
 Use environment-specific entry workflows:
 
-- `.github/workflows/deploy-azd-dev.yml` as the default development path (auto-runs on `main` changes and supports manual dispatch).
+- `.github/workflows/deploy-azd-dev.yml` as the default development path (auto-runs after successful `test` workflow completion for a push to `main` and supports manual dispatch).
 - `.github/workflows/deploy-azd-prod.yml` for production deployments triggered only by stable release tags (`v*.*.*` without pre-release suffixes) that also have a published GitHub Release and point to a commit reachable from `main`.
 - `.github/workflows/deploy-azd.yml` remains the shared core workflow invoked by both entry workflows.
+- `.github/workflows/protected-dev-live-agent-readiness.yml` runs protected live validation against dev after successful `deploy-azd-dev` runs on `main`, or by explicit manual/scheduled execution through the `dev` environment boundary.
 - `.github/workflows/ci.yml` publishes GHCR images automatically for stable tags (`v*.*.*`) and can still be run manually for build/optional publish.
 
-> Provisioning is mandatory before frontend/backend consumption in any environment. Always run `azd provision` (and then `azd deploy`) before validating APIs or UI integration.
+> Provisioning remains the default path for all automatic deploys and normal manual rollouts. The only approved exception is a manual dev emergency redeploy through `deploy-azd-dev.yml` with `skipProvision=true`, which reuses the current azd environment values and already-provisioned infrastructure while still running the reusable workflow's auth, guard, build, deploy, and smoke paths.
 
 **Required repository/environment secrets**:
 
@@ -51,9 +59,15 @@ Use environment-specific entry workflows:
 - `AZURE_TENANT_ID`
 - `AZURE_SUBSCRIPTION_ID`
 
+The OIDC deploy principal behind `AZURE_CLIENT_ID` must be allowed to manage the environment-scoped RBAC assignments used by the reusable deployment workflow. `deploy-azd.yml` now idempotently verifies `Azure Kubernetes Service RBAC Cluster Admin` on the environment resource group and `AcrPush` on the environment ACR before tested-image builds start.
+
+For the protected live suite, store these values in the GitHub Environment `dev` and keep Azure authentication OIDC-only. Do not add client secrets, connection strings, or API keys for live validation.
+
+Repository code establishes this environment-scoped secret boundary. The `dev` environment must remain configured with selected-branch deployment protection on `main`.
+
 **Entry workflow inputs**:
 
-- Dev entrypoint (`deploy-azd-dev.yml`): `location`, `projectName`, `imageTag`, `deployStatic`, `uiOnly`, `apiBaseUrl`, `forceApimSync`, `autoAllowAcrRunnerIp`.
+- Dev entrypoint (`deploy-azd-dev.yml`): `location`, `projectName`, `imageTag`, `testedSourceSha`, `testedSourceRef`, `skipProvision`, `serviceFilter`, `deployStatic`, `uiOnly`, `apiBaseUrl`, `forceApimSync`, `autoAllowAcrRunnerIp`, `skipApiSmokeChecks`.
 - Prod entrypoint (`deploy-azd-prod.yml`): no manual inputs; runs only from stable release tags and deploys using the tag name as `imageTag`.
 
 **Manual trigger examples**:
@@ -70,6 +84,14 @@ gh workflow run deploy-azd-dev.yml -f location=eastus2 -f projectName=holidaypea
 gh workflow run deploy-azd-dev.yml -f location=eastus2 -f projectName=holidaypeakhub405 -f imageTag=latest -f deployStatic=true -f forceApimSync=false -f autoAllowAcrRunnerIp=true
 ```
 
+- Manual dev emergency redeploy on already-provisioned infrastructure, scoped to a subset of AKS services:
+
+```bash
+gh workflow run deploy-azd-dev.yml -f location=eastus2 -f projectName=holidaypeakhub405 -f imageTag=latest -f skipProvision=true -f serviceFilter=ecommerce-catalog-search -f forceApimSync=true -f autoAllowAcrRunnerIp=true
+```
+
+Use this only when dev infrastructure already exists and the immediate goal is to redeploy specific runtime changes without reconciling shared infrastructure.
+
 - Production rollout (stable release tag + published GitHub Release):
 
 ```bash
@@ -83,20 +105,26 @@ Core workflow note: `.github/workflows/deploy-azd.yml` is reusable-only and not 
 
 **Execution order**:
 
-1. `provision` job: sets azd env values and runs `azd provision`.
-2. `deploy-crud` job: deploys `crud-service` when CRUD/lib changes are detected.
-3. `deploy-foundry-models` and `deploy-agents` jobs: run after provision; `deploy-agents` deploys changed agent services (and can proceed when `deploy-crud` is skipped for agent-only changes).
-4. `sync-apim` and `smoke-apim` jobs: run when CRUD/agent changes are present or `forceApimSync=true`.
-5. `deploy-ui` job (when `deployStatic=true`): runs after APIM sync/smoke gates, resolves APIM URL with fail-fast validation, fetches the SWA deployment token from Azure, and deploys `apps/ui` via `Azure/static-web-apps-deploy@v1` (framework-aware build for dynamic Next.js routes).
-6. Demo data seeding is operator-driven and must be run locally (outside CI) when needed.
+1. `provision` job: sets azd env values, runs `azd provision`, and idempotently ensures the OIDC deploy principal has `Azure Kubernetes Service RBAC Cluster Admin` on the environment resource group plus `AcrPush` on the environment ACR.
+2. `build-aks-images` job: builds changed AKS workloads from the tested source SHA into the existing ACR (or reuses an existing per-SHA image), retries `az acr login` with bounded backoff to absorb RBAC propagation delay, and then records immutable digest refs for downstream deploy jobs. When `autoAllowAcrRunnerIp=true`, the workflow also reuses the existing runner-IP allowlist path; if the ACR public endpoint is disabled, it first enables public access with `defaultAction=Deny`, adds only the active GitHub-hosted runner IP, and restores the original public-access setting after the build phase. This is required because disabling ACR public network access overrides firewall rules, and GitHub-hosted runners do not have private network line of sight to a private-only registry.
+3. `deploy-crud` job: renders and applies the `crud-service` Helm manifest pinned to the tested image digest when CRUD/lib changes are detected.
+4. `deploy-foundry-models` and `deploy-agents` jobs: run after provision; `deploy-agents` deploys changed agent services from prebuilt digest-pinned manifests (and can proceed when `deploy-crud` is skipped for agent-only changes).
+5. `ensure-foundry-agents` job: re-renders changed agent manifests with the workflow's strict/auto-ensure contract, compares rendered env values against live AKS Deployments, then validates `POST /foundry/agents/ensure` plus `/ready` for each changed agent service.
+6. `sync-apim` and `smoke-apim` jobs: run when CRUD/agent changes are present or `forceApimSync=true`.
+7. `deploy-ui` job (when `deployStatic=true`): runs after APIM sync/smoke gates, resolves APIM URL with fail-fast validation, fetches the SWA deployment token from Azure, and deploys `apps/ui` via `Azure/static-web-apps-deploy@v1` (framework-aware build for dynamic Next.js routes).
+8. Demo data seeding is operator-driven and must be run locally (outside CI) when needed.
 
 **Operational notes**:
 
 - Keep `deployShared=true` for all shared-environment rollouts.
+- Dev AKS rollouts must use the tested source checkout plus immutable image digests (`repo@sha256:...`); deploy jobs render/apply Kubernetes manifests directly and must not rebuild service images inline.
+- `skipProvision=true` is a manual dev-only emergency path for already-provisioned infrastructure. It skips only the `azd provision` step; Azure login, azd environment setup, AKS/ACR/Key Vault guards, output export, image build, deploy, Foundry ensure, and downstream smoke/deploy gates remain active.
+- For GitHub-hosted tested-image builds, `autoAllowAcrRunnerIp=true` preserves OIDC-only auth and the existing ACR IP allowlist flow. If the environment registry is private-only (`publicNetworkAccess=Disabled`), the workflow temporarily reopens the public endpoint with `defaultAction=Deny`, scopes access to the current runner IP, and restores the original ACR public-access state immediately after the build phase.
+- For changed AKS agent services, treat the Foundry runtime contract as a blocking gate: expected `FOUNDRY_STRICT_ENFORCEMENT=true` and `FOUNDRY_AUTO_ENSURE_ON_STARTUP=true` must survive render and rollout, and `/ready` is only accepted when it matches successful Foundry ensure results.
 - UI deployment intentionally uses the SWA GitHub Action path (not `azd deploy --service ui`) so App Router dynamic segments (`[id]`, `[slug]`) are built in the same mode as standard SWA workflows.
 - Frontend API calls must always use APIM via validated runtime env aliases (`NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_CRUD_API_URL` are set together in deployment workflows).
 - Demo seeding uses a curated catalog of 10 categories and 100 products with realistic retail data. Re-runs are idempotent by item ID (`cat-*`, `prd-*`): existing seeded records are updated instead of duplicated.
-- Use environment approvals in GitHub Environments for `staging`/`prod`.
+- Use GitHub Environment protection rules for privileged `dev` validation and for `staging`/`prod` deployment paths; for `dev`, selected-branch deployment protection on `main` is required.
 - Keep image tags immutable for reproducible rollback.
 
 **Local demo seeding (manual)**:
@@ -137,6 +165,7 @@ The script exercises all CRUD `POST` routes and reports `PASS` / `SKIPPED` / `FA
 - Use environment entrypoint workflows only (`deploy-azd-dev.yml`, `deploy-azd-prod.yml`).
 - Apply production gates: stable tag, published release, and commit lineage from `main`.
 - Enforce OIDC authentication and Key Vault secret management.
+- Keep `protected-dev-live-agent-readiness.yml` limited to trusted triggers and the `dev` environment boundary; do not add it as a required PR check.
 - Preserve changed-service deployment and APIM sync/smoke behavior per environment defaults.
 - Run lint/test quality gates before deployment (repo minimum 75% coverage).
 - Update governance docs when workflow behavior or runtime controls change:
@@ -170,6 +199,8 @@ az acr network-rule list -n <acrName> -o table
 ```
 
 4. **Temporarily unblock ACR publish from operator IP (if `azd deploy` fails with DENIED/IP blocked)**
+
+When ACR `publicNetworkAccess` is disabled, firewall rules are ignored until the public endpoint is re-enabled. GitHub-hosted runners and local operators without private network line of sight must temporarily reopen the registry before an IP allowlist can take effect.
 
 ```bash
 az acr update -n <acrName> --allow-exports true

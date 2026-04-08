@@ -59,7 +59,7 @@ describe('SearchPage', () => {
       data: {
         items: [],
         source: 'agent',
-        mode: 'keyword',
+        mode: 'intelligent',
         intent: null,
         subqueries: [],
       },
@@ -70,24 +70,24 @@ describe('SearchPage', () => {
       isReranking: false,
       baselineData: {
         items: [],
-        source: 'crud',
-        mode: 'keyword',
+        source: 'agent',
+        mode: 'intelligent',
       },
       rerankedData: undefined,
-      preference: 'auto',
+      preference: 'intelligent',
       setPreference,
-      resolvedMode: 'keyword',
+      resolvedMode: 'intelligent',
     });
   });
 
-  it('prefills the query from the URL and shows mode badge', () => {
+  it('prefills the query from the URL and shows intelligent mode badge', () => {
     render(<SearchPage />);
 
     expect(mockUseIntelligentSearch).toHaveBeenCalledWith('headphones', 20, {
       userId: 'customer-123',
     });
     expect(screen.getByDisplayValue('headphones')).toBeInTheDocument();
-    expect(screen.getAllByText('Keyword Search').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Intelligent Search').length).toBeGreaterThan(0);
     expect(screen.getByText('No products matched your search.')).toBeInTheDocument();
   });
 
@@ -218,6 +218,43 @@ describe('SearchPage', () => {
     expect(
       screen.queryByText('Results are from CRUD catalog search because the agent path was unavailable.')
     ).not.toBeInTheDocument();
+  });
+
+  it('shows degraded fallback warning when agent model synthesis fails', () => {
+    mockUseIntelligentSearch.mockReturnValue({
+      data: {
+        items: [],
+        source: 'agent',
+        mode: 'intelligent',
+        requested_mode: 'intelligent',
+        degraded: true,
+        degraded_reason: 'model_timeout',
+        degraded_message:
+          'Showing the best available catalog guidance while intelligent generation is temporarily unavailable.',
+        fallback_keywords: ['winter', 'jacket', 'boots'],
+        intent: null,
+        subqueries: [],
+      },
+      isLoading: false,
+      error: null,
+      isFetching: false,
+      refetch: jest.fn(),
+      isReranking: false,
+      baselineData: {
+        items: [],
+        source: 'agent',
+        mode: 'intelligent',
+      },
+      rerankedData: undefined,
+      preference: 'intelligent',
+      setPreference,
+      resolvedMode: 'intelligent',
+    });
+
+    render(<SearchPage />);
+
+    expect(screen.getByText('Intelligent synthesis is temporarily degraded')).toBeInTheDocument();
+    expect(screen.getByText('Fallback keywords: winter, jacket, boots')).toBeInTheDocument();
   });
 
   it('announces reranking progress with a polite status message', () => {

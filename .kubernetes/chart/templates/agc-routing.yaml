@@ -70,6 +70,14 @@ spec:
         - path:
             type: {{ .pathType | default "PathPrefix" }}
             value: {{ .path | quote }}
+      {{- if .rewritePrefixMatch }}
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: {{ .rewritePrefixMatch | quote }}
+      {{- end }}
       backendRefs:
         - name: {{ include "holiday-peak-service.fullname" $ }}
           port: {{ $.Values.service.port | default 80 }}

@@ -593,8 +593,12 @@ function Ensure-AgentApi {
 
     $operations = @(
         @{ id = 'health'; method = 'GET'; template = '/health'; name = 'Health' },
+        @{ id = 'ready'; method = 'GET'; template = '/ready'; name = 'Ready' },
         @{ id = 'invoke'; method = 'POST'; template = '/invoke'; name = 'Invoke' },
-        @{ id = 'mcp-tool'; method = 'POST'; template = '/mcp/{tool}'; name = 'MCP Tool' }
+        @{ id = 'mcp-tool'; method = 'POST'; template = '/mcp/{tool}'; name = 'MCP Tool' },
+        @{ id = 'agent-traces'; method = 'GET'; template = '/agent/traces'; name = 'Agent Traces' },
+        @{ id = 'agent-metrics'; method = 'GET'; template = '/agent/metrics'; name = 'Agent Metrics' },
+        @{ id = 'agent-evaluation-latest'; method = 'GET'; template = '/agent/evaluation/latest'; name = 'Agent Evaluation Latest' }
     )
 
     foreach ($op in $operations) {

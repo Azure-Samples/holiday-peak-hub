@@ -2,7 +2,7 @@
 
 import os
 from contextlib import asynccontextmanager
-from typing import Any, AsyncContextManager, AsyncIterator, Callable
+from typing import Any, AsyncContextManager, AsyncIterator, Callable, cast
 
 from fastapi import FastAPI, HTTPException
 from holiday_peak_lib.agents import AgentBuilder, BaseRetailAgent, FoundryAgentConfig
@@ -16,14 +16,19 @@ from holiday_peak_lib.agents.prompt_loader import load_service_prompt_instructio
 from holiday_peak_lib.app_factory_components.endpoints import register_standard_endpoints
 from holiday_peak_lib.app_factory_components.foundry_lifecycle import (
     FoundryLifecycleManager,
+    FoundryReadinessSnapshot,
     auto_ensure_on_startup_enabled,
     build_foundry_config,
+    build_foundry_readiness_snapshot,
+    exception_to_foundry_error_state,
+    first_foundry_error_state,
     strict_foundry_mode_enabled,
 )
 from holiday_peak_lib.app_factory_components.middleware import register_correlation_middleware
 from holiday_peak_lib.config import MemorySettings
 from holiday_peak_lib.connectors.registry import ConnectorRegistry
 from holiday_peak_lib.mcp.server import FastAPIMCPServer
+from holiday_peak_lib.self_healing import SelfHealingKernel
 from holiday_peak_lib.utils import (
     EventHubSubscription,
     create_eventhub_lifespan,
@@ -42,6 +47,23 @@ def _build_foundry_config(agent_env: str, deployment_env: str) -> FoundryAgentCo
     return build_foundry_config(agent_env, deployment_env)
 
 
+def _runtime_foundry_config(config: FoundryAgentConfig | None) -> FoundryAgentConfig | None:
+    """Return a Foundry config only when a resolvable runtime agent id is available.
+
+    Foundry config may carry lookup-only references such as role names while the
+    actual runtime agent id is still unresolved. We keep those configs for
+    ensure/provision endpoints, but avoid binding them as callable SLM/LLM
+    targets until a real runtime id is available.
+    """
+    if config is None:
+        return None
+
+    agent_id = str(config.runtime_agent_id or "").strip()
+    if not agent_id or agent_id == "pending" or agent_id.endswith("-pending"):
+        return None
+    return config
+
+
 def create_standard_app(
     service_name: str,
     agent_class: type[BaseRetailAgent],
@@ -49,8 +71,19 @@ def create_standard_app(
     mcp_setup: Callable[[FastAPIMCPServer, BaseRetailAgent], None] | None = None,
     subscriptions: list[EventHubSubscription] | None = None,
     handlers: dict[str, Any] | None = None,
+    require_foundry_readiness: bool = False,
+    disable_tracing_without_foundry: bool = False,
 ) -> FastAPI:
-    """Create a standard agent app with memory + default Foundry wiring."""
+    """Create a standard agent app with memory + default Foundry wiring.
+
+    Foundry is preferred by default, but readiness enforcement is optional and
+    controlled via ``require_foundry_readiness``.
+
+    ``disable_tracing_without_foundry`` is a backward-compatible per-service
+    hint. Core telemetry collection remains enabled so admin observability
+    surfaces stay available even when Foundry targets are not bound.
+    """
+    self_healing_kernel = SelfHealingKernel.from_env(service_name)
     memory_settings = MemorySettings()
     hot_memory = HotMemory(memory_settings.redis_url) if memory_settings.redis_url else None
     warm_memory = (
@@ -73,10 +106,15 @@ def create_standard_app(
     )
     lifespan = None
     if subscriptions and handlers:
+        eventhub_kwargs: dict[str, Any] = {}
+        if self_healing_kernel is not None:
+            eventhub_kwargs["self_healing_kernel"] = self_healing_kernel
+            eventhub_kwargs["reconcile_on_error"] = self_healing_kernel.reconcile_on_messaging_error
         lifespan = create_eventhub_lifespan(
             service_name=service_name,
             subscriptions=subscriptions,
             handlers=handlers,
+            **eventhub_kwargs,
         )
 
     return build_service_app(
@@ -87,6 +125,9 @@ def create_standard_app(
         cold_memory=cold_memory,
         mcp_setup=mcp_setup,
         lifespan=lifespan,
+        self_healing_kernel=self_healing_kernel,
+        require_foundry_readiness=require_foundry_readiness,
+        disable_tracing_without_foundry=disable_tracing_without_foundry,
     )
 
 
@@ -102,34 +143,92 @@ def build_service_app(
     connector_registry: ConnectorRegistry | None = None,
     mcp_setup: Callable[[FastAPIMCPServer, BaseRetailAgent], None] | None = None,
     lifespan: Callable[[FastAPI], AsyncContextManager[None]] | None = None,
+    self_healing_kernel: SelfHealingKernel | None = None,
+    require_foundry_readiness: bool = False,
+    disable_tracing_without_foundry: bool = False,
 ) -> FastAPI:
-    """Return a FastAPI app pre-wired with MCP and required memory tiers."""
+    """Return a FastAPI app pre-wired with MCP and required memory tiers.
+
+    Args:
+        require_foundry_readiness: When ``True``, ``/ready`` and invoke guards
+            enforce Foundry runtime availability for this service.
+        disable_tracing_without_foundry: Backward-compatible per-service hint.
+            Core telemetry remains enabled for local/fallback execution paths.
+    """
     logger = configure_logging(app_name=service_name)
     app = FastAPI(title=service_name)
     registry = connector_registry or ConnectorRegistry()
     app.state.connector_registry = registry
+    healing_kernel = self_healing_kernel or SelfHealingKernel.from_env(service_name)
+    app.state.self_healing_kernel = healing_kernel
 
     mcp = FastAPIMCPServer(app)
+    if hasattr(mcp, "_on_failure"):
+        setattr(mcp, "_on_failure", healing_kernel.handle_failure_signal)
     router = RoutingStrategy()
-    builder = (
-        AgentBuilder()
-        .with_agent(agent_class)
-        .with_router(router)
-        .with_memory(hot_memory, warm_memory, cold_memory)
-        .with_mcp(mcp)
+    builder = cast(
+        AgentBuilder,
+        (
+            AgentBuilder()
+            .with_agent(agent_class)
+            .with_router(router)
+            .with_memory(hot_memory, warm_memory, cold_memory)
+            .with_mcp(mcp)
+        ),
     )
+    with_self_healing = getattr(builder, "with_self_healing", None)
+    if callable(with_self_healing):
+        maybe_builder = with_self_healing(healing_kernel)
+        if isinstance(maybe_builder, AgentBuilder):
+            builder = maybe_builder
     if slm_config is None and llm_config is None:
         slm_config = _build_foundry_config("FOUNDRY_AGENT_ID_FAST", "MODEL_DEPLOYMENT_NAME_FAST")
         llm_config = _build_foundry_config("FOUNDRY_AGENT_ID_RICH", "MODEL_DEPLOYMENT_NAME_RICH")
-    if slm_config or llm_config:
-        builder = builder.with_foundry_models(slm_config=slm_config, llm_config=llm_config)
+
+    runtime_slm_config = _runtime_foundry_config(slm_config)
+    runtime_llm_config = _runtime_foundry_config(llm_config)
+    if runtime_slm_config or runtime_llm_config:
+        builder = builder.with_foundry_models(
+            slm_config=runtime_slm_config,
+            llm_config=runtime_llm_config,
+        )
+
+    unresolved_roles = []
+    if slm_config and runtime_slm_config is None:
+        unresolved_roles.append("fast")
+    if llm_config and runtime_llm_config is None:
+        unresolved_roles.append("rich")
+    if unresolved_roles:
+        logger.warning(
+            "foundry_runtime_targets_disabled",
+            extra={
+                "service": service_name,
+                "roles": unresolved_roles,
+                "hint": (
+                    "Set FOUNDRY_AGENT_ID_FAST/FOUNDRY_AGENT_ID_RICH (or role names) "
+                    "or enable FOUNDRY_AUTO_ENSURE_ON_STARTUP to provision agents before invoke."
+                ),
+            },
+        )
+
     agent = builder.build()
-    tracer = get_foundry_tracer(service_name)
     if hasattr(agent, "connector_registry"):
         agent.connector_registry = registry
     app.state.agent = agent
-    strict_foundry_mode = strict_foundry_mode_enabled()
-    foundry_ready = not strict_foundry_mode
+
+    def _has_bound_foundry_target() -> bool:
+        return bool(getattr(agent, "slm", None) or getattr(agent, "llm", None))
+
+    def _sync_foundry_tracing_state() -> None:
+        _ = disable_tracing_without_foundry
+        get_foundry_tracer(service_name)
+
+    tracer = get_foundry_tracer(service_name)
+
+    configured_foundry_roles = tuple(
+        role for role, config in (("fast", slm_config), ("rich", llm_config)) if config is not None
+    )
+    strict_foundry_mode = strict_foundry_mode_enabled() and bool(configured_foundry_roles)
     auto_ensure_on_startup = auto_ensure_on_startup_enabled(strict_foundry_mode=strict_foundry_mode)
 
     if hasattr(agent, "service_name"):
@@ -154,23 +253,66 @@ def build_service_app(
         build_foundry_model_target_fn=build_foundry_model_target,
     )
 
+    last_foundry_error: dict[str, Any] | None = None
+
+    def _current_foundry_readiness() -> FoundryReadinessSnapshot:
+        return build_foundry_readiness_snapshot(
+            agent=agent,
+            slm_config=slm_config,
+            llm_config=llm_config,
+            require_foundry_readiness=require_foundry_readiness,
+            strict_foundry_mode=strict_foundry_mode,
+            auto_ensure_on_startup=auto_ensure_on_startup,
+            last_error=last_foundry_error,
+        )
+
+    _UNSET = object()
+
+    def _apply_foundry_error_state(
+        error_state: dict[str, Any] | None | object = _UNSET,
+    ) -> FoundryReadinessSnapshot:
+        nonlocal last_foundry_error
+
+        if error_state is not _UNSET:
+            last_foundry_error = cast(dict[str, Any] | None, error_state)
+
+        snapshot = _current_foundry_readiness()
+        if snapshot.ready and last_foundry_error is not None:
+            last_foundry_error = None
+            snapshot = _current_foundry_readiness()
+
+        _sync_foundry_tracing_state()
+        return snapshot
+
     @asynccontextmanager
     async def _service_lifespan(wrapped_app: FastAPI) -> AsyncIterator[None]:
-        nonlocal foundry_ready
         if auto_ensure_on_startup:
             foundry_manager.ensure_foundry_agent_fn = ensure_foundry_agent
-            results = await foundry_manager.ensure_startup_roles(default_instructions)
-
-            foundry_ready = all(
-                result.get("status") in {"exists", "found_by_name", "created"}
-                and bool(result.get("agent_id") or result.get("agent_name"))
-                for result in results.values()
-            )
-
-            if strict_foundry_mode and not foundry_ready:
-                raise RuntimeError(
-                    f"Foundry auto-ensure failed for service '{service_name}': {results}"
+            try:
+                results = await foundry_manager.ensure_startup_roles(default_instructions)
+            except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+                snapshot = _apply_foundry_error_state(
+                    exception_to_foundry_error_state(
+                        exc,
+                        status="startup_ensure_failed",
+                    )
                 )
+                if strict_foundry_mode:
+                    raise RuntimeError(
+                        "Foundry auto-ensure failed for service "
+                        f"'{service_name}': {snapshot.to_payload()}"
+                    ) from exc
+            else:
+                startup_error = first_foundry_error_state(
+                    results,
+                    configured_roles=configured_foundry_roles,
+                )
+                snapshot = _apply_foundry_error_state(startup_error)
+
+                if strict_foundry_mode and not snapshot.ready:
+                    raise RuntimeError(
+                        f"Foundry auto-ensure failed for service '{service_name}': {results}"
+                    )
 
         if lifespan is not None:
             async with lifespan(wrapped_app):
@@ -182,7 +324,6 @@ def build_service_app(
     router.register("default", agent.handle)
 
     async def ensure_agents(payload: dict | None = None) -> dict[str, Any]:
-        nonlocal foundry_ready
         foundry_manager.ensure_foundry_agent_fn = ensure_foundry_agent
         body: dict = payload if isinstance(payload, dict) else {}
         fallback_instructions = (
@@ -268,37 +409,88 @@ def build_service_app(
 
             selected_instructions = instructions.get(selected_role) or fallback_instructions
 
-            ensure_result = await foundry_manager.ensure_role(
-                selected_role=selected_role,
-                config=config,
-                instructions=selected_instructions,
-                create_if_missing=create_if_missing,
-                name_override=str(configured_name),
-                model_override=str(configured_model),
-            )
+            try:
+                ensure_result = await foundry_manager.ensure_role(
+                    selected_role=selected_role,
+                    config=config,
+                    instructions=selected_instructions,
+                    create_if_missing=create_if_missing,
+                    name_override=str(configured_name),
+                    model_override=str(configured_model),
+                )
+            except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+                _apply_foundry_error_state(
+                    exception_to_foundry_error_state(
+                        exc,
+                        status="ensure_failed",
+                        role=selected_role,
+                    )
+                )
+                raise
 
             results[selected_role] = ensure_result
 
-        if strict_foundry_mode:
-            foundry_ready = any(
-                bool(result.get("agent_id"))
-                and result.get("status") in {"exists", "found_by_name", "created"}
-                for result in results.values()
+        configured_requested_roles = [
+            selected_role
+            for selected_role in selected_roles
+            if role_to_config.get(selected_role) is not None
+        ]
+
+        resolved_roles = sum(
+            1
+            for selected_role, result in results.items()
+            if selected_role in configured_requested_roles
+            if bool(result.get("agent_id"))
+            and result.get("status") in {"exists", "found_by_name", "created"}
+        )
+        ensure_error = first_foundry_error_state(
+            results,
+            configured_roles=configured_requested_roles,
+        )
+        snapshot = (
+            _apply_foundry_error_state(ensure_error)
+            if ensure_error is not None
+            else _apply_foundry_error_state()
+        )
+
+        if (require_foundry_readiness or strict_foundry_mode) and not snapshot.ready:
+            logger.warning(
+                "foundry_strict_ensure_incomplete",
+                extra={
+                    "service": service_name,
+                    "resolved_roles": resolved_roles,
+                    "configured_roles": list(snapshot.configured_roles),
+                    "configured_requested_roles": configured_requested_roles,
+                    "unresolved_roles": list(snapshot.unresolved_roles),
+                    "requested_roles": list(results.keys()),
+                    "last_error": snapshot.last_error,
+                },
             )
 
         return {
             "service": service_name,
             "strict_foundry_mode": strict_foundry_mode,
-            "foundry_ready": foundry_ready,
+            "foundry_ready": snapshot.ready,
+            "foundry": snapshot.to_payload(),
             "results": results,
         }
 
     def _is_foundry_ready() -> bool:
-        return foundry_ready
+        return _current_foundry_readiness().ready
 
     def _set_foundry_ready(value: bool) -> None:
-        nonlocal foundry_ready
-        foundry_ready = value
+        if value:
+            _apply_foundry_error_state(None)
+            return
+        _sync_foundry_tracing_state()
+
+    def _requires_foundry_runtime_resolution() -> bool:
+        return _current_foundry_readiness().runtime_resolution_required
+
+    def _foundry_capabilities() -> dict[str, Any]:
+        return _current_foundry_readiness().to_payload()
+
+    endpoint_kwargs: dict[str, Any] = {"self_healing_kernel": healing_kernel}
 
     register_standard_endpoints(
         app,
@@ -308,9 +500,13 @@ def build_service_app(
         tracer=tracer,
         logger=logger,
         strict_foundry_mode=strict_foundry_mode,
+        require_foundry_readiness=require_foundry_readiness,
         is_foundry_ready=_is_foundry_ready,
         set_foundry_ready=_set_foundry_ready,
+        requires_foundry_runtime_resolution=_requires_foundry_runtime_resolution,
+        foundry_capabilities=_foundry_capabilities,
         ensure_agents_handler=ensure_agents,
+        **endpoint_kwargs,
     )
 
     mcp.mount()

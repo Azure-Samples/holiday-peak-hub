@@ -1,6 +1,6 @@
 # Implementation Documentation
 
-**Last Updated**: March 27, 2026  
+**Last Updated**: April 3, 2026  
 **Status**: Active Execution
 
 ---
@@ -84,6 +84,9 @@ This reference is aligned with architecture intent in [Architecture Overview](..
 
 ### [Entra ID Setup](./entra-id-setup.md)
 **Purpose**: Local and deployed environment configuration guidance for Entra ID auth in UI and CRUD service
+
+### [UI/UX Modernization Review](./ui-ux-modernization-review.md)
+**Purpose**: Product review of the current UI surface with persona-based shell strategy, per-view UX recommendations, dynamic visualization guidance, and validation references
 
 ---
 

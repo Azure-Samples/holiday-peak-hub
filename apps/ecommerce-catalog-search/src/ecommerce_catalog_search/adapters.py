@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -56,6 +57,7 @@ ENRICHED_RESULT_FIELDS = (
     "substitute_products",
     "enriched_description",
 )
+_SEARCH_TERM_TOKEN_PATTERN = re.compile(r"[a-z0-9]{3,}")
 
 
 @dataclass
@@ -86,11 +88,17 @@ class CRUDCatalogProductAdapter(BaseAdapter):
 
     async def _fetch_impl(self, query: dict[str, Any]) -> list[dict[str, Any]]:
         entity = str(query.get("entity") or "").strip().lower()
-        sku = str(query.get("sku") or "").strip()
-        if not sku:
-            return []
 
         try:
+            if entity == "search":
+                limit = max(1, int(query.get("limit") or 5))
+                query_text = str(query.get("query") or query.get("search") or "").strip()
+                return await self._search_products_by_text(query_text=query_text, limit=limit)
+
+            sku = str(query.get("sku") or "").strip()
+            if not sku:
+                return []
+
             if entity == "product":
                 product = await self._fetch_product_by_sku(sku)
                 return [product] if product else []
@@ -101,6 +109,60 @@ class CRUDCatalogProductAdapter(BaseAdapter):
             return []
 
         return []
+
+    async def _search_products_by_text(
+        self, *, query_text: str, limit: int
+    ) -> list[dict[str, Any]]:
+        if not query_text or limit <= 0:
+            return []
+
+        terms = self._deterministic_search_terms(query_text)
+        if not terms:
+            return []
+
+        matches: list[dict[str, Any]] = []
+        seen_skus: set[str] = set()
+        for term in terms:
+            payload = await self._request_json(
+                "GET",
+                "/api/products",
+                params={"search": term, "limit": limit},
+            )
+            if not isinstance(payload, list):
+                continue
+
+            for candidate in payload:
+                normalized = self._normalize_product_record(candidate)
+                sku = normalized["sku"]
+                if not sku or sku in seen_skus:
+                    continue
+                seen_skus.add(sku)
+                matches.append(normalized)
+                if len(matches) >= limit:
+                    return matches
+
+        return matches
+
+    @staticmethod
+    def _deterministic_search_terms(query_text: str) -> list[str]:
+        normalized_query = query_text.strip()
+        if not normalized_query:
+            return []
+
+        terms: list[str] = []
+        seen: set[str] = set()
+
+        full_query_key = normalized_query.lower()
+        seen.add(full_query_key)
+        terms.append(normalized_query)
+
+        for token in _SEARCH_TERM_TOKEN_PATTERN.findall(full_query_key):
+            if token in seen:
+                continue
+            seen.add(token)
+            terms.append(token)
+
+        return terms
 
     async def _upsert_impl(self, payload: dict[str, Any]) -> dict[str, Any] | None:
         return None
@@ -198,11 +260,11 @@ class CRUDCatalogProductAdapter(BaseAdapter):
 
 
 def normalize_search_mode(mode: str | None) -> str:
-    """Normalize incoming search mode while keeping backward-compatible defaults."""
-    normalized = (mode or SEARCH_MODE_KEYWORD).strip().lower()
+    """Normalize incoming search mode and default unknown values to intelligent."""
+    normalized = (mode or SEARCH_MODE_INTELLIGENT).strip().lower()
     if normalized in SUPPORTED_SEARCH_MODES:
         return normalized
-    return SEARCH_MODE_KEYWORD
+    return SEARCH_MODE_INTELLIGENT
 
 
 def merge_enriched_fields(

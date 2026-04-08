@@ -1,8 +1,8 @@
 ---
-title: "TypeScript: Review Code"
+name: "TypeScript: Review Code"
 description: "Review TypeScript/React code for type safety, accessibility, performance, and React best practices."
 agent: "TypeScriptDeveloper"
-input: "Provide the file(s) or component tree to review. Optionally specify focus (types, a11y, performance)."
+argument-hint: "Provide the file(s) or component tree to review. Optionally specify focus (types, a11y, performance)."
 ---
 
 Review the specified TypeScript code checking for:
@@ -15,3 +15,4 @@ Review the specified TypeScript code checking for:
 6. **Code Quality** — ESLint warnings. Duplicated components. Missing error boundaries.
 
 Deliver findings as a prioritized list with severity, location, and fix recommendations.
+

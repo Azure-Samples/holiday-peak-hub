@@ -26,6 +26,22 @@ a Strategy abstraction in [lib/src/holiday_peak_lib/agents/provider_policy.py](.
 This keeps base orchestration provider-agnostic while allowing Foundry-specific
 governance (portal/SDK-owned instructions) and future provider extensions.
 
+## Self-Healing Kernel
+
+Services built through `build_service_app` now include a shared self-healing kernel from
+`holiday_peak_lib.self_healing`.
+
+- Incident lifecycle: detect -> classify -> remediate -> verify -> escalate/closed
+- Surface contract coverage: API/APIM, AKS ingress, MCP, and messaging
+- Policy guardrails:
+    - Recoverable class is limited to infrastructure misconfiguration (`4xx` and selected `5xx`)
+    - Remediation is allowlisted and audit-recorded
+    - Image restore/redeploy actions are explicitly forbidden
+- Operational visibility routes:
+    - `GET /self-healing/status`
+    - `GET /self-healing/incidents`
+    - `POST /self-healing/reconcile`
+
 ```python
 import os
 from typing import Any
@@ -161,8 +177,8 @@ response = await agent.handle({"query": "Find Nike shoes", "requires_multi_tool"
 ```
 
 **Env vars expected**
-- `PROJECT_ENDPOINT` (or `FOUNDRY_ENDPOINT`): Azure AI Foundry project endpoint
-- `PROJECT_NAME` (or `FOUNDRY_PROJECT_NAME`): Azure AI Foundry project name (optional)
+- `PROJECT_ENDPOINT` (or `FOUNDRY_ENDPOINT`): Azure AI Foundry project endpoint of the form `https://<resource>.services.ai.azure.com/api/projects/<project-name>`. The runtime also accepts an Azure AI Services account endpoint and derives the project-scoped endpoint when `PROJECT_NAME` is set.
+- `PROJECT_NAME` (or `FOUNDRY_PROJECT_NAME`): Azure AI Foundry project name. Required when the endpoint is not already project-scoped.
 - `FOUNDRY_AGENT_ID_FAST` / `FOUNDRY_AGENT_ID_RICH`: Agent IDs created in Foundry
 - `FOUNDRY_AGENT_NAME_FAST` / `FOUNDRY_AGENT_NAME_RICH`: Agent names (used for V2 lookup/creation)
 - `MODEL_DEPLOYMENT_NAME_FAST` / `MODEL_DEPLOYMENT_NAME_RICH` (optional): Deployment backing the Agent (defaults to `gpt-5-nano` / `gpt-5`)
@@ -265,6 +281,20 @@ Supported roles:
 
 The service updates in-memory model targets with resolved/created Foundry agent IDs.
 
+`POST /invoke` now performs a lazy Foundry ensure pass when runtime role definitions
+exist but SLM/LLM targets are unresolved (for example, missing role IDs at startup).
+If ensure cannot resolve all configured callable role targets (`fast`/`rich`), the service returns `503`
+with a Foundry runtime resolution error instead of attempting a model call with
+placeholder role IDs.
+
+Deploy-time Helm rendering now validates the Foundry contract for each agent service:
+
+- `PROJECT_ENDPOINT` / `PROJECT_NAME` must be present.
+- Both model roles must be defined (`MODEL_DEPLOYMENT_NAME_FAST` and `MODEL_DEPLOYMENT_NAME_RICH`).
+- Both Foundry role identities must be defined (explicit `FOUNDRY_AGENT_ID_*` or deterministic
+    `FOUNDRY_AGENT_NAME_*` defaults).
+- Placeholder ids ending with `-pending` are rejected at render time.
+
 Default deployment models in this repo are:
 
 - SLM (`fast`): `gpt-5-nano`
@@ -278,13 +308,46 @@ When `create_if_missing=true`, agent creation requires a model to be provided vi
 `MODEL_DEPLOYMENT_NAME_RICH`. If no model is available, the role result returns
 `status: "missing_model"` and no agent is created.
 
+### Foundry Readiness Contract
+
+`GET /ready` always includes **actual Foundry runtime status** for the service.
+
+- Library default (`build_service_app` / `create_standard_app`) is **Foundry-preferred, not required**.
+- Agentic services opt into enforcement with `require_foundry_readiness=True`.
+- When enforcement is enabled, `/ready` returns `503` until every configured Foundry role has a verified runtime binding.
+- When enforcement is disabled, `/ready` remains `200`; `foundry_ready` reflects whether at least one callable Foundry target is available, and unresolved roles are still reported in the payload.
+
+- `ready` is contextual to the service contract: non-enforced services report callable-target readiness, while enforced services require every configured role to verify successfully.
+- `not_ready` means enforced traffic should not be routed because one or more configured roles remain unresolved or the latest Foundry ensure/verification attempt recorded an error state.
+- Use `POST /foundry/agents/ensure` to provision/resolve targets before serving requests.
+
+Readiness payload now includes a `foundry` capability object with:
+
+- `project_configured`
+- `endpoint_configured`
+- `configured_roles`
+- `resolved_roles`
+- `unresolved_roles`
+- `last_error`
+- `agent_targets_bound`
+- `runtime_resolution_required`
+- `auto_ensure_on_startup`
+
+`POST /invoke` reuses the same ensure path and fails closed for enforced agentic services when configured roles remain unresolved or Foundry verification fails.
+
+Foundry tracer collection can be controlled per service via
+`disable_tracing_without_foundry` on `create_standard_app` / `build_service_app`.
+This flag is maintained as a per-service compatibility hint. Core telemetry
+remains enabled so fallback/local execution paths keep emitting traces,
+metrics, and latest-evaluation data for admin observability surfaces.
+
 ### Strict Foundry Enforcement Mode
 
 Set `FOUNDRY_STRICT_ENFORCEMENT=true` to require a successful ensure step before
 serving `/invoke` requests:
 
-- Before ensure: `/invoke` returns `503`
-- After successful `POST /foundry/agents/ensure`: `/invoke` is enabled
+- With bound Foundry targets: strict mode enforces Foundry readiness for `/invoke`
+- Without bound Foundry targets: `/invoke` can continue through local/fallback logic
 
 This mode is designed for environments where all agent prompts/instructions must be
 managed exclusively in Foundry.
@@ -457,7 +520,7 @@ async def call_tool(self, tool_name: str, args: dict) -> ToolResult:
         return ToolResult.from_dict(cached)
     
     # Call tool
-    result = await self.tools[tool_name](**args)
+    result = await self._invoke_tool(tool_name, args)
     
     # Cache for 5 minutes
     await self.memory.hot.set(cache_key, result.to_dict(), ttl=300)

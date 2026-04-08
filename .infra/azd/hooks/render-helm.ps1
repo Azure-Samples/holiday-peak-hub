@@ -6,6 +6,7 @@ param(
 $namespace = if ($env:K8S_NAMESPACE) { $env:K8S_NAMESPACE } else { "holiday-peak" }
 $imagePrefix = if ($env:IMAGE_PREFIX) { $env:IMAGE_PREFIX } else { "ghcr.io/azure-samples" }
 $imageTag = if ($env:IMAGE_TAG) { $env:IMAGE_TAG } else { "latest" }
+$imageDigest = if ($env:IMAGE_DIGEST) { $env:IMAGE_DIGEST } else { "" }
 $kedaEnabled = if ($env:KEDA_ENABLED) { $env:KEDA_ENABLED } else { "false" }
 $publicationMode = if ($env:PUBLICATION_MODE) { $env:PUBLICATION_MODE } else { "agc" }
 $legacyIngressEnabled = "false"
@@ -22,6 +23,7 @@ $canaryEnabled = if ($env:CANARY_ENABLED) { $env:CANARY_ENABLED } else { "false"
 $readinessPath = "/ready"
 $replicaCount = ""
 $deployEnv = if ($env:DEPLOY_ENV) { $env:DEPLOY_ENV } elseif ($env:AZURE_ENV_NAME) { $env:AZURE_ENV_NAME } else { "" }
+$selectorIncludeCanary = "false"
 
 $nodePool = "agents"
 $workloadType = "agents"
@@ -47,6 +49,11 @@ if ($ServiceName -eq "crud-service") {
     $maxUnavailable = "0"
     $maxSurge = "1"
   }
+}
+
+if ($ServiceName -eq "truth-ingestion") {
+  # Preserve legacy selector shape for existing truth-ingestion deployment.
+  $selectorIncludeCanary = "true"
 }
 
 switch ($publicationMode.ToLowerInvariant()) {
@@ -81,12 +88,20 @@ $serviceImageVarName = "SERVICE_$($ServiceName.ToUpper().Replace('-', '_'))_IMAG
 $serviceImage = [Environment]::GetEnvironmentVariable($serviceImageVarName)
 
 if ($serviceImage) {
-  $lastColon = $serviceImage.LastIndexOf(':')
-  if ($lastColon -gt 0) {
-    $imagePrefix = $serviceImage.Substring(0, $lastColon)
-    $imageTag = $serviceImage.Substring($lastColon + 1)
+  if ($serviceImage.Contains('@')) {
+    $parts = $serviceImage.Split('@', 2)
+    $imagePrefix = $parts[0]
+    $imageDigest = $parts[1]
+    $imageTag = 'latest'
   } else {
-    $imagePrefix = $serviceImage
+    $lastColon = $serviceImage.LastIndexOf(':')
+    if ($lastColon -gt 0) {
+      $imagePrefix = $serviceImage.Substring(0, $lastColon)
+      $imageTag = $serviceImage.Substring($lastColon + 1)
+    } else {
+      $imagePrefix = $serviceImage
+    }
+    $imageDigest = ''
   }
 } else {
   $imagePrefix = "$imagePrefix/$ServiceName"
@@ -110,8 +125,6 @@ $helmArgs = @(
   '--set',
   "image.repository=$imagePrefix",
   '--set',
-  "image.tag=$imageTag",
-  '--set',
   "keda.enabled=$kedaEnabled",
   '--set',
   "ingress.enabled=$legacyIngressEnabled",
@@ -131,8 +144,16 @@ $helmArgs = @(
   "agc.sharedResources.applicationLoadBalancerName=$agcSharedAlbName",
   '--set-string',
   "agc.sharedResources.subnetId=$agcSubnetId",
+  '--set-string',
+  'agc.sharedResources.listeners[0].name=http',
+  '--set-string',
+  'agc.sharedResources.listeners[0].protocol=HTTP',
+  '--set',
+  'agc.sharedResources.listeners[0].port=80',
   '--set',
   "canary.enabled=$canaryEnabled",
+  '--set',
+  "deployment.selectorIncludeCanary=$selectorIncludeCanary",
   '--set',
   "probes.readiness.path=$readinessPath",
   '--set',
@@ -147,6 +168,12 @@ $helmArgs = @(
   "tolerations[0].effect=NoSchedule"
 )
 
+if ($imageDigest) {
+  $helmArgs += @('--set-string', "image.digest=$imageDigest")
+} else {
+  $helmArgs += @('--set', "image.tag=$imageTag")
+}
+
 if ($ServiceName -eq "crud-service") {
   $helmArgs += @('--set', 'ingress.paths[0].path=/health')
   $helmArgs += @('--set', 'ingress.paths[0].pathType=Prefix')
@@ -157,12 +184,19 @@ if ($ServiceName -eq "crud-service") {
   $helmArgs += @('--set', 'agc.paths[1].path=/api')
   $helmArgs += @('--set', 'agc.paths[1].pathType=PathPrefix')
 } else {
-  $helmArgs += @('--set', 'agc.paths[0].path=/health')
+  $helmArgs += @('--set', "agc.paths[0].path=/$ServiceName")
   $helmArgs += @('--set', 'agc.paths[0].pathType=PathPrefix')
-  $helmArgs += @('--set', 'agc.paths[1].path=/invoke')
-  $helmArgs += @('--set', 'agc.paths[1].pathType=PathPrefix')
-  $helmArgs += @('--set', 'agc.paths[2].path=/mcp')
-  $helmArgs += @('--set', 'agc.paths[2].pathType=PathPrefix')
+  $helmArgs += @('--set', 'agc.paths[0].rewritePrefixMatch=/')
+}
+
+if ($ServiceName -eq 'truth-export') {
+  # Override legacy in-cluster startup script with deterministic image entrypoint.
+  $helmArgs += @('--set-string', 'container.command[0]=uvicorn')
+  $helmArgs += @('--set-string', 'container.args[0]=truth_export.main:app')
+  $helmArgs += @('--set-string', 'container.args[1]=--host')
+  $helmArgs += @('--set-string', 'container.args[2]=0.0.0.0')
+  $helmArgs += @('--set-string', 'container.args[3]=--port')
+  $helmArgs += @('--set-string', 'container.args[4]=8000')
 }
 
 if ($agcHostname) {
@@ -189,10 +223,84 @@ if ($pdbEnabled -eq "true") {
   }
 }
 
+$isAgentService = $ServiceName -ne "crud-service"
+$resolvedFoundryAgentNameFast = $env:FOUNDRY_AGENT_NAME_FAST
+$resolvedFoundryAgentNameRich = $env:FOUNDRY_AGENT_NAME_RICH
+$resolvedModelDeploymentFast = $env:MODEL_DEPLOYMENT_NAME_FAST
+$resolvedModelDeploymentRich = $env:MODEL_DEPLOYMENT_NAME_RICH
+
+if ($isAgentService) {
+  if ([string]::IsNullOrWhiteSpace($resolvedFoundryAgentNameFast)) {
+    $resolvedFoundryAgentNameFast = "$ServiceName-fast"
+  }
+  if ([string]::IsNullOrWhiteSpace($resolvedFoundryAgentNameRich)) {
+    $resolvedFoundryAgentNameRich = "$ServiceName-rich"
+  }
+  if ([string]::IsNullOrWhiteSpace($resolvedModelDeploymentFast)) {
+    $resolvedModelDeploymentFast = "gpt-5-nano"
+  }
+  if ([string]::IsNullOrWhiteSpace($resolvedModelDeploymentRich)) {
+    $resolvedModelDeploymentRich = "gpt-5"
+  }
+
+  if (-not [string]::IsNullOrWhiteSpace($env:FOUNDRY_AGENT_ID_FAST) -and $env:FOUNDRY_AGENT_ID_FAST.EndsWith("-pending")) {
+    throw "Invalid FOUNDRY_AGENT_ID_FAST for ${ServiceName}: placeholder ids are not deployable."
+  }
+  if (-not [string]::IsNullOrWhiteSpace($env:FOUNDRY_AGENT_ID_RICH) -and $env:FOUNDRY_AGENT_ID_RICH.EndsWith("-pending")) {
+    throw "Invalid FOUNDRY_AGENT_ID_RICH for ${ServiceName}: placeholder ids are not deployable."
+  }
+
+  if ([string]::IsNullOrWhiteSpace($env:FOUNDRY_AGENT_ID_FAST) -and [string]::IsNullOrWhiteSpace($resolvedFoundryAgentNameFast)) {
+    throw "Missing Foundry fast-role definition for $ServiceName (set FOUNDRY_AGENT_ID_FAST or FOUNDRY_AGENT_NAME_FAST)."
+  }
+  if ([string]::IsNullOrWhiteSpace($env:FOUNDRY_AGENT_ID_RICH) -and [string]::IsNullOrWhiteSpace($resolvedFoundryAgentNameRich)) {
+    throw "Missing Foundry rich-role definition for $ServiceName (set FOUNDRY_AGENT_ID_RICH or FOUNDRY_AGENT_NAME_RICH)."
+  }
+}
+
+$resolvedPostgresAuthMode = if ($env:POSTGRES_AUTH_MODE) { $env:POSTGRES_AUTH_MODE } else { 'password' }
+$resolvedPostgresUser = $env:POSTGRES_USER
+$postgresAdminUser = $env:POSTGRES_ADMIN_USER
+
+if ($ServiceName -eq 'crud-service') {
+  if ($resolvedPostgresAuthMode -eq 'password' -and -not [string]::IsNullOrWhiteSpace($postgresAdminUser)) {
+    $resolvedPostgresUser = $postgresAdminUser
+  }
+
+  if (
+    $resolvedPostgresAuthMode -eq 'entra' -and
+    (
+      [string]::IsNullOrWhiteSpace($resolvedPostgresUser) -or
+      $resolvedPostgresUser -eq 'crud_workload' -or
+      $resolvedPostgresUser -eq 'crud_admin' -or
+      $resolvedPostgresUser -eq $postgresAdminUser
+    )
+  ) {
+    $aksClusterName = if ($env:AZURE_AKS_CLUSTER_NAME) {
+      $env:AZURE_AKS_CLUSTER_NAME
+    } elseif ($env:AKS_CLUSTER_NAME) {
+      $env:AKS_CLUSTER_NAME
+    } else {
+      ''
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($aksClusterName)) {
+      $resolvedPostgresUser = "$aksClusterName-agentpool"
+    }
+  }
+}
+
+$resolvedRedisHost = $env:REDIS_HOST
+if (-not [string]::IsNullOrWhiteSpace($resolvedRedisHost) -and -not $resolvedRedisHost.Contains('.')) {
+  $resolvedRedisHost = "$resolvedRedisHost.redis.cache.windows.net"
+}
+$resolvedRedisPasswordSecretName = if ($env:REDIS_PASSWORD_SECRET_NAME) { $env:REDIS_PASSWORD_SECRET_NAME } else { 'redis-primary-key' }
+
 $envMappings = @{
   # Database
   POSTGRES_HOST = $env:POSTGRES_HOST
-  POSTGRES_USER = $env:POSTGRES_USER
+  POSTGRES_AUTH_MODE = $resolvedPostgresAuthMode
+  POSTGRES_USER = $resolvedPostgresUser
   POSTGRES_PASSWORD = $env:POSTGRES_PASSWORD
   POSTGRES_DATABASE = $env:POSTGRES_DATABASE
   POSTGRES_PORT = $env:POSTGRES_PORT
@@ -201,7 +309,9 @@ $envMappings = @{
   # Messaging & Infrastructure
   EVENT_HUB_NAMESPACE = $env:EVENT_HUB_NAMESPACE
   KEY_VAULT_URI = $env:KEY_VAULT_URI
-  REDIS_HOST = $env:REDIS_HOST
+  REDIS_HOST = $resolvedRedisHost
+  REDIS_PASSWORD = $env:REDIS_PASSWORD
+  REDIS_PASSWORD_SECRET_NAME = $resolvedRedisPasswordSecretName
   AZURE_CLIENT_ID = $env:AZURE_CLIENT_ID
   AZURE_TENANT_ID = $env:AZURE_TENANT_ID
 
@@ -210,8 +320,10 @@ $envMappings = @{
   PROJECT_NAME = $env:PROJECT_NAME
   FOUNDRY_AGENT_ID_FAST = $env:FOUNDRY_AGENT_ID_FAST
   FOUNDRY_AGENT_ID_RICH = $env:FOUNDRY_AGENT_ID_RICH
-  MODEL_DEPLOYMENT_NAME_FAST = $env:MODEL_DEPLOYMENT_NAME_FAST
-  MODEL_DEPLOYMENT_NAME_RICH = $env:MODEL_DEPLOYMENT_NAME_RICH
+  FOUNDRY_AGENT_NAME_FAST = $resolvedFoundryAgentNameFast
+  FOUNDRY_AGENT_NAME_RICH = $resolvedFoundryAgentNameRich
+  MODEL_DEPLOYMENT_NAME_FAST = $resolvedModelDeploymentFast
+  MODEL_DEPLOYMENT_NAME_RICH = $resolvedModelDeploymentRich
   FOUNDRY_STREAM = $env:FOUNDRY_STREAM
   FOUNDRY_STRICT_ENFORCEMENT = $env:FOUNDRY_STRICT_ENFORCEMENT
   FOUNDRY_AUTO_ENSURE_ON_STARTUP = $env:FOUNDRY_AUTO_ENSURE_ON_STARTUP
@@ -222,6 +334,7 @@ $envMappings = @{
   AI_SEARCH_VECTOR_INDEX = $env:AI_SEARCH_VECTOR_INDEX
   AI_SEARCH_INDEXER_NAME = $env:AI_SEARCH_INDEXER_NAME
   AI_SEARCH_AUTH_MODE = $env:AI_SEARCH_AUTH_MODE
+  CATALOG_SEARCH_REQUIRE_AI_SEARCH = $env:CATALOG_SEARCH_REQUIRE_AI_SEARCH
   AI_SEARCH_KEY = $env:AI_SEARCH_KEY
   EMBEDDING_DEPLOYMENT_NAME = $env:EMBEDDING_DEPLOYMENT_NAME
 
@@ -230,6 +343,7 @@ $envMappings = @{
   COSMOS_ACCOUNT_URI = $env:COSMOS_ACCOUNT_URI
   COSMOS_DATABASE = $env:COSMOS_DATABASE
   COSMOS_CONTAINER = $env:COSMOS_CONTAINER
+  COSMOS_AUDIT_CONTAINER = $env:COSMOS_AUDIT_CONTAINER
   BLOB_ACCOUNT_URL = $env:BLOB_ACCOUNT_URL
   BLOB_CONTAINER = $env:BLOB_CONTAINER
 
@@ -275,6 +389,22 @@ if ($isTruthService) {
   foreach ($truthKey in $truthServiceVars.Keys) {
     $envMappings[$truthKey] = $truthServiceVars[$truthKey]
   }
+
+  if ($ServiceName -eq 'truth-ingestion') {
+    $ingestionContainer = if ($env:TRUTH_INGESTION_COSMOS_CONTAINER) {
+      $env:TRUTH_INGESTION_COSMOS_CONTAINER
+    } else {
+      'products'
+    }
+    $ingestionAuditContainer = if ($env:TRUTH_INGESTION_COSMOS_AUDIT_CONTAINER) {
+      $env:TRUTH_INGESTION_COSMOS_AUDIT_CONTAINER
+    } else {
+      'audit'
+    }
+
+    $envMappings['COSMOS_CONTAINER'] = $ingestionContainer
+    $envMappings['COSMOS_AUDIT_CONTAINER'] = $ingestionAuditContainer
+  }
 }
 
 if ($ServiceName -eq "ecommerce-catalog-search") {
@@ -307,12 +437,13 @@ if ($ServiceName -eq "search-enrichment-agent") {
   $envMappings["SEARCH_ENRICHMENT_EVENT_HUB_CONSUMER_GROUP"] = $searchEnrichmentConsumerGroup
 }
 
-$isAgentService = $ServiceName -ne "crud-service"
 if ($isAgentService) {
   Assert-RequiredEnvKeys -TargetService $ServiceName -Mappings $envMappings -RequiredKeys @(
     "EVENT_HUB_NAMESPACE",
     "PROJECT_ENDPOINT",
     "PROJECT_NAME",
+    "MODEL_DEPLOYMENT_NAME_FAST",
+    "MODEL_DEPLOYMENT_NAME_RICH",
     "COSMOS_ACCOUNT_URI",
     "COSMOS_DATABASE",
     "REDIS_HOST",
@@ -340,6 +471,40 @@ foreach ($key in $envMappings.Keys) {
 
 & helm @helmArgs | Out-File -FilePath $rendered -Encoding utf8
 
+if ($isAgentService) {
+  $requiredFoundryRenderedKeys = @(
+    "PROJECT_ENDPOINT",
+    "PROJECT_NAME",
+    "MODEL_DEPLOYMENT_NAME_FAST",
+    "MODEL_DEPLOYMENT_NAME_RICH",
+    "FOUNDRY_AGENT_NAME_FAST",
+    "FOUNDRY_AGENT_NAME_RICH",
+    "FOUNDRY_STRICT_ENFORCEMENT",
+    "FOUNDRY_AUTO_ENSURE_ON_STARTUP"
+  )
+
+  foreach ($foundryKey in $requiredFoundryRenderedKeys) {
+    $present = Select-String -Path $rendered -SimpleMatch "name: $foundryKey" -Quiet
+    if (-not $present) {
+      throw "Rendered manifest missing Foundry env key '$foundryKey' for $ServiceName"
+    }
+  }
+
+  if (-not [string]::IsNullOrWhiteSpace($env:FOUNDRY_AGENT_ID_FAST)) {
+    $presentFastId = Select-String -Path $rendered -SimpleMatch "name: FOUNDRY_AGENT_ID_FAST" -Quiet
+    if (-not $presentFastId) {
+      throw "Rendered manifest missing Foundry env key 'FOUNDRY_AGENT_ID_FAST' for $ServiceName"
+    }
+  }
+
+  if (-not [string]::IsNullOrWhiteSpace($env:FOUNDRY_AGENT_ID_RICH)) {
+    $presentRichId = Select-String -Path $rendered -SimpleMatch "name: FOUNDRY_AGENT_ID_RICH" -Quiet
+    if (-not $presentRichId) {
+      throw "Rendered manifest missing Foundry env key 'FOUNDRY_AGENT_ID_RICH' for $ServiceName"
+    }
+  }
+}
+
 if ($isTruthService) {
   $requiredRenderedKeys = @(
     "EVENT_HUB_NAMESPACE",
@@ -349,6 +514,12 @@ if ($isTruthService) {
     "TRUTH_EVENT_HUB_NAME",
     "TRUTH_EVENT_HUB_CONSUMER_GROUP"
   )
+  if ($ServiceName -eq 'truth-ingestion') {
+    $requiredRenderedKeys += @(
+      'COSMOS_CONTAINER',
+      'COSMOS_AUDIT_CONTAINER'
+    )
+  }
   foreach ($renderedKey in $requiredRenderedKeys) {
     $present = Select-String -Path $rendered -SimpleMatch "name: $renderedKey" -Quiet
     if (-not $present) {

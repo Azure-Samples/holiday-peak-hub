@@ -219,10 +219,10 @@ export const Navigation: React.FC<NavigationProps> = ({
                 href={link.href}
                 aria-current={isLinkActive(link.href) ? 'page' : undefined}
                 className={cn(
-                  'rounded-md px-2 py-1 text-sm font-semibold transition-colors',
+                  'rounded-lg px-2.5 py-1.5 text-sm font-medium transition-all duration-200',
                   isLinkActive(link.href)
-                    ? 'bg-[var(--hp-surface-strong)] text-[var(--hp-text)]'
-                    : 'text-[var(--hp-text-muted)] hover:text-[var(--hp-primary)]'
+                    ? 'bg-gray-900/5 dark:bg-white/10 text-[var(--hp-text)] font-semibold'
+                    : 'text-[var(--hp-text-muted)] hover:text-[var(--hp-text)] hover:bg-gray-900/5 dark:hover:bg-white/5'
                 )}
               >
                 {link.label}
@@ -242,19 +242,19 @@ export const Navigation: React.FC<NavigationProps> = ({
           <div className="flex items-center gap-1 sm:gap-2">
             <Link
               href="/admin/enrichment-monitor"
-              className="hidden items-center gap-1 rounded-full border border-[var(--hp-border)] bg-[var(--hp-surface-strong)] px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-[var(--hp-text)] md:inline-flex"
+              className="hidden items-center gap-1.5 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-[10px] font-semibold tracking-wide text-gray-700 dark:text-gray-300 shadow-sm hover:shadow transition-shadow duration-200 md:inline-flex"
               aria-label="Open enrichment pipeline monitor"
             >
-              <span aria-hidden="true" className={`h-2 w-2 rounded-full ${healthIndicatorClass}`} />
+              <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${healthIndicatorClass}`} />
               Pipeline Status
             </Link>
 
             <Link
               href="/search?agentChat=1"
-              className="hidden rounded-full border border-[var(--hp-border)] bg-[var(--hp-surface-strong)] px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-[var(--hp-primary)] md:inline-flex"
+              className="hidden rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-[10px] font-semibold tracking-wide text-gray-700 dark:text-gray-300 shadow-sm hover:shadow transition-shadow duration-200 md:inline-flex items-center"
               aria-label="Open product enrichment agent chat"
             >
-              <FiMessageSquare className="mr-1 h-4 w-4" />
+              <FiMessageSquare className="mr-1.5 h-3.5 w-3.5" />
               Agent
             </Link>
 
@@ -348,10 +348,10 @@ export const Navigation: React.FC<NavigationProps> = ({
                   <Button
                     variant="primary"
                     size="sm"
-                    iconLeft={<FiUser className="w-4 h-4" />}
-                    className="bg-[var(--hp-primary)] hover:bg-[var(--hp-primary-hover)]"
+                    iconLeft={<FiUser className="w-3.5 h-3.5" />}
+                    className="rounded-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-100 shadow-sm"
                   >
-                    Sign In
+                    Sign in
                   </Button>
                 </Link>
               </div>

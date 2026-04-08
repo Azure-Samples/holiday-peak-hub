@@ -76,9 +76,10 @@ export const Avatar: React.FC<AvatarProps> = ({
       aria-label={ariaLabel || alt || name}
       className={cn(
         'relative inline-flex items-center justify-center',
-        'overflow-hidden',
+        'overflow-hidden ring-2 ring-white dark:ring-gray-900 shadow-sm',
+        'transition-transform duration-200 ease-out hover:scale-105',
         sizeMap[size].container,
-        rounded ? 'rounded-full' : 'rounded-md',
+        rounded ? 'rounded-full' : 'rounded-lg',
         showInitials && bgColor,
         className
       )}

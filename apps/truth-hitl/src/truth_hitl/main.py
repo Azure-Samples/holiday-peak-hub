@@ -13,6 +13,8 @@ _adapters = build_hitl_adapters()
 
 
 app = create_standard_app(
+    require_foundry_readiness=True,
+    disable_tracing_without_foundry=True,
     service_name=SERVICE_NAME,
     agent_class=TruthHITLAgent,
     mcp_setup=register_mcp_tools,

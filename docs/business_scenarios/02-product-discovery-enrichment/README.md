@@ -2,7 +2,7 @@
 
 ## Executive Statement
 
-Conversion acceleration engine that combines semantic discovery, AI enrichment, and resilient fallback to keep revenue flowing during peak traffic.
+Conversion acceleration engine that combines semantic discovery, AI enrichment, and strict AI Search readiness enforcement to keep search quality deterministic during peak traffic.
 
 ## Capability Mapping
 
@@ -11,7 +11,7 @@ Conversion acceleration engine that combines semantic discovery, AI enrichment, 
 | Catalog search intelligence | High-relevance results and lower bounce |
 | Product detail enrichment | Better content quality and conversion lift |
 | Cart intelligence | Incremental AOV through contextual upsell |
-| CRUD fallback path | Availability protection when search intelligence degrades |
+| CRUD bootstrap source | Controlled AI Search index seeding for strict runtime readiness |
 
 ## Outcome Targets
 
@@ -20,21 +20,30 @@ Conversion acceleration engine that combines semantic discovery, AI enrichment, 
 | Search response latency | < 1.2s p95 |
 | Search-to-product click-through | > 35% |
 | Enriched catalog coverage | > 98% |
-| Fallback continuity during degradation | > 99% |
+| Strict readiness compliance in AKS runtime | > 99% |
 
 ## Executive Flow
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {
+  'primaryColor':'#FFB3BA',
+  'primaryTextColor':'#000',
+  'primaryBorderColor':'#FF8B94',
+  'lineColor':'#BAE1FF',
+  'secondaryColor':'#BAE1FF',
+  'tertiaryColor':'#FFFFFF'
+}}}%%
 flowchart LR
    A[Customer Query Intent] --> B[Catalog Search Agent]
-   B --> C[Semantic Ranking + Inventory Signals]
+   B --> G{AI Search Ready?}
+   G -->|Yes| C[Semantic Ranking + Inventory Signals]
    C --> D[Product Detail Enrichment]
    D --> E[Personalized Recommendation Layer]
    E --> F[Conversion Decision]
-
-   B --> G{Search Service Degraded?}
-   G -->|Yes| H[CRUD Fallback Query]
-   H --> F
+   G -->|No| H[Bounded CRUD Seed Attempt]
+   H --> I{Ready After Seed?}
+   I -->|Yes| C
+   I -->|No| J[Readiness Gate Blocks Traffic]
 
    classDef a fill:#0B84F3,color:#fff,stroke:#085ea8
    classDef b fill:#00A88F,color:#fff,stroke:#0b6e5f
@@ -43,17 +52,18 @@ flowchart LR
    class A,B a
    class C,D,E,F b
    class G c
-   class H d
+   class H,I,J d
 ```
 
-## Issue #32 Implementation Status (2026-03-12)
+## Issue #32 / #675 Implementation Status (2026-04-05)
 
 Implemented and operational in platform deployment/runtime paths:
 
 - **Provisioning**: Shared infrastructure provisions Azure AI Search, and `azd` `postprovision` ensures the `catalog-products` index after the service is reachable.
-- **Environment propagation**: `AI_SEARCH_ENDPOINT`, `AI_SEARCH_INDEX`, and `AI_SEARCH_AUTH_MODE` flow from Bicep outputs through `azd`/workflow outputs into Helm-rendered service environment variables.
+- **Environment propagation**: `AI_SEARCH_ENDPOINT`, `AI_SEARCH_INDEX`, `AI_SEARCH_AUTH_MODE`, and `CATALOG_SEARCH_REQUIRE_AI_SEARCH` flow from Bicep/workflow outputs into Helm-rendered service environment variables.
 - **Runtime query path**: `ecommerce-catalog-search` queries Azure AI Search when configured.
-- **Runtime fallback**: If AI Search is unconfigured/unavailable or returns no usable SKU set, catalog search falls back to the existing adapter-based retrieval path to preserve response continuity.
+- **Startup/readiness seeding**: When Search is configured but empty, runtime executes bounded CRUD-based seeding during startup and readiness checks.
+- **Strict runtime enforcement**: In AKS/image deployments, strict mode is explicitly enabled and `/ready` fails closed (`503`) until AI Search is configured, reachable, and non-empty.
 - **Index maintenance**: Product event handlers attempt AI Search document upsert/delete when AI Search configuration is present.
 
 ### Optional Hardening (Non-blocking)

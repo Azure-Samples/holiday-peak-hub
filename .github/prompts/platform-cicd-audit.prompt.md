@@ -1,8 +1,8 @@
 ---
-title: "Platform: CI/CD Audit"
+name: "Platform: CI/CD Audit"
 description: "Audit CI/CD pipelines for reliability, security, test masking, and deployment safety."
 agent: "PlatformEngineer"
-input: "Specify the pipeline file(s) or CI system (GitHub Actions, Azure Pipelines) to audit."
+argument-hint: "Specify the pipeline file(s) or CI system (GitHub Actions, Azure Pipelines) to audit."
 ---
 
 Audit the specified CI/CD pipelines:
@@ -15,3 +15,4 @@ Audit the specified CI/CD pipelines:
 6. **Coverage** — Test coverage gates present. Coverage delta comparison on PRs. Minimum threshold configured.
 
 Deliver findings as a compliance table with pass/fail, evidence, and remediation steps.
+

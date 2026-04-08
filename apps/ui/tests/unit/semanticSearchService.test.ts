@@ -98,4 +98,35 @@ describe('semanticSearchService.searchWithMode', () => {
     expect(result.items[0].sku).toBe('SKU-2');
     expect(productService.search).not.toHaveBeenCalled();
   });
+
+  it('maps degraded fallback metadata from agent responses', async () => {
+    (agentApiClient.post as jest.Mock).mockResolvedValue({
+      data: {
+        results: [
+          {
+            item_id: 'SKU-9',
+            title: 'Winter Shell Jacket',
+          },
+        ],
+        mode: 'intelligent',
+        answer_source: 'agent_fallback',
+        result_type: 'degraded_fallback',
+        degraded: true,
+        degraded_reason: 'model_timeout',
+        degraded_message:
+          'Showing the best available catalog guidance while intelligent generation is temporarily unavailable.',
+        fallback_keywords: ['winter', 'jacket'],
+      },
+    });
+
+    const result = await semanticSearchService.searchWithMode('winter jacket', 'intelligent', 20);
+
+    expect(result.source).toBe('agent');
+    expect(result.answer_source).toBe('agent_fallback');
+    expect(result.result_type).toBe('degraded_fallback');
+    expect(result.degraded).toBe(true);
+    expect(result.degraded_reason).toBe('model_timeout');
+    expect(result.fallback_keywords).toEqual(['winter', 'jacket']);
+    expect(productService.search).not.toHaveBeenCalled();
+  });
 });

@@ -1,5 +1,8 @@
+import pytest
 from fastapi.testclient import TestClient
 from inventory_health_check.main import app
+
+pytestmark = pytest.mark.usefixtures("mock_foundry_readiness")
 
 
 def test_health():

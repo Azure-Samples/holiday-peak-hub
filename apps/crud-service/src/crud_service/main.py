@@ -9,6 +9,8 @@ from contextlib import asynccontextmanager
 from importlib import import_module
 from typing import Any
 
+import asyncpg
+from azure.core.exceptions import AzureError
 from crud_service.auth.dependencies import get_key_vault_secret
 from crud_service.composition import register_routes
 from crud_service.config.settings import get_settings
@@ -114,12 +116,36 @@ async def lifespan(_app: FastAPI):
     if settings.postgres_auth_mode == "entra":
         logger.info("PostgreSQL auth mode: Entra token")
 
+    if not settings.redis_password:
+        try:
+            settings.redis_password = await get_key_vault_secret(
+                settings.redis_password_secret_name
+            )
+            logger.info(
+                "Redis password loaded from Key Vault secret '%s'",
+                settings.redis_password_secret_name,
+            )
+        except (AzureError, ImportError, ModuleNotFoundError, RuntimeError, ValueError) as exc:
+            logger.warning(
+                "Redis password secret retrieval failed for '%s': %s",
+                settings.redis_password_secret_name,
+                exc,
+            )
+
     # Initialize PostgreSQL connection pool
     _app.state.db_pool_init_error = None
     try:
         await BaseRepository.initialize_pool()
         logger.info("PostgreSQL pool initialized")
-    except Exception as exc:
+    except (
+        asyncpg.PostgresError,
+        TimeoutError,
+        ConnectionError,
+        OSError,
+        RuntimeError,
+        ValueError,
+        AzureError,
+    ) as exc:
         _app.state.db_pool_init_error = f"{type(exc).__name__}: {exc}"
         logger.warning("PostgreSQL pool initialization failed: %s", exc)
 

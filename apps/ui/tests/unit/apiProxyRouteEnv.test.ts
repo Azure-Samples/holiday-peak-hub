@@ -34,6 +34,22 @@ describe('/api proxy route env handling', () => {
     delete process.env.NEXT_PUBLIC_API_URL;
     delete process.env.NEXT_PUBLIC_API_BASE_URL;
     delete process.env.CRUD_API_URL;
+    delete process.env.AGC_FRONTEND_HOSTNAME;
+    delete process.env.AGC_HOSTNAME;
+    delete process.env.AGC_FRONTEND_SCHEME;
+    delete process.env.ADMIN_AGENT_ACTIVITY_SERVICES;
+    delete process.env.NEXT_PUBLIC_FOUNDRY_STUDIO_URL;
+    delete process.env.FOUNDRY_STUDIO_URL;
+    delete process.env.NEXT_PUBLIC_FOUNDRY_PROJECT_URL;
+    delete process.env.FOUNDRY_PROJECT_URL;
+    delete process.env.NEXT_PUBLIC_FOUNDRY_TRACES_URL;
+    delete process.env.FOUNDRY_TRACES_URL;
+    delete process.env.NEXT_PUBLIC_FOUNDRY_EVALUATIONS_URL;
+    delete process.env.FOUNDRY_EVALUATIONS_URL;
+    delete process.env.PROJECT_ENDPOINT;
+    delete process.env.FOUNDRY_ENDPOINT;
+    delete process.env.PROJECT_NAME;
+    delete process.env.FOUNDRY_PROJECT_NAME;
     global.fetch = jest.fn();
   });
 
@@ -503,6 +519,248 @@ describe('/api proxy route env handling', () => {
         model_usage: expect.any(Array),
       }),
     );
+  });
+
+  it('uses readiness probes for admin service fallback when telemetry routes are unavailable', async () => {
+    process.env.NEXT_PUBLIC_CRUD_API_URL = 'https://apim.example.azure-api.net';
+
+    (global.fetch as jest.Mock).mockImplementation(async (url: string) => {
+      if (url.includes('/api/admin/ecommerce/catalog')) {
+        return {
+          body: null,
+          ok: false,
+          status: 404,
+          statusText: 'Not Found',
+          headers: new Headers({ 'content-type': 'application/json' }),
+        };
+      }
+
+      if (url.includes('/agents/ecommerce-catalog-search/agent/traces')) {
+        return {
+          body: null,
+          ok: false,
+          status: 404,
+          statusText: 'Not Found',
+          headers: new Headers({ 'content-type': 'application/json' }),
+        };
+      }
+
+      if (url.includes('/agents/ecommerce-catalog-search/agent/metrics')) {
+        return {
+          body: null,
+          ok: false,
+          status: 404,
+          statusText: 'Not Found',
+          headers: new Headers({ 'content-type': 'application/json' }),
+        };
+      }
+
+      if (url.includes('/agents/ecommerce-catalog-search/agent/evaluation/latest')) {
+        return {
+          body: null,
+          ok: false,
+          status: 404,
+          statusText: 'Not Found',
+          headers: new Headers({ 'content-type': 'application/json' }),
+        };
+      }
+
+      if (url.includes('/agents/ecommerce-catalog-search/health')) {
+        return {
+          body: null,
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: jest.fn(async () => ({ healthy: true })),
+        };
+      }
+
+      if (url.includes('/agents/ecommerce-catalog-search/ready')) {
+        return {
+          body: null,
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: jest.fn(async () => ({ ready: true, foundry_ready: true })),
+        };
+      }
+
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const route = await import('../../app/api/[...path]/route');
+    const response = await route.GET(makeRequest('http://localhost/api/admin/ecommerce/catalog'), {
+      params: Promise.resolve({ path: ['admin', 'ecommerce', 'catalog'] }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('x-holiday-peak-proxy-fallback')).toBe('admin-service-live-aggregate');
+
+    const payload = await response.json();
+    expect(payload).toEqual(
+      expect.objectContaining({
+        domain: 'ecommerce',
+        service: 'catalog',
+        agent_service: 'ecommerce-catalog-search',
+        status_cards: expect.any(Array),
+        activity: [],
+        app_surface: expect.objectContaining({
+          source: 'apim-readiness',
+          liveness_ok: true,
+          readiness_ok: true,
+          links: expect.objectContaining({
+            health: 'https://apim.example.azure-api.net/agents/ecommerce-catalog-search/health',
+            ready: 'https://apim.example.azure-api.net/agents/ecommerce-catalog-search/ready',
+          }),
+        }),
+        foundry_surface: expect.objectContaining({
+          foundry_ready: true,
+          links: expect.objectContaining({
+            studio: 'https://ai.azure.com',
+            project: 'https://ai.azure.com',
+            traces: 'https://ai.azure.com',
+            evaluations: 'https://ai.azure.com',
+          }),
+        }),
+      }),
+    );
+    expect(payload.status_cards.some((card: { status: string }) => card.status !== 'unknown')).toBe(true);
+  });
+
+  it('uses direct AGC readiness probes when APIM readiness probes fail', async () => {
+    process.env.NEXT_PUBLIC_CRUD_API_URL = 'https://apim.example.azure-api.net';
+    process.env.AGC_FRONTEND_HOSTNAME = 'agc.internal.example.com';
+    process.env.AGC_FRONTEND_SCHEME = 'http';
+
+    (global.fetch as jest.Mock).mockImplementation(async (url: string) => {
+      if (url.includes('/api/admin/ecommerce/catalog')) {
+        return {
+          body: null,
+          ok: false,
+          status: 404,
+          statusText: 'Not Found',
+          headers: new Headers({ 'content-type': 'application/json' }),
+        };
+      }
+
+      if (url.includes('/agents/ecommerce-catalog-search/agent/traces')) {
+        return {
+          body: null,
+          ok: false,
+          status: 404,
+          statusText: 'Not Found',
+          headers: new Headers({ 'content-type': 'application/json' }),
+        };
+      }
+
+      if (url.includes('/agents/ecommerce-catalog-search/agent/metrics')) {
+        return {
+          body: null,
+          ok: false,
+          status: 404,
+          statusText: 'Not Found',
+          headers: new Headers({ 'content-type': 'application/json' }),
+        };
+      }
+
+      if (url.includes('/agents/ecommerce-catalog-search/agent/evaluation/latest')) {
+        return {
+          body: null,
+          ok: false,
+          status: 404,
+          statusText: 'Not Found',
+          headers: new Headers({ 'content-type': 'application/json' }),
+        };
+      }
+
+      if (url.includes('/agents/ecommerce-catalog-search/health')) {
+        return {
+          body: null,
+          ok: false,
+          status: 503,
+          statusText: 'Service Unavailable',
+          headers: new Headers({ 'content-type': 'application/json' }),
+        };
+      }
+
+      if (url.includes('/agents/ecommerce-catalog-search/ready')) {
+        return {
+          body: null,
+          ok: false,
+          status: 503,
+          statusText: 'Service Unavailable',
+          headers: new Headers({ 'content-type': 'application/json' }),
+        };
+      }
+
+      if (url.includes('http://agc.internal.example.com/ecommerce-catalog-search/health')) {
+        return {
+          body: null,
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: jest.fn(async () => ({ healthy: true })),
+        };
+      }
+
+      if (url.includes('http://agc.internal.example.com/ecommerce-catalog-search/ready')) {
+        return {
+          body: null,
+          ok: false,
+          status: 404,
+          statusText: 'Not Found',
+          headers: new Headers({ 'content-type': 'application/json' }),
+        };
+      }
+
+      if (url.includes('http://agc.internal.example.com/ready')) {
+        return {
+          body: null,
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: jest.fn(async () => ({ ready: true, foundry_ready: true })),
+        };
+      }
+
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const route = await import('../../app/api/[...path]/route');
+    const response = await route.GET(makeRequest('http://localhost/api/admin/ecommerce/catalog'), {
+      params: Promise.resolve({ path: ['admin', 'ecommerce', 'catalog'] }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('x-holiday-peak-proxy-fallback')).toBe('admin-service-live-aggregate');
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('http://agc.internal.example.com/ecommerce-catalog-search/health'),
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('http://agc.internal.example.com/ready'),
+      expect.objectContaining({ method: 'GET' }),
+    );
+
+    const payload = await response.json();
+    expect(payload).toEqual(
+      expect.objectContaining({
+        app_surface: expect.objectContaining({
+          source: 'agc-direct-readiness',
+          liveness_ok: true,
+          readiness_ok: true,
+          links: expect.objectContaining({
+            health: 'http://agc.internal.example.com/ecommerce-catalog-search/health',
+            ready: 'http://agc.internal.example.com/ecommerce-catalog-search/ready',
+          }),
+        }),
+      }),
+    );
+    expect(payload.status_cards.some((card: { status: string }) => card.status !== 'unknown')).toBe(true);
   });
 
   it('aggregates staff review queue from truth-hitl invoke when staff upstream route is unavailable', async () => {

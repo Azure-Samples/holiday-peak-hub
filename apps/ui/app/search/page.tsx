@@ -110,6 +110,8 @@ export default function SearchPage() {
   const proxyFailure = getProxyFailureError(error);
   const searchSource = data?.source;
   const fallbackReason = data?.fallback_reason;
+  const isAgentDegradedFallback = data?.source === 'agent' && data?.degraded === true;
+  const degradedFallbackKeywords = data?.fallback_keywords || [];
   const isIntelligentFallback =
     data?.requested_mode === 'intelligent' && data?.source === 'crud';
   const showUnavailableAgentFallbackAlert =
@@ -215,6 +217,25 @@ export default function SearchPage() {
             dismissible={false}
           >
             Results are from CRUD catalog search because the agent path was unavailable.
+          </Alert>
+        ) : null}
+        {query && isAgentDegradedFallback ? (
+          <Alert
+            variant="warning"
+            title="Intelligent synthesis is temporarily degraded"
+            dismissible={false}
+          >
+            <div className="space-y-2">
+              <p>
+                {data?.degraded_message
+                  || 'Showing the best available catalog guidance while intelligent generation is temporarily unavailable.'}
+              </p>
+              {degradedFallbackKeywords.length > 0 ? (
+                <p className="text-sm text-[var(--hp-text-muted)]">
+                  Fallback keywords: {degradedFallbackKeywords.join(', ')}
+                </p>
+              ) : null}
+            </div>
           </Alert>
         ) : null}
         <IntentPanel mode={resolvedMode} intent={data?.intent} subqueries={data?.subqueries} />

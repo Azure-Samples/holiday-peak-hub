@@ -38,7 +38,7 @@ param branch string = 'main'
 
 // Keep deployment-facing auth/user outputs explicit and deterministic.
 var postgresAuthMode = 'password'
-var postgresWorkloadUser = 'crud_workload'
+var postgresWorkloadUser = deployShared ? '${sharedInfra!.outputs.aksClusterName}-agentpool' : ''
 var staticWebAppBaseName = empty(appName) ? '${projectName}-ui' : appName
 
 @description('UTC timestamp for unique deployment naming. Do not override.')
@@ -93,16 +93,22 @@ output AI_SEARCH_INDEXER_NAME string = deployShared ? sharedInfra!.outputs.aiSea
 output EMBEDDING_DEPLOYMENT_NAME string = deployShared ? sharedInfra!.outputs.embeddingDeploymentName : ''
 output AI_SEARCH_AUTH_MODE string = deployShared ? sharedInfra!.outputs.aiSearchAuthMode : ''
 output PROJECT_NAME string = deployShared ? sharedInfra!.outputs.aiProjectName : ''
-output PROJECT_ENDPOINT string = deployShared ? 'https://${sharedInfra!.outputs.aiServicesName}.cognitiveservices.azure.com' : ''
+output PROJECT_ENDPOINT string = deployShared
+  ? 'https://${sharedInfra!.outputs.aiServicesName}.services.ai.azure.com/api/projects/${sharedInfra!.outputs.aiProjectName}'
+  : ''
 output COSMOS_ACCOUNT_URI string = deployShared ? sharedInfra!.outputs.cosmosEndpoint : ''
 output COSMOS_DATABASE string = deployShared ? sharedInfra!.outputs.databaseName : ''
 output KEY_VAULT_URI string = deployShared ? sharedInfra!.outputs.keyVaultUri : ''
 output REDIS_HOST string = deployShared ? sharedInfra!.outputs.redisName : ''
+#disable-next-line outputs-should-not-contain-secrets
+output REDIS_PASSWORD_SECRET_NAME string = deployShared ? sharedInfra!.outputs.redisPasswordSecretName : ''
 output EVENT_HUB_NAMESPACE string = deployShared ? sharedInfra!.outputs.eventHubsNamespaceName : ''
 output PLATFORM_JOBS_EVENT_HUB_NAMESPACE string = deployShared ? sharedInfra!.outputs.platformJobsNamespaceName : ''
 output APPLICATIONINSIGHTS_CONNECTION_STRING string = deployShared ? sharedInfra!.outputs.appInsightsConnectionString : ''
 output POSTGRES_HOST string = deployShared ? sharedInfra!.outputs.postgresFqdn : ''
-output POSTGRES_USER string = deployShared ? postgresWorkloadUser : ''
+output POSTGRES_USER string = deployShared
+  ? (postgresAuthMode == 'password' ? sharedInfra!.outputs.postgresAdminUser : postgresWorkloadUser)
+  : ''
 output POSTGRES_ADMIN_USER string = deployShared ? sharedInfra!.outputs.postgresAdminUser : ''
 output POSTGRES_AUTH_MODE string = deployShared ? postgresAuthMode : ''
 output POSTGRES_DATABASE string = deployShared ? sharedInfra!.outputs.postgresDatabaseName : ''

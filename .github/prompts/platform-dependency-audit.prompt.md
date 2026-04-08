@@ -1,8 +1,8 @@
 ---
-title: "Platform: Dependency Audit"
+name: "Platform: Dependency Audit"
 description: "Audit project dependencies for vulnerabilities, currency, and license compliance."
 agent: "PlatformEngineer"
-input: "Specify the project or lockfile to audit (package.json, Cargo.toml, pyproject.toml, etc.)."
+argument-hint: "Specify the project or lockfile to audit (package.json, Cargo.toml, pyproject.toml, etc.)."
 ---
 
 Audit dependencies for the specified project:
@@ -15,3 +15,4 @@ Audit dependencies for the specified project:
 6. **Upgrade Path** — For critical vulnerabilities, provide the minimum version bump required and assess breaking change risk.
 
 Deliver a report with severity-ranked findings and an upgrade plan.
+

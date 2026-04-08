@@ -3,8 +3,11 @@
 import httpx
 import pytest
 from ecommerce_catalog_search.adapters import (
+    SEARCH_MODE_INTELLIGENT,
+    SEARCH_MODE_KEYWORD,
     CRUDCatalogProductAdapter,
     build_catalog_adapters,
+    normalize_search_mode,
 )
 from holiday_peak_lib.adapters.mock_adapters import MockProductAdapter
 
@@ -101,3 +104,76 @@ class TestCrudCatalogProductAdapter:
 
         assert product is None
         assert related == []
+
+    @pytest.mark.asyncio
+    async def test_crud_adapter_search_uses_deterministic_terms(self):
+        search_terms: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path != "/api/products":
+                return httpx.Response(404, json={"detail": "not found"})
+
+            search_term = str(request.url.params.get("search") or "")
+            search_terms.append(search_term)
+
+            if search_term == "winter travel clothing":
+                return httpx.Response(200, json=[])
+            if search_term == "winter":
+                return httpx.Response(
+                    200,
+                    json=[
+                        {
+                            "id": "SKU-COAT",
+                            "name": "Insulated Winter Jacket",
+                            "description": "Warm coat",
+                            "category_id": "apparel",
+                            "price": 159.0,
+                        }
+                    ],
+                )
+            if search_term == "travel":
+                return httpx.Response(
+                    200,
+                    json=[
+                        {
+                            "id": "SKU-COAT",
+                            "name": "Insulated Winter Jacket",
+                            "description": "Warm coat",
+                            "category_id": "apparel",
+                            "price": 159.0,
+                        },
+                        {
+                            "id": "SKU-BOOT",
+                            "name": "Travel Snow Boots",
+                            "description": "Waterproof boots",
+                            "category_id": "apparel",
+                            "price": 129.0,
+                        },
+                    ],
+                )
+            return httpx.Response(200, json=[])
+
+        adapter = CRUDCatalogProductAdapter(
+            "http://crud-service",
+            transport=httpx.MockTransport(handler),
+        )
+        adapters = build_catalog_adapters()
+        adapters.products.adapter = adapter
+
+        matches = await adapters.products.search("winter travel clothing", limit=3)
+
+        assert [item.sku for item in matches] == ["SKU-COAT", "SKU-BOOT"]
+        assert search_terms[:3] == ["winter travel clothing", "winter", "travel"]
+
+
+class TestSearchModeNormalization:
+    """Tests for centralized mode normalization strategy."""
+
+    @pytest.mark.parametrize("raw_mode", [None, "", "unsupported"])
+    def test_normalize_search_mode_defaults_to_intelligent(self, raw_mode):
+        """Missing or invalid mode should default to intelligent retrieval."""
+        assert normalize_search_mode(raw_mode) == SEARCH_MODE_INTELLIGENT
+
+    def test_normalize_search_mode_preserves_explicit_keyword(self):
+        """Explicit keyword mode remains supported for deterministic demos."""
+        assert normalize_search_mode("keyword") == SEARCH_MODE_KEYWORD

@@ -7,8 +7,9 @@ import { useRouter } from 'next/navigation';
 import { MainLayout } from '@/components/templates/MainLayout';
 import { Badge } from '@/components/atoms/Badge';
 import { Button } from '@/components/atoms/Button';
-import { Card } from '@/components/molecules/Card';
-import { useProduct, useTriggerProductEnrichment } from '@/lib/hooks/useProducts';
+import { Modal } from '@/components/molecules/Modal';
+import { cn } from '@/components/utils';
+import { useProduct } from '@/lib/hooks/useProducts';
 import { useCategories } from '@/lib/hooks/useCategories';
 import { mapApiProductToUiProduct } from '@/lib/utils/productMappers';
 import { formatAgentResponse, type AgentMessageView } from '@/lib/utils/agentResponseCards';
@@ -199,10 +200,6 @@ export function ProductPageClient({ productId }: { productId: string }) {
   const [fitError, setFitError] = useState<string | null>(null);
   const [fitResponseView, setFitResponseView] = useState<AgentMessageView | null>(null);
   const [fitAssessment, setFitAssessment] = useState<FitAssessment | null>(null);
-  const [triggerEnrichmentStatus, setTriggerEnrichmentStatus] = useState<string | null>(null);
-  const [triggerEnrichmentError, setTriggerEnrichmentError] = useState<string | null>(null);
-  const triggerProductEnrichment = useTriggerProductEnrichment();
-
   const uiProduct = useMemo(() => (product ? mapApiProductToUiProduct(product) : null), [product]);
   const relatedProductIds = useMemo(() => {
     if (!uiProduct) {
@@ -316,134 +313,206 @@ export function ProductPageClient({ productId }: { productId: string }) {
     }
   };
 
-  const handleTriggerEnrichmentJob = async () => {
-    if (!product?.id) {
-      return;
-    }
-
-    setTriggerEnrichmentError(null);
-    setTriggerEnrichmentStatus(null);
-
-    try {
-      const response = await triggerProductEnrichment.mutateAsync({
-        productId: product.id,
-        payload: {
-          trigger_source: 'product_page',
-        },
-      });
-
-      const parsed = new Date(response.queued_at);
-      const queuedAt = Number.isNaN(parsed.getTime()) ? new Date().toLocaleString() : parsed.toLocaleString();
-      setTriggerEnrichmentStatus(`Queued at ${queuedAt}`);
-    } catch (triggerError: unknown) {
-      const message =
-        triggerError instanceof Error ? triggerError.message : 'Failed to trigger enrichment job.';
-      setTriggerEnrichmentError(message);
-    }
-  };
-
   return (
     <MainLayout>
       {isLoading && (
-        <div className="animate-pulse space-y-6">
-          <div className="h-6 w-1/3 rounded bg-[var(--hp-surface-strong)]" />
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div className="aspect-square rounded-2xl bg-[var(--hp-surface-strong)]" />
-            <div className="space-y-4">
-              <div className="h-8 w-3/4 rounded bg-[var(--hp-surface-strong)]" />
-              <div className="h-6 w-1/4 rounded bg-[var(--hp-surface-strong)]" />
-              <div className="h-24 w-full rounded bg-[var(--hp-surface-strong)]" />
+        <div className="animate-pulse space-y-6 px-4 md:px-8 lg:px-12 max-w-7xl mx-auto">
+          <div className="h-4 w-48 rounded bg-gray-200 dark:bg-gray-800" />
+          <div className="grid grid-cols-1 gap-10 lg:grid-cols-[280px_1fr]">
+            <div className="hidden lg:block space-y-3">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="h-10 rounded-xl bg-gray-100 dark:bg-gray-800" />
+              ))}
+            </div>
+            <div className="grid grid-cols-1 gap-10 xl:grid-cols-2">
+              <div className="aspect-square rounded-2xl bg-gray-100 dark:bg-gray-800 relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/60 to-transparent dark:via-white/5 -translate-x-full animate-[shimmer_2s_ease-in-out_infinite]" />
+              </div>
+              <div className="space-y-4">
+                <div className="flex gap-2">
+                  <div className="h-6 w-24 rounded-full bg-gray-200 dark:bg-gray-800" />
+                  <div className="h-6 w-16 rounded-full bg-gray-200 dark:bg-gray-800" />
+                </div>
+                <div className="h-8 w-3/4 rounded bg-gray-200 dark:bg-gray-800" />
+                <div className="h-4 w-full rounded bg-gray-100 dark:bg-gray-800" />
+                <div className="h-4 w-2/3 rounded bg-gray-100 dark:bg-gray-800" />
+                <div className="h-10 w-32 rounded-full bg-gray-200 dark:bg-gray-800 mt-6" />
+              </div>
             </div>
           </div>
         </div>
       )}
 
       {!isLoading && isError && (
-        <Card className="border border-[var(--hp-primary)]/30 p-6">
-          <p className="text-[var(--hp-primary)]">Product could not be loaded from the cloud backend.</p>
-        </Card>
+        <div className="mx-auto max-w-md text-center py-20 px-4">
+          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-red-50 dark:bg-red-900/20">
+            <FiShield className="h-8 w-8 text-red-500" />
+          </div>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Product unavailable</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">We couldn&apos;t load this product from the backend. Please try again later.</p>
+        </div>
       )}
 
       {!isLoading && !isError && uiProduct && product && (
-        <>
-          <nav className="mb-6 flex items-center gap-2 text-sm text-[var(--hp-text-muted)]">
-            <Link href="/" className="hover:text-[var(--hp-primary)]">Home</Link>
+        <div className="px-4 md:px-8 lg:px-12 max-w-7xl mx-auto">
+          {/* Breadcrumb */}
+          <nav className="mb-6 flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500 font-medium">
+            <Link href="/" className="hover:text-gray-900 dark:hover:text-white transition-colors">Home</Link>
             <span>/</span>
             <Link
               href={`/category?slug=${encodeURIComponent(product.category_id)}`}
-              className="hover:text-[var(--hp-primary)]"
+              className="hover:text-gray-900 dark:hover:text-white transition-colors"
             >
               {product.category_id}
             </Link>
             <span>/</span>
-            <span className="text-[var(--hp-text)]">{product.name}</span>
+            <span className="text-gray-700 dark:text-gray-300 truncate max-w-[200px]">{product.name}</span>
           </nav>
 
-          <section
-            className="mb-12 grid grid-cols-1 gap-8 lg:grid-cols-[220px_1fr]"
-            aria-label="Product detail and category navigation"
-          >
-            <aside className="h-fit rounded-2xl border border-[var(--hp-border)] bg-[var(--hp-surface)] p-4 lg:sticky lg:top-20">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--hp-text-muted)]">Categories</p>
-              <div className="space-y-2">
-                {categoryList.map((category) => {
-                  const isActive = category.id === selectedCategory;
-                  return (
-                    <button
-                      key={category.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedCategory(category.id);
-                        router.push(`/category?slug=${encodeURIComponent(category.id)}`);
-                      }}
-                      className={`w-full rounded-xl border px-3 py-2 text-left text-sm font-medium transition-colors ${
-                        isActive
-                          ? 'border-[var(--hp-primary)] bg-[var(--hp-surface-strong)] text-[var(--hp-primary)]'
-                          : 'border-[var(--hp-border)] bg-[var(--hp-surface)] text-[var(--hp-text-muted)] hover:text-[var(--hp-text)]'
-                      }`}
-                    >
-                      {category.name}
-                    </button>
-                  );
-                })}
+          <section className="grid grid-cols-1 gap-10 lg:grid-cols-[240px_1fr]" aria-label="Product detail">
+            {/* ── Category Sidebar ── */}
+            <aside className="hidden lg:block">
+              <div className="sticky top-24 rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 shadow-sm">
+                <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Categories</p>
+                <nav className="space-y-0.5">
+                  {categoryList.map((category) => {
+                    const isActive = category.id === selectedCategory;
+                    return (
+                      <button
+                        key={category.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedCategory(category.id);
+                          router.push(`/category?slug=${encodeURIComponent(category.id)}`);
+                        }}
+                        className={cn(
+                          'w-full rounded-lg px-3 py-2 text-left text-sm transition-all duration-200',
+                          isActive
+                            ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-semibold shadow-sm'
+                            : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
+                        )}
+                      >
+                        {category.name}
+                      </button>
+                    );
+                  })}
+                </nav>
               </div>
             </aside>
 
-            <div>
-              <section className="grid grid-cols-1 gap-12 xl:grid-cols-2" aria-label="Product overview">
-                <div className="aspect-square overflow-hidden rounded-2xl bg-[var(--hp-surface-strong)]">
+            {/* ── Main Content ── */}
+            <div className="min-w-0">
+              <section className="grid grid-cols-1 gap-10 xl:grid-cols-2 items-start" aria-label="Product overview">
+                {/* ── Image ── */}
+                <div className="group relative aspect-square w-full overflow-hidden rounded-2xl bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800">
+                  {/* Animated shimmer skeleton behind the image */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-gray-100 via-gray-50 to-gray-100 dark:from-gray-800 dark:via-gray-900 dark:to-gray-800">
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent dark:via-white/5 -translate-x-full animate-[shimmer_3s_ease-in-out_infinite]" />
+                    {/* Decorative SVG pattern on placeholder */}
+                    <svg className="absolute inset-0 w-full h-full opacity-[0.03] dark:opacity-[0.06]" xmlns="http://www.w3.org/2000/svg">
+                      <defs>
+                        <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+                          <path d="M 32 0 L 0 0 0 32" fill="none" stroke="currentColor" strokeWidth="0.5"/>
+                        </pattern>
+                      </defs>
+                      <rect width="100%" height="100%" fill="url(#grid)" />
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="text-gray-300 dark:text-gray-600">
+                        <svg className="w-16 h-16 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0 0 22.5 18.75V5.25A2.25 2.25 0 0 0 20.25 3H3.75A2.25 2.25 0 0 0 1.5 5.25v13.5A2.25 2.25 0 0 0 3.75 21Z" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
                   <Image
                     src={uiProduct.thumbnail || '/images/products/p1.jpg'}
                     alt={product.name}
                     width={800}
                     height={800}
-                    className="h-full w-full object-cover"
+                    className="relative z-10 h-full w-full object-cover object-center transition-transform duration-700 ease-out group-hover:scale-[1.03]"
                   />
+                  {/* Floating image tags */}
+                  {uiProduct.tags && uiProduct.tags.length > 0 && (
+                    <div className="absolute top-4 left-4 z-20 flex flex-wrap gap-1.5">
+                       {uiProduct.tags.slice(0, 2).map((tag) => (
+                         <span key={tag} className="rounded-full bg-white/90 dark:bg-black/60 backdrop-blur-sm px-2.5 py-0.5 text-[10px] font-semibold text-gray-800 dark:text-white shadow-sm">
+                           {tag}
+                         </span>
+                       ))}
+                    </div>
+                  )}
                 </div>
 
-                <div>
-                  <div className="mb-4 flex items-center gap-3">
-                    <Badge className="bg-[var(--hp-primary)] text-white">Agent Enriched</Badge>
+                {/* ── Product Info ── */}
+                <div className="flex flex-col py-1">
+                  {/* Status Badges */}
+                  <div className="mb-4 flex flex-wrap items-center gap-2">
+                    <Badge size="sm" className="bg-gray-900 dark:bg-white text-white dark:text-gray-900 border-none text-[10px] px-2.5 py-1">
+                      Agent Enriched
+                    </Badge>
                     {product.in_stock ? (
-                      <Badge className="bg-[var(--hp-accent)]/20 text-[var(--hp-accent)]">In Stock</Badge>
+                      <Badge size="sm" className="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 text-[10px] px-2.5 py-1">
+                        In Stock
+                      </Badge>
                     ) : (
-                      <Badge className="bg-[var(--hp-primary)]/20 text-[var(--hp-primary)]">Out of Stock</Badge>
+                      <Badge size="sm" className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 text-[10px] px-2.5 py-1">
+                        Out of Stock
+                      </Badge>
                     )}
                   </div>
 
-                  <h1 className="mb-2 text-3xl font-black text-[var(--hp-text)]">{product.name}</h1>
-                  <p className="mb-6 text-[var(--hp-text-muted)]">{product.description}</p>
+                  {/* Title */}
+                  <h1 className="mb-2 text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white leading-tight tracking-tight">{product.name}</h1>
+                  <p className="mb-6 text-sm text-gray-500 dark:text-gray-400 leading-relaxed max-w-lg">{product.description}</p>
 
-                  {uiProduct.enrichedDescription ? (
-                    <Card className="mb-6 border border-[var(--hp-border)] bg-[var(--hp-surface)] p-4">
-                      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--hp-text-muted)]">
-                        Enriched description
+                  {/* Price + Rating */}
+                  <div className="mb-6 flex items-baseline gap-3">
+                    <span className="text-3xl font-bold text-gray-900 dark:text-white tabular-nums">${product.price.toFixed(2)}</span>
+                    {typeof product.rating === 'number' && (
+                      <span className="flex items-center gap-1 text-sm text-gray-400">
+                        <span className="text-amber-500">★</span>
+                        <span className="font-medium text-gray-600 dark:text-gray-300">{product.rating.toFixed(1)}</span>
+                        <span>({product.review_count || 0})</span>
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Enriched insight card */}
+                  {uiProduct.enrichedDescription && (
+                    <div className="mb-6 rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30 p-4">
+                      <p className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">
+                        <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" /> AI Insight
                       </p>
-                      <p className="text-sm text-[var(--hp-text)]">{uiProduct.enrichedDescription}</p>
-                    </Card>
-                  ) : null}
+                      <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{uiProduct.enrichedDescription}</p>
+                    </div>
+                  )}
 
-                  <div className="mb-6 space-y-4">
+                  {/* ── Action Buttons ── */}
+                  <div className="mb-8 flex flex-wrap items-center gap-3">
+                    <Button
+                      size="md"
+                      className="rounded-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-100 shadow-sm"
+                      onClick={handleAddToCartClick}
+                      disabled={!product.in_stock}
+                      iconLeft={<FiShoppingCart className="h-4 w-4" />}
+                    >
+                      Add to cart
+                    </Button>
+
+                    <Button
+                      variant="ghost"
+                      size="md"
+                      className="rounded-full border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                      onClick={() => setShowFitPrompt(true)}
+                    >
+                      Does this fit?
+                      <FiArrowRight className="ml-1.5 h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
+                    </Button>
+                  </div>
+
+                  {/* Use cases & Related */}
+                  <div className="space-y-5">
                     <UseCaseTags useCases={uiProduct.useCases} />
                     <RelatedProductsRail
                       title="Complements"
@@ -457,176 +526,133 @@ export function ProductPageClient({ productId }: { productId: string }) {
                     />
                   </div>
 
-                  <div className="mb-6 flex items-end gap-3">
-                    <span className="text-4xl font-black text-[var(--hp-primary)]">${product.price.toFixed(2)}</span>
-                    {typeof product.rating === 'number' && (
-                      <span className="text-sm text-[var(--hp-text-muted)]">
-                        ★ {product.rating.toFixed(1)}{product.review_count ? ` (${product.review_count})` : ''}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                    <Button
-                      size="lg"
-                      className="w-full sm:w-auto"
-                      onClick={handleAddToCartClick}
-                      disabled={!product.in_stock}
-                    >
-                      <FiShoppingCart className="mr-2 h-5 w-5" />
-                      Add to Cart
-                    </Button>
-
-                    <Button
-                      variant="outline"
-                      size="lg"
-                      className="w-full border-[var(--hp-primary)]/55 text-[var(--hp-primary)] hover:bg-[var(--hp-primary)]/10 sm:w-auto"
-                      onClick={() => setShowFitPrompt((current) => !current)}
-                    >
-                      Does this fits my case?
-                      <FiArrowRight className="ml-2 h-4 w-4" />
-                    </Button>
-
-                    <Button
-                      variant="secondary"
-                      size="lg"
-                      className="w-full sm:w-auto"
-                      onClick={() => {
-                        void handleTriggerEnrichmentJob();
-                      }}
-                      loading={triggerProductEnrichment.isPending}
-                    >
-                      Trigger enrichment job
-                    </Button>
-                  </div>
-
-                  {triggerEnrichmentStatus ? (
-                    <p className="mt-2 text-sm text-[var(--hp-accent)]">{triggerEnrichmentStatus}</p>
-                  ) : null}
-                  {triggerEnrichmentError ? (
-                    <p className="mt-2 text-sm text-[var(--hp-primary)]">{triggerEnrichmentError}</p>
-                  ) : null}
-
-                  {showFitPrompt ? (
-                    <Card className="mt-4 border border-[var(--hp-border)] bg-[var(--hp-surface)] p-4 text-[var(--hp-text)]">
-                      <label htmlFor="fit-use-case" className="mb-2 block text-sm font-semibold text-[var(--hp-text)]">
+                  {/* ── Fit Evaluation Modal ── */}
+                  <Modal
+                    isOpen={showFitPrompt}
+                    onClose={() => {
+                      setShowFitPrompt(false);
+                      setFitError(null);
+                    }}
+                    title="Does this product fit your needs?"
+                    size="lg"
+                  >
+                    <div className="space-y-4">
+                      <label htmlFor="fit-use-case" className="block text-sm font-semibold text-gray-900 dark:text-white">
                         Describe your use case
                       </label>
                       <textarea
                         id="fit-use-case"
                         value={useCaseInput}
                         onChange={(event) => setUseCaseInput(event.target.value)}
-                        placeholder="Example: I need this product for daily travel, outdoor use, and long battery life."
-                        rows={4}
-                        className="w-full rounded-xl border border-[var(--hp-border)] bg-[var(--hp-surface-strong)] px-3 py-2 text-sm text-[var(--hp-text)] placeholder:text-[var(--hp-text-muted)]"
+                        placeholder="e.g. 'I need running tights for cold winter mornings...'"
+                        rows={3}
+                        className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-3 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-white focus:border-transparent transition-shadow duration-200 resize-none"
                       />
-                      <div className="mt-3 flex items-center gap-2">
+
+                      <div className="flex items-center gap-3">
                         <Button
                           size="sm"
+                          className="rounded-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-100"
                           onClick={handleRunFitEvaluation}
                           disabled={fitLoading || useCaseInput.trim().length === 0}
                         >
-                          {fitLoading ? 'Evaluating...' : 'Evaluate fit'}
+                          {fitLoading ? 'Analyzing…' : 'Analyze fit'}
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-[var(--hp-text-muted)] hover:text-[var(--hp-text)]"
+                        <button
+                          type="button"
+                          className="text-xs font-medium text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
                           onClick={() => {
                             setShowFitPrompt(false);
                             setFitError(null);
                           }}
                         >
-                          Close
-                        </Button>
+                          Cancel
+                        </button>
                       </div>
-                    </Card>
-                  ) : null}
 
-                  {uiProduct.tags && uiProduct.tags.length > 0 && (
-                    <div className="mt-6 flex flex-wrap gap-2">
-                      {uiProduct.tags.map((tag) => (
-                        <Badge key={tag} className="bg-[var(--hp-accent)]/20 text-[var(--hp-accent)]">
-                          {tag}
-                        </Badge>
-                      ))}
+                      {fitError && (
+                        <div className="rounded-xl border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-900/10 px-4 py-3">
+                          <p className="text-xs font-medium text-red-600 dark:text-red-400">{fitError}</p>
+                        </div>
+                      )}
+
+                      {fitAssessment && fitResponseView && (
+                        <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-gray-800">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <h3 className="text-sm font-bold text-gray-900 dark:text-white">AI Fit Evaluation</h3>
+                            <Badge size="sm" className={`${verdictBadgeClass(fitAssessment.verdict)} text-xs px-2.5 py-1 font-semibold rounded-full`}>
+                              {fitAssessment.verdict === 'fits'
+                                ? '✓ Fits'
+                                : fitAssessment.verdict === 'partial'
+                                  ? '~ Partial'
+                                  : fitAssessment.verdict === 'not_fit'
+                                    ? '✕ No fit'
+                                    : 'Review'}
+                            </Badge>
+                          </div>
+
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <div className="rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 p-3">
+                              <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Confidence</p>
+                              <p className="text-xl font-bold text-gray-900 dark:text-white tabular-nums">
+                                {typeof fitAssessment.confidence === 'number'
+                                  ? `${Math.round(fitAssessment.confidence * (fitAssessment.confidence <= 1 ? 100 : 1))}%`
+                                  : 'N/A'}
+                              </p>
+                            </div>
+                            <div className="rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 p-3">
+                              <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Summary</p>
+                              <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">{fitAssessment.recommendation}</p>
+                            </div>
+                          </div>
+
+                          {fitAssessment.reasonsForFit.length > 0 && (
+                            <div>
+                              <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-emerald-600">Positive signals</p>
+                              <ul className="grid gap-1.5">
+                                {fitAssessment.reasonsForFit.slice(0, 4).map((reason, index) => (
+                                  <li key={`fit-reason-${index}`} className="flex items-start gap-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/30 px-3 py-2 text-xs text-gray-700 dark:text-gray-300">
+                                    <span className="text-emerald-500 mt-px shrink-0">✦</span> {reason}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {fitAssessment.reasonsAgainst.length > 0 && (
+                            <div>
+                              <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-amber-600">Considerations</p>
+                              <ul className="grid gap-1.5">
+                                {fitAssessment.reasonsAgainst.slice(0, 4).map((reason, index) => (
+                                  <li key={`fit-constraint-${index}`} className="flex items-start gap-2 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 px-3 py-2 text-xs text-gray-700 dark:text-gray-300">
+                                    <span className="text-amber-500 mt-px shrink-0">✧</span> {reason}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          <div className="pt-4 border-t border-gray-100 dark:border-gray-800">
+                            <AgentMessageDisplay compact view={fitResponseView} />
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  )}
-
-                  {fitError ? (
-                    <Card className="mt-4 border border-[var(--hp-primary)]/30 p-4">
-                      <p className="text-sm text-[var(--hp-primary)]">{fitError}</p>
-                    </Card>
-                  ) : null}
-
-                  {fitAssessment && fitResponseView ? (
-                    <Card className="mt-4 border border-[var(--hp-border)] p-4">
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <h3 className="text-sm font-semibold text-[var(--hp-text)]">Use case evaluation</h3>
-                        <Badge className={verdictBadgeClass(fitAssessment.verdict)}>
-                          {fitAssessment.verdict === 'fits'
-                            ? 'Fits'
-                            : fitAssessment.verdict === 'partial'
-                              ? 'Partially fits'
-                              : fitAssessment.verdict === 'not_fit'
-                                ? 'Does not fit'
-                                : 'Needs review'}
-                        </Badge>
-                      </div>
-
-                      <div className="mb-3 grid gap-2 text-sm sm:grid-cols-2">
-                        <div className="rounded-lg border border-[var(--hp-border)] bg-[var(--hp-surface)] p-2">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--hp-text-muted)]">Confidence</p>
-                          <p className="text-[var(--hp-text)]">
-                            {typeof fitAssessment.confidence === 'number'
-                              ? `${Math.round(fitAssessment.confidence * (fitAssessment.confidence <= 1 ? 100 : 1))}%`
-                              : 'Not provided'}
-                          </p>
-                        </div>
-                        <div className="rounded-lg border border-[var(--hp-border)] bg-[var(--hp-surface)] p-2">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--hp-text-muted)]">Recommendation</p>
-                          <p className="text-[var(--hp-text)]">{fitAssessment.recommendation}</p>
-                        </div>
-                      </div>
-
-                      {fitAssessment.reasonsForFit.length > 0 ? (
-                        <div className="mb-3">
-                          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--hp-text-muted)]">Why it fits</p>
-                          <ul className="space-y-1 text-sm text-[var(--hp-text)]">
-                            {fitAssessment.reasonsForFit.slice(0, 4).map((reason, index) => (
-                              <li key={`fit-reason-${index}`} className="rounded-md bg-[var(--hp-surface)] px-2 py-1">{reason}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      ) : null}
-
-                      {fitAssessment.reasonsAgainst.length > 0 ? (
-                        <div className="mb-3">
-                          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--hp-text-muted)]">Possible constraints</p>
-                          <ul className="space-y-1 text-sm text-[var(--hp-text)]">
-                            {fitAssessment.reasonsAgainst.slice(0, 4).map((reason, index) => (
-                              <li key={`fit-constraint-${index}`} className="rounded-md bg-[var(--hp-surface)] px-2 py-1">{reason}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      ) : null}
-
-                      <AgentMessageDisplay compact view={fitResponseView} />
-                    </Card>
-                  ) : null}
+                  </Modal>
                 </div>
               </section>
             </div>
           </section>
 
-          <Card className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Feature icon={<FiTruck className="w-6 h-6" />} title="Fast Delivery" description="Delivery ETA from logistics agents." />
-              <Feature icon={<FiRotateCcw className="w-6 h-6" />} title="Flexible Returns" description="Returns support assisted by agents." />
-              <Feature icon={<FiShield className="w-6 h-6" />} title="Quality Insights" description="Product details enriched by specialist agents." />
+          {/* ── Feature Strip ── */}
+          <div className="mt-12 mb-8 rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 p-6 shadow-sm">
+            <div className="grid grid-cols-1 divide-y sm:divide-y-0 sm:divide-x divide-gray-100 dark:divide-gray-800 sm:grid-cols-3">
+              <Feature icon={<FiTruck className="w-5 h-5" />} title="Fast delivery" description="AI-optimized carrier routing for best ETA." />
+              <Feature icon={<FiRotateCcw className="w-5 h-5" />} title="Easy returns" description="Instant agent-assisted processing." />
+              <Feature icon={<FiShield className="w-5 h-5" />} title="Verified quality" description="Specs validated by AI specialists." />
             </div>
-          </Card>
-        </>
+          </div>
+        </div>
       )}
     </MainLayout>
   );
@@ -634,10 +660,14 @@ export function ProductPageClient({ productId }: { productId: string }) {
 
 function Feature({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
   return (
-    <div className="text-center">
-      <div className="mb-2 flex justify-center text-[var(--hp-accent)]">{icon}</div>
-      <h4 className="mb-1 text-sm font-semibold text-[var(--hp-text)]">{title}</h4>
-      <p className="text-xs text-[var(--hp-text-muted)]">{description}</p>
+    <div className="flex items-start gap-3 px-4 sm:px-6 py-4 sm:py-0">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+        {icon}
+      </div>
+      <div>
+        <h4 className="text-sm font-semibold text-gray-900 dark:text-white">{title}</h4>
+        <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed mt-0.5">{description}</p>
+      </div>
     </div>
   );
 }

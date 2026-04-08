@@ -17,6 +17,9 @@ import type { Product as UiProduct } from '../../components/types';
 const AGENT_API_BASE_URL = resolveAgentApiClientBaseUrl().baseUrl || '';
 const MOCK_HOST_SUFFIX = 'example.com';
 
+export type SearchResultType = 'deterministic' | 'model_answer' | 'degraded_fallback';
+export type SearchDegradedReason = 'model_timeout' | 'model_error';
+
 function usesMockHost(rawUrl: string): boolean {
   const candidate = rawUrl.trim();
   if (!candidate) {
@@ -30,6 +33,37 @@ function usesMockHost(rawUrl: string): boolean {
   } catch {
     return false;
   }
+}
+
+function parseSearchResultType(value: unknown): SearchResultType | undefined {
+  if (
+    value === 'deterministic'
+    || value === 'model_answer'
+    || value === 'degraded_fallback'
+  ) {
+    return value;
+  }
+
+  return undefined;
+}
+
+function parseSearchDegradedReason(value: unknown): SearchDegradedReason | undefined {
+  if (value === 'model_timeout' || value === 'model_error') {
+    return value;
+  }
+
+  return undefined;
+}
+
+function parseStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((item): item is string => typeof item === 'string')
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
 }
 
 export interface SemanticSearchRequest {
@@ -65,6 +99,12 @@ export interface SemanticSearchResponse {
   trace_id?: string;
   intent?: SemanticSearchIntent | null;
   subqueries?: string[];
+  answer_source?: string;
+  result_type?: SearchResultType;
+  degraded?: boolean;
+  degraded_reason?: SearchDegradedReason;
+  degraded_message?: string;
+  fallback_keywords?: string[];
 }
 
 export type SemanticSearchContext = Pick<
@@ -100,6 +140,8 @@ export const semanticSearchService = {
         source: 'crud',
         mode: requestedMode === 'intelligent' ? 'intelligent' : 'keyword',
         requested_mode: requestedMode,
+        result_type: 'deterministic',
+        degraded: false,
       };
     }
 
@@ -125,6 +167,7 @@ export const semanticSearchService = {
         }
 
         const mode = payload.mode === 'intelligent' ? 'intelligent' : 'keyword';
+        const fallbackKeywords = parseStringArray(payload.fallback_keywords);
         return {
           items: mapAcpProductsToUi(results),
           source: 'agent',
@@ -135,6 +178,13 @@ export const semanticSearchService = {
           subqueries: Array.isArray(payload.subqueries)
             ? payload.subqueries.filter((value: unknown): value is string => typeof value === 'string')
             : [],
+          answer_source: typeof payload.answer_source === 'string' ? payload.answer_source : undefined,
+          result_type: parseSearchResultType(payload.result_type),
+          degraded: payload.degraded === true,
+          degraded_reason: parseSearchDegradedReason(payload.degraded_reason),
+          degraded_message:
+            typeof payload.degraded_message === 'string' ? payload.degraded_message : undefined,
+          fallback_keywords: fallbackKeywords.length > 0 ? fallbackKeywords : undefined,
         };
       } catch (error) {
         console.error('Semantic search failed:', error);
@@ -154,6 +204,8 @@ export const semanticSearchService = {
             ? 'agent_mock'
             : 'agent_unavailable'
           : undefined,
+      result_type: 'deterministic',
+      degraded: false,
     };
   },
 };

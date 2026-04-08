@@ -6,7 +6,9 @@ import asyncio
 import json
 import logging
 import os
+import re
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from typing import Any
 from uuid import uuid4
 
@@ -27,7 +29,7 @@ try:
     from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
 except ImportError:
 
-    def load_prompt_instructions(*args: Any, **kwargs: Any) -> str:
+    def load_prompt_instructions(*_args: Any, **_kwargs: Any) -> str:
         return ""
 
 
@@ -41,19 +43,19 @@ try:
     )
 except ImportError:
 
-    def run_evaluation(*args: Any, **kwargs: Any) -> dict[str, float]:
-        return {}
+    def run_evaluation(*_args: Any, **_kwargs: Any) -> Any:
+        return SimpleNamespace(backend="disabled", status="skipped", metrics={}, details={})
 
-    def precision_at_k(*args: Any, **kwargs: Any) -> float:
+    def precision_at_k(*_args: Any, **_kwargs: Any) -> float:
         return 0.0
 
-    def mean_reciprocal_rank(*args: Any, **kwargs: Any) -> float:
+    def mean_reciprocal_rank(*_args: Any, **_kwargs: Any) -> float:
         return 0.0
 
-    def ndcg_at_k(*args: Any, **kwargs: Any) -> float:
+    def ndcg_at_k(*_args: Any, **_kwargs: Any) -> float:
         return 0.0
 
-    def intent_accuracy(*args: Any, **kwargs: Any) -> float:
+    def intent_accuracy(*_args: Any, **_kwargs: Any) -> float:
         return 0.0
 
 
@@ -65,6 +67,7 @@ from .adapters import (
 )
 from .ai_search import (
     AISearchDocumentResult,
+    ai_search_required_runtime_enabled,
     multi_query_search,
     search_catalog_skus_detailed,
 )
@@ -74,6 +77,65 @@ logger = logging.getLogger(__name__)
 
 HOT_HISTORY_MAX_ENTRIES = 20
 HOT_HISTORY_TTL_SECONDS = 3600
+INTENT_CONFIDENCE_THRESHOLD = 0.55
+GENERIC_KEYWORD_LIMIT = 8
+QUERY_EXPANSION_QUERY_LIMIT = 4
+DEGRADED_MODEL_FALLBACK_MESSAGE = (
+    "Showing the best available catalog guidance while intelligent generation "
+    "is temporarily unavailable."
+)
+
+_LEXICAL_TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
+
+GENERIC_KEYWORD_STOPWORDS = frozenset(
+    {
+        "a",
+        "an",
+        "and",
+        "are",
+        "be",
+        "best",
+        "by",
+        "for",
+        "from",
+        "how",
+        "i",
+        "in",
+        "is",
+        "it",
+        "me",
+        "my",
+        "of",
+        "on",
+        "or",
+        "please",
+        "recommend",
+        "show",
+        "suggest",
+        "that",
+        "the",
+        "to",
+        "what",
+        "which",
+        "with",
+        "you",
+        "your",
+    }
+)
+
+LEXICAL_CANONICAL_OVERRIDES: dict[str, str] = {
+    "bags": "bag",
+    "backpacks": "backpack",
+    "headphones": "headphone",
+    "laptops": "laptop",
+    "phones": "phone",
+    "shoes": "shoe",
+    "sneakers": "sneaker",
+    "watches": "watch",
+    "wearing": "wear",
+    "wears": "wear",
+    "wore": "wear",
+}
 
 
 class CatalogSearchAgent(BaseRetailAgent):
@@ -123,9 +185,9 @@ class CatalogSearchAgent(BaseRetailAgent):
 
     async def _classify_intent(self, query: str) -> IntentClassification:
         """Internal intent classification hook used by intelligent retrieval path."""
-        baseline = IntentClassification(intent="keyword_lookup", confidence=0.0, entities={})
+        fallback_intent = _deterministic_intent_policy(query)
         if not query.strip() or not (self.slm or self.llm):
-            return baseline
+            return fallback_intent
 
         messages = [
             {
@@ -142,19 +204,31 @@ class CatalogSearchAgent(BaseRetailAgent):
         ]
 
         try:
-            response = await self.invoke_model(
-                request={"query": query, "requires_multi_tool": True},
-                messages=messages,
+            response = await asyncio.wait_for(
+                self.invoke_model(
+                    request={"query": query, "requires_multi_tool": True},
+                    messages=messages,
+                ),
+                timeout=_resolve_timeout_seconds(
+                    "CATALOG_INTENT_MODEL_TIMEOUT_SECONDS",
+                    8.0,
+                ),
             )
             parsed = _parse_intent_response(response)
-            return parsed or baseline
-        except (RuntimeError, ValueError, TypeError, ValidationError):
+            return _merge_intent_with_fallback(parsed, fallback_intent, query)
+        except asyncio.TimeoutError:
+            logger.warning(
+                "catalog_intent_classification_timeout",
+                extra={"query_length": len(query)},
+            )
+            return fallback_intent
+        except Exception:  # pylint: disable=broad-exception-caught
             logger.warning(
                 "catalog_intent_classification_failed",
                 extra={"query_length": len(query)},
                 exc_info=True,
             )
-            return baseline
+            return fallback_intent
 
     def _build_sub_queries(self, query: str, intent: IntentClassification) -> list[str]:
         """Build unique sub-queries used for intelligent multi-query retrieval."""
@@ -211,7 +285,7 @@ class CatalogSearchAgent(BaseRetailAgent):
     async def handle(self, request: dict[str, Any]) -> dict[str, Any]:
         query = request.get("query", "")
         limit = int(request.get("limit", 5))
-        requested_mode = str(request.get("mode") or "keyword")
+        requested_mode = str(request.get("mode") or "intelligent")
         mode = normalize_search_mode(requested_mode)
         search_stage = _normalize_search_stage(request.get("search_stage"))
         user_id = _coerce_optional_str(request.get("user_id"))
@@ -281,7 +355,31 @@ class CatalogSearchAgent(BaseRetailAgent):
         )
         await _persist_search_history(self, namespace_context, history_record)
 
+        summary, recommendation = _build_catalog_fallback_answer(
+            query=str(query),
+            products=products,
+            intent=intent,
+        )
+
+        deterministic_response: dict[str, Any] = {
+            "service": self.service_name,
+            "query": query,
+            "mode": mode,
+            "requested_mode": requested_mode,
+            "search_stage": search_stage,
+            "session_id": namespace_context.session_id,
+            "results": acp_products,
+            "intent": intent.model_dump(mode="json") if intent is not None else None,
+            "summary": summary,
+            "recommendation": recommendation,
+            "answer_source": "agent_fallback",
+            "result_type": "deterministic",
+            "degraded": False,
+            "model_attempted": False,
+        }
+
         if self.slm or self.llm:
+            deterministic_response["model_attempted"] = True
             messages = [
                 {
                     "role": "system",
@@ -292,25 +390,69 @@ class CatalogSearchAgent(BaseRetailAgent):
                     "content": {
                         "query": query,
                         "results": acp_products,
+                        "fallback_summary": summary,
+                        "fallback_recommendation": recommendation,
                     },
                 },
             ]
-            model_response = await self.invoke_model(request=request, messages=messages)
-            model_response["requested_mode"] = requested_mode
-            model_response["search_stage"] = search_stage
-            model_response["session_id"] = namespace_context.session_id
-            return model_response
+            try:
+                model_response = await asyncio.wait_for(
+                    self.invoke_model(request=request, messages=messages),
+                    timeout=_resolve_timeout_seconds(
+                        "CATALOG_RESPONSE_MODEL_TIMEOUT_SECONDS",
+                        14.0,
+                    ),
+                )
+                model_response["requested_mode"] = requested_mode
+                model_response["search_stage"] = search_stage
+                model_response["session_id"] = namespace_context.session_id
+                model_response["answer_source"] = "agent_model"
+                model_response["result_type"] = "model_answer"
+                model_response["degraded"] = False
+                model_response["model_attempted"] = True
+                model_response["model_status"] = "success"
+                return model_response
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "catalog_search_model_response_timeout",
+                    extra={
+                        "query_length": len(str(query)),
+                        "mode": mode,
+                        "search_stage": search_stage,
+                    },
+                )
+                deterministic_response.update(
+                    {
+                        "result_type": "degraded_fallback",
+                        "degraded": True,
+                        "degraded_reason": "model_timeout",
+                        "degraded_message": DEGRADED_MODEL_FALLBACK_MESSAGE,
+                        "fallback_keywords": _build_fallback_keywords(str(query), intent),
+                        "model_status": "timeout",
+                    }
+                )
+            except Exception:  # pylint: disable=broad-exception-caught
+                logger.warning(
+                    "catalog_search_model_response_fallback",
+                    extra={
+                        "query_length": len(str(query)),
+                        "mode": mode,
+                        "search_stage": search_stage,
+                    },
+                    exc_info=True,
+                )
+                deterministic_response.update(
+                    {
+                        "result_type": "degraded_fallback",
+                        "degraded": True,
+                        "degraded_reason": "model_error",
+                        "degraded_message": DEGRADED_MODEL_FALLBACK_MESSAGE,
+                        "fallback_keywords": _build_fallback_keywords(str(query), intent),
+                        "model_status": "error",
+                    }
+                )
 
-        return {
-            "service": self.service_name,
-            "query": query,
-            "mode": mode,
-            "requested_mode": requested_mode,
-            "search_stage": search_stage,
-            "session_id": namespace_context.session_id,
-            "results": acp_products,
-            "intent": intent.model_dump(mode="json") if intent is not None else None,
-        }
+        return deterministic_response
 
 
 def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
@@ -320,7 +462,7 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
     async def search_catalog(payload: dict[str, Any]) -> dict[str, Any]:
         query = payload.get("query", "")
         limit = int(payload.get("limit", 5))
-        mode = normalize_search_mode(str(payload.get("mode") or "keyword"))
+        mode = normalize_search_mode(str(payload.get("mode") or "intelligent"))
         filters = payload.get("filters")
         filter_payload = filters if isinstance(filters, dict) else None
 
@@ -357,7 +499,7 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
             intent = await agent.classify_intent(query)
             complexity = agent.assess_complexity(query)
         else:
-            intent = IntentClassification(intent="keyword_lookup", confidence=0.0, entities={})
+            intent = _deterministic_intent_policy(query)
             complexity = 0.0
         return {
             "query": query,
@@ -400,6 +542,324 @@ def _coerce_query_to_sku(query: str) -> str:
     return f"SKU-{abs(hash(query)) % 1000}"
 
 
+def _tokenize_lexical_terms(value: str) -> set[str]:
+    raw_tokens = set(_LEXICAL_TOKEN_PATTERN.findall(value.lower()))
+    expanded_tokens = set(raw_tokens)
+    for token in raw_tokens:
+        normalized = _normalize_lexical_token(token)
+        if normalized:
+            expanded_tokens.add(normalized)
+    return expanded_tokens
+
+
+def _normalize_lexical_token(token: str) -> str:
+    normalized = LEXICAL_CANONICAL_OVERRIDES.get(token, token)
+
+    if normalized.endswith("ies") and len(normalized) > 4:
+        normalized = f"{normalized[:-3]}y"
+    elif normalized.endswith("ing") and len(normalized) > 5:
+        normalized = normalized[:-3]
+    elif normalized.endswith("ed") and len(normalized) > 4:
+        normalized = normalized[:-2]
+    elif normalized.endswith("es") and len(normalized) > 4:
+        normalized = normalized[:-2]
+    elif normalized.endswith("s") and len(normalized) > 3:
+        normalized = normalized[:-1]
+
+    return LEXICAL_CANONICAL_OVERRIDES.get(normalized, normalized)
+
+
+def _coerce_keyword_list(raw_keywords: Any) -> list[str]:
+    if isinstance(raw_keywords, str):
+        value = raw_keywords.strip()
+        return [value] if value else []
+
+    if not isinstance(raw_keywords, list):
+        return []
+
+    return [item.strip() for item in raw_keywords if isinstance(item, str) and item.strip()]
+
+
+def _build_fallback_keywords(
+    query: str,
+    intent: IntentClassification | None,
+) -> list[str]:
+    raw_keywords: list[str] = []
+
+    if intent is not None and isinstance(intent.entities, dict):
+        raw_keywords.extend(_coerce_keyword_list(intent.entities.get("keywords")))
+
+    raw_keywords.extend(_LEXICAL_TOKEN_PATTERN.findall(query.lower()))
+
+    deduplicated: list[str] = []
+    seen_keywords: set[str] = set()
+    for keyword in raw_keywords:
+        value = keyword.strip()
+        if not value:
+            continue
+
+        normalized = value.lower()
+        if normalized in seen_keywords:
+            continue
+
+        seen_keywords.add(normalized)
+        deduplicated.append(value)
+        if len(deduplicated) >= GENERIC_KEYWORD_LIMIT:
+            break
+
+    return deduplicated
+
+
+def _deterministic_intent_policy(query: str) -> IntentClassification:
+    normalized_query = query.strip()
+    if not normalized_query:
+        return IntentClassification(
+            intent="keyword_lookup",
+            queryType="simple",
+            useCase="product discovery",
+            confidence=0.0,
+            entities={},
+            reasoning="Empty query defaults to generic keyword lookup.",
+        )
+
+    tokens = _tokenize_lexical_terms(normalized_query)
+    keywords = _extract_generic_keywords(tokens)
+    query_type = "complex" if _is_complex_query(normalized_query, tokens) else "simple"
+    intent_name = "semantic_search" if query_type == "complex" else "keyword_lookup"
+    confidence = 0.72 if intent_name == "semantic_search" else 0.56
+
+    return IntentClassification(
+        intent=intent_name,
+        queryType=query_type,
+        useCase="product discovery",
+        confidence=confidence,
+        entities={"keywords": keywords},
+        reasoning="Generic deterministic fallback derived from query complexity and keywords.",
+    )
+
+
+def _is_sku_like_query(query: str) -> bool:
+    normalized = query.strip()
+    if not normalized:
+        return False
+    return normalized.upper().startswith("SKU-") or normalized.replace("-", "").isalnum()
+
+
+def _is_complex_query(query: str, tokens: set[str]) -> bool:
+    complexity_hints = {
+        "alternative",
+        "alternatives",
+        "best",
+        "compare",
+        "difference",
+        "recommend",
+        "under",
+        "versus",
+        "vs",
+    }
+    return len(tokens) >= 7 or "?" in query or bool(tokens & complexity_hints)
+
+
+def _dedupe_keywords(raw_keywords: list[str]) -> list[str]:
+    deduplicated: list[str] = []
+    seen: set[str] = set()
+    for keyword in raw_keywords:
+        normalized = keyword.strip().lower()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        deduplicated.append(normalized)
+        if len(deduplicated) >= GENERIC_KEYWORD_LIMIT:
+            break
+    return deduplicated
+
+
+def _extract_generic_keywords(tokens: set[str]) -> list[str]:
+    candidate_keywords = [
+        token
+        for token in sorted(tokens)
+        if len(token) >= 3 and token not in GENERIC_KEYWORD_STOPWORDS
+    ]
+    return _dedupe_keywords(candidate_keywords)
+
+
+def _merge_intent_with_fallback(
+    parsed_intent: IntentClassification | None,
+    fallback_intent: IntentClassification,
+    query: str,
+) -> IntentClassification:
+    if parsed_intent is None:
+        return fallback_intent
+
+    resolved_intent = parsed_intent.model_copy(deep=True)
+    fallback_entities = (
+        dict(fallback_intent.entities) if isinstance(fallback_intent.entities, dict) else {}
+    )
+    resolved_entities = (
+        dict(resolved_intent.entities) if isinstance(resolved_intent.entities, dict) else {}
+    )
+
+    if not resolved_intent.intent:
+        resolved_intent.intent = fallback_intent.intent
+    if resolved_intent.query_type is None:
+        resolved_intent.query_type = fallback_intent.query_type
+    if not resolved_intent.use_case:
+        resolved_intent.use_case = fallback_intent.use_case
+    if not resolved_intent.category and fallback_intent.category:
+        resolved_intent.category = fallback_intent.category
+    if not resolved_intent.brand and fallback_intent.brand:
+        resolved_intent.brand = fallback_intent.brand
+
+    parsed_keywords = _coerce_keyword_list(resolved_entities.get("keywords"))
+    fallback_keywords = _coerce_keyword_list(fallback_entities.get("keywords"))
+    if not parsed_keywords:
+        parsed_keywords = _extract_generic_keywords(_tokenize_lexical_terms(query))
+
+    merged_keywords = _dedupe_keywords(parsed_keywords + fallback_keywords)
+    if merged_keywords:
+        resolved_entities["keywords"] = merged_keywords
+
+    resolved_intent.entities = resolved_entities
+
+    if (
+        resolved_intent.confidence < 0.25
+        and fallback_intent.confidence >= resolved_intent.confidence
+    ):
+        return fallback_intent
+
+    return resolved_intent
+
+
+def _should_run_semantic_pass(intent: IntentClassification | None) -> bool:
+    if intent is None:
+        return False
+    intent_name = str(intent.intent or "").lower()
+    return intent_name != "keyword_lookup" and intent.confidence >= INTENT_CONFIDENCE_THRESHOLD
+
+
+def _product_search_text(product: CatalogProduct) -> str:
+    values: list[str] = [
+        product.name,
+        product.description or "",
+        product.category or "",
+        product.brand or "",
+        *[tag for tag in product.tags if isinstance(tag, str)],
+    ]
+    for value in product.attributes.values():
+        if isinstance(value, str):
+            values.append(value)
+        elif isinstance(value, list):
+            values.extend(str(item) for item in value if isinstance(item, (str, int, float)))
+    return " ".join(values).lower()
+
+
+def _rank_products_by_query_relevance(
+    *,
+    query: str,
+    products: list[CatalogProduct],
+    limit: int,
+) -> list[CatalogProduct]:
+    if limit <= 0:
+        return []
+
+    query_tokens = _tokenize_lexical_terms(query)
+    ranked_entries: dict[str, tuple[CatalogProduct, int, int]] = {}
+    for index, product in enumerate(products):
+        product_tokens = _tokenize_lexical_terms(_product_search_text(product))
+        overlap_score = len(query_tokens & product_tokens)
+        existing = ranked_entries.get(product.sku)
+        if existing is None or overlap_score > existing[1]:
+            ranked_entries[product.sku] = (product, overlap_score, index)
+
+    ranked = sorted(
+        ranked_entries.values(),
+        key=lambda entry: (-entry[1], entry[2], entry[0].sku),
+    )
+    return [entry[0] for entry in ranked[:limit]]
+
+
+async def _expand_products_with_sub_queries(
+    *,
+    adapters: CatalogAdapters,
+    query: str,
+    baseline_products: list[CatalogProduct],
+    sub_queries: list[str],
+    limit: int,
+) -> list[CatalogProduct]:
+    if limit <= 0:
+        return []
+
+    expansion_queries: list[str] = []
+    seen_queries: set[str] = {query.strip().lower()}
+    for candidate in sub_queries:
+        normalized = candidate.strip().lower()
+        if not normalized or normalized in seen_queries:
+            continue
+        seen_queries.add(normalized)
+        expansion_queries.append(candidate.strip())
+        if len(expansion_queries) >= QUERY_EXPANSION_QUERY_LIMIT:
+            break
+
+    if not expansion_queries:
+        return baseline_products[:limit]
+
+    expanded_batches = await asyncio.gather(
+        *[
+            _search_products_keyword(
+                adapters,
+                query=expanded_query,
+                limit=limit,
+            )
+            for expanded_query in expansion_queries
+        ],
+        return_exceptions=True,
+    )
+
+    expanded_products = list(baseline_products)
+    for batch in expanded_batches:
+        if isinstance(batch, list):
+            expanded_products.extend(
+                product for product in batch if isinstance(product, CatalogProduct)
+            )
+
+    return _rank_products_by_query_relevance(
+        query=query,
+        products=expanded_products,
+        limit=limit,
+    )
+
+
+async def _search_products_text_fallback(
+    adapters: CatalogAdapters,
+    *,
+    query: str,
+    limit: int,
+) -> list[CatalogProduct]:
+    search = getattr(adapters.products, "search", None)
+    if search is None or not query.strip() or limit <= 0:
+        return []
+
+    try:
+        try:
+            result = search(query=query, limit=limit)
+        except TypeError:
+            result = search(query, limit=limit)
+
+        if hasattr(result, "__await__"):
+            result = await result
+    except Exception:  # pylint: disable=broad-exception-caught
+        logger.warning(
+            "catalog_search_text_fallback_error",
+            extra={"query_length": len(query), "limit": limit},
+            exc_info=True,
+        )
+        return []
+
+    if not isinstance(result, list):
+        return []
+    return [product for product in result if isinstance(product, CatalogProduct)][:limit]
+
+
 async def _search_products(
     agent: CatalogSearchAgent | None,
     adapters: CatalogAdapters,
@@ -419,7 +879,7 @@ async def _search_products(
         )
 
     products = await _search_products_keyword(adapters, query=query, limit=limit)
-    return products, {}, None
+    return products, {}, _deterministic_intent_policy(query)
 
 
 async def _search_products_keyword(
@@ -430,9 +890,11 @@ async def _search_products_keyword(
 ) -> list[CatalogProduct]:
     ai_search_result = await search_catalog_skus_detailed(query=query, limit=limit)
     ai_search_skus = ai_search_result.skus
+    strict_mode = ai_search_required_runtime_enabled()
     if ai_search_skus:
         resolved_products = await asyncio.gather(
-            *[adapters.products.get_product(sku) for sku in ai_search_skus]
+            *[adapters.products.get_product(sku) for sku in ai_search_skus],
+            return_exceptions=False,
         )
         ai_search_products = [product for product in resolved_products if product is not None]
         if ai_search_products:
@@ -447,6 +909,26 @@ async def _search_products_keyword(
                 "limit": limit,
             },
         )
+
+    if strict_mode and ai_search_result.fallback_reason is not None:
+        logger.warning(
+            "catalog_search_strict_mode_blocked_fallback",
+            extra={
+                "fallback_reason": ai_search_result.fallback_reason,
+                "query_length": len(query),
+                "limit": limit,
+            },
+        )
+        return []
+
+    if not _is_sku_like_query(query):
+        text_fallback_products = await _search_products_text_fallback(
+            adapters,
+            query=query,
+            limit=limit,
+        )
+        if text_fallback_products:
+            return text_fallback_products
 
     primary_sku = _coerce_query_to_sku(query)
     primary = await adapters.products.get_product(primary_sku)
@@ -463,29 +945,25 @@ async def _search_products_intelligent(
     limit: int,
     filters: dict[str, Any] | None,
 ) -> tuple[list[CatalogProduct], dict[str, dict[str, Any]], IntentClassification | None]:
-    if agent is None:
-        products = await _search_products_keyword(adapters, query=query, limit=limit)
-        return products, {}, None
+    baseline_products = await _search_products_keyword(adapters, query=query, limit=limit)
+    fallback_intent = _deterministic_intent_policy(query)
 
-    complexity = agent.assess_complexity(query)
-    if complexity < agent.complexity_threshold:
-        products = await _search_products_keyword(adapters, query=query, limit=limit)
-        return (
-            products,
-            {},
-            IntentClassification(
-                intent="keyword_lookup",
-                confidence=1.0,
-                entities={"reason": "low_complexity"},
-            ),
-        )
+    if agent is None:
+        return baseline_products, {}, fallback_intent
 
     intent = await agent.classify_intent(query)
-    if intent.confidence < 0.6:
-        products = await _search_products_keyword(adapters, query=query, limit=limit)
-        return products, {}, intent
-
     sub_queries = agent.build_sub_queries(query=query, intent=intent)
+
+    if not _should_run_semantic_pass(intent):
+        expanded_products = await _expand_products_with_sub_queries(
+            adapters=adapters,
+            query=query,
+            baseline_products=baseline_products,
+            sub_queries=sub_queries,
+            limit=limit,
+        )
+        return expanded_products, {}, intent
+
     ranked_batches = [
         await multi_query_search(sub_queries=sub_queries, filters=filters, top_k=limit)
     ]
@@ -498,14 +976,44 @@ async def _search_products_intelligent(
     if intelligent_products:
         return intelligent_products, enrichment_by_sku, intent
 
-    products = await _search_products_keyword(adapters, query=query, limit=limit)
-    return products, {}, intent
+    expanded_products = await _expand_products_with_sub_queries(
+        adapters=adapters,
+        query=query,
+        baseline_products=baseline_products,
+        sub_queries=sub_queries,
+        limit=limit,
+    )
+    return expanded_products, {}, intent
 
 
 def _build_sub_queries(query: str, intent: IntentClassification) -> list[str]:
     sub_queries = [query.strip()] if query.strip() else []
+
+    if intent.use_case:
+        sub_queries.append(intent.use_case)
+    if intent.category:
+        sub_queries.append(intent.category)
+    if intent.brand:
+        sub_queries.append(intent.brand)
+    sub_queries.extend(
+        item.strip() for item in intent.sub_queries if isinstance(item, str) and item.strip()
+    )
+    sub_queries.extend(
+        item.strip() for item in intent.attributes if isinstance(item, str) and item.strip()
+    )
+
     entities = intent.entities if isinstance(intent.entities, dict) else {}
-    for key in ("category", "brand", "use_case", "features", "keywords"):
+    for key in (
+        "category",
+        "brand",
+        "use_case",
+        "useCase",
+        "features",
+        "keywords",
+        "sub_queries",
+        "subQueries",
+        "attributes",
+    ):
         value = entities.get(key)
         if isinstance(value, str) and value.strip():
             sub_queries.append(value.strip())
@@ -513,6 +1021,10 @@ def _build_sub_queries(query: str, intent: IntentClassification) -> list[str]:
             sub_queries.extend(
                 item.strip() for item in value if isinstance(item, str) and item.strip()
             )
+
+    if len(sub_queries) <= 1:
+        sub_queries.extend(_extract_generic_keywords(_tokenize_lexical_terms(query)))
+
     unique: list[str] = []
     seen: set[str] = set()
     for candidate in sub_queries:
@@ -576,7 +1088,8 @@ async def _resolve_availability(
     adapters: CatalogAdapters, products: list[CatalogProduct]
 ) -> list[str]:
     inventory = await asyncio.gather(
-        *[adapters.inventory.get_item(product.sku) for product in products]
+        *[adapters.inventory.get_item(product.sku) for product in products],
+        return_exceptions=False,
     )
     availability: list[str] = []
     for item in inventory:
@@ -606,6 +1119,63 @@ def _coerce_optional_str(raw_value: Any) -> str | None:
         return None
     value = str(raw_value).strip()
     return value or None
+
+
+def _resolve_timeout_seconds(environment_variable: str, default_seconds: float) -> float:
+    raw_value = os.getenv(environment_variable)
+    if raw_value is None:
+        return default_seconds
+
+    try:
+        resolved = float(raw_value)
+    except (TypeError, ValueError):
+        return default_seconds
+
+    return resolved if resolved > 0 else default_seconds
+
+
+def _build_catalog_fallback_answer(
+    *,
+    query: str,
+    products: list[CatalogProduct],
+    intent: IntentClassification | None,
+) -> tuple[str, str]:
+    normalized_query = query.strip()
+
+    if not products:
+        entities = (
+            intent.entities if intent is not None and isinstance(intent.entities, dict) else {}
+        )
+        keywords = _coerce_keyword_list(entities.get("keywords"))
+        keyword_hint = ", ".join(keywords[:4])
+        if keyword_hint:
+            return (
+                "No exact products were returned in time.",
+                (
+                    f"For '{normalized_query}', try narrowing by terms like {keyword_hint}, "
+                    "or add a brand, budget, or must-have feature."
+                ),
+            )
+
+        return (
+            "No catalog matches were available in time.",
+            "Try refining your query with product type, brand, budget, and key features.",
+        )
+
+    highlighted = ", ".join(product.name for product in products[:3])
+    if intent is not None and _should_run_semantic_pass(intent):
+        return (
+            "Recommended products were selected using semantic and keyword retrieval.",
+            (
+                f"Top options are {highlighted}. Add constraints like budget, brand, "
+                "or feature preferences to refine further."
+            ),
+        )
+
+    return (
+        "Recommended products were selected from your request.",
+        f"Best matches are {highlighted}. Refine with additional details for tighter ranking.",
+    )
 
 
 def _coerce_optional_string_list(raw_value: Any) -> list[str] | None:

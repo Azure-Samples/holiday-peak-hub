@@ -1,8 +1,8 @@
 ---
-title: "Platform: Quality Evaluation"
-description: "Comprehensive platform quality audit delegating to specialist agents for best practices, architecture, and compliance checks."
+name: "Platform: Quality Evaluation"
+description: "Comprehensive platform quality audit delegating to specialist agents for best practices, architecture, and compliance checks, then issue generation via issue-engineering-workflows."
 agent: "TechLeadOrchestrator"
-input: "Specify the project or repository to evaluate. Optionally narrow scope to specific areas (CI/CD, dependencies, architecture, code quality)."
+argument-hint: "Specify the project or repository to evaluate. Optionally narrow scope to specific areas (CI/CD, dependencies, architecture, code quality)."
 ---
 
 Conduct a full platform quality evaluation by delegating to specialist agents:
@@ -33,5 +33,7 @@ Conduct a full platform quality evaluation by delegating to specialist agents:
    - Category scores (pass/partial/fail) with evidence
    - Prioritized remediation backlog (critical → low)
    - Comparison with previous evaluation if available
+6. **Issue Handoff** — For the top remediation items, load `.github/skills/issue-engineering-workflows/SKILL.md` and create issues using the top-risk or issue-improvement templates.
 
 Deliver a quality report with per-category scores, top 10 remediation items, and trend indicators.
+

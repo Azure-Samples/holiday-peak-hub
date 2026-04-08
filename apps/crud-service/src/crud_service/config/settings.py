@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 from typing import List, Literal
+from urllib.parse import quote
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -91,6 +92,11 @@ class Settings(BaseSettings):
     redis_port: int = Field(default=6380, description="Redis port (SSL)")
     redis_db: int = Field(default=0, description="Redis database number")
     redis_ssl: bool = Field(default=True, description="Use SSL for Redis")
+    redis_password: str | None = Field(default=None, description="Redis password")
+    redis_password_secret_name: str = Field(
+        default="redis-primary-key",
+        description="Key Vault secret name for Redis password",
+    )
 
     # Authentication (Microsoft Entra ID) - secrets loaded from Key Vault
     entra_tenant_id: str | None = Field(default=None, description="Entra ID tenant ID")
@@ -210,7 +216,12 @@ class Settings(BaseSettings):
     def redis_url(self) -> str:
         """Construct Redis URL."""
         protocol = "rediss" if self.redis_ssl else "redis"
-        return f"{protocol}://{self.redis_host}:{self.redis_port}/{self.redis_db}"
+        auth_segment = ""
+        if self.redis_password:
+            encoded_password = quote(self.redis_password, safe="")
+            auth_segment = f":{encoded_password}@"
+
+        return f"{protocol}://{auth_segment}{self.redis_host}:" f"{self.redis_port}/{self.redis_db}"
 
     @property
     def postgres_dsn(self) -> str:

@@ -434,6 +434,20 @@ class FoundryTracer:
             self._counts.clear()
             self._latest_evaluation = None
 
+    def set_enabled(self, enabled: bool) -> None:
+        """Enable or disable tracing at runtime.
+
+        Disabling turns trace/metric collection into a no-op. Re-enabling will
+        attempt Foundry/Azure Monitor instrumentation if configured.
+        """
+        resolved_enabled = bool(enabled)
+        if self.enabled == resolved_enabled:
+            return
+
+        self.enabled = resolved_enabled
+        if self.enabled:
+            self._initialize_foundry_instrumentation()
+
 
 _TRACERS: dict[str, FoundryTracer] = {}
 _TRACERS_LOCK = Lock()
@@ -441,13 +455,24 @@ _METER_INSTRUMENT_CACHE: WeakKeyDictionary[Any, dict[str, Any]] = WeakKeyDiction
 _METER_INSTRUMENT_CACHE_BY_ID: dict[int, dict[str, Any]] = {}
 
 
-def get_foundry_tracer(service_name: str) -> FoundryTracer:
-    """Return a service-scoped :class:`FoundryTracer` singleton."""
+def get_foundry_tracer(service_name: str, *, enabled: bool | None = None) -> FoundryTracer:
+    """Return a service-scoped :class:`FoundryTracer` singleton.
+
+    Args:
+        service_name: Logical service name.
+        enabled: Optional runtime override to force-enable/disable tracing for
+            the returned singleton.
+    """
     with _TRACERS_LOCK:
         tracer = _TRACERS.get(service_name)
         if tracer is None:
-            tracer = FoundryTracer(service_name)
+            tracer = FoundryTracer(
+                service_name,
+                enabled=enabled,
+            )
             _TRACERS[service_name] = tracer
+        elif enabled is not None:
+            tracer.set_enabled(enabled)
         return tracer
 
 

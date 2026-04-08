@@ -12,6 +12,8 @@ from holiday_peak_lib.agents.memory.warm import WarmMemory
 from holiday_peak_lib.app_factory import build_service_app
 from holiday_peak_lib.connectors.registry import ConnectorRegistry
 
+TEST_PROJECT_ENDPOINT = "https://test.services.ai.azure.com/api/projects/test-project"
+
 
 class SampleServiceAgent(BaseRetailAgent):
     """Test agent for app factory."""
@@ -56,7 +58,7 @@ class TestBuildServiceApp:
     ):
         """Test building app with minimal configuration."""
         # Mock the foundry config builder
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-fast-123")
         monkeypatch.setenv("MODEL_DEPLOYMENT_NAME_FAST", "gpt-4o-mini")
 
@@ -71,6 +73,161 @@ class TestBuildServiceApp:
         assert isinstance(app, FastAPI)
         assert app.title == "test-service"
 
+    def test_build_app_fails_closed_for_pending_foundry_runtime_targets_when_required(
+        self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
+    ):
+        """Test unresolved Foundry runtime defs fail closed when readiness is required."""
+
+        class ModelAwareAgent(BaseRetailAgent):
+            async def handle(self, request: dict) -> dict:
+                return {"model_wired": bool(self.slm or self.llm)}
+
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
+        monkeypatch.delenv("FOUNDRY_AGENT_ID_FAST", raising=False)
+        monkeypatch.delenv("FOUNDRY_AGENT_ID_RICH", raising=False)
+        monkeypatch.delenv("FOUNDRY_AGENT_NAME_FAST", raising=False)
+        monkeypatch.delenv("FOUNDRY_AGENT_NAME_RICH", raising=False)
+        monkeypatch.setenv("FOUNDRY_AUTO_ENSURE_ON_STARTUP", "false")
+        monkeypatch.setenv("FOUNDRY_STRICT_ENFORCEMENT", "true")
+
+        app = build_service_app(
+            service_name="test-service",
+            agent_class=ModelAwareAgent,
+            hot_memory=mock_hot_memory,
+            warm_memory=mock_warm_memory,
+            cold_memory=mock_cold_memory,
+            require_foundry_readiness=True,
+        )
+
+        client = TestClient(app)
+        with patch("holiday_peak_lib.app_factory.ensure_foundry_agent") as mock_ensure:
+            mock_ensure.return_value = {
+                "status": "missing",
+                "agent_id": None,
+                "agent_name": "test-service-fast",
+                "created": False,
+            }
+            response = client.post("/invoke", json={"query": "test"})
+
+        assert response.status_code == 503
+
+        ready_response = client.get("/ready")
+        assert ready_response.status_code == 503
+        foundry_detail = ready_response.json()["detail"]["foundry"]
+        assert foundry_detail["configured_roles"] == ["fast", "rich"]
+        assert foundry_detail["resolved_roles"] == []
+        assert foundry_detail["unresolved_roles"] == ["fast", "rich"]
+        assert foundry_detail["last_error"]["status"] == "missing"
+        assert foundry_detail["last_error"]["role"] == "fast"
+
+    def test_build_app_skips_name_only_foundry_runtime_targets(
+        self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
+    ):
+        """Test optional name-only Foundry config still allows fallback invoke paths."""
+
+        class ModelAwareAgent(BaseRetailAgent):
+            async def handle(self, request: dict) -> dict:
+                return {"model_wired": bool(self.slm or self.llm)}
+
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
+        monkeypatch.delenv("FOUNDRY_AGENT_ID_FAST", raising=False)
+        monkeypatch.delenv("FOUNDRY_AGENT_ID_RICH", raising=False)
+        monkeypatch.setenv("FOUNDRY_AGENT_NAME_FAST", "catalog-fast")
+        monkeypatch.delenv("FOUNDRY_AGENT_NAME_RICH", raising=False)
+        monkeypatch.setenv("FOUNDRY_AUTO_ENSURE_ON_STARTUP", "false")
+
+        app = build_service_app(
+            service_name="test-service",
+            agent_class=ModelAwareAgent,
+            hot_memory=mock_hot_memory,
+            warm_memory=mock_warm_memory,
+            cold_memory=mock_cold_memory,
+        )
+
+        client = TestClient(app)
+        with patch("holiday_peak_lib.app_factory.ensure_foundry_agent") as mock_ensure:
+            mock_ensure.return_value = {
+                "status": "missing",
+                "agent_id": None,
+                "agent_name": "catalog-fast",
+                "created": False,
+            }
+            response = client.post("/invoke", json={"query": "test"})
+
+        assert response.status_code == 200
+        assert response.json()["model_wired"] is False
+
+    def test_invoke_auto_ensures_pending_foundry_runtime_targets(
+        self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
+    ):
+        """Test invoke auto-ensures missing Foundry runtime ids before processing."""
+
+        class RuntimeEnsureAgent(BaseRetailAgent):
+            async def handle(self, request: dict) -> dict:
+                return await self.invoke_model(
+                    request=request,
+                    messages=[{"role": "user", "content": str(request.get("query", ""))}],
+                )
+
+        async def _mock_invoker(**_kwargs):
+            return {"response": "resolved"}
+
+        from holiday_peak_lib.agents.base_agent import ModelTarget
+
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
+        monkeypatch.delenv("FOUNDRY_AGENT_ID_FAST", raising=False)
+        monkeypatch.delenv("FOUNDRY_AGENT_ID_RICH", raising=False)
+        monkeypatch.delenv("FOUNDRY_AGENT_NAME_FAST", raising=False)
+        monkeypatch.delenv("FOUNDRY_AGENT_NAME_RICH", raising=False)
+        monkeypatch.setenv("FOUNDRY_AUTO_ENSURE_ON_STARTUP", "false")
+
+        with patch("holiday_peak_lib.app_factory.ensure_foundry_agent") as mock_ensure:
+            mock_ensure.side_effect = [
+                {
+                    "status": "exists",
+                    "agent_id": "agent-fast-123",
+                    "agent_name": "test-service-fast",
+                    "created": False,
+                },
+                {
+                    "status": "exists",
+                    "agent_id": "agent-rich-456",
+                    "agent_name": "test-service-rich",
+                    "created": False,
+                },
+            ]
+
+            with patch("holiday_peak_lib.app_factory.build_foundry_model_target") as mock_target:
+                mock_target.side_effect = [
+                    ModelTarget(
+                        name="slm",
+                        model="gpt-5-nano",
+                        invoker=_mock_invoker,
+                        provider="foundry",
+                    ),
+                    ModelTarget(
+                        name="llm",
+                        model="gpt-5",
+                        invoker=_mock_invoker,
+                        provider="foundry",
+                    ),
+                ]
+
+                app = build_service_app(
+                    service_name="test-service",
+                    agent_class=RuntimeEnsureAgent,
+                    hot_memory=mock_hot_memory,
+                    warm_memory=mock_warm_memory,
+                    cold_memory=mock_cold_memory,
+                )
+
+                client = TestClient(app)
+                response = client.post("/invoke", json={"query": "test"})
+
+        assert response.status_code == 200
+        assert response.json()["response"] == "resolved"
+        assert mock_ensure.call_count == 2
+
     def test_build_app_with_custom_config(
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory
     ):
@@ -81,7 +238,7 @@ class TestBuildServiceApp:
             return {"response": "test"}
 
         slm_config = FoundryAgentConfig(
-            endpoint="https://test.endpoint.com",
+            endpoint=TEST_PROJECT_ENDPOINT,
             agent_id="slm-agent-123",
             deployment_name="gpt-4o-mini",
         )
@@ -108,7 +265,7 @@ class TestBuildServiceApp:
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
         """Test health endpoint."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-123")
 
         app = build_service_app(
@@ -130,7 +287,7 @@ class TestBuildServiceApp:
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
         """Test correlation ID is propagated to response headers."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-123")
 
         app = build_service_app(
@@ -152,7 +309,7 @@ class TestBuildServiceApp:
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
         """Test invoke endpoint."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-123")
 
         app = build_service_app(
@@ -174,7 +331,7 @@ class TestBuildServiceApp:
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
         """Test app with MCP setup callback."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-123")
 
         setup_called = {"value": False}
@@ -200,7 +357,7 @@ class TestBuildServiceApp:
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
         """Test that required routes are registered."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-123")
 
         app = build_service_app(
@@ -223,7 +380,7 @@ class TestBuildServiceApp:
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
         """Test route handlers can reuse the exact built agent instance via app.state."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-123")
 
         app = build_service_app(
@@ -241,7 +398,7 @@ class TestBuildServiceApp:
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
         """Test connector registry is attached to app state and used by endpoints."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-123")
 
         registry = ConnectorRegistry()
@@ -271,7 +428,7 @@ class TestBuildServiceApp:
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
         """Test service exposes endpoint to ensure/create Foundry agents."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-fast-123")
         monkeypatch.setenv("MODEL_DEPLOYMENT_NAME_FAST", "gpt-4o-mini")
 
@@ -305,7 +462,7 @@ class TestBuildServiceApp:
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
         """Test ensure endpoint passes structured defaults when request has no instructions."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-fast-123")
 
         app = build_service_app(
@@ -343,7 +500,7 @@ class TestBuildServiceApp:
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
         """Test request instruction override is blocked unless explicitly enabled."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-fast-123")
         monkeypatch.delenv("FOUNDRY_ALLOW_INSTRUCTION_OVERRIDE", raising=False)
 
@@ -372,7 +529,7 @@ class TestBuildServiceApp:
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
         """Test request instructions override defaults when explicitly enabled."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-fast-123")
         monkeypatch.setenv("FOUNDRY_ALLOW_INSTRUCTION_OVERRIDE", "true")
 
@@ -414,7 +571,7 @@ class TestBuildServiceApp:
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
         """Test /ready returns 200 when strict enforcement is not enabled."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-123")
         monkeypatch.delenv("FOUNDRY_STRICT_ENFORCEMENT", raising=False)
 
@@ -433,15 +590,102 @@ class TestBuildServiceApp:
         assert data["status"] == "ready"
         assert data["service"] == "test-service"
         assert data["foundry_ready"] is True
+        assert data["foundry_required"] is False
+        assert data["foundry"]["resolved_roles"] == ["fast"]
+        assert data["foundry"]["unresolved_roles"] == ["rich"]
+
+    def test_ready_endpoint_returns_ok_when_foundry_missing_and_not_required(
+        self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
+    ):
+        """Test /ready remains healthy when Foundry is not configured and not required."""
+        monkeypatch.delenv("PROJECT_ENDPOINT", raising=False)
+        monkeypatch.delenv("FOUNDRY_ENDPOINT", raising=False)
+        monkeypatch.delenv("FOUNDRY_AGENT_ID_FAST", raising=False)
+        monkeypatch.delenv("FOUNDRY_AGENT_ID_RICH", raising=False)
+        monkeypatch.delenv("FOUNDRY_STRICT_ENFORCEMENT", raising=False)
+
+        app = build_service_app(
+            service_name="test-service",
+            agent_class=SampleServiceAgent,
+            hot_memory=mock_hot_memory,
+            warm_memory=mock_warm_memory,
+            cold_memory=mock_cold_memory,
+        )
+        client = TestClient(app)
+        response = client.get("/ready")
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["status"] == "ready"
+        assert payload["service"] == "test-service"
+        assert payload["foundry_ready"] is False
+        assert payload["foundry_required"] is False
+
+    def test_ready_endpoint_returns_503_when_foundry_required_and_missing(
+        self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
+    ):
+        """Test /ready fails when service explicitly requires Foundry readiness."""
+        monkeypatch.delenv("PROJECT_ENDPOINT", raising=False)
+        monkeypatch.delenv("FOUNDRY_ENDPOINT", raising=False)
+        monkeypatch.delenv("FOUNDRY_AGENT_ID_FAST", raising=False)
+        monkeypatch.delenv("FOUNDRY_AGENT_ID_RICH", raising=False)
+        monkeypatch.delenv("FOUNDRY_STRICT_ENFORCEMENT", raising=False)
+
+        app = build_service_app(
+            service_name="test-service",
+            agent_class=SampleServiceAgent,
+            hot_memory=mock_hot_memory,
+            warm_memory=mock_warm_memory,
+            cold_memory=mock_cold_memory,
+            require_foundry_readiness=True,
+        )
+        client = TestClient(app)
+        response = client.get("/ready")
+
+        assert response.status_code == 503
+        detail = response.json()["detail"]
+        assert detail["status"] == "not_ready"
+        assert detail["service"] == "test-service"
 
     def test_ready_endpoint_returns_503_when_strict_and_not_ready(
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
         """Test /ready returns 503 when strict mode active and agents not ensured."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
-        monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-123")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
+        monkeypatch.delenv("FOUNDRY_AGENT_ID_FAST", raising=False)
+        monkeypatch.delenv("FOUNDRY_AGENT_ID_RICH", raising=False)
         monkeypatch.setenv("FOUNDRY_STRICT_ENFORCEMENT", "true")
         # Disable auto-ensure so foundry_ready stays False
+        monkeypatch.setenv("FOUNDRY_AUTO_ENSURE_ON_STARTUP", "false")
+
+        app = build_service_app(
+            service_name="test-service",
+            agent_class=SampleServiceAgent,
+            hot_memory=mock_hot_memory,
+            warm_memory=mock_warm_memory,
+            cold_memory=mock_cold_memory,
+            require_foundry_readiness=True,
+        )
+        client = TestClient(app)
+        response = client.get("/ready")
+
+        assert response.status_code == 503
+        detail = response.json()["detail"]
+        assert detail["status"] == "not_ready"
+        assert detail["service"] == "test-service"
+        assert detail["foundry"]["configured_roles"] == ["fast", "rich"]
+        assert detail["foundry"]["resolved_roles"] == []
+        assert detail["foundry"]["unresolved_roles"] == ["fast", "rich"]
+        assert detail["foundry"]["last_error"] is None
+
+    def test_ready_endpoint_returns_503_when_strict_mode_has_configured_unbound_roles(
+        self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
+    ):
+        """Test strict Foundry mode is driven by configured roles, not pre-bound targets."""
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
+        monkeypatch.delenv("FOUNDRY_AGENT_ID_FAST", raising=False)
+        monkeypatch.delenv("FOUNDRY_AGENT_ID_RICH", raising=False)
+        monkeypatch.setenv("FOUNDRY_STRICT_ENFORCEMENT", "true")
         monkeypatch.setenv("FOUNDRY_AUTO_ENSURE_ON_STARTUP", "false")
 
         app = build_service_app(
@@ -456,15 +700,16 @@ class TestBuildServiceApp:
 
         assert response.status_code == 503
         detail = response.json()["detail"]
-        assert detail["status"] == "not_ready"
-        assert detail["service"] == "test-service"
+        assert detail["foundry"]["strict_mode"] is True
+        assert detail["foundry"]["configured_roles"] == ["fast", "rich"]
 
     def test_ready_endpoint_returns_ok_after_ensure_in_strict_mode(
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
-        """Test /ready flips to 200 after agents are ensured in strict mode."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
-        monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-123")
+        """Test /ready flips to 200 after agents are ensured when readiness is required."""
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
+        monkeypatch.delenv("FOUNDRY_AGENT_ID_FAST", raising=False)
+        monkeypatch.delenv("FOUNDRY_AGENT_ID_RICH", raising=False)
         monkeypatch.setenv("FOUNDRY_STRICT_ENFORCEMENT", "true")
         monkeypatch.setenv("FOUNDRY_AUTO_ENSURE_ON_STARTUP", "false")
 
@@ -474,6 +719,7 @@ class TestBuildServiceApp:
             hot_memory=mock_hot_memory,
             warm_memory=mock_warm_memory,
             cold_memory=mock_cold_memory,
+            require_foundry_readiness=True,
         )
         client = TestClient(app)
 
@@ -482,15 +728,23 @@ class TestBuildServiceApp:
 
         # Ensure agents
         with patch("holiday_peak_lib.app_factory.ensure_foundry_agent") as mock_ensure:
-            mock_ensure.return_value = {
-                "status": "exists",
-                "agent_id": "agent-123",
-                "agent_name": "test-service-fast",
-                "created": False,
-            }
+            mock_ensure.side_effect = [
+                {
+                    "status": "exists",
+                    "agent_id": "agent-fast-123",
+                    "agent_name": "test-service-fast",
+                    "created": False,
+                },
+                {
+                    "status": "exists",
+                    "agent_id": "agent-rich-456",
+                    "agent_name": "test-service-rich",
+                    "created": False,
+                },
+            ]
             ensure_resp = client.post(
                 "/foundry/agents/ensure",
-                json={"role": "fast", "create_if_missing": True},
+                json={"role": "both", "create_if_missing": True},
             )
         assert ensure_resp.status_code == 200
         assert ensure_resp.json()["foundry_ready"] is True
@@ -500,12 +754,13 @@ class TestBuildServiceApp:
         assert response.status_code == 200
         assert response.json()["status"] == "ready"
 
-    def test_strict_foundry_mode_requires_ensure_before_invoke(
+    def test_strict_foundry_mode_auto_ensures_before_invoke(
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
-        """Test strict mode blocks invoke until ensure endpoint is called."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
-        monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-123")
+        """Test strict mode auto-runs ensure during invoke before routing."""
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
+        monkeypatch.delenv("FOUNDRY_AGENT_ID_FAST", raising=False)
+        monkeypatch.delenv("FOUNDRY_AGENT_ID_RICH", raising=False)
         monkeypatch.setenv("FOUNDRY_STRICT_ENFORCEMENT", "true")
 
         app = build_service_app(
@@ -517,9 +772,6 @@ class TestBuildServiceApp:
         )
 
         client = TestClient(app)
-        pre_response = client.post("/invoke", json={"query": "test"})
-        assert pre_response.status_code == 503
-
         with patch("holiday_peak_lib.app_factory.ensure_foundry_agent") as mock_ensure:
             mock_ensure.return_value = {
                 "status": "exists",
@@ -527,20 +779,15 @@ class TestBuildServiceApp:
                 "agent_name": "test-service-fast",
                 "created": False,
             }
-            ensure_response = client.post(
-                "/foundry/agents/ensure",
-                json={"role": "fast", "create_if_missing": True},
-            )
+            response = client.post("/invoke", json={"query": "test"})
 
-        assert ensure_response.status_code == 200
-        assert ensure_response.json()["foundry_ready"] is True
-
-        post_response = client.post("/invoke", json={"query": "test"})
-        assert post_response.status_code == 200
+        assert response.status_code == 200
+        assert response.json()["status"] == "ok"
+        assert mock_ensure.call_count >= 1
 
     def test_build_foundry_config_from_env(self, monkeypatch):
         """Test building Foundry config from environment."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-fast-123")
         monkeypatch.setenv("MODEL_DEPLOYMENT_NAME_FAST", "gpt-4o-mini")
         monkeypatch.setenv("FOUNDRY_AGENT_ID_RICH", "agent-rich-456")
@@ -552,9 +799,11 @@ class TestBuildServiceApp:
         llm_config = _build_foundry_config("FOUNDRY_AGENT_ID_RICH", "MODEL_DEPLOYMENT_NAME_RICH")
 
         assert slm_config is not None
-        assert slm_config.endpoint == "https://test.endpoint.com"
+        assert slm_config.endpoint == TEST_PROJECT_ENDPOINT
         assert slm_config.agent_id == "agent-fast-123"
+        assert slm_config.runtime_agent_id == "agent-fast-123"
         assert llm_config.agent_id == "agent-rich-456"
+        assert llm_config.runtime_agent_id == "agent-rich-456"
 
     def test_build_foundry_config_missing_env(self, monkeypatch):
         """Test building Foundry config with missing environment vars."""
@@ -569,7 +818,7 @@ class TestBuildServiceApp:
 
     def test_build_foundry_config_with_streaming(self, monkeypatch):
         """Test building Foundry config with streaming enabled."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-123")
         monkeypatch.setenv("FOUNDRY_STREAM", "true")
 
@@ -580,6 +829,21 @@ class TestBuildServiceApp:
         assert config is not None
         assert config.stream is True
 
+    def test_build_foundry_config_name_only_requires_later_resolution(self, monkeypatch):
+        """Test role names stay available for ensure but unbound for runtime."""
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
+        monkeypatch.delenv("FOUNDRY_AGENT_ID_FAST", raising=False)
+        monkeypatch.setenv("FOUNDRY_AGENT_NAME_FAST", "catalog-fast")
+
+        from holiday_peak_lib.app_factory import _build_foundry_config
+
+        config = _build_foundry_config("FOUNDRY_AGENT_ID_FAST", "MODEL_DEPLOYMENT_NAME_FAST")
+
+        assert config is not None
+        assert config.agent_id == "fast-pending"
+        assert config.agent_name == "catalog-fast"
+        assert config.runtime_agent_id is None
+
 
 class TestAppFactoryIntegration:
     """Test app factory integration scenarios."""
@@ -588,7 +852,7 @@ class TestAppFactoryIntegration:
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
         """Test complete service setup."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-fast")
         monkeypatch.setenv("FOUNDRY_AGENT_ID_RICH", "agent-rich")
 
@@ -614,7 +878,7 @@ class TestAppFactoryIntegration:
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
         """Test building apps with different agent classes."""
-        monkeypatch.setenv("PROJECT_ENDPOINT", "https://test.endpoint.com")
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-123")
 
         class CustomAgent(BaseRetailAgent):

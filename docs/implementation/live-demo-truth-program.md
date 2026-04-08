@@ -59,6 +59,12 @@ Evidence:
 | Service tiles | CRM/eCommerce/Inventory/Logistics/Product links | `apps/ui/app/admin/page.tsx` | Route navigation only | N/A | Static list and static status badge (`Active`) | Add live status, last update, error indicator |
 | Service dashboard page | `/admin/[domain]/[service]` | `apps/ui/components/admin/AdminServiceDashboardPage.tsx` + `apps/ui/lib/services/adminServiceDashboardService.ts` | `GET /api/admin/{domain}/{service}?time_range=<range>` | Currently synthesized in UI proxy (`apps/ui/app/api/[...path]/route.ts`) | Live-ish via proxy aggregation/fallback | Move ownership to canonical backend contracts |
 
+### Additive split fields now exposed by proxy fallback (2026-04-03)
+
+- `app_surface`: exposes app/AKS liveness-readiness ownership with probe source, timestamps, and direct `health`/`ready` links.
+- `foundry_surface`: exposes Foundry execution ownership with `foundry_ready` status plus deep links (`studio`, `project`, `traces`, `evaluations`).
+- These fields are additive and backward-compatible with existing `status_cards`, `activity`, and `model_usage` consumers.
+
 ### Tile-to-service map currently encoded in UI proxy
 
 - `crm/campaigns -> crm-campaign-intelligence`

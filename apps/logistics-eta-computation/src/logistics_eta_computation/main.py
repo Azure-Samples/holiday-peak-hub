@@ -7,6 +7,8 @@ from logistics_eta_computation.event_handlers import build_event_handlers
 
 SERVICE_NAME = "logistics-eta-computation"
 app = create_standard_app(
+    require_foundry_readiness=True,
+    disable_tracing_without_foundry=True,
     service_name=SERVICE_NAME,
     agent_class=EtaComputationAgent,
     mcp_setup=register_mcp_tools,

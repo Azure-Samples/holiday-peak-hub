@@ -5,6 +5,8 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
+pytestmark = pytest.mark.usefixtures("mock_foundry_readiness")
+
 
 @pytest.fixture()
 def client():
@@ -62,6 +64,7 @@ def test_agent_activity_endpoints(client):
     metrics_response = client.get("/agent/metrics")
     assert metrics_response.status_code == 200
     assert metrics_response.json()["service"] == "truth-enrichment"
+    assert metrics_response.json()["enabled"] is True
 
     evaluation_response = client.get("/agent/evaluation/latest")
     assert evaluation_response.status_code == 200

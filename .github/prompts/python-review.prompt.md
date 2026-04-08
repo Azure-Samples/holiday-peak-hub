@@ -1,8 +1,8 @@
 ---
-title: "Python: Review Code"
+name: "Python: Review Code"
 description: "Review Python code for type safety, async correctness, security, and adherence to PEP standards."
 agent: "PythonDeveloper"
-input: "Provide the file(s) or module to review. Optionally specify focus areas (security, performance, correctness)."
+argument-hint: "Provide the file(s) or module to review. Optionally specify focus areas (security, performance, correctness)."
 ---
 
 Review the specified Python code checking for:
@@ -15,3 +15,4 @@ Review the specified Python code checking for:
 6. **Test Quality** — Coverage of edge cases. Proper mocking boundaries. No testing implementation details.
 
 Provide findings as a prioritized list with file locations, severity (critical/warning/info), and fix recommendations.
+

@@ -1,10 +1,11 @@
 'use client';
 
-import React from 'react';
 import Link from 'next/link';
+import { useMemo, type ComponentType } from 'react';
 import { MainLayout } from '@/components/templates/MainLayout';
-import { Card } from '@/components/molecules/Card';
 import { Badge } from '@/components/atoms/Badge';
+import { isTracingUnavailableError, useAgentMonitorDashboard } from '@/lib/hooks/useAgentMonitor';
+import type { AgentHealthCardMetric, AgentHealthStatus, AgentMonitorTimeRange } from '@/lib/types/api';
 import { 
   FiShoppingCart, FiPackage, FiTruck, FiUsers, FiTrendingUp,
   FiDatabase, FiLayers, FiSettings, FiShield, FiBarChart2,
@@ -13,7 +14,144 @@ import {
   FiMapPin
 } from 'react-icons/fi';
 
+const HOMEPAGE_SUMMARY_RANGE: AgentMonitorTimeRange = '24h';
+const MINUTES_PER_DAY = 60 * 24;
+
+const wholeNumberFormatter = new Intl.NumberFormat('en-US', {
+  maximumFractionDigits: 0,
+});
+
+const percentFormatter = new Intl.NumberFormat('en-US', {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+});
+
+const errorRateFormatter = new Intl.NumberFormat('en-US', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+type HealthStatusCounts = Record<AgentHealthStatus, number>;
+
+interface AdminHomepageSummary {
+  activeServices: number;
+  apiCalls24h: number;
+  uptimePct: number;
+  avgLatencyMs: number;
+  avgErrorRatePct: number;
+  totalThroughputRpm: number;
+  statusCounts: HealthStatusCounts;
+}
+
+interface SystemHealthMetricViewModel {
+  label: string;
+  value: string;
+  status: 'healthy' | 'warning' | 'critical';
+}
+
+const EMPTY_STATUS_COUNTS: HealthStatusCounts = {
+  healthy: 0,
+  degraded: 0,
+  down: 0,
+  unknown: 0,
+};
+
+function average(values: readonly number[]): number {
+  if (values.length === 0) {
+    return 0;
+  }
+
+  return values.reduce((total, value) => total + value, 0) / values.length;
+}
+
+function countByHealthStatus(cards: readonly AgentHealthCardMetric[]): HealthStatusCounts {
+  const counts: HealthStatusCounts = { ...EMPTY_STATUS_COUNTS };
+
+  for (const card of cards) {
+    counts[card.status] += 1;
+  }
+
+  return counts;
+}
+
+// No GoF pattern applies: this is a straightforward data aggregation over monitor payload fields.
+function aggregateHomepageSummary(cards: readonly AgentHealthCardMetric[]): AdminHomepageSummary {
+  const statusCounts = countByHealthStatus(cards);
+  const totalThroughputRpm = cards.reduce((total, card) => total + card.throughput_rpm, 0);
+
+  const activeServices = cards.length;
+  const apiCalls24h = Math.round(totalThroughputRpm * MINUTES_PER_DAY);
+  const avgLatencyMs = average(cards.map((card) => card.latency_ms));
+  const avgErrorRatePct = average(cards.map((card) => card.error_rate));
+  const uptimePct =
+    activeServices === 0
+      ? 0
+      : ((statusCounts.healthy + statusCounts.degraded) / activeServices) * 100;
+
+  return {
+    activeServices,
+    apiCalls24h,
+    uptimePct,
+    avgLatencyMs,
+    avgErrorRatePct,
+    totalThroughputRpm,
+    statusCounts,
+  };
+}
+
+function formatWholeNumber(value: number): string {
+  return wholeNumberFormatter.format(Math.round(value));
+}
+
+function formatPercent(value: number): string {
+  return `${percentFormatter.format(value)}%`;
+}
+
+function formatErrorRate(value: number): string {
+  return `${errorRateFormatter.format(value)}%`;
+}
+
+function statusFromErrorRate(errorRate: number): 'healthy' | 'warning' | 'critical' {
+  if (errorRate >= 5) {
+    return 'critical';
+  }
+
+  if (errorRate >= 1) {
+    return 'warning';
+  }
+
+  return 'healthy';
+}
+
 export default function AdminPortalPage() {
+  const { data, isLoading, isError, error, isFetching } = useAgentMonitorDashboard(HOMEPAGE_SUMMARY_RANGE);
+
+  const isTracingUnavailable = Boolean(
+    (data && !data.tracing_enabled) || (isError && isTracingUnavailableError(error))
+  );
+
+  const summary = useMemo(() => {
+    if (!data || !data.tracing_enabled) {
+      return null;
+    }
+
+    return aggregateHomepageSummary(data.health_cards);
+  }, [data]);
+
+  const hasSummaryData = Boolean(summary && data?.tracing_enabled && data.health_cards.length > 0);
+
+  const getKpiValue = (valueBuilder: (liveSummary: AdminHomepageSummary) => string): string => {
+    if (isLoading) {
+      return 'Loading...';
+    }
+
+    if (!hasSummaryData || !summary) {
+      return 'Unavailable';
+    }
+
+    return valueBuilder(summary);
+  };
+
   const serviceCategories = [
     {
       name: 'CRM Services',
@@ -72,49 +210,131 @@ export default function AdminPortalPage() {
   ];
 
   const systemStats = [
-    { label: 'Active Services', value: '21', icon: FiServer, color: 'ocean' },
-    { label: 'API Calls (24h)', value: '1.2M', icon: FiActivity, color: 'lime' },
-    { label: 'Uptime', value: '99.9%', icon: FiCheckSquare, color: 'cyan' },
-    { label: 'Avg Response', value: '120ms', icon: FiCpu, color: 'ocean' },
+    {
+      label: 'Active Services',
+      value: getKpiValue((liveSummary) => formatWholeNumber(liveSummary.activeServices)),
+      icon: FiServer,
+    },
+    {
+      label: 'API Calls (24h)',
+      value: getKpiValue((liveSummary) => formatWholeNumber(liveSummary.apiCalls24h)),
+      icon: FiActivity,
+    },
+    {
+      label: 'Uptime',
+      value: getKpiValue((liveSummary) => formatPercent(liveSummary.uptimePct)),
+      icon: FiCheckSquare,
+    },
+    {
+      label: 'Avg Response',
+      value: getKpiValue((liveSummary) => `${formatWholeNumber(liveSummary.avgLatencyMs)}ms`),
+      icon: FiCpu,
+    },
   ];
+
+  const systemHealthMetrics = useMemo<SystemHealthMetricViewModel[]>(() => {
+    if (isLoading) {
+      return [
+        { label: 'Healthy Services', value: 'Loading...', status: 'warning' as const },
+        { label: 'Degraded Services', value: 'Loading...', status: 'warning' as const },
+        { label: 'Down Services', value: 'Loading...', status: 'warning' as const },
+        { label: 'Avg Error Rate', value: 'Loading...', status: 'warning' as const },
+        { label: 'Total Throughput/min', value: 'Loading...', status: 'warning' as const },
+        { label: 'Trace Events', value: 'Loading...', status: 'warning' as const },
+      ];
+    }
+
+    if (!hasSummaryData || !summary || !data) {
+      return [
+        { label: 'Healthy Services', value: 'Unavailable', status: 'critical' as const },
+        { label: 'Degraded Services', value: 'Unavailable', status: 'critical' as const },
+        { label: 'Down Services', value: 'Unavailable', status: 'critical' as const },
+        { label: 'Avg Error Rate', value: 'Unavailable', status: 'critical' as const },
+        { label: 'Total Throughput/min', value: 'Unavailable', status: 'critical' as const },
+        { label: 'Trace Events', value: 'Unavailable', status: 'critical' as const },
+      ];
+    }
+
+    return [
+      {
+        label: 'Healthy Services',
+        value: formatWholeNumber(summary.statusCounts.healthy),
+        status: summary.statusCounts.down > 0 || summary.statusCounts.degraded > 0 ? 'warning' : 'healthy',
+      },
+      {
+        label: 'Degraded Services',
+        value: formatWholeNumber(summary.statusCounts.degraded),
+        status: summary.statusCounts.degraded > 0 ? 'warning' : 'healthy',
+      },
+      {
+        label: 'Down Services',
+        value: formatWholeNumber(summary.statusCounts.down),
+        status: summary.statusCounts.down > 0 ? 'critical' : 'healthy',
+      },
+      {
+        label: 'Avg Error Rate',
+        value: formatErrorRate(summary.avgErrorRatePct),
+        status: statusFromErrorRate(summary.avgErrorRatePct),
+      },
+      {
+        label: 'Total Throughput/min',
+        value: `${formatWholeNumber(summary.totalThroughputRpm)} rpm`,
+        status: summary.totalThroughputRpm > 0 ? 'healthy' : 'warning',
+      },
+      {
+        label: 'Trace Events',
+        value: formatWholeNumber(data.trace_feed.length),
+        status: data.trace_feed.length > 0 ? 'healthy' : 'warning',
+      },
+    ];
+  }, [data, hasSummaryData, isLoading, summary]);
 
   return (
     <MainLayout>
-      <div className="max-w-7xl mx-auto py-8">
+      <div className="max-w-7xl mx-auto px-4 md:px-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
             Admin Portal
           </h1>
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             Central hub for managing all backend services and system operations
           </p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-2" aria-live="polite">
+            Homepage KPIs reflect live monitor data for the last 24 hours.
+            {isFetching && !isLoading ? ' Refreshing…' : ''}
+          </p>
+          {isTracingUnavailable && (
+            <p className="text-xs text-amber-600 dark:text-amber-400 mt-1" aria-live="polite">
+              Monitoring data is currently unavailable because tracing is disabled or unreachable.
+            </p>
+          )}
         </div>
 
         {/* System Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {systemStats.map((stat) => {
             const Icon = stat.icon;
             return (
-              <Card key={stat.label} className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="w-12 h-12 bg-ocean-100 dark:bg-ocean-900 rounded-full flex items-center justify-center">
-                    <Icon className="w-6 h-6 text-ocean-500 dark:text-ocean-300" />
+              <div key={stat.label} className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 p-5 shadow-sm">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-9 h-9 rounded-xl bg-gray-50 dark:bg-gray-800 flex items-center justify-center">
+                    <Icon className="w-4 h-4 text-gray-500 dark:text-gray-400" />
                   </div>
                 </div>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{stat.label}</p>
-                <p className="text-3xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
-              </Card>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-1">{stat.label}</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white tabular-nums">{stat.value}</p>
+              </div>
             );
           })}
         </div>
 
         {/* Quick Actions */}
-        <Card className="p-6 mb-8 bg-gradient-to-r from-ocean-50 to-cyan-50 dark:from-ocean-950 dark:to-cyan-950 border-ocean-200 dark:border-ocean-800">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+        <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 p-5 shadow-sm mb-8">
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">
             Quick Actions
           </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
             <QuickActionButton icon={FiBarChart2} label="Analytics" />
             <QuickActionButton icon={FiSettings} label="Settings" />
             <QuickActionButton icon={FiDatabase} label="Database" />
@@ -122,44 +342,44 @@ export default function AdminPortalPage() {
             <QuickActionButton icon={FiTool} label="Tools" />
             <QuickActionButton icon={FiGlobe} label="API Docs" />
           </div>
-        </Card>
+        </div>
 
         {/* Service Categories */}
         <div className="space-y-8">
           {serviceCategories.map((category) => (
             <div key={category.name}>
-              <div className="mb-4">
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+              <div className="mb-3">
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white">
                   {category.name}
                 </h2>
-                <p className="text-gray-600 dark:text-gray-400">
+                <p className="text-xs text-gray-500 dark:text-gray-400">
                   {category.description}
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 {category.services.map((service) => {
                   const Icon = service.icon;
                   return (
                     <Link key={service.name} href={service.url}>
-                      <Card className="p-6 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 cursor-pointer">
-                        <div className="flex items-center gap-4 mb-4">
-                          <div className="w-12 h-12 bg-ocean-100 dark:bg-ocean-900 rounded-lg flex items-center justify-center flex-shrink-0">
-                            <Icon className="w-6 h-6 text-ocean-500 dark:text-ocean-300" />
+                      <div className="group rounded-xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 hover:shadow-md hover:border-gray-200 dark:hover:border-gray-700 transition-all duration-200 cursor-pointer">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="w-9 h-9 rounded-lg bg-gray-50 dark:bg-gray-800 flex items-center justify-center flex-shrink-0 group-hover:bg-gray-100 dark:group-hover:bg-gray-700 transition-colors">
+                            <Icon className="w-4 h-4 text-gray-500 dark:text-gray-400" />
                           </div>
-                          <h3 className="font-semibold text-gray-900 dark:text-white">
+                          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
                             {service.name}
                           </h3>
                         </div>
                         <div className="flex items-center justify-between">
-                          <Badge className="bg-lime-100 text-lime-700 dark:bg-lime-900 dark:text-lime-300 text-xs">
+                          <Badge size="xs" className="bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400 text-[10px]">
                             Active
                           </Badge>
-                          <span className="text-sm text-ocean-500 dark:text-ocean-300 font-medium">
+                          <span className="text-xs text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 font-medium transition-colors">
                             Manage →
                           </span>
                         </div>
-                      </Card>
+                      </div>
                     </Link>
                   );
                 })}
@@ -169,49 +389,46 @@ export default function AdminPortalPage() {
         </div>
 
         {/* System Health */}
-        <Card className="p-6 mt-8">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
-            System Health Monitor
+        <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 p-5 shadow-sm mt-8 mb-8">
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">
+            System Health
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <HealthMetric label="Memory Usage" value="68%" status="healthy" />
-            <HealthMetric label="CPU Load" value="42%" status="healthy" />
-            <HealthMetric label="API Latency" value="120ms" status="healthy" />
-            <HealthMetric label="Error Rate" value="0.02%" status="healthy" />
-            <HealthMetric label="Queue Depth" value="234" status="warning" />
-            <HealthMetric label="Cache Hit Rate" value="94%" status="healthy" />
+            {systemHealthMetrics.map((metric) => (
+              <HealthMetric key={metric.label} label={metric.label} value={metric.value} status={metric.status} />
+            ))}
           </div>
-        </Card>
+        </div>
       </div>
     </MainLayout>
   );
 }
 
-function QuickActionButton({ icon: Icon, label }: { icon: React.ComponentType<{ className?: string }>; label: string }) {
+function QuickActionButton({ icon: Icon, label }: { icon: ComponentType<{ className?: string }>; label: string }) {
   return (
-    <button className="flex flex-col items-center gap-2 p-4 bg-white dark:bg-gray-800 rounded-lg border-2 border-transparent hover:border-ocean-500 dark:hover:border-ocean-300 transition-colors">
-      <Icon className="w-6 h-6 text-ocean-500 dark:text-ocean-300" />
-      <span className="text-sm font-medium text-gray-900 dark:text-white">{label}</span>
+    <button className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 hover:border-gray-200 dark:hover:border-gray-600 transition-all duration-200">
+      <Icon className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+      <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300">{label}</span>
     </button>
   );
 }
 
 function HealthMetric({ label, value, status }: { label: string; value: string; status: 'healthy' | 'warning' | 'critical' }) {
   const statusColors = {
-    healthy: 'bg-lime-100 text-lime-700 dark:bg-lime-900 dark:text-lime-300',
-    warning: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300',
-    critical: 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300',
+    healthy: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400',
+    warning: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400',
+    critical: 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400',
   };
 
   return (
-    <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+    <div className="rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 p-4">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">{label}</span>
-        <Badge className={`${statusColors[status]} text-xs`}>
-          {status.toUpperCase()}
+        <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{label}</span>
+        <Badge size="xs" className={`${statusColors[status]} text-[10px]`}>
+          {status}
         </Badge>
       </div>
-      <p className="text-2xl font-bold text-gray-900 dark:text-white">{value}</p>
+      <p className="text-xl font-bold text-gray-900 dark:text-white tabular-nums">{value}</p>
     </div>
   );
 }

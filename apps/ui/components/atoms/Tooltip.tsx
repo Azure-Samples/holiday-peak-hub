@@ -81,9 +81,11 @@ export const Tooltip: React.FC<TooltipProps> = ({
           data-testid={testId}
           aria-label={ariaLabel}
           className={cn(
-            'absolute z-50 px-3 py-2 text-xs font-medium text-white bg-gray-900 dark:bg-gray-100 dark:text-gray-900 rounded-lg shadow-lg',
+            'absolute z-50 px-3 py-1.5 text-xs font-medium',
+            'text-white bg-gray-900/95 dark:bg-white/95 dark:text-gray-900',
+            'rounded-lg shadow-lg backdrop-blur-sm',
             'whitespace-nowrap pointer-events-none',
-            'animate-in fade-in-0 zoom-in-95',
+            'animate-in fade-in-0 zoom-in-95 duration-150',
             placementClasses[placement]
           )}
         >

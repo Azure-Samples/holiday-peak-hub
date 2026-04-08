@@ -57,11 +57,11 @@ export const Dropdown: React.FC<DropdownProps> = ({
           aria-label={ariaLabel}
           className={cn(
             'inline-flex items-center justify-center',
-            'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2',
-            'transition-colors duration-200',
+            'focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:focus-visible:ring-white focus-visible:ring-offset-2',
+            'transition-all duration-200',
             iconButton
               ? 'w-8 h-8 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800'
-              : 'px-4 py-2 text-sm font-semibold text-gray-900 dark:text-white bg-white dark:bg-gray-800 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700',
+              : 'px-4 py-2 text-sm font-medium text-gray-900 dark:text-white bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm',
             triggerClassName
           )}
         >
@@ -95,13 +95,13 @@ export const Dropdown: React.FC<DropdownProps> = ({
             'absolute mt-2 origin-top-right',
             menuWidth,
             placement === 'left' ? 'left-0 origin-top-left' : 'right-0 origin-top-right',
-            'bg-white dark:bg-gray-800',
+            'bg-white dark:bg-gray-900',
             'text-gray-900 dark:text-white',
-            'shadow-lg rounded-md',
-            'ring-1 ring-black ring-opacity-5',
-            'divide-y divide-gray-100 dark:divide-gray-700',
+            'shadow-xl rounded-xl',
+            'ring-1 ring-gray-200 dark:ring-gray-800',
+            'divide-y divide-gray-50 dark:divide-gray-800',
             'focus:outline-none',
-            'z-50'
+            'z-50 p-1'
           )}
         >
           <div className="py-1">
@@ -122,10 +122,10 @@ export const Dropdown: React.FC<DropdownProps> = ({
                       <a
                         href={item.href}
                         className={cn(
-                          'flex items-center w-full px-4 py-2 text-sm',
+                          'flex items-center w-full px-3 py-2 text-sm rounded-lg transition-colors duration-150',
                           active
-                            ? 'bg-blue-500 text-white'
-                            : 'text-gray-900 dark:text-white',
+                            ? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
+                            : 'text-gray-700 dark:text-gray-300',
                           item.disabled && 'opacity-50 cursor-not-allowed'
                         )}
                       >
@@ -138,10 +138,10 @@ export const Dropdown: React.FC<DropdownProps> = ({
                         onClick={item.onClick}
                         disabled={item.disabled}
                         className={cn(
-                          'flex items-center w-full px-4 py-2 text-sm text-left',
+                          'flex items-center w-full px-3 py-2 text-sm text-left rounded-lg transition-colors duration-150',
                           active
-                            ? 'bg-blue-500 text-white'
-                            : 'text-gray-900 dark:text-white',
+                            ? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
+                            : 'text-gray-700 dark:text-gray-300',
                           item.disabled && 'opacity-50 cursor-not-allowed'
                         )}
                       >

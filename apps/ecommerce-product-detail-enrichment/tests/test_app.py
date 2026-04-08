@@ -1,5 +1,8 @@
+import pytest
 from ecommerce_product_detail_enrichment.main import app
 from fastapi.testclient import TestClient
+
+pytestmark = pytest.mark.usefixtures("mock_foundry_readiness")
 
 
 def test_health():
