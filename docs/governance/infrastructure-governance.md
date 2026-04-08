@@ -22,7 +22,7 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 
 ### Core policy
 
-- **azd-first deployment is mandatory** (ADR-021).
+- **azd-first deployment is mandatory** (ADR-021). The only approved exception is the manual dev emergency redeploy path in `deploy-azd-dev.yml` with `skipProvision=true`, which reuses already-provisioned infrastructure and skips only `azd provision`.
 - Reusable workflow `deploy-azd.yml` is not the primary operator entrypoint; use env-specific entrypoint workflows.
 - OIDC Azure login is required in CI/CD; no static cloud credentials committed to repository.
 - Provisioning must fail fast when `projectName` is not `holidaypeakhub405` or when `resourceGroupName`/`AZURE_RESOURCE_GROUP` are not `holidaypeakhub405-<environment>-rg`; this is enforced through azd `preprovision` hooks.
@@ -38,6 +38,7 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 | Main lineage gate | Not required | Required: tagged commit must be reachable from `main` | N/A |
 | Demo data seeding mode | Local/manual only (not part of CI deploy) | Local/manual only | Local/manual only |
 | Changed-only deployment | Enabled | Enabled | N/A |
+| Manual skip-provision redeploy | Allowed only through `workflow_dispatch` on `deploy-azd-dev.yml` for already-provisioned infrastructure; may optionally set `serviceFilter` to scope AKS services | Not exposed | Not exposed |
 | Force APIM sync default | `true` | `true` | N/A |
 | Auto allow ACR runner IP | `true` default | `false` default | N/A |
 | Non-prod drift remediation | Enabled | Disabled | Would be treated as non-prod if introduced |
@@ -79,7 +80,9 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 - Before `build-aks-images` runs, the reusable deploy workflow must verify or create `AcrPush` for the OIDC deploy principal at the environment ACR scope.
 - AKS service deployment must build or resolve immutable per-SHA images first, then render/apply manifests pinned by digest (`repo@sha256:...`); deploy jobs must not rebuild service images during manifest rollout.
 - Changed-service detection to reduce blast radius and deployment duration.
+- Manual dev emergency redeploys may set `serviceFilter` to scope AKS rollout to a comma-separated subset of already-defined services; services outside the filter remain untouched.
 - Reusable deploy workflows must accept an explicit tested source SHA/ref and use that checkout consistently across detection, build, render, sync, and validation jobs.
+- When the dev entrypoint explicitly sets `skipProvision=true`, the reusable deploy workflow may skip only the `azd provision` step. OIDC login, azd auth/context setup, AKS/ACR/Key Vault role guards, azd env output export, image build, deploy, Foundry ensure, and downstream smoke/deploy gates must remain active.
 - ACR login in tested-image build jobs must use the OIDC Azure CLI session and bounded retry with actionable failure text to absorb ARM-to-data-plane RBAC propagation delay; admin-user and static registry credentials are prohibited.
 - Push-event changed-service detection must diff `${{ github.event.before }}...${{ github.sha }}` to avoid empty comparisons against `origin/main` after merge.
 - APIM sync/smoke checks for API path health after relevant changes.

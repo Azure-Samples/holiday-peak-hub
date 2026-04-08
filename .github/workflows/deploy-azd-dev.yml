@@ -30,6 +30,15 @@ on:
         description: Optional tested source ref to deploy (empty = current ref)
         required: false
         default: ''
+      skipProvision:
+        description: Skip azd provision and reuse the current dev infrastructure for a manual emergency redeploy
+        required: true
+        type: boolean
+        default: false
+      serviceFilter:
+        description: Optional comma-separated AKS service names to deploy (empty = all changed services)
+        required: false
+        default: ''
       deployStatic:
         description: Provision static web app resources
         required: true
@@ -86,6 +95,8 @@ jobs:
       uiOnly: ${{ github.event_name == 'workflow_dispatch' && inputs.uiOnly }}
       apiBaseUrl: ${{ github.event_name == 'workflow_dispatch' && inputs.apiBaseUrl || '' }}
       deployChangedOnly: true
+      skipProvision: ${{ github.event_name == 'workflow_dispatch' && inputs.skipProvision }}
+      serviceFilter: ${{ github.event_name == 'workflow_dispatch' && inputs.serviceFilter || '' }}
       forceApimSync: ${{ github.event_name != 'workflow_dispatch' || inputs.forceApimSync }}
       autoAllowAcrRunnerIp: ${{ github.event_name != 'workflow_dispatch' || inputs.autoAllowAcrRunnerIp }}
       skipApiSmokeChecks: ${{ github.event_name == 'workflow_dispatch' && inputs.skipApiSmokeChecks }}
