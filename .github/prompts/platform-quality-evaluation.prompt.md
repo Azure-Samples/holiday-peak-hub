@@ -15,6 +15,7 @@ Conduct a full platform quality evaluation by delegating to specialist agents:
 
 2. **Architecture Compliance** — Invoke `SystemArchitect` via `#runSubagent` to evaluate:
    - ADR adherence (are documented decisions being followed?)
+   - ADR preflight evidence (are impacted ADRs identified or explicitly declared no-impact?)
    - Dependency direction (domain layer has no infra imports?)
    - Integration patterns (event contracts versioned? circuit breakers present?)
    - Component boundaries (single responsibility, no god services)
@@ -35,5 +36,5 @@ Conduct a full platform quality evaluation by delegating to specialist agents:
    - Comparison with previous evaluation if available
 6. **Issue Handoff** — For the top remediation items, load `.github/skills/issue-engineering-workflows/SKILL.md` and create issues using the top-risk or issue-improvement templates.
 
-Deliver a quality report with per-category scores, top 10 remediation items, and trend indicators.
+Deliver a quality report with per-category scores, top 10 remediation items, trend indicators, and an ADR impact summary.
 

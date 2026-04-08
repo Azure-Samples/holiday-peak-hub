@@ -11,6 +11,10 @@ Execute issue engineering with strict process control:
    - Load `.github/skills/issue-engineering-workflows/SKILL.md`.
    - Select the matching template for create/correct/improve/feature/risk issue flows before drafting issues.
 
+0.5 **ADR Preflight (mandatory for architecture-impacting items)**
+   - Read `docs/architecture/ADRs.md` before scoping implementation.
+   - Capture impacted ADRs, ADR update needs, or an explicit no-impact statement with assumptions.
+
 1. **Code-First Reconnaissance (mandatory before any action)**
    - Read the relevant code paths first.
    - Use workspace search and file reads to confirm current behavior.
@@ -25,6 +29,7 @@ Execute issue engineering with strict process control:
      - Required change
      - Affected components and risks
      - Effort estimate (S/M/L/XL + rough hours)
+       - ADR impact (`ADR-###` references or explicit no-impact statement)
    - Keep each item atomic and independently traceable.
 
 3. **Issue Creation With BPMN Format (mandatory before coding each item)**

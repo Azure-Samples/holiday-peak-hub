@@ -40,7 +40,10 @@ Provide the following context before execution:
 ## Workflow
 
 1. Run code-first reconnaissance and collect evidence.
-2. Build atomic items with: current behavior, required change, affected components, risks, and effort.
+2. Run ADR preflight for architecture-impacting items:
+- Read `docs/architecture/ADRs.md` and relevant ADR files.
+- Record impacted ADRs, ADR updates needed, or explicit no-impact justification.
+3. Build atomic items with: current behavior, required change, affected components, risks, effort, and ADR impact.
 3. Select the matching issue flow template:
 - [Create issue template](./assets/create-issue-template.md)
 - [Issue correction template](./assets/issue-correction-template.md)
@@ -59,6 +62,7 @@ Every issue created with this skill must include:
 - Acceptance criteria checklist
 - Risks and dependencies
 - Evidence links
+- ADR impact (impacted ADR IDs or explicit no-impact statement)
 - BPMN process section using Mermaid with repository theme:
 
 ```mermaid
