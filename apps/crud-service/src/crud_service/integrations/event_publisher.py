@@ -85,7 +85,9 @@ class EventPublisher:
         event_payload: dict[str, Any],
     ) -> dict[str, Any]:
         raw_payload_data = event_payload.get("data")
-        payload_data: dict[str, Any] = raw_payload_data if isinstance(raw_payload_data, dict) else {}
+        payload_data: dict[str, Any] = (
+            raw_payload_data if isinstance(raw_payload_data, dict) else {}
+        )
         metadata = {
             "domain": topic.removesuffix("-events"),
             "topic": topic,

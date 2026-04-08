@@ -152,11 +152,7 @@ class PublishFailureEnvelope:
             status_code=self.status_code,
             error_type=self.error_type,
             error_message=self.error_message,
-            metadata={
-                key: value
-                for key, value in signal_metadata.items()
-                if value is not None
-            },
+            metadata={key: value for key, value in signal_metadata.items() if value is not None},
         )
 
 
@@ -283,7 +279,10 @@ def _extract_retry_after_seconds(error: Exception) -> float | None:
         if delay is not None:
             return delay
 
-    for candidate in (getattr(error, "headers", None), getattr(getattr(error, "response", None), "headers", None)):
+    for candidate in (
+        getattr(error, "headers", None),
+        getattr(getattr(error, "response", None), "headers", None),
+    ):
         if candidate is None or not hasattr(candidate, "get"):
             continue
         delay = _coerce_retry_after_seconds(candidate.get("retry-after"))
@@ -445,9 +444,7 @@ async def emit_publish_failure(
     incident_id: str | None = None
     if self_healing_kernel is not None:
         try:
-            incident = await self_healing_kernel.handle_failure_signal(
-                envelope.to_failure_signal()
-            )
+            incident = await self_healing_kernel.handle_failure_signal(envelope.to_failure_signal())
             incident_id = incident.id if incident is not None else None
         except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
             _safe_log(

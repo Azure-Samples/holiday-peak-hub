@@ -318,9 +318,7 @@ async def test_publish_with_reliability_emits_compensation_metadata():
     incident = kernel.list_incidents(limit=1)[0]
     assert exc_info.value.envelope.category.value == "transient"
     assert incident.metadata["failure_stage"] == "publish"
-    assert incident.metadata["compensation"]["completed_actions"] == [
-        "reservation_lock_rollback"
-    ]
+    assert incident.metadata["compensation"]["completed_actions"] == ["reservation_lock_rollback"]
     assert incident.actions == ["reset_messaging_publisher_bindings"]
 
 

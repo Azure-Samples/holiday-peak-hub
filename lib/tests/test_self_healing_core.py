@@ -182,7 +182,9 @@ async def test_kernel_uses_publisher_action_for_publish_failures():
     assert incident.state == IncidentState.CLOSED
     assert incident.actions == ["reset_messaging_publisher_bindings"]
     action_record = next(record for record in incident.audit if record.event == "action_executed")
-    assert action_record.details["details"]["remediation_context"]["workflow"] == "checkout_finalize"
+    assert (
+        action_record.details["details"]["remediation_context"]["workflow"] == "checkout_finalize"
+    )
 
 
 @pytest.mark.asyncio
