@@ -97,7 +97,8 @@ When your `tools:` array includes MCP server tools (e.g., `azure-mcp/*`, `email-
 
 Before invoking `#runSubagent`:
 
-1. **Resolve canonical names first** — Load `.github/agents/data/team-mapping.md` and use the `Agent Name` values (for example, `SystemArchitect`, `TypeScriptDeveloper`, `PlatformEngineer`).
-2. **Do not assume slug names** — Avoid hardcoded kebab-case names unless they are explicitly registered in the runtime.
-3. **Runtime fallback** — If the target specialist is not available in the current runtime, stay in the current agent and use the appropriate workspace, terminal, MCP, and web tools directly while preserving the same role boundaries.
-4. **Explain fallback** — State which specialist was intended, why direct execution was used instead, and what acceptance criteria the fallback path must still satisfy.
+1. **Resolve canonical names first** — Load `.github/agents/data/team-mapping.md` and use canonical `Agent Name` values from that registry (for example, `system-architect`, `typescript-specialist`, `platform-quality`).
+2. **Map to runtime name when required** — If the runtime requires a non-canonical display/frontmatter name, read the corresponding `.agent.md` and use its `name` value.
+3. **Do not invent names** — Never create ad-hoc agent names outside team mapping + available `.github/agents/*.agent.md` files.
+4. **Runtime fallback** — If the target specialist is unavailable, stay in the current agent and use workspace, terminal, MCP, and web tools directly while preserving role boundaries.
+5. **Explain fallback** — State intended specialist, why direct execution was used, and acceptance criteria the fallback still satisfies.
