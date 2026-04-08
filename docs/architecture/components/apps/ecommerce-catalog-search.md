@@ -392,7 +392,7 @@ Set up Azure Monitor alerts for:
 
 - **[Product Detail Enrichment](ecommerce-product-detail-enrichment.md)** — Augments search results with ACP metadata
 - **[Cart Intelligence](ecommerce-cart-intelligence.md)** — Uses search for "similar items" recommendations
-- **[Inventory Health Check](../inventory/inventory-health-check.md)** — Provides stock levels for search results
+- **[Inventory Health Check](inventory-health-check.md)** — Provides stock levels for search results
 
 ## Related Lib Components
 

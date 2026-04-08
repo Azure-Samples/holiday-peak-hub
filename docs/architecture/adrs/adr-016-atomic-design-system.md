@@ -260,8 +260,8 @@ Each component includes:
 ## References
 
 - [Atomic Design Methodology](https://atomicdesign.bradfrost.com/)
-- [Component Documentation](../../ui/components/COMPONENT_README.md)
-- [Migration Reports](../../ui/components/)
+- [Component Documentation](../../../apps/ui/components/ATOMIC_README.md)
+- [Migration Reports](../../implementation/ui-ux-modernization-review.md)
 - [ADR-015: Next.js App Router](adr-015-nextjs-app-router.md)
 
 ## Revision History

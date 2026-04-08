@@ -655,7 +655,7 @@ logger.info('auth.logout', { userId, sessionDuration });
 - [Next.js Authentication](https://nextjs.org/docs/authentication)
 - [JWT Best Practices](https://tools.ietf.org/html/rfc8725)
 - [OWASP Authentication Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html)
-- [Frontend Architecture Plan](../FRONTEND_ARCHITECTURE_PLAN.md)
+- [ADR-015: Next.js App Router](adr-015-nextjs-app-router.md)
 
 ## Revision History
 

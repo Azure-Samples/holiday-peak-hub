@@ -540,7 +540,7 @@ describe('ACPTransformer', () => {
 
 - [Agentic Commerce Protocol Specification](https://github.com/agentic-commerce-protocol/agentic-commerce-protocol)
 - [ACP Schema Documentation](https://github.com/agentic-commerce-protocol/agentic-commerce-protocol/tree/main/schemas)
-- [ADR-014: ACP Backend Alignment](adr-014-acp-alignment.md)
+- [ADR-011: ACP Catalog Search](adr-011-acp-catalog-search.md)
 - [ADR-017: AG-UI Protocol](adr-017-ag-ui-protocol.md)
 
 ## Revision History

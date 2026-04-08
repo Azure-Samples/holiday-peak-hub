@@ -719,7 +719,7 @@ describe('EcommerceCartClient', () => {
 - [TanStack Query Documentation](https://tanstack.com/query/latest)
 - [Axios Documentation](https://axios-http.com/)
 - [Zod Documentation](https://zod.dev/)
-- [Frontend Architecture Plan](../FRONTEND_ARCHITECTURE_PLAN.md)
+- [ADR-015: Next.js App Router](adr-015-nextjs-app-router.md)
 
 ## Revision History
 

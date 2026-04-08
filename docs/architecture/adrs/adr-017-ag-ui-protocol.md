@@ -399,7 +399,7 @@ logger.info('agent.action', {
 - [AG-UI Protocol Documentation](https://docs.ag-ui.com/)
 - [AG-UI Generative UI Specs](https://docs.ag-ui.com/concepts/generative-ui-specs)
 - [ADR-018: ACP Frontend Integration](adr-018-acp-frontend.md)
-- [Frontend Architecture Plan](../FRONTEND_ARCHITECTURE_PLAN.md)
+- [ADR-015: Next.js App Router](adr-015-nextjs-app-router.md)
 
 ## Revision History
 
