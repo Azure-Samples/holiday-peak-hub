@@ -51,7 +51,7 @@ Use environment-specific entry workflows:
 - `.github/workflows/protected-dev-live-agent-readiness.yml` runs protected live validation against dev after successful `deploy-azd-dev` runs on `main`, or by explicit manual/scheduled execution through the `dev` environment boundary.
 - `.github/workflows/ci.yml` publishes GHCR images automatically for stable tags (`v*.*.*`) and can still be run manually for build/optional publish.
 
-> Provisioning is mandatory before frontend/backend consumption in any environment. Always run `azd provision` (and then `azd deploy`) before validating APIs or UI integration.
+> Provisioning remains the default path for all automatic deploys and normal manual rollouts. The only approved exception is a manual dev emergency redeploy through `deploy-azd-dev.yml` with `skipProvision=true`, which reuses the current azd environment values and already-provisioned infrastructure while still running the reusable workflow's auth, guard, build, deploy, and smoke paths.
 
 **Required repository/environment secrets**:
 
@@ -67,7 +67,7 @@ Repository code establishes this environment-scoped secret boundary. The `dev` e
 
 **Entry workflow inputs**:
 
-- Dev entrypoint (`deploy-azd-dev.yml`): `location`, `projectName`, `imageTag`, `testedSourceSha`, `testedSourceRef`, `deployStatic`, `uiOnly`, `apiBaseUrl`, `forceApimSync`, `autoAllowAcrRunnerIp`.
+- Dev entrypoint (`deploy-azd-dev.yml`): `location`, `projectName`, `imageTag`, `testedSourceSha`, `testedSourceRef`, `skipProvision`, `serviceFilter`, `deployStatic`, `uiOnly`, `apiBaseUrl`, `forceApimSync`, `autoAllowAcrRunnerIp`, `skipApiSmokeChecks`.
 - Prod entrypoint (`deploy-azd-prod.yml`): no manual inputs; runs only from stable release tags and deploys using the tag name as `imageTag`.
 
 **Manual trigger examples**:
@@ -83,6 +83,14 @@ gh workflow run deploy-azd-dev.yml -f location=eastus2 -f projectName=holidaypea
 ```bash
 gh workflow run deploy-azd-dev.yml -f location=eastus2 -f projectName=holidaypeakhub405 -f imageTag=latest -f deployStatic=true -f forceApimSync=false -f autoAllowAcrRunnerIp=true
 ```
+
+- Manual dev emergency redeploy on already-provisioned infrastructure, scoped to a subset of AKS services:
+
+```bash
+gh workflow run deploy-azd-dev.yml -f location=eastus2 -f projectName=holidaypeakhub405 -f imageTag=latest -f skipProvision=true -f serviceFilter=ecommerce-catalog-search -f forceApimSync=true -f autoAllowAcrRunnerIp=true
+```
+
+Use this only when dev infrastructure already exists and the immediate goal is to redeploy specific runtime changes without reconciling shared infrastructure.
 
 - Production rollout (stable release tag + published GitHub Release):
 
@@ -110,6 +118,7 @@ Core workflow note: `.github/workflows/deploy-azd.yml` is reusable-only and not 
 
 - Keep `deployShared=true` for all shared-environment rollouts.
 - Dev AKS rollouts must use the tested source checkout plus immutable image digests (`repo@sha256:...`); deploy jobs render/apply Kubernetes manifests directly and must not rebuild service images inline.
+- `skipProvision=true` is a manual dev-only emergency path for already-provisioned infrastructure. It skips only the `azd provision` step; Azure login, azd environment setup, AKS/ACR/Key Vault guards, output export, image build, deploy, Foundry ensure, and downstream smoke/deploy gates remain active.
 - For GitHub-hosted tested-image builds, `autoAllowAcrRunnerIp=true` preserves OIDC-only auth and the existing ACR IP allowlist flow. If the environment registry is private-only (`publicNetworkAccess=Disabled`), the workflow temporarily reopens the public endpoint with `defaultAction=Deny`, scopes access to the current runner IP, and restores the original ACR public-access state immediately after the build phase.
 - For changed AKS agent services, treat the Foundry runtime contract as a blocking gate: expected `FOUNDRY_STRICT_ENFORCEMENT=true` and `FOUNDRY_AUTO_ENSURE_ON_STARTUP=true` must survive render and rollout, and `/ready` is only accepted when it matches successful Foundry ensure results.
 - UI deployment intentionally uses the SWA GitHub Action path (not `azd deploy --service ui`) so App Router dynamic segments (`[id]`, `[slug]`) are built in the same mode as standard SWA workflows.

@@ -71,6 +71,11 @@ on:
         required: false
         type: string
         default: ''
+      skipProvision:
+        description: Skip azd provision and reuse the current azd environment plus existing infrastructure for an emergency redeploy
+        required: false
+        type: boolean
+        default: false
     secrets:
       AZURE_CLIENT_ID:
         required: true
@@ -616,7 +621,21 @@ jobs:
 
           echo "Event Hub and consumer group declarations are present in IaC."
 
+      - name: Validate skip-provision emergency redeploy mode
+        if: ${{ inputs.skipProvision }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${{ inputs.environment }}" != "dev" ]; then
+            echo "skipProvision is reserved for manual dev emergency redeploys against already-provisioned infrastructure." >&2
+            exit 1
+          fi
+
+          echo "skipProvision=true: reusing the current azd environment values and existing infrastructure for this dev redeploy."
+
       - name: Provision infrastructure
+        if: ${{ !inputs.skipProvision }}
         shell: bash
         run: |
           set -euo pipefail
