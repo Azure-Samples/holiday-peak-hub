@@ -6,6 +6,9 @@ import json
 
 import pytest
 from crud_service.integrations.event_publisher import EventPublisher
+from holiday_peak_lib.self_healing import SelfHealingKernel, default_surface_manifest
+from holiday_peak_lib.utils import CompensationResult
+from holiday_peak_lib.utils.event_hub import EventPublishError
 
 
 class _FakeProducer:
@@ -58,7 +61,7 @@ async def test_publish_rejects_mismatched_topic_event_type() -> None:
     publisher = EventPublisher()
     publisher._producers = {"order-events": _FakeProducer()}
 
-    with pytest.raises(ValueError, match="Invalid payload"):
+    with pytest.raises(EventPublishError) as exc_info:
         await publisher.publish(
             "order-events",
             "PaymentProcessed",
@@ -67,6 +70,8 @@ async def test_publish_rejects_mismatched_topic_event_type() -> None:
                 "user_id": "user-1",
             },
         )
+
+    assert exc_info.value.envelope.category.value == "payload_validation"
 
 
 @pytest.mark.asyncio
@@ -92,3 +97,39 @@ async def test_publish_product_updated_validates_product_event_payload() -> None
     assert payload["event_type"] == "ProductUpdated"
     assert payload["data"]["product_id"] == "sku-1"
     assert payload["data"]["sku"] == "sku-1"
+
+
+@pytest.mark.asyncio
+async def test_publish_failure_raises_and_records_compensation_metadata() -> None:
+    publisher = EventPublisher()
+    publisher._self_healing_kernel = SelfHealingKernel(
+        service_name="crud-service",
+        manifest=default_surface_manifest("crud-service"),
+        enabled=True,
+    )
+    producer = _FakeProducer()
+
+    async def _failing_send(_events):
+        raise TimeoutError("event hub unavailable")
+
+    producer.send_batch = _failing_send
+    publisher._producers = {"order-events": producer}
+
+    with pytest.raises(EventPublishError):
+        await publisher.publish_order_created(
+            {
+                "id": "order-2",
+                "user_id": "user-2",
+                "items": [{"product_id": "sku-2", "quantity": 1, "price": 8.0}],
+                "total": 8.0,
+                "status": "pending",
+                "created_at": "2026-03-21T00:00:00Z",
+            },
+            remediation_context={"workflow": "checkout_finalize"},
+            compensation_result=CompensationResult(completed=["order_write_rollback"]),
+        )
+
+    incident = publisher._self_healing_kernel.list_incidents(limit=1)[0]
+    assert incident.metadata["domain"] == "order"
+    assert incident.metadata["compensation"]["completed_actions"] == ["order_write_rollback"]
+    assert incident.actions == ["reset_messaging_publisher_bindings"]

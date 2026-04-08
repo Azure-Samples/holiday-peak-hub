@@ -2,55 +2,59 @@
 
 from __future__ import annotations
 
-import json
 import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
-from holiday_peak_lib.utils.logging import configure_logging
+from holiday_peak_lib.self_healing import SelfHealingKernel
+from holiday_peak_lib.utils.truth_event_hub import TruthEventPublisher
 from truth_hitl.review_manager import ReviewManager
-
-logger = configure_logging(app_name="truth-hitl")
 
 
 class EventHubPublisher:
     """Publish approval events to an Azure Event Hub topic."""
 
-    def __init__(self, topic: str = "export-jobs") -> None:
+    def __init__(
+        self,
+        topic: str = "export-jobs",
+        *,
+        publisher: TruthEventPublisher | None = None,
+        self_healing_kernel: SelfHealingKernel | None = None,
+    ) -> None:
         self.topic = topic
-        self._connection_string = os.getenv("EVENT_HUB_CONNECTION_STRING") or os.getenv(
-            "EVENTHUB_CONNECTION_STRING"
+        self._publisher = publisher or TruthEventPublisher(
+            namespace=os.getenv("EVENT_HUB_NAMESPACE") or os.getenv("EVENTHUB_NAMESPACE"),
+            connection_string=os.getenv("EVENT_HUB_CONNECTION_STRING")
+            or os.getenv("EVENTHUB_CONNECTION_STRING"),
+            self_healing_kernel=self_healing_kernel,
+            service_name="truth-hitl",
         )
+
+    def attach_self_healing(self, self_healing_kernel: SelfHealingKernel | None) -> None:
+        """Attach the shared app kernel after the FastAPI app has bootstrapped."""
+
+        if hasattr(self._publisher, "self_healing_kernel"):
+            self._publisher.self_healing_kernel = self_healing_kernel
 
     async def publish(self, payload: dict[str, Any]) -> None:
         """Send a message to the configured Event Hub topic."""
-        if not self._connection_string:
-            logger.info(
-                "eventhub_publish_skipped_no_connection topic=%s entity_id=%s",
-                self.topic,
-                payload.get("data", {}).get("entity_id"),
-            )
-            return
-
-        try:
-            from azure.eventhub import EventData
-            from azure.eventhub.aio import EventHubProducerClient
-
-            async with EventHubProducerClient.from_connection_string(
-                self._connection_string,
-                eventhub_name=self.topic,
-            ) as producer:
-                batch = await producer.create_batch()
-                batch.add(EventData(json.dumps(payload)))
-                await producer.send_batch(batch)
-                logger.info(
-                    "eventhub_published topic=%s entity_id=%s",
-                    self.topic,
-                    payload.get("data", {}).get("entity_id"),
-                )
-        except Exception as exc:  # pylint: disable=broad-exception-caught
-            logger.warning("eventhub_publish_failed topic=%s error=%s", self.topic, str(exc))
+        payload_data = payload.get("data")
+        data: dict[str, Any] = payload_data if isinstance(payload_data, dict) else {}
+        entity_id = payload.get("entity_id") or data.get("entity_id")
+        await self._publisher.publish_payload(
+            self.topic,
+            payload,
+            metadata={
+                "domain": "truth-hitl",
+                "entity_id": entity_id,
+            },
+            remediation_context={
+                "preferred_action": "reset_messaging_publisher_bindings",
+                "workflow": "approval_fanout",
+                "target_topic": self.topic,
+            },
+        )
 
 
 def build_hitl_approval_event(

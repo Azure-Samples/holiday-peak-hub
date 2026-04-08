@@ -23,6 +23,9 @@ from holiday_peak_lib.self_healing.models import (
 ActionHandler = Callable[[Incident], Awaitable[RemediationActionResult] | RemediationActionResult]
 
 _SELECTED_RECOVERABLE_5XX = frozenset({500, 502, 503, 504})
+_RECOVERABLE_MESSAGING_FAILURE_CATEGORIES = frozenset(
+    {"configuration", "authentication", "authorization", "throttled", "transient"}
+)
 _FORBIDDEN_ACTION_TOKENS = frozenset(
     {
         "restore_image",
@@ -64,6 +67,7 @@ class SelfHealingKernel:
             "sync_apim_route_config",
             "refresh_aks_ingress_bindings",
             "refresh_mcp_contract_cache",
+            "reset_messaging_publisher_bindings",
             "reset_messaging_consumer_bindings",
         }
     )
@@ -107,6 +111,7 @@ class SelfHealingKernel:
             "sync_apim_route_config": self._action_sync_apim_route_config,
             "refresh_aks_ingress_bindings": self._action_refresh_aks_ingress_bindings,
             "refresh_mcp_contract_cache": self._action_refresh_mcp_contract_cache,
+            "reset_messaging_publisher_bindings": self._action_reset_messaging_publisher_bindings,
             "reset_messaging_consumer_bindings": self._action_reset_messaging_consumer_bindings,
         }
 
@@ -259,10 +264,13 @@ class SelfHealingKernel:
 
     def _classify(self, incident: Incident) -> None:
         status_code = incident.status_code
-        recoverable = bool(
-            status_code is not None
-            and (400 <= status_code < 500 or status_code in _SELECTED_RECOVERABLE_5XX)
-        )
+        if incident.surface == SurfaceType.MESSAGING:
+            recoverable = self._classify_messaging_incident(incident)
+        else:
+            recoverable = bool(
+                status_code is not None
+                and (400 <= status_code < 500 or status_code in _SELECTED_RECOVERABLE_5XX)
+            )
         incident.incident_class = (
             IncidentClass.INFRASTRUCTURE_MISCONFIGURATION
             if recoverable
@@ -328,6 +336,9 @@ class SelfHealingKernel:
         )
 
     def _plan_actions(self, incident: Incident) -> list[str]:
+        if incident.surface == SurfaceType.MESSAGING:
+            return self._plan_messaging_actions(incident)
+
         actions = list(self._surface_action_plan.get(incident.surface, ()))
 
         # API incidents may need edge reconciliation on APIM/ingress surfaces.
@@ -343,6 +354,78 @@ class SelfHealingKernel:
             if action_name not in deduplicated:
                 deduplicated.append(action_name)
         return deduplicated
+
+    def _classify_messaging_incident(self, incident: Incident) -> bool:
+        if self._compensation_failed(incident.metadata):
+            return False
+
+        failure_category = str(incident.metadata.get("failure_category") or "").strip().lower()
+        if failure_category:
+            return failure_category in _RECOVERABLE_MESSAGING_FAILURE_CATEGORIES or bool(
+                incident.status_code in _SELECTED_RECOVERABLE_5XX
+            )
+
+        status_code = incident.status_code
+        return bool(
+            status_code is not None
+            and (400 <= status_code < 500 or status_code in _SELECTED_RECOVERABLE_5XX)
+        )
+
+    def _plan_messaging_actions(self, incident: Incident) -> list[str]:
+        if self._compensation_failed(incident.metadata):
+            return []
+
+        preferred_action = self._preferred_messaging_action(incident.metadata)
+        if preferred_action is not None:
+            return [preferred_action]
+
+        failure_stage = str(incident.metadata.get("failure_stage") or "").strip().lower()
+        if failure_stage == "publish":
+            return ["reset_messaging_publisher_bindings"]
+        return ["reset_messaging_consumer_bindings"]
+
+    def _preferred_messaging_action(self, metadata: dict[str, Any]) -> str | None:
+        remediation_context = metadata.get("remediation_context")
+        if isinstance(remediation_context, dict):
+            preferred_action = remediation_context.get("preferred_action")
+            if isinstance(preferred_action, str) and preferred_action in self._allowed_actions:
+                return preferred_action
+
+        remediation_action = metadata.get("remediation_action")
+        if isinstance(remediation_action, str) and remediation_action in self._allowed_actions:
+            return remediation_action
+        return None
+
+    def _compensation_failed(self, metadata: dict[str, Any]) -> bool:
+        compensation = metadata.get("compensation")
+        if not isinstance(compensation, dict):
+            return False
+        if compensation.get("succeeded") is False:
+            return True
+        return compensation.get("failed_action") is not None
+
+    def _messaging_action_details(self, incident: Incident) -> dict[str, Any]:
+        details: dict[str, Any] = {"component": incident.component}
+        for key in (
+            "topic",
+            "domain",
+            "event_type",
+            "profile",
+            "failure_category",
+            "failure_stage",
+        ):
+            value = incident.metadata.get(key)
+            if value is not None:
+                details[key] = value
+
+        remediation_context = incident.metadata.get("remediation_context")
+        if remediation_context is not None:
+            details["remediation_context"] = remediation_context
+
+        compensation = incident.metadata.get("compensation")
+        if compensation is not None:
+            details["compensation"] = compensation
+        return details
 
     async def _execute_action(
         self, action_name: str, incident: Incident
@@ -467,6 +550,16 @@ class SelfHealingKernel:
             details={"component": incident.component},
         )
 
+    async def _action_reset_messaging_publisher_bindings(
+        self,
+        incident: Incident,
+    ) -> RemediationActionResult:
+        return RemediationActionResult(
+            action="reset_messaging_publisher_bindings",
+            success=True,
+            details=self._messaging_action_details(incident),
+        )
+
     async def _action_reset_messaging_consumer_bindings(
         self,
         incident: Incident,
@@ -474,5 +567,5 @@ class SelfHealingKernel:
         return RemediationActionResult(
             action="reset_messaging_consumer_bindings",
             success=True,
-            details={"component": incident.component},
+            details=self._messaging_action_details(incident),
         )

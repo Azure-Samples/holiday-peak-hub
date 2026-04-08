@@ -34,6 +34,9 @@ class TruthEnrichmentAgent(BaseRetailAgent):
         super().__init__(config, *args, **kwargs)
         self._engine = engine or EnrichmentEngine()
         self._adapters = adapters or build_enrichment_adapters()
+        attach_self_healing = getattr(self._adapters.hitl_publisher, "attach_self_healing", None)
+        if callable(attach_self_healing):
+            attach_self_healing(self.self_healing_kernel)
         self._adapters.dam.set_vision_invoker(self.invoke_model)
         self._adapters.dam.set_vision_prompt_builder(self._engine.build_vision_prompt)
 
@@ -129,7 +132,9 @@ class TruthEnrichmentAgent(BaseRetailAgent):
         job_id = str(uuid.uuid4())
         messages = self.engine.build_prompt(product, field_name, field_definition)
 
-        image_raw = await self.adapters.image_analysis.analyze_attribute_from_images(
+        image_analysis = self.adapters.image_analysis or self.adapters.dam
+
+        image_raw = await image_analysis.analyze_attribute_from_images(
             entity_id=entity_id,
             field_name=field_name,
             product=product,
