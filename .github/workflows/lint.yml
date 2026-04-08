@@ -65,6 +65,9 @@ jobs:
       - name: Type check (mypy)
         run: |
           python -m mypy --config-file pyproject.toml --ignore-missing-imports --follow-imports=skip lib/src/holiday_peak_lib/agents/service_agent.py lib/src/holiday_peak_lib/agents/memory/builder.py
+      - name: Validate canonical event schema contracts
+        run: |
+          python scripts/ops/check_event_schema_contracts.py
       - name: Check prompt and agent governance consistency
         run: |
           python scripts/ops/check_prompt_agent_consistency.py --report-file governance-drift-report.md

@@ -5,6 +5,10 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any, Literal
 
+from holiday_peak_lib.events.versioning import (
+    CURRENT_EVENT_SCHEMA_VERSION,
+    SchemaCompatibilityPolicy,
+)
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 
 OrderEventType = Literal["OrderCreated", "OrderUpdated", "OrderCancelled"]
@@ -20,6 +24,9 @@ ReturnEventType = Literal[
 InventoryEventType = Literal["InventoryReserved", "InventoryReleased", "InventoryUpdated"]
 ShipmentEventType = Literal["ShipmentCreated", "ShipmentUpdated"]
 ProductEventType = Literal["ProductCreated", "ProductUpdated", "ProductDeleted"]
+UserEventType = Literal["UserRegistered", "UserUpdated"]
+
+RETAIL_SCHEMA_POLICY = SchemaCompatibilityPolicy(CURRENT_EVENT_SCHEMA_VERSION)
 
 RETAIL_EVENT_TOPICS: tuple[str, ...] = (
     "order-events",
@@ -28,6 +35,7 @@ RETAIL_EVENT_TOPICS: tuple[str, ...] = (
     "inventory-events",
     "shipment-events",
     "product-events",
+    "user-events",
 )
 
 
@@ -212,19 +220,52 @@ class ProductEventData(_RetailEventData):
         return self
 
 
-class _RetailEventEnvelope(BaseModel):
-    model_config = ConfigDict(extra="allow")
+class UserEventData(_RetailEventData):
+    """User lifecycle event payload."""
 
+    user_id: str | None = None
+    entra_id: str | None = None
+    email: str | None = None
+    name: str | None = None
+    phone: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
     timestamp: str | None = None
 
     @model_validator(mode="before")
     @classmethod
-    def _default_timestamp(cls, value: Any) -> Any:
+    def _normalize_user_id(cls, value: Any) -> Any:
+        if isinstance(value, dict) and not value.get("user_id") and value.get("id"):
+            value = dict(value)
+            value["user_id"] = value["id"]
+        return value
+
+    @model_validator(mode="after")
+    def _require_user_id(self) -> "UserEventData":
+        if not self.user_id:
+            raise ValueError("User event payload requires user_id (or id)")
+        return self
+
+
+class _RetailEventEnvelope(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    schema_version: str = CURRENT_EVENT_SCHEMA_VERSION
+    timestamp: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_envelope(cls, value: Any) -> Any:
         if not isinstance(value, dict):
             return value
 
-        data = value.get("data") if isinstance(value.get("data"), dict) else {}
-        timestamp = value.get("timestamp")
+        normalized = dict(value)
+        normalized["schema_version"] = RETAIL_SCHEMA_POLICY.normalize(
+            normalized.get("schema_version")
+        )
+
+        data = normalized.get("data") if isinstance(normalized.get("data"), dict) else {}
+        timestamp = normalized.get("timestamp")
         if not timestamp:
             timestamp = (
                 data.get("timestamp")
@@ -233,7 +274,6 @@ class _RetailEventEnvelope(BaseModel):
                 or datetime.now(UTC).isoformat()
             )
 
-        normalized = dict(value)
         normalized["timestamp"] = str(timestamp)
         return normalized
 
@@ -280,6 +320,13 @@ class ProductEventEnvelope(_RetailEventEnvelope):
     data: ProductEventData
 
 
+class UserEventEnvelope(_RetailEventEnvelope):
+    """User event envelope."""
+
+    event_type: UserEventType
+    data: UserEventData
+
+
 RetailEvent = (
     OrderEventEnvelope
     | PaymentEventEnvelope
@@ -287,6 +334,7 @@ RetailEvent = (
     | InventoryEventEnvelope
     | ShipmentEventEnvelope
     | ProductEventEnvelope
+    | UserEventEnvelope
 )
 
 _RETAIL_TOPIC_ADAPTERS: dict[str, TypeAdapter[Any]] = {
@@ -296,6 +344,7 @@ _RETAIL_TOPIC_ADAPTERS: dict[str, TypeAdapter[Any]] = {
     "inventory-events": TypeAdapter(InventoryEventEnvelope),
     "shipment-events": TypeAdapter(ShipmentEventEnvelope),
     "product-events": TypeAdapter(ProductEventEnvelope),
+    "user-events": TypeAdapter(UserEventEnvelope),
 }
 _RETAIL_EVENT_ADAPTER = TypeAdapter(RetailEvent)
 
@@ -321,10 +370,12 @@ def build_retail_event_payload(
     topic: str,
     event_type: str,
     data: dict[str, Any],
+    schema_version: str | None = None,
 ) -> dict[str, Any]:
     """Build and validate a canonical event payload for Event Hub publication."""
 
     payload = {
+        "schema_version": schema_version,
         "event_type": event_type,
         "data": data,
         "timestamp": data.get("timestamp") if isinstance(data, dict) else None,

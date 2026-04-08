@@ -197,6 +197,9 @@ class PriceQueryResponse(BaseModel):
 
 ✅ **Base Event Schema**: `BaseEvent` with event_id, correlation_id, timestamp  
 ✅ **10+ Event Types**: OrderCreated, StockReserved, PaymentProcessed, etc.  
+✅ **Canonical Envelope Versioning**: retail and connector event envelopes now emit top-level `schema_version: "1.0"`  
+✅ **Backward-Compatible Reads**: missing envelope versions parse as implicit `1.0` during migration  
+✅ **Compatibility Policy**: same-major additive changes only; unknown fields tolerated; breaking changes require a major bump  
 ✅ **20+ API Schemas**: Search, product detail, cart, checkout requests/responses  
 ✅ **Domain Models**: Customer, Order, OrderItem, Product, Inventory  
 ✅ **Adapter DTOs**: Inventory, Pricing, CRM, Logistics query/response pairs  
@@ -204,44 +207,38 @@ class PriceQueryResponse(BaseModel):
 ✅ **JSON Encoders**: Custom handling for datetime, UUID, Decimal  
 ✅ **Field Descriptions**: Docstrings for OpenAPI generation  
 
-## What's NOT Implemented
+## Schema Evolution and Remaining Gaps
 
-### Schema Versioning
+### Canonical Event Envelope Versioning
 
-❌ **No Version Field**: Schemas don't carry `schema_version` for evolution  
-❌ **No Migration Logic**: Breaking changes require manual client updates  
-❌ **No Deprecation Warnings**: Old fields removed without grace period  
+Retail and connector event envelopes are now governed at the shared boundary by a top-level `schema_version` string in `major.minor` format.
 
-**To Implement Versioning**:
+- Missing `schema_version` is treated as implicit `1.0` for backward compatibility during migration.
+- Same-major versions are considered compatible when changes are additive only.
+- Unknown fields are tolerated so consumers can safely ignore new fields within the same major version.
+- Breaking changes require a major bump and an update to the contract gate fixtures.
+
 ```python
-class VersionedSchema(BaseModel):
-    schema_version: int = 1
-    
-    @classmethod
-    def from_dict(cls, data: dict) -> "VersionedSchema":
-        """Deserialize with version handling."""
-        version = data.get("schema_version", 1)
-        
-        if version == 1:
-            return cls(**data)
-        elif version == 2:
-            # Migrate v1 → v2
-            data = cls._migrate_v1_to_v2(data)
-            return cls(**data)
-        else:
-            raise ValueError(f"Unsupported version: {version}")
-    
-    @staticmethod
-    def _migrate_v1_to_v2(data: dict) -> dict:
-        """Example migration: rename field."""
-        if "old_field" in data:
-            data["new_field"] = data.pop("old_field")
-        return data
+CURRENT_EVENT_SCHEMA_VERSION = "1.0"
 
-class OrderV2(VersionedSchema):
-    schema_version: Literal[2] = 2
-    order_id: str
-    # ... new fields
+payload = build_retail_event_payload(
+    topic="user-events",
+    event_type="UserUpdated",
+    data={"id": "user-1", "email": "user@example.com"},
+)
+
+assert payload["schema_version"] == "1.0"
+
+legacy = parse_connector_event(
+    {
+        "event_type": "ProductChanged",
+        "source_system": "akeneo",
+        "entity_id": "sku-1",
+        "product_id": "sku-1",
+    }
+)
+
+assert legacy.schema_version == "1.0"
 ```
 
 ### JSON Schema Generation

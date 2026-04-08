@@ -470,27 +470,33 @@ async def publish(self, event: BaseEvent):
 
 ### Schema Evolution
 
-❌ **No Versioning**: Event schema changes break consumers  
-❌ **No Backward Compatibility**: Adding required field breaks old consumers  
+❌ **No `major.minor` Envelope Example**: The sample still shows integer-based schema versioning instead of the governed string envelope policy.  
+❌ **No Implicit `1.0` Compatibility Example**: Legacy payloads without `schema_version` should normalize to `1.0` during migration windows.  
+
+Same-major changes should remain additive-only, with consumers tolerating unknown fields until a breaking major version is introduced.
 
 **Add Schema Versioning**:
 ```python
+CURRENT_EVENT_SCHEMA_VERSION = "1.0"
+SCHEMA_POLICY = SchemaCompatibilityPolicy(CURRENT_EVENT_SCHEMA_VERSION)
+
 class BaseEvent(BaseModel):
-    schema_version: int = 1  # Increment on breaking changes
+    schema_version: str = CURRENT_EVENT_SCHEMA_VERSION
     
     @classmethod
     def from_event_data(cls, data: dict) -> "BaseEvent":
-        """Deserialize with version handling."""
-        version = data.get("schema_version", 1)
-        
-        if version == 1:
-            return cls(**data)
-        elif version == 2:
-            # Migrate v1 → v2
-            data["new_field"] = data.pop("old_field")
-            return cls(**data)
-        else:
-            raise ValueError(f"Unsupported schema version: {version}")
+        """Deserialize with canonical envelope compatibility handling."""
+        normalized = dict(data)
+        normalized["schema_version"] = SCHEMA_POLICY.normalize(
+            normalized.get("schema_version")
+        )
+
+        if not SCHEMA_POLICY.is_compatible(normalized["schema_version"]):
+            raise ValueError(
+                f"Unsupported schema_version major: {normalized['schema_version']}"
+            )
+
+        return cls(**normalized)
 ```
 
 ## Extension Guide

@@ -1,0 +1,8 @@
+{
+  "event_id": "evt-product-legacy",
+  "event_type": "ProductChanged",
+  "source_system": "akeneo",
+  "entity_id": "sku-legacy",
+  "product_id": "sku-legacy",
+  "occurred_at": "2026-03-21T00:00:00Z"
+}

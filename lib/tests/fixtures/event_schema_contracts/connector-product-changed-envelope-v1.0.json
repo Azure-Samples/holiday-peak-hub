@@ -1,0 +1,16 @@
+{
+  "schema_version": "1.0",
+  "attributes": {},
+  "category_id": null,
+  "description": null,
+  "event_id": "evt-product-1",
+  "event_type": "ProductChanged",
+  "image_url": null,
+  "source_system": "akeneo",
+  "entity_id": "sku-1",
+  "product_id": "sku-1",
+  "name": "Governed Connector Widget",
+  "occurred_at": "2026-03-21T00:00:00Z",
+  "tenant_id": null,
+  "trace_id": null
+}
