@@ -6,18 +6,545 @@ import asyncio
 import json
 import os
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from enum import StrEnum
 from inspect import isawaitable, signature
 from typing import Any, AsyncContextManager, AsyncIterator, Awaitable, Callable, Iterable
 
 from azure.eventhub.aio import EventHubConsumerClient
 from azure.identity.aio import DefaultAzureCredential
 from holiday_peak_lib.self_healing import FailureSignal, SelfHealingKernel, SurfaceType
+from holiday_peak_lib.utils.compensation import CompensationResult
 from holiday_peak_lib.utils.logging import configure_logging
 
 EventHandler = Callable[[Any, Any], Awaitable[None]]
 ErrorHandler = Callable[..., Awaitable[None] | None]
 FailureSignalEmitter = Callable[[FailureSignal], Awaitable[Any] | Any]
+PublishOperation = Callable[[], Awaitable[None]]
+DeadLetterCallback = Callable[["PublishFailureEnvelope"], Awaitable[Any] | Any]
+TerminalFailureHandler = Callable[
+    [Exception],
+    Awaitable[CompensationResult | None] | CompensationResult | None,
+]
+
+_RECOVERABLE_PUBLISH_5XX = frozenset({500, 502, 503, 504})
+
+
+class MessagingFailureCategory(StrEnum):
+    """Shared taxonomy for producer-side messaging failures."""
+
+    CONFIGURATION = "configuration"
+    PAYLOAD_VALIDATION = "payload_validation"
+    AUTHENTICATION = "authentication"
+    AUTHORIZATION = "authorization"
+    THROTTLED = "throttled"
+    TRANSIENT = "transient"
+    UNKNOWN = "unknown"
+
+
+class DeadLetterStrategy(StrEnum):
+    """Application-managed dead-letter handling modes for Event Hubs publishers."""
+
+    NONE = "none"
+    METADATA_ONLY = "metadata_only"
+    CALLBACK = "callback"
+
+
+@dataclass(frozen=True, slots=True)
+class DeadLetterPolicy:
+    """Strategy object describing how terminal publish failures are recorded."""
+
+    strategy: DeadLetterStrategy = DeadLetterStrategy.METADATA_ONLY
+    reason: str = "event_hubs_requires_application_managed_dead_letter"
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+_DEFAULT_RETRYABLE_CATEGORIES = frozenset(
+    {
+        MessagingFailureCategory.THROTTLED,
+        MessagingFailureCategory.TRANSIENT,
+    }
+)
+EVENT_HUB_METADATA_DEAD_LETTER_POLICY = DeadLetterPolicy()
+
+
+@dataclass(frozen=True, slots=True)
+class PublishReliabilityProfile:
+    """Strategy object describing how a topic should react to publish failure."""
+
+    name: str
+    raise_on_failure: bool = True
+    status_code: int = 503
+    remediation_action: str = "reset_messaging_publisher_bindings"
+    retry_max_attempts: int = 3
+    retry_backoff_base_seconds: float = 0.25
+    retry_backoff_max_seconds: float = 2.0
+    retryable_categories: frozenset[MessagingFailureCategory] = _DEFAULT_RETRYABLE_CATEGORIES
+    dead_letter_policy: DeadLetterPolicy = EVENT_HUB_METADATA_DEAD_LETTER_POLICY
+
+
+CRITICAL_SAGA_PUBLISH_PROFILE = PublishReliabilityProfile(name="critical_saga")
+BEST_EFFORT_PUBLISH_PROFILE = PublishReliabilityProfile(
+    name="best_effort",
+    raise_on_failure=False,
+    retry_max_attempts=2,
+)
+
+
+class PublishFailureEnvelope:
+    """Structured failure envelope for producer-side messaging incidents."""
+
+    __slots__ = (
+        "service_name",
+        "topic",
+        "operation",
+        "error_type",
+        "error_message",
+        "category",
+        "status_code",
+        "profile",
+        "event_type",
+        "metadata",
+    )
+
+    def __init__(
+        self,
+        *,
+        service_name: str,
+        topic: str,
+        operation: str,
+        error_type: str,
+        error_message: str,
+        category: MessagingFailureCategory,
+        status_code: int,
+        profile: PublishReliabilityProfile,
+        event_type: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        self.service_name = service_name
+        self.topic = topic
+        self.operation = operation
+        self.error_type = error_type
+        self.error_message = error_message
+        self.category = category
+        self.status_code = status_code
+        self.profile = profile
+        self.event_type = event_type
+        self.metadata = dict(metadata or {})
+
+    def to_failure_signal(self) -> FailureSignal:
+        """Convert the envelope into the self-healing kernel input model."""
+
+        signal_metadata = {
+            "topic": self.topic,
+            "event_type": self.event_type,
+            "operation": self.operation,
+            "failure_stage": "publish",
+            "failure_category": self.category.value,
+            "profile": self.profile.name,
+            "remediation_action": self.profile.remediation_action,
+        }
+        signal_metadata.update(self.metadata)
+        return FailureSignal(
+            service_name=self.service_name,
+            surface=SurfaceType.MESSAGING,
+            component=self.topic,
+            status_code=self.status_code,
+            error_type=self.error_type,
+            error_message=self.error_message,
+            metadata={key: value for key, value in signal_metadata.items() if value is not None},
+        )
+
+
+class EventPublishError(RuntimeError):
+    """Raised when a publish profile requires hard failure instead of silent loss."""
+
+    def __init__(
+        self,
+        envelope: PublishFailureEnvelope,
+        *,
+        incident_id: str | None = None,
+    ) -> None:
+        self.envelope = envelope
+        self.incident_id = incident_id
+        event_type = envelope.event_type or "unknown"
+        super().__init__(
+            "Event publish failed "
+            f"service={envelope.service_name} topic={envelope.topic} event_type={event_type} "
+            f"category={envelope.category.value} profile={envelope.profile.name}"
+        )
+
+
+def _safe_log(logger: Any, level: str, message: str, **metadata: Any) -> None:
+    log_method = getattr(logger, level, None)
+    if not callable(log_method):
+        return
+    try:
+        log_method(message, **metadata)
+    except TypeError:
+        try:
+            log_method(message, extra=metadata)
+        except TypeError:
+            log_method(message)
+
+
+def resolve_publish_reliability_profile(
+    topic: str,
+    *,
+    topic_profiles: dict[str, PublishReliabilityProfile] | None = None,
+    default_profile: PublishReliabilityProfile = CRITICAL_SAGA_PUBLISH_PROFILE,
+) -> PublishReliabilityProfile:
+    """Resolve the reliability profile for a topic using a small strategy map."""
+
+    if topic_profiles is None:
+        return default_profile
+    return topic_profiles.get(topic, default_profile)
+
+
+def serialize_compensation_result(
+    compensation_result: CompensationResult | None,
+) -> dict[str, Any] | None:
+    """Normalize compensation output for incident metadata and audit trails."""
+
+    if compensation_result is None:
+        return None
+    return {
+        "succeeded": compensation_result.succeeded,
+        "completed_actions": list(compensation_result.completed),
+        "failed_action": compensation_result.failed_action,
+        "failed_error_type": (
+            type(compensation_result.failed_error).__name__
+            if compensation_result.failed_error is not None
+            else None
+        ),
+        "failed_error": (
+            str(compensation_result.failed_error)
+            if compensation_result.failed_error is not None
+            else None
+        ),
+    }
+
+
+def classify_publish_failure(
+    error: Exception,
+) -> tuple[MessagingFailureCategory, int]:
+    """Map producer-side exceptions into the shared failure taxonomy."""
+
+    status_code = getattr(error, "status_code", None)
+    error_type = type(error).__name__.lower()
+    error_message = str(error).lower()
+
+    if isinstance(error, LookupError):
+        return MessagingFailureCategory.CONFIGURATION, int(status_code or 500)
+    if isinstance(error, (ValueError, TypeError)) or "validation" in error_type:
+        return MessagingFailureCategory.PAYLOAD_VALIDATION, int(status_code or 422)
+    if status_code == 401 or "credential" in error_message or "authentication" in error_message:
+        return MessagingFailureCategory.AUTHENTICATION, int(status_code or 401)
+    if (
+        status_code == 403
+        or isinstance(error, PermissionError)
+        or "permission" in error_message
+        or "authorization" in error_message
+    ):
+        return MessagingFailureCategory.AUTHORIZATION, int(status_code or 403)
+    if status_code == 429 or "throttle" in error_message or "too many requests" in error_message:
+        return MessagingFailureCategory.THROTTLED, int(status_code or 429)
+    if (
+        status_code in _RECOVERABLE_PUBLISH_5XX
+        or isinstance(error, (ConnectionError, TimeoutError, OSError))
+        or "timeout" in error_message
+        or "temporarily unavailable" in error_message
+        or "connection" in error_message
+    ):
+        return MessagingFailureCategory.TRANSIENT, int(status_code or 503)
+    return MessagingFailureCategory.UNKNOWN, int(status_code or 500)
+
+
+def _coerce_retry_after_seconds(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return max(float(value), 0.0)
+    except (TypeError, ValueError):
+        return None
+
+
+def _extract_retry_after_seconds(error: Exception) -> float | None:
+    for attribute_name in (
+        "retry_after",
+        "retry_after_in_seconds",
+        "retry_after_seconds",
+    ):
+        delay = _coerce_retry_after_seconds(getattr(error, attribute_name, None))
+        if delay is not None:
+            return delay
+
+    for candidate in (
+        getattr(error, "headers", None),
+        getattr(getattr(error, "response", None), "headers", None),
+    ):
+        if candidate is None or not hasattr(candidate, "get"):
+            continue
+        delay = _coerce_retry_after_seconds(candidate.get("retry-after"))
+        if delay is not None:
+            return delay
+    return None
+
+
+def resolve_retry_delay_seconds(
+    error: Exception,
+    *,
+    attempt: int,
+    profile: PublishReliabilityProfile,
+) -> float:
+    """Resolve retry delay using retry-after metadata before exponential backoff."""
+
+    retry_after = _extract_retry_after_seconds(error)
+    if retry_after is not None:
+        return retry_after
+
+    backoff_seconds = profile.retry_backoff_base_seconds * (2 ** max(attempt - 1, 0))
+    return max(0.0, min(backoff_seconds, profile.retry_backoff_max_seconds))
+
+
+async def _resolve_terminal_compensation_result(
+    *,
+    error: Exception,
+    compensation_result: CompensationResult | None,
+    on_terminal_failure: TerminalFailureHandler | None,
+    logger: Any | None,
+    service_name: str,
+    topic: str,
+) -> CompensationResult | None:
+    resolved_compensation = compensation_result
+    if on_terminal_failure is None:
+        return resolved_compensation
+
+    try:
+        callback_result = on_terminal_failure(error)
+        if isawaitable(callback_result):
+            callback_result = await callback_result
+        return callback_result if callback_result is not None else resolved_compensation
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        _safe_log(
+            logger,
+            "warning",
+            "eventhub_terminal_failure_handler_failed",
+            service=service_name,
+            topic=topic,
+            error_type=type(exc).__name__,
+            error=str(exc),
+        )
+        return CompensationResult(
+            failed_action="terminal_failure_compensation",
+            failed_error=exc,
+        )
+
+
+async def apply_dead_letter_policy(
+    envelope: PublishFailureEnvelope,
+    *,
+    dead_letter_callback: DeadLetterCallback | None = None,
+    logger: Any | None = None,
+) -> None:
+    """Record terminal publish failure handling without assuming broker-native DLQ support."""
+
+    policy = envelope.profile.dead_letter_policy
+    dead_letter_metadata: dict[str, Any] = {
+        "strategy": policy.strategy.value,
+        "reason": policy.reason,
+        "callback_configured": dead_letter_callback is not None,
+        "callback_invoked": False,
+    }
+    if policy.metadata:
+        dead_letter_metadata["policy_metadata"] = dict(policy.metadata)
+
+    if policy.strategy == DeadLetterStrategy.CALLBACK and dead_letter_callback is not None:
+        try:
+            callback_result = dead_letter_callback(envelope)
+            if isawaitable(callback_result):
+                callback_result = await callback_result
+            dead_letter_metadata["callback_invoked"] = True
+            if callback_result is not None:
+                dead_letter_metadata["callback_result"] = callback_result
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            dead_letter_metadata["callback_invoked"] = True
+            dead_letter_metadata["callback_error_type"] = type(exc).__name__
+            dead_letter_metadata["callback_error"] = str(exc)
+            _safe_log(
+                logger,
+                "warning",
+                "eventhub_dead_letter_callback_failed",
+                service=envelope.service_name,
+                topic=envelope.topic,
+                error_type=type(exc).__name__,
+                error=str(exc),
+            )
+
+    envelope.metadata["dead_letter"] = dead_letter_metadata
+
+
+def build_publish_failure_envelope(
+    *,
+    error: Exception,
+    service_name: str,
+    topic: str,
+    event_type: str | None,
+    profile: PublishReliabilityProfile,
+    metadata: dict[str, Any] | None = None,
+    remediation_context: dict[str, Any] | None = None,
+    compensation_result: CompensationResult | None = None,
+    operation: str = "publish",
+    category: MessagingFailureCategory | None = None,
+    status_code: int | None = None,
+) -> PublishFailureEnvelope:
+    """Create a normalized publish failure envelope before emission/escalation."""
+
+    resolved_category, resolved_status_code = classify_publish_failure(error)
+    envelope_metadata = dict(metadata or {})
+    if remediation_context:
+        envelope_metadata["remediation_context"] = dict(remediation_context)
+    compensation_metadata = serialize_compensation_result(compensation_result)
+    if compensation_metadata is not None:
+        envelope_metadata["compensation"] = compensation_metadata
+    return PublishFailureEnvelope(
+        service_name=service_name,
+        topic=topic,
+        event_type=event_type,
+        operation=operation,
+        error_type=type(error).__name__,
+        error_message=str(error),
+        category=category or resolved_category,
+        status_code=status_code or resolved_status_code or profile.status_code,
+        profile=profile,
+        metadata=envelope_metadata,
+    )
+
+
+async def emit_publish_failure(
+    envelope: PublishFailureEnvelope,
+    *,
+    self_healing_kernel: SelfHealingKernel | None = None,
+    logger: Any | None = None,
+) -> EventPublishError:
+    """Emit a producer failure into self-healing and return the structured exception."""
+
+    _safe_log(
+        logger,
+        "error",
+        "eventhub_publish_failed",
+        service=envelope.service_name,
+        topic=envelope.topic,
+        event_type=envelope.event_type,
+        category=envelope.category.value,
+        profile=envelope.profile.name,
+        error_type=envelope.error_type,
+    )
+
+    incident_id: str | None = None
+    if self_healing_kernel is not None:
+        try:
+            incident = await self_healing_kernel.handle_failure_signal(envelope.to_failure_signal())
+            incident_id = incident.id if incident is not None else None
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            _safe_log(
+                logger,
+                "warning",
+                "eventhub_publish_failure_signal_failed",
+                service=envelope.service_name,
+                topic=envelope.topic,
+                error=str(exc),
+            )
+
+    return EventPublishError(envelope, incident_id=incident_id)
+
+
+async def publish_with_reliability(
+    *,
+    send: PublishOperation,
+    service_name: str,
+    topic: str,
+    event_type: str | None,
+    profile: PublishReliabilityProfile = CRITICAL_SAGA_PUBLISH_PROFILE,
+    self_healing_kernel: SelfHealingKernel | None = None,
+    logger: Any | None = None,
+    metadata: dict[str, Any] | None = None,
+    remediation_context: dict[str, Any] | None = None,
+    compensation_result: CompensationResult | None = None,
+    on_terminal_failure: TerminalFailureHandler | None = None,
+    dead_letter_callback: DeadLetterCallback | None = None,
+    operation: str = "publish",
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+) -> PublishFailureEnvelope | None:
+    """Template method for producer sends with shared failure handling."""
+
+    max_attempts = max(profile.retry_max_attempts, 1)
+    attempt = 1
+
+    while True:
+        try:
+            await send()
+            return None
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            category, _ = classify_publish_failure(exc)
+            if attempt < max_attempts and category in profile.retryable_categories:
+                delay_seconds = resolve_retry_delay_seconds(
+                    exc,
+                    attempt=attempt,
+                    profile=profile,
+                )
+                _safe_log(
+                    logger,
+                    "warning",
+                    "eventhub_publish_retry_scheduled",
+                    service=service_name,
+                    topic=topic,
+                    event_type=event_type,
+                    category=category.value,
+                    attempt=attempt,
+                    max_attempts=max_attempts,
+                    retry_in_seconds=delay_seconds,
+                )
+                attempt += 1
+                await sleep(delay_seconds)
+                continue
+
+            resolved_compensation = await _resolve_terminal_compensation_result(
+                error=exc,
+                compensation_result=compensation_result,
+                on_terminal_failure=on_terminal_failure,
+                logger=logger,
+                service_name=service_name,
+                topic=topic,
+            )
+            envelope = build_publish_failure_envelope(
+                error=exc,
+                service_name=service_name,
+                topic=topic,
+                event_type=event_type,
+                profile=profile,
+                metadata={
+                    **(metadata or {}),
+                    "attempt_count": attempt,
+                    "retry_max_attempts": max_attempts,
+                },
+                remediation_context=remediation_context,
+                compensation_result=resolved_compensation,
+                operation=operation,
+            )
+            await apply_dead_letter_policy(
+                envelope,
+                dead_letter_callback=dead_letter_callback,
+                logger=logger,
+            )
+            publish_error = await emit_publish_failure(
+                envelope,
+                self_healing_kernel=self_healing_kernel,
+                logger=logger,
+            )
+            if profile.raise_on_failure:
+                raise publish_error from exc
+            return envelope
 
 
 @dataclass(frozen=True)
@@ -212,7 +739,9 @@ def create_eventhub_lifespan(
                     await handler(partition_context, event)
                     return
                 payload = json.loads(event.body_as_str())
-                logger.info(
+                _safe_log(
+                    logger,
+                    "info",
                     "event_received",
                     event_type=payload.get("event_type"),
                     eventhub=eventhub_name,
@@ -231,13 +760,15 @@ def create_eventhub_lifespan(
                     if namespace and namespace.endswith(".servicebus.windows.net")
                     else f"{namespace}.servicebus.windows.net"
                 )
+                assert credential is not None
+                active_credential = credential
 
                 def _factory() -> EventHubConsumerClient:
                     return EventHubConsumerClient(
                         fully_qualified_namespace=qualified_namespace,
                         consumer_group=target_subscription.consumer_group,
                         eventhub_name=target_subscription.eventhub_name,
-                        credential=credential,
+                        credential=active_credential,
                     )
 
                 return _factory
@@ -288,7 +819,9 @@ def build_basic_event_handlers(
     def make_handler(eventhub_name: str) -> EventHandler:
         async def _handler(_partition_context, event):  # noqa: ANN001
             payload = json.loads(event.body_as_str())
-            logger.info(
+            _safe_log(
+                logger,
+                "info",
                 "event_processed",
                 event_type=payload.get("event_type"),
                 eventhub=eventhub_name,
@@ -323,7 +856,9 @@ def build_event_handlers_with_keys(
                 identifier = data.get(key) or payload.get(key)
                 if identifier:
                     break
-            logger.info(
+            _safe_log(
+                logger,
+                "info",
                 "event_processed",
                 event_type=(payload.get("event_type") if isinstance(payload, dict) else None),
                 eventhub=eventhub_name,

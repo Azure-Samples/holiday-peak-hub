@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any
+from unittest.mock import AsyncMock
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from truth_hitl.adapters import EventHubPublisher, build_hitl_adapters
@@ -160,3 +162,24 @@ def test_single_approve_publishes_export_job_payload():
     assert search_payload["event_type"] == "hitl.approved.search"
     assert search_payload["data"]["entity_id"] == "prod-003"
     assert search_payload["data"]["status"] == "approved"
+
+
+@pytest.mark.asyncio
+async def test_event_hub_publisher_delegates_to_truth_publisher():
+    truth_publisher = AsyncMock()
+    truth_publisher.publish_payload = AsyncMock()
+    publisher = EventHubPublisher(topic="export-jobs", publisher=truth_publisher)
+    payload = {"event_type": "hitl.approved", "data": {"entity_id": "prod-010"}}
+
+    await publisher.publish(payload)
+
+    truth_publisher.publish_payload.assert_awaited_once_with(
+        "export-jobs",
+        payload,
+        metadata={"domain": "truth-hitl", "entity_id": "prod-010"},
+        remediation_context={
+            "preferred_action": "reset_messaging_publisher_bindings",
+            "workflow": "approval_fanout",
+            "target_topic": "export-jobs",
+        },
+    )

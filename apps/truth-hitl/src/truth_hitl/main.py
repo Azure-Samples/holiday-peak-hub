@@ -24,5 +24,8 @@ app = create_standard_app(
     handlers=build_event_handlers(adapters=_adapters),
 )
 
+_adapters.export_publisher.attach_self_healing(app.state.self_healing_kernel)
+_adapters.search_enrichment_publisher.attach_self_healing(app.state.self_healing_kernel)
+
 # Mount the review REST routes
 app.include_router(build_review_router(_adapters))

@@ -37,6 +37,10 @@ Services built through `build_service_app` now include a shared self-healing ker
     - Recoverable class is limited to infrastructure misconfiguration (`4xx` and selected `5xx`)
     - Remediation is allowlisted and audit-recorded
     - Image restore/redeploy actions are explicitly forbidden
+- Messaging producer hardening:
+    - Producer failures now emit a shared failure envelope with category (`configuration`, `payload_validation`, `authentication`, `authorization`, `throttled`, `transient`, `unknown`) and topic/profile metadata
+    - Messaging remediation now distinguishes publisher binding resets from consumer binding resets
+    - Publish incidents can carry rollback/compensation outcome metadata so failed compensation escalates instead of being auto-remediated silently
 - Operational visibility routes:
     - `GET /self-healing/status`
     - `GET /self-healing/incidents`

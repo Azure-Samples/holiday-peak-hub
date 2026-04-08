@@ -2,6 +2,7 @@
 
 import logging
 import uuid
+from copy import deepcopy
 from datetime import datetime, timezone
 
 import httpx
@@ -10,6 +11,7 @@ from crud_service.auth import User, get_current_user
 from crud_service.integrations import get_agent_client, get_event_publisher
 from crud_service.repositories import CartRepository, OrderRepository
 from fastapi import APIRouter, Depends, HTTPException, status
+from holiday_peak_lib.utils import CompensationAction, execute_compensation
 from pydantic import BaseModel
 
 router = APIRouter()
@@ -157,6 +159,8 @@ async def create_order(
     if not cart or not cart.get("items"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cart is empty")
 
+    cart_snapshot = deepcopy(cart)
+
     # Create order
     order_id = str(uuid.uuid4())
     items = cart["items"]
@@ -179,8 +183,36 @@ async def create_order(
     # Clear cart
     await cart_repo.clear_cart(current_user.user_id)
 
+    async def rollback_order_publish(_error: Exception):
+        return await execute_compensation(
+            [
+                CompensationAction(
+                    name="cart_restore_rollback",
+                    execute=lambda: cart_repo.update(
+                        {
+                            **deepcopy(cart_snapshot),
+                            "status": "active",
+                        }
+                    ),
+                ),
+                CompensationAction(
+                    name="order_delete_rollback",
+                    execute=lambda: order_repo.delete(order_id, partition_key=current_user.user_id),
+                ),
+            ],
+            continue_on_error=True,
+        )
+
     # Publish OrderCreated event (agents will process inventory, payment, shipment)
-    await event_publisher.publish_order_created(order)
+    await event_publisher.publish_order_created(
+        order,
+        remediation_context={
+            "workflow": "create_order",
+            "rollback_plan": ["cart_restore_rollback", "order_delete_rollback"],
+            "entity_id": order_id,
+        },
+        on_terminal_failure=rollback_order_publish,
+    )
 
     return OrderResponse(**order)
 

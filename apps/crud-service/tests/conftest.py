@@ -151,21 +151,23 @@ def mock_event_hub(monkeypatch):
     """Mock Event Hubs for testing."""
     published_events: list[dict] = []
 
-    async def _publish_order_created(order: dict):
+    async def _publish_order_created(order: dict, **kwargs):
         published_events.append(
             {
                 "topic": "order-events",
                 "event_type": "OrderCreated",
                 "data": copy.deepcopy(order),
+                "kwargs": copy.deepcopy(kwargs),
             }
         )
 
-    async def _publish(topic: str, event_type: str, data: dict):
+    async def _publish(topic: str, event_type: str, data: dict, **kwargs):
         published_events.append(
             {
                 "topic": topic,
                 "event_type": event_type,
                 "data": copy.deepcopy(data),
+                "kwargs": copy.deepcopy(kwargs),
             }
         )
 
