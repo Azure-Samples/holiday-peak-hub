@@ -67,7 +67,7 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 - The GitHub OIDC deploy principal (`AZURE_CLIENT_ID`) must retain permission to write RBAC assignments at the environment scope so `deploy-azd.yml` can idempotently ensure `Azure Kubernetes Service RBAC Cluster Admin` on the environment resource group and `AcrPush` on the environment ACR.
 - Use private networking posture for backend services where configured.
 - Protected live validation must use GitHub-hosted runners plus OIDC-backed Azure auth; do not rely on self-hosted managed-identity runners for this public repository path.
-- GitHub-hosted runners do not have private network line of sight to a private-only ACR. When `autoAllowAcrRunnerIp=true` and `publicNetworkAccess=Disabled`, `deploy-azd.yml` may temporarily enable the registry public endpoint with `defaultAction=Deny`, reuse the existing runner-IP allowlist behavior for the active build window, and then restore the original ACR public-access state.
+- GitHub-hosted runners do not have private network line of sight to a private-only ACR. When `autoAllowAcrRunnerIp=true` and `publicNetworkAccess=Disabled`, `deploy-azd.yml` may temporarily enable the registry public endpoint with `defaultAction=Deny`, reuse the existing runner-IP allowlist behavior for the active build window, and then restore the original ACR public-access state. If Azure blocks that because `exportPolicy=disabled`, the workflow may temporarily lift the export policy first and must restore it after the build window closes.
 
 ## Runtime Deployment Controls
 
@@ -99,6 +99,7 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 - Optional UI-only deployment path constrained by SWA token flow and health checks.
 - ACR runner-IP allowlist exceptions may be applied/removed automatically when enabled.
 - If the environment ACR public endpoint is disabled, the tested-image build guard must temporarily enable public access with `defaultAction=Deny`, reuse the runner-IP allowlist flow, and restore the prior `publicNetworkAccess` and `networkRuleSet.defaultAction` after the build phase completes.
+- When Azure rejects reopening the ACR public endpoint because `exportPolicy=disabled`, the build guard must first temporarily set `exportPolicy=enabled`, verify the change, and then restore the original export policy after the build phase completes.
 
 ## Data Connectivity Guardrails
 

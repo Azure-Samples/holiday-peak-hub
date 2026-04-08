@@ -768,11 +768,14 @@ jobs:
     environment: ${{ inputs.environment }}
     outputs:
       acr_name: ${{ steps.registry.outputs.acr_name }}
+      acr_id: ${{ steps.registry.outputs.acr_id }}
       rg_name: ${{ steps.registry.outputs.rg_name }}
       login_server: ${{ steps.registry.outputs.login_server }}
       public_network_access_before: ${{ steps.access.outputs.public_network_access_before }}
       default_action_before: ${{ steps.access.outputs.default_action_before }}
+      export_policy_before: ${{ steps.access.outputs.export_policy_before }}
       public_access_temporarily_enabled: ${{ steps.access.outputs.public_access_temporarily_enabled }}
+      export_policy_temporarily_enabled: ${{ steps.access.outputs.export_policy_temporarily_enabled }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -803,8 +806,13 @@ jobs:
             --resource-group "$RG_NAME" \
             --name "$ACR_NAME" \
             --query "loginServer" -o tsv)
+          ACR_ID=$(az acr show \
+            --resource-group "$RG_NAME" \
+            --name "$ACR_NAME" \
+            --query "id" -o tsv)
 
           echo "acr_name=${ACR_NAME}" >> "$GITHUB_OUTPUT"
+          echo "acr_id=${ACR_ID}" >> "$GITHUB_OUTPUT"
           echo "rg_name=${RG_NAME}" >> "$GITHUB_OUTPUT"
           echo "login_server=${ACR_LOGIN_SERVER}" >> "$GITHUB_OUTPUT"
 
@@ -815,26 +823,38 @@ jobs:
           set -euo pipefail
 
           ACR_NAME="${{ steps.registry.outputs.acr_name }}"
+          ACR_ID="${{ steps.registry.outputs.acr_id }}"
           RG_NAME="${{ steps.registry.outputs.rg_name }}"
           RESTORE_ON_ERROR=false
+          EXPORT_POLICY_TEMP_ENABLED=false
+          PUBLIC_ACCESS_TEMP_ENABLED=false
 
           cleanup() {
             if [ "$RESTORE_ON_ERROR" != "true" ]; then
               return
             fi
 
-            if [ -n "${DEFAULT_ACTION_BEFORE:-}" ]; then
-              az acr update \
-                --name "$ACR_NAME" \
-                --resource-group "$RG_NAME" \
-                --default-action "$DEFAULT_ACTION_BEFORE" >/dev/null || true
+            if [ "$PUBLIC_ACCESS_TEMP_ENABLED" = "true" ]; then
+              if [ -n "${DEFAULT_ACTION_BEFORE:-}" ]; then
+                az acr update \
+                  --name "$ACR_NAME" \
+                  --resource-group "$RG_NAME" \
+                  --default-action "$DEFAULT_ACTION_BEFORE" >/dev/null || true
+              fi
+
+              if [ "${PUBLIC_NETWORK_ACCESS_BEFORE:-}" = "Disabled" ]; then
+                az acr update \
+                  --name "$ACR_NAME" \
+                  --resource-group "$RG_NAME" \
+                  --public-network-enabled false >/dev/null || true
+              fi
             fi
 
-            if [ "${PUBLIC_NETWORK_ACCESS_BEFORE:-}" = "Disabled" ]; then
-              az acr update \
-                --name "$ACR_NAME" \
-                --resource-group "$RG_NAME" \
-                --public-network-enabled false >/dev/null || true
+            if [ "$EXPORT_POLICY_TEMP_ENABLED" = "true" ]; then
+              az resource update \
+                --ids "$ACR_ID" \
+                --api-version 2021-06-01-preview \
+                --set "properties.policies.exportPolicy.status=${EXPORT_POLICY_BEFORE}" >/dev/null || true
             fi
           }
           trap cleanup EXIT
@@ -847,25 +867,66 @@ jobs:
             --resource-group "$RG_NAME" \
             --name "$ACR_NAME" \
             --query "networkRuleSet.defaultAction" -o tsv)
+          EXPORT_POLICY_BEFORE=$(az resource show \
+            --ids "$ACR_ID" \
+            --api-version 2021-06-01-preview \
+            --query "properties.policies.exportPolicy.status" -o tsv 2>/dev/null || true)
 
           if [ -z "$DEFAULT_ACTION_BEFORE" ] || [ "$DEFAULT_ACTION_BEFORE" = "null" ]; then
             DEFAULT_ACTION_BEFORE="Allow"
           fi
 
+          if [ -z "$EXPORT_POLICY_BEFORE" ] || [ "$EXPORT_POLICY_BEFORE" = "null" ]; then
+            EXPORT_POLICY_BEFORE="enabled"
+          fi
+
           echo "public_network_access_before=${PUBLIC_NETWORK_ACCESS_BEFORE}" >> "$GITHUB_OUTPUT"
           echo "default_action_before=${DEFAULT_ACTION_BEFORE}" >> "$GITHUB_OUTPUT"
+          echo "export_policy_before=${EXPORT_POLICY_BEFORE}" >> "$GITHUB_OUTPUT"
           echo "public_access_temporarily_enabled=false" >> "$GITHUB_OUTPUT"
+          echo "export_policy_temporarily_enabled=false" >> "$GITHUB_OUTPUT"
 
           if [ "${{ inputs.autoAllowAcrRunnerIp }}" != "true" ] || [ "$PUBLIC_NETWORK_ACCESS_BEFORE" != "Disabled" ]; then
             exit 0
           fi
 
           RESTORE_ON_ERROR=true
+
+          if [ "$EXPORT_POLICY_BEFORE" = "disabled" ]; then
+            az resource update \
+              --ids "$ACR_ID" \
+              --api-version 2021-06-01-preview \
+              --set "properties.policies.exportPolicy.status=enabled" >/dev/null
+
+            CURRENT_EXPORT_POLICY=""
+            for attempt in 1 2 3 4 5; do
+              CURRENT_EXPORT_POLICY=$(az resource show \
+                --ids "$ACR_ID" \
+                --api-version 2021-06-01-preview \
+                --query "properties.policies.exportPolicy.status" -o tsv 2>/dev/null || true)
+
+              if [ "$CURRENT_EXPORT_POLICY" = "enabled" ]; then
+                break
+              fi
+
+              sleep 10
+            done
+
+            if [ "$CURRENT_EXPORT_POLICY" != "enabled" ]; then
+              echo "Failed to temporarily enable ACR export policy on ${ACR_NAME} before opening the public endpoint for GitHub-hosted tested-image builds." >&2
+              exit 1
+            fi
+
+            EXPORT_POLICY_TEMP_ENABLED=true
+            echo "export_policy_temporarily_enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
           az acr update \
             --name "$ACR_NAME" \
             --resource-group "$RG_NAME" \
             --public-network-enabled true \
             --default-action Deny >/dev/null
+          PUBLIC_ACCESS_TEMP_ENABLED=true
 
           CURRENT_PUBLIC_NETWORK_ACCESS=""
           CURRENT_DEFAULT_ACTION=""
@@ -1203,56 +1264,81 @@ jobs:
           tenant-id: ${{ env.AZURE_TENANT_ID }}
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Restore ACR public access state
+      - name: Restore ACR build access state
         shell: bash
         run: |
           set -euo pipefail
 
-          if [ "${{ needs.prepare-acr-build-access.outputs.public_access_temporarily_enabled }}" != "true" ]; then
-            echo "ACR public access state did not require temporary changes."
-            exit 0
-          fi
-
           ACR_NAME="${{ needs.prepare-acr-build-access.outputs.acr_name }}"
+          ACR_ID="${{ needs.prepare-acr-build-access.outputs.acr_id }}"
           RG_NAME="${{ needs.prepare-acr-build-access.outputs.rg_name }}"
           PUBLIC_NETWORK_ACCESS_BEFORE="${{ needs.prepare-acr-build-access.outputs.public_network_access_before }}"
           DEFAULT_ACTION_BEFORE="${{ needs.prepare-acr-build-access.outputs.default_action_before }}"
+          EXPORT_POLICY_BEFORE="${{ needs.prepare-acr-build-access.outputs.export_policy_before }}"
 
-          if [ -n "$DEFAULT_ACTION_BEFORE" ] && [ "$DEFAULT_ACTION_BEFORE" != "null" ]; then
-            az acr update \
-              --name "$ACR_NAME" \
+          if [ "${{ needs.prepare-acr-build-access.outputs.public_access_temporarily_enabled }}" != "true" ] && [ "${{ needs.prepare-acr-build-access.outputs.export_policy_temporarily_enabled }}" != "true" ]; then
+            echo "ACR build access state did not require temporary changes."
+            exit 0
+          fi
+
+          if [ "${{ needs.prepare-acr-build-access.outputs.public_access_temporarily_enabled }}" = "true" ]; then
+            if [ -n "$DEFAULT_ACTION_BEFORE" ] && [ "$DEFAULT_ACTION_BEFORE" != "null" ]; then
+              az acr update \
+                --name "$ACR_NAME" \
+                --resource-group "$RG_NAME" \
+                --default-action "$DEFAULT_ACTION_BEFORE" >/dev/null
+            fi
+
+            if [ "$PUBLIC_NETWORK_ACCESS_BEFORE" = "Disabled" ]; then
+              az acr update \
+                --name "$ACR_NAME" \
+                --resource-group "$RG_NAME" \
+                --public-network-enabled false >/dev/null
+            fi
+
+            CURRENT_PUBLIC_NETWORK_ACCESS=$(az acr show \
               --resource-group "$RG_NAME" \
-              --default-action "$DEFAULT_ACTION_BEFORE" >/dev/null
-          fi
-
-          if [ "$PUBLIC_NETWORK_ACCESS_BEFORE" = "Disabled" ]; then
-            az acr update \
               --name "$ACR_NAME" \
+              --query "publicNetworkAccess" -o tsv)
+            CURRENT_DEFAULT_ACTION=$(az acr show \
               --resource-group "$RG_NAME" \
-              --public-network-enabled false >/dev/null
+              --name "$ACR_NAME" \
+              --query "networkRuleSet.defaultAction" -o tsv)
+
+            if [ -z "$CURRENT_DEFAULT_ACTION" ] || [ "$CURRENT_DEFAULT_ACTION" = "null" ]; then
+              CURRENT_DEFAULT_ACTION="Allow"
+            fi
+
+            if [ "$CURRENT_PUBLIC_NETWORK_ACCESS" != "$PUBLIC_NETWORK_ACCESS_BEFORE" ]; then
+              echo "Failed to restore ACR public network access state for ${ACR_NAME}: expected ${PUBLIC_NETWORK_ACCESS_BEFORE}, got ${CURRENT_PUBLIC_NETWORK_ACCESS}." >&2
+              exit 1
+            fi
+
+            if [ "$CURRENT_DEFAULT_ACTION" != "$DEFAULT_ACTION_BEFORE" ]; then
+              echo "Failed to restore ACR default network action for ${ACR_NAME}: expected ${DEFAULT_ACTION_BEFORE}, got ${CURRENT_DEFAULT_ACTION}." >&2
+              exit 1
+            fi
           fi
 
-          CURRENT_PUBLIC_NETWORK_ACCESS=$(az acr show \
-            --resource-group "$RG_NAME" \
-            --name "$ACR_NAME" \
-            --query "publicNetworkAccess" -o tsv)
-          CURRENT_DEFAULT_ACTION=$(az acr show \
-            --resource-group "$RG_NAME" \
-            --name "$ACR_NAME" \
-            --query "networkRuleSet.defaultAction" -o tsv)
+          if [ "${{ needs.prepare-acr-build-access.outputs.export_policy_temporarily_enabled }}" = "true" ]; then
+            az resource update \
+              --ids "$ACR_ID" \
+              --api-version 2021-06-01-preview \
+              --set "properties.policies.exportPolicy.status=${EXPORT_POLICY_BEFORE}" >/dev/null
 
-          if [ -z "$CURRENT_DEFAULT_ACTION" ] || [ "$CURRENT_DEFAULT_ACTION" = "null" ]; then
-            CURRENT_DEFAULT_ACTION="Allow"
-          fi
+            CURRENT_EXPORT_POLICY=$(az resource show \
+              --ids "$ACR_ID" \
+              --api-version 2021-06-01-preview \
+              --query "properties.policies.exportPolicy.status" -o tsv 2>/dev/null || true)
 
-          if [ "$CURRENT_PUBLIC_NETWORK_ACCESS" != "$PUBLIC_NETWORK_ACCESS_BEFORE" ]; then
-            echo "Failed to restore ACR public network access state for ${ACR_NAME}: expected ${PUBLIC_NETWORK_ACCESS_BEFORE}, got ${CURRENT_PUBLIC_NETWORK_ACCESS}." >&2
-            exit 1
-          fi
+            if [ -z "$CURRENT_EXPORT_POLICY" ] || [ "$CURRENT_EXPORT_POLICY" = "null" ]; then
+              CURRENT_EXPORT_POLICY="enabled"
+            fi
 
-          if [ "$CURRENT_DEFAULT_ACTION" != "$DEFAULT_ACTION_BEFORE" ]; then
-            echo "Failed to restore ACR default network action for ${ACR_NAME}: expected ${DEFAULT_ACTION_BEFORE}, got ${CURRENT_DEFAULT_ACTION}." >&2
-            exit 1
+            if [ "$CURRENT_EXPORT_POLICY" != "$EXPORT_POLICY_BEFORE" ]; then
+              echo "Failed to restore ACR export policy for ${ACR_NAME}: expected ${EXPORT_POLICY_BEFORE}, got ${CURRENT_EXPORT_POLICY}." >&2
+              exit 1
+            fi
           fi
 
   deploy-foundry-models:

@@ -6,7 +6,7 @@
 
 ## Latest Update Snapshot (April 8, 2026)
 
-- Reusable deployment now temporarily re-enables ACR public access with `defaultAction=Deny` for GitHub-hosted tested-image builds when the registry public endpoint is disabled, reuses the existing runner-IP allowlist, and restores the original ACR network posture after the build phase.
+- Reusable deployment now temporarily lifts the ACR export policy when Azure requires it, re-enables ACR public access with `defaultAction=Deny` for GitHub-hosted tested-image builds when the registry public endpoint is disabled, reuses the existing runner-IP allowlist, and restores the original ACR export/network posture after the build phase.
 - Enrichment/search orchestration hardening merged via PR #559 (Issue #558).
 - Truth flow now enforces human-gated enrichment validation (`pending_review`) with dual HITL publish (`export-jobs` and `search-enrichment-jobs`).
 - Search flow now supports two-stage UX (baseline first, background rerank) and request context propagation.
@@ -106,7 +106,7 @@ Core workflow note: `.github/workflows/deploy-azd.yml` is reusable-only and not 
 **Execution order**:
 
 1. `provision` job: sets azd env values, runs `azd provision`, and idempotently ensures the OIDC deploy principal has `Azure Kubernetes Service RBAC Cluster Admin` on the environment resource group plus `AcrPush` on the environment ACR.
-2. `build-aks-images` job: builds changed AKS workloads from the tested source SHA into the existing ACR (or reuses an existing per-SHA image), retries `az acr login` with bounded backoff to absorb RBAC propagation delay, and then records immutable digest refs for downstream deploy jobs. When `autoAllowAcrRunnerIp=true`, the workflow also reuses the existing runner-IP allowlist path; if the ACR public endpoint is disabled, it first enables public access with `defaultAction=Deny`, adds only the active GitHub-hosted runner IP, and restores the original public-access setting after the build phase. This is required because disabling ACR public network access overrides firewall rules, and GitHub-hosted runners do not have private network line of sight to a private-only registry.
+2. `build-aks-images` job: builds changed AKS workloads from the tested source SHA into the existing ACR (or reuses an existing per-SHA image), retries `az acr login` with bounded backoff to absorb RBAC propagation delay, and then records immutable digest refs for downstream deploy jobs. When `autoAllowAcrRunnerIp=true`, the workflow also reuses the existing runner-IP allowlist path; if the ACR public endpoint is disabled, it first enables public access with `defaultAction=Deny`. On registries where Azure requires `exportPolicy=enabled` before the public endpoint can be reopened, the workflow temporarily lifts the export policy first, then restores the original export and public-access settings after the build phase. This is required because disabling ACR public network access overrides firewall rules, and GitHub-hosted runners do not have private network line of sight to a private-only registry.
 3. `deploy-crud` job: renders and applies the `crud-service` Helm manifest pinned to the tested image digest when CRUD/lib changes are detected.
 4. `deploy-foundry-models` and `deploy-agents` jobs: run after provision; `deploy-agents` deploys changed agent services from prebuilt digest-pinned manifests (and can proceed when `deploy-crud` is skipped for agent-only changes).
 5. `ensure-foundry-agents` job: re-renders changed agent manifests with the workflow's strict/auto-ensure contract, compares rendered env values against live AKS Deployments, then validates `POST /foundry/agents/ensure` plus `/ready` for each changed agent service.
@@ -119,7 +119,7 @@ Core workflow note: `.github/workflows/deploy-azd.yml` is reusable-only and not 
 - Keep `deployShared=true` for all shared-environment rollouts.
 - Dev AKS rollouts must use the tested source checkout plus immutable image digests (`repo@sha256:...`); deploy jobs render/apply Kubernetes manifests directly and must not rebuild service images inline.
 - `skipProvision=true` is a manual dev-only emergency path for already-provisioned infrastructure. It skips only the `azd provision` step; Azure login, azd environment setup, AKS/ACR/Key Vault guards, output export, image build, deploy, Foundry ensure, and downstream smoke/deploy gates remain active.
-- For GitHub-hosted tested-image builds, `autoAllowAcrRunnerIp=true` preserves OIDC-only auth and the existing ACR IP allowlist flow. If the environment registry is private-only (`publicNetworkAccess=Disabled`), the workflow temporarily reopens the public endpoint with `defaultAction=Deny`, scopes access to the current runner IP, and restores the original ACR public-access state immediately after the build phase.
+- For GitHub-hosted tested-image builds, `autoAllowAcrRunnerIp=true` preserves OIDC-only auth and the existing ACR IP allowlist flow. If the environment registry is private-only (`publicNetworkAccess=Disabled`), the workflow temporarily reopens the public endpoint with `defaultAction=Deny`, scopes access to the current runner IP, and restores the original ACR public-access state immediately after the build phase. When the registry also has `exportPolicy=disabled`, the workflow temporarily lifts that policy first because Azure otherwise rejects re-enabling the public endpoint.
 - For changed AKS agent services, treat the Foundry runtime contract as a blocking gate: expected `FOUNDRY_STRICT_ENFORCEMENT=true` and `FOUNDRY_AUTO_ENSURE_ON_STARTUP=true` must survive render and rollout, and `/ready` is only accepted when it matches successful Foundry ensure results.
 - UI deployment intentionally uses the SWA GitHub Action path (not `azd deploy --service ui`) so App Router dynamic segments (`[id]`, `[slug]`) are built in the same mode as standard SWA workflows.
 - Frontend API calls must always use APIM via validated runtime env aliases (`NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_CRUD_API_URL` are set together in deployment workflows).
@@ -194,18 +194,18 @@ Write-Output "PUBLIC_IP=$ip"
 3. **Inspect ACR network posture and firewall rules**
 
 ```bash
-az acr show -n <acrName> --query "{publicNetworkAccess:publicNetworkAccess,defaultAction:networkRuleSet.defaultAction,bypass:networkRuleBypassOptions,exportPolicy:policies.exportPolicy.status}" -o json
+az resource show --resource-group <resourceGroup> --name <acrName> --resource-type Microsoft.ContainerRegistry/registries --api-version 2021-06-01-preview --query "properties.{publicNetworkAccess:publicNetworkAccess,defaultAction:networkRuleSet.defaultAction,exportPolicy:policies.exportPolicy.status}" -o json
 az acr network-rule list -n <acrName> -o table
 ```
 
 4. **Temporarily unblock ACR publish from operator IP (if `azd deploy` fails with DENIED/IP blocked)**
 
-When ACR `publicNetworkAccess` is disabled, firewall rules are ignored until the public endpoint is re-enabled. GitHub-hosted runners and local operators without private network line of sight must temporarily reopen the registry before an IP allowlist can take effect.
+When ACR `publicNetworkAccess` is disabled, firewall rules are ignored until the public endpoint is re-enabled. GitHub-hosted runners and local operators without private network line of sight must temporarily reopen the registry before an IP allowlist can take effect. If the registry also has `exportPolicy=disabled`, Azure requires that policy to be lifted first.
 
 ```bash
-az acr update -n <acrName> --allow-exports true
-az acr update -n <acrName> --public-network-enabled true --default-action Deny
-az acr network-rule add -n <acrName> --ip-address <PUBLIC_IP>/32
+az resource update --resource-group <resourceGroup> --name <acrName> --resource-type Microsoft.ContainerRegistry/registries --api-version 2021-06-01-preview --set "properties.policies.exportPolicy.status=enabled"
+az acr update -n <acrName> -g <resourceGroup> --public-network-enabled true --default-action Deny
+az acr network-rule add -n <acrName> -g <resourceGroup> --ip-address <PUBLIC_IP>/32
 ```
 
 5. **Deploy CRUD service through azd (Helm-driven AKS deploy)**
@@ -292,18 +292,19 @@ Invoke-WebRequest "$ui/api/products" -UseBasicParsing
 Invoke-WebRequest "$ui/api/categories" -UseBasicParsing
 ```
 
-
 After deployment succeeds, remove temporary ACR public ingress:
 
 ```bash
-az acr network-rule remove -n <acrName> --ip-address <PUBLIC_IP>/32
-az acr update -n <acrName> --public-network-enabled false
+az acr network-rule remove -n <acrName> -g <resourceGroup> --ip-address <PUBLIC_IP>/32
+az acr update -n <acrName> -g <resourceGroup> --public-network-enabled false
+az resource update --resource-group <resourceGroup> --name <acrName> --resource-type Microsoft.ContainerRegistry/registries --api-version 2021-06-01-preview --set "properties.policies.exportPolicy.status=disabled"
 ```
 
-> Notes:
-> - Use Microsoft VPN only if it provides a stable egress IP that you can consistently allowlist on ACR.
-> - Keep manual `kubectl patch` usage as recovery-only; normal deployments should remain `azd deploy` + Helm-rendered manifests.
-> - Demo data seeding runs inside AKS (not from the GitHub runner) to support private PostgreSQL networking.
+Notes:
+
+- Use Microsoft VPN only if it provides a stable egress IP that you can consistently allowlist on ACR.
+- Keep manual `kubectl patch` usage as recovery-only; normal deployments should remain `azd deploy` + Helm-rendered manifests.
+- Demo data seeding runs inside AKS (not from the GitHub runner) to support private PostgreSQL networking.
 
 ---
 
