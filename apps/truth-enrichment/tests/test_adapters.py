@@ -5,7 +5,11 @@ from __future__ import annotations
 from unittest.mock import AsyncMock
 
 import pytest
-from truth_enrichment.adapters import DAMImageAnalysisAdapter, EventHubPublisher, build_enrichment_adapters
+from truth_enrichment.adapters import (
+    DAMImageAnalysisAdapter,
+    EventHubPublisher,
+    build_enrichment_adapters,
+)
 
 
 @pytest.mark.asyncio

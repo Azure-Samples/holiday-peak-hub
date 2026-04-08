@@ -6,8 +6,8 @@ import json
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock
 
-from azure.eventhub.aio import EventHubConsumerClient
 import pytest
+from azure.eventhub.aio import EventHubConsumerClient
 from holiday_peak_lib.self_healing import SelfHealingKernel, default_surface_manifest
 from holiday_peak_lib.utils.event_hub import EventPublishError
 from holiday_peak_lib.utils.truth_event_hub import (

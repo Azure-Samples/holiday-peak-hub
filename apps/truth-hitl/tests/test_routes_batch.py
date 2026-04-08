@@ -6,9 +6,9 @@ from datetime import datetime, timezone
 from typing import Any
 from unittest.mock import AsyncMock
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-import pytest
 from truth_hitl.adapters import EventHubPublisher, build_hitl_adapters
 from truth_hitl.review_manager import ReviewItem
 from truth_hitl.routes import build_review_router

@@ -4,18 +4,18 @@ import asyncio
 from typing import cast
 from unittest.mock import AsyncMock
 
-from azure.eventhub.aio import EventHubConsumerClient
 import holiday_peak_lib.utils.event_hub as event_hub_module
 import pytest
+from azure.eventhub.aio import EventHubConsumerClient
 from holiday_peak_lib.self_healing import SelfHealingKernel, SurfaceType, default_surface_manifest
 from holiday_peak_lib.utils.compensation import CompensationResult
 from holiday_peak_lib.utils.event_hub import (
     DeadLetterPolicy,
     DeadLetterStrategy,
-    EventPublishError,
     EventHubSubscriber,
     EventHubSubscriberConfig,
     EventHubSubscription,
+    EventPublishError,
     PublishReliabilityProfile,
     create_eventhub_lifespan,
     publish_with_reliability,
