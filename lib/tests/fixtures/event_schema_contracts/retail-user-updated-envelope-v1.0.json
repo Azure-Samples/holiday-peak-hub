@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "event_type": "UserUpdated",
+  "timestamp": "2026-03-21T00:00:00Z",
+  "data": {
+    "created_at": null,
+    "user_id": "user-1",
+    "entra_id": null,
+    "email": "user@example.com",
+    "name": "Governed User",
+    "phone": null,
+    "timestamp": "2026-03-21T00:00:00Z",
+    "updated_at": null
+  }
+}

@@ -8,7 +8,7 @@ from typing import Any
 from crud_service.config import get_settings
 from crud_service.consumers import get_connector_sync_consumer
 from fastapi import APIRouter, HTTPException, status
-from holiday_peak_lib.events import parse_connector_event
+from holiday_peak_lib.events import build_connector_event_payload
 from pydantic import BaseModel, Field
 
 router = APIRouter()
@@ -70,16 +70,17 @@ async def connector_webhook(source_system: str, payload: dict[str, Any]):
     event_payload.setdefault("occurred_at", datetime.now(UTC).isoformat())
 
     try:
-        event = parse_connector_event(event_payload)
+        event_payload = build_connector_event_payload(event_payload)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid connector event payload: {exc}",
         ) from exc
 
-    event_id = await connector_sync_consumer.ingest_webhook_event(event.model_dump(mode="json"))
+    event_id = await connector_sync_consumer.ingest_webhook_event(event_payload)
     return {
         "status": "accepted",
         "event_id": event_id,
-        "event_type": event.event_type,
+        "event_type": event_payload["event_type"],
+        "schema_version": event_payload["schema_version"],
     }

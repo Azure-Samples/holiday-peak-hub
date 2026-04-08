@@ -117,6 +117,8 @@ Use both checks below for governance hardening and drift detection:
 	- Enforces ADR preflight and canonical prompt-to-agent consistency for issue-engineering workflows.
 	- `python scripts/ops/check_markdown_links.py --roots docs/governance docs/architecture`
 	- Fails on unresolved internal markdown links across governance and architecture docs.
+	- `python scripts/ops/check_event_schema_contracts.py`
+	- Fails on incompatible drift at the canonical retail and connector event envelope boundary.
 	- `grep -RInE "OPERATIONAL-WORKFLOWS\.md|REPOSITORY-SURFACES\.md|governance-map\.md" .github/agents`
 	- CI fails if stale canonical governance reference tokens appear in tracked agent docs.
 	- CI uploads `governance-drift-reports` artifacts from `lint.yml` for PR validation evidence.

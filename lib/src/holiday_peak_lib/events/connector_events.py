@@ -6,18 +6,39 @@ from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, Field, TypeAdapter
+from holiday_peak_lib.events.versioning import (
+    CURRENT_EVENT_SCHEMA_VERSION,
+    SchemaCompatibilityPolicy,
+)
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
+
+CONNECTOR_SCHEMA_POLICY = SchemaCompatibilityPolicy(CURRENT_EVENT_SCHEMA_VERSION)
 
 
 class ConnectorEvent(BaseModel):
     """Base envelope for all connector synchronization events."""
 
+    model_config = ConfigDict(extra="allow")
+
+    schema_version: str = CURRENT_EVENT_SCHEMA_VERSION
     event_id: str = Field(default_factory=lambda: str(uuid4()))
     source_system: str = Field(min_length=1)
     entity_id: str = Field(min_length=1)
     occurred_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     tenant_id: str | None = None
     trace_id: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_schema_version(cls, value: Any) -> Any:
+        if not isinstance(value, dict):
+            return value
+
+        normalized = dict(value)
+        normalized["schema_version"] = CONNECTOR_SCHEMA_POLICY.normalize(
+            normalized.get("schema_version")
+        )
+        return normalized
 
 
 class ProductChanged(ConnectorEvent):
@@ -85,3 +106,18 @@ def parse_connector_event(payload: dict[str, Any]) -> ConnectorEventUnion:
     """Parse a raw payload into a typed connector event model."""
 
     return _CONNECTOR_EVENT_ADAPTER.validate_python(payload)
+
+
+def build_connector_event_payload(
+    payload: dict[str, Any],
+    *,
+    schema_version: str | None = None,
+) -> dict[str, Any]:
+    """Build and validate a canonical connector event payload."""
+
+    envelope = dict(payload)
+    envelope["schema_version"] = (
+        schema_version if schema_version is not None else envelope.get("schema_version")
+    )
+    event = parse_connector_event(envelope)
+    return event.model_dump(mode="json")

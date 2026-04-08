@@ -74,6 +74,62 @@ async def test_failed_event_goes_to_dead_letter(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
+async def test_process_payload_accepts_legacy_event_without_schema_version(monkeypatch) -> None:
+    consumer = ConnectorSyncConsumer()
+
+    processed_repo = AsyncMock()
+    processed_repo.is_processed.return_value = False
+    processed_repo.mark_processed = AsyncMock()
+    monkeypatch.setattr(consumer, "_processed_repo", processed_repo)
+    monkeypatch.setattr(consumer, "_dead_letter_repo", AsyncMock())
+    monkeypatch.setattr(consumer, "_publish_domain_event", AsyncMock())
+
+    process_product_changed = AsyncMock()
+    monkeypatch.setattr(consumer, "_process_product_changed", process_product_changed)
+
+    payload = {
+        "event_id": "evt-legacy",
+        "event_type": "ProductChanged",
+        "source_system": "akeneo",
+        "entity_id": "sku-legacy",
+        "product_id": "sku-legacy",
+    }
+
+    await consumer.process_payload(payload)
+
+    process_product_changed.assert_awaited_once()
+    processed_repo.mark_processed.assert_awaited_once_with(
+        event_id="evt-legacy",
+        source_system="akeneo",
+        event_type="ProductChanged",
+    )
+
+
+@pytest.mark.asyncio
+async def test_ingest_webhook_event_writes_explicit_schema_version(monkeypatch) -> None:
+    consumer = ConnectorSyncConsumer()
+
+    monkeypatch.setattr(consumer._settings, "connector_sync_enabled", True)
+    monkeypatch.setattr(consumer, "_ingress_producer", AsyncMock())
+
+    send_json = AsyncMock()
+    monkeypatch.setattr(consumer, "_send_json", send_json)
+
+    event_id = await consumer.ingest_webhook_event(
+        {
+            "event_type": "ProductChanged",
+            "source_system": "akeneo",
+            "entity_id": "sku-1",
+            "product_id": "sku-1",
+        }
+    )
+
+    sent_payload = send_json.await_args.args[1]
+    assert sent_payload["schema_version"] == "1.0"
+    assert event_id == sent_payload["event_id"]
+
+
+@pytest.mark.asyncio
 async def test_replay_unreplayed_counts_results(monkeypatch) -> None:
     consumer = ConnectorSyncConsumer()
 
