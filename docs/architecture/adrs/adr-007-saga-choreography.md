@@ -11,20 +11,52 @@ Services must coordinate across domains (e.g., order placement → inventory res
 
 **Use SAGA choreography pattern with Azure Event Hubs** for async service coordination.
 
-## Implementation Status (2026-03-19)
+## Implementation Status (2026-04-09)
 
-- **Implemented in part**: Event-driven pub/sub is active across CRUD and agent services through Azure Event Hubs producers, subscriptions, and lifespan wiring.
-- **Coverage is mixed by topic**: Some topics are fully aligned publisher/subscriber paths, while others remain partially wired or intentionally pending.
-- **Canonical coverage contract**: Topic-level topology status and wiring gaps are maintained in [Event Hub topology matrix](../eventhub-topology-matrix.md) and governed by issue #299.
-- **Deferred/diverged**: Full end-to-end business sagas with uniform compensating transactions are not consistently implemented across domains; compensation remains service-specific.
+- **Implemented**: Event-driven pub/sub is active across CRUD and agent services through Azure Event Hubs producers, subscriptions, and lifespan wiring.
+- **Namespace split complete**: Retail choreography topics bind to `EVENT_HUB_NAMESPACE`; platform job topics bind to `PLATFORM_JOBS_EVENT_HUB_NAMESPACE` (#735 closed).
+- **Canonical coverage contract**: Topic-level topology status and wiring coverage tracked in [Event Hub topology matrix](../eventhub-topology-matrix.md).
+- **Compensation framework**: Standardized in `holiday_peak_lib.utils.compensation` with `CompensationAction`, `CompensationResult`, and `execute_compensation`. Inventory reservation rollback serves as the reference integration path.
+- **Event envelope versioning**: All retail and connector envelopes carry `schema_version: "1.0"` and are validated by `check_event_schema_contracts.py` in CI and pre-push.
 
-## Gap Tracking (2026-03-21)
+## Compensation Semantics by Domain
 
-The following implementation gaps are explicitly tracked as separate issues:
+| Domain | Compensation path | Status |
+|--------|------------------|--------|
+| Inventory | `execute_compensation` on reservation failure rolls back stock holds | Implemented (#447) |
+| Checkout | Client-side cart rollback on payment/reservation failure | Implemented |
+| Order | CRUD order status set to `cancelled`; no cross-service undo | Partial — manual |
+| Logistics | No automated compensation; shipment cancellation is manual | Deferred |
+| CRM | Stateless event consumers; no compensation needed | N/A |
+
+## Event Topology Migration Policy
+
+### Compatibility window
+
+When adding, renaming, or retiring an Event Hub topic:
+
+1. **Dual-publish phase** (minimum 1 deploy cycle): Publishers emit to both old and new topics. Consumers subscribe to both.
+2. **Cutover**: Remove the old topic subscription from consumers. Confirm zero lag on the old consumer group via Azure Monitor.
+3. **Cleanup**: Remove the old topic from IaC after confirming no active producers or consumers.
+
+### Rollback steps
+
+1. Re-add the old topic subscription to consumer `lifespan` wiring.
+2. Re-enable dual-publish in the CRUD or agent publisher path.
+3. Redeploy affected services. The shared `EventHubSettings` and `build_event_hub_consumer` patterns support runtime topic/consumer-group override via environment variables, enabling rollback without code changes.
+
+### Constraints
+
+- Never delete an Event Hub topic from IaC while there are active consumer groups with uncommitted checkpoints.
+- The Standard tier 10-hub limit per namespace is enforced by the namespace split (#735). Adding new retail topics requires capacity review.
+- Schema-breaking changes require a major version bump and updated contract gate fixtures under `lib/tests/fixtures/event_schema_contracts/`.
+
+## Gap Tracking (2026-04-09)
+
+Remaining implementation gaps tracked as separate issues:
 
 - Product-events publisher coverage: #445
 - Shipment-events subscriber wiring: #446
-- Compensating transaction consistency framework: #447
 
 ### Pattern
 Each service:

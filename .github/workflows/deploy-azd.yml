@@ -1390,6 +1390,25 @@ jobs:
             --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
             --overwrite-existing
 
+      - name: Verify AKS API connectivity
+        shell: bash
+        run: |
+          set -euo pipefail
+          AKS_FQDN=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}' | sed 's|https://||;s|:.*||')
+          echo "Probing AKS API server DNS: $AKS_FQDN"
+          for attempt in $(seq 1 10); do
+            if kubectl cluster-info >/dev/null 2>&1; then
+              echo "AKS API reachable (attempt $attempt)."
+              exit 0
+            fi
+            BACKOFF=$((5 * attempt))
+            echo "Attempt $attempt/10 failed (DNS or TCP). Retrying in ${BACKOFF}s..."
+            sleep "$BACKOFF"
+          done
+          echo "AKS API DNS resolution failed after 10 attempts for $AKS_FQDN." >&2
+          nslookup "$AKS_FQDN" || true
+          exit 1
+
       - name: Resolve AKS managed identity client ID
         run: |
           AKS_MI_CLIENT_ID=$(az aks show \
@@ -2085,6 +2104,25 @@ jobs:
             --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
             --overwrite-existing
 
+      - name: Verify AKS API connectivity
+        shell: bash
+        run: |
+          set -euo pipefail
+          AKS_FQDN=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}' | sed 's|https://||;s|:.*||')
+          echo "Probing AKS API server DNS: $AKS_FQDN"
+          for attempt in $(seq 1 10); do
+            if kubectl cluster-info >/dev/null 2>&1; then
+              echo "AKS API reachable (attempt $attempt)."
+              exit 0
+            fi
+            BACKOFF=$((5 * attempt))
+            echo "Attempt $attempt/10 failed (DNS or TCP). Retrying in ${BACKOFF}s..."
+            sleep "$BACKOFF"
+          done
+          echo "AKS API DNS resolution failed after 10 attempts for $AKS_FQDN." >&2
+          nslookup "$AKS_FQDN" || true
+          exit 1
+
       - name: Resolve AKS managed identity client ID
         run: |
           AKS_MI_CLIENT_ID=$(az aks show \
@@ -2238,6 +2276,25 @@ jobs:
             --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
             --overwrite-existing
 
+      - name: Verify AKS API connectivity
+        shell: bash
+        run: |
+          set -euo pipefail
+          AKS_FQDN=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}' | sed 's|https://||;s|:.*||')
+          echo "Probing AKS API server DNS: $AKS_FQDN"
+          for attempt in $(seq 1 10); do
+            if kubectl cluster-info >/dev/null 2>&1; then
+              echo "AKS API reachable (attempt $attempt)."
+              exit 0
+            fi
+            BACKOFF=$((5 * attempt))
+            echo "Attempt $attempt/10 failed (DNS or TCP). Retrying in ${BACKOFF}s..."
+            sleep "$BACKOFF"
+          done
+          echo "AKS API DNS resolution failed after 10 attempts for $AKS_FQDN." >&2
+          nslookup "$AKS_FQDN" || true
+          exit 1
+
       - name: Validate AGC gateway class and direct CRUD health
         shell: bash
         run: |
@@ -2302,6 +2359,25 @@ jobs:
             --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
             --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
             --overwrite-existing
+
+      - name: Verify AKS API connectivity
+        shell: bash
+        run: |
+          set -euo pipefail
+          AKS_FQDN=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}' | sed 's|https://||;s|:.*||')
+          echo "Probing AKS API server DNS: $AKS_FQDN"
+          for attempt in $(seq 1 10); do
+            if kubectl cluster-info >/dev/null 2>&1; then
+              echo "AKS API reachable (attempt $attempt)."
+              exit 0
+            fi
+            BACKOFF=$((5 * attempt))
+            echo "Attempt $attempt/10 failed (DNS or TCP). Retrying in ${BACKOFF}s..."
+            sleep "$BACKOFF"
+          done
+          echo "AKS API DNS resolution failed after 10 attempts for $AKS_FQDN." >&2
+          nslookup "$AKS_FQDN" || true
+          exit 1
 
       - name: Sync APIM agent APIs
         run: |
@@ -2580,6 +2656,25 @@ jobs:
             --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
             --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
             --overwrite-existing
+
+      - name: Verify AKS API connectivity
+        shell: bash
+        run: |
+          set -euo pipefail
+          AKS_FQDN=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}' | sed 's|https://||;s|:.*||')
+          echo "Probing AKS API server DNS: $AKS_FQDN"
+          for attempt in $(seq 1 10); do
+            if kubectl cluster-info >/dev/null 2>&1; then
+              echo "AKS API reachable (attempt $attempt)."
+              exit 0
+            fi
+            BACKOFF=$((5 * attempt))
+            echo "Attempt $attempt/10 failed (DNS or TCP). Retrying in ${BACKOFF}s..."
+            sleep "$BACKOFF"
+          done
+          echo "AKS API DNS resolution failed after 10 attempts for $AKS_FQDN." >&2
+          nslookup "$AKS_FQDN" || true
+          exit 1
 
       - name: Ensure hook scripts executable
         shell: bash
