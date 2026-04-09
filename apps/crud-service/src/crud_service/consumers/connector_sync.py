@@ -27,6 +27,7 @@ from holiday_peak_lib.events import (
     OrderStatusChanged,
     PriceUpdated,
     ProductChanged,
+    build_connector_event_payload,
     parse_connector_event,
 )
 from opentelemetry import trace
@@ -130,6 +131,7 @@ class ConnectorSyncConsumer:
         envelope = dict(payload)
         envelope.setdefault("event_id", str(uuid4()))
         envelope.setdefault("occurred_at", datetime.now(UTC).isoformat())
+        envelope = build_connector_event_payload(envelope)
 
         await self._send_json(self._ingress_producer, envelope)
         return str(envelope["event_id"])

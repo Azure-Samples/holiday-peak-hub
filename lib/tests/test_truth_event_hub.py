@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from typing import cast
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from azure.eventhub.aio import EventHubConsumerClient
+from holiday_peak_lib.self_healing import SelfHealingKernel, default_surface_manifest
+from holiday_peak_lib.utils.event_hub import EventPublishError
 from holiday_peak_lib.utils.truth_event_hub import (
     ENRICHMENT_JOBS_TOPIC,
     EXPORT_JOBS_TOPIC,
@@ -23,7 +27,7 @@ from holiday_peak_lib.utils.truth_event_hub import (
 # ---------------------------------------------------------------------------
 
 
-def _make_producer_factory(batch_mock: MagicMock) -> MagicMock:
+def _make_producer_factory(batch_mock: MagicMock) -> tuple[MagicMock, AsyncMock]:
     """Return a factory that yields a fake EventHubProducerClient."""
     producer = AsyncMock()
     producer.__aenter__ = AsyncMock(return_value=producer)
@@ -39,7 +43,7 @@ class FakePartitionContext:
     def __init__(self) -> None:
         self.checkpoints = 0
 
-    async def update_checkpoint(self, event) -> None:  # noqa: ANN001
+    async def update_checkpoint(self, _event) -> None:  # noqa: ANN001
         self.checkpoints += 1
 
 
@@ -65,7 +69,15 @@ class FakeConsumerClient:
         return False
 
     async def receive(self, *, on_event, starting_position="-1"):  # noqa: ANN001
+        _ = starting_position
         await on_event(self._partition_context, self._event)
+
+
+def _build_consumer_client(
+    partition_context: FakePartitionContext,
+    event: FakeEvent,
+) -> EventHubConsumerClient:
+    return cast(EventHubConsumerClient, FakeConsumerClient(partition_context, event))
 
 
 # ---------------------------------------------------------------------------
@@ -128,7 +140,7 @@ class TestTruthEventPublisher:
     @pytest.mark.asyncio
     async def test_publish_gap_job(self):
         batch = MagicMock()
-        factory, producer = _make_producer_factory(batch)
+        factory, _producer = _make_producer_factory(batch)
 
         publisher = TruthEventPublisher("ns.servicebus.windows.net", producer_factory=factory)
         msg = await publisher.publish_gap_job("prod-2")
@@ -140,7 +152,7 @@ class TestTruthEventPublisher:
     @pytest.mark.asyncio
     async def test_publish_export_job(self):
         batch = MagicMock()
-        factory, producer = _make_producer_factory(batch)
+        factory, _producer = _make_producer_factory(batch)
 
         publisher = TruthEventPublisher("ns.servicebus.windows.net", producer_factory=factory)
         msg = await publisher.publish_export_job("prod-3", protocol="GS1", version="3.1")
@@ -152,7 +164,7 @@ class TestTruthEventPublisher:
     @pytest.mark.asyncio
     async def test_publish_writeback_job(self):
         batch = MagicMock()
-        factory, producer = _make_producer_factory(batch)
+        factory, _producer = _make_producer_factory(batch)
 
         publisher = TruthEventPublisher("ns.servicebus.windows.net", producer_factory=factory)
         msg = await publisher.publish_writeback_job(
@@ -167,7 +179,7 @@ class TestTruthEventPublisher:
     @pytest.mark.asyncio
     async def test_publish_ingest_job(self):
         batch = MagicMock()
-        factory, producer = _make_producer_factory(batch)
+        factory, _producer = _make_producer_factory(batch)
 
         publisher = TruthEventPublisher("ns.servicebus.windows.net", producer_factory=factory)
         msg = await publisher.publish_ingest_job("prod-5", source="erp", status="success")
@@ -199,6 +211,43 @@ class TestTruthEventPublisher:
         msg = await publisher.publish_gap_job("prod-6", tenant_id="tenant-abc")
         assert msg.tenant_id == "tenant-abc"
 
+    @pytest.mark.asyncio
+    async def test_publish_payload_failure_emits_self_healing_context(self):
+        batch = MagicMock()
+        factory, producer = _make_producer_factory(batch)
+        producer.send_batch = AsyncMock(side_effect=TimeoutError("publish timeout"))
+        kernel = SelfHealingKernel(
+            service_name="truth-hitl",
+            manifest=default_surface_manifest("truth-hitl"),
+            enabled=True,
+        )
+
+        publisher = TruthEventPublisher(
+            "ns.servicebus.windows.net",
+            producer_factory=factory,
+            self_healing_kernel=kernel,
+            service_name="truth-hitl",
+        )
+
+        with pytest.raises(EventPublishError):
+            await publisher.publish_payload(
+                EXPORT_JOBS_TOPIC,
+                {
+                    "event_type": "hitl.approved",
+                    "data": {"entity_id": "prod-10", "approved_fields": ["color"]},
+                },
+                metadata={"domain": "truth-hitl"},
+                remediation_context={
+                    "preferred_action": "reset_messaging_publisher_bindings",
+                    "workflow": "approval_fanout",
+                },
+            )
+
+        incident = kernel.list_incidents(limit=1)[0]
+        assert incident.metadata["domain"] == "truth-hitl"
+        assert incident.metadata["topic"] == EXPORT_JOBS_TOPIC
+        assert incident.actions == ["reset_messaging_publisher_bindings"]
+
 
 # ---------------------------------------------------------------------------
 # TruthEventConsumer tests
@@ -214,7 +263,7 @@ class TestTruthEventConsumer:
         )
         handler_calls = {"count": 0}
 
-        async def on_event(partition_context, ev):  # noqa: ANN001
+        async def on_event(_partition_context, _event):  # noqa: ANN001
             handler_calls["count"] += 1
 
         consumer = TruthEventConsumer(
@@ -222,7 +271,7 @@ class TestTruthEventConsumer:
             topic=ENRICHMENT_JOBS_TOPIC,
             consumer_group="svc-enrichment",
             on_event=on_event,
-            client_factory=lambda: FakeConsumerClient(ctx, event),
+            client_factory=lambda: _build_consumer_client(ctx, event),
         )
         await consumer.start()
 
@@ -238,11 +287,42 @@ class TestTruthEventConsumer:
             namespace="ns.servicebus.windows.net",
             topic=GAP_JOBS_TOPIC,
             consumer_group="svc-gap",
-            client_factory=lambda: FakeConsumerClient(ctx, event),
+            client_factory=lambda: _build_consumer_client(ctx, event),
         )
         await consumer.start()
 
         assert ctx.checkpoints == 1
+
+    @pytest.mark.asyncio
+    async def test_consumer_logs_unexpected_handler_exception_without_raising(self):
+        ctx = FakePartitionContext()
+        event = FakeEvent(
+            {"job_id": "jid", "entity_id": "e3", "job_type": "enrichment", "payload": {}}
+        )
+
+        async def on_event(_partition_context, _event):  # noqa: ANN001
+            raise KeyError("boom")
+
+        consumer = TruthEventConsumer(
+            namespace="ns.servicebus.windows.net",
+            topic=ENRICHMENT_JOBS_TOPIC,
+            consumer_group="svc-enrichment",
+            on_event=on_event,
+            client_factory=lambda: _build_consumer_client(ctx, event),
+        )
+        logger_mock = MagicMock()
+        logger_mock.info = MagicMock()
+        logger_mock.error = MagicMock()
+        object.__setattr__(consumer, "_logger", logger_mock)
+
+        await consumer.start()
+
+        logger_mock.error.assert_called_once_with(
+            "truth_event_handler_error topic=%s error=%s",
+            ENRICHMENT_JOBS_TOPIC,
+            "'boom'",
+        )
+        assert ctx.checkpoints == 0
 
     @pytest.mark.asyncio
     async def test_consumer_stop(self):
@@ -252,7 +332,7 @@ class TestTruthEventConsumer:
             consumer_group="svc-enrichment",
         )
         await consumer.stop()
-        assert not consumer._running
+        assert vars(consumer)["_running"] is False
 
 
 # ---------------------------------------------------------------------------
@@ -272,7 +352,7 @@ class TestBuildTruthConsumerTask:
             namespace="ns.servicebus.windows.net",
             topic=EXPORT_JOBS_TOPIC,
             consumer_group="svc-export",
-            client_factory=lambda: FakeConsumerClient(ctx, event),
+            client_factory=lambda: _build_consumer_client(ctx, event),
         )
         assert isinstance(task, asyncio.Task)
         await task

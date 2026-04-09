@@ -13,7 +13,7 @@ var staticWebAppName = '${staticWebAppBaseName}-${environment}'
 var apimBaseUrl = 'https://${projectName}-${environment}-apim.azure-api.net'
 
 // Azure Static Web Apps
-resource staticWebApp 'Microsoft.Web/staticSites@2023-01-01' = {
+resource staticWebApp 'Microsoft.Web/staticSites@2025-03-01' = {
   name: staticWebAppName
   location: location
   sku: {
@@ -44,14 +44,14 @@ resource staticWebApp 'Microsoft.Web/staticSites@2023-01-01' = {
 }
 
 // Custom Domain (optional, for prod)
-resource customDomain 'Microsoft.Web/staticSites/customDomains@2023-01-01' = if (environment == 'prod') {
+resource customDomain 'Microsoft.Web/staticSites/customDomains@2025-03-01' = if (environment == 'prod') {
   parent: staticWebApp
   name: 'www.holidaypeakhub.com'
   properties: {}
 }
 
 // App Settings
-resource appSettings 'Microsoft.Web/staticSites/config@2023-01-01' = {
+resource appSettings 'Microsoft.Web/staticSites/config@2025-03-01' = {
   parent: staticWebApp
   name: 'appsettings'
   properties: {

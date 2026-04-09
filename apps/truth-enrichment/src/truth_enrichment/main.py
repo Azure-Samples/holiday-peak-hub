@@ -1,7 +1,11 @@
 """Truth Enrichment service entrypoint."""
 
 from holiday_peak_lib import create_standard_app
-from holiday_peak_lib.utils import EventHubSubscription
+from holiday_peak_lib.utils import (
+    PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV,
+    PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV,
+    EventHubSubscription,
+)
 from truth_enrichment.agents import TruthEnrichmentAgent, register_mcp_tools
 from truth_enrichment.event_handlers import build_event_handlers
 from truth_enrichment.routes import router
@@ -16,7 +20,12 @@ app = create_standard_app(
     agent_class=TruthEnrichmentAgent,
     mcp_setup=register_mcp_tools,
     subscriptions=[
-        EventHubSubscription("enrichment-jobs", "enrichment-engine"),
+        EventHubSubscription(
+            "enrichment-jobs",
+            "enrichment-engine",
+            namespace_env=PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV,
+            connection_string_env=PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV,
+        ),
     ],
     handlers=build_event_handlers(),
 )

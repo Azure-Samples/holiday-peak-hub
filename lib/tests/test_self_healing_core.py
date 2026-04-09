@@ -148,3 +148,80 @@ def test_policy_forbids_image_redeploy_actions():
 
     with pytest.raises(PermissionError, match="forbidden"):
         kernel.register_action("redeploy_image", _handler)
+
+
+@pytest.mark.asyncio
+async def test_kernel_uses_publisher_action_for_publish_failures():
+    kernel = SelfHealingKernel(
+        service_name="svc",
+        manifest=default_surface_manifest("svc"),
+        enabled=True,
+    )
+
+    incident = await kernel.handle_failure_signal(
+        FailureSignal(
+            service_name="svc",
+            surface=SurfaceType.MESSAGING,
+            component="order-events",
+            status_code=503,
+            error_type="TimeoutError",
+            error_message="publish timeout",
+            metadata={
+                "failure_stage": "publish",
+                "failure_category": "transient",
+                "domain": "orders",
+                "remediation_context": {
+                    "preferred_action": "reset_messaging_publisher_bindings",
+                    "workflow": "checkout_finalize",
+                },
+            },
+        )
+    )
+
+    assert incident is not None
+    assert incident.state == IncidentState.CLOSED
+    assert incident.actions == ["reset_messaging_publisher_bindings"]
+    action_record = next(record for record in incident.audit if record.event == "action_executed")
+    assert (
+        action_record.details["details"]["remediation_context"]["workflow"] == "checkout_finalize"
+    )
+
+
+@pytest.mark.asyncio
+async def test_kernel_escalates_when_compensation_has_failed():
+    kernel = SelfHealingKernel(
+        service_name="svc",
+        manifest=default_surface_manifest("svc"),
+        enabled=True,
+    )
+
+    incident = await kernel.handle_failure_signal(
+        FailureSignal(
+            service_name="svc",
+            surface=SurfaceType.MESSAGING,
+            component="order-events",
+            status_code=503,
+            error_type="TimeoutError",
+            error_message="publish timeout",
+            metadata={
+                "failure_stage": "publish",
+                "failure_category": "transient",
+                "compensation": {
+                    "succeeded": False,
+                    "completed_actions": ["reservation_lock_rollback"],
+                    "failed_action": "order_write_rollback",
+                    "failed_error_type": "RuntimeError",
+                    "failed_error": "rollback failed",
+                },
+                "remediation_context": {
+                    "preferred_action": "reset_messaging_publisher_bindings",
+                    "workflow": "checkout_finalize",
+                },
+            },
+        )
+    )
+
+    assert incident is not None
+    assert incident.state == IncidentState.ESCALATED
+    assert incident.incident_class == IncidentClass.NON_RECOVERABLE
+    assert incident.actions == []

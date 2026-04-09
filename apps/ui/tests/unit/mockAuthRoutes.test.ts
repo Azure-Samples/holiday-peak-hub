@@ -140,7 +140,6 @@ describe('mock auth routes', () => {
   });
 
   it('session route returns 401 when authorization header is missing', async () => {
-    process.env.NEXT_PUBLIC_CRUD_API_URL = 'https://crud.example.test';
     const route = await import('../../app/api/auth/session/route');
 
     const response = await route.POST({
@@ -155,8 +154,7 @@ describe('mock auth routes', () => {
     );
   });
 
-  it('session route validates token via CRUD and sets signed cookie', async () => {
-    process.env.NEXT_PUBLIC_CRUD_API_URL = 'https://crud.example.test';
+  it('session route validates token through the same-origin auth proxy and sets signed cookie', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -166,13 +164,14 @@ describe('mock auth routes', () => {
     const route = await import('../../app/api/auth/session/route');
 
     const response = await route.POST({
+      url: 'http://localhost/api/auth/session',
       headers: {
         get: (name: string) => (name.toLowerCase() === 'authorization' ? 'Bearer token-123' : null),
       },
     } as unknown as NextRequest);
 
     expect(global.fetch).toHaveBeenCalledWith(
-      'https://crud.example.test/api/auth/me',
+      'http://localhost/api/auth/me',
       expect.objectContaining({
         method: 'GET',
         headers: expect.objectContaining({ Authorization: 'Bearer token-123' }),

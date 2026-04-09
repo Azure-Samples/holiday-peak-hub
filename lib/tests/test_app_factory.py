@@ -312,6 +312,11 @@ class TestBuildServiceApp:
         monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-123")
 
+        async def _mock_ensure(*args, **kwargs):
+            return {"status": "exists", "agent_id": "agent-123"}
+
+        monkeypatch.setattr("holiday_peak_lib.app_factory.ensure_foundry_agent", _mock_ensure)
+
         app = build_service_app(
             service_name="test-service",
             agent_class=SampleServiceAgent,
@@ -589,10 +594,10 @@ class TestBuildServiceApp:
         data = response.json()
         assert data["status"] == "ready"
         assert data["service"] == "test-service"
-        assert data["foundry_ready"] is True
+        assert data["foundry_ready"] is False
         assert data["foundry_required"] is False
-        assert data["foundry"]["resolved_roles"] == ["fast"]
-        assert data["foundry"]["unresolved_roles"] == ["rich"]
+        assert data["foundry"]["resolved_roles"] == []
+        assert data["foundry"]["unresolved_roles"] == ["fast", "rich"]
 
     def test_ready_endpoint_returns_ok_when_foundry_missing_and_not_required(
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
@@ -801,9 +806,9 @@ class TestBuildServiceApp:
         assert slm_config is not None
         assert slm_config.endpoint == TEST_PROJECT_ENDPOINT
         assert slm_config.agent_id == "agent-fast-123"
-        assert slm_config.runtime_agent_id == "agent-fast-123"
+        assert slm_config.runtime_agent_id is None
         assert llm_config.agent_id == "agent-rich-456"
-        assert llm_config.runtime_agent_id == "agent-rich-456"
+        assert llm_config.runtime_agent_id is None
 
     def test_build_foundry_config_missing_env(self, monkeypatch):
         """Test building Foundry config with missing environment vars."""
@@ -856,6 +861,11 @@ class TestAppFactoryIntegration:
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-fast")
         monkeypatch.setenv("FOUNDRY_AGENT_ID_RICH", "agent-rich")
 
+        async def _mock_ensure(*args, **kwargs):
+            return {"status": "exists", "agent_id": "agent-resolved"}
+
+        monkeypatch.setattr("holiday_peak_lib.app_factory.ensure_foundry_agent", _mock_ensure)
+
         app = build_service_app(
             service_name="complete-service",
             agent_class=SampleServiceAgent,
@@ -880,6 +890,11 @@ class TestAppFactoryIntegration:
         """Test building apps with different agent classes."""
         monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-123")
+
+        async def _mock_ensure(*args, **kwargs):
+            return {"status": "exists", "agent_id": "agent-123"}
+
+        monkeypatch.setattr("holiday_peak_lib.app_factory.ensure_foundry_agent", _mock_ensure)
 
         class CustomAgent(BaseRetailAgent):
             async def handle(self, request):

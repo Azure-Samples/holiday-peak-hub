@@ -1,12 +1,18 @@
 # Event Hub topology matrix
 
-_Last updated: 2026-04-02_
+_Last updated: 2026-04-08_
 
 ## Purpose
 
 This document is the architecture coverage contract for Event Hubs topology alignment (issue #299). It records topic-level publisher/subscriber reality and expected wiring coverage.
 
 ## Active topology
+
+Namespace split:
+
+- Retail choreography topics bind to `EVENT_HUB_NAMESPACE` / `EVENT_HUB_CONNECTION_STRING`.
+- Platform job topics bind to `PLATFORM_JOBS_EVENT_HUB_NAMESPACE` / `PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING`.
+- Platform job consumers and publishers do not fall back to the retail Event Hubs envs.
 
 | Topic | Primary publishers | Active subscribers |
 |---|---|---|
@@ -16,7 +22,7 @@ This document is the architecture coverage contract for Event Hubs topology alig
 | `inventory-events` | CRUD `cart` route (successful reservation publish path) | `ecommerce-checkout-support`, `inventory-health-check`, `inventory-alerts-triggers`, `inventory-jit-replenishment` |
 | `user-events` | CRUD `users` route (`PATCH /api/users/me` as `UserUpdated`) | `crm-campaign-intelligence`, `crm-profile-aggregation` |
 | `shipment-events` | CRUD integration (`publish_shipment_created`) | `logistics-carrier-selection`, `logistics-eta-computation`, `ecommerce-order-status` |
-| `product-events` | CRUD integration (`publish(..., ProductUpdated, ...)`) | `ecommerce-catalog-search`, `ecommerce-product-detail-enrichment`, `product-management-*` services |
+| `product-events` | CRUD integration (`publish(..., ProductUpdated, ...)`) | `ecommerce-catalog-search`, `ecommerce-product-detail-enrichment`, `product-management-normalization-classification`, `product-management-acp-transformation`, `product-management-assortment-optimization` |
 | `completeness-jobs` | `truth-ingestion` completeness adapter publish path | `product-management-consistency-validation` (`completeness-engine`) |
 
 ## Coverage contract status

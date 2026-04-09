@@ -31,6 +31,7 @@ describe('/agent-api proxy route env handling', () => {
     delete process.env.AGENT_API_URL;
     delete process.env.NEXT_PUBLIC_CRUD_API_URL;
     delete process.env.NEXT_PUBLIC_API_URL;
+    delete process.env.NEXT_PUBLIC_API_BASE_URL;
     delete process.env.CRUD_API_URL;
     global.fetch = jest.fn();
   });
@@ -67,6 +68,32 @@ describe('/agent-api proxy route env handling', () => {
           attemptedPath: '/agents/ecommerce-catalog-search/invoke',
           method: 'GET',
           remediation: expect.any(Array),
+        }),
+      }),
+    );
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('does not derive agent proxy routing from CRUD env aliases', async () => {
+    process.env.NEXT_PUBLIC_CRUD_API_URL = 'https://crud.example.test';
+    process.env.NEXT_PUBLIC_API_URL = 'https://crud-alias.example.test';
+    process.env.NEXT_PUBLIC_API_BASE_URL = 'https://crud-base.example.test/api';
+    process.env.CRUD_API_URL = 'https://crud-server.example.test';
+
+    const route = await import('../../app/agent-api/[...path]/route');
+    const response = await route.GET(makeRequest('http://localhost/agent-api/ecommerce-catalog-search/invoke'), {
+      params: Promise.resolve({ path: ['ecommerce-catalog-search', 'invoke'] }),
+    });
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toEqual(
+      expect.objectContaining({
+        error: 'Agent API proxy is not configured for backend routing.',
+        proxy: expect.objectContaining({
+          failureKind: 'config',
+          sourceKey: null,
+          baseUrl: null,
+          attemptedPath: '/agents/ecommerce-catalog-search/invoke',
         }),
       }),
     );

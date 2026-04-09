@@ -26,6 +26,7 @@ from holiday_peak_lib.utils import (
     configure_logging,
     set_correlation_id,
 )
+from holiday_peak_lib.utils.event_hub import EventPublishError
 from opentelemetry import trace
 
 # Get settings
@@ -206,6 +207,33 @@ async def correlation_middleware(request: Request, call_next):
 
 
 # Exception handlers
+@app.exception_handler(EventPublishError)
+async def event_publish_error_handler(_request, exc: EventPublishError):
+    """Translate structured publish failures into explicit API responses."""
+
+    logger.warning(
+        "Event publish failed at API boundary topic=%s event_type=%s category=%s",
+        exc.envelope.topic,
+        exc.envelope.event_type,
+        exc.envelope.category.value,
+    )
+    response_content = {
+        "detail": "Event publish failed",
+        "type": type(exc).__name__,
+        "topic": exc.envelope.topic,
+        "event_type": exc.envelope.event_type,
+        "category": exc.envelope.category.value,
+        "profile": exc.envelope.profile.name,
+    }
+    if exc.incident_id is not None:
+        response_content["incident_id"] = exc.incident_id
+
+    return JSONResponse(
+        status_code=exc.envelope.status_code,
+        content=response_content,
+    )
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(_request, exc):
     """Global exception handler for unhandled errors."""

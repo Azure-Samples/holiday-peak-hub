@@ -20,10 +20,14 @@ param alertNotificationEmail string = ''
 @secure()
 @description('Optional Microsoft Teams incoming webhook URL for infrastructure alerts action group.')
 param alertTeamsWebhookUrl string = ''
+@description('Initial node count for AKS system and user pools. Set by the pre-provision hook based on VM SKU zone availability.')
+param aksNodeCount int = 1
+@description('Availability zones for AKS node pools. Parsed from JSON string at the azd layer.')
+param aksAvailabilityZones array = [1, 2, 3]
 param resourceGroupName string = '${projectName}-${environment}-rg'
 
 // Create Resource Group
-resource rg 'Microsoft.Resources/resourceGroups@2023-07-01' = {
+resource rg 'Microsoft.Resources/resourceGroups@2025-04-01' = {
   name: resourceGroupName
   location: location
   tags: {
@@ -48,6 +52,8 @@ module sharedInfra './shared-infrastructure.bicep' = {
     postgresAdminPassword: postgresAdminPassword
     alertNotificationEmail: alertNotificationEmail
     alertTeamsWebhookUrl: alertTeamsWebhookUrl
+    aksNodeCount: aksNodeCount
+    aksAvailabilityZones: aksAvailabilityZones
   }
   dependsOn: [
     rg
@@ -66,6 +72,7 @@ output postgresFqdn string = sharedInfra.outputs.postgresFqdn
 output postgresDatabaseName string = sharedInfra.outputs.postgresDatabaseName
 output postgresAdminUser string = sharedInfra.outputs.postgresAdminUser
 output eventHubsNamespaceName string = sharedInfra.outputs.eventHubsNamespaceName
+output platformJobsNamespaceName string = sharedInfra.outputs.platformJobsNamespaceName
 output redisName string = sharedInfra.outputs.redisName
 #disable-next-line outputs-should-not-contain-secrets
 output redisPasswordSecretName string = sharedInfra.outputs.redisPasswordSecretName
@@ -100,3 +107,5 @@ output aksOidcIssuerUrl string = sharedInfra.outputs.aksOidcIssuerUrl
 output aksNodeResourceGroup string = sharedInfra.outputs.aksNodeResourceGroup
 output monitoringActionGroupId string = sharedInfra.outputs.monitoringActionGroupId
 output monitoringActionGroupName string = sharedInfra.outputs.monitoringActionGroupName
+output agentsWorkloadIdentityClientId string = sharedInfra.outputs.agentsWorkloadIdentityClientId
+output crudWorkloadIdentityClientId string = sharedInfra.outputs.crudWorkloadIdentityClientId

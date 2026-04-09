@@ -1,6 +1,6 @@
 ---
 name: "Tech Lead: Plan Feature"
-description: "Decompose a feature request into sequenced, agent-assignable tasks with acceptance criteria and risk assessment."
+description: "Decompose a feature request into sequenced, agent-assignable tasks with acceptance criteria and risk assessment, then draft feature issues using issue-engineering-workflows templates."
 agent: "TechLeadOrchestrator"
 argument-hint: "Describe the feature or initiative. Include business context, scope boundaries, and any known constraints."
 ---
@@ -8,19 +8,22 @@ argument-hint: "Describe the feature or initiative. Include business context, sc
 Plan the requested feature:
 
 1. **Business Context** — Restate the requirement. Connect to user outcome or business metric.
-2. **Architecture Assessment** — Delegate to `SystemArchitect` via `#runSubagent` to evaluate system impact, affected components, and integration points.
+2. **ADR Preflight** — Read `docs/architecture/ADRs.md` and identify impacted ADRs before decomposition.
+3. **Architecture Assessment** — Delegate to `system-architect` via `#runSubagent` to evaluate system impact, affected components, and integration points.
 3. **Task Decomposition** — Break into atomic, testable sub-tasks. Each must be completable by a single specialist agent.
-4. **Agent Assignment** — Map each sub-task to the appropriate specialist agent. Use these exact agent names for delegation via `#runSubagent`:
-   - `PythonDeveloper` — Python implementation
-   - `RustDeveloper` — Rust implementation
-   - `TypeScriptDeveloper` — TypeScript/React implementation
-   - `UIDesigner` — UI/UX design and accessibility
-   - `PlatformEngineer` — CI/CD, IaC, and cross-cutting infrastructure
-   - `SystemArchitect` — Architecture decisions, ADRs, pattern validation
-   - `PRReviewer` — Final PR review before merge
-5. **Dependency Graph** — Sequence tasks. Identify which can run in parallel vs which block others.
-6. **Risk Assessment** — Document risks (breaking changes, security, performance, scope creep) with mitigations.
-7. **Acceptance Criteria** — Define "done" for each sub-task and for the feature as a whole.
+4. **Agent Assignment** — Map each sub-task to the appropriate specialist agent. Use canonical names from `.github/agents/data/team-mapping.md` for delegation via `#runSubagent`:
+   - `python-specialist` — Python implementation
+   - `rust-specialist` — Rust implementation
+   - `typescript-specialist` — TypeScript/React implementation
+   - `ui-agent` — UI/UX design and accessibility
+   - `platform-quality` — CI/CD, IaC, and cross-cutting infrastructure
+   - `system-architect` — Architecture decisions, ADRs, pattern validation
+   - `pr-evaluator` — Final PR review before merge
+6. **Dependency Graph** — Sequence tasks. Identify which can run in parallel vs which block others.
+7. **Risk Assessment** — Document risks (breaking changes, security, performance, scope creep) with mitigations.
+8. **Acceptance Criteria** — Define "done" for each sub-task and for the feature as a whole.
+9. **Issue Drafting** — Load `.github/skills/issue-engineering-workflows/SKILL.md` and use the new feature template to draft one issue per atomic sub-task.
+10. **ADR Impact Statement** — Include impacted ADR IDs or explicit no-impact statement in final plan output.
 
 Deliver a plan as a structured table with task ID, title, agent name, dependencies, acceptance criteria, and risk level. Then execute the plan by invoking each agent via `#runSubagent` in dependency order.
 

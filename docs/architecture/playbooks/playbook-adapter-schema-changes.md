@@ -14,20 +14,25 @@ Schema changes cause parsing failures or incorrect mapping. This playbook emphas
 1. Capture failing payload samples.
 2. Compare with expected schema and mapping.
 3. Identify version or field changes upstream.
+4. Check whether the change is additive within the current major or requires a major schema bump.
 
 ## Mitigation
 - Add tolerant parsing for optional fields.
 - Apply mapping hotfix in adapter layer.
 - Pin upstream API version if available.
+- Preserve canonical envelope compatibility by keeping additive changes within the same major version.
+- Treat missing canonical `schema_version` as implicit `1.0` only during controlled migration windows.
 
 ## Prevention
 - Add contract tests and schema validation.
 - Monitor upstream change logs.
+- Run `python scripts/ops/check_event_schema_contracts.py` before merge for canonical retail and connector envelope changes.
 
 ## Implementation Steps
 1. Capture sample payloads in logs for failures.
 2. Update mapping to handle optional/renamed fields.
-3. Add contract tests to detect future drift.
+3. Add or update `schema_version` contract tests for explicit-write and legacy-read coverage.
+4. Bump the canonical major version before introducing breaking envelope changes.
 
 ## Code Examples
 

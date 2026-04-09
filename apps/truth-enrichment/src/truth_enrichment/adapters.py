@@ -7,7 +7,16 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 from holiday_peak_lib.adapters.dam_image_analysis import DAMImageAnalysisAdapter
+from holiday_peak_lib.self_healing import SelfHealingKernel
+from holiday_peak_lib.utils import (
+    PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV,
+    PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV,
+)
 from holiday_peak_lib.utils.logging import configure_logging
+from holiday_peak_lib.utils.truth_event_hub import (
+    TruthEventPublisher,
+    build_truth_event_publisher_from_env,
+)
 
 logger = configure_logging(app_name="truth-enrichment")
 
@@ -15,12 +24,12 @@ logger = configure_logging(app_name="truth-enrichment")
 class ProductStoreAdapter:
     """Read product records from the Cosmos DB truth store."""
 
-    async def get_product(self, entity_id: str) -> Optional[dict[str, Any]]:
+    async def get_product(self, _entity_id: str) -> Optional[dict[str, Any]]:
         """Return a product dict by entity_id, or None when not found."""
         # In production this calls Cosmos DB; stubbed for local/test use.
         return None
 
-    async def get_schema(self, category: str) -> Optional[dict[str, Any]]:
+    async def get_schema(self, _category: str) -> Optional[dict[str, Any]]:
         """Return a CategorySchema dict for the given category, or None."""
         return None
 
@@ -31,14 +40,14 @@ class ProposedAttributeStoreAdapter:
     async def upsert(self, proposed: dict[str, Any]) -> dict[str, Any]:
         """Persist a proposed attribute and return it."""
         logger.info(
-            "proposed_attribute_upsert",
-            entity_id=proposed.get("entity_id"),
-            field_name=proposed.get("field_name"),
-            status=proposed.get("status"),
+            "proposed_attribute_upsert entity_id=%s field_name=%s status=%s",
+            proposed.get("entity_id"),
+            proposed.get("field_name"),
+            proposed.get("status"),
         )
         return proposed
 
-    async def get(self, attribute_id: str) -> Optional[dict[str, Any]]:
+    async def get(self, _attribute_id: str) -> Optional[dict[str, Any]]:
         """Return a proposed attribute by id, or None."""
         return None
 
@@ -49,9 +58,9 @@ class TruthAttributeStoreAdapter:
     async def upsert(self, attribute: dict[str, Any]) -> dict[str, Any]:
         """Persist a truth attribute and return it."""
         logger.info(
-            "truth_attribute_upsert",
-            entity_id=attribute.get("entity_id"),
-            field_name=attribute.get("field_name"),
+            "truth_attribute_upsert entity_id=%s field_name=%s",
+            attribute.get("entity_id"),
+            attribute.get("field_name"),
         )
         return attribute
 
@@ -62,7 +71,9 @@ class AuditStoreAdapter:
     async def append(self, event: dict[str, Any]) -> dict[str, Any]:
         """Persist an audit event and return it."""
         logger.info(
-            "audit_event_appended", action=event.get("action"), entity_id=event.get("entity_id")
+            "audit_event_appended action=%s entity_id=%s",
+            event.get("action"),
+            event.get("entity_id"),
         )
         return event
 
@@ -70,38 +81,45 @@ class AuditStoreAdapter:
 class EventHubPublisher:
     """Publish messages to an Azure Event Hub topic."""
 
-    def __init__(self, topic: str = "hitl-jobs") -> None:
+    def __init__(
+        self,
+        topic: str = "hitl-jobs",
+        *,
+        publisher: TruthEventPublisher | None = None,
+        self_healing_kernel: SelfHealingKernel | None = None,
+    ) -> None:
         self.topic = topic
-        self._connection_string = os.getenv("EVENT_HUB_CONNECTION_STRING") or os.getenv(
-            "EVENTHUB_CONNECTION_STRING"
+        self._publisher = publisher or build_truth_event_publisher_from_env(
+            service_name="truth-enrichment",
+            namespace_env=PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV,
+            connection_string_env=PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV,
+            self_healing_kernel=self_healing_kernel,
         )
+
+    def attach_self_healing(self, self_healing_kernel: SelfHealingKernel | None) -> None:
+        """Attach the app-owned self-healing kernel after bootstrap."""
+
+        if hasattr(self._publisher, "self_healing_kernel"):
+            self._publisher.self_healing_kernel = self_healing_kernel
 
     async def publish(self, payload: dict[str, Any]) -> None:
         """Send a message to the configured Event Hub topic."""
-        if not self._connection_string:
-            logger.info(
-                "eventhub_publish_skipped_no_connection",
-                topic=self.topic,
-                entity_id=payload.get("entity_id"),
-            )
-            return
-        try:
-            import json
-
-            from azure.eventhub import EventData
-            from azure.eventhub.aio import EventHubProducerClient
-
-            async with EventHubProducerClient.from_connection_string(
-                self._connection_string, eventhub_name=self.topic
-            ) as producer:
-                batch = await producer.create_batch()
-                batch.add(EventData(json.dumps(payload)))
-                await producer.send_batch(batch)
-                logger.info(
-                    "eventhub_published", topic=self.topic, entity_id=payload.get("entity_id")
-                )
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("eventhub_publish_failed", topic=self.topic, error=str(exc))
+        payload_data = payload.get("data")
+        data: dict[str, Any] = payload_data if isinstance(payload_data, dict) else {}
+        entity_id = payload.get("entity_id") or data.get("entity_id")
+        await self._publisher.publish_payload(
+            self.topic,
+            payload,
+            metadata={
+                "domain": "truth-enrichment",
+                "entity_id": entity_id,
+            },
+            remediation_context={
+                "preferred_action": "reset_messaging_publisher_bindings",
+                "workflow": "hitl_review_dispatch",
+                "target_topic": self.topic,
+            },
+        )
 
 
 @dataclass

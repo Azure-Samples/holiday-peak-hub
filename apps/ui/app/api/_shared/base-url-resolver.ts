@@ -161,35 +161,9 @@ const AGENT_BASE_URL_STRATEGIES: ResolutionStrategy[] = [
     key: 'AGENT_API_URL',
     resolve: (env) => env.AGENT_API_URL,
   },
-  {
-    key: 'NEXT_PUBLIC_CRUD_API_URL',
-    resolve: (env) => {
-      const crudBase = normalizeCrudBaseUrl(env.NEXT_PUBLIC_CRUD_API_URL);
-      return crudBase ? `${crudBase}/agents` : undefined;
-    },
-  },
-  {
-    key: 'NEXT_PUBLIC_API_URL',
-    resolve: (env) => {
-      const apiBase = normalizeCrudBaseUrl(env.NEXT_PUBLIC_API_URL);
-      return apiBase ? `${apiBase}/agents` : undefined;
-    },
-  },
-  {
-    key: 'NEXT_PUBLIC_API_BASE_URL',
-    resolve: (env) => {
-      const apiBase = normalizeCrudBaseUrl(env.NEXT_PUBLIC_API_BASE_URL);
-      return apiBase ? `${apiBase}/agents` : undefined;
-    },
-  },
-  {
-    key: 'CRUD_API_URL',
-    resolve: (env) => {
-      const crudBase = normalizeCrudBaseUrl(env.CRUD_API_URL);
-      return crudBase ? `${crudBase}/agents` : undefined;
-    },
-  },
 ];
+
+const AGENT_PROXY_ROUTE_BASE_URL = '/agent-api';
 
 export function resolveCrudApiBaseUrl(env?: EnvMap): ResolutionResult {
   return resolveBaseUrl(CRUD_BASE_URL_STRATEGIES, env);
@@ -246,17 +220,16 @@ export function resolveAgentApiClientBaseUrl(params?: {
 
   if (runtime === 'browser') {
     return {
-      baseUrl: '/agent-api',
+      baseUrl: AGENT_PROXY_ROUTE_BASE_URL,
       sourceKey: 'BROWSER_PROXY_ROUTE',
       runtime,
     };
   }
 
   if (runtime === 'test') {
-    const crudResolution = resolveCrudApiBaseUrl(env);
     return {
-      baseUrl: crudResolution.baseUrl ? `${crudResolution.baseUrl}/agents` : '/agents',
-      sourceKey: crudResolution.sourceKey,
+      baseUrl: AGENT_PROXY_ROUTE_BASE_URL,
+      sourceKey: 'TEST_PROXY_ROUTE',
       runtime,
     };
   }

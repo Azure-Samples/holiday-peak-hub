@@ -1,18 +1,26 @@
 ---
 name: "Issue Engineering With Process"
-description: "Run issue engineering with mandatory code-first investigation, BPMN issue creation, branch-per-issue execution, PR validation, merge monitoring, and branch cleanup."
+description: "Run issue engineering with mandatory code-first investigation, BPMN issue creation, branch-per-issue execution, PR validation, merge monitoring, and branch cleanup. Use the issue-engineering-workflows skill templates."
 agent: "TechLeadOrchestrator"
 argument-hint: "Provide the list of requested changes, issue references (if any), constraints, and expected outcomes."
 ---
 
 Execute issue engineering with strict process control:
 
+0. **Skill Bootstrap (mandatory)**
+   - Load `.github/skills/issue-engineering-workflows/SKILL.md`.
+   - Select the matching template for create/correct/improve/feature/risk issue flows before drafting issues.
+
+0.5 **ADR Preflight (mandatory for architecture-impacting items)**
+   - Read `docs/architecture/ADRs.md` before scoping implementation.
+   - Capture impacted ADRs, ADR update needs, or an explicit no-impact statement with assumptions.
+
 1. **Code-First Reconnaissance (mandatory before any action)**
    - Read the relevant code paths first.
    - Use workspace search and file reads to confirm current behavior.
    - Call relevant specialists via `#runSubagent` before implementation when cross-domain analysis is needed:
-     - `SystemArchitect` for architecture/integration concerns
-     - `PythonDeveloper`, `TypeScriptDeveloper`, `RustDeveloper`, `UIDesigner`, `PlatformEngineer` as applicable
+       - `system-architect` for architecture/integration concerns
+       - `python-specialist`, `typescript-specialist`, `rust-specialist`, `ui-agent`, `platform-quality` as applicable
    - Do not implement or open PRs before reconnaissance is complete.
 
 2. **Per-Change Engineering Analysis (for every requested change item)**
@@ -21,6 +29,7 @@ Execute issue engineering with strict process control:
      - Required change
      - Affected components and risks
      - Effort estimate (S/M/L/XL + rough hours)
+       - ADR impact (`ADR-###` references or explicit no-impact statement)
    - Keep each item atomic and independently traceable.
 
 3. **Issue Creation With BPMN Format (mandatory before coding each item)**
@@ -32,6 +41,14 @@ Execute issue engineering with strict process control:
      - BPMN-formatted process section using Mermaid (required), for example:
 
      ```mermaid
+       %%{init: {'theme':'base', 'themeVariables': {
+          'primaryColor':'#FFB3BA',
+          'primaryTextColor':'#000',
+          'primaryBorderColor':'#FF8B94',
+          'lineColor':'#BAE1FF',
+          'secondaryColor':'#BAE1FF',
+          'tertiaryColor':'#FFFFFF'
+       }}}%%
      flowchart LR
        A[Analyze Current Code] --> B[Design Change]
        B --> C[Implement on Issue Branch]

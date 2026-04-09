@@ -204,6 +204,13 @@ Before marking any task as complete, verify:
 6. **Review** — verify integration, run quality gates, ensure business need is met
 7. **Report** — summarize what was delivered, decisions made, and any follow-up items
 
+### Issue Engineering Skill Usage
+
+When the task requires creating, correcting, improving, or sequencing GitHub issues, load and apply:
+- `.github/skills/issue-engineering-workflows/SKILL.md`
+
+Use that skill's templates for BPMN issue sections, acceptance criteria structure, and branch/PR execution discipline.
+
 ## Operational Workflow Execution
 
 When users request cadence-based operational outputs (daily, weekly, monthly, quarterly):

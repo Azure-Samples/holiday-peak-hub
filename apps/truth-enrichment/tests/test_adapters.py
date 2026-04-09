@@ -5,7 +5,15 @@ from __future__ import annotations
 from unittest.mock import AsyncMock
 
 import pytest
-from truth_enrichment.adapters import DAMImageAnalysisAdapter, build_enrichment_adapters
+from holiday_peak_lib.utils import (
+    PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV,
+    PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV,
+)
+from truth_enrichment.adapters import (
+    DAMImageAnalysisAdapter,
+    EventHubPublisher,
+    build_enrichment_adapters,
+)
 
 
 @pytest.mark.asyncio
@@ -99,3 +107,45 @@ def test_build_enrichment_adapters_includes_image_analysis() -> None:
     assert isinstance(adapters.dam, DAMImageAnalysisAdapter)
     assert isinstance(adapters.image_analysis, DAMImageAnalysisAdapter)
     assert adapters.image_analysis.resilience_status()["threshold"] == 5
+
+
+@pytest.mark.asyncio
+async def test_event_hub_publisher_delegates_to_truth_publisher() -> None:
+    truth_publisher = AsyncMock()
+    truth_publisher.publish_payload = AsyncMock()
+    publisher = EventHubPublisher(topic="hitl-jobs", publisher=truth_publisher)
+    payload = {"event_type": "attribute.proposed", "data": {"entity_id": "sku-9"}}
+
+    await publisher.publish(payload)
+
+    truth_publisher.publish_payload.assert_awaited_once_with(
+        "hitl-jobs",
+        payload,
+        metadata={"domain": "truth-enrichment", "entity_id": "sku-9"},
+        remediation_context={
+            "preferred_action": "reset_messaging_publisher_bindings",
+            "workflow": "hitl_review_dispatch",
+            "target_topic": "hitl-jobs",
+        },
+    )
+
+
+def test_event_hub_publisher_uses_platform_jobs_binding_envs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("EVENT_HUB_NAMESPACE", "retail-namespace")
+    monkeypatch.setenv("EVENT_HUB_CONNECTION_STRING", "retail-connection")
+    monkeypatch.setenv(PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV, "platform-namespace")
+    monkeypatch.setenv(
+        PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV,
+        "platform-connection",
+    )
+
+    publisher = EventHubPublisher()
+
+    assert (
+        publisher._publisher._namespace == "platform-namespace"
+    )  # pylint: disable=protected-access
+    assert (
+        publisher._publisher._connection_string == "platform-connection"
+    )  # pylint: disable=protected-access

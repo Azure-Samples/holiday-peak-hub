@@ -35,6 +35,9 @@ Applies to all Python services and shared framework packages under:
 - Enforce adapter boundaries (ADR-003, ADR-012).
 - Keep dual exposition clear: REST for app/front-end and MCP for agent-to-agent (ADR-010).
 - Use SLM-first routing with optional LLM upgrade for complex requests (ADR-013).
+- Canonical retail and connector event envelopes must carry top-level `schema_version` in `major.minor` format.
+- Missing canonical envelope versions must be interpreted as implicit `1.0` during migration windows.
+- Same-major schema evolution must remain additive-only with unknown fields tolerated; breaking changes require a major bump and contract-gate updates.
 
 ### Data and memory
 

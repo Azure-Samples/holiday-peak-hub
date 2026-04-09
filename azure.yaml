@@ -514,11 +514,15 @@ hooks:
   preprovision:
     windows:
       shell: pwsh
-      run: ./.infra/azd/hooks/assert-canonical-azd-env.ps1
+      run: |
+        ./.infra/azd/hooks/assert-canonical-azd-env.ps1
+        ./.infra/azd/hooks/resolve-aks-node-count.ps1
       interactive: false
     posix:
       shell: sh
-      run: ./.infra/azd/hooks/assert-canonical-azd-env.sh
+      run: |
+        ./.infra/azd/hooks/assert-canonical-azd-env.sh
+        ./.infra/azd/hooks/resolve-aks-node-count.sh
       interactive: false
   postprovision:
     windows:

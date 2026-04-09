@@ -171,6 +171,7 @@ The script exercises all CRUD `POST` routes and reports `PASS` / `SKIPPED` / `FA
 - Keep `protected-dev-live-agent-readiness.yml` limited to trusted triggers and the `dev` environment boundary; do not add it as a required PR check.
 - Preserve changed-service deployment and APIM sync/smoke behavior per environment defaults.
 - Run lint/test quality gates before deployment (repo minimum 75% coverage).
+- Verify canonical event schema compatibility before rollout whenever governed retail or connector event contracts change (`python scripts/ops/check_event_schema_contracts.py`).
 - Update governance docs when workflow behavior or runtime controls change:
   - `docs/governance/README.md`
   - `docs/governance/backend-governance.md`

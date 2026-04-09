@@ -3,6 +3,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ include "holiday-peak-service.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
     app: {{ .Values.serviceName }}
   {{- with .Values.ingress.annotations }}
@@ -59,6 +60,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ include "holiday-peak-service.fullname" . }}-canary
+  namespace: {{ .Release.Namespace }}
   labels:
     app: {{ .Values.serviceName }}
     canary: "true"

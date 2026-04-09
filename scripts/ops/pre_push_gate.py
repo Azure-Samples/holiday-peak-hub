@@ -7,7 +7,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -37,6 +36,20 @@ def run_lint_gate() -> None:
         ["python", "-m", "pylint", "--fail-on=E,F", *pylint_targets],
         title="Lint gate: pylint",
     )
+    run_step(
+        [
+            "python",
+            "-m",
+            "mypy",
+            "--config-file",
+            "pyproject.toml",
+            "--ignore-missing-imports",
+            "--follow-imports=skip",
+            "lib/src/holiday_peak_lib/agents/service_agent.py",
+            "lib/src/holiday_peak_lib/agents/memory/builder.py",
+        ],
+        title="Lint gate: mypy",
+    )
 
     run_step(
         [
@@ -44,9 +57,13 @@ def run_lint_gate() -> None:
             "scripts/ops/check_markdown_links.py",
             "--roots",
             "docs/governance",
-            "docs/architecture/README.md",
+            "docs/architecture",
         ],
         title="Lint gate: governance/architecture links",
+    )
+    run_step(
+        ["python", "scripts/ops/check_event_schema_contracts.py"],
+        title="Lint gate: canonical event schema contracts",
     )
 
     stale_tokens = (

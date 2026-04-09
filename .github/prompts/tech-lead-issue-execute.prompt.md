@@ -13,36 +13,41 @@ Drive a GitHub issue from open to closed:
    - Scope boundary: what is explicitly in and out of scope
    - Priority and severity: infer from labels, description, or ask
 
-2. **Codebase Reconnaissance** — Use workspace search and file-reading tools directly to:
+2. **ADR Preflight** — For any architecture-impacting issue:
+   - Read `docs/architecture/ADRs.md` and relevant ADRs first.
+   - Record impacted ADR IDs, required ADR updates, or explicit no-impact statement.
+
+3. **Codebase Reconnaissance** — Use workspace search and file-reading tools directly to:
    - Identify the files, modules, and services affected
    - Map dependencies and potential blast radius
    - Surface existing tests and related code
 
-3. **Task Decomposition** — Break the issue into atomic, agent-assignable sub-tasks:
+4. **Task Decomposition** — Break the issue into atomic, agent-assignable sub-tasks:
    - Each sub-task has: clear scope, input/output, acceptance criteria, assigned agent
    - Identify dependencies between sub-tasks and sequence them
    - Estimate complexity (trivial / small / medium / large)
 
-4. **Architecture Check** — If the issue crosses service boundaries or changes data flow, invoke `SystemArchitect` via `#runSubagent` to:
+5. **Architecture Check** — If the issue crosses service boundaries or changes data flow, invoke `system-architect` via `#runSubagent` to:
    - Validate the approach against established patterns
    - Identify integration contracts that need updating
    - Flag any ADR that should be created or amended
 
-5. **Implementation** — Delegate each sub-task to the appropriate specialist via `#runSubagent`:
-   - `PythonDeveloper` — Python implementation, tests, type checking
-   - `RustDeveloper` — Rust implementation, ownership correctness, cargo tests
-   - `TypeScriptDeveloper` — TypeScript/React implementation, type safety, Vitest
-   - `UIDesigner` — UI components, accessibility, responsive design
-   - `PlatformEngineer` — CI/CD changes, infrastructure, dependency updates
+6. **Implementation** — Delegate each sub-task to the appropriate specialist via `#runSubagent`:
+   - `python-specialist` — Python implementation, tests, type checking
+   - `rust-specialist` — Rust implementation, ownership correctness, cargo tests
+   - `typescript-specialist` — TypeScript/React implementation, type safety, Vitest
+   - `ui-agent` — UI components, accessibility, responsive design
+   - `platform-quality` — CI/CD changes, infrastructure, dependency updates
    - `enterprise-connectors` — External API integrations, connector changes
 
-6. **Verification** — After implementation:
+7. **Verification** — After implementation:
    - Confirm all acceptance criteria are met
    - Run tests and verify no regressions
-   - Invoke `PRReviewer` via `#runSubagent` for merge-readiness review
+   - Invoke `pr-evaluator` via `#runSubagent` for merge-readiness review
 
-7. **Closure** — Summarize what was done:
+8. **Closure** — Summarize what was done:
    - Changes made (files, modules, tests)
+   - ADR impact and updates (or explicit no-impact statement)
    - Decisions taken and rationale
    - Any follow-up items or deferred scope
    - Deliver a completion report linking the issue to the changes, with verification evidence.

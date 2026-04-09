@@ -1,0 +1,8 @@
+{
+  "event_type": "OrderCreated",
+  "data": {
+    "id": "order-legacy",
+    "user_id": "user-legacy",
+    "timestamp": "2026-03-21T00:00:00Z"
+  }
+}

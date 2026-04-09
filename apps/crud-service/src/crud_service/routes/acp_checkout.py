@@ -1,6 +1,7 @@
 """ACP checkout session routes."""
 
 import uuid
+from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any
 
@@ -13,6 +14,7 @@ from crud_service.repositories import (
     PaymentTokenRepository,
 )
 from fastapi import APIRouter, Depends, HTTPException, status
+from holiday_peak_lib.utils import CompensationAction, execute_compensation
 from pydantic import BaseModel, Field
 
 router = APIRouter()
@@ -353,6 +355,9 @@ async def complete_checkout_session(
             detail="Payment token allowance insufficient",
         )
 
+    token_snapshot = deepcopy(token)
+    session_snapshot = deepcopy(session)
+
     token["status"] = "used"
     token["used_at"] = datetime.now(timezone.utc).isoformat()
     await payment_token_repo.update(token)
@@ -372,8 +377,9 @@ async def complete_checkout_session(
         }
         for item in items
     ]
+    order_id = str(uuid.uuid4())
     order = {
-        "id": str(uuid.uuid4()),
+        "id": order_id,
         "user_id": current_user.user_id,
         "items": order_items,
         "total": totals.get("total", 0.0),
@@ -384,6 +390,37 @@ async def complete_checkout_session(
     }
     await order_repo.create(order)
 
+    async def rollback_checkout_publish(_error: Exception):
+        return await execute_compensation(
+            [
+                CompensationAction(
+                    name="order_delete_rollback",
+                    execute=lambda: order_repo.delete(order_id, partition_key=current_user.user_id),
+                ),
+                CompensationAction(
+                    name="checkout_session_restore_rollback",
+                    execute=lambda: session_repo.update(deepcopy(session_snapshot)),
+                ),
+                CompensationAction(
+                    name="payment_token_restore_rollback",
+                    execute=lambda: payment_token_repo.update(deepcopy(token_snapshot)),
+                ),
+            ],
+            continue_on_error=True,
+        )
+
+    remediation_context = {
+        "workflow": "acp_checkout_complete",
+        "rollback_plan": [
+            "order_delete_rollback",
+            "checkout_session_restore_rollback",
+            "payment_token_restore_rollback",
+        ],
+        "session_id": session_id,
+        "order_id": order_id,
+        "payment_token": request.payment_token,
+    }
+
     payment_event = {
         "id": str(uuid.uuid4()),
         "order_id": order["id"],
@@ -393,8 +430,22 @@ async def complete_checkout_session(
         "created_at": datetime.now(timezone.utc).isoformat(),
         "token_id": request.payment_token,
     }
-    await event_publisher.publish_order_created(order)
-    await event_publisher.publish_payment_processed(payment_event)
+    await event_publisher.publish_order_created(
+        order,
+        remediation_context={
+            **remediation_context,
+            "event_sequence": "order_created",
+        },
+        on_terminal_failure=rollback_checkout_publish,
+    )
+    await event_publisher.publish_payment_processed(
+        payment_event,
+        remediation_context={
+            **remediation_context,
+            "event_sequence": "payment_processed",
+        },
+        on_terminal_failure=rollback_checkout_publish,
+    )
 
     return CheckoutSessionResponse(**stored)
 

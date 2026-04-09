@@ -1,9 +1,16 @@
 """Tests for CRUD main composition and optional connector wiring."""
 
+import json
 from types import SimpleNamespace
 
 import crud_service.main as main
 import pytest
+from holiday_peak_lib.utils.event_hub import (
+    CRITICAL_SAGA_PUBLISH_PROFILE,
+    EventPublishError,
+    MessagingFailureCategory,
+    PublishFailureEnvelope,
+)
 
 
 def test_route_groups_keep_expected_api_surfaces() -> None:
@@ -120,3 +127,35 @@ async def test_lifespan_continues_when_redis_secret_retrieval_fails(monkeypatch)
         main.settings.redis_password = original_redis_password
         main.settings.postgres_auth_mode = original_postgres_auth_mode
         main.settings.redis_password_secret_name = original_redis_secret_name
+
+
+@pytest.mark.asyncio
+async def test_event_publish_error_handler_preserves_publish_status_code() -> None:
+    error = EventPublishError(
+        PublishFailureEnvelope(
+            service_name="crud-service",
+            topic="order-events",
+            operation="publish",
+            error_type="TimeoutError",
+            error_message="event hub unavailable",
+            category=MessagingFailureCategory.TRANSIENT,
+            status_code=503,
+            profile=CRITICAL_SAGA_PUBLISH_PROFILE,
+            event_type="OrderCreated",
+        ),
+        incident_id="incident-123",
+    )
+
+    response = await main.event_publish_error_handler(None, error)
+    payload = json.loads(response.body.decode("utf-8"))
+
+    assert response.status_code == 503
+    assert payload == {
+        "detail": "Event publish failed",
+        "type": "EventPublishError",
+        "topic": "order-events",
+        "event_type": "OrderCreated",
+        "category": "transient",
+        "profile": "critical_saga",
+        "incident_id": "incident-123",
+    }

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable
 from uuid import uuid4
@@ -11,6 +12,15 @@ from uuid import uuid4
 from azure.eventhub import EventData
 from azure.eventhub.aio import EventHubConsumerClient, EventHubProducerClient
 from azure.identity.aio import DefaultAzureCredential
+from holiday_peak_lib.self_healing import SelfHealingKernel
+from holiday_peak_lib.utils.event_hub import (
+    CRITICAL_SAGA_PUBLISH_PROFILE,
+    DEFAULT_EVENT_HUB_CONNECTION_STRING_ENV,
+    DEFAULT_EVENT_HUB_NAMESPACE_ENV,
+    PublishReliabilityProfile,
+    publish_with_reliability,
+    resolve_publish_reliability_profile,
+)
 from holiday_peak_lib.utils.logging import configure_logging
 from pydantic import BaseModel, Field
 
@@ -36,33 +46,84 @@ class TruthJobMessage(BaseModel):
     tenant_id: str = "default"
 
 
+def build_truth_event_publisher_from_env(
+    *,
+    service_name: str,
+    namespace_env: str = DEFAULT_EVENT_HUB_NAMESPACE_ENV,
+    connection_string_env: str = DEFAULT_EVENT_HUB_CONNECTION_STRING_ENV,
+    self_healing_kernel: SelfHealingKernel | None = None,
+    credential: Any | None = None,
+    producer_factory: Callable[[str], EventHubProducerClient] | None = None,
+    topic_profiles: dict[str, PublishReliabilityProfile] | None = None,
+) -> "TruthEventPublisher":
+    """Build a truth-layer publisher bound to explicit environment names."""
+
+    namespace = (os.getenv(namespace_env) or "").strip() or None
+    connection_string = (os.getenv(connection_string_env) or "").strip() or None
+    return TruthEventPublisher(
+        namespace=namespace,
+        connection_string=connection_string,
+        credential=credential,
+        producer_factory=producer_factory,
+        self_healing_kernel=self_healing_kernel,
+        service_name=service_name,
+        topic_profiles=topic_profiles,
+        namespace_env_name=namespace_env,
+        connection_string_env_name=connection_string_env,
+    )
+
+
 class TruthEventPublisher:
     """Publishes truth-layer job messages to Event Hub topics.
 
     Uses Managed Identity (DefaultAzureCredential) for authentication.
-    Supports single and batch publishing with retry logic.
+    Supports single and batch publishing with shared producer reliability handling.
     """
 
     def __init__(
         self,
-        namespace: str,
+        namespace: str | None = None,
         *,
+        connection_string: str | None = None,
         credential: Any | None = None,
         producer_factory: Callable[[str], EventHubProducerClient] | None = None,
+        self_healing_kernel: SelfHealingKernel | None = None,
+        service_name: str = "truth-event-publisher",
+        topic_profiles: dict[str, PublishReliabilityProfile] | None = None,
+        namespace_env_name: str = DEFAULT_EVENT_HUB_NAMESPACE_ENV,
+        connection_string_env_name: str = DEFAULT_EVENT_HUB_CONNECTION_STRING_ENV,
     ) -> None:
         """Initialise the publisher.
 
         Args:
             namespace: Fully qualified Event Hub namespace
                        (e.g. ``mynamespace.servicebus.windows.net``).
+            connection_string: Event Hub connection string for local/test or
+                        app-managed auth modes.
             credential: Azure credential to use. Defaults to
                         ``DefaultAzureCredential``.
             producer_factory: Optional factory override for testing.
         """
-        self._namespace = namespace
+        self._namespace = namespace or ""
+        self._connection_string = connection_string or ""
         self._credential = credential
         self._producer_factory = producer_factory
-        self._logger = configure_logging(app_name="truth-event-publisher")
+        self._self_healing_kernel = self_healing_kernel
+        self._service_name = service_name
+        self._topic_profiles = dict(topic_profiles or {})
+        self._namespace_env_name = namespace_env_name
+        self._connection_string_env_name = connection_string_env_name
+        self._logger = configure_logging(app_name=service_name)
+
+    @property
+    def self_healing_kernel(self) -> SelfHealingKernel | None:
+        """Expose the kernel so services can attach the shared app instance later."""
+
+        return self._self_healing_kernel
+
+    @self_healing_kernel.setter
+    def self_healing_kernel(self, value: SelfHealingKernel | None) -> None:
+        self._self_healing_kernel = value
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -71,39 +132,150 @@ class TruthEventPublisher:
     def _get_producer(self, topic: str) -> EventHubProducerClient:
         if self._producer_factory:
             return self._producer_factory(topic)
-        credential = self._credential or DefaultAzureCredential()
+
+        if self._connection_string:
+            return EventHubProducerClient.from_connection_string(
+                self._connection_string,
+                eventhub_name=topic,
+            )
+
+        if not self._namespace:
+            raise ValueError(
+                "TruthEventPublisher requires "
+                f"{self._namespace_env_name} or {self._connection_string_env_name}"
+            )
+
+        if self._credential is None:
+            self._credential = DefaultAzureCredential()
+
         return EventHubProducerClient(
             fully_qualified_namespace=self._namespace,
             eventhub_name=topic,
-            credential=credential,
+            credential=self._credential,
+        )
+
+    def _resolve_profile(self, topic: str) -> PublishReliabilityProfile:
+        return resolve_publish_reliability_profile(
+            topic,
+            topic_profiles=self._topic_profiles,
+            default_profile=CRITICAL_SAGA_PUBLISH_PROFILE,
+        )
+
+    @staticmethod
+    def _payload_metadata(payload: dict[str, Any]) -> dict[str, Any]:
+        payload_data = payload.get("data")
+        data: dict[str, Any] = payload_data if isinstance(payload_data, dict) else {}
+        return {
+            "entity_id": payload.get("entity_id") or data.get("entity_id"),
+            "tenant_id": payload.get("tenant_id") or data.get("tenant_id"),
+            "job_type": payload.get("job_type"),
+        }
+
+    async def publish_payload(
+        self,
+        topic: str,
+        payload: dict[str, Any],
+        *,
+        metadata: dict[str, Any] | None = None,
+        remediation_context: dict[str, Any] | None = None,
+        reliability_profile: PublishReliabilityProfile | None = None,
+    ) -> None:
+        """Publish an arbitrary JSON payload through the shared reliability path."""
+
+        payload_json = json.dumps(payload, default=str)
+        profile = reliability_profile or self._resolve_profile(topic)
+        event_type = payload.get("event_type") if isinstance(payload, dict) else None
+        publish_metadata = self._payload_metadata(payload)
+        publish_metadata.update(metadata or {})
+
+        async def _send() -> None:
+            async with self._get_producer(topic) as producer:
+                batch = await producer.create_batch()
+                batch.add(EventData(payload_json))
+                await producer.send_batch(batch)
+
+        await publish_with_reliability(
+            send=_send,
+            service_name=self._service_name,
+            topic=topic,
+            event_type=event_type,
+            profile=profile,
+            self_healing_kernel=self._self_healing_kernel,
+            logger=self._logger,
+            metadata=publish_metadata,
+            remediation_context=remediation_context,
+        )
+
+        self._logger.info(
+            "truth_event_published topic=%s event_type=%s entity_id=%s",
+            topic,
+            event_type,
+            publish_metadata.get("entity_id"),
         )
 
     async def _publish(self, topic: str, message: TruthJobMessage) -> None:
         """Publish a single message to an Event Hub topic."""
-        async with self._get_producer(topic) as producer:
-            batch = await producer.create_batch()
-            batch.add(EventData(message.model_dump_json()))
-            await producer.send_batch(batch)
-        self._logger.info(
-            "truth_job_published topic=%s job_id=%s entity_id=%s job_type=%s",
+        await self.publish_payload(
             topic,
-            message.job_id,
-            message.entity_id,
-            message.job_type,
+            message.model_dump(mode="json"),
+            metadata={
+                "job_id": message.job_id,
+                "entity_id": message.entity_id,
+                "tenant_id": message.tenant_id,
+                "job_type": message.job_type,
+                "priority": message.priority,
+                "domain": "truth",
+            },
+            remediation_context={
+                "preferred_action": self._resolve_profile(topic).remediation_action,
+                "workflow": "truth_job_publish",
+                "target_topic": topic,
+            },
         )
 
     async def _publish_batch(self, topic: str, messages: list[TruthJobMessage]) -> None:
         """Publish a batch of messages to an Event Hub topic."""
-        async with self._get_producer(topic) as producer:
-            batch = await producer.create_batch()
-            for message in messages:
-                batch.add(EventData(message.model_dump_json()))
-            await producer.send_batch(batch)
+        if not messages:
+            return
+
+        payloads = [message.model_dump(mode="json") for message in messages]
+        profile = self._resolve_profile(topic)
+
+        async def _send() -> None:
+            async with self._get_producer(topic) as producer:
+                batch = await producer.create_batch()
+                for payload in payloads:
+                    batch.add(EventData(json.dumps(payload, default=str)))
+                await producer.send_batch(batch)
+
+        await publish_with_reliability(
+            send=_send,
+            service_name=self._service_name,
+            topic=topic,
+            event_type=messages[0].job_type,
+            profile=profile,
+            self_healing_kernel=self._self_healing_kernel,
+            logger=self._logger,
+            metadata={
+                "domain": "truth",
+                "job_type": messages[0].job_type,
+                "tenant_id": messages[0].tenant_id,
+                "message_count": len(messages),
+                "entity_ids": [message.entity_id for message in messages],
+            },
+            remediation_context={
+                "preferred_action": profile.remediation_action,
+                "workflow": "truth_job_batch_publish",
+                "target_topic": topic,
+                "message_count": len(messages),
+            },
+        )
+
         self._logger.info(
             "truth_job_batch_published topic=%s count=%d job_type=%s",
             topic,
             len(messages),
-            messages[0].job_type if messages else None,
+            messages[0].job_type,
         )
 
     # ------------------------------------------------------------------
@@ -293,7 +465,7 @@ class TruthEventConsumer:
             if self._on_event:
                 await self._on_event(partition_context, event)
             await partition_context.update_checkpoint(event)
-        except Exception as exc:  # pragma: no cover
+        except Exception as exc:  # pylint: disable=broad-exception-caught  # pragma: no cover
             self._logger.error("truth_event_handler_error topic=%s error=%s", self._topic, str(exc))
 
     async def start(self) -> None:

@@ -6,7 +6,7 @@ param deployShared bool = true
 @description('Deploy static web app module.')
 param deployStatic bool = false
 
-param location string = 'eastus2'
+param location string = 'westus2'
 param environment string = 'dev'
 param projectName string = 'holidaypeakhub405'
 @description('Optional override for Key Vault name (3-24 chars, lowercase letters, numbers, and hyphens).')
@@ -25,6 +25,10 @@ param alertNotificationEmail string = ''
 @secure()
 @description('Optional Microsoft Teams incoming webhook URL for infrastructure alerts action group.')
 param alertTeamsWebhookUrl string = ''
+@description('Initial node count for AKS node pools. Auto-set by pre-provision hook based on VM SKU zone availability in the target region.')
+param aksNodeCount int = 1
+@description('Availability zones for AKS node pools as a JSON string. Auto-set by pre-provision hook. Defaults to [1,2,3].')
+param aksAvailabilityZones string = '[1,2,3]'
 param resourceGroupName string = '${projectName}-${environment}-rg'
 
 @description('Optional override for the Static Web App base name. Defaults to projectName-ui.')
@@ -37,8 +41,11 @@ var postgresAuthMode = 'password'
 var postgresWorkloadUser = deployShared ? '${sharedInfra!.outputs.aksClusterName}-agentpool' : ''
 var staticWebAppBaseName = empty(appName) ? '${projectName}-ui' : appName
 
+@description('UTC timestamp for unique deployment naming. Do not override.')
+param deploymentTimestamp string = utcNow()
+
 module sharedInfra '../modules/shared-infrastructure/shared-infrastructure-main.bicep' = if (deployShared) {
-  name: 'shared-infrastructure-azd'
+  name: 'shared-infrastructure-azd${deploymentTimestamp}'
   params: {
     location: location
     environment: environment
@@ -50,6 +57,8 @@ module sharedInfra '../modules/shared-infrastructure/shared-infrastructure-main.
     postgresAdminPassword: postgresAdminPassword
     alertNotificationEmail: alertNotificationEmail
     alertTeamsWebhookUrl: alertTeamsWebhookUrl
+    aksNodeCount: aksNodeCount
+    aksAvailabilityZones: json(aksAvailabilityZones)
     resourceGroupName: resourceGroupName
   }
 }
@@ -94,6 +103,7 @@ output REDIS_HOST string = deployShared ? sharedInfra!.outputs.redisName : ''
 #disable-next-line outputs-should-not-contain-secrets
 output REDIS_PASSWORD_SECRET_NAME string = deployShared ? sharedInfra!.outputs.redisPasswordSecretName : ''
 output EVENT_HUB_NAMESPACE string = deployShared ? sharedInfra!.outputs.eventHubsNamespaceName : ''
+output PLATFORM_JOBS_EVENT_HUB_NAMESPACE string = deployShared ? sharedInfra!.outputs.platformJobsNamespaceName : ''
 output APPLICATIONINSIGHTS_CONNECTION_STRING string = deployShared ? sharedInfra!.outputs.appInsightsConnectionString : ''
 output POSTGRES_HOST string = deployShared ? sharedInfra!.outputs.postgresFqdn : ''
 output POSTGRES_USER string = deployShared
@@ -117,3 +127,5 @@ output AKS_OIDC_ISSUER_URL string = deployShared ? sharedInfra!.outputs.aksOidcI
 output AKS_NODE_RESOURCE_GROUP string = deployShared ? sharedInfra!.outputs.aksNodeResourceGroup : ''
 output MONITORING_ACTION_GROUP_ID string = deployShared ? sharedInfra!.outputs.monitoringActionGroupId : ''
 output MONITORING_ACTION_GROUP_NAME string = deployShared ? sharedInfra!.outputs.monitoringActionGroupName : ''
+output AGENTS_WORKLOAD_CLIENT_ID string = deployShared ? sharedInfra!.outputs.agentsWorkloadIdentityClientId : ''
+output CRUD_WORKLOAD_CLIENT_ID string = deployShared ? sharedInfra!.outputs.crudWorkloadIdentityClientId : ''

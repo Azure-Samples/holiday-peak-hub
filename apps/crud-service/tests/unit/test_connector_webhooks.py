@@ -29,6 +29,11 @@ def test_connector_webhook_accepts_valid_payload(monkeypatch) -> None:
 
     assert response.status_code == 202
     assert response.json()["event_id"] == "evt-123"
+    assert response.json()["schema_version"] == "1.0"
+
+    forwarded_payload = consumer_mock.ingest_webhook_event.await_args.args[0]
+    assert forwarded_payload["schema_version"] == "1.0"
+    assert forwarded_payload["source_system"] == "akeneo"
 
 
 def test_connector_webhook_rejects_invalid_payload(monkeypatch) -> None:

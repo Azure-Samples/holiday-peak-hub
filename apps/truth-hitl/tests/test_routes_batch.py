@@ -4,9 +4,15 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any
+from unittest.mock import AsyncMock
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from holiday_peak_lib.utils import (
+    PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV,
+    PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV,
+)
 from truth_hitl.adapters import EventHubPublisher, build_hitl_adapters
 from truth_hitl.review_manager import ReviewItem
 from truth_hitl.routes import build_review_router
@@ -160,3 +166,45 @@ def test_single_approve_publishes_export_job_payload():
     assert search_payload["event_type"] == "hitl.approved.search"
     assert search_payload["data"]["entity_id"] == "prod-003"
     assert search_payload["data"]["status"] == "approved"
+
+
+@pytest.mark.asyncio
+async def test_event_hub_publisher_delegates_to_truth_publisher():
+    truth_publisher = AsyncMock()
+    truth_publisher.publish_payload = AsyncMock()
+    publisher = EventHubPublisher(topic="export-jobs", publisher=truth_publisher)
+    payload = {"event_type": "hitl.approved", "data": {"entity_id": "prod-010"}}
+
+    await publisher.publish(payload)
+
+    truth_publisher.publish_payload.assert_awaited_once_with(
+        "export-jobs",
+        payload,
+        metadata={"domain": "truth-hitl", "entity_id": "prod-010"},
+        remediation_context={
+            "preferred_action": "reset_messaging_publisher_bindings",
+            "workflow": "approval_fanout",
+            "target_topic": "export-jobs",
+        },
+    )
+
+
+def test_event_hub_publisher_uses_platform_jobs_binding_envs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("EVENT_HUB_NAMESPACE", "retail-namespace")
+    monkeypatch.setenv("EVENT_HUB_CONNECTION_STRING", "retail-connection")
+    monkeypatch.setenv(PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV, "platform-namespace")
+    monkeypatch.setenv(
+        PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV,
+        "platform-connection",
+    )
+
+    publisher = EventHubPublisher()
+
+    assert (
+        publisher._publisher._namespace == "platform-namespace"
+    )  # pylint: disable=protected-access
+    assert (
+        publisher._publisher._connection_string == "platform-connection"
+    )  # pylint: disable=protected-access

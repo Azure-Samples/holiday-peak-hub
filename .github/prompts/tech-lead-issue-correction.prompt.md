@@ -1,11 +1,13 @@
 ---
 name: "Tech Lead: Issue Correction"
-description: "Map identified problems into GitHub issues and delegate each to the appropriate specialist agent for resolution."
+description: "Map identified problems into GitHub issues and delegate each to the appropriate specialist agent for resolution using the issue-engineering-workflows skill."
 agent: "TechLeadOrchestrator"
 argument-hint: "Describe the problems found: error logs, failing tests, user reports, or code smells. Include affected files or modules if known."
 ---
 
 Analyze the reported problems and create a structured remediation plan:
+
+0. **Skill Bootstrap** — Load `.github/skills/issue-engineering-workflows/SKILL.md` and use the issue correction template.
 
 1. **Problem Inventory** — Catalog each distinct problem. Classify by type: bug, regression, tech debt, security vulnerability, performance degradation.
 2. **Impact Assessment** — For each problem, assess user impact (critical/high/medium/low) and blast radius (single file, module, cross-service).

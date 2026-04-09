@@ -517,7 +517,7 @@ Set up Azure Monitor alerts for:
 
 - **[Catalog Search](ecommerce-catalog-search.md)** — Provides SKUs for enrichment
 - **[Cart Intelligence](ecommerce-cart-intelligence.md)** — Uses similar products for recommendations
-- **[Inventory Health Check](../inventory/inventory-health-check.md)** — Provides real-time stock levels
+- **[Inventory Health Check](inventory-health-check.md)** — Provides real-time stock levels
 
 ## Related Lib Components
 
@@ -527,7 +527,7 @@ Set up Azure Monitor alerts for:
 
 ## Related ADRs
 
-- [ADR-008: Three-Tier Memory](../../adrs/adr-008-three-tier-memory.md) — Caching strategy
+- [ADR-008: Memory Tiers](../../adrs/adr-008-memory-tiers.md) — Caching strategy
 - [ADR-006: Agent Framework](../../adrs/adr-006-agent-framework.md) — Enrichment orchestration
 
 ---

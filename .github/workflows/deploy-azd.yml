@@ -580,6 +580,51 @@ jobs:
         run: |
           set -euo pipefail
 
+          python3 <<'PY'
+          import re
+          from pathlib import Path
+
+          bicep_path = Path('.infra/modules/shared-infrastructure/shared-infrastructure.bicep')
+          bicep = bicep_path.read_text(encoding='utf-8')
+
+          expected_event_hub_parents = {
+            'searchEnrichmentJobsEventHub': 'platformJobsNamespaceResource',
+            'ingestJobsEventHub': 'platformJobsNamespaceResource',
+            'enrichmentJobsEventHub': 'platformJobsNamespaceResource',
+            'completenessJobsEventHub': 'platformJobsNamespaceResource',
+            'exportJobsEventHub': 'platformJobsNamespaceResource',
+            'hitlJobsEventHub': 'platformJobsNamespaceResource',
+          }
+          expected_consumer_group_parents = {
+            'ingestionGroupConsumerGroup': 'ingestJobsEventHub',
+            'enrichmentEngineConsumerGroup': 'enrichmentJobsEventHub',
+            'completenessEngineConsumerGroup': 'completenessJobsEventHub',
+            'exportEngineConsumerGroup': 'exportJobsEventHub',
+            'hitlServiceConsumerGroup': 'hitlJobsEventHub',
+            'searchEnrichmentAgentConsumerGroup': 'searchEnrichmentJobsEventHub',
+            'searchEnrichmentConsumerGroup': 'searchEnrichmentJobsEventHub',
+          }
+
+          failures = []
+          for resource_name, parent_name in expected_event_hub_parents.items():
+            pattern = rf"resource\s+{resource_name}\s+'Microsoft\.EventHub/namespaces/eventhubs@2024-01-01'\s+existing\s*=\s*\{{\s*parent:\s*{parent_name}\s*"
+            if not re.search(pattern, bicep, flags=re.MULTILINE):
+              failures.append(f'{resource_name} -> {parent_name}')
+
+          for resource_name, parent_name in expected_consumer_group_parents.items():
+            pattern = rf"resource\s+{resource_name}\s+'Microsoft\.EventHub/namespaces/eventhubs/consumergroups@2024-01-01'\s*=\s*\{{\s*parent:\s*{parent_name}\s*"
+            if not re.search(pattern, bicep, flags=re.MULTILINE):
+              failures.append(f'{resource_name} -> {parent_name}')
+
+          if failures:
+            raise SystemExit(
+              'Platform jobs Event Hubs namespace ownership drift detected in '
+              f'{bicep_path}: ' + ', '.join(failures)
+            )
+
+          print('Platform jobs Event Hubs namespace ownership matches the dual-namespace contract.')
+          PY
+
       - name: Validate app dependency manifest coverage
         shell: bash
         run: |
