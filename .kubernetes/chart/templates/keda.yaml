@@ -3,6 +3,7 @@ apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
   name: {{ include "holiday-peak-service.fullname" . }}-keda
+  namespace: {{ .Release.Namespace }}
 spec:
   scaleTargetRef:
     name: {{ include "holiday-peak-service.fullname" . }}
