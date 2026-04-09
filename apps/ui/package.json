@@ -44,7 +44,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.0.2",
     "@types/react-star-ratings": "^2.3.3",
-    "axios": "^1.13.5",
+    "axios": "^1.15.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "next": "^16.2.0",
