@@ -30,7 +30,7 @@ Each agent service uses a **workload identity** (Azure Managed Identity) bound t
 The `SelfHealingKernel` enforces deterministic allow/deny outcomes:
 
 1. **Allowlist**: Only actions in `_allowed_actions` can execute. Registration of any action not in this set raises `PermissionError`.
-2. **Denylist**: Any action name containing tokens in `_FORBIDDEN_ACTION_TOKENS` (e.g., `restore_image`, `redeploy_image`, `image_rollback`) is rejected with `PermissionError` regardless of allowlist membership.
+2. **Denylist**: Any action name containing tokens in `_FORBIDDEN_ACTION_TOKENS` is rejected with `PermissionError` regardless of allowlist membership. The token set covers 6 prohibited categories: image operations (`restore_image`, `image_restore`, `redeploy_image`, `image_redeploy`, `image_rollback`), code redeploy (`redeploy_code`, `code_redeploy`, `code_deploy`), resource deletion (`delete_namespace`, `namespace_delete`, `delete_resource`), secret rotation (`rotate_secret`, `secret_rotate`, `rotate_cert`, `cert_rotate`), scaling (`scale_up`, `scale_down`, `scale_out`, `scale_in`, `autoscale`), and DB migration (`migrate_schema`, `schema_migrate`, `run_migration`).
 3. **Determinism**: The same input always produces the same policy decision. No probabilistic or ML-based gating.
 
 ### Action classification

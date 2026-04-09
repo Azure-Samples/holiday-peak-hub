@@ -10,7 +10,7 @@
 
 ## Context
 
-The platform operates 27 agent microservices exposed through APIM, AKS ingress, MCP, and Event Hub messaging surfaces. Surface-level misconfigurations (stale APIM routes, ingress selector drift, messaging auth changes) cause agent downtime that is recoverable without code changes but requires manual intervention today.
+The platform operates 27 agent microservices exposed through REST API, APIM, AKS ingress, MCP, and Event Hub messaging surfaces. Surface-level misconfigurations (stale APIM routes, ingress selector drift, messaging auth changes) cause agent downtime that is recoverable without code changes but requires manual intervention today.
 
 To reduce MTTR for non-code incidents, we introduced a shared `SelfHealingKernel` in `holiday_peak_lib.self_healing` that follows a detect → classify → remediate → verify → escalate lifecycle. This ADR formalizes the governance boundaries, risk tiers, and prohibited actions that constrain autonomous remediation.
 
@@ -23,10 +23,10 @@ All remediation actions are classified into three risk tiers:
 | Tier | Label | Execution | Approval | Examples |
 |------|-------|-----------|----------|----------|
 | T1 | **Auto** | Immediate, autonomous | None — kernel executes when confidence ≥ threshold | `reconcile_api_surface_contract`, `refresh_mcp_contract_cache` |
-| T2 | **Gated** | Autonomous with pre-check | Kernel validates precondition (e.g., edge manifest matches expected state) before execution | `sync_apim_route_config`, `refresh_aks_ingress_bindings`, `reset_messaging_consumer_bindings` |
+| T2 | **Gated** | Autonomous with pre-check | Kernel validates precondition (e.g., edge manifest matches expected state) before execution | `sync_apim_route_config`, `refresh_aks_ingress_bindings`, `reset_messaging_consumer_bindings`, `reset_messaging_publisher_bindings` |
 | T3 | **Manual-only** | Never autonomous | Human operator via runbook | Image rollback, namespace deletion, secret rotation, scaling changes |
 
-The tier assignment is encoded in the kernel's `_allowed_actions` allowlist (T1 + T2 only) and `_FORBIDDEN_ACTION_TOKENS` blocklist (T3).
+The tier assignment is encoded in the kernel's `_allowed_actions` allowlist (T1 + T2 only) and `_FORBIDDEN_ACTION_TOKENS` blocklist (T3). The blocklist uses substring matching on action names to cover all 6 prohibited categories listed below.
 
 ### 2. Prohibited Actions (Hard Blocklist)
 
@@ -58,8 +58,10 @@ Enforcement: The `_FORBIDDEN_ACTION_TOKENS` set in `SelfHealingKernel._assert_ac
 |------------------|-------------------|
 | Non-recoverable classification | Immediate escalation with `reason: non_recoverable_classification` |
 | Detect-only mode active | Classify but do not remediate; escalate with `reason: detect_only_mode` |
+| Messaging opt-in disabled | Classify but do not remediate messaging incidents; escalate with `reason: messaging_remediation_opt_in_disabled` |
 | No allowlisted actions available | Escalate with `reason: no_allowlisted_actions` |
 | Remediation executed but verification failed | Escalate with `reason: verification_failed` |
+| Maximum retry attempts exhausted | Escalate with `reason: max_retries_exhausted` and `attempts` count |
 | Action handler raises error | Record failure in audit trail; escalate if all actions fail |
 
 Escalation today is audit-trail-only (logged in `Incident.audit`). Integration with Azure Monitor alerts and PagerDuty is deferred to #671 (rollout and observability).
@@ -70,7 +72,10 @@ Escalation today is audit-trail-only (logged in `Incident.audit`). Integration w
 |------|---------|---------|
 | `SELF_HEALING_ENABLED` | `false` | Master kill-switch. When `false`, `handle_failure_signal()` returns `None`. |
 | `SELF_HEALING_DETECT_ONLY` | `false` | Observe mode. Detects and classifies but never remediates — all recoverable incidents escalate. |
-| `SELF_HEALING_RECONCILE_ON_MESSAGING_ERROR` | `false` | Opt-in for messaging surface auto-remediation. |
+| `SELF_HEALING_RECONCILE_ON_MESSAGING_ERROR` | `false` | Opt-in for messaging surface auto-remediation. When `false`, messaging incidents are classified but always escalated without remediation. |
+| `SELF_HEALING_MAX_RETRIES` | `2` | Maximum recovery retry attempts per incident before escalation. |
+| `SELF_HEALING_COOLDOWN_SECONDS` | `5.0` | Minimum wait between retry attempts for a single incident. |
+| `SELF_HEALING_SURFACE_MANIFEST_JSON` | (default) | Custom surface contract override as JSON string. |
 
 Rollout sequence: `DETECT_ONLY=true` first → monitor false-positive rate → enable full remediation per surface.
 
@@ -118,4 +123,6 @@ DETECTED → CLASSIFIED → REMEDIATING → VERIFIED → CLOSED
 - `holiday_peak_lib.self_healing.manifest` — surface contract loader
 - [ADR-023](adr-023-enterprise-resilience-patterns.md) — Enterprise resilience patterns
 - [ADR-027](adr-027-apim-agc-edge.md) — APIM + AGC edge architecture
+- [Self-Healing RBAC Matrix](../../governance/self-healing-rbac-matrix.md) — RBAC roles and security controls
+- [Self-Healing Rollout Runbook](../../governance/self-healing-rollout-runbook.md) — Rollout milestones and operator procedures
 - Epic #657 — Autonomous Agent Surface Self-Healing

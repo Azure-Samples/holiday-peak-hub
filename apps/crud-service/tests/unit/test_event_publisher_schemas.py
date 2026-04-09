@@ -145,6 +145,7 @@ async def test_publish_failure_raises_and_records_compensation_metadata() -> Non
         service_name="crud-service",
         manifest=default_surface_manifest("crud-service"),
         enabled=True,
+        reconcile_on_messaging_error=True,
     )
     _set_self_healing_kernel(
         publisher,

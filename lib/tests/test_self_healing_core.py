@@ -156,6 +156,7 @@ async def test_kernel_uses_publisher_action_for_publish_failures():
         service_name="svc",
         manifest=default_surface_manifest("svc"),
         enabled=True,
+        reconcile_on_messaging_error=True,
     )
 
     incident = await kernel.handle_failure_signal(
@@ -193,6 +194,7 @@ async def test_kernel_escalates_when_compensation_has_failed():
         service_name="svc",
         manifest=default_surface_manifest("svc"),
         enabled=True,
+        reconcile_on_messaging_error=True,
     )
 
     incident = await kernel.handle_failure_signal(

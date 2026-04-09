@@ -28,11 +28,35 @@ _RECOVERABLE_MESSAGING_FAILURE_CATEGORIES = frozenset(
 )
 _FORBIDDEN_ACTION_TOKENS = frozenset(
     {
+        # Image operations
         "restore_image",
         "image_restore",
         "redeploy_image",
         "image_redeploy",
         "image_rollback",
+        # Code redeploy
+        "redeploy_code",
+        "code_redeploy",
+        "code_deploy",
+        # Resource deletion
+        "delete_namespace",
+        "namespace_delete",
+        "delete_resource",
+        # Secret / certificate rotation
+        "rotate_secret",
+        "secret_rotate",
+        "rotate_cert",
+        "cert_rotate",
+        # Scaling changes
+        "scale_up",
+        "scale_down",
+        "scale_out",
+        "scale_in",
+        "autoscale",
+        # Database schema changes
+        "migrate_schema",
+        "schema_migrate",
+        "run_migration",
     }
 )
 
@@ -200,6 +224,15 @@ class SelfHealingKernel:
                 IncidentState.ESCALATED,
                 event="incident_escalated",
                 details={"reason": "detect_only_mode"},
+            )
+            return incident
+
+        if incident.surface == SurfaceType.MESSAGING and not self.reconcile_on_messaging_error:
+            self._transition(
+                incident,
+                IncidentState.ESCALATED,
+                event="incident_escalated",
+                details={"reason": "messaging_remediation_opt_in_disabled"},
             )
             return incident
 

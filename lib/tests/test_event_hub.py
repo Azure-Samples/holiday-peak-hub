@@ -361,6 +361,7 @@ async def test_publish_with_reliability_emits_compensation_metadata():
         service_name="crud-service",
         manifest=default_surface_manifest("crud-service"),
         enabled=True,
+        reconcile_on_messaging_error=True,
     )
     compensation = CompensationResult(completed=["reservation_lock_rollback"])
 

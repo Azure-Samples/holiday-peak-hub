@@ -17,6 +17,7 @@ def _make_kernel(**overrides) -> SelfHealingKernel:
         "manifest": default_surface_manifest("svc"),
         "enabled": True,
         "detect_only": False,
+        "reconcile_on_messaging_error": True,
     }
     defaults.update(overrides)
     return SelfHealingKernel(**defaults)
@@ -234,3 +235,20 @@ async def test_messaging_compensation_failed_action_set_is_non_recoverable():
     assert incident.recoverable is False
     assert incident.state == IncidentState.ESCALATED
     assert incident.actions == []
+
+
+@pytest.mark.asyncio
+async def test_messaging_opt_in_disabled_escalates_without_remediation():
+    """When reconcile_on_messaging_error is False, messaging incidents escalate immediately."""
+    kernel = _make_kernel(reconcile_on_messaging_error=False)
+
+    incident = await kernel.handle_failure_signal(
+        _messaging_signal(failure_category="authentication")
+    )
+
+    assert incident is not None
+    assert incident.recoverable is True
+    assert incident.state == IncidentState.ESCALATED
+    assert incident.actions == []
+    escalation = [r for r in incident.audit if r.event == "incident_escalated"]
+    assert escalation[-1].details["reason"] == "messaging_remediation_opt_in_disabled"
