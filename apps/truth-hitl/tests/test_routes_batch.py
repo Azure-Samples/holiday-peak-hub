@@ -202,5 +202,9 @@ def test_event_hub_publisher_uses_platform_jobs_binding_envs(
 
     publisher = EventHubPublisher()
 
-    assert publisher._publisher._namespace == "platform-namespace"  # pylint: disable=protected-access
-    assert publisher._publisher._connection_string == "platform-connection"  # pylint: disable=protected-access
+    assert (
+        publisher._publisher._namespace == "platform-namespace"
+    )  # pylint: disable=protected-access
+    assert (
+        publisher._publisher._connection_string == "platform-connection"
+    )  # pylint: disable=protected-access
