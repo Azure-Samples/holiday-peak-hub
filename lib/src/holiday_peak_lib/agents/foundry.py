@@ -158,8 +158,8 @@ class FoundryAgentConfig:
     def __post_init__(self) -> None:
         self.apply_project_contract()
 
-        configured_agent_name = _normalize_foundry_reference(self.agent_name)
         if self.resolved_agent_id is not None:
+            configured_agent_name = _normalize_foundry_reference(self.agent_name)
             normalized_runtime_id = _normalize_foundry_reference(self.resolved_agent_id)
             if (
                 normalized_runtime_id
@@ -169,15 +169,6 @@ class FoundryAgentConfig:
                 self.resolved_agent_id = normalized_runtime_id
             else:
                 self.resolved_agent_id = None
-            return
-
-        configured_agent_id = _normalize_foundry_reference(self.agent_id)
-        if (
-            configured_agent_id
-            and not _is_pending_agent_reference(configured_agent_id)
-            and configured_agent_id != configured_agent_name
-        ):
-            self.resolved_agent_id = configured_agent_id
 
     @property
     def runtime_agent_id(self) -> str | None:
@@ -213,7 +204,8 @@ class FoundryAgentConfig:
             deployment_name=deployment,
             project_name=project_name,
             stream=stream,
-            resolved_agent_id=agent_id or None,
+            # resolved_agent_id is intentionally omitted — only set after
+            # a successful ensure/lookup call confirms the ID is valid.
         )
 
 

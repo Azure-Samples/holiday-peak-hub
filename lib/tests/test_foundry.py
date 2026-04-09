@@ -39,7 +39,7 @@ class TestFoundryAgentConfig:
         assert config.endpoint == TEST_PROJECT_ENDPOINT
         assert config.project_name == TEST_PROJECT_NAME
         assert config.agent_id == "agent-123"
-        assert config.runtime_agent_id == "agent-123"
+        assert config.runtime_agent_id is None
         assert config.deployment_name == "gpt-4"
         assert config.stream is True
 
@@ -57,7 +57,7 @@ class TestFoundryAgentConfig:
         assert config.endpoint == ALTERNATE_PROJECT_ENDPOINT
         assert config.project_name == ALTERNATE_PROJECT_NAME
         assert config.agent_id == "agent-456"
-        assert config.runtime_agent_id == "agent-456"
+        assert config.runtime_agent_id is None
 
     def test_from_env_with_name_only_stays_unresolved_for_runtime(self, monkeypatch):
         """Test name-only config remains lookup-capable but unbound for runtime."""
@@ -71,6 +71,26 @@ class TestFoundryAgentConfig:
         assert config.agent_id == "pending"
         assert config.agent_name == "catalog-fast"
         assert config.runtime_agent_id is None
+
+    def test_name_like_agent_id_without_agent_name_stays_unresolved(self):
+        """agent_id that looks like a name should NOT auto-promote to resolved."""
+        config = FoundryAgentConfig(
+            endpoint=TEST_PROJECT_ENDPOINT,
+            agent_id="ecommerce-catalog-search-fast",
+        )
+        assert config.resolved_agent_id is None
+        assert config.runtime_agent_id is None
+
+    def test_resolved_agent_id_only_from_explicit_constructor_arg(self):
+        """Explicitly passed resolved_agent_id is preserved when valid."""
+        config = FoundryAgentConfig(
+            endpoint=TEST_PROJECT_ENDPOINT,
+            agent_id="pending",
+            agent_name="catalog-fast",
+            resolved_agent_id="asst_real123",
+        )
+        assert config.resolved_agent_id == "asst_real123"
+        assert config.runtime_agent_id == "asst_real123"
 
     def test_from_env_extracts_project_name_from_project_endpoint(self, monkeypatch):
         """Test project-scoped endpoints remain valid without a separate project name."""
@@ -150,6 +170,7 @@ class TestFoundryInvoker:
             agent_id="agent-123",
             agent_name="catalog-fast",
             stream=False,
+            resolved_agent_id="agent-123",
         )
 
         # Create mock runtime client structure
@@ -199,6 +220,7 @@ class TestFoundryInvoker:
             agent_id="agent-123",
             agent_name="catalog-fast",
             stream=True,
+            resolved_agent_id="agent-123",
         )
 
         # Create mock runtime client structure
@@ -241,6 +263,7 @@ class TestBuildFoundryModelTarget:
             endpoint=TEST_PROJECT_ENDPOINT,
             agent_id="agent-123",
             deployment_name="gpt-4",
+            resolved_agent_id="agent-123",
         )
 
         target = build_foundry_model_target(config)
@@ -253,7 +276,10 @@ class TestBuildFoundryModelTarget:
     def test_build_model_target_with_streaming(self):
         """Test building a streaming model target."""
         config = FoundryAgentConfig(
-            endpoint=TEST_PROJECT_ENDPOINT, agent_id="agent-456", stream=True
+            endpoint=TEST_PROJECT_ENDPOINT,
+            agent_id="agent-456",
+            stream=True,
+            resolved_agent_id="agent-456",
         )
 
         target = build_foundry_model_target(config)
@@ -303,7 +329,11 @@ class TestEnsureFoundryAgent:
         )
 
     async def test_ensure_agent_exists_by_id(self):
-        config = FoundryAgentConfig(endpoint=TEST_PROJECT_ENDPOINT, agent_id="agent-123:1")
+        config = FoundryAgentConfig(
+            endpoint=TEST_PROJECT_ENDPOINT,
+            agent_id="agent-123:1",
+            resolved_agent_id="agent-123:1",
+        )
         mock_client = MagicMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=None)

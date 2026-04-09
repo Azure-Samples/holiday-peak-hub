@@ -35,8 +35,22 @@ def test_build_foundry_config_from_env(monkeypatch):
     assert cfg.endpoint == TEST_PROJECT_ENDPOINT
     assert cfg.project_name == TEST_PROJECT_NAME
     assert cfg.agent_id == "agent-fast"
-    assert cfg.runtime_agent_id == "agent-fast"
+    assert cfg.runtime_agent_id is None
     assert cfg.deployment_name == "gpt-fast"
+
+
+def test_build_foundry_config_never_auto_resolves(monkeypatch):
+    """build_foundry_config() must never set resolved_agent_id from env vars."""
+    monkeypatch.setenv("PROJECT_ENDPOINT", TEST_RESOURCE_ENDPOINT)
+    monkeypatch.setenv("PROJECT_NAME", TEST_PROJECT_NAME)
+    monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-fast")
+    monkeypatch.setenv("MODEL_DEPLOYMENT_NAME_FAST", "gpt-fast")
+
+    cfg = build_foundry_config("FOUNDRY_AGENT_ID_FAST", "MODEL_DEPLOYMENT_NAME_FAST")
+    assert cfg is not None
+    assert cfg.agent_id == "agent-fast"
+    assert cfg.resolved_agent_id is None
+    assert cfg.runtime_agent_id is None
 
 
 def test_build_foundry_config_name_only_stays_unresolved(monkeypatch):
@@ -68,6 +82,7 @@ def test_build_foundry_readiness_snapshot_requires_all_configured_roles():
         endpoint=TEST_PROJECT_ENDPOINT,
         agent_id="agent-fast",
         deployment_name="gpt-fast",
+        resolved_agent_id="agent-fast",
     )
     llm_cfg = FoundryAgentConfig(
         endpoint=TEST_PROJECT_ENDPOINT,

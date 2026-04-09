@@ -1,5 +1,10 @@
 serviceName: "example-service"
 
+# Workload identity — ServiceAccount and Azure identity binding
+serviceAccount:
+  create: true
+  clientId: ""  # UAMI client ID set by render-helm.sh from Bicep outputs
+
 # Service configuration
 service:
   type: "ClusterIP"  # Changed from LoadBalancer - use Ingress for external access

@@ -200,6 +200,17 @@ if [ "$PDB_ENABLED" = "true" ]; then
   HELM_ARGS="$HELM_ARGS --set-string pdb.minAvailable=$PDB_MIN_AVAILABLE"
 fi
 
+# Workload Identity — bind pods to the correct UAMI via ServiceAccount
+HELM_ARGS="$HELM_ARGS --set serviceAccount.create=true"
+if [ "$SERVICE_NAME" = "crud-service" ]; then
+  WORKLOAD_CLIENT_ID="${CRUD_WORKLOAD_CLIENT_ID:-}"
+else
+  WORKLOAD_CLIENT_ID="${AGENTS_WORKLOAD_CLIENT_ID:-}"
+fi
+if [ -n "$WORKLOAD_CLIENT_ID" ]; then
+  HELM_ARGS="$HELM_ARGS --set-string serviceAccount.clientId=$WORKLOAD_CLIENT_ID"
+fi
+
 add_env_arg() {
   key="$1"
   value="${2:-}"
@@ -335,7 +346,7 @@ add_env_arg "KEY_VAULT_URI" "${KEY_VAULT_URI:-}"
 add_env_arg "REDIS_HOST" "$RESOLVED_REDIS_HOST"
 add_env_arg "REDIS_PASSWORD" "${REDIS_PASSWORD:-}"
 add_env_arg "REDIS_PASSWORD_SECRET_NAME" "$RESOLVED_REDIS_PASSWORD_SECRET_NAME"
-add_env_arg "AZURE_CLIENT_ID" "${AZURE_CLIENT_ID:-}"
+add_env_arg "AZURE_CLIENT_ID" "${WORKLOAD_CLIENT_ID:-${AZURE_CLIENT_ID:-}}"
 add_env_arg "AZURE_TENANT_ID" "${AZURE_TENANT_ID:-}"
 
 # Azure AI Foundry
