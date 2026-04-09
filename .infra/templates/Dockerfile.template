@@ -3,38 +3,53 @@ ARG PYTHON_VERSION=3.13-slim
 ARG APP_UID=10001
 ARG APP_GID=10001
 
-FROM python:${PYTHON_VERSION} AS base
+FROM python:${{PYTHON_VERSION}} AS base
+ARG APP_UID=10001
+ARG APP_GID=10001
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     APP_NAME={app_name}
-RUN groupadd --gid ${APP_GID} appgroup && useradd --uid ${APP_UID} --gid ${APP_GID} --create-home --home-dir /home/appuser --shell /usr/sbin/nologin appuser \
+RUN groupadd --gid ${{APP_GID}} appgroup && useradd --uid ${{APP_UID}} --gid ${{APP_GID}} --create-home --home-dir /home/appuser --shell /usr/sbin/nologin appuser \
     && mkdir -p /app && chown -R appuser:appgroup /app
 WORKDIR /app/src
-RUN apt-get update && apt-get install -y --no-install-recommends build-essential libpq-dev curl \
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential libpq-dev git curl \
     && rm -rf /var/lib/apt/lists/*
+RUN python -m pip install --no-cache-dir --upgrade pip uv
 
 FROM base AS dev
 ENV APP_ENV=dev
-COPY README.md /app/README.md
-COPY src/pyproject.toml ./pyproject.toml
-COPY src ./
-COPY tests /app/tests
+COPY pyproject.toml uv.lock ./
+COPY . ./
+# COPY tests /app/tests  # tests are outside build context
 ENV PYTHONPATH=/app/src
-RUN python -m pip install --upgrade pip && \
-    python -m pip install --no-cache-dir -e .[dev,test,lint]
+ENV PATH="/app/src/.venv/bin:$PATH"
+RUN uv sync --frozen --all-extras
 RUN chown -R appuser:appgroup /app
 USER appuser
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["uvicorn", "{module_name}.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
-FROM base AS prod
+FROM base AS prod-builder
 ENV APP_ENV=prod
-COPY README.md /app/README.md
-COPY src/pyproject.toml ./pyproject.toml
-COPY src ./
+COPY pyproject.toml uv.lock ./
+COPY . ./
 ENV PYTHONPATH=/app/src
-RUN python -m pip install --upgrade pip && \
-    python -m pip install --no-cache-dir .
+ENV PATH="/app/src/.venv/bin:$PATH"
+RUN uv sync --frozen --no-dev
+
+FROM python:${{PYTHON_VERSION}} AS prod
+ARG APP_UID=10001
+ARG APP_GID=10001
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+RUN groupadd --gid ${{APP_GID}} appgroup && useradd --uid ${{APP_UID}} --gid ${{APP_GID}} --create-home --home-dir /home/appuser --shell /usr/sbin/nologin appuser \
+    && mkdir -p /app && chown -R appuser:appgroup /app
+WORKDIR /app/src
+ENV PATH="/app/src/.venv/bin:$PATH"
+RUN apt-get update && apt-get install -y --no-install-recommends libpq5 \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=prod-builder /app /app
 RUN chown -R appuser:appgroup /app
 USER appuser
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "{module_name}.main:app", "--host", "0.0.0.0", "--port", "8000"]
