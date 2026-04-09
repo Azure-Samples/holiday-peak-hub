@@ -81,6 +81,7 @@ var agcControllerServiceAccount = 'alb-controller-sa'
 var agcGatewayClassName = 'azure-alb-external'
 var workloadNamespace = 'holiday-peak'
 var agentsIdentityName = '${projectName}${envSuffix}-agents-identity'
+var agentsIdentity2Name = '${projectName}${envSuffix}-agents-identity-2'
 var crudIdentityName = '${projectName}${envSuffix}-crud-identity'
 var monitoringEnabled = environment == 'prod'
 var tags = {
@@ -515,8 +516,13 @@ module cosmos 'br/public:avm/res/document-db/database-account:0.19.0' = {
         roleDefinitionId: '00000000-0000-0000-0000-000000000002' // Built-in Data Contributor
       }
       {
-        // Agents workload identity -> Cosmos DB (Data Contributor)
+        // Agents workload identity (batch 1) -> Cosmos DB (Data Contributor)
         principalId: agentsWorkloadIdentity.properties.principalId
+        roleDefinitionId: '00000000-0000-0000-0000-000000000002' // Built-in Data Contributor
+      }
+      {
+        // Agents workload identity (batch 2) -> Cosmos DB (Data Contributor)
+        principalId: agentsWorkloadIdentity2.properties.principalId
         roleDefinitionId: '00000000-0000-0000-0000-000000000002' // Built-in Data Contributor
       }
       {
@@ -622,9 +628,15 @@ module storage 'br/public:avm/res/storage/storage-account:0.32.0' = {
         principalType: 'ServicePrincipal'
       }
       {
-        // Agents workload identity -> Storage (Blob Data Contributor)
+        // Agents workload identity (batch 1) -> Storage (Blob Data Contributor)
         roleDefinitionIdOrName: 'ba92f5b4-2d11-453d-a403-e96b0029c9fe' // Storage Blob Data Contributor
         principalId: agentsWorkloadIdentity.properties.principalId
+        principalType: 'ServicePrincipal'
+      }
+      {
+        // Agents workload identity (batch 2) -> Storage (Blob Data Contributor)
+        roleDefinitionIdOrName: 'ba92f5b4-2d11-453d-a403-e96b0029c9fe' // Storage Blob Data Contributor
+        principalId: agentsWorkloadIdentity2.properties.principalId
         principalType: 'ServicePrincipal'
       }
       {
@@ -694,15 +706,27 @@ module eventHubs 'br/public:avm/res/event-hub/namespace:0.14.1' = {
         principalType: 'ServicePrincipal'
       }
       {
-        // Agents workload identity -> Event Hubs (Data Sender)
+        // Agents workload identity (batch 1) -> Event Hubs (Data Sender)
         roleDefinitionIdOrName: '2b629674-e913-4c01-ae53-ef4638d8f975' // Azure Event Hubs Data Sender
         principalId: agentsWorkloadIdentity.properties.principalId
         principalType: 'ServicePrincipal'
       }
       {
-        // Agents workload identity -> Event Hubs (Data Receiver)
+        // Agents workload identity (batch 1) -> Event Hubs (Data Receiver)
         roleDefinitionIdOrName: 'a638d3c7-ab3a-418d-83e6-5f17a39d4fde' // Azure Event Hubs Data Receiver
         principalId: agentsWorkloadIdentity.properties.principalId
+        principalType: 'ServicePrincipal'
+      }
+      {
+        // Agents workload identity (batch 2) -> Event Hubs (Data Sender)
+        roleDefinitionIdOrName: '2b629674-e913-4c01-ae53-ef4638d8f975' // Azure Event Hubs Data Sender
+        principalId: agentsWorkloadIdentity2.properties.principalId
+        principalType: 'ServicePrincipal'
+      }
+      {
+        // Agents workload identity (batch 2) -> Event Hubs (Data Receiver)
+        roleDefinitionIdOrName: 'a638d3c7-ab3a-418d-83e6-5f17a39d4fde' // Azure Event Hubs Data Receiver
+        principalId: agentsWorkloadIdentity2.properties.principalId
         principalType: 'ServicePrincipal'
       }
       {
@@ -794,15 +818,27 @@ module platformJobsEventHubs 'br/public:avm/res/event-hub/namespace:0.14.1' = {
         principalType: 'ServicePrincipal'
       }
       {
-        // Agents workload identity -> Platform Jobs Event Hubs (Data Sender)
+        // Agents workload identity (batch 1) -> Platform Jobs Event Hubs (Data Sender)
         roleDefinitionIdOrName: '2b629674-e913-4c01-ae53-ef4638d8f975' // Azure Event Hubs Data Sender
         principalId: agentsWorkloadIdentity.properties.principalId
         principalType: 'ServicePrincipal'
       }
       {
-        // Agents workload identity -> Platform Jobs Event Hubs (Data Receiver)
+        // Agents workload identity (batch 1) -> Platform Jobs Event Hubs (Data Receiver)
         roleDefinitionIdOrName: 'a638d3c7-ab3a-418d-83e6-5f17a39d4fde' // Azure Event Hubs Data Receiver
         principalId: agentsWorkloadIdentity.properties.principalId
+        principalType: 'ServicePrincipal'
+      }
+      {
+        // Agents workload identity (batch 2) -> Platform Jobs Event Hubs (Data Sender)
+        roleDefinitionIdOrName: '2b629674-e913-4c01-ae53-ef4638d8f975' // Azure Event Hubs Data Sender
+        principalId: agentsWorkloadIdentity2.properties.principalId
+        principalType: 'ServicePrincipal'
+      }
+      {
+        // Agents workload identity (batch 2) -> Platform Jobs Event Hubs (Data Receiver)
+        roleDefinitionIdOrName: 'a638d3c7-ab3a-418d-83e6-5f17a39d4fde' // Azure Event Hubs Data Receiver
+        principalId: agentsWorkloadIdentity2.properties.principalId
         principalType: 'ServicePrincipal'
       }
     ]
@@ -872,9 +908,15 @@ module keyVault 'br/public:avm/res/key-vault/vault:0.13.3' = {
         principalType: 'ServicePrincipal'
       }
       {
-        // Agents workload identity -> Key Vault (Secrets User)
+        // Agents workload identity (batch 1) -> Key Vault (Secrets User)
         roleDefinitionIdOrName: '4633458b-17de-408a-b874-0445c86b69e6' // Key Vault Secrets User
         principalId: agentsWorkloadIdentity.properties.principalId
+        principalType: 'ServicePrincipal'
+      }
+      {
+        // Agents workload identity (batch 2) -> Key Vault (Secrets User)
+        roleDefinitionIdOrName: '4633458b-17de-408a-b874-0445c86b69e6' // Key Vault Secrets User
+        principalId: agentsWorkloadIdentity2.properties.principalId
         principalType: 'ServicePrincipal'
       }
       {
@@ -938,15 +980,27 @@ module aiFoundry 'br/public:avm/ptn/ai-ml/ai-foundry:0.6.0' = {
           principalType: 'ServicePrincipal'
         }
         {
-          // Agents workload identity -> AI Search (Index Data Contributor)
+          // Agents workload identity (batch 1) -> AI Search (Index Data Contributor)
           roleDefinitionIdOrName: '8ebe5a00-799e-43f5-93ac-243d3dce84a7' // Search Index Data Contributor
           principalId: agentsWorkloadIdentity.properties.principalId
           principalType: 'ServicePrincipal'
         }
         {
-          // Agents workload identity -> AI Search (Search Service Contributor)
+          // Agents workload identity (batch 1) -> AI Search (Search Service Contributor)
           roleDefinitionIdOrName: '7ca78c08-252a-4471-8644-bb5ff32d4ba0' // Search Service Contributor
           principalId: agentsWorkloadIdentity.properties.principalId
+          principalType: 'ServicePrincipal'
+        }
+        {
+          // Agents workload identity (batch 2) -> AI Search (Index Data Contributor)
+          roleDefinitionIdOrName: '8ebe5a00-799e-43f5-93ac-243d3dce84a7' // Search Index Data Contributor
+          principalId: agentsWorkloadIdentity2.properties.principalId
+          principalType: 'ServicePrincipal'
+        }
+        {
+          // Agents workload identity (batch 2) -> AI Search (Search Service Contributor)
+          roleDefinitionIdOrName: '7ca78c08-252a-4471-8644-bb5ff32d4ba0' // Search Service Contributor
+          principalId: agentsWorkloadIdentity2.properties.principalId
           principalType: 'ServicePrincipal'
         }
       ]
@@ -1071,8 +1125,15 @@ resource agcControllerFederatedCredential 'Microsoft.ManagedIdentity/userAssigne
 
 // Workload Identity — User-Assigned Managed Identities for pod-level Azure auth.
 // Agent services and CRUD service use separate identities for least-privilege isolation.
+// Azure enforces a 20-FIC-per-UAMI limit, so agents are split across two identities.
 resource agentsWorkloadIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = {
   name: agentsIdentityName
+  location: location
+  tags: tags
+}
+
+resource agentsWorkloadIdentity2 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = {
+  name: agentsIdentity2Name
   location: location
   tags: tags
 }
@@ -1085,7 +1146,8 @@ resource crudWorkloadIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@
 
 // Federated Identity Credentials — bind AKS OIDC issuer + K8s ServiceAccount to UAMI.
 // Each service gets its own SA in the workload namespace; the FIC links the SA to the UAMI.
-var agentServiceNames = [
+// First 20 agents use agentsWorkloadIdentity; remaining use agentsWorkloadIdentity2 (20-FIC limit).
+var agentServiceNamesBatch1 = [
   'crm-campaign-intelligence'
   'crm-profile-aggregation'
   'crm-segmentation-personalization'
@@ -1106,6 +1168,9 @@ var agentServiceNames = [
   'product-management-acp-transformation'
   'product-management-assortment-optimization'
   'product-management-consistency-validation'
+]
+
+var agentServiceNamesBatch2 = [
   'product-management-normalization-classification'
   'search-enrichment-agent'
   'truth-enrichment'
@@ -1114,8 +1179,22 @@ var agentServiceNames = [
   'truth-ingestion'
 ]
 
-resource agentsFederatedCredentials 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2025-01-31-preview' = [for svc in agentServiceNames: {
+@batchSize(1)
+resource agentsFederatedCredentials 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2025-01-31-preview' = [for svc in agentServiceNamesBatch1: {
   parent: agentsWorkloadIdentity
+  name: 'aks-${svc}'
+  properties: {
+    audiences: [
+      'api://AzureADTokenExchange'
+    ]
+    issuer: aks.outputs.?oidcIssuerUrl ?? ''
+    subject: 'system:serviceaccount:${workloadNamespace}:${svc}'
+  }
+}]
+
+@batchSize(1)
+resource agentsFederatedCredentials2 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2025-01-31-preview' = [for svc in agentServiceNamesBatch2: {
+  parent: agentsWorkloadIdentity2
   name: 'aks-${svc}'
   properties: {
     audiences: [
@@ -1424,7 +1503,7 @@ resource aiServicesAccount 'Microsoft.CognitiveServices/accounts@2025-12-01' exi
   ]
 }
 
-// Workload identity -> AI Services (Cognitive Services OpenAI User — required for Foundry agent invocation)
+// Workload identity (batch 1) -> AI Services (Cognitive Services OpenAI User — required for Foundry agent invocation)
 resource agentsAiServicesOpenAIUserRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(resourceGroup().id, agentsIdentityName, aiServicesName, 'CognitiveServicesOpenAIUser')
   scope: aiServicesAccount
@@ -1435,13 +1514,35 @@ resource agentsAiServicesOpenAIUserRole 'Microsoft.Authorization/roleAssignments
   }
 }
 
-// Workload identity -> AI Services (Cognitive Services User — broader non-OpenAI model access)
+// Workload identity (batch 1) -> AI Services (Cognitive Services User — broader non-OpenAI model access)
 resource agentsAiServicesCognitiveUserRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(resourceGroup().id, agentsIdentityName, aiServicesName, 'CognitiveServicesUser')
   scope: aiServicesAccount
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a97b65f3-24c7-4388-baec-2e87135dc908') // Cognitive Services User
     principalId: agentsWorkloadIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Workload identity (batch 2) -> AI Services (Cognitive Services OpenAI User)
+resource agents2AiServicesOpenAIUserRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, agentsIdentity2Name, aiServicesName, 'CognitiveServicesOpenAIUser')
+  scope: aiServicesAccount
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd') // Cognitive Services OpenAI User
+    principalId: agentsWorkloadIdentity2.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Workload identity (batch 2) -> AI Services (Cognitive Services User)
+resource agents2AiServicesCognitiveUserRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, agentsIdentity2Name, aiServicesName, 'CognitiveServicesUser')
+  scope: aiServicesAccount
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a97b65f3-24c7-4388-baec-2e87135dc908') // Cognitive Services User
+    principalId: agentsWorkloadIdentity2.properties.principalId
     principalType: 'ServicePrincipal'
   }
 }
@@ -1499,5 +1600,7 @@ output monitoringActionGroupId string = monitoringEnabled ? monitoring!.outputs.
 output monitoringActionGroupName string = monitoringEnabled ? monitoring!.outputs.actionGroupName : ''
 output agentsWorkloadIdentityClientId string = agentsWorkloadIdentity.properties.clientId
 output agentsWorkloadIdentityPrincipalId string = agentsWorkloadIdentity.properties.principalId
+output agents2WorkloadIdentityClientId string = agentsWorkloadIdentity2.properties.clientId
+output agents2WorkloadIdentityPrincipalId string = agentsWorkloadIdentity2.properties.principalId
 output crudWorkloadIdentityClientId string = crudWorkloadIdentity.properties.clientId
 output crudWorkloadIdentityPrincipalId string = crudWorkloadIdentity.properties.principalId

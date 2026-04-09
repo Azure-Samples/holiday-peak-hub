@@ -201,11 +201,19 @@ if [ "$PDB_ENABLED" = "true" ]; then
 fi
 
 # Workload Identity — bind pods to the correct UAMI via ServiceAccount
+# Batch 1 agents (first 20) use AGENTS_WORKLOAD_CLIENT_ID; batch 2 (overflow) use AGENTS2_WORKLOAD_CLIENT_ID.
 HELM_ARGS="$HELM_ARGS --set serviceAccount.create=true"
 if [ "$SERVICE_NAME" = "crud-service" ]; then
   WORKLOAD_CLIENT_ID="${CRUD_WORKLOAD_CLIENT_ID:-}"
 else
-  WORKLOAD_CLIENT_ID="${AGENTS_WORKLOAD_CLIENT_ID:-}"
+  case "$SERVICE_NAME" in
+    product-management-normalization-classification|search-enrichment-agent|truth-enrichment|truth-export|truth-hitl|truth-ingestion)
+      WORKLOAD_CLIENT_ID="${AGENTS2_WORKLOAD_CLIENT_ID:-${AGENTS_WORKLOAD_CLIENT_ID:-}}"
+      ;;
+    *)
+      WORKLOAD_CLIENT_ID="${AGENTS_WORKLOAD_CLIENT_ID:-}"
+      ;;
+  esac
 fi
 if [ -n "$WORKLOAD_CLIENT_ID" ]; then
   HELM_ARGS="$HELM_ARGS --set-string serviceAccount.clientId=$WORKLOAD_CLIENT_ID"
