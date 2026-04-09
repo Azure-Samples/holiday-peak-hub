@@ -75,9 +75,9 @@ async def test_handler_key_is_completeness_jobs():
 
 
 def test_pmcv_subscriptions_only_bind_completeness_jobs() -> None:
-    assert [(subscription.eventhub_name, subscription.consumer_group) for subscription in SUBSCRIPTIONS] == [
-        ("completeness-jobs", "completeness-engine")
-    ]
+    assert [
+        (subscription.eventhub_name, subscription.consumer_group) for subscription in SUBSCRIPTIONS
+    ] == [("completeness-jobs", "completeness-engine")]
     assert SUBSCRIPTIONS[0].namespace_env == PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV
     assert SUBSCRIPTIONS[0].connection_string_env == PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV
 
