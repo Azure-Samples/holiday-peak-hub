@@ -3,6 +3,7 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: {{ include "holiday-peak-service.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
     app: {{ .Values.serviceName }}
 spec:

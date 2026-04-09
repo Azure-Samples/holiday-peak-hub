@@ -11,7 +11,6 @@ Provides:
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 import uuid
 from dataclasses import dataclass, field
@@ -19,6 +18,14 @@ from datetime import UTC, datetime
 from typing import Any, Optional
 
 import httpx
+from holiday_peak_lib.utils import (
+    PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV,
+    PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV,
+)
+from holiday_peak_lib.utils.truth_event_hub import (
+    TruthEventPublisher,
+    build_truth_event_publisher_from_env,
+)
 
 # ---------------------------------------------------------------------------
 # Domain models
@@ -403,32 +410,34 @@ class DAMConnector:
 class EventPublisher:
     """Publish messages to Azure Event Hub topics.
 
-    Falls back to a no-op when ``EVENTHUB_CONNECTION_STRING`` is not configured.
+    Uses the explicit platform-jobs Event Hubs binding contract.
     """
 
-    def __init__(self, connection_string: Optional[str] = None) -> None:
-        self._connection_string = (
-            connection_string
-            or os.getenv("EVENTHUB_CONNECTION_STRING")
-            or os.getenv("EVENT_HUB_CONNECTION_STRING", "")
+    def __init__(
+        self,
+        connection_string: Optional[str] = None,
+        *,
+        namespace: Optional[str] = None,
+        publisher: TruthEventPublisher | None = None,
+    ) -> None:
+        self._publisher = publisher or TruthEventPublisher(
+            namespace=namespace,
+            connection_string=connection_string,
+            service_name="truth-ingestion",
+            namespace_env_name=PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV,
+            connection_string_env_name=PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV,
         )
+
+        if publisher is None and namespace is None and connection_string is None:
+            self._publisher = build_truth_event_publisher_from_env(
+                service_name="truth-ingestion",
+                namespace_env=PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV,
+                connection_string_env=PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV,
+            )
 
     async def publish(self, eventhub_name: str, payload: dict[str, Any]) -> None:
         """Send ``payload`` as a JSON event to the given Event Hub topic."""
-        if not self._connection_string:
-            return
-        from azure.eventhub import EventData  # pylint: disable=import-outside-toplevel
-        from azure.eventhub.aio import (
-            EventHubProducerClient,  # pylint: disable=import-outside-toplevel
-        )
-
-        async with EventHubProducerClient.from_connection_string(
-            self._connection_string,
-            eventhub_name=eventhub_name,
-        ) as producer:
-            batch = await producer.create_batch()
-            batch.add(EventData(json.dumps(payload)))
-            await producer.send_batch(batch)
+        await self._publisher.publish_payload(eventhub_name, payload)
 
     async def publish_completeness_job(
         self,

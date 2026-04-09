@@ -295,6 +295,9 @@ if (-not [string]::IsNullOrWhiteSpace($resolvedRedisHost) -and -not $resolvedRed
   $resolvedRedisHost = "$resolvedRedisHost.redis.cache.windows.net"
 }
 $resolvedRedisPasswordSecretName = if ($env:REDIS_PASSWORD_SECRET_NAME) { $env:REDIS_PASSWORD_SECRET_NAME } else { 'redis-primary-key' }
+$resolvedAiSearchAuthMode = if ($env:AI_SEARCH_AUTH_MODE) { $env:AI_SEARCH_AUTH_MODE } else { '' }
+$shouldInjectAiSearchKey = -not [string]::IsNullOrWhiteSpace($resolvedAiSearchAuthMode) -and $resolvedAiSearchAuthMode.Trim().Equals('api_key', [System.StringComparison]::OrdinalIgnoreCase)
+$resolvedAiSearchKey = if ($shouldInjectAiSearchKey) { $env:AI_SEARCH_KEY } else { $null }
 
 $envMappings = @{
   # Database
@@ -307,7 +310,6 @@ $envMappings = @{
   POSTGRES_SSL = $env:POSTGRES_SSL
 
   # Messaging & Infrastructure
-  EVENT_HUB_NAMESPACE = $env:EVENT_HUB_NAMESPACE
   KEY_VAULT_URI = $env:KEY_VAULT_URI
   REDIS_HOST = $resolvedRedisHost
   REDIS_PASSWORD = $env:REDIS_PASSWORD
@@ -333,9 +335,9 @@ $envMappings = @{
   AI_SEARCH_INDEX = $env:AI_SEARCH_INDEX
   AI_SEARCH_VECTOR_INDEX = $env:AI_SEARCH_VECTOR_INDEX
   AI_SEARCH_INDEXER_NAME = $env:AI_SEARCH_INDEXER_NAME
-  AI_SEARCH_AUTH_MODE = $env:AI_SEARCH_AUTH_MODE
+  AI_SEARCH_AUTH_MODE = $resolvedAiSearchAuthMode
   CATALOG_SEARCH_REQUIRE_AI_SEARCH = $env:CATALOG_SEARCH_REQUIRE_AI_SEARCH
-  AI_SEARCH_KEY = $env:AI_SEARCH_KEY
+  AI_SEARCH_KEY = $resolvedAiSearchKey
   EMBEDDING_DEPLOYMENT_NAME = $env:EMBEDDING_DEPLOYMENT_NAME
 
   # Memory tiers
@@ -357,6 +359,11 @@ $truthServiceEventHubMappings = @{
   "truth-export" = @{ TRUTH_EVENT_HUB_NAME = "export-jobs"; TRUTH_EVENT_HUB_CONSUMER_GROUP = "export-engine" }
   "truth-hitl" = @{ TRUTH_EVENT_HUB_NAME = "hitl-jobs"; TRUTH_EVENT_HUB_CONSUMER_GROUP = "hitl-service" }
 }
+
+$platformJobsServiceNames = @(
+  "product-management-consistency-validation",
+  "search-enrichment-agent"
+) + $truthServiceEventHubMappings.Keys
 
 function Assert-RequiredEnvKeys {
   param(
@@ -384,6 +391,7 @@ function Assert-RequiredEnvKeys {
 }
 
 $isTruthService = $truthServiceEventHubMappings.ContainsKey($ServiceName)
+$isPlatformJobsService = $platformJobsServiceNames -contains $ServiceName
 if ($isTruthService) {
   $truthServiceVars = $truthServiceEventHubMappings[$ServiceName]
   foreach ($truthKey in $truthServiceVars.Keys) {
@@ -405,6 +413,14 @@ if ($isTruthService) {
     $envMappings['COSMOS_CONTAINER'] = $ingestionContainer
     $envMappings['COSMOS_AUDIT_CONTAINER'] = $ingestionAuditContainer
   }
+}
+
+if ($isPlatformJobsService) {
+  $envMappings['PLATFORM_JOBS_EVENT_HUB_NAMESPACE'] = $env:PLATFORM_JOBS_EVENT_HUB_NAMESPACE
+  $envMappings['PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING'] = $env:PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING
+} else {
+  $envMappings['EVENT_HUB_NAMESPACE'] = $env:EVENT_HUB_NAMESPACE
+  $envMappings['EVENT_HUB_CONNECTION_STRING'] = $env:EVENT_HUB_CONNECTION_STRING
 }
 
 if ($ServiceName -eq "ecommerce-catalog-search") {
@@ -438,8 +454,7 @@ if ($ServiceName -eq "search-enrichment-agent") {
 }
 
 if ($isAgentService) {
-  Assert-RequiredEnvKeys -TargetService $ServiceName -Mappings $envMappings -RequiredKeys @(
-    "EVENT_HUB_NAMESPACE",
+  $requiredAgentEnvKeys = @(
     "PROJECT_ENDPOINT",
     "PROJECT_NAME",
     "MODEL_DEPLOYMENT_NAME_FAST",
@@ -449,7 +464,15 @@ if ($isAgentService) {
     "REDIS_HOST",
     "BLOB_ACCOUNT_URL",
     "KEY_VAULT_URI"
-  ) -TargetEnvironment $deployEnv
+  )
+
+  if ($isPlatformJobsService) {
+    $requiredAgentEnvKeys = @("PLATFORM_JOBS_EVENT_HUB_NAMESPACE") + $requiredAgentEnvKeys
+  } else {
+    $requiredAgentEnvKeys = @("EVENT_HUB_NAMESPACE") + $requiredAgentEnvKeys
+  }
+
+  Assert-RequiredEnvKeys -TargetService $ServiceName -Mappings $envMappings -RequiredKeys $requiredAgentEnvKeys -TargetEnvironment $deployEnv
 }
 
 if ($ServiceName -in @("ecommerce-catalog-search", "search-enrichment-agent")) {
@@ -507,7 +530,7 @@ if ($isAgentService) {
 
 if ($isTruthService) {
   $requiredRenderedKeys = @(
-    "EVENT_HUB_NAMESPACE",
+    "PLATFORM_JOBS_EVENT_HUB_NAMESPACE",
     "PROJECT_ENDPOINT",
     "COSMOS_ACCOUNT_URI",
     "COSMOS_DATABASE",
@@ -524,6 +547,22 @@ if ($isTruthService) {
     $present = Select-String -Path $rendered -SimpleMatch "name: $renderedKey" -Quiet
     if (-not $present) {
       throw "Rendered manifest missing env key '$renderedKey' for $ServiceName"
+    }
+  }
+}
+
+if ($isPlatformJobsService) {
+  foreach ($platformKey in @('PLATFORM_JOBS_EVENT_HUB_NAMESPACE')) {
+    $present = Select-String -Path $rendered -SimpleMatch "name: $platformKey" -Quiet
+    if (-not $present) {
+      throw "Rendered manifest missing env key '$platformKey' for $ServiceName"
+    }
+  }
+
+  if (-not [string]::IsNullOrWhiteSpace($env:PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING)) {
+    $presentConnectionString = Select-String -Path $rendered -SimpleMatch 'name: PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING' -Quiet
+    if (-not $presentConnectionString) {
+      throw "Rendered manifest missing env key 'PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING' for $ServiceName"
     }
   }
 }

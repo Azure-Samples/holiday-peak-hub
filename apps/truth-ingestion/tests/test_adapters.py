@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import pytest
+from holiday_peak_lib.utils import (
+    PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV,
+    PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV,
+)
 from truth_ingestion.adapters import (
     AuditEvent,
     DAMConnector,
@@ -17,6 +21,18 @@ from truth_ingestion.adapters import (
     map_pim_to_product_style,
     map_pim_to_product_variant,
 )
+
+
+@pytest.fixture(autouse=True)
+def clear_truth_store_cosmos_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    # No GoF pattern applies — these tests validate the in-memory truth store path.
+    for env_name in (
+        "COSMOS_ACCOUNT_URI",
+        "COSMOS_DATABASE",
+        "COSMOS_CONTAINER",
+        "COSMOS_AUDIT_CONTAINER",
+    ):
+        monkeypatch.delenv(env_name, raising=False)
 
 
 class TestApplyFieldMapping:
@@ -268,17 +284,32 @@ class TestDAMConnectorNoUrl:
 
 class TestEventPublisherNoConnection:
     @pytest.mark.asyncio
-    async def test_publish_is_noop_without_connection_string(self):
-        publisher = EventPublisher(connection_string="")
-        # Should not raise
+    async def test_publish_delegates_to_truth_publisher(self):
+        truth_publisher = pytest.importorskip("unittest.mock").AsyncMock()
+        truth_publisher.publish_payload = pytest.importorskip("unittest.mock").AsyncMock()
+        publisher = EventPublisher(publisher=truth_publisher)
+
         await publisher.publish("test-hub", {"key": "value"})
 
-    @pytest.mark.asyncio
-    async def test_publish_completeness_job_noop(self):
-        publisher = EventPublisher(connection_string="")
-        await publisher.publish_completeness_job("PROD-001")
+        truth_publisher.publish_payload.assert_awaited_once_with(
+            "test-hub",
+            {"key": "value"},
+        )
 
-    @pytest.mark.asyncio
-    async def test_publish_ingestion_notification_noop(self):
-        publisher = EventPublisher(connection_string="")
-        await publisher.publish_ingestion_notification("PROD-001")
+    def test_uses_platform_jobs_binding_envs(self, monkeypatch):
+        monkeypatch.setenv("EVENT_HUB_NAMESPACE", "retail-namespace")
+        monkeypatch.setenv("EVENT_HUB_CONNECTION_STRING", "retail-connection")
+        monkeypatch.setenv(PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV, "platform-namespace")
+        monkeypatch.setenv(
+            PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV,
+            "platform-connection",
+        )
+
+        publisher = EventPublisher()
+
+        assert (
+            publisher._publisher._namespace == "platform-namespace"
+        )  # pylint: disable=protected-access
+        assert (
+            publisher._publisher._connection_string == "platform-connection"
+        )  # pylint: disable=protected-access

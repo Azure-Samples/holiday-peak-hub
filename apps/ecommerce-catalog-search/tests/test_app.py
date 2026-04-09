@@ -1,8 +1,8 @@
+import importlib
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from ecommerce_catalog_search.ai_search import AISearchIndexStatus, AISearchSeedResult
-from ecommerce_catalog_search.main import create_app
 from fastapi.testclient import TestClient
 
 TEST_PROJECT_ENDPOINT = "https://test.services.ai.azure.com/api/projects/test-project"
@@ -12,31 +12,53 @@ pytestmark = pytest.mark.usefixtures("mock_foundry_readiness")
 
 @pytest.fixture(autouse=True)
 def clear_ai_search_environment(monkeypatch):
+    for env_name in (
+        "PROJECT_ENDPOINT",
+        "FOUNDRY_ENDPOINT",
+        "PROJECT_NAME",
+        "FOUNDRY_PROJECT_NAME",
+        "FOUNDRY_AGENT_ID_FAST",
+        "FOUNDRY_AGENT_NAME_FAST",
+        "MODEL_DEPLOYMENT_NAME_FAST",
+        "FOUNDRY_AGENT_ID_RICH",
+        "FOUNDRY_AGENT_NAME_RICH",
+        "MODEL_DEPLOYMENT_NAME_RICH",
+        "FOUNDRY_STREAM",
+    ):
+        monkeypatch.delenv(env_name, raising=False)
+
+    monkeypatch.setenv("FOUNDRY_AUTO_ENSURE_ON_STARTUP", "false")
+    monkeypatch.setenv("FOUNDRY_STRICT_ENFORCEMENT", "false")
     monkeypatch.delenv("AI_SEARCH_ENDPOINT", raising=False)
     monkeypatch.delenv("AI_SEARCH_INDEX", raising=False)
     monkeypatch.delenv("AI_SEARCH_VECTOR_INDEX", raising=False)
     monkeypatch.delenv("EVENTHUB_CONNECTION_STRING", raising=False)
     monkeypatch.delenv("EVENT_HUB_CONNECTION_STRING", raising=False)
-    monkeypatch.delenv("EVENT_HUB_NAMESPACE", raising=False)
     monkeypatch.delenv("EVENTHUB_NAMESPACE", raising=False)
+    monkeypatch.setenv("EVENT_HUB_NAMESPACE", "test-retail.servicebus.windows.net")
+
+
+def _create_app():
+    main = importlib.import_module("ecommerce_catalog_search.main")
+    return main.create_app()
 
 
 def test_health():
-    with TestClient(create_app()) as client:
+    with TestClient(_create_app()) as client:
         response = client.get("/health")
         assert response.status_code == 200
         assert response.json()["service"] == "ecommerce-catalog-search"
 
 
 def test_invoke_returns_service():
-    with TestClient(create_app()) as client:
+    with TestClient(_create_app()) as client:
         response = client.post("/invoke", json={"query": "", "limit": 1})
         assert response.status_code == 200
         assert response.json()["service"] == "ecommerce-catalog-search"
 
 
 def test_agent_activity_endpoints():
-    with TestClient(create_app()) as client:
+    with TestClient(_create_app()) as client:
         invoke_response = client.post("/invoke", json={"query": "running shoes", "limit": 3})
         assert invoke_response.status_code == 200
 
@@ -71,7 +93,7 @@ def test_ready_returns_503_when_strict_mode_ai_search_not_ready(monkeypatch):
             )
         ),
     ):
-        with TestClient(create_app()) as client:
+        with TestClient(_create_app()) as client:
             response = client.get("/ready")
 
     assert response.status_code == 503
@@ -119,7 +141,7 @@ def test_startup_attempts_seed_when_index_empty(monkeypatch):
             ),
         ) as mock_seed,
     ):
-        with TestClient(create_app()):
+        with TestClient(_create_app()):
             pass
 
     mock_seed.assert_awaited_once_with(max_attempts=1, batch_size=3)

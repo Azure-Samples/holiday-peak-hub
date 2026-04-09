@@ -127,3 +127,5 @@ output AKS_OIDC_ISSUER_URL string = deployShared ? sharedInfra!.outputs.aksOidcI
 output AKS_NODE_RESOURCE_GROUP string = deployShared ? sharedInfra!.outputs.aksNodeResourceGroup : ''
 output MONITORING_ACTION_GROUP_ID string = deployShared ? sharedInfra!.outputs.monitoringActionGroupId : ''
 output MONITORING_ACTION_GROUP_NAME string = deployShared ? sharedInfra!.outputs.monitoringActionGroupName : ''
+output AGENTS_WORKLOAD_CLIENT_ID string = deployShared ? sharedInfra!.outputs.agentsWorkloadIdentityClientId : ''
+output CRUD_WORKLOAD_CLIENT_ID string = deployShared ? sharedInfra!.outputs.crudWorkloadIdentityClientId : ''
