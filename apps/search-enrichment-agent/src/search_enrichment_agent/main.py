@@ -1,14 +1,13 @@
 """Search enrichment agent service entrypoint."""
 
-from search_enrichment_agent.agents import SearchEnrichmentAgent, register_mcp_tools
-from search_enrichment_agent.event_handlers import build_event_handlers
-
 from holiday_peak_lib import create_standard_app
 from holiday_peak_lib.utils import (
     PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV,
     PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV,
     EventHubSubscription,
 )
+from search_enrichment_agent.agents import SearchEnrichmentAgent, register_mcp_tools
+from search_enrichment_agent.event_handlers import build_event_handlers
 
 SERVICE_NAME = "search-enrichment-agent"
 

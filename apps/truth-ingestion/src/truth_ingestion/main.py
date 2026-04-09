@@ -1,15 +1,14 @@
 """Truth Ingestion service entrypoint."""
 
-from truth_ingestion.agents import TruthIngestionAgent, register_mcp_tools
-from truth_ingestion.event_handlers import build_event_handlers
-from truth_ingestion.routes import router as ingestion_router
-
 from holiday_peak_lib import create_standard_app
 from holiday_peak_lib.utils import (
     PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV,
     PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV,
     EventHubSubscription,
 )
+from truth_ingestion.agents import TruthIngestionAgent, register_mcp_tools
+from truth_ingestion.event_handlers import build_event_handlers
+from truth_ingestion.routes import router as ingestion_router
 
 SERVICE_NAME = "truth-ingestion"
 

@@ -1,16 +1,15 @@
 """Truth HITL service entrypoint."""
 
-from truth_hitl.adapters import build_hitl_adapters
-from truth_hitl.agents import TruthHITLAgent, register_mcp_tools
-from truth_hitl.event_handlers import build_event_handlers
-from truth_hitl.routes import build_review_router
-
 from holiday_peak_lib import create_standard_app
 from holiday_peak_lib.utils import (
     PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV,
     PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV,
     EventHubSubscription,
 )
+from truth_hitl.adapters import build_hitl_adapters
+from truth_hitl.agents import TruthHITLAgent, register_mcp_tools
+from truth_hitl.event_handlers import build_event_handlers
+from truth_hitl.routes import build_review_router
 
 SERVICE_NAME = "truth-hitl"
 

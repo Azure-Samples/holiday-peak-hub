@@ -2,19 +2,18 @@
 
 import os
 
+from holiday_peak_lib import create_standard_app
+from holiday_peak_lib.utils import (
+    PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV,
+    PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV,
+    EventHubSubscription,
+)
 from product_management_consistency_validation.agents import (
     ProductConsistencyAgent,
     register_mcp_tools,
 )
 from product_management_consistency_validation.event_consumer import (
     build_completeness_event_handlers,
-)
-
-from holiday_peak_lib import create_standard_app
-from holiday_peak_lib.utils import (
-    PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV,
-    PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV,
-    EventHubSubscription,
 )
 
 SERVICE_NAME = "product-management-consistency-validation"

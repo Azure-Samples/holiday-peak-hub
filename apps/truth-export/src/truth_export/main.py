@@ -1,16 +1,15 @@
 """Truth Export service entry point."""
 
 from fastapi import FastAPI
-from truth_export.agents import TruthExportAgent, register_mcp_tools
-from truth_export.event_handlers import build_event_handlers
-from truth_export.routes import router as export_router
-
 from holiday_peak_lib import create_standard_app
 from holiday_peak_lib.utils import (
     PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV,
     PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV,
     EventHubSubscription,
 )
+from truth_export.agents import TruthExportAgent, register_mcp_tools
+from truth_export.event_handlers import build_event_handlers
+from truth_export.routes import router as export_router
 
 SERVICE_NAME = "truth-export"
 

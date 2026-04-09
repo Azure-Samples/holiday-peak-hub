@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 
 import pytest
-
 from holiday_peak_lib.app_factory_components.foundry_lifecycle import (
     FoundryReadinessSnapshot,
 )
