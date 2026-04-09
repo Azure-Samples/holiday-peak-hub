@@ -112,6 +112,7 @@ jobs:
       changed_aks_services_csv: ${{ steps.detect.outputs.changed_aks_services_csv }}
       changed_aks_matrix: ${{ steps.detect.outputs.changed_aks_matrix }}
       lib_changed: ${{ steps.detect.outputs.lib_changed }}
+      infra_changed: ${{ steps.detect.outputs.infra_changed }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -245,6 +246,11 @@ jobs:
             LIB_CHANGED=true
           fi
 
+          INFRA_CHANGED=false
+          if echo "$CHANGED_FILES" | grep -Eq '^(\.infra/|azure\.yaml|\.kubernetes/)'; then
+            INFRA_CHANGED=true
+          fi
+
           AGENTS_CHANGED=false
           MATRIX='[]'
           CHANGED_AGENTS=()
@@ -322,6 +328,7 @@ jobs:
           echo "changed_aks_services_csv=$CHANGED_AKS_SERVICES_CSV" >> "$GITHUB_OUTPUT"
           printf 'changed_aks_matrix=%s\n' "$CHANGED_AKS_MATRIX" >> "$GITHUB_OUTPUT"
           echo "lib_changed=$LIB_CHANGED" >> "$GITHUB_OUTPUT"
+          echo "infra_changed=$INFRA_CHANGED" >> "$GITHUB_OUTPUT"
 
   provision:
     if: ${{ !inputs.uiOnly }}
@@ -483,7 +490,7 @@ jobs:
           fi
 
       - name: Preflight drift remediation (non-prod)
-        if: ${{ inputs.environment != 'prod' && inputs.environment != 'production' }}
+        if: ${{ !inputs.skipProvision && inputs.environment != 'prod' && inputs.environment != 'production' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -576,6 +583,7 @@ jobs:
           fi
 
       - name: Validate truth Event Hubs IaC declarations
+        if: ${{ !inputs.skipProvision }}
         shell: bash
         run: |
           set -euo pipefail
@@ -626,6 +634,7 @@ jobs:
           PY
 
       - name: Validate app dependency manifest coverage
+        if: ${{ !inputs.skipProvision }}
         shell: bash
         run: |
           set -euo pipefail
@@ -635,6 +644,7 @@ jobs:
             --manifest .infra/app-dependency-manifest.yaml
 
       - name: Validate Event Hubs IaC declarations
+        if: ${{ !inputs.skipProvision }}
         shell: bash
         run: |
           set -euo pipefail
@@ -666,18 +676,19 @@ jobs:
 
           echo "Event Hub and consumer group declarations are present in IaC."
 
-      - name: Validate skip-provision emergency redeploy mode
+      - name: Validate skip-provision mode
         if: ${{ inputs.skipProvision }}
         shell: bash
         run: |
           set -euo pipefail
 
-          if [ "${{ inputs.environment }}" != "dev" ]; then
-            echo "skipProvision is reserved for manual dev emergency redeploys against already-provisioned infrastructure." >&2
-            exit 1
+          INFRA_CHANGED="${{ needs.detect-changes.outputs.infra_changed }}"
+
+          if [ "$INFRA_CHANGED" = "true" ]; then
+            echo "::warning::skipProvision is active but infrastructure files changed. Provisioning will be skipped. If you need infra reconciliation, rerun with skipProvision=false."
           fi
 
-          echo "skipProvision=true: reusing the current azd environment values and existing infrastructure for this dev redeploy."
+          echo "skipProvision=true: reusing the current azd environment values and existing infrastructure for this deploy."
 
       - name: Provision infrastructure
         if: ${{ !inputs.skipProvision }}
@@ -1302,7 +1313,10 @@ jobs:
 
   deploy-foundry-models:
     runs-on: ubuntu-latest
-    needs: provision
+    needs:
+      - provision
+      - detect-changes
+    if: ${{ !inputs.skipProvision && needs.detect-changes.outputs.infra_changed == 'true' }}
     environment: ${{ inputs.environment }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -2035,7 +2049,7 @@ jobs:
 
   deploy-agents:
     runs-on: ubuntu-latest
-    if: ${{ !inputs.uiOnly && needs.detect-changes.outputs.agents_changed == 'true' && (needs.deploy-crud.result == 'success' || needs.deploy-crud.result == 'skipped') }}
+    if: ${{ !inputs.uiOnly && needs.detect-changes.outputs.agents_changed == 'true' && (needs.deploy-crud.result == 'success' || needs.deploy-crud.result == 'skipped') && (needs.deploy-foundry-models.result == 'success' || needs.deploy-foundry-models.result == 'skipped') }}
     needs:
       - provision
       - deploy-crud
