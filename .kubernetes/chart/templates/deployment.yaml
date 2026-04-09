@@ -32,7 +32,13 @@ spec:
       labels:
         app: {{ .Values.serviceName }}
         canary: "false"
+        {{- if .Values.serviceAccount.clientId }}
+        azure.workload.identity/use: "true"
+        {{- end }}
     spec:
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ .Values.serviceName }}
+      {{- end }}
       {{- if .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml .Values.nodeSelector | nindent 8 }}
@@ -139,7 +145,13 @@ spec:
       labels:
         app: {{ .Values.serviceName }}
         canary: "true"
+        {{- if .Values.serviceAccount.clientId }}
+        azure.workload.identity/use: "true"
+        {{- end }}
     spec:
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ .Values.serviceName }}
+      {{- end }}
       {{- if .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml .Values.nodeSelector | nindent 8 }}

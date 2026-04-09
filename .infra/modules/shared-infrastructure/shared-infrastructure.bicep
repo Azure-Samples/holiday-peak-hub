@@ -79,6 +79,9 @@ var agcControllerIdentityName = '${projectName}${envSuffix}-agc-controller'
 var agcControllerNamespace = 'azure-alb-system'
 var agcControllerServiceAccount = 'alb-controller-sa'
 var agcGatewayClassName = 'azure-alb-external'
+var workloadNamespace = 'holiday-peak'
+var agentsIdentityName = '${projectName}${envSuffix}-agents-identity'
+var crudIdentityName = '${projectName}${envSuffix}-crud-identity'
 var monitoringEnabled = environment == 'prod'
 var tags = {
   Project: projectName
@@ -507,8 +510,18 @@ module cosmos 'br/public:avm/res/document-db/database-account:0.19.0' = {
     ]
     sqlRoleAssignments: [
       {
-        // AKS system MI -> Cosmos DB (Data Contributor)
+        // AKS system MI -> Cosmos DB (Data Contributor) — retained for cluster-level operations
         principalId: aks.outputs.?systemAssignedMIPrincipalId ?? ''
+        roleDefinitionId: '00000000-0000-0000-0000-000000000002' // Built-in Data Contributor
+      }
+      {
+        // Agents workload identity -> Cosmos DB (Data Contributor)
+        principalId: agentsWorkloadIdentity.properties.principalId
+        roleDefinitionId: '00000000-0000-0000-0000-000000000002' // Built-in Data Contributor
+      }
+      {
+        // CRUD workload identity -> Cosmos DB (Data Contributor)
+        principalId: crudWorkloadIdentity.properties.principalId
         roleDefinitionId: '00000000-0000-0000-0000-000000000002' // Built-in Data Contributor
       }
     ]
@@ -603,9 +616,21 @@ module storage 'br/public:avm/res/storage/storage-account:0.32.0' = {
     }
     roleAssignments: [
       {
-        // AKS system MI -> Storage (Blob Data Contributor)
+        // AKS system MI -> Storage (Blob Data Contributor) — retained for cluster-level operations
         roleDefinitionIdOrName: 'ba92f5b4-2d11-453d-a403-e96b0029c9fe' // Storage Blob Data Contributor
         principalId: aks.outputs.?systemAssignedMIPrincipalId ?? ''
+        principalType: 'ServicePrincipal'
+      }
+      {
+        // Agents workload identity -> Storage (Blob Data Contributor)
+        roleDefinitionIdOrName: 'ba92f5b4-2d11-453d-a403-e96b0029c9fe' // Storage Blob Data Contributor
+        principalId: agentsWorkloadIdentity.properties.principalId
+        principalType: 'ServicePrincipal'
+      }
+      {
+        // CRUD workload identity -> Storage (Blob Data Contributor)
+        roleDefinitionIdOrName: 'ba92f5b4-2d11-453d-a403-e96b0029c9fe' // Storage Blob Data Contributor
+        principalId: crudWorkloadIdentity.properties.principalId
         principalType: 'ServicePrincipal'
       }
     ]
@@ -657,15 +682,33 @@ module eventHubs 'br/public:avm/res/event-hub/namespace:0.14.1' = {
     ]
     roleAssignments: [
       {
-        // AKS -> Event Hubs (Data Sender)
+        // AKS system MI -> Event Hubs (Data Sender) — retained for cluster-level operations
         roleDefinitionIdOrName: '2b629674-e913-4c01-ae53-ef4638d8f975' // Azure Event Hubs Data Sender
         principalId: aks.outputs.?systemAssignedMIPrincipalId ?? ''
         principalType: 'ServicePrincipal'
       }
       {
-        // AKS -> Event Hubs (Data Receiver)
+        // AKS system MI -> Event Hubs (Data Receiver)
         roleDefinitionIdOrName: 'a638d3c7-ab3a-418d-83e6-5f17a39d4fde' // Azure Event Hubs Data Receiver
         principalId: aks.outputs.?systemAssignedMIPrincipalId ?? ''
+        principalType: 'ServicePrincipal'
+      }
+      {
+        // Agents workload identity -> Event Hubs (Data Sender)
+        roleDefinitionIdOrName: '2b629674-e913-4c01-ae53-ef4638d8f975' // Azure Event Hubs Data Sender
+        principalId: agentsWorkloadIdentity.properties.principalId
+        principalType: 'ServicePrincipal'
+      }
+      {
+        // Agents workload identity -> Event Hubs (Data Receiver)
+        roleDefinitionIdOrName: 'a638d3c7-ab3a-418d-83e6-5f17a39d4fde' // Azure Event Hubs Data Receiver
+        principalId: agentsWorkloadIdentity.properties.principalId
+        principalType: 'ServicePrincipal'
+      }
+      {
+        // CRUD workload identity -> Event Hubs (Data Sender)
+        roleDefinitionIdOrName: '2b629674-e913-4c01-ae53-ef4638d8f975' // Azure Event Hubs Data Sender
+        principalId: crudWorkloadIdentity.properties.principalId
         principalType: 'ServicePrincipal'
       }
     ]
@@ -739,15 +782,27 @@ module platformJobsEventHubs 'br/public:avm/res/event-hub/namespace:0.14.1' = {
     ]
     roleAssignments: [
       {
-        // AKS -> Platform Jobs Event Hubs (Data Sender)
+        // AKS system MI -> Platform Jobs Event Hubs (Data Sender) — retained for cluster-level operations
         roleDefinitionIdOrName: '2b629674-e913-4c01-ae53-ef4638d8f975' // Azure Event Hubs Data Sender
         principalId: aks.outputs.?systemAssignedMIPrincipalId ?? ''
         principalType: 'ServicePrincipal'
       }
       {
-        // AKS -> Platform Jobs Event Hubs (Data Receiver)
+        // AKS system MI -> Platform Jobs Event Hubs (Data Receiver)
         roleDefinitionIdOrName: 'a638d3c7-ab3a-418d-83e6-5f17a39d4fde' // Azure Event Hubs Data Receiver
         principalId: aks.outputs.?systemAssignedMIPrincipalId ?? ''
+        principalType: 'ServicePrincipal'
+      }
+      {
+        // Agents workload identity -> Platform Jobs Event Hubs (Data Sender)
+        roleDefinitionIdOrName: '2b629674-e913-4c01-ae53-ef4638d8f975' // Azure Event Hubs Data Sender
+        principalId: agentsWorkloadIdentity.properties.principalId
+        principalType: 'ServicePrincipal'
+      }
+      {
+        // Agents workload identity -> Platform Jobs Event Hubs (Data Receiver)
+        roleDefinitionIdOrName: 'a638d3c7-ab3a-418d-83e6-5f17a39d4fde' // Azure Event Hubs Data Receiver
+        principalId: agentsWorkloadIdentity.properties.principalId
         principalType: 'ServicePrincipal'
       }
     ]
@@ -811,9 +866,21 @@ module keyVault 'br/public:avm/res/key-vault/vault:0.13.3' = {
     }
     roleAssignments: [
       {
-        // AKS keyvault identity -> Key Vault (Secrets User)
+        // AKS keyvault CSI driver identity -> Key Vault (Secrets User) — retained for CSI volume mounts
         roleDefinitionIdOrName: '4633458b-17de-408a-b874-0445c86b69e6' // Key Vault Secrets User
         principalId: aks.outputs.?keyvaultIdentityObjectId ?? ''
+        principalType: 'ServicePrincipal'
+      }
+      {
+        // Agents workload identity -> Key Vault (Secrets User)
+        roleDefinitionIdOrName: '4633458b-17de-408a-b874-0445c86b69e6' // Key Vault Secrets User
+        principalId: agentsWorkloadIdentity.properties.principalId
+        principalType: 'ServicePrincipal'
+      }
+      {
+        // CRUD workload identity -> Key Vault (Secrets User)
+        roleDefinitionIdOrName: '4633458b-17de-408a-b874-0445c86b69e6' // Key Vault Secrets User
+        principalId: crudWorkloadIdentity.properties.principalId
         principalType: 'ServicePrincipal'
       }
     ]
@@ -865,9 +932,21 @@ module aiFoundry 'br/public:avm/ptn/ai-ml/ai-foundry:0.6.0' = {
       name: aiSearchName
       roleAssignments: [
         {
-          // AKS kubelet identity -> AI Search (index data contributor)
+          // AKS kubelet identity -> AI Search (index data contributor) — retained for cluster-level operations
           roleDefinitionIdOrName: '8ebe5a00-799e-43f5-93ac-243d3dce84a7' // Search Index Data Contributor
           principalId: aks.outputs.?kubeletIdentityObjectId ?? ''
+          principalType: 'ServicePrincipal'
+        }
+        {
+          // Agents workload identity -> AI Search (Index Data Contributor)
+          roleDefinitionIdOrName: '8ebe5a00-799e-43f5-93ac-243d3dce84a7' // Search Index Data Contributor
+          principalId: agentsWorkloadIdentity.properties.principalId
+          principalType: 'ServicePrincipal'
+        }
+        {
+          // Agents workload identity -> AI Search (Search Service Contributor)
+          roleDefinitionIdOrName: '7ca78c08-252a-4471-8644-bb5ff32d4ba0' // Search Service Contributor
+          principalId: agentsWorkloadIdentity.properties.principalId
           principalType: 'ServicePrincipal'
         }
       ]
@@ -909,11 +988,11 @@ module aks 'br/public:avm/res/container-service/managed-cluster:0.13.0' = {
     omsAgentEnabled: true
     enableKeyvaultSecretsProvider: true
     enableOidcIssuerProfile: true
-    securityProfile: agcSupportEnabled ? {
+    securityProfile: {
       workloadIdentity: {
         enabled: true
       }
-    } : null
+    }
     webApplicationRoutingEnabled: aksWebApplicationRoutingEnabled
     primaryAgentPoolProfiles: [
       {
@@ -987,6 +1066,75 @@ resource agcControllerFederatedCredential 'Microsoft.ManagedIdentity/userAssigne
     ]
     issuer: aks.outputs.?oidcIssuerUrl ?? ''
     subject: 'system:serviceaccount:${agcControllerNamespace}:${agcControllerServiceAccount}'
+  }
+}
+
+// Workload Identity — User-Assigned Managed Identities for pod-level Azure auth.
+// Agent services and CRUD service use separate identities for least-privilege isolation.
+resource agentsWorkloadIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = {
+  name: agentsIdentityName
+  location: location
+  tags: tags
+}
+
+resource crudWorkloadIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = {
+  name: crudIdentityName
+  location: location
+  tags: tags
+}
+
+// Federated Identity Credentials — bind AKS OIDC issuer + K8s ServiceAccount to UAMI.
+// Each service gets its own SA in the workload namespace; the FIC links the SA to the UAMI.
+var agentServiceNames = [
+  'crm-campaign-intelligence'
+  'crm-profile-aggregation'
+  'crm-segmentation-personalization'
+  'crm-support-assistance'
+  'ecommerce-cart-intelligence'
+  'ecommerce-catalog-search'
+  'ecommerce-checkout-support'
+  'ecommerce-order-status'
+  'ecommerce-product-detail-enrichment'
+  'inventory-alerts-triggers'
+  'inventory-health-check'
+  'inventory-jit-replenishment'
+  'inventory-reservation-validation'
+  'logistics-carrier-selection'
+  'logistics-eta-computation'
+  'logistics-returns-support'
+  'logistics-route-issue-detection'
+  'product-management-acp-transformation'
+  'product-management-assortment-optimization'
+  'product-management-consistency-validation'
+  'product-management-normalization-classification'
+  'search-enrichment-agent'
+  'truth-enrichment'
+  'truth-export'
+  'truth-hitl'
+  'truth-ingestion'
+]
+
+resource agentsFederatedCredentials 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2025-01-31-preview' = [for svc in agentServiceNames: {
+  parent: agentsWorkloadIdentity
+  name: 'aks-${svc}'
+  properties: {
+    audiences: [
+      'api://AzureADTokenExchange'
+    ]
+    issuer: aks.outputs.?oidcIssuerUrl ?? ''
+    subject: 'system:serviceaccount:${workloadNamespace}:${svc}'
+  }
+}]
+
+resource crudFederatedCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2025-01-31-preview' = {
+  parent: crudWorkloadIdentity
+  name: 'aks-crud-service'
+  properties: {
+    audiences: [
+      'api://AzureADTokenExchange'
+    ]
+    issuer: aks.outputs.?oidcIssuerUrl ?? ''
+    subject: 'system:serviceaccount:${workloadNamespace}:crud-service'
   }
 }
 
@@ -1268,6 +1416,36 @@ resource aiSearchCosmosDataReaderRole 'Microsoft.DocumentDB/databaseAccounts/sql
   }
 }
 
+// Reference the AI Services (Cognitive Services) account created by the AI Foundry module.
+resource aiServicesAccount 'Microsoft.CognitiveServices/accounts@2025-12-01' existing = {
+  name: aiServicesName
+  dependsOn: [
+    aiFoundry
+  ]
+}
+
+// Workload identity -> AI Services (Cognitive Services OpenAI User — required for Foundry agent invocation)
+resource agentsAiServicesOpenAIUserRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, agentsIdentityName, aiServicesName, 'CognitiveServicesOpenAIUser')
+  scope: aiServicesAccount
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd') // Cognitive Services OpenAI User
+    principalId: agentsWorkloadIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Workload identity -> AI Services (Cognitive Services User — broader non-OpenAI model access)
+resource agentsAiServicesCognitiveUserRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, agentsIdentityName, aiServicesName, 'CognitiveServicesUser')
+  scope: aiServicesAccount
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a97b65f3-24c7-4388-baec-2e87135dc908') // Cognitive Services User
+    principalId: agentsWorkloadIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
 // Outputs
 output aksClusterName string = aks.outputs.name
 output acrLoginServer string = acr.outputs.loginServer
@@ -1319,3 +1497,7 @@ output aksOidcIssuerUrl string = aks.outputs.?oidcIssuerUrl ?? ''
 output aksNodeResourceGroup string = aksClusterResource.properties.nodeResourceGroup ?? ''
 output monitoringActionGroupId string = monitoringEnabled ? monitoring!.outputs.actionGroupId : ''
 output monitoringActionGroupName string = monitoringEnabled ? monitoring!.outputs.actionGroupName : ''
+output agentsWorkloadIdentityClientId string = agentsWorkloadIdentity.properties.clientId
+output agentsWorkloadIdentityPrincipalId string = agentsWorkloadIdentity.properties.principalId
+output crudWorkloadIdentityClientId string = crudWorkloadIdentity.properties.clientId
+output crudWorkloadIdentityPrincipalId string = crudWorkloadIdentity.properties.principalId
