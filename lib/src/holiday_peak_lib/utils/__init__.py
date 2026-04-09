@@ -12,11 +12,11 @@ from .correlation import (
 from .event_hub import (
     DEFAULT_EVENT_HUB_CONNECTION_STRING_ENV,
     DEFAULT_EVENT_HUB_NAMESPACE_ENV,
+    PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV,
+    PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV,
     EventHubSubscriber,
     EventHubSubscriberConfig,
     EventHubSubscription,
-    PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV,
-    PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV,
     create_eventhub_lifespan,
 )
 from .logging import configure_logging
