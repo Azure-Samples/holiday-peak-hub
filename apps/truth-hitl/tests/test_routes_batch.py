@@ -9,6 +9,10 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from holiday_peak_lib.utils import (
+    PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV,
+    PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV,
+)
 from truth_hitl.adapters import EventHubPublisher, build_hitl_adapters
 from truth_hitl.review_manager import ReviewItem
 from truth_hitl.routes import build_review_router
@@ -183,3 +187,20 @@ async def test_event_hub_publisher_delegates_to_truth_publisher():
             "target_topic": "export-jobs",
         },
     )
+
+
+def test_event_hub_publisher_uses_platform_jobs_binding_envs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("EVENT_HUB_NAMESPACE", "retail-namespace")
+    monkeypatch.setenv("EVENT_HUB_CONNECTION_STRING", "retail-connection")
+    monkeypatch.setenv(PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV, "platform-namespace")
+    monkeypatch.setenv(
+        PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV,
+        "platform-connection",
+    )
+
+    publisher = EventHubPublisher()
+
+    assert publisher._publisher._namespace == "platform-namespace"  # pylint: disable=protected-access
+    assert publisher._publisher._connection_string == "platform-connection"  # pylint: disable=protected-access

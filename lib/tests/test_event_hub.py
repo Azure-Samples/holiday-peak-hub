@@ -138,12 +138,16 @@ async def test_event_hub_subscriber_disables_checkpoint():
 
 
 @pytest.mark.asyncio
-async def test_create_eventhub_lifespan_supports_event_hub_connection_string_alias(monkeypatch):
-    """Ensure lifespan accepts EVENT_HUB_CONNECTION_STRING alias."""
-    monkeypatch.delenv("EVENTHUB_CONNECTION_STRING", raising=False)
+async def test_create_eventhub_lifespan_uses_per_subscription_binding_envs(monkeypatch):
+    """Ensure each subscription resolves its own binding contract."""
     monkeypatch.setenv(
-        "EVENT_HUB_CONNECTION_STRING",
-        "Endpoint=sb://test/;SharedAccessKeyName=key;SharedAccessKey=val",
+        "EVENT_HUB_NAMESPACE",
+        "retail-namespace.servicebus.windows.net",
+    )
+    monkeypatch.delenv("EVENT_HUB_CONNECTION_STRING", raising=False)
+    monkeypatch.setenv(
+        "PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING",
+        "Endpoint=sb://platform/;SharedAccessKeyName=key;SharedAccessKey=val",
     )
 
     created = {"configs": [], "factories": []}
@@ -165,22 +169,33 @@ async def test_create_eventhub_lifespan_supports_event_hub_connection_string_ali
 
     lifespan = create_eventhub_lifespan(
         service_name="test-service",
-        subscriptions=[EventHubSubscription("hitl-jobs", "hitl-service")],
-        handlers={"hitl-jobs": handler},
+        subscriptions=[
+            EventHubSubscription("product-events", "catalog-group"),
+            EventHubSubscription(
+                "export-jobs",
+                "export-engine",
+                namespace_env="PLATFORM_JOBS_EVENT_HUB_NAMESPACE",
+                connection_string_env="PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING",
+            ),
+        ],
+        handlers={"product-events": handler, "export-jobs": handler},
     )
 
     async with lifespan(None):
         await asyncio.sleep(0)
 
-    assert len(created["configs"]) == 1
-    assert created["configs"][0].connection_string.startswith("Endpoint=sb://test/")
-    assert created["factories"][0] is None
+    assert len(created["configs"]) == 2
+    assert created["configs"][0].eventhub_name == "product-events"
+    assert created["configs"][0].connection_string == ""
+    assert created["factories"][0] is not None
+    assert created["configs"][1].eventhub_name == "export-jobs"
+    assert created["configs"][1].connection_string.startswith("Endpoint=sb://platform/")
+    assert created["factories"][1] is None
 
 
 @pytest.mark.asyncio
 async def test_create_eventhub_lifespan_uses_namespace_when_connection_string_missing(monkeypatch):
     """Ensure lifespan falls back to namespace + managed identity mode."""
-    monkeypatch.delenv("EVENTHUB_CONNECTION_STRING", raising=False)
     monkeypatch.delenv("EVENT_HUB_CONNECTION_STRING", raising=False)
     monkeypatch.setenv("EVENT_HUB_NAMESPACE", "test-namespace")
     monkeypatch.setenv("AZURE_CLIENT_ID", "00000000-0000-0000-0000-000000000000")
@@ -223,6 +238,58 @@ async def test_create_eventhub_lifespan_uses_namespace_when_connection_string_mi
     assert len(created["configs"]) == 1
     assert created["configs"][0].connection_string == ""
     assert created["factories"][0] is not None
+
+
+@pytest.mark.asyncio
+async def test_create_eventhub_lifespan_rejects_legacy_namespace_alias(monkeypatch):
+    """Ensure the legacy namespace alias is not used on the shared consumer path."""
+    monkeypatch.delenv("EVENT_HUB_CONNECTION_STRING", raising=False)
+    monkeypatch.delenv("EVENT_HUB_NAMESPACE", raising=False)
+    monkeypatch.setenv("EVENTHUB_NAMESPACE", "legacy-namespace")
+
+    async def handler(_partition_context, _event):  # noqa: ANN001
+        return None
+
+    lifespan = create_eventhub_lifespan(
+        service_name="test-service",
+        subscriptions=[EventHubSubscription("hitl-jobs", "hitl-service")],
+        handlers={"hitl-jobs": handler},
+    )
+
+    with pytest.raises(RuntimeError, match="EVENT_HUB_CONNECTION_STRING or EVENT_HUB_NAMESPACE"):
+        async with lifespan(None):
+            await asyncio.sleep(0)
+
+
+@pytest.mark.asyncio
+async def test_create_eventhub_lifespan_fails_closed_when_platform_binding_is_missing(monkeypatch):
+    """Ensure platform subscriptions do not fall back to the retail Event Hubs envs."""
+    monkeypatch.setenv("EVENT_HUB_NAMESPACE", "retail-namespace")
+    monkeypatch.delenv("PLATFORM_JOBS_EVENT_HUB_NAMESPACE", raising=False)
+    monkeypatch.delenv("PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING", raising=False)
+
+    async def handler(_partition_context, _event):  # noqa: ANN001
+        return None
+
+    lifespan = create_eventhub_lifespan(
+        service_name="test-service",
+        subscriptions=[
+            EventHubSubscription(
+                "export-jobs",
+                "export-engine",
+                namespace_env="PLATFORM_JOBS_EVENT_HUB_NAMESPACE",
+                connection_string_env="PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING",
+            )
+        ],
+        handlers={"export-jobs": handler},
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING or PLATFORM_JOBS_EVENT_HUB_NAMESPACE",
+    ):
+        async with lifespan(None):
+            await asyncio.sleep(0)
 
 
 @pytest.mark.asyncio

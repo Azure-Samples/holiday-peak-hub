@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import json
-import os
 from typing import Any
 
+from holiday_peak_lib.utils import (
+    PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV,
+    PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV,
+)
 from holiday_peak_lib.utils.event_hub import EventHandler
 from holiday_peak_lib.utils.logging import configure_logging
+from holiday_peak_lib.utils.truth_event_hub import build_truth_event_publisher_from_env
 
 from .adapters import build_consistency_adapters
 from .completeness_engine import CompletenessEngine
@@ -20,41 +24,44 @@ async def _publish_enrichment_job(
     report: Any,
 ) -> None:
     """Send an enrichment-jobs event to Event Hub for a gap-heavy product."""
-    connection_string = os.getenv("EVENTHUB_CONNECTION_STRING")
-    if not connection_string:
-        _LOGGER.warning("enrichment_publish_skipped_no_connection entity_id=%s", entity_id)
-        return
+    publisher = build_truth_event_publisher_from_env(
+        service_name="product-management-consistency-validation",
+        namespace_env=PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV,
+        connection_string_env=PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV,
+    )
+
+    payload = {
+        "event_type": "enrichment_requested",
+        "data": {
+            "entity_id": entity_id,
+            "category_id": report.category_id,
+            "schema_version": report.schema_version,
+            "completeness_score": report.completeness_score,
+            "enrichable_gap_count": len(report.enrichable_gaps),
+            "enrichable_fields": [g.field_name for g in report.enrichable_gaps],
+        },
+    }
 
     try:
-        from azure.eventhub import EventData  # noqa: PLC0415
-        from azure.eventhub.aio import EventHubProducerClient  # noqa: PLC0415
-
-        payload = json.dumps(
-            {
-                "event_type": "enrichment_requested",
-                "data": {
-                    "entity_id": entity_id,
-                    "category_id": report.category_id,
-                    "schema_version": report.schema_version,
-                    "completeness_score": report.completeness_score,
-                    "enrichable_gap_count": len(report.enrichable_gaps),
-                    "enrichable_fields": [g.field_name for g in report.enrichable_gaps],
-                },
-            }
+        await publisher.publish_payload(
+            "enrichment-jobs",
+            payload,
+            metadata={
+                "domain": "product-management-consistency-validation",
+                "entity_id": entity_id,
+            },
+            remediation_context={
+                "preferred_action": "reset_messaging_publisher_bindings",
+                "workflow": "completeness_to_enrichment",
+                "target_topic": "enrichment-jobs",
+            },
         )
-
-        async with EventHubProducerClient.from_connection_string(
-            conn_str=connection_string,
-            eventhub_name="enrichment-jobs",
-        ) as producer:
-            batch = await producer.create_batch()
-            batch.add(EventData(payload))
-            await producer.send_batch(batch)
 
         _LOGGER.info("enrichment_job_published entity_id=%s", entity_id)
 
     except Exception as exc:  # noqa: BLE001
         _LOGGER.error("enrichment_publish_failed entity_id=%s error=%s", entity_id, exc)
+        raise
 
 
 def build_completeness_event_handlers(
@@ -71,7 +78,7 @@ def build_completeness_event_handlers(
     adapters = build_consistency_adapters()
     engine = CompletenessEngine()
 
-    async def handle_completeness_job(partition_context: Any, event: Any) -> None:
+    async def handle_completeness_job(_partition_context: Any, event: Any) -> None:
         payload = json.loads(event.body_as_str())
         data = payload.get("data", {}) if isinstance(payload, dict) else {}
         entity_id = data.get("entity_id") or data.get("product_id") or data.get("sku")

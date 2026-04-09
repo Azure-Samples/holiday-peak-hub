@@ -5,6 +5,10 @@ from __future__ import annotations
 from unittest.mock import AsyncMock
 
 import pytest
+from holiday_peak_lib.utils import (
+    PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV,
+    PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV,
+)
 from truth_enrichment.adapters import (
     DAMImageAnalysisAdapter,
     EventHubPublisher,
@@ -124,3 +128,20 @@ async def test_event_hub_publisher_delegates_to_truth_publisher() -> None:
             "target_topic": "hitl-jobs",
         },
     )
+
+
+def test_event_hub_publisher_uses_platform_jobs_binding_envs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("EVENT_HUB_NAMESPACE", "retail-namespace")
+    monkeypatch.setenv("EVENT_HUB_CONNECTION_STRING", "retail-connection")
+    monkeypatch.setenv(PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV, "platform-namespace")
+    monkeypatch.setenv(
+        PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV,
+        "platform-connection",
+    )
+
+    publisher = EventHubPublisher()
+
+    assert publisher._publisher._namespace == "platform-namespace"  # pylint: disable=protected-access
+    assert publisher._publisher._connection_string == "platform-connection"  # pylint: disable=protected-access

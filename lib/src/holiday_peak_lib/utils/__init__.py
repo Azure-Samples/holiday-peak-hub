@@ -10,9 +10,13 @@ from .correlation import (
     set_correlation_id,
 )
 from .event_hub import (
+    DEFAULT_EVENT_HUB_CONNECTION_STRING_ENV,
+    DEFAULT_EVENT_HUB_NAMESPACE_ENV,
     EventHubSubscriber,
     EventHubSubscriberConfig,
     EventHubSubscription,
+    PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV,
+    PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV,
     create_eventhub_lifespan,
 )
 from .logging import configure_logging
@@ -30,9 +34,13 @@ __all__ = [
     "CompensationResult",
     "CORRELATION_HEADER",
     "clear_correlation_id",
+    "DEFAULT_EVENT_HUB_CONNECTION_STRING_ENV",
+    "DEFAULT_EVENT_HUB_NAMESPACE_ENV",
     "EventHubSubscriber",
     "EventHubSubscriberConfig",
     "EventHubSubscription",
+    "PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV",
+    "PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV",
     "create_eventhub_lifespan",
     "configure_logging",
     "get_correlation_id",

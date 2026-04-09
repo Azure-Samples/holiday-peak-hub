@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-import { resolveCrudApiBaseUrl } from '@/app/api/_shared/base-url-resolver';
 import {
   clearAuthCookie,
   createSignedAuthCookieValue,
   isDevAuthMockEnabled,
   setAuthCookie,
 } from '@/lib/auth/authCookie';
+import API_ENDPOINTS from '@/lib/api/endpoints';
 
 type UserProfileResponse = {
   roles?: unknown;
@@ -29,6 +29,11 @@ function normalizeRoles(rawRoles: unknown): string[] {
   return rawRoles.filter((role): role is string => typeof role === 'string');
 }
 
+// Keep session validation on the same-origin /api proxy boundary.
+function buildAuthProfileProxyUrl(request: NextRequest): string {
+  return new URL(API_ENDPOINTS.auth.me, request.url).toString();
+}
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
   if (isDevAuthMockEnabled()) {
     return NextResponse.json(
@@ -42,17 +47,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Authorization token is required.' }, { status: 401 });
   }
 
-  const { baseUrl } = resolveCrudApiBaseUrl();
-  if (!baseUrl) {
-    return NextResponse.json(
-      { error: 'CRUD API base URL is not configured for session validation.' },
-      { status: 500 },
-    );
-  }
-
   let profileResponse: Response;
   try {
-    profileResponse = await fetch(`${baseUrl}/api/auth/me`, {
+    profileResponse = await fetch(buildAuthProfileProxyUrl(request), {
       method: 'GET',
       headers: {
         Authorization: authorization,

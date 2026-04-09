@@ -12,7 +12,7 @@ const AGENT_API_BASE_URL = resolveAgentApiClientBaseUrl().baseUrl || '';
 
 if (!AGENT_API_BASE_URL && typeof window === 'undefined') {
   throw new Error(
-    'Agent API base URL is not configured. Set NEXT_PUBLIC_AGENT_API_URL or AGENT_API_URL (fallbacks: NEXT_PUBLIC_CRUD_API_URL, NEXT_PUBLIC_API_URL, NEXT_PUBLIC_API_BASE_URL, CRUD_API_URL).',
+    'Agent API base URL is not configured for server-side agent access. Set NEXT_PUBLIC_AGENT_API_URL or AGENT_API_URL.',
   );
 }
 

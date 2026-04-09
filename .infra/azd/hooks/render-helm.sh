@@ -219,6 +219,17 @@ is_truth_service() {
   esac
 }
 
+is_platform_jobs_service() {
+  case "$SERVICE_NAME" in
+    truth-ingestion|truth-enrichment|truth-export|truth-hitl|search-enrichment-agent|product-management-consistency-validation)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 is_agent_service() {
   [ "$SERVICE_NAME" != "crud-service" ]
 }
@@ -293,6 +304,15 @@ if [ -n "$RESOLVED_REDIS_HOST" ] && ! printf '%s' "$RESOLVED_REDIS_HOST" | grep 
   RESOLVED_REDIS_HOST="${RESOLVED_REDIS_HOST}.redis.cache.windows.net"
 fi
 RESOLVED_REDIS_PASSWORD_SECRET_NAME="${REDIS_PASSWORD_SECRET_NAME:-redis-primary-key}"
+RESOLVED_AI_SEARCH_AUTH_MODE="${AI_SEARCH_AUTH_MODE:-}"
+case "$(printf '%s' "$RESOLVED_AI_SEARCH_AUTH_MODE" | tr '[:upper:]' '[:lower:]')" in
+  api_key)
+    RESOLVED_AI_SEARCH_KEY="${AI_SEARCH_KEY:-}"
+    ;;
+  *)
+    RESOLVED_AI_SEARCH_KEY=""
+    ;;
+esac
 
 # Database
 add_env_arg "POSTGRES_HOST" "${POSTGRES_HOST:-}"
@@ -304,7 +324,13 @@ add_env_arg "POSTGRES_PORT" "${POSTGRES_PORT:-}"
 add_env_arg "POSTGRES_SSL" "${POSTGRES_SSL:-}"
 
 # Messaging & Infrastructure
-add_env_arg "EVENT_HUB_NAMESPACE" "${EVENT_HUB_NAMESPACE:-}"
+if is_platform_jobs_service; then
+  add_env_arg "PLATFORM_JOBS_EVENT_HUB_NAMESPACE" "${PLATFORM_JOBS_EVENT_HUB_NAMESPACE:-}"
+  add_env_arg "PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING" "${PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING:-}"
+else
+  add_env_arg "EVENT_HUB_NAMESPACE" "${EVENT_HUB_NAMESPACE:-}"
+  add_env_arg "EVENT_HUB_CONNECTION_STRING" "${EVENT_HUB_CONNECTION_STRING:-}"
+fi
 add_env_arg "KEY_VAULT_URI" "${KEY_VAULT_URI:-}"
 add_env_arg "REDIS_HOST" "$RESOLVED_REDIS_HOST"
 add_env_arg "REDIS_PASSWORD" "${REDIS_PASSWORD:-}"
@@ -330,9 +356,9 @@ add_env_arg "AI_SEARCH_ENDPOINT" "${AI_SEARCH_ENDPOINT:-}"
 add_env_arg "AI_SEARCH_INDEX" "${AI_SEARCH_INDEX:-}"
 add_env_arg "AI_SEARCH_VECTOR_INDEX" "${AI_SEARCH_VECTOR_INDEX:-}"
 add_env_arg "AI_SEARCH_INDEXER_NAME" "${AI_SEARCH_INDEXER_NAME:-}"
-add_env_arg "AI_SEARCH_AUTH_MODE" "${AI_SEARCH_AUTH_MODE:-}"
+add_env_arg "AI_SEARCH_AUTH_MODE" "$RESOLVED_AI_SEARCH_AUTH_MODE"
 add_env_arg "CATALOG_SEARCH_REQUIRE_AI_SEARCH" "${CATALOG_SEARCH_REQUIRE_AI_SEARCH:-}"
-add_env_arg "AI_SEARCH_KEY" "${AI_SEARCH_KEY:-}"
+add_env_arg "AI_SEARCH_KEY" "$RESOLVED_AI_SEARCH_KEY"
 add_env_arg "EMBEDDING_DEPLOYMENT_NAME" "${EMBEDDING_DEPLOYMENT_NAME:-}"
 
 # Memory tiers
@@ -385,17 +411,31 @@ if is_truth_service; then
 fi
 
 if is_agent_service; then
-  require_env_keys \
-    EVENT_HUB_NAMESPACE \
-    PROJECT_ENDPOINT \
-    PROJECT_NAME \
-    MODEL_DEPLOYMENT_NAME_FAST \
-    MODEL_DEPLOYMENT_NAME_RICH \
-    COSMOS_ACCOUNT_URI \
-    COSMOS_DATABASE \
-    REDIS_HOST \
-    BLOB_ACCOUNT_URL \
-    KEY_VAULT_URI
+  if is_platform_jobs_service; then
+    require_env_keys \
+      PLATFORM_JOBS_EVENT_HUB_NAMESPACE \
+      PROJECT_ENDPOINT \
+      PROJECT_NAME \
+      MODEL_DEPLOYMENT_NAME_FAST \
+      MODEL_DEPLOYMENT_NAME_RICH \
+      COSMOS_ACCOUNT_URI \
+      COSMOS_DATABASE \
+      REDIS_HOST \
+      BLOB_ACCOUNT_URL \
+      KEY_VAULT_URI
+  else
+    require_env_keys \
+      EVENT_HUB_NAMESPACE \
+      PROJECT_ENDPOINT \
+      PROJECT_NAME \
+      MODEL_DEPLOYMENT_NAME_FAST \
+      MODEL_DEPLOYMENT_NAME_RICH \
+      COSMOS_ACCOUNT_URI \
+      COSMOS_DATABASE \
+      REDIS_HOST \
+      BLOB_ACCOUNT_URL \
+      KEY_VAULT_URI
+  fi
 fi
 
 if [ "$SERVICE_NAME" = "ecommerce-catalog-search" ] || [ "$SERVICE_NAME" = "search-enrichment-agent" ]; then
@@ -429,7 +469,7 @@ if is_agent_service; then
 fi
 
 if is_truth_service; then
-  for key in EVENT_HUB_NAMESPACE PROJECT_ENDPOINT COSMOS_ACCOUNT_URI COSMOS_DATABASE TRUTH_EVENT_HUB_NAME TRUTH_EVENT_HUB_CONSUMER_GROUP; do
+  for key in PLATFORM_JOBS_EVENT_HUB_NAMESPACE PROJECT_ENDPOINT COSMOS_ACCOUNT_URI COSMOS_DATABASE TRUTH_EVENT_HUB_NAME TRUTH_EVENT_HUB_CONSUMER_GROUP; do
     if ! grep -q "name: $key" "$OUT_DIR/all.yaml"; then
       echo "Rendered manifest missing env key '$key' for $SERVICE_NAME" >&2
       exit 1
@@ -443,6 +483,18 @@ if is_truth_service; then
         exit 1
       fi
     done
+  fi
+fi
+
+if is_platform_jobs_service; then
+  if ! grep -q "name: PLATFORM_JOBS_EVENT_HUB_NAMESPACE" "$OUT_DIR/all.yaml"; then
+    echo "Rendered manifest missing env key 'PLATFORM_JOBS_EVENT_HUB_NAMESPACE' for $SERVICE_NAME" >&2
+    exit 1
+  fi
+
+  if [ -n "${PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING:-}" ] && ! grep -q "name: PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING" "$OUT_DIR/all.yaml"; then
+    echo "Rendered manifest missing env key 'PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING' for $SERVICE_NAME" >&2
+    exit 1
   fi
 fi
 
