@@ -38,7 +38,8 @@ def build_foundry_config(agent_env: str, deployment_env: str) -> FoundryAgentCon
         deployment_name=deployment,
         project_name=project_name,
         stream=stream,
-        resolved_agent_id=agent_id or None,
+        # resolved_agent_id is intentionally omitted — only set after
+        # a successful ensure/lookup call confirms the ID is valid.
     )
 
 
