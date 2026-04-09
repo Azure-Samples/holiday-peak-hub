@@ -574,6 +574,8 @@ module postgres 'br/public:avm/res/db-for-postgre-sql/flexible-server:0.15.2' = 
 }
 
 // Redis Cache (AVM)
+// NOTE: zones is set to empty for non-prod to allow tear-down and re-provisioning
+// without zone-availability errors. Production should enable zone redundancy.
 module redis 'br/public:avm/res/cache/redis:0.16.5' = {
   name: 'redis'
   params: {
@@ -581,6 +583,8 @@ module redis 'br/public:avm/res/cache/redis:0.16.5' = {
     location: location
     skuName: 'Premium'
     capacity: 1
+    availabilityZones: environment == 'prod' ? [1, 2, 3] : []
+    zoneRedundant: environment == 'prod'
     minimumTlsVersion: '1.2'
     publicNetworkAccess: 'Disabled'
     redisConfiguration: {
@@ -879,12 +883,10 @@ module platformJobsEventHubs 'br/public:avm/res/event-hub/namespace:0.14.1' = {
 }
 
 // Key Vault (AVM)
-// NOTE: enablePurgeProtection is set to false to allow tear-down and re-provisioning
-// of the environment (e.g. `azd down && azd up`). With purge protection enabled,
+// NOTE: enablePurgeProtection is disabled for non-prod to allow tear-down and
+// re-provisioning (e.g. `azd down && azd up`). With purge protection enabled,
 // a deleted vault retains its name for the soft-delete retention window, blocking
-// re-creation with the same name. This is acceptable for dev/test environments but
-// is NOT recommended for production — production vaults should always enable purge
-// protection to guard against permanent secret/key loss.
+// re-creation with the same name. Production vaults always enable purge protection.
 module keyVault 'br/public:avm/res/key-vault/vault:0.13.3' = {
   name: 'key-vault'
   params: {
@@ -894,7 +896,7 @@ module keyVault 'br/public:avm/res/key-vault/vault:0.13.3' = {
     enableRbacAuthorization: true
     enableSoftDelete: true
     softDeleteRetentionInDays: 90
-    enablePurgeProtection: false
+    enablePurgeProtection: environment == 'prod'
     publicNetworkAccess: 'Disabled'
     networkAcls: {
       defaultAction: 'Deny'
