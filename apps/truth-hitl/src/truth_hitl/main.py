@@ -1,7 +1,11 @@
 """Truth HITL service entrypoint."""
 
 from holiday_peak_lib import create_standard_app
-from holiday_peak_lib.utils import EventHubSubscription
+from holiday_peak_lib.utils import (
+    EventHubSubscription,
+    PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV,
+    PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV,
+)
 from truth_hitl.adapters import build_hitl_adapters
 from truth_hitl.agents import TruthHITLAgent, register_mcp_tools
 from truth_hitl.event_handlers import build_event_handlers
@@ -19,7 +23,12 @@ app = create_standard_app(
     agent_class=TruthHITLAgent,
     mcp_setup=register_mcp_tools,
     subscriptions=[
-        EventHubSubscription("hitl-jobs", "hitl-service"),
+        EventHubSubscription(
+            "hitl-jobs",
+            "hitl-service",
+            namespace_env=PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV,
+            connection_string_env=PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV,
+        ),
     ],
     handlers=build_event_handlers(adapters=_adapters),
 )

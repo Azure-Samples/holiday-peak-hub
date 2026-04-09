@@ -45,25 +45,27 @@ describe('base URL resolver contract', () => {
   });
 
   describe('resolveAgentApiBaseUrl', () => {
-    it('prefers explicit agent URL env aliases before CRUD-derived fallbacks', () => {
-      const explicitResolution = resolveAgentApiBaseUrl({
+    it('uses only explicit agent URL env aliases in stable precedence order', () => {
+      const resolved = resolveAgentApiBaseUrl({
         NEXT_PUBLIC_AGENT_API_URL: 'https://agents-public.example.net/',
         AGENT_API_URL: 'https://agents-server.example.net',
         NEXT_PUBLIC_CRUD_API_URL: 'https://crud.example.net',
       } as unknown as NodeJS.ProcessEnv);
 
-      expect(explicitResolution).toEqual({
+      expect(resolved).toEqual({
         baseUrl: 'https://agents-public.example.net',
         sourceKey: 'NEXT_PUBLIC_AGENT_API_URL',
       });
+    });
 
-      const fallbackResolution = resolveAgentApiBaseUrl({
+    it('does not derive the agent base URL from CRUD aliases', () => {
+      const resolved = resolveAgentApiBaseUrl({
         NEXT_PUBLIC_API_BASE_URL: 'https://crud-base.example.net/api/',
       } as unknown as NodeJS.ProcessEnv);
 
-      expect(fallbackResolution).toEqual({
-        baseUrl: 'https://crud-base.example.net/agents',
-        sourceKey: 'NEXT_PUBLIC_API_BASE_URL',
+      expect(resolved).toEqual({
+        baseUrl: null,
+        sourceKey: null,
       });
     });
   });
@@ -145,13 +147,10 @@ describe('base URL resolver contract', () => {
 
       const test = resolveAgentApiClientBaseUrl({
         runtime: 'test',
-        env: {
-          NEXT_PUBLIC_CRUD_API_URL: 'https://test-crud.example.net/',
-        } as unknown as NodeJS.ProcessEnv,
       });
       expect(test).toEqual({
-        baseUrl: 'https://test-crud.example.net/agents',
-        sourceKey: 'NEXT_PUBLIC_CRUD_API_URL',
+        baseUrl: '/agent-api',
+        sourceKey: 'TEST_PROXY_ROUTE',
         runtime: 'test',
       });
     });

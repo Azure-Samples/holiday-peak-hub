@@ -1076,7 +1076,7 @@ resource exportJobsEventHub 'Microsoft.EventHub/namespaces/eventhubs@2024-01-01'
 }
 
 resource hitlJobsEventHub 'Microsoft.EventHub/namespaces/eventhubs@2024-01-01' existing = {
-  parent: eventHubsNamespaceResource
+  parent: platformJobsNamespaceResource
   name: 'hitl-jobs'
 }
 

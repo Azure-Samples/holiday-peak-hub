@@ -66,6 +66,10 @@ _DEFAULT_RETRYABLE_CATEGORIES = frozenset(
     }
 )
 EVENT_HUB_METADATA_DEAD_LETTER_POLICY = DeadLetterPolicy()
+DEFAULT_EVENT_HUB_NAMESPACE_ENV = "EVENT_HUB_NAMESPACE"
+DEFAULT_EVENT_HUB_CONNECTION_STRING_ENV = "EVENT_HUB_CONNECTION_STRING"
+PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV = "PLATFORM_JOBS_EVENT_HUB_NAMESPACE"
+PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV = "PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING"
 
 
 @dataclass(frozen=True, slots=True)
@@ -679,10 +683,60 @@ class EventHubSubscriber:
 
 @dataclass(frozen=True)
 class EventHubSubscription:
-    """Event Hub subscription details for a service."""
+    """Parameter object describing a service's Event Hubs binding."""
 
     eventhub_name: str
     consumer_group: str
+    namespace_env: str | None = None
+    connection_string_env: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class EventHubBinding:
+    """Resolved environment-backed binding for a single subscription."""
+
+    namespace: str
+    connection_string: str
+    namespace_env: str
+    connection_string_env: str
+
+    @property
+    def fully_qualified_namespace(self) -> str:
+        if self.namespace.endswith(".servicebus.windows.net"):
+            return self.namespace
+        return f"{self.namespace}.servicebus.windows.net"
+
+    @property
+    def uses_connection_string(self) -> bool:
+        return bool(self.connection_string)
+
+
+def resolve_eventhub_binding(
+    subscription: EventHubSubscription,
+    *,
+    default_namespace_env: str = DEFAULT_EVENT_HUB_NAMESPACE_ENV,
+    default_connection_string_env: str = DEFAULT_EVENT_HUB_CONNECTION_STRING_ENV,
+) -> EventHubBinding:
+    """Resolve the configured namespace or connection string for a subscription."""
+
+    namespace_env = subscription.namespace_env or default_namespace_env
+    connection_string_env = subscription.connection_string_env or default_connection_string_env
+    namespace = (os.getenv(namespace_env) or "").strip()
+    connection_string = (os.getenv(connection_string_env) or "").strip()
+
+    if connection_string or namespace:
+        return EventHubBinding(
+            namespace=namespace,
+            connection_string=connection_string,
+            namespace_env=namespace_env,
+            connection_string_env=connection_string_env,
+        )
+
+    raise RuntimeError(
+        "Event Hub binding missing for "
+        f"eventhub={subscription.eventhub_name} consumer_group={subscription.consumer_group}. "
+        f"Set {connection_string_env} or {namespace_env}."
+    )
 
 
 def build_basic_error_handler(*, logger: Any, eventhub_name: str) -> ErrorHandler:
@@ -702,7 +756,8 @@ def create_eventhub_lifespan(
     *,
     service_name: str,
     subscriptions: Iterable[EventHubSubscription],
-    connection_string_env: str = "EVENTHUB_CONNECTION_STRING",
+    connection_string_env: str = DEFAULT_EVENT_HUB_CONNECTION_STRING_ENV,
+    namespace_env: str = DEFAULT_EVENT_HUB_NAMESPACE_ENV,
     handlers: dict[str, EventHandler] | None = None,
     self_healing_kernel: SelfHealingKernel | None = None,
     reconcile_on_error: bool = False,
@@ -712,24 +767,28 @@ def create_eventhub_lifespan(
     @asynccontextmanager
     async def lifespan(_app) -> AsyncIterator[None]:  # noqa: ANN001
         logger = configure_logging(app_name=f"{service_name}-events")
-        connection_string = os.getenv(connection_string_env) or os.getenv(
-            "EVENT_HUB_CONNECTION_STRING"
-        )
-        namespace = os.getenv("EVENT_HUB_NAMESPACE") or os.getenv("EVENTHUB_NAMESPACE")
-        use_connection_string = bool(connection_string)
-
         credential: DefaultAzureCredential | None = None
+        client_id = os.getenv("AZURE_CLIENT_ID")
 
-        if not use_connection_string and not namespace:
-            logger.warning("eventhub_configuration_missing")
-            yield
-            return
-
-        if not use_connection_string and namespace:
-            client_id = os.getenv("AZURE_CLIENT_ID")
-            credential = DefaultAzureCredential(managed_identity_client_id=client_id)
+        resolved_subscriptions = [
+            (
+                subscription,
+                resolve_eventhub_binding(
+                    subscription,
+                    default_namespace_env=namespace_env,
+                    default_connection_string_env=connection_string_env,
+                ),
+            )
+            for subscription in subscriptions
+        ]
 
         tasks: list[asyncio.Task] = []
+
+        def get_credential() -> DefaultAzureCredential:
+            nonlocal credential
+            if credential is None:
+                credential = DefaultAzureCredential(managed_identity_client_id=client_id)
+            return credential
 
         def make_handler(eventhub_name: str):
             handler = handlers.get(eventhub_name) if handlers else None
@@ -749,23 +808,19 @@ def create_eventhub_lifespan(
 
             return _handler
 
-        for subscription in subscriptions:
+        for subscription, binding in resolved_subscriptions:
 
-            def make_client_factory(target_subscription: EventHubSubscription):
-                if use_connection_string and connection_string:
+            def make_client_factory(
+                target_subscription: EventHubSubscription,
+                target_binding: EventHubBinding,
+            ):
+                if target_binding.uses_connection_string:
                     return None
-
-                qualified_namespace = (
-                    namespace
-                    if namespace and namespace.endswith(".servicebus.windows.net")
-                    else f"{namespace}.servicebus.windows.net"
-                )
-                assert credential is not None
-                active_credential = credential
+                active_credential = get_credential()
 
                 def _factory() -> EventHubConsumerClient:
                     return EventHubConsumerClient(
-                        fully_qualified_namespace=qualified_namespace,
+                        fully_qualified_namespace=target_binding.fully_qualified_namespace,
                         consumer_group=target_subscription.consumer_group,
                         eventhub_name=target_subscription.eventhub_name,
                         credential=active_credential,
@@ -775,7 +830,7 @@ def create_eventhub_lifespan(
 
             subscriber = EventHubSubscriber(
                 EventHubSubscriberConfig(
-                    connection_string=connection_string or "",
+                    connection_string=binding.connection_string,
                     eventhub_name=subscription.eventhub_name,
                     consumer_group=subscription.consumer_group,
                 ),
@@ -784,7 +839,7 @@ def create_eventhub_lifespan(
                     logger=logger,
                     eventhub_name=subscription.eventhub_name,
                 ),
-                client_factory=make_client_factory(subscription),
+                client_factory=make_client_factory(subscription, binding),
                 **(
                     {
                         "self_healing_kernel": self_healing_kernel,

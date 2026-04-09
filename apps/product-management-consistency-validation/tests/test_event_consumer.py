@@ -6,13 +6,19 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from holiday_peak_lib.utils import (
+    PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV,
+    PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV,
+)
 from product_management_consistency_validation.completeness_engine import (
     CategorySchema,
     FieldDefinition,
 )
 from product_management_consistency_validation.event_consumer import (
+    _publish_enrichment_job,
     build_completeness_event_handlers,
 )
+from product_management_consistency_validation.main import SUBSCRIPTIONS
 
 
 def _make_event(payload: dict) -> MagicMock:
@@ -66,6 +72,14 @@ def _make_schema(category_id: str = "apparel") -> CategorySchema:
 async def test_handler_key_is_completeness_jobs():
     handlers = build_completeness_event_handlers()
     assert "completeness-jobs" in handlers
+
+
+def test_pmcv_subscriptions_only_bind_completeness_jobs() -> None:
+    assert [(subscription.eventhub_name, subscription.consumer_group) for subscription in SUBSCRIPTIONS] == [
+        ("completeness-jobs", "completeness-engine")
+    ]
+    assert SUBSCRIPTIONS[0].namespace_env == PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV
+    assert SUBSCRIPTIONS[0].connection_string_env == PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV
 
 
 @pytest.mark.asyncio
@@ -211,3 +225,50 @@ async def test_publishes_enrichment_job_below_threshold(monkeypatch):
     # The product has name filled (score = 2/4 = 0.5 < 0.9 threshold)
     # so enrichment should be triggered
     assert "SKU-LOW" in published
+
+
+@pytest.mark.asyncio
+async def test_publish_enrichment_job_uses_platform_jobs_binding() -> None:
+    publisher = AsyncMock()
+    publisher.publish_payload = AsyncMock(return_value=None)
+    report = MagicMock(
+        category_id="apparel",
+        schema_version="1.0",
+        completeness_score=0.5,
+        enrichable_gaps=[MagicMock(field_name="description")],
+    )
+
+    with patch(
+        "product_management_consistency_validation.event_consumer.build_truth_event_publisher_from_env",
+        return_value=publisher,
+    ) as build_publisher:
+        await _publish_enrichment_job("SKU-LOW", report)
+
+    build_publisher.assert_called_once_with(
+        service_name="product-management-consistency-validation",
+        namespace_env=PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV,
+        connection_string_env=PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV,
+    )
+    publisher.publish_payload.assert_awaited_once_with(
+        "enrichment-jobs",
+        {
+            "event_type": "enrichment_requested",
+            "data": {
+                "entity_id": "SKU-LOW",
+                "category_id": "apparel",
+                "schema_version": "1.0",
+                "completeness_score": 0.5,
+                "enrichable_gap_count": 1,
+                "enrichable_fields": ["description"],
+            },
+        },
+        metadata={
+            "domain": "product-management-consistency-validation",
+            "entity_id": "SKU-LOW",
+        },
+        remediation_context={
+            "preferred_action": "reset_messaging_publisher_bindings",
+            "workflow": "completeness_to_enrichment",
+            "target_topic": "enrichment-jobs",
+        },
+    )

@@ -26,7 +26,7 @@ python -m pytest ../tests
 ## Configuration notes
 - Uses Foundry model settings (`PROJECT_ENDPOINT` or `FOUNDRY_ENDPOINT`, fast/rich model identifiers).
 - Supports Redis/Cosmos/Blob memory configuration via shared memory settings.
-- Requires Event Hub namespace and consumer configuration for background jobs.
+- Requires the platform-jobs Event Hubs namespace and consumer configuration for background jobs.
 
 ---
 
@@ -66,8 +66,8 @@ Set these in the selected azd environment (recommended) or in your manual Helm v
 | MODEL_DEPLOYMENT_NAME_FAST | Yes | Fast-path deployment name |
 | FOUNDRY_AGENT_ID_RICH | Yes | Rich-path model agent id |
 | MODEL_DEPLOYMENT_NAME_RICH | Yes | Rich-path deployment name |
-| EVENT_HUB_NAMESPACE or EVENTHUB_NAMESPACE | Yes | Event Hub namespace FQDN |
-| EVENT_HUB_CONNECTION_STRING or EVENTHUB_CONNECTION_STRING | Usually | Needed when workload identity is not used |
+| PLATFORM_JOBS_EVENT_HUB_NAMESPACE | Yes | Platform-jobs Event Hubs namespace FQDN for `ingest-jobs`; no fallback to retail `EVENT_HUB_NAMESPACE` |
+| PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING | Optional | Needed only when workload identity is not used; no fallback to retail `EVENT_HUB_CONNECTION_STRING` |
 | APP_NAME | Recommended | Set to truth-ingestion |
 | CRUD_SERVICE_URL | Service-dependent | Required when this service calls CRUD APIs |
 | REDIS_URL / COSMOS_* / BLOB_* | Optional | Three-tier memory; service degrades gracefully when absent |

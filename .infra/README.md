@@ -129,11 +129,12 @@ All resources use AVM (Azure Verified Modules) and deploy to **eastus2** by defa
 - Database: `holiday-peak-db`
 - Containers: `warm-{agent}-chat-memory` (created per agent as needed)
 
-### Event Hubs Topics (10)
+### Event Hubs Namespaces And Topics
 
-`order-events`, `inventory-events`, `shipment-events`, `payment-events`, `user-events`, `ingest-jobs`, `enrichment-jobs`, `export-jobs`, `hitl-jobs`, `search-enrichment-jobs`
+- Retail namespace `{projectName}-{environment}-eventhub`: `order-events`, `product-events`, `return-events`, `inventory-events`, `shipment-events`, `payment-events`, `user-events`
+- Platform jobs namespace `{projectName}-{environment}-jobs-eh`: `ingest-jobs`, `enrichment-jobs`, `completeness-jobs`, `export-jobs`, `hitl-jobs`, `search-enrichment-jobs`
 
-Truth/search consumer groups include `ingestion-group`, `enrichment-engine`, `export-engine`, `hitl-service`, and `search-enrichment-consumer`.
+Platform-job consumer groups include `ingestion-group`, `enrichment-engine`, `completeness-engine`, `export-engine`, `hitl-service`, `search-enrichment-agent`, and `search-enrichment-consumer`.
 
 ### VNet Subnets
 

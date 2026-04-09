@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable
 from uuid import uuid4
@@ -14,6 +15,8 @@ from azure.identity.aio import DefaultAzureCredential
 from holiday_peak_lib.self_healing import SelfHealingKernel
 from holiday_peak_lib.utils.event_hub import (
     CRITICAL_SAGA_PUBLISH_PROFILE,
+    DEFAULT_EVENT_HUB_CONNECTION_STRING_ENV,
+    DEFAULT_EVENT_HUB_NAMESPACE_ENV,
     PublishReliabilityProfile,
     publish_with_reliability,
     resolve_publish_reliability_profile,
@@ -43,6 +46,33 @@ class TruthJobMessage(BaseModel):
     tenant_id: str = "default"
 
 
+def build_truth_event_publisher_from_env(
+    *,
+    service_name: str,
+    namespace_env: str = DEFAULT_EVENT_HUB_NAMESPACE_ENV,
+    connection_string_env: str = DEFAULT_EVENT_HUB_CONNECTION_STRING_ENV,
+    self_healing_kernel: SelfHealingKernel | None = None,
+    credential: Any | None = None,
+    producer_factory: Callable[[str], EventHubProducerClient] | None = None,
+    topic_profiles: dict[str, PublishReliabilityProfile] | None = None,
+) -> "TruthEventPublisher":
+    """Build a truth-layer publisher bound to explicit environment names."""
+
+    namespace = (os.getenv(namespace_env) or "").strip() or None
+    connection_string = (os.getenv(connection_string_env) or "").strip() or None
+    return TruthEventPublisher(
+        namespace=namespace,
+        connection_string=connection_string,
+        credential=credential,
+        producer_factory=producer_factory,
+        self_healing_kernel=self_healing_kernel,
+        service_name=service_name,
+        topic_profiles=topic_profiles,
+        namespace_env_name=namespace_env,
+        connection_string_env_name=connection_string_env,
+    )
+
+
 class TruthEventPublisher:
     """Publishes truth-layer job messages to Event Hub topics.
 
@@ -60,6 +90,8 @@ class TruthEventPublisher:
         self_healing_kernel: SelfHealingKernel | None = None,
         service_name: str = "truth-event-publisher",
         topic_profiles: dict[str, PublishReliabilityProfile] | None = None,
+        namespace_env_name: str = DEFAULT_EVENT_HUB_NAMESPACE_ENV,
+        connection_string_env_name: str = DEFAULT_EVENT_HUB_CONNECTION_STRING_ENV,
     ) -> None:
         """Initialise the publisher.
 
@@ -79,6 +111,8 @@ class TruthEventPublisher:
         self._self_healing_kernel = self_healing_kernel
         self._service_name = service_name
         self._topic_profiles = dict(topic_profiles or {})
+        self._namespace_env_name = namespace_env_name
+        self._connection_string_env_name = connection_string_env_name
         self._logger = configure_logging(app_name=service_name)
 
     @property
@@ -107,7 +141,8 @@ class TruthEventPublisher:
 
         if not self._namespace:
             raise ValueError(
-                "TruthEventPublisher requires EVENT_HUB_NAMESPACE or EVENT_HUB_CONNECTION_STRING"
+                "TruthEventPublisher requires "
+                f"{self._namespace_env_name} or {self._connection_string_env_name}"
             )
 
         if self._credential is None:
