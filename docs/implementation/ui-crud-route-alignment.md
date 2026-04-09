@@ -37,10 +37,11 @@
 - Staff routes require staff authorization from backend auth policy.
 - Added a Next.js server route proxy at `/api/*` (`apps/ui/app/api/[...path]/route.ts`) so SWA calls forward to `${NEXT_PUBLIC_CRUD_API_URL}/api/*` consistently in production.
 - Browser-side API clients now use same-origin routes (`/api/*` and `/agent-api/*`) to avoid APIM CORS failures from the SWA origin.
-- API proxy base URL resolution now uses fallback aliases for backward compatibility:
+- CRUD proxy base URL resolution still uses fallback aliases for backward compatibility:
   - `/api/*` route: `NEXT_PUBLIC_CRUD_API_URL` -> `NEXT_PUBLIC_API_URL` -> `NEXT_PUBLIC_API_BASE_URL` -> `CRUD_API_URL`.
-  - `/agent-api/*` route: `NEXT_PUBLIC_AGENT_API_URL` -> `AGENT_API_URL` -> `${NEXT_PUBLIC_CRUD_API_URL}/agents` -> `${NEXT_PUBLIC_API_URL}/agents`.
-  - Missing config now returns explicit HTTP 500 messages describing which env keys to set.
+- Agent proxy base URL resolution now requires explicit agent envs:
+  - `/agent-api/*` route: `NEXT_PUBLIC_AGENT_API_URL` -> `AGENT_API_URL`.
+  - Missing agent proxy config now returns explicit `502` diagnostics describing which explicit agent env keys to set.
 - UI deployment workflows now fail fast if API URL resolution is empty and set both `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_CRUD_API_URL` from the same validated source.
 
 ## Entra provisioning update (2026-03-02)
@@ -137,7 +138,16 @@
 
 - Browser UI API calls for dashboard/profile flows are same-origin `/api/*` paths from `apps/ui/lib/api/endpoints.ts`.
 - Those calls are forwarded by Next.js catch-all proxy route `apps/ui/app/api/[...path]/route.ts` to `${CRUD_BASE_URL}/api/*` using documented fallback resolution in `apps/ui/app/api/_shared/base-url-resolver.ts`.
-- Server-side session bootstrap (`apps/ui/app/api/auth/session/route.ts`) uses the same CRUD base URL resolver and calls `/api/auth/me` directly for token validation.
+- Server-side session bootstrap (`apps/ui/app/api/auth/session/route.ts`) now validates tokens through the existing same-origin `/api/auth/me` proxy boundary instead of resolving and calling the CRUD base URL directly.
+
+## UI proxy boundary hardening (2026-04-08)
+
+- Agent proxy base URL resolution is now an explicit contract:
+  - `NEXT_PUBLIC_AGENT_API_URL`
+  - `AGENT_API_URL`
+- CRUD env aliases are no longer used to synthesize agent upstream URLs.
+- Browser and UI test clients continue to use the same-origin `/agent-api/*` route.
+- Auth session synchronization (`/api/auth/session`) now calls the same-origin `/api/auth/me` route, which keeps CRUD upstream resolution inside the shared `/api/*` proxy boundary.
 
 ### Backend/config change decision
 

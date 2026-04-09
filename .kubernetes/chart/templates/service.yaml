@@ -2,6 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ include "holiday-peak-service.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
     app: {{ .Values.serviceName }}
   {{- with .Values.service.annotations }}
@@ -27,6 +28,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ include "holiday-peak-service.fullname" . }}-canary
+  namespace: {{ .Release.Namespace }}
   labels:
     app: {{ .Values.serviceName }}
     canary: "true"

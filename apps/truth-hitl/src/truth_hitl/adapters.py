@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
 from holiday_peak_lib.self_healing import SelfHealingKernel
-from holiday_peak_lib.utils.truth_event_hub import TruthEventPublisher
+from holiday_peak_lib.utils import (
+    PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV,
+    PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV,
+)
+from holiday_peak_lib.utils.truth_event_hub import (
+    TruthEventPublisher,
+    build_truth_event_publisher_from_env,
+)
 from truth_hitl.review_manager import ReviewManager
 
 
@@ -23,12 +29,11 @@ class EventHubPublisher:
         self_healing_kernel: SelfHealingKernel | None = None,
     ) -> None:
         self.topic = topic
-        self._publisher = publisher or TruthEventPublisher(
-            namespace=os.getenv("EVENT_HUB_NAMESPACE") or os.getenv("EVENTHUB_NAMESPACE"),
-            connection_string=os.getenv("EVENT_HUB_CONNECTION_STRING")
-            or os.getenv("EVENTHUB_CONNECTION_STRING"),
-            self_healing_kernel=self_healing_kernel,
+        self._publisher = publisher or build_truth_event_publisher_from_env(
             service_name="truth-hitl",
+            namespace_env=PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV,
+            connection_string_env=PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV,
+            self_healing_kernel=self_healing_kernel,
         )
 
     def attach_self_healing(self, self_healing_kernel: SelfHealingKernel | None) -> None:

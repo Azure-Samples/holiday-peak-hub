@@ -107,3 +107,5 @@ output aksOidcIssuerUrl string = sharedInfra.outputs.aksOidcIssuerUrl
 output aksNodeResourceGroup string = sharedInfra.outputs.aksNodeResourceGroup
 output monitoringActionGroupId string = sharedInfra.outputs.monitoringActionGroupId
 output monitoringActionGroupName string = sharedInfra.outputs.monitoringActionGroupName
+output agentsWorkloadIdentityClientId string = sharedInfra.outputs.agentsWorkloadIdentityClientId
+output crudWorkloadIdentityClientId string = sharedInfra.outputs.crudWorkloadIdentityClientId

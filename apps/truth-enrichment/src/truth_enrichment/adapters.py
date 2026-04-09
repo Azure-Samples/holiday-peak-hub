@@ -8,8 +8,15 @@ from typing import Any, Optional
 
 from holiday_peak_lib.adapters.dam_image_analysis import DAMImageAnalysisAdapter
 from holiday_peak_lib.self_healing import SelfHealingKernel
+from holiday_peak_lib.utils import (
+    PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV,
+    PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV,
+)
 from holiday_peak_lib.utils.logging import configure_logging
-from holiday_peak_lib.utils.truth_event_hub import TruthEventPublisher
+from holiday_peak_lib.utils.truth_event_hub import (
+    TruthEventPublisher,
+    build_truth_event_publisher_from_env,
+)
 
 logger = configure_logging(app_name="truth-enrichment")
 
@@ -82,12 +89,11 @@ class EventHubPublisher:
         self_healing_kernel: SelfHealingKernel | None = None,
     ) -> None:
         self.topic = topic
-        self._publisher = publisher or TruthEventPublisher(
-            namespace=os.getenv("EVENT_HUB_NAMESPACE") or os.getenv("EVENTHUB_NAMESPACE"),
-            connection_string=os.getenv("EVENT_HUB_CONNECTION_STRING")
-            or os.getenv("EVENTHUB_CONNECTION_STRING"),
-            self_healing_kernel=self_healing_kernel,
+        self._publisher = publisher or build_truth_event_publisher_from_env(
             service_name="truth-enrichment",
+            namespace_env=PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV,
+            connection_string_env=PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING_ENV,
+            self_healing_kernel=self_healing_kernel,
         )
 
     def attach_self_healing(self, self_healing_kernel: SelfHealingKernel | None) -> None:

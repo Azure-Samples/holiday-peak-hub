@@ -5,6 +5,14 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def normalize_foundry_env_for_lib_tests(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep lib tests hermetic from ambient Foundry strict-mode flags."""
+    # No GoF pattern applies — this fixture only normalizes ambient env per test.
+    monkeypatch.delenv("FOUNDRY_STRICT_ENFORCEMENT", raising=False)
+    monkeypatch.delenv("FOUNDRY_AUTO_ENSURE_ON_STARTUP", raising=False)
+
+
 @pytest.fixture
 def mock_redis_client():
     """Mock Redis client for testing."""
