@@ -57,9 +57,7 @@ async def test_aks_ingress_503_misconfiguration_recoverable_and_closes():
 async def test_aks_ingress_502_bad_gateway_recoverable_and_closes():
     kernel = _make_kernel()
 
-    incident = await kernel.handle_failure_signal(
-        _aks_signal(502, error_message="bad gateway")
-    )
+    incident = await kernel.handle_failure_signal(_aks_signal(502, error_message="bad gateway"))
 
     assert incident is not None
     assert incident.incident_class == IncidentClass.INFRASTRUCTURE_MISCONFIGURATION

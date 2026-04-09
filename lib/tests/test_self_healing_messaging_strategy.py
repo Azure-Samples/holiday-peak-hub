@@ -93,9 +93,7 @@ async def test_messaging_authorization_failure_recoverable_and_closes():
 async def test_messaging_throttled_failure_recoverable_and_closes():
     kernel = _make_kernel()
 
-    incident = await kernel.handle_failure_signal(
-        _messaging_signal(failure_category="throttled")
-    )
+    incident = await kernel.handle_failure_signal(_messaging_signal(failure_category="throttled"))
 
     assert incident is not None
     assert incident.recoverable is True

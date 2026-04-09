@@ -4,8 +4,8 @@
 |--------------|------------------------------------|
 | **Status**   | Accepted                           |
 | **Date**     | 2026-04-09                         |
-| **Epic**     | #657                               |
-| **Issue**    | #661                               |
+| **Epic**     | #657                             |
+| **Issue**    | #661                             |
 | **Deciders** | Platform Engineering, Architecture |
 
 ## Context
