@@ -223,6 +223,30 @@ if ($pdbEnabled -eq "true") {
   }
 }
 
+# Workload Identity — bind pods to the correct UAMI via ServiceAccount
+# Batch 1 agents (first 20) use AGENTS_WORKLOAD_CLIENT_ID; batch 2 (overflow) use AGENTS2_WORKLOAD_CLIENT_ID.
+$helmArgs += @('--set', 'serviceAccount.create=true')
+if ($ServiceName -eq 'crud-service') {
+  $workloadClientId = $env:CRUD_WORKLOAD_CLIENT_ID
+} else {
+  $batch2Services = @(
+    'product-management-normalization-classification',
+    'search-enrichment-agent',
+    'truth-enrichment',
+    'truth-export',
+    'truth-hitl',
+    'truth-ingestion'
+  )
+  if ($batch2Services -contains $ServiceName) {
+    $workloadClientId = if ($env:AGENTS2_WORKLOAD_CLIENT_ID) { $env:AGENTS2_WORKLOAD_CLIENT_ID } else { $env:AGENTS_WORKLOAD_CLIENT_ID }
+  } else {
+    $workloadClientId = $env:AGENTS_WORKLOAD_CLIENT_ID
+  }
+}
+if ($workloadClientId) {
+  $helmArgs += @('--set-string', "serviceAccount.clientId=$workloadClientId")
+}
+
 $isAgentService = $ServiceName -ne "crud-service"
 $resolvedFoundryAgentNameFast = $env:FOUNDRY_AGENT_NAME_FAST
 $resolvedFoundryAgentNameRich = $env:FOUNDRY_AGENT_NAME_RICH
@@ -314,7 +338,7 @@ $envMappings = @{
   REDIS_HOST = $resolvedRedisHost
   REDIS_PASSWORD = $env:REDIS_PASSWORD
   REDIS_PASSWORD_SECRET_NAME = $resolvedRedisPasswordSecretName
-  AZURE_CLIENT_ID = $env:AZURE_CLIENT_ID
+  AZURE_CLIENT_ID = if ($workloadClientId) { $workloadClientId } else { $env:AZURE_CLIENT_ID }
   AZURE_TENANT_ID = $env:AZURE_TENANT_ID
 
   # Azure AI Foundry
