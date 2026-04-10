@@ -1,6 +1,41 @@
 """Configuration models."""
 
+from urllib.parse import quote, urlsplit, urlunsplit
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_AZURE_REDIS_HOST_SUFFIX = ".redis.cache.windows.net"
+
+
+def _is_azure_redis_hostname(hostname: str | None) -> bool:
+    return bool(hostname and hostname.endswith(_AZURE_REDIS_HOST_SUFFIX))
+
+
+def _upgrade_azure_redis_url_with_password(url: str, password: str | None) -> str | None:
+    if not password:
+        return None
+
+    try:
+        parsed = urlsplit(url)
+        port = parsed.port
+    except ValueError:
+        return None
+
+    if parsed.scheme not in {"redis", "rediss"}:
+        return None
+    if not _is_azure_redis_hostname(parsed.hostname) or parsed.password:
+        return None
+
+    host = parsed.hostname or ""
+    if ":" in host and not host.startswith("["):
+        host = f"[{host}]"
+    username = quote(parsed.username or "", safe="")
+    encoded_password = quote(password, safe="")
+    credentials = f"{username}:{encoded_password}" if username else f":{encoded_password}"
+    netloc = f"{credentials}@{host}"
+    if port is not None:
+        netloc = f"{netloc}:{port}"
+    return urlunsplit(parsed._replace(netloc=netloc))
 
 
 class MemorySettings(BaseSettings):
@@ -17,6 +52,21 @@ class MemorySettings(BaseSettings):
     blob_account_url: str | None = None
     blob_container: str | None = None
 
+    def redis_url_needs_password_resolution(self, url: str | None = None) -> bool:
+        """Return True when an Azure Redis URL is present without auth."""
+        candidate = url if url is not None else self.resolve_redis_url()
+        if not candidate:
+            return False
+        try:
+            parsed = urlsplit(candidate)
+        except ValueError:
+            return False
+        return (
+            parsed.scheme in {"redis", "rediss"}
+            and _is_azure_redis_hostname(parsed.hostname)
+            and not parsed.password
+        )
+
     def resolve_redis_url(self, password: str | None = None) -> str | None:
         """Return a fully-formed Redis URL.
 
@@ -26,14 +76,19 @@ class MemorySettings(BaseSettings):
            ``redis_password`` env var.
         """
         if self.redis_url:
-            return self.redis_url
+            upgraded_url = _upgrade_azure_redis_url_with_password(
+                self.redis_url,
+                password or self.redis_password,
+            )
+            return upgraded_url or self.redis_url
         host = self.redis_host
         if not host:
             return None
         if not host.endswith(".redis.cache.windows.net"):
             host = f"{host}.redis.cache.windows.net"
         pw = password or self.redis_password
-        auth = f":{pw}@" if pw else ""
+        encoded_password = quote(pw, safe="") if pw else None
+        auth = f":{encoded_password}@" if encoded_password else ""
         return f"rediss://{auth}{host}:6380/0"
 
 

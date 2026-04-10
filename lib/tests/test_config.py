@@ -73,6 +73,7 @@ class TestMemorySettings:
         monkeypatch.setenv("BLOB_CONTAINER", "container")
 
         settings = _memory_settings()
+        assert settings.redis_url is not None
         assert "redis://" in settings.redis_url
         assert "6379" in settings.redis_url
 
@@ -82,6 +83,20 @@ class TestMemorySettings:
         settings = _memory_settings()
         assert settings.resolve_redis_url() == "redis://explicit:6379/0"
         assert settings.resolve_redis_url(password="ignored") == "redis://explicit:6379/0"
+
+    def test_resolve_redis_url_upgrades_explicit_azure_url_without_auth(self, monkeypatch):
+        """resolve_redis_url injects auth into explicit Azure Redis URLs when available."""
+        for key in ("REDIS_HOST", "REDIS_PASSWORD"):
+            monkeypatch.delenv(key, raising=False)
+        monkeypatch.setenv("REDIS_URL", "rediss://myredis.redis.cache.windows.net:6380/0")
+
+        settings = _memory_settings()
+
+        assert settings.redis_url_needs_password_resolution(settings.redis_url) is True
+        assert (
+            settings.resolve_redis_url(password="s3cret")
+            == "rediss://:s3cret@myredis.redis.cache.windows.net:6380/0"
+        )
 
     def test_resolve_redis_url_from_host_and_password_arg(self, monkeypatch):
         """resolve_redis_url builds URL from redis_host + password argument."""

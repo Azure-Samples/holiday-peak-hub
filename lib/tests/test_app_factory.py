@@ -1,6 +1,6 @@
 """Tests for app_factory module."""
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import FastAPI
@@ -10,6 +10,7 @@ from holiday_peak_lib.agents.memory.cold import ColdMemory
 from holiday_peak_lib.agents.memory.hot import HotMemory
 from holiday_peak_lib.agents.memory.warm import WarmMemory
 from holiday_peak_lib.app_factory import build_service_app
+from holiday_peak_lib.config.settings import MemorySettings
 from holiday_peak_lib.connectors.registry import ConnectorRegistry
 
 TEST_PROJECT_ENDPOINT = "https://test.services.ai.azure.com/api/projects/test-project"
@@ -260,6 +261,48 @@ class TestBuildServiceApp:
             )
 
             assert isinstance(app, FastAPI)
+
+    def test_build_app_upgrades_explicit_azure_redis_url_with_key_vault_secret(
+        self, monkeypatch
+    ):
+        """Startup upgrades passwordless Azure Redis URLs before first request handling."""
+        for key in (
+            "PROJECT_ENDPOINT",
+            "FOUNDRY_AGENT_ID_FAST",
+            "FOUNDRY_AGENT_ID_RICH",
+            "FOUNDRY_AGENT_NAME_FAST",
+            "FOUNDRY_AGENT_NAME_RICH",
+        ):
+            monkeypatch.delenv(key, raising=False)
+
+        hot_memory = HotMemory("rediss://myredis.redis.cache.windows.net:6380/0")
+        memory_settings = MemorySettings(
+            _env_file=None,
+            redis_url="rediss://myredis.redis.cache.windows.net:6380/0",
+            key_vault_uri="https://test-kv.vault.azure.net/",
+            redis_password_secret_name="redis-primary-key",
+        )
+
+        with patch(
+            "holiday_peak_lib.app_factory._fetch_key_vault_secret",
+            new=AsyncMock(return_value="s3cret"),
+        ) as mock_fetch:
+            app = build_service_app(
+                service_name="test-service",
+                agent_class=SampleServiceAgent,
+                hot_memory=hot_memory,
+                memory_settings=memory_settings,
+            )
+
+            with TestClient(app):
+                pass
+
+        assert hot_memory.url == "rediss://:s3cret@myredis.redis.cache.windows.net:6380/0"
+        assert hot_memory.client is None
+        mock_fetch.assert_awaited_once_with(
+            "https://test-kv.vault.azure.net/",
+            "redis-primary-key",
+        )
 
     def test_app_health_endpoint(
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch

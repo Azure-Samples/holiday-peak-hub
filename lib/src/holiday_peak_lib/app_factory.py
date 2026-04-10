@@ -304,14 +304,13 @@ def build_service_app(
 
     @asynccontextmanager
     async def _service_lifespan(wrapped_app: FastAPI) -> AsyncIterator[None]:
-        # Resolve Redis password from Key Vault when hot_memory was created
-        # with a passwordless URL (REDIS_HOST set, REDIS_URL not provided).
+        # Resolve missing Azure Redis auth from Key Vault before serving traffic.
         if (
             memory_settings is not None
             and hot_memory is not None
-            and not memory_settings.redis_url
-            and memory_settings.redis_host
             and memory_settings.key_vault_uri
+            and memory_settings.redis_password_secret_name
+            and memory_settings.redis_url_needs_password_resolution(hot_memory.url)
         ):
             try:
                 redis_password = await _fetch_key_vault_secret(
@@ -319,7 +318,7 @@ def build_service_app(
                     memory_settings.redis_password_secret_name,
                 )
                 new_url = memory_settings.resolve_redis_url(password=redis_password)
-                if new_url:
+                if new_url and new_url != hot_memory.url:
                     hot_memory.url = new_url
                     hot_memory.client = None  # Force reconnect with new URL
                     logger.info("Redis password resolved from Key Vault")
