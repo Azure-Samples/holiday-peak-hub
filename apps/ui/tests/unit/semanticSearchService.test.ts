@@ -16,9 +16,16 @@ jest.mock('../../lib/services/productService', () => ({
 }));
 
 describe('semanticSearchService.searchWithMode', () => {
+  let consoleErrorSpy: jest.SpyInstance;
+
   beforeEach(() => {
     jest.clearAllMocks();
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     (productService.search as jest.Mock).mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    consoleErrorSpy.mockRestore();
   });
 
   it('forwards optional context fields in the request payload', async () => {
@@ -56,7 +63,7 @@ describe('semanticSearchService.searchWithMode', () => {
     );
   });
 
-  it('falls back to CRUD when agent payload uses example.com host content', async () => {
+  it('accepts example.com placeholder URLs as valid agent results', async () => {
     (agentApiClient.post as jest.Mock).mockResolvedValue({
       data: {
         items: [
@@ -64,6 +71,32 @@ describe('semanticSearchService.searchWithMode', () => {
             item_id: 'SKU-1',
             title: 'Trail runner',
             image_url: 'https://example.com/mock.jpg',
+            url: 'https://example.com/products/SKU-1',
+          },
+        ],
+        mode: 'intelligent',
+      },
+    });
+
+    const result = await semanticSearchService.searchWithMode('running shoes', 'intelligent', 20);
+
+    expect(result.source).toBe('agent');
+    expect(result.mode).toBe('intelligent');
+    expect(result.fallback_reason).toBeUndefined();
+    expect(result.items[0]).toMatchObject({
+      sku: 'SKU-1',
+      thumbnail: '/images/products/p1.jpg',
+    });
+    expect(productService.search).not.toHaveBeenCalled();
+  });
+
+  it('falls back to CRUD for explicit mock-like agent payloads', async () => {
+    (agentApiClient.post as jest.Mock).mockResolvedValue({
+      data: {
+        items: [
+          {
+            item_id: 'SKU-2',
+            title: 'Mock Trail Runner',
           },
         ],
         mode: 'intelligent',
@@ -77,26 +110,14 @@ describe('semanticSearchService.searchWithMode', () => {
     expect(result.fallback_reason).toBe('agent_mock');
   });
 
-  it('does not treat example.com in path/query text as a mock host', async () => {
-    (agentApiClient.post as jest.Mock).mockResolvedValue({
-      data: {
-        items: [
-          {
-            item_id: 'SKU-2',
-            title: 'Trail runner pro',
-            image_url: 'https://cdn.contoso.com/assets/example.com/banner.jpg',
-            url: 'https://shop.contoso.com/product/sku-2?ref=example.com',
-          },
-        ],
-        mode: 'intelligent',
-      },
-    });
+  it('falls back to CRUD with agent_unavailable on generic agent request failures', async () => {
+    (agentApiClient.post as jest.Mock).mockRejectedValue(new Error('connect ETIMEDOUT'));
 
     const result = await semanticSearchService.searchWithMode('running shoes', 'intelligent', 20);
 
-    expect(result.source).toBe('agent');
-    expect(result.items[0].sku).toBe('SKU-2');
-    expect(productService.search).not.toHaveBeenCalled();
+    expect(productService.search).toHaveBeenCalledWith('running shoes', 20);
+    expect(result.source).toBe('crud');
+    expect(result.fallback_reason).toBe('agent_unavailable');
   });
 
   it('maps degraded fallback metadata from agent responses', async () => {

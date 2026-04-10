@@ -186,7 +186,7 @@ class CatalogSearchAgent(BaseRetailAgent):
     async def _classify_intent(self, query: str) -> IntentClassification:
         """Internal intent classification hook used by intelligent retrieval path."""
         fallback_intent = _deterministic_intent_policy(query)
-        if not query.strip() or not (self.slm or self.llm):
+        if not query.strip():
             return fallback_intent
 
         messages = [
@@ -378,7 +378,7 @@ class CatalogSearchAgent(BaseRetailAgent):
             "model_attempted": False,
         }
 
-        if self.slm or self.llm:
+        if mode != "keyword" and (self.slm is not None or self.llm is not None):
             deterministic_response["model_attempted"] = True
             messages = [
                 {
