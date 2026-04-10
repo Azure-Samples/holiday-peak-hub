@@ -57,8 +57,7 @@ if [ "$SERVICE_NAME" = "crud-service" ]; then
   WORKLOAD_TYPE="crud"
   case "$DEPLOY_ENV" in
     dev|development|local)
-      # Dev profile prioritizes fast iteration over strict availability.
-      READINESS_PATH="/health"
+      # Dev profile prioritizes fast iteration while preserving dependency-aware readiness.
       REPLICA_COUNT="1"
       PDB_ENABLED="false"
       PDB_MIN_AVAILABLE=""
@@ -323,6 +322,19 @@ if [ -n "$RESOLVED_REDIS_HOST" ] && ! printf '%s' "$RESOLVED_REDIS_HOST" | grep 
   RESOLVED_REDIS_HOST="${RESOLVED_REDIS_HOST}.redis.cache.windows.net"
 fi
 RESOLVED_REDIS_PASSWORD_SECRET_NAME="${REDIS_PASSWORD_SECRET_NAME:-redis-primary-key}"
+RESOLVED_REDIS_URL=""
+if [ -n "${REDIS_URL:-}" ]; then
+  case "$REDIS_URL" in
+    *://*:*@*)
+      RESOLVED_REDIS_URL="$REDIS_URL"
+      ;;
+    *)
+      if [ -z "$RESOLVED_REDIS_HOST" ]; then
+        RESOLVED_REDIS_URL="$REDIS_URL"
+      fi
+      ;;
+  esac
+fi
 RESOLVED_AI_SEARCH_AUTH_MODE="${AI_SEARCH_AUTH_MODE:-}"
 case "$(printf '%s' "$RESOLVED_AI_SEARCH_AUTH_MODE" | tr '[:upper:]' '[:lower:]')" in
   api_key)
@@ -381,7 +393,7 @@ add_env_arg "AI_SEARCH_KEY" "$RESOLVED_AI_SEARCH_KEY"
 add_env_arg "EMBEDDING_DEPLOYMENT_NAME" "${EMBEDDING_DEPLOYMENT_NAME:-}"
 
 # Memory tiers
-add_env_arg "REDIS_URL" "${REDIS_URL:-}"
+add_env_arg "REDIS_URL" "$RESOLVED_REDIS_URL"
 add_env_arg "COSMOS_ACCOUNT_URI" "${COSMOS_ACCOUNT_URI:-}"
 add_env_arg "COSMOS_DATABASE" "${COSMOS_DATABASE:-}"
 COSMOS_CONTAINER_VALUE="${COSMOS_CONTAINER:-}"

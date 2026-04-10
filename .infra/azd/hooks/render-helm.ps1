@@ -36,8 +36,7 @@ if ($ServiceName -eq "crud-service") {
   $nodePool = "crud"
   $workloadType = "crud"
   if ($deployEnv -in @("dev", "development", "local")) {
-    # Dev profile prioritizes fast iteration over strict availability.
-    $readinessPath = "/health"
+    # Dev profile prioritizes fast iteration while preserving dependency-aware readiness.
     $replicaCount = "1"
     $pdbEnabled = "false"
     $pdbMinAvailable = ""
@@ -319,6 +318,14 @@ if (-not [string]::IsNullOrWhiteSpace($resolvedRedisHost) -and -not $resolvedRed
   $resolvedRedisHost = "$resolvedRedisHost.redis.cache.windows.net"
 }
 $resolvedRedisPasswordSecretName = if ($env:REDIS_PASSWORD_SECRET_NAME) { $env:REDIS_PASSWORD_SECRET_NAME } else { 'redis-primary-key' }
+$resolvedRedisUrl = $null
+if (-not [string]::IsNullOrWhiteSpace($env:REDIS_URL)) {
+  $candidateRedisUrl = $env:REDIS_URL.Trim()
+  $hasEmbeddedRedisCredentials = $candidateRedisUrl -match '^[^:]+://[^/@\s]+@'
+  if ($hasEmbeddedRedisCredentials -or [string]::IsNullOrWhiteSpace($resolvedRedisHost)) {
+    $resolvedRedisUrl = $candidateRedisUrl
+  }
+}
 $resolvedAiSearchAuthMode = if ($env:AI_SEARCH_AUTH_MODE) { $env:AI_SEARCH_AUTH_MODE } else { '' }
 $shouldInjectAiSearchKey = -not [string]::IsNullOrWhiteSpace($resolvedAiSearchAuthMode) -and $resolvedAiSearchAuthMode.Trim().Equals('api_key', [System.StringComparison]::OrdinalIgnoreCase)
 $resolvedAiSearchKey = if ($shouldInjectAiSearchKey) { $env:AI_SEARCH_KEY } else { $null }
@@ -365,7 +372,7 @@ $envMappings = @{
   EMBEDDING_DEPLOYMENT_NAME = $env:EMBEDDING_DEPLOYMENT_NAME
 
   # Memory tiers
-  REDIS_URL = $env:REDIS_URL
+  REDIS_URL = $resolvedRedisUrl
   COSMOS_ACCOUNT_URI = $env:COSMOS_ACCOUNT_URI
   COSMOS_DATABASE = $env:COSMOS_DATABASE
   COSMOS_CONTAINER = $env:COSMOS_CONTAINER

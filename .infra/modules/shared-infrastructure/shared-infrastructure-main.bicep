@@ -15,6 +15,12 @@ param agcSubnetAddressPrefix string = '10.0.12.0/24'
 @secure()
 @description('Optional PostgreSQL administrator password for CRUD database.')
 param postgresAdminPassword string = ''
+@allowed([
+  'password'
+  'entra'
+])
+@description('CRUD PostgreSQL auth mode to apply to shared infrastructure and downstream outputs.')
+param postgresAuthMode string = 'password'
 @description('Optional email receiver for infrastructure alerts action group.')
 param alertNotificationEmail string = ''
 @secure()
@@ -50,6 +56,7 @@ module sharedInfra './shared-infrastructure.bicep' = {
     agcSupportEnabled: agcSupportEnabled
     agcSubnetAddressPrefix: agcSubnetAddressPrefix
     postgresAdminPassword: postgresAdminPassword
+    postgresAuthMode: postgresAuthMode
     alertNotificationEmail: alertNotificationEmail
     alertTeamsWebhookUrl: alertTeamsWebhookUrl
     aksNodeCount: aksNodeCount
@@ -71,6 +78,7 @@ output postgresServerName string = sharedInfra.outputs.postgresServerName
 output postgresFqdn string = sharedInfra.outputs.postgresFqdn
 output postgresDatabaseName string = sharedInfra.outputs.postgresDatabaseName
 output postgresAdminUser string = sharedInfra.outputs.postgresAdminUser
+output postgresWorkloadUser string = sharedInfra.outputs.postgresWorkloadUser
 output eventHubsNamespaceName string = sharedInfra.outputs.eventHubsNamespaceName
 output platformJobsNamespaceName string = sharedInfra.outputs.platformJobsNamespaceName
 output redisName string = sharedInfra.outputs.redisName
