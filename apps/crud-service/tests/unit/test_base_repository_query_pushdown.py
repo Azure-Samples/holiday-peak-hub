@@ -1,8 +1,7 @@
 """Unit tests for BaseRepository SQL pushdown query path."""
 
 import pytest
-from crud_service.repositories import BaseRepository
-from crud_service.repositories import ProductRepository
+from crud_service.repositories import BaseRepository, ProductRepository
 
 
 class _FakeAcquire:
