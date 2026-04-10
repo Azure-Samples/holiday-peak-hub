@@ -420,6 +420,10 @@ module acr 'br/public:avm/res/container-registry/registry:0.12.0' = {
 // Cosmos hosts agent warm memory containers and Product Truth Layer containers.
 var cosmosContainers = [
   {
+    name: 'agent-memory'
+    paths: ['/service']
+  }
+  {
     name: 'products'
     paths: ['/categoryId']
   }
@@ -666,6 +670,12 @@ module storage 'br/public:avm/res/storage/storage-account:0.32.0' = {
     blobServices: {
       deleteRetentionPolicyEnabled: true
       deleteRetentionPolicyDays: 7
+      containers: [
+        {
+          name: 'agent-memory'
+          publicAccess: 'None'
+        }
+      ]
     }
     tags: tags
   }
@@ -1568,6 +1578,8 @@ output redisName string = redis.outputs.name
 #disable-next-line outputs-should-not-contain-secrets
 output redisPasswordSecretName string = redisPasswordSecretName
 output storageAccountName string = storage.outputs.name
+output storageAccountUrl string = 'https://${storage.outputs.name}.blob.${az.environment().suffixes.storage}'
+output agentMemoryContainerName string = 'agent-memory'
 output keyVaultName string = keyVault.outputs.name
 output keyVaultUri string = keyVault.outputs.uri
 output apimName string = apim.outputs.name

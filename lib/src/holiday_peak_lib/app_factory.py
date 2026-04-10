@@ -42,6 +42,21 @@ _FALLBACK_INSTRUCTIONS_TEMPLATE = (
 )
 
 
+async def _fetch_key_vault_secret(vault_uri: str, secret_name: str) -> str:
+    """Retrieve a secret from Azure Key Vault using managed identity."""
+    from azure.identity.aio import DefaultAzureCredential  # pylint: disable=import-outside-toplevel
+    from azure.keyvault.secrets.aio import SecretClient  # pylint: disable=import-outside-toplevel
+
+    credential = DefaultAzureCredential()
+    client = SecretClient(vault_url=vault_uri, credential=credential)
+    try:
+        secret = await client.get_secret(secret_name)
+        return secret.value
+    finally:
+        await client.close()
+        await credential.close()
+
+
 def _build_foundry_config(agent_env: str, deployment_env: str) -> FoundryAgentConfig | None:
     """Backward-compatible alias for internal Foundry config builder."""
     return build_foundry_config(agent_env, deployment_env)
@@ -85,7 +100,8 @@ def create_standard_app(
     """
     self_healing_kernel = SelfHealingKernel.from_env(service_name)
     memory_settings = MemorySettings()
-    hot_memory = HotMemory(memory_settings.redis_url) if memory_settings.redis_url else None
+    resolved_redis_url = memory_settings.resolve_redis_url()
+    hot_memory = HotMemory(resolved_redis_url) if resolved_redis_url else None
     warm_memory = (
         WarmMemory(
             memory_settings.cosmos_account_uri,
@@ -123,6 +139,7 @@ def create_standard_app(
         hot_memory=hot_memory,
         warm_memory=warm_memory,
         cold_memory=cold_memory,
+        memory_settings=memory_settings,
         mcp_setup=mcp_setup,
         lifespan=lifespan,
         self_healing_kernel=self_healing_kernel,
@@ -138,6 +155,7 @@ def build_service_app(
     hot_memory: HotMemory | None = None,
     warm_memory: WarmMemory | None = None,
     cold_memory: ColdMemory | None = None,
+    memory_settings: MemorySettings | None = None,
     slm_config: FoundryAgentConfig | None = None,
     llm_config: FoundryAgentConfig | None = None,
     connector_registry: ConnectorRegistry | None = None,
@@ -286,6 +304,32 @@ def build_service_app(
 
     @asynccontextmanager
     async def _service_lifespan(wrapped_app: FastAPI) -> AsyncIterator[None]:
+        # Resolve Redis password from Key Vault when hot_memory was created
+        # with a passwordless URL (REDIS_HOST set, REDIS_URL not provided).
+        if (
+            memory_settings is not None
+            and hot_memory is not None
+            and not memory_settings.redis_url
+            and memory_settings.redis_host
+            and memory_settings.key_vault_uri
+        ):
+            try:
+                redis_password = await _fetch_key_vault_secret(
+                    memory_settings.key_vault_uri,
+                    memory_settings.redis_password_secret_name,
+                )
+                new_url = memory_settings.resolve_redis_url(password=redis_password)
+                if new_url:
+                    hot_memory.url = new_url
+                    hot_memory.client = None  # Force reconnect with new URL
+                    logger.info("Redis password resolved from Key Vault")
+            except Exception:  # pylint: disable=broad-exception-caught
+                logger.warning(
+                    "Redis password resolution from Key Vault failed; "
+                    "hot memory may be unavailable",
+                    exc_info=True,
+                )
+
         if auto_ensure_on_startup:
             foundry_manager.ensure_foundry_agent_fn = ensure_foundry_agent
             try:

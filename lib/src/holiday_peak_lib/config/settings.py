@@ -7,11 +7,34 @@ class MemorySettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     redis_url: str | None = None
+    redis_host: str | None = None
+    redis_password: str | None = None
+    redis_password_secret_name: str = "redis-primary-key"
+    key_vault_uri: str | None = None
     cosmos_account_uri: str | None = None
     cosmos_database: str | None = None
     cosmos_container: str | None = None
     blob_account_url: str | None = None
     blob_container: str | None = None
+
+    def resolve_redis_url(self, password: str | None = None) -> str | None:
+        """Return a fully-formed Redis URL.
+
+        Priority:
+        1. ``redis_url`` if already set (passthrough).
+        2. Constructed from ``redis_host`` + optional *password* arg or
+           ``redis_password`` env var.
+        """
+        if self.redis_url:
+            return self.redis_url
+        host = self.redis_host
+        if not host:
+            return None
+        if not host.endswith(".redis.cache.windows.net"):
+            host = f"{host}.redis.cache.windows.net"
+        pw = password or self.redis_password
+        auth = f":{pw}@" if pw else ""
+        return f"rediss://{auth}{host}:6380/0"
 
 
 class ServiceSettings(BaseSettings):

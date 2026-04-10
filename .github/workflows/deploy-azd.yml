@@ -349,10 +349,13 @@ jobs:
       APIM_GATEWAY_URL: ${{ steps.outputs.outputs.APIM_GATEWAY_URL }}
       COSMOS_ACCOUNT_URI: ${{ steps.outputs.outputs.COSMOS_ACCOUNT_URI }}
       COSMOS_DATABASE: ${{ steps.outputs.outputs.COSMOS_DATABASE }}
+      COSMOS_CONTAINER: ${{ steps.outputs.outputs.COSMOS_CONTAINER }}
       KEY_VAULT_URI: ${{ steps.outputs.outputs.KEY_VAULT_URI }}
       REDIS_HOST: ${{ steps.outputs.outputs.REDIS_HOST }}
       EVENT_HUB_NAMESPACE: ${{ steps.outputs.outputs.EVENT_HUB_NAMESPACE }}
       APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ steps.outputs.outputs.APPLICATIONINSIGHTS_CONNECTION_STRING }}
+      BLOB_ACCOUNT_URL: ${{ steps.outputs.outputs.BLOB_ACCOUNT_URL }}
+      BLOB_CONTAINER: ${{ steps.outputs.outputs.BLOB_CONTAINER }}
       POSTGRES_HOST: ${{ steps.outputs.outputs.POSTGRES_HOST }}
       POSTGRES_USER: ${{ steps.outputs.outputs.POSTGRES_USER }}
       POSTGRES_ADMIN_USER: ${{ steps.outputs.outputs.POSTGRES_ADMIN_USER }}
@@ -1527,6 +1530,9 @@ jobs:
           POSTGRES_AUTH_MODE: ${{ needs.provision.outputs.POSTGRES_AUTH_MODE }}
           COSMOS_ACCOUNT_URI: ${{ needs.provision.outputs.COSMOS_ACCOUNT_URI }}
           COSMOS_DATABASE: ${{ needs.provision.outputs.COSMOS_DATABASE }}
+          COSMOS_CONTAINER: ${{ needs.provision.outputs.COSMOS_CONTAINER }}
+          BLOB_ACCOUNT_URL: ${{ needs.provision.outputs.BLOB_ACCOUNT_URL }}
+          BLOB_CONTAINER: ${{ needs.provision.outputs.BLOB_CONTAINER }}
           REDIS_HOST: ${{ needs.provision.outputs.REDIS_HOST }}
           EVENT_HUB_NAMESPACE: ${{ needs.provision.outputs.EVENT_HUB_NAMESPACE }}
           KEY_VAULT_URI: ${{ needs.provision.outputs.KEY_VAULT_URI }}
@@ -2191,6 +2197,9 @@ jobs:
           POSTGRES_AUTH_MODE: ${{ needs.provision.outputs.POSTGRES_AUTH_MODE }}
           COSMOS_ACCOUNT_URI: ${{ needs.provision.outputs.COSMOS_ACCOUNT_URI }}
           COSMOS_DATABASE: ${{ needs.provision.outputs.COSMOS_DATABASE }}
+          COSMOS_CONTAINER: ${{ needs.provision.outputs.COSMOS_CONTAINER }}
+          BLOB_ACCOUNT_URL: ${{ needs.provision.outputs.BLOB_ACCOUNT_URL }}
+          BLOB_CONTAINER: ${{ needs.provision.outputs.BLOB_CONTAINER }}
           REDIS_HOST: ${{ needs.provision.outputs.REDIS_HOST }}
           EVENT_HUB_NAMESPACE: ${{ needs.provision.outputs.EVENT_HUB_NAMESPACE }}
           KEY_VAULT_URI: ${{ needs.provision.outputs.KEY_VAULT_URI }}

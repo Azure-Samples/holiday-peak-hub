@@ -76,6 +76,55 @@ class TestMemorySettings:
         assert "redis://" in settings.redis_url
         assert "6379" in settings.redis_url
 
+    def test_resolve_redis_url_returns_explicit_url(self, monkeypatch):
+        """resolve_redis_url prefers an explicit redis_url when set."""
+        monkeypatch.setenv("REDIS_URL", "redis://explicit:6379/0")
+        settings = _memory_settings()
+        assert settings.resolve_redis_url() == "redis://explicit:6379/0"
+        assert settings.resolve_redis_url(password="ignored") == "redis://explicit:6379/0"
+
+    def test_resolve_redis_url_from_host_and_password_arg(self, monkeypatch):
+        """resolve_redis_url builds URL from redis_host + password argument."""
+        for key in ("REDIS_URL", "REDIS_HOST", "REDIS_PASSWORD"):
+            monkeypatch.delenv(key, raising=False)
+        monkeypatch.setenv("REDIS_HOST", "myredis")
+        settings = _memory_settings()
+        url = settings.resolve_redis_url(password="s3cret")
+        assert url == "rediss://:s3cret@myredis.redis.cache.windows.net:6380/0"
+
+    def test_resolve_redis_url_from_host_env_password(self, monkeypatch):
+        """resolve_redis_url falls back to REDIS_PASSWORD env var."""
+        for key in ("REDIS_URL",):
+            monkeypatch.delenv(key, raising=False)
+        monkeypatch.setenv("REDIS_HOST", "myredis.redis.cache.windows.net")
+        monkeypatch.setenv("REDIS_PASSWORD", "envpw")
+        settings = _memory_settings()
+        url = settings.resolve_redis_url()
+        assert url == "rediss://:envpw@myredis.redis.cache.windows.net:6380/0"
+
+    def test_resolve_redis_url_no_password(self, monkeypatch):
+        """resolve_redis_url works without a password (no auth segment)."""
+        for key in ("REDIS_URL", "REDIS_PASSWORD"):
+            monkeypatch.delenv(key, raising=False)
+        monkeypatch.setenv("REDIS_HOST", "myredis")
+        settings = _memory_settings()
+        url = settings.resolve_redis_url()
+        assert url == "rediss://myredis.redis.cache.windows.net:6380/0"
+
+    def test_resolve_redis_url_returns_none_when_no_host(self, monkeypatch):
+        """resolve_redis_url returns None when neither url nor host are set."""
+        for key in ("REDIS_URL", "REDIS_HOST", "REDIS_PASSWORD"):
+            monkeypatch.delenv(key, raising=False)
+        settings = _memory_settings()
+        assert settings.resolve_redis_url() is None
+
+    def test_redis_password_secret_name_default(self, monkeypatch):
+        """redis_password_secret_name defaults to 'redis-primary-key'."""
+        for key in ("REDIS_URL", "REDIS_HOST", "REDIS_PASSWORD"):
+            monkeypatch.delenv(key, raising=False)
+        settings = _memory_settings()
+        assert settings.redis_password_secret_name == "redis-primary-key"
+
 
 class TestServiceSettings:
     """Test ServiceSettings configuration."""

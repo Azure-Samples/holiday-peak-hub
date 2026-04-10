@@ -98,6 +98,7 @@ output PROJECT_ENDPOINT string = deployShared
   : ''
 output COSMOS_ACCOUNT_URI string = deployShared ? sharedInfra!.outputs.cosmosEndpoint : ''
 output COSMOS_DATABASE string = deployShared ? sharedInfra!.outputs.databaseName : ''
+output COSMOS_CONTAINER string = deployShared ? sharedInfra!.outputs.agentMemoryContainerName : ''
 output KEY_VAULT_URI string = deployShared ? sharedInfra!.outputs.keyVaultUri : ''
 output REDIS_HOST string = deployShared ? sharedInfra!.outputs.redisName : ''
 #disable-next-line outputs-should-not-contain-secrets
@@ -105,6 +106,8 @@ output REDIS_PASSWORD_SECRET_NAME string = deployShared ? sharedInfra!.outputs.r
 output EVENT_HUB_NAMESPACE string = deployShared ? sharedInfra!.outputs.eventHubsNamespaceName : ''
 output PLATFORM_JOBS_EVENT_HUB_NAMESPACE string = deployShared ? sharedInfra!.outputs.platformJobsNamespaceName : ''
 output APPLICATIONINSIGHTS_CONNECTION_STRING string = deployShared ? sharedInfra!.outputs.appInsightsConnectionString : ''
+output BLOB_ACCOUNT_URL string = deployShared ? sharedInfra!.outputs.storageAccountUrl : ''
+output BLOB_CONTAINER string = deployShared ? sharedInfra!.outputs.agentMemoryContainerName : ''
 output POSTGRES_HOST string = deployShared ? sharedInfra!.outputs.postgresFqdn : ''
 output POSTGRES_USER string = deployShared
   ? (postgresAuthMode == 'password' ? sharedInfra!.outputs.postgresAdminUser : postgresWorkloadUser)

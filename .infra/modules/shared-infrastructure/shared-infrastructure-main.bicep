@@ -77,6 +77,8 @@ output redisName string = sharedInfra.outputs.redisName
 #disable-next-line outputs-should-not-contain-secrets
 output redisPasswordSecretName string = sharedInfra.outputs.redisPasswordSecretName
 output storageAccountName string = sharedInfra.outputs.storageAccountName
+output storageAccountUrl string = sharedInfra.outputs.storageAccountUrl
+output agentMemoryContainerName string = sharedInfra.outputs.agentMemoryContainerName
 output keyVaultName string = sharedInfra.outputs.keyVaultName
 output keyVaultUri string = sharedInfra.outputs.keyVaultUri
 output apimName string = sharedInfra.outputs.apimName
