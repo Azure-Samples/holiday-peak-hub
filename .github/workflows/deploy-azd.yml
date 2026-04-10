@@ -412,6 +412,9 @@ jobs:
           azd env set IMAGE_TAG "${{ inputs.imageTag }}" -e "${{ inputs.environment }}"
           azd env set K8S_NAMESPACE holiday-peak -e "${{ inputs.environment }}"
           azd env set KEDA_ENABLED false -e "${{ inputs.environment }}"
+          if [ "${{ inputs.environment }}" = "dev" ]; then
+            azd env set POSTGRES_AUTH_MODE entra -e "${{ inputs.environment }}"
+          fi
 
       - name: Install kubelogin
         run: |
@@ -1448,6 +1451,52 @@ jobs:
           name: tested-image-crud-service
           path: ${{ runner.temp }}/tested-image/crud-service
 
+      - name: Validate PostgreSQL auth contract
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${POSTGRES_HOST:-}" ] || [ -z "${POSTGRES_AUTH_MODE:-}" ]; then
+            echo "Missing PostgreSQL deployment outputs required for auth validation." >&2
+            exit 1
+          fi
+
+          POSTGRES_SERVER="${POSTGRES_HOST%%.*}"
+          AUTH_JSON=$(az postgres flexible-server show \
+            --resource-group "${RESOURCE_GROUP_NAME}" \
+            --name "${POSTGRES_SERVER}" \
+            --query '{passwordAuth:authConfig.passwordAuth,activeDirectoryAuth:authConfig.activeDirectoryAuth}' \
+            -o json)
+
+          PASSWORD_AUTH=$(python3 -c "import json,sys; print(json.load(sys.stdin).get('passwordAuth', ''))" <<<"${AUTH_JSON}")
+          ACTIVE_DIRECTORY_AUTH=$(python3 -c "import json,sys; print(json.load(sys.stdin).get('activeDirectoryAuth', ''))" <<<"${AUTH_JSON}")
+
+          echo "Configured POSTGRES_AUTH_MODE=${POSTGRES_AUTH_MODE}"
+          echo "Live PostgreSQL auth config: passwordAuth=${PASSWORD_AUTH}, activeDirectoryAuth=${ACTIVE_DIRECTORY_AUTH}"
+
+          case "${POSTGRES_AUTH_MODE}" in
+            password)
+              if [ "${PASSWORD_AUTH}" != "Enabled" ]; then
+                echo "Configured password auth, but live PostgreSQL server '${POSTGRES_SERVER}' does not have passwordAuth enabled." >&2
+                exit 1
+              fi
+              ;;
+            entra)
+              if [ "${ACTIVE_DIRECTORY_AUTH}" != "Enabled" ]; then
+                echo "Configured Entra auth, but live PostgreSQL server '${POSTGRES_SERVER}' does not have activeDirectoryAuth enabled." >&2
+                exit 1
+              fi
+              ;;
+            *)
+              echo "Unsupported POSTGRES_AUTH_MODE '${POSTGRES_AUTH_MODE}'." >&2
+              exit 1
+              ;;
+          esac
+        env:
+          POSTGRES_AUTH_MODE: ${{ needs.provision.outputs.POSTGRES_AUTH_MODE }}
+          POSTGRES_HOST: ${{ needs.provision.outputs.POSTGRES_HOST }}
+          RESOURCE_GROUP_NAME: ${{ inputs.projectName }}-${{ inputs.environment }}-rg
+
       - name: Deploy CRUD service
         timeout-minutes: 25
         shell: bash
@@ -1759,7 +1808,7 @@ jobs:
             return 1
           }
 
-          smoke_endpoint "${API_BASE_URL}/api/health" "crud-health"
+          smoke_endpoint "${API_BASE_URL}/api/ready" "crud-ready"
           smoke_endpoint "${API_BASE_URL}/api/products?limit=1" "crud-products"
           smoke_endpoint "${API_BASE_URL}/api/categories" "crud-categories"
 
@@ -1856,7 +1905,7 @@ jobs:
             sleep 10
           done
 
-          API_HEALTH_URL="${API_BASE_URL%/}/api/health"
+          API_HEALTH_URL="${API_BASE_URL%/}/api/ready"
           if ! STATUS_CODE=$(curl -sS -o /tmp/ui-api-health.json -w "%{http_code}" "$API_HEALTH_URL"); then
             echo "API health check failed after UI deploy due to transport error at $API_HEALTH_URL" >&2
             cat /tmp/ui-api-health.json 2>/dev/null || true
@@ -1984,7 +2033,7 @@ jobs:
             fi
           }
 
-          smoke_endpoint "${API_BASE_URL}/api/health" "APIM health"
+          smoke_endpoint "${API_BASE_URL}/api/ready" "APIM ready"
           smoke_endpoint "${API_BASE_URL}/api/products?limit=1" "Products"
           smoke_endpoint "${API_BASE_URL}/api/categories" "Categories"
 
@@ -2580,7 +2629,7 @@ jobs:
             return 1
           }
 
-          smoke_health "${API_BASE}/api/health" "crud-health"
+          smoke_health "${API_BASE}/api/ready" "crud-ready"
           smoke_health "${API_BASE}/api/products?limit=1" "crud-products"
           smoke_health "${API_BASE}/api/categories" "crud-categories"
 

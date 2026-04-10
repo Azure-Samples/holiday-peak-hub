@@ -26,6 +26,7 @@ services:
     docker:
       path: ../Dockerfile
       context: ../../..
+      remoteBuild: true
     k8s:
       namespace: holiday-peak
       deploymentPath: ../../../.kubernetes/rendered/crud-service

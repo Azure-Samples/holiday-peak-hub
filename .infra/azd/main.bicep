@@ -20,6 +20,12 @@ param agcSubnetAddressPrefix string = '10.0.12.0/24'
 @secure()
 @description('Optional PostgreSQL admin password for CRUD database. Leave empty to auto-generate.')
 param postgresAdminPassword string = ''
+@allowed([
+  'password'
+  'entra'
+])
+@description('CRUD PostgreSQL auth mode. Set POSTGRES_AUTH_MODE=entra only when the environment is configured for Entra database authentication.')
+param POSTGRES_AUTH_MODE string = 'password'
 @description('Optional email receiver for infrastructure alerts action group.')
 param alertNotificationEmail string = ''
 @secure()
@@ -37,8 +43,8 @@ param repositoryUrl string = 'https://github.com/Azure-Samples/holiday-peak-hub'
 param branch string = 'main'
 
 // Keep deployment-facing auth/user outputs explicit and deterministic.
-var postgresAuthMode = 'password'
-var postgresWorkloadUser = deployShared ? '${sharedInfra!.outputs.aksClusterName}-agentpool' : ''
+var postgresAuthMode = POSTGRES_AUTH_MODE
+var postgresWorkloadUser = deployShared ? sharedInfra!.outputs.postgresWorkloadUser : ''
 var staticWebAppBaseName = empty(appName) ? '${projectName}-ui' : appName
 
 @description('UTC timestamp for unique deployment naming. Do not override.')
@@ -55,6 +61,7 @@ module sharedInfra '../modules/shared-infrastructure/shared-infrastructure-main.
     agcSupportEnabled: agcSupportEnabled
     agcSubnetAddressPrefix: agcSubnetAddressPrefix
     postgresAdminPassword: postgresAdminPassword
+    postgresAuthMode: postgresAuthMode
     alertNotificationEmail: alertNotificationEmail
     alertTeamsWebhookUrl: alertTeamsWebhookUrl
     aksNodeCount: aksNodeCount

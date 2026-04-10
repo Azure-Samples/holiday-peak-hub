@@ -12,8 +12,9 @@ Hardened `apps/crud-service` list endpoints and readiness checks to prevent recu
 - Auth convergence groundwork (Phase 2):
   - CRUD runtime settings now default `POSTGRES_AUTH_MODE` to `password` for deterministic baseline behavior.
   - Entra auth remains supported as explicit opt-in (`POSTGRES_AUTH_MODE=entra`).
+  - Shared-infrastructure provisioning now applies the same `POSTGRES_AUTH_MODE` to PostgreSQL Flexible Server auth configuration instead of relying on AVM defaults, and deployment validation fails early when live server auth drifts from the configured runtime mode.
   - AZD CRUD env generators (`generate-crud-env.sh` and `generate-crud-env.ps1`) now resolve auth mode from azd outputs with `password` as default fallback.
-  - In `password` mode, `POSTGRES_USER` resolves to explicit admin user output; in `entra` mode, generators preserve workload-user resolution fallback.
+  - In `password` mode, `POSTGRES_USER` resolves to explicit admin user output; in `entra` mode, shared-infrastructure outputs now resolve to the CRUD workload identity principal name used by pod workload identity.
 
 - Added PostgreSQL pool health tracking in `BaseRepository`:
   - Captures pool initialization errors in `_pool_init_error`.

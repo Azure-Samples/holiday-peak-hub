@@ -215,11 +215,11 @@ az acr network-rule add -n <acrName> --ip-address <PUBLIC_IP>/32
 azd deploy --service crud-service --no-prompt -e dev
 ```
 
-For Entra-only PostgreSQL authentication in CRUD, set these `azd` environment values before deploy:
+For Entra-only PostgreSQL authentication in CRUD, set these `azd` environment values before `azd provision` or `azd deploy`. `POSTGRES_AUTH_MODE` now drives both the shared-infrastructure PostgreSQL auth policy and the CRUD runtime outputs used by Helm rendering:
 
 ```bash
 azd env set POSTGRES_AUTH_MODE entra
-azd env set POSTGRES_USER <aks-managed-identity-name>
+azd env set POSTGRES_USER <crud-workload-identity-name>
 azd env set POSTGRES_PASSWORD ""
 ```
 

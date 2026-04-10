@@ -68,6 +68,13 @@
 - **CRUD Product Listing Availability Guardrail**: `GET /api/products` now fails open to an empty list when repository access times out or is temporarily unavailable, preventing repeated 503 responses while preserving a stable read contract for storefront and admin surfaces.
 - **CRUD Redis Auth Secret Wiring**: Shared infrastructure now persists the Redis primary key into Key Vault (`redis-primary-key`) and propagates `REDIS_PASSWORD_SECRET_NAME` through `azd`/Helm hooks; CRUD startup resolves the secret at runtime and readiness now authenticates Redis pings using the configured secure URL path.
 
+### Runtime Hotfix Notes (2026-04-10)
+- **AKS Redis Runtime Contract Hardening**: Helm render hooks now suppress passwordless `REDIS_URL` injection when `REDIS_HOST` is already available, preserving the intended Key Vault secret-resolution path for Redis credentials in deployed services.
+- **CRUD Deployment Readiness Smoke Tightening**: `deploy-azd` rollout checks now validate CRUD via `/api/ready` instead of `/api/health`, so PostgreSQL and Redis dependency regressions fail deployment validation instead of passing shallow liveness checks.
+- **CRUD Dev Readiness Probe Alignment**: Dev/local Helm rendering no longer downgrades CRUD readiness to `/health`, so dependency outages are surfaced consistently in-cluster instead of being masked by process-only liveness.
+- **PostgreSQL Auth Contract Alignment**: `POSTGRES_AUTH_MODE` now drives the Flexible Server auth policy in Bicep and a pre-rollout workflow guard verifies the live server matches the configured runtime auth mode before CRUD is redeployed.
+- **CRUD Entra Principal Alignment**: Entra-mode deployment outputs now resolve `POSTGRES_USER` to the CRUD workload identity principal (`<project>-<env>-crud-identity`), matching the pod identity used for token acquisition instead of the legacy agentpool principal.
+
 ### Merged PRs (v1.1.0)
 | # | Title | Category |
 |---|-------|----------|
