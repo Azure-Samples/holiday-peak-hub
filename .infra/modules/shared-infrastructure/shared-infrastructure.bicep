@@ -578,8 +578,10 @@ module postgres 'br/public:avm/res/db-for-postgre-sql/flexible-server:0.15.2' = 
 }
 
 // Redis Cache (AVM)
-// NOTE: zones is set to empty for non-prod to allow tear-down and re-provisioning
-// without zone-availability errors. Production should enable zone redundancy.
+// NOTE: Do NOT set availabilityZones or zoneRedundant on existing Redis caches —
+// Azure disallows modifying the 'zones' property after creation.
+// The dev cache was created without zone redundancy; adding these params causes
+// BadRequest errors that block all provisioning.
 module redis 'br/public:avm/res/cache/redis:0.16.5' = {
   name: 'redis'
   params: {
@@ -587,8 +589,6 @@ module redis 'br/public:avm/res/cache/redis:0.16.5' = {
     location: location
     skuName: 'Premium'
     capacity: 1
-    availabilityZones: environment == 'prod' ? [1, 2, 3] : []
-    zoneRedundant: environment == 'prod'
     minimumTlsVersion: '1.2'
     publicNetworkAccess: 'Disabled'
     redisConfiguration: {
