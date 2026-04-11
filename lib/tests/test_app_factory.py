@@ -262,9 +262,7 @@ class TestBuildServiceApp:
 
             assert isinstance(app, FastAPI)
 
-    def test_build_app_upgrades_explicit_azure_redis_url_with_key_vault_secret(
-        self, monkeypatch
-    ):
+    def test_build_app_upgrades_explicit_azure_redis_url_with_key_vault_secret(self, monkeypatch):
         """Startup upgrades passwordless Azure Redis URLs before first request handling."""
         for key in (
             "PROJECT_ENDPOINT",

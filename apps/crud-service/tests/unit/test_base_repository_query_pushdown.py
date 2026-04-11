@@ -123,9 +123,7 @@ async def test_ensure_table_skips_bootstrap_ddl_for_existing_table(monkeypatch):
     await repo._ensure_table()
     await repo._ensure_table()
 
-    assert connection.fetchval_calls == [
-        ("SELECT to_regclass($1) IS NOT NULL", ("products",))
-    ]
+    assert connection.fetchval_calls == [("SELECT to_regclass($1) IS NOT NULL", ("products",))]
     assert connection.execute_calls == []
     assert "products" in BaseRepository._initialized_tables
 
@@ -145,14 +143,15 @@ async def test_ensure_table_bootstraps_missing_table_once(monkeypatch):
     await repo._ensure_table()
     await repo._ensure_table()
 
-    assert connection.fetchval_calls == [
-        ("SELECT to_regclass($1) IS NOT NULL", ("products",))
-    ]
+    assert connection.fetchval_calls == [("SELECT to_regclass($1) IS NOT NULL", ("products",))]
     assert len(connection.execute_calls) == 3
     assert "CREATE TABLE IF NOT EXISTS products" in connection.execute_calls[0][0]
     assert (
         "CREATE INDEX IF NOT EXISTS idx_products_partition_key ON products(partition_key)"
         in connection.execute_calls[1][0]
     )
-    assert "CREATE INDEX IF NOT EXISTS idx_products_data_gin ON products USING GIN (data)" in connection.execute_calls[2][0]
+    assert (
+        "CREATE INDEX IF NOT EXISTS idx_products_data_gin ON products USING GIN (data)"
+        in connection.execute_calls[2][0]
+    )
     assert "products" in BaseRepository._initialized_tables

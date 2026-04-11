@@ -4,12 +4,11 @@ import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from redis.exceptions import AuthenticationError as RedisAuthenticationError
-from redis.exceptions import ConnectionError as RedisConnectionError
-
 from holiday_peak_lib.agents.memory.cold import ColdMemory
 from holiday_peak_lib.agents.memory.hot import HotMemory
 from holiday_peak_lib.agents.memory.warm import WarmMemory
+from redis.exceptions import AuthenticationError as RedisAuthenticationError
+from redis.exceptions import ConnectionError as RedisConnectionError
 
 
 class TestHotMemory:

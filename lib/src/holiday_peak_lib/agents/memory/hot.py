@@ -4,9 +4,8 @@ import asyncio
 from typing import Any, Awaitable, Callable, TypeVar
 
 import redis.asyncio as redis
-from redis import exceptions as redis_exceptions
-
 from holiday_peak_lib.utils.logging import configure_logging, log_async_operation
+from redis import exceptions as redis_exceptions
 
 logger = configure_logging()
 T = TypeVar("T")
