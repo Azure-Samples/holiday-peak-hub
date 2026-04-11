@@ -1069,6 +1069,27 @@ module aks 'br/public:avm/res/container-service/managed-cluster:0.13.0' = {
       }
     }
     webApplicationRoutingEnabled: aksWebApplicationRoutingEnabled
+    workloadAutoScalerProfile: {
+      keda: {
+        enabled: true
+      }
+    }
+    serviceMeshProfile: {
+      mode: 'Istio'
+      istio: {
+        components: {
+          ingressGateways: [
+            {
+              enabled: true
+              mode: 'External'
+            }
+          ]
+        }
+      }
+    }
+    aiToolchainOperatorProfile: {
+      enabled: true
+    }
     primaryAgentPoolProfiles: [
       {
         name: 'system'
@@ -1123,6 +1144,55 @@ resource agcControllerIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities
   name: agcControllerIdentityName
   location: location
   tags: tags
+}
+
+// Flux CD GitOps extension — enables pull-based reconciliation for AKS deployments (ADR-033).
+resource fluxExtension 'Microsoft.KubernetesConfiguration/extensions@2023-05-01' = {
+  name: 'flux'
+  scope: aksClusterResource
+  properties: {
+    extensionType: 'microsoft.flux'
+    autoUpgradeMinorVersion: true
+    releaseTrain: 'Stable'
+    configurationSettings: {
+      'helm-controller.enabled': 'true'
+      'source-controller.enabled': 'true'
+      'kustomize-controller.enabled': 'true'
+      'notification-controller.enabled': 'true'
+    }
+  }
+}
+
+// Flux GitOps configuration — reconciles rendered manifests from the repository.
+resource fluxConfig 'Microsoft.KubernetesConfiguration/fluxConfigurations@2024-04-01-preview' = {
+  name: 'holiday-peak-gitops'
+  scope: aksClusterResource
+  dependsOn: [
+    fluxExtension
+  ]
+  properties: {
+    scope: 'cluster'
+    namespace: 'flux-system'
+    sourceKind: 'GitRepository'
+    gitRepository: {
+      url: 'https://github.com/Azure-Samples/holiday-peak-hub'
+      repositoryRef: {
+        branch: 'main'
+      }
+      syncIntervalInSeconds: 300
+      timeoutInSeconds: 600
+    }
+    kustomizations: {
+      'holiday-peak-services': {
+        path: '.kubernetes/rendered'
+        syncIntervalInSeconds: 300
+        timeoutInSeconds: 600
+        prune: true
+        force: false
+        dependsOn: []
+      }
+    }
+  }
 }
 
 resource aksClusterResource 'Microsoft.ContainerService/managedClusters@2025-09-01' existing = {

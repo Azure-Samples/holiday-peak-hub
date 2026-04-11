@@ -86,7 +86,7 @@ on:
 
 permissions:
   id-token: write
-  contents: read
+  contents: write
 
 env:
   FOUNDRY_RUNTIME_STRICT_ENFORCEMENT: "true"
@@ -411,7 +411,7 @@ jobs:
           azd env set IMAGE_PREFIX "ghcr.io/${{ github.repository_owner }}" -e "${{ inputs.environment }}"
           azd env set IMAGE_TAG "${{ inputs.imageTag }}" -e "${{ inputs.environment }}"
           azd env set K8S_NAMESPACE holiday-peak -e "${{ inputs.environment }}"
-          azd env set KEDA_ENABLED false -e "${{ inputs.environment }}"
+          azd env set KEDA_ENABLED true -e "${{ inputs.environment }}"
           if [ "${{ inputs.environment }}" = "dev" ]; then
             azd env set POSTGRES_AUTH_MODE entra -e "${{ inputs.environment }}"
           fi
@@ -1629,6 +1629,14 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+      - name: Upload rendered CRUD manifest for Flux commit
+        if: ${{ success() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: rendered-manifest-crud-service
+          path: .kubernetes/rendered/crud-service/all.yaml
+          retention-days: 1
+
       - name: Gate CRUD readiness (/ready)
         shell: bash
         run: |
@@ -2256,6 +2264,62 @@ jobs:
           POSTGRES_HOST: ${{ needs.provision.outputs.POSTGRES_HOST }}
           POSTGRES_USER: ${{ needs.provision.outputs.POSTGRES_AUTH_MODE == 'password' && needs.provision.outputs.POSTGRES_ADMIN_USER || needs.provision.outputs.POSTGRES_USER }}
           POSTGRES_DATABASE: ${{ needs.provision.outputs.POSTGRES_DATABASE }}
+
+      - name: Upload rendered agent manifest for Flux commit
+        if: ${{ success() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: rendered-manifest-${{ matrix.service }}
+          path: .kubernetes/rendered/${{ matrix.service }}/all.yaml
+          retention-days: 1
+
+  commit-rendered-manifests:
+    runs-on: ubuntu-latest
+    if: ${{ !inputs.uiOnly && (needs.deploy-crud.result == 'success' || needs.deploy-agents.result == 'success') }}
+    needs:
+      - detect-changes
+      - provision
+      - deploy-crud
+      - deploy-agents
+      - build-aks-images
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 1
+          token: ${{ github.token }}
+
+      - name: Download rendered manifests
+        uses: actions/download-artifact@v4
+        with:
+          pattern: rendered-manifest-*
+          path: ${{ runner.temp }}/rendered-artifacts
+
+      - name: Copy rendered manifests into repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          for artifact_dir in "${RUNNER_TEMP}"/rendered-artifacts/rendered-manifest-*; do
+            [ -d "$artifact_dir" ] || continue
+            svc_name=$(basename "$artifact_dir" | sed 's/^rendered-manifest-//')
+            mkdir -p ".kubernetes/rendered/${svc_name}"
+            cp "${artifact_dir}/all.yaml" ".kubernetes/rendered/${svc_name}/all.yaml"
+            echo "Copied rendered manifest for ${svc_name}"
+          done
+
+      - name: Commit rendered manifests for Flux reconciliation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .kubernetes/rendered/ || true
+          if git diff --cached --quiet; then
+            echo "No rendered manifest changes to commit."
+            exit 0
+          fi
+          git commit -m "deploy: update rendered manifests [skip ci]"
+          git push
 
   validate-agc-readiness:
     runs-on: ubuntu-latest
