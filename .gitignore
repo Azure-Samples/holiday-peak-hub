@@ -491,3 +491,6 @@ __pycache__/
 htmlcov/
 .coverage
 .tmp-deploy-azd-main.yml
+
+# MkDocs build output
+mkdocs/site/
