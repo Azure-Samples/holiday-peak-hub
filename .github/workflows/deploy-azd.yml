@@ -1589,7 +1589,7 @@ jobs:
           PROJECT_ENDPOINT: ${{ needs.provision.outputs.PROJECT_ENDPOINT }}
           PROJECT_NAME: ${{ needs.provision.outputs.PROJECT_NAME }}
           MODEL_DEPLOYMENT_NAME_FAST: gpt-5-nano
-          MODEL_DEPLOYMENT_NAME_RICH: gpt-5-nano
+          MODEL_DEPLOYMENT_NAME_RICH: gpt-5
           POSTGRES_AUTH_MODE: ${{ needs.provision.outputs.POSTGRES_AUTH_MODE }}
           COSMOS_ACCOUNT_URI: ${{ needs.provision.outputs.COSMOS_ACCOUNT_URI }}
           COSMOS_DATABASE: ${{ needs.provision.outputs.COSMOS_DATABASE }}
@@ -2274,7 +2274,7 @@ jobs:
           FOUNDRY_AUTO_ENSURE_ON_STARTUP: ${{ env.FOUNDRY_RUNTIME_AUTO_ENSURE_ON_STARTUP }}
           FOUNDRY_STRICT_ENFORCEMENT: ${{ env.FOUNDRY_RUNTIME_STRICT_ENFORCEMENT }}
           MODEL_DEPLOYMENT_NAME_FAST: gpt-5-nano
-          MODEL_DEPLOYMENT_NAME_RICH: gpt-5-nano
+          MODEL_DEPLOYMENT_NAME_RICH: gpt-5
           POSTGRES_AUTH_MODE: ${{ needs.provision.outputs.POSTGRES_AUTH_MODE }}
           COSMOS_ACCOUNT_URI: ${{ needs.provision.outputs.COSMOS_ACCOUNT_URI }}
           COSMOS_DATABASE: ${{ needs.provision.outputs.COSMOS_DATABASE }}
