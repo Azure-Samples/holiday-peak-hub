@@ -345,6 +345,38 @@ describe('/api proxy route env handling', () => {
     await expect(response.json()).resolves.toEqual([]);
   });
 
+  it('returns fallback payload when /api/products upstream responds with 500 after retry', async () => {
+    process.env.NEXT_PUBLIC_CRUD_API_URL = 'https://apim.example.azure-api.net';
+    (global.fetch as jest.Mock).mockResolvedValue(
+      {
+        body: null,
+        status: 500,
+        statusText: 'Internal Server Error',
+        headers: new Headers({
+          'content-type': 'application/json',
+          'x-request-id': 'upstream-req-500',
+        }),
+        json: jest.fn(async () => ({
+          error: 'Internal server error',
+        })),
+        text: jest.fn(async () => ''),
+      },
+    );
+
+    const route = await import('../../app/api/[...path]/route');
+    const response = await route.GET(makeRequest('http://localhost/api/products'), {
+      params: Promise.resolve({ path: ['products'] }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(response.headers.get('x-holiday-peak-proxy-source')).toBe('NEXT_PUBLIC_CRUD_API_URL');
+    expect(response.headers.get('x-holiday-peak-proxy-failure-kind')).toBe('upstream');
+    expect(response.headers.get('x-holiday-peak-proxy-fallback')).toBe('products-read-empty-upstream-500');
+    expect(response.headers.get('x-holiday-peak-proxy-fallback-upstream-status')).toBe('500');
+    await expect(response.json()).resolves.toEqual([]);
+  });
+
   it('returns fallback payload when /api/categories upstream responds with 502', async () => {
     process.env.NEXT_PUBLIC_CRUD_API_URL = 'https://apim.example.azure-api.net';
     (global.fetch as jest.Mock).mockResolvedValue(
