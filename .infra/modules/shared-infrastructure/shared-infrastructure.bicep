@@ -64,6 +64,7 @@ var keyVaultName = empty(keyVaultNameOverride)
   ? take('${projectName}${envSuffix}-kv', 24)
   : toLower(keyVaultNameOverride)
 var apimName = '${projectName}${envSuffix}-apim'
+var apicName = '${projectName}${envSuffix}-apic'
 var appInsightsName = '${projectName}${envSuffix}-insights'
 var logAnalyticsName = '${projectName}${envSuffix}-logs'
 var vnetName = '${projectName}${envSuffix}-vnet'
@@ -1344,6 +1345,16 @@ module apim 'br/public:avm/res/api-management/service:0.14.1' = {
   }
 }
 
+// API Center — centralized API governance and discovery
+resource apiCenter 'Microsoft.ApiCenter/services@2024-03-01' = {
+  name: apicName
+  location: location
+  identity: {
+    type: 'SystemAssigned'
+  }
+  tags: tags
+}
+
 module monitoring '../monitoring/monitoring.bicep' = if (monitoringEnabled) {
   name: 'monitoring'
   params: {
@@ -1675,6 +1686,7 @@ output keyVaultName string = keyVault.outputs.name
 output keyVaultUri string = keyVault.outputs.uri
 output apimName string = apim.outputs.name
 output apimGatewayUrl string = 'https://${apimName}.azure-api.net'
+output apicName string = apiCenter.name
 output aiServicesName string = aiFoundry.outputs.aiServicesName
 output aiProjectName string = aiFoundry.outputs.aiProjectName
 output aiSearchName string = aiSearchName
