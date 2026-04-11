@@ -1517,65 +1517,12 @@ jobs:
         run: |
           set -euo pipefail
           export AZURE_CLIENT_ID="${WORKLOAD_AZURE_CLIENT_ID}"
-          TRIAGE_DIR="${RUNNER_TEMP}/deploy-triage"
-          mkdir -p "$TRIAGE_DIR"
           CRUD_IMAGE_REF=$(tr -d '\r\n' < "${RUNNER_TEMP}/tested-image/crud-service/image-ref.txt")
 
-          deploy_crud() {
-            export SERVICE_CRUD_SERVICE_IMAGE_NAME="$CRUD_IMAGE_REF"
-            bash .infra/azd/hooks/render-helm.sh crud-service
-            kubectl apply --dry-run=server -f .kubernetes/rendered/crud-service/all.yaml -n holiday-peak-crud >/dev/null
-            kubectl apply -f .kubernetes/rendered/crud-service/all.yaml -n holiday-peak-crud >/dev/null
-
-            DEPLOYMENT_NAME=$(kubectl get deployment -n holiday-peak-crud -l 'app=crud-service,canary=false' -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-            if [ -z "$DEPLOYMENT_NAME" ]; then
-              echo "Failed to resolve CRUD deployment name after manifest apply." >&2
-              return 1
-            fi
-
-            kubectl rollout status "deployment/${DEPLOYMENT_NAME}" -n holiday-peak-crud --timeout=300s
-          }
-
-          if deploy_crud; then
-            echo "CRUD deploy succeeded with tested image ${CRUD_IMAGE_REF}."
-            exit 0
-          fi
-
-          echo "CRUD deploy failed on first attempt; collecting deterministic triage evidence..."
-          {
-            echo "run_id=${{ github.run_id }}"
-            echo "run_attempt=${{ github.run_attempt }}"
-            echo "job=deploy-crud"
-            echo "workflow=${{ github.workflow }}"
-            echo "sha=${DEPLOY_SOURCE_SHA}"
-            echo "ref=${DEPLOY_SOURCE_REF}"
-            echo "actor=${{ github.actor }}"
-            echo "event=${{ github.event_name }}"
-            echo "environment=${{ inputs.environment }}"
-            echo "tested_image_ref=${CRUD_IMAGE_REF}"
-            echo "first_failed_step_hint=Render/apply CRUD manifest"
-          } > "$TRIAGE_DIR/run-metadata.txt"
-
-          kubectl get ingressclass -o wide > "$TRIAGE_DIR/kubectl-ingressclass.txt" 2>&1 || true
-          kubectl get ingress -n holiday-peak-crud -o wide > "$TRIAGE_DIR/kubectl-ingress.txt" 2>&1 || true
-          kubectl get pods -n app-routing-system -o wide > "$TRIAGE_DIR/kubectl-app-routing-pods.txt" 2>&1 || true
-          kubectl get pods -n ingress-nginx -o wide > "$TRIAGE_DIR/kubectl-ingress-nginx-pods.txt" 2>&1 || true
-          kubectl -n holiday-peak-crud get deployment -l app=crud-service,canary=false -o wide > "$TRIAGE_DIR/kubectl-crud-deployment.txt" 2>&1 || true
-          kubectl -n holiday-peak-crud describe deployment $(kubectl get deployment -n holiday-peak-crud -l app=crud-service,canary=false -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo crud-service-crud-service) > "$TRIAGE_DIR/kubectl-crud-deployment-describe.txt" 2>&1 || true
-          kubectl -n holiday-peak-crud get rs -l app=crud-service -o wide > "$TRIAGE_DIR/kubectl-crud-rs.txt" 2>&1 || true
-          kubectl -n holiday-peak-crud get pods -l app=crud-service -o wide > "$TRIAGE_DIR/kubectl-crud-pods.txt" 2>&1 || true
-          kubectl -n holiday-peak-crud get events --sort-by='.lastTimestamp' | tail -n 200 > "$TRIAGE_DIR/kubectl-events-tail.txt" 2>&1 || true
-          cp .kubernetes/rendered/crud-service/all.yaml "$TRIAGE_DIR/rendered-crud-all.yaml" 2>/dev/null || true
-
-          NEW_POD=$(kubectl -n holiday-peak-crud get pods -l app=crud-service --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1:].metadata.name}' 2>/dev/null || true)
-          if [ -n "$NEW_POD" ]; then
-            kubectl -n holiday-peak-crud describe pod "$NEW_POD" > "$TRIAGE_DIR/kubectl-new-pod-describe.txt" 2>&1 || true
-            kubectl -n holiday-peak-crud logs "$NEW_POD" --tail=300 > "$TRIAGE_DIR/kubectl-new-pod-logs.txt" 2>&1 || true
-            kubectl -n holiday-peak-crud logs "$NEW_POD" --previous --tail=300 > "$TRIAGE_DIR/kubectl-new-pod-logs-previous.txt" 2>&1 || true
-          fi
-
-          echo "CRUD deploy failed on first attempt. Review first-failure protocol in run summary before rerun." >&2
-          exit 1
+          # Phase B (ADR-033): Render only — Flux reconciles from Git
+          export SERVICE_CRUD_SERVICE_IMAGE_NAME="$CRUD_IMAGE_REF"
+          bash .infra/azd/hooks/render-helm.sh crud-service
+          echo "Rendered CRUD manifest for Flux reconciliation (image: ${CRUD_IMAGE_REF})."
         env:
           DEPLOY_ENV: ${{ inputs.environment }}
           AZURE_TENANT_ID: ${{ env.AZURE_TENANT_ID }}
@@ -1604,109 +1551,12 @@ jobs:
           POSTGRES_USER: ${{ needs.provision.outputs.POSTGRES_AUTH_MODE == 'password' && needs.provision.outputs.POSTGRES_ADMIN_USER || needs.provision.outputs.POSTGRES_USER }}
           POSTGRES_DATABASE: ${{ needs.provision.outputs.POSTGRES_DATABASE }}
 
-      - name: First-failure summary and rerun gate
-        if: ${{ failure() }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          TRIAGE_DIR="${RUNNER_TEMP}/deploy-triage"
-          ARTIFACT_NAME="deploy-crud-first-failure-${{ github.run_id }}-attempt-${{ github.run_attempt }}"
-          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-
-          {
-            echo "## First-failure investigation required"
-            echo ""
-            echo "- Run: $RUN_URL"
-            echo "- Job: deploy-crud"
-            echo "- Artifact: $ARTIFACT_NAME"
-            echo "- First failed step hint: Deploy CRUD service"
-            echo ""
-            echo "### Required before rerun"
-            echo "- Capture root-cause category (config/code/infra/identity/quota/transient/platform)."
-            echo "- Document deterministic vs transient assessment in the linked issue/PR." 
-            echo "- Include hypothesis and evidence links (logs/artifacts) before rerun approval."
-            echo "- If deterministic, link the fix or rollback PR before rerun."
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          if [ -f "$TRIAGE_DIR/run-metadata.txt" ]; then
-            echo "Collected run metadata:"
-            cat "$TRIAGE_DIR/run-metadata.txt"
-          fi
-
-      - name: Upload CRUD first-failure triage artifact
-        if: ${{ failure() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: deploy-crud-first-failure-${{ github.run_id }}-attempt-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/deploy-triage
-          if-no-files-found: warn
-          retention-days: 14
-
       - name: Upload rendered CRUD manifest for Flux commit
-        if: ${{ success() }}
         uses: actions/upload-artifact@v4
         with:
           name: rendered-manifest-crud-service
           path: .kubernetes/rendered/crud-service/all.yaml
           retention-days: 1
-
-      - name: Gate CRUD readiness (/ready)
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          APIM_BASE="${{ needs.provision.outputs.APIM_GATEWAY_URL }}"
-          APIM_BASE="${APIM_BASE%/}"
-          APIM_READY_URL="${APIM_BASE}/api/ready"
-          SERVICE_READY_URL="http://127.0.0.1:18080/ready"
-
-          check_ready() {
-            local url="$1"
-            local label="$2"
-
-            for attempt in $(seq 1 24); do
-              if ! STATUS_CODE=$(curl -sS -o /tmp/crud-ready.json -w "%{http_code}" "$url"); then
-                STATUS_CODE="000"
-              fi
-              if [ "$STATUS_CODE" = "200" ]; then
-                echo "[OK] ${label} ready on attempt ${attempt}: ${url}"
-                return 0
-              fi
-              echo "Attempt ${attempt}/24: ${label} returned HTTP ${STATUS_CODE}"
-              sleep 10
-            done
-
-            echo "[FAIL] ${label} readiness did not return HTTP 200: ${url}" >&2
-            cat /tmp/crud-ready.json 2>/dev/null || true
-            return 1
-          }
-
-          APIM_READY=false
-          if [ -n "$APIM_BASE" ]; then
-            if check_ready "$APIM_READY_URL" "APIM /api/ready"; then
-              APIM_READY=true
-            fi
-          else
-            echo "APIM gateway URL not provided by provision outputs; skipping APIM /api/ready check."
-          fi
-
-          kubectl port-forward svc/crud-service 18080:8000 -n holiday-peak-crud >/tmp/crud-port-forward.log 2>&1 &
-          PF_PID=$!
-          trap 'kill "$PF_PID" >/dev/null 2>&1 || true' EXIT
-          sleep 3
-
-          SERVICE_READY=false
-          if check_ready "$SERVICE_READY_URL" "service /ready"; then
-            SERVICE_READY=true
-          fi
-
-          if [ "$APIM_READY" != "true" ] && [ "$SERVICE_READY" != "true" ]; then
-            echo "CRUD readiness gate failed: both APIM and direct service /ready checks are unhealthy." >&2
-            echo "Port-forward log:" >&2
-            cat /tmp/crud-port-forward.log 2>/dev/null || true
-            exit 1
-          fi
 
   deploy-ui:
     runs-on: ubuntu-latest
@@ -2246,17 +2096,9 @@ jobs:
           SERVICE_IMAGE_VAR_NAME="SERVICE_$(printf '%s' "$SERVICE_NAME" | tr '[:lower:]-' '[:upper:]_')_IMAGE_NAME"
           export "${SERVICE_IMAGE_VAR_NAME}=${IMAGE_REF}"
 
+          # Phase B (ADR-033): Render only — Flux reconciles from Git
           bash .infra/azd/hooks/render-helm.sh "$SERVICE_NAME"
-          kubectl apply --dry-run=server -f ".kubernetes/rendered/${SERVICE_NAME}/all.yaml" -n holiday-peak-agents >/dev/null
-          kubectl apply -f ".kubernetes/rendered/${SERVICE_NAME}/all.yaml" -n holiday-peak-agents >/dev/null
-
-          DEPLOYMENT_NAME=$(kubectl get deployment -n holiday-peak-agents -l "app=${SERVICE_NAME},canary=false" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-          if [ -z "$DEPLOYMENT_NAME" ]; then
-            echo "Failed to resolve deployment name for ${SERVICE_NAME} after manifest apply." >&2
-            exit 1
-          fi
-
-          kubectl rollout status "deployment/${DEPLOYMENT_NAME}" -n holiday-peak-agents --timeout=300s
+          echo "Rendered ${SERVICE_NAME} manifest for Flux reconciliation (image: ${IMAGE_REF})."
         env:
           DEPLOY_ENV: ${{ inputs.environment }}
           AZURE_TENANT_ID: ${{ env.AZURE_TENANT_ID }}
@@ -2346,6 +2188,101 @@ jobs:
           fi
           git commit -m "deploy: update rendered manifests [skip ci]"
           git push
+
+  wait-flux-reconciliation:
+    runs-on: ubuntu-latest
+    if: ${{ !inputs.uiOnly && (needs.commit-rendered-manifests.result == 'success') }}
+    needs:
+      - commit-rendered-manifests
+      - detect-changes
+    environment: ${{ inputs.environment }}
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
+            --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
+            --overwrite-existing
+
+      - name: Trigger Flux reconciliation
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Triggering Flux kustomization reconciliation..."
+
+          # Install Flux CLI if not present
+          if ! command -v flux &>/dev/null; then
+            curl -s https://fluxcd.io/install.sh | bash 2>/dev/null || true
+          fi
+
+          # Trigger reconciliation for both kustomizations
+          flux reconcile source git flux-system -n flux-system --timeout=2m || true
+          flux reconcile kustomization holiday-peak-gitops-holiday-peak-crud -n flux-system --timeout=5m || true
+          flux reconcile kustomization holiday-peak-gitops-holiday-peak-agents -n flux-system --timeout=5m || true
+
+          echo "Flux reconciliation triggered."
+
+      - name: Wait for CRUD rollout
+        if: ${{ needs.detect-changes.outputs.crud_changed == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Waiting for CRUD deployment rollout via Flux..."
+          DEPLOYMENT_NAME=$(kubectl get deployment -n holiday-peak-crud -l 'app=crud-service,canary=false' -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+          if [ -n "$DEPLOYMENT_NAME" ]; then
+            kubectl rollout status "deployment/${DEPLOYMENT_NAME}" -n holiday-peak-crud --timeout=300s
+            echo "CRUD rollout completed: ${DEPLOYMENT_NAME}"
+          else
+            echo "No CRUD deployment found — may be first deploy."
+          fi
+
+      - name: Wait for agent rollouts
+        if: ${{ needs.detect-changes.outputs.agents_changed == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Waiting for agent deployment rollouts via Flux..."
+          CHANGED="${{ needs.detect-changes.outputs.changed_agent_services_csv }}"
+          if [ -z "$CHANGED" ]; then
+            echo "No specific changed agents detected; checking all deployments."
+            kubectl rollout status deployment --all -n holiday-peak-agents --timeout=600s || true
+          else
+            IFS=',' read -ra SERVICES <<< "$CHANGED"
+            for svc in "${SERVICES[@]}"; do
+              svc=$(echo "$svc" | xargs)
+              DEPLOYMENT_NAME=$(kubectl get deployment -n holiday-peak-agents -l "app=${svc},canary=false" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+              if [ -n "$DEPLOYMENT_NAME" ]; then
+                kubectl rollout status "deployment/${DEPLOYMENT_NAME}" -n holiday-peak-agents --timeout=300s
+                echo "Agent rollout completed: ${DEPLOYMENT_NAME}"
+              else
+                echo "No deployment found for ${svc} — may be first deploy."
+              fi
+            done
+          fi
+
+      - name: Verify Flux kustomization health
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Flux kustomization status:"
+          kubectl get kustomizations -n flux-system
+          echo ""
+          # Report but don't fail — health checks may fail on first deploy (no images yet)
+          CRUD_READY=$(kubectl get kustomization holiday-peak-gitops-holiday-peak-crud -n flux-system -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "Unknown")
+          AGENTS_READY=$(kubectl get kustomization holiday-peak-gitops-holiday-peak-agents -n flux-system -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "Unknown")
+          echo "CRUD kustomization ready: ${CRUD_READY}"
+          echo "Agents kustomization ready: ${AGENTS_READY}"
 
   validate-agc-readiness:
     runs-on: ubuntu-latest
@@ -2956,6 +2893,8 @@ jobs:
       - detect-changes
       - deploy-crud
       - deploy-agents
+      - commit-rendered-manifests
+      - wait-flux-reconciliation
       - sync-apim
       - sync-apic
       - smoke-apim

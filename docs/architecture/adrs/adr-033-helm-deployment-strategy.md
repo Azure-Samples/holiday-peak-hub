@@ -1,6 +1,6 @@
 # ADR-033: Migrate to Flux CD for AKS Deployment
 
-**Status**: Proposed
+**Status**: Accepted
 **Date**: 2026-04-11
 **Deciders**: Architecture Team, Ricardo Cataldi
 **Tags**: infrastructure, deployment, helm, aks, gitops, flux
