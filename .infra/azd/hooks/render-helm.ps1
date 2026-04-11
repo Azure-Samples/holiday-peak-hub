@@ -392,6 +392,15 @@ $envMappings = @{
   APPLICATIONINSIGHTS_CONNECTION_STRING = $env:APPLICATIONINSIGHTS_CONNECTION_STRING
 }
 
+# Cross-namespace CRUD service URL for agent->CRUD communication (ADR-034)
+if ($ServiceName -ne "crud-service") {
+  $crudNs = if ($env:K8S_CRUD_NAMESPACE) { $env:K8S_CRUD_NAMESPACE }
+            elseif ($env:K8S_NAMESPACE) { $env:K8S_NAMESPACE }
+            else { "holiday-peak-crud" }
+  $defaultCrudUrl = "http://crud-service-crud-service.${crudNs}.svc.cluster.local:8000"
+  $envMappings["CRUD_SERVICE_URL"] = if ($env:CRUD_SERVICE_URL) { $env:CRUD_SERVICE_URL } else { $defaultCrudUrl }
+}
+
 $truthServiceEventHubMappings = @{
   "truth-ingestion" = @{ TRUTH_EVENT_HUB_NAME = "ingest-jobs"; TRUTH_EVENT_HUB_CONSUMER_GROUP = "ingestion-group" }
   "truth-enrichment" = @{ TRUTH_EVENT_HUB_NAME = "enrichment-jobs"; TRUTH_EVENT_HUB_CONSUMER_GROUP = "enrichment-engine" }

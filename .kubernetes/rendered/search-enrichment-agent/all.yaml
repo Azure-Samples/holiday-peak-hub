@@ -93,6 +93,8 @@ spec:
               value: "agent-memory"
             - name: COSMOS_DATABASE
               value: "holiday-peak-db"
+            - name: CRUD_SERVICE_URL
+              value: "http://crud-service-crud-service.holiday-peak-crud.svc.cluster.local:8000"
             - name: EMBEDDING_DEPLOYMENT_NAME
               value: "text-embedding-3-large"
             - name: FOUNDRY_AGENT_NAME_FAST

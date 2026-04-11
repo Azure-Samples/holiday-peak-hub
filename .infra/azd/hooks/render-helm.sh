@@ -416,6 +416,12 @@ add_env_arg "BLOB_CONTAINER" "${BLOB_CONTAINER:-}"
 # Observability
 add_env_arg "APPLICATIONINSIGHTS_CONNECTION_STRING" "${APPLICATIONINSIGHTS_CONNECTION_STRING:-}"
 
+# Cross-namespace CRUD service URL for agent→CRUD communication (ADR-034)
+if is_agent_service; then
+  CRUD_NS="${K8S_CRUD_NAMESPACE:-${K8S_NAMESPACE:-holiday-peak-crud}}"
+  add_env_arg "CRUD_SERVICE_URL" "${CRUD_SERVICE_URL:-http://crud-service-crud-service.${CRUD_NS}.svc.cluster.local:8000}"
+fi
+
 if [ "$SERVICE_NAME" = "ecommerce-catalog-search" ]; then
   add_env_arg "SEARCH_ENRICHMENT_EVENT_HUB_NAME" "${SEARCH_ENRICHMENT_EVENT_HUB_NAME:-search-enrichment-jobs}"
   add_env_arg "SEARCH_ENRICHMENT_EVENT_HUB_CONSUMER_GROUP" "${SEARCH_ENRICHMENT_EVENT_HUB_CONSUMER_GROUP:-search-enrichment-consumer}"
