@@ -331,6 +331,8 @@ Optional env overrides (stored in `.azure/<env>/.env`):
 
 ```bash
 azd env set K8S_NAMESPACE holiday-peak -e <environment>
+azd env set K8S_CRUD_NAMESPACE holiday-peak-crud -e <environment>
+azd env set K8S_AGENTS_NAMESPACE holiday-peak-agents -e <environment>
 azd env set IMAGE_PREFIX ghcr.io/azure-samples -e <environment>
 azd env set IMAGE_TAG latest -e <environment>
 azd env set KEDA_ENABLED false -e <environment>

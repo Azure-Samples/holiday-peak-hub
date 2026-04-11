@@ -84,7 +84,9 @@ var agcControllerIdentityName = '${projectName}${envSuffix}-agc-controller'
 var agcControllerNamespace = 'azure-alb-system'
 var agcControllerServiceAccount = 'alb-controller-sa'
 var agcGatewayClassName = 'azure-alb-external'
-var workloadNamespace = 'holiday-peak'
+// ADR-034: Namespace isolation — CRUD and agents in separate namespaces.
+var crudNamespace = 'holiday-peak-crud'
+var agentsNamespace = 'holiday-peak-agents'
 var agentsIdentityName = '${projectName}${envSuffix}-agents-identity'
 var agentsIdentity2Name = '${projectName}${envSuffix}-agents-identity-2'
 var crudIdentityName = '${projectName}${envSuffix}-crud-identity'
@@ -1183,13 +1185,23 @@ resource fluxConfig 'Microsoft.KubernetesConfiguration/fluxConfigurations@2024-0
       timeoutInSeconds: 600
     }
     kustomizations: {
-      'holiday-peak-services': {
-        path: '.kubernetes/rendered'
+      'holiday-peak-crud': {
+        path: '.kubernetes/rendered/crud'
         syncIntervalInSeconds: 300
         timeoutInSeconds: 600
         prune: true
         force: false
         dependsOn: []
+      }
+      'holiday-peak-agents': {
+        path: '.kubernetes/rendered/agents'
+        syncIntervalInSeconds: 300
+        timeoutInSeconds: 600
+        prune: true
+        force: false
+        dependsOn: [
+          'holiday-peak-crud'
+        ]
       }
     }
   }
@@ -1279,7 +1291,7 @@ resource agentsFederatedCredentials 'Microsoft.ManagedIdentity/userAssignedIdent
       'api://AzureADTokenExchange'
     ]
     issuer: aks.outputs.?oidcIssuerUrl ?? ''
-    subject: 'system:serviceaccount:${workloadNamespace}:${svc}'
+    subject: 'system:serviceaccount:${agentsNamespace}:${svc}'
   }
 }]
 
@@ -1292,7 +1304,7 @@ resource agentsFederatedCredentials2 'Microsoft.ManagedIdentity/userAssignedIden
       'api://AzureADTokenExchange'
     ]
     issuer: aks.outputs.?oidcIssuerUrl ?? ''
-    subject: 'system:serviceaccount:${workloadNamespace}:${svc}'
+    subject: 'system:serviceaccount:${agentsNamespace}:${svc}'
   }
 }]
 
@@ -1304,7 +1316,7 @@ resource crudFederatedCredential 'Microsoft.ManagedIdentity/userAssignedIdentiti
       'api://AzureADTokenExchange'
     ]
     issuer: aks.outputs.?oidcIssuerUrl ?? ''
-    subject: 'system:serviceaccount:${workloadNamespace}:crud-service'
+    subject: 'system:serviceaccount:${crudNamespace}:crud-service'
   }
 }
 

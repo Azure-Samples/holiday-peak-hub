@@ -28,7 +28,7 @@ services:
       context: ../../..
       remoteBuild: true
     k8s:
-      namespace: holiday-peak
+      namespace: holiday-peak-crud
       deploymentPath: ../../../.kubernetes/rendered/crud-service
     hooks:
       predeploy:
@@ -46,7 +46,7 @@ services:
     language: python
     host: aks
     k8s:
-      namespace: holiday-peak
+      namespace: holiday-peak-agents
       deploymentPath: ../../../.kubernetes/rendered/crm-campaign-intelligence
     hooks:
       predeploy:
@@ -64,7 +64,7 @@ services:
     language: python
     host: aks
     k8s:
-      namespace: holiday-peak
+      namespace: holiday-peak-agents
       deploymentPath: ../../../.kubernetes/rendered/crm-profile-aggregation
     hooks:
       predeploy:
@@ -82,7 +82,7 @@ services:
     language: python
     host: aks
     k8s:
-      namespace: holiday-peak
+      namespace: holiday-peak-agents
       deploymentPath: ../../../.kubernetes/rendered/crm-segmentation-personalization
     hooks:
       predeploy:
@@ -100,7 +100,7 @@ services:
     language: python
     host: aks
     k8s:
-      namespace: holiday-peak
+      namespace: holiday-peak-agents
       deploymentPath: ../../../.kubernetes/rendered/crm-support-assistance
     hooks:
       predeploy:
@@ -118,7 +118,7 @@ services:
     language: python
     host: aks
     k8s:
-      namespace: holiday-peak
+      namespace: holiday-peak-agents
       deploymentPath: ../../../.kubernetes/rendered/ecommerce-cart-intelligence
     hooks:
       predeploy:
@@ -136,7 +136,7 @@ services:
     language: python
     host: aks
     k8s:
-      namespace: holiday-peak
+      namespace: holiday-peak-agents
       deploymentPath: ../../../.kubernetes/rendered/ecommerce-catalog-search
     hooks:
       predeploy:
@@ -154,7 +154,7 @@ services:
     language: python
     host: aks
     k8s:
-      namespace: holiday-peak
+      namespace: holiday-peak-agents
       deploymentPath: ../../../.kubernetes/rendered/ecommerce-checkout-support
     hooks:
       predeploy:
@@ -172,7 +172,7 @@ services:
     language: python
     host: aks
     k8s:
-      namespace: holiday-peak
+      namespace: holiday-peak-agents
       deploymentPath: ../../../.kubernetes/rendered/ecommerce-order-status
     hooks:
       predeploy:
@@ -190,7 +190,7 @@ services:
     language: python
     host: aks
     k8s:
-      namespace: holiday-peak
+      namespace: holiday-peak-agents
       deploymentPath: ../../../.kubernetes/rendered/ecommerce-product-detail-enrichment
     hooks:
       predeploy:
@@ -208,7 +208,7 @@ services:
     language: python
     host: aks
     k8s:
-      namespace: holiday-peak
+      namespace: holiday-peak-agents
       deploymentPath: ../../../.kubernetes/rendered/inventory-alerts-triggers
     hooks:
       predeploy:
@@ -226,7 +226,7 @@ services:
     language: python
     host: aks
     k8s:
-      namespace: holiday-peak
+      namespace: holiday-peak-agents
       deploymentPath: ../../../.kubernetes/rendered/inventory-health-check
     hooks:
       predeploy:
@@ -244,7 +244,7 @@ services:
     language: python
     host: aks
     k8s:
-      namespace: holiday-peak
+      namespace: holiday-peak-agents
       deploymentPath: ../../../.kubernetes/rendered/inventory-jit-replenishment
     hooks:
       predeploy:
@@ -262,7 +262,7 @@ services:
     language: python
     host: aks
     k8s:
-      namespace: holiday-peak
+      namespace: holiday-peak-agents
       deploymentPath: ../../../.kubernetes/rendered/inventory-reservation-validation
     hooks:
       predeploy:
@@ -280,7 +280,7 @@ services:
     language: python
     host: aks
     k8s:
-      namespace: holiday-peak
+      namespace: holiday-peak-agents
       deploymentPath: ../../../.kubernetes/rendered/logistics-carrier-selection
     hooks:
       predeploy:
@@ -298,7 +298,7 @@ services:
     language: python
     host: aks
     k8s:
-      namespace: holiday-peak
+      namespace: holiday-peak-agents
       deploymentPath: ../../../.kubernetes/rendered/logistics-eta-computation
     hooks:
       predeploy:
@@ -316,7 +316,7 @@ services:
     language: python
     host: aks
     k8s:
-      namespace: holiday-peak
+      namespace: holiday-peak-agents
       deploymentPath: ../../../.kubernetes/rendered/logistics-returns-support
     hooks:
       predeploy:
@@ -334,7 +334,7 @@ services:
     language: python
     host: aks
     k8s:
-      namespace: holiday-peak
+      namespace: holiday-peak-agents
       deploymentPath: ../../../.kubernetes/rendered/logistics-route-issue-detection
     hooks:
       predeploy:
@@ -352,7 +352,7 @@ services:
     language: python
     host: aks
     k8s:
-      namespace: holiday-peak
+      namespace: holiday-peak-agents
       deploymentPath: ../../../.kubernetes/rendered/product-management-acp-transformation
     hooks:
       predeploy:
@@ -370,7 +370,7 @@ services:
     language: python
     host: aks
     k8s:
-      namespace: holiday-peak
+      namespace: holiday-peak-agents
       deploymentPath: ../../../.kubernetes/rendered/product-management-assortment-optimization
     hooks:
       predeploy:
@@ -388,7 +388,7 @@ services:
     language: python
     host: aks
     k8s:
-      namespace: holiday-peak
+      namespace: holiday-peak-agents
       deploymentPath: ../../../.kubernetes/rendered/product-management-consistency-validation
     hooks:
       predeploy:
@@ -406,7 +406,7 @@ services:
     language: python
     host: aks
     k8s:
-      namespace: holiday-peak
+      namespace: holiday-peak-agents
       deploymentPath: ../../../.kubernetes/rendered/product-management-normalization-classification
     hooks:
       predeploy:
@@ -424,7 +424,7 @@ services:
     language: python
     host: aks
     k8s:
-      namespace: holiday-peak
+      namespace: holiday-peak-agents
       deploymentPath: ../../../.kubernetes/rendered/search-enrichment-agent
     hooks:
       predeploy:
@@ -442,7 +442,7 @@ services:
     language: python
     host: aks
     k8s:
-      namespace: holiday-peak
+      namespace: holiday-peak-agents
       deploymentPath: ../../../.kubernetes/rendered/truth-ingestion
     hooks:
       predeploy:
@@ -460,7 +460,7 @@ services:
     language: python
     host: aks
     k8s:
-      namespace: holiday-peak
+      namespace: holiday-peak-agents
       deploymentPath: ../../../.kubernetes/rendered/truth-enrichment
     hooks:
       predeploy:
@@ -479,7 +479,7 @@ services:
     language: python
     host: aks
     k8s:
-      namespace: holiday-peak
+      namespace: holiday-peak-agents
       deploymentPath: ../../../.kubernetes/rendered/truth-export
     hooks:
       predeploy:
@@ -498,7 +498,7 @@ services:
     language: python
     host: aks
     k8s:
-      namespace: holiday-peak
+      namespace: holiday-peak-agents
       deploymentPath: ../../../.kubernetes/rendered/truth-hitl
     hooks:
       predeploy:

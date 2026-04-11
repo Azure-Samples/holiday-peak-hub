@@ -2,7 +2,7 @@ param(
     [string]$ResourceGroup = $env:AZURE_RESOURCE_GROUP,
     [string]$ApimName = $env:APIM_NAME,
     [string]$ApimCorsAllowedOrigins = $(if ($env:APIM_CORS_ALLOWED_ORIGINS) { $env:APIM_CORS_ALLOWED_ORIGINS } else { 'http://localhost:3000' }),
-    [string]$Namespace = $(if ($env:K8S_NAMESPACE) { $env:K8S_NAMESPACE } else { 'holiday-peak' }),
+    [string]$Namespace = $(if ($env:K8S_NAMESPACE) { $env:K8S_NAMESPACE } else { 'holiday-peak-agents' }),
     [string]$AzureYamlPath,
     [string]$ChangedServices = $env:CHANGED_SERVICES,
     [string]$ApiPathPrefix = 'agents',

@@ -3,7 +3,13 @@ set -eu
 
 SERVICE_NAME="$1"
 
-NAMESPACE="${K8S_NAMESPACE:-holiday-peak}"
+# Namespace routing: CRUD goes to holiday-peak-crud, agents to holiday-peak-agents.
+# ADR-034: Namespace Isolation Strategy
+if [ "$SERVICE_NAME" = "crud-service" ]; then
+  NAMESPACE="${K8S_CRUD_NAMESPACE:-${K8S_NAMESPACE:-holiday-peak-crud}}"
+else
+  NAMESPACE="${K8S_AGENTS_NAMESPACE:-${K8S_NAMESPACE:-holiday-peak-agents}}"
+fi
 IMAGE_PREFIX="${IMAGE_PREFIX:-ghcr.io/azure-samples}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 IMAGE_DIGEST="${IMAGE_DIGEST:-}"

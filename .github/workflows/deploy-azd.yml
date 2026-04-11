@@ -411,6 +411,8 @@ jobs:
           azd env set IMAGE_PREFIX "ghcr.io/${{ github.repository_owner }}" -e "${{ inputs.environment }}"
           azd env set IMAGE_TAG "${{ inputs.imageTag }}" -e "${{ inputs.environment }}"
           azd env set K8S_NAMESPACE holiday-peak -e "${{ inputs.environment }}"
+          azd env set K8S_CRUD_NAMESPACE holiday-peak-crud -e "${{ inputs.environment }}"
+          azd env set K8S_AGENTS_NAMESPACE holiday-peak-agents -e "${{ inputs.environment }}"
           azd env set KEDA_ENABLED true -e "${{ inputs.environment }}"
           if [ "${{ inputs.environment }}" = "dev" ]; then
             azd env set POSTGRES_AUTH_MODE entra -e "${{ inputs.environment }}"
@@ -1415,6 +1417,18 @@ jobs:
           nslookup "$AKS_FQDN" || true
           exit 1
 
+      - name: Ensure target namespaces exist
+        shell: bash
+        run: |
+          set -euo pipefail
+          for ns in holiday-peak-crud holiday-peak-agents; do
+            if ! kubectl get namespace "$ns" >/dev/null 2>&1; then
+              kubectl create namespace "$ns"
+              echo "Created namespace $ns"
+            fi
+            kubectl label namespace "$ns" holiday-peak/ingress-allowed=true --overwrite
+          done
+
       - name: Resolve AKS managed identity client ID
         run: |
           AKS_MI_CLIENT_ID=$(az aks show \
@@ -1510,16 +1524,16 @@ jobs:
           deploy_crud() {
             export SERVICE_CRUD_SERVICE_IMAGE_NAME="$CRUD_IMAGE_REF"
             bash .infra/azd/hooks/render-helm.sh crud-service
-            kubectl apply --dry-run=server -f .kubernetes/rendered/crud-service/all.yaml -n holiday-peak >/dev/null
-            kubectl apply -f .kubernetes/rendered/crud-service/all.yaml -n holiday-peak >/dev/null
+            kubectl apply --dry-run=server -f .kubernetes/rendered/crud-service/all.yaml -n holiday-peak-crud >/dev/null
+            kubectl apply -f .kubernetes/rendered/crud-service/all.yaml -n holiday-peak-crud >/dev/null
 
-            DEPLOYMENT_NAME=$(kubectl get deployment -n holiday-peak -l 'app=crud-service,canary=false' -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+            DEPLOYMENT_NAME=$(kubectl get deployment -n holiday-peak-crud -l 'app=crud-service,canary=false' -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
             if [ -z "$DEPLOYMENT_NAME" ]; then
               echo "Failed to resolve CRUD deployment name after manifest apply." >&2
               return 1
             fi
 
-            kubectl rollout status "deployment/${DEPLOYMENT_NAME}" -n holiday-peak --timeout=300s
+            kubectl rollout status "deployment/${DEPLOYMENT_NAME}" -n holiday-peak-crud --timeout=300s
           }
 
           if deploy_crud; then
@@ -1543,21 +1557,21 @@ jobs:
           } > "$TRIAGE_DIR/run-metadata.txt"
 
           kubectl get ingressclass -o wide > "$TRIAGE_DIR/kubectl-ingressclass.txt" 2>&1 || true
-          kubectl get ingress -n holiday-peak -o wide > "$TRIAGE_DIR/kubectl-ingress.txt" 2>&1 || true
+          kubectl get ingress -n holiday-peak-crud -o wide > "$TRIAGE_DIR/kubectl-ingress.txt" 2>&1 || true
           kubectl get pods -n app-routing-system -o wide > "$TRIAGE_DIR/kubectl-app-routing-pods.txt" 2>&1 || true
           kubectl get pods -n ingress-nginx -o wide > "$TRIAGE_DIR/kubectl-ingress-nginx-pods.txt" 2>&1 || true
-          kubectl -n holiday-peak get deployment -l app=crud-service,canary=false -o wide > "$TRIAGE_DIR/kubectl-crud-deployment.txt" 2>&1 || true
-          kubectl -n holiday-peak describe deployment $(kubectl get deployment -n holiday-peak -l app=crud-service,canary=false -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo crud-service-crud-service) > "$TRIAGE_DIR/kubectl-crud-deployment-describe.txt" 2>&1 || true
-          kubectl -n holiday-peak get rs -l app=crud-service -o wide > "$TRIAGE_DIR/kubectl-crud-rs.txt" 2>&1 || true
-          kubectl -n holiday-peak get pods -l app=crud-service -o wide > "$TRIAGE_DIR/kubectl-crud-pods.txt" 2>&1 || true
-          kubectl -n holiday-peak get events --sort-by='.lastTimestamp' | tail -n 200 > "$TRIAGE_DIR/kubectl-events-tail.txt" 2>&1 || true
+          kubectl -n holiday-peak-crud get deployment -l app=crud-service,canary=false -o wide > "$TRIAGE_DIR/kubectl-crud-deployment.txt" 2>&1 || true
+          kubectl -n holiday-peak-crud describe deployment $(kubectl get deployment -n holiday-peak-crud -l app=crud-service,canary=false -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo crud-service-crud-service) > "$TRIAGE_DIR/kubectl-crud-deployment-describe.txt" 2>&1 || true
+          kubectl -n holiday-peak-crud get rs -l app=crud-service -o wide > "$TRIAGE_DIR/kubectl-crud-rs.txt" 2>&1 || true
+          kubectl -n holiday-peak-crud get pods -l app=crud-service -o wide > "$TRIAGE_DIR/kubectl-crud-pods.txt" 2>&1 || true
+          kubectl -n holiday-peak-crud get events --sort-by='.lastTimestamp' | tail -n 200 > "$TRIAGE_DIR/kubectl-events-tail.txt" 2>&1 || true
           cp .kubernetes/rendered/crud-service/all.yaml "$TRIAGE_DIR/rendered-crud-all.yaml" 2>/dev/null || true
 
-          NEW_POD=$(kubectl -n holiday-peak get pods -l app=crud-service --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1:].metadata.name}' 2>/dev/null || true)
+          NEW_POD=$(kubectl -n holiday-peak-crud get pods -l app=crud-service --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1:].metadata.name}' 2>/dev/null || true)
           if [ -n "$NEW_POD" ]; then
-            kubectl -n holiday-peak describe pod "$NEW_POD" > "$TRIAGE_DIR/kubectl-new-pod-describe.txt" 2>&1 || true
-            kubectl -n holiday-peak logs "$NEW_POD" --tail=300 > "$TRIAGE_DIR/kubectl-new-pod-logs.txt" 2>&1 || true
-            kubectl -n holiday-peak logs "$NEW_POD" --previous --tail=300 > "$TRIAGE_DIR/kubectl-new-pod-logs-previous.txt" 2>&1 || true
+            kubectl -n holiday-peak-crud describe pod "$NEW_POD" > "$TRIAGE_DIR/kubectl-new-pod-describe.txt" 2>&1 || true
+            kubectl -n holiday-peak-crud logs "$NEW_POD" --tail=300 > "$TRIAGE_DIR/kubectl-new-pod-logs.txt" 2>&1 || true
+            kubectl -n holiday-peak-crud logs "$NEW_POD" --previous --tail=300 > "$TRIAGE_DIR/kubectl-new-pod-logs-previous.txt" 2>&1 || true
           fi
 
           echo "CRUD deploy failed on first attempt. Review first-failure protocol in run summary before rerun." >&2
@@ -1677,7 +1691,7 @@ jobs:
             echo "APIM gateway URL not provided by provision outputs; skipping APIM /api/ready check."
           fi
 
-          kubectl port-forward svc/crud-service 18080:8000 -n holiday-peak >/tmp/crud-port-forward.log 2>&1 &
+          kubectl port-forward svc/crud-service 18080:8000 -n holiday-peak-crud >/tmp/crud-port-forward.log 2>&1 &
           PF_PID=$!
           trap 'kill "$PF_PID" >/dev/null 2>&1 || true' EXIT
           sleep 3
@@ -2186,6 +2200,16 @@ jobs:
           nslookup "$AKS_FQDN" || true
           exit 1
 
+      - name: Ensure agents namespace exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! kubectl get namespace holiday-peak-agents >/dev/null 2>&1; then
+            kubectl create namespace holiday-peak-agents
+            echo "Created namespace holiday-peak-agents"
+          fi
+          kubectl label namespace holiday-peak-agents holiday-peak/ingress-allowed=true --overwrite
+
       - name: Resolve AKS managed identity client ID
         run: |
           AKS_MI_CLIENT_ID=$(az aks show \
@@ -2223,16 +2247,16 @@ jobs:
           export "${SERVICE_IMAGE_VAR_NAME}=${IMAGE_REF}"
 
           bash .infra/azd/hooks/render-helm.sh "$SERVICE_NAME"
-          kubectl apply --dry-run=server -f ".kubernetes/rendered/${SERVICE_NAME}/all.yaml" -n holiday-peak >/dev/null
-          kubectl apply -f ".kubernetes/rendered/${SERVICE_NAME}/all.yaml" -n holiday-peak >/dev/null
+          kubectl apply --dry-run=server -f ".kubernetes/rendered/${SERVICE_NAME}/all.yaml" -n holiday-peak-agents >/dev/null
+          kubectl apply -f ".kubernetes/rendered/${SERVICE_NAME}/all.yaml" -n holiday-peak-agents >/dev/null
 
-          DEPLOYMENT_NAME=$(kubectl get deployment -n holiday-peak -l "app=${SERVICE_NAME},canary=false" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+          DEPLOYMENT_NAME=$(kubectl get deployment -n holiday-peak-agents -l "app=${SERVICE_NAME},canary=false" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
           if [ -z "$DEPLOYMENT_NAME" ]; then
             echo "Failed to resolve deployment name for ${SERVICE_NAME} after manifest apply." >&2
             exit 1
           fi
 
-          kubectl rollout status "deployment/${DEPLOYMENT_NAME}" -n holiday-peak --timeout=300s
+          kubectl rollout status "deployment/${DEPLOYMENT_NAME}" -n holiday-peak-agents --timeout=300s
         env:
           DEPLOY_ENV: ${{ inputs.environment }}
           AZURE_TENANT_ID: ${{ env.AZURE_TENANT_ID }}
@@ -2538,7 +2562,7 @@ jobs:
           RG_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
           APIM_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-apim"
           AKS_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-aks"
-          K8S_NAMESPACE="holiday-peak"
+          K8S_NAMESPACE="holiday-peak-crud"
 
           fetch_crud_endpoint_ips() {
             local logs
@@ -2805,7 +2829,7 @@ jobs:
       - name: Render changed agent manifests for Foundry contract validation
         shell: bash
         env:
-          K8S_NAMESPACE: holiday-peak
+          K8S_NAMESPACE: holiday-peak-agents
         run: |
           set -euo pipefail
 
@@ -2888,7 +2912,7 @@ jobs:
           export FOUNDRY_AUTO_ENSURE_ON_STARTUP="${FOUNDRY_RUNTIME_AUTO_ENSURE_ON_STARTUP}"
           bash .infra/azd/hooks/ensure-foundry-agents.sh --port-forward --fail-on-error
         env:
-          K8S_NAMESPACE: holiday-peak
+          K8S_NAMESPACE: holiday-peak-agents
           VALIDATE_RENDERED_FOUNDRY_CONTRACT: "true"
           VALIDATE_READY_AFTER_ENSURE: "true"
 

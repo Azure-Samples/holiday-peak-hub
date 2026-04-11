@@ -1,10 +1,10 @@
----
+﻿---
 # Source: holiday-peak-service/templates/serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: truth-hitl
-  namespace: holiday-peak
+  namespace: holiday-peak-agents
   labels:
     app: truth-hitl
   annotations:
@@ -15,7 +15,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: truth-hitl-truth-hitl
-  namespace: holiday-peak
+  namespace: holiday-peak-agents
   labels:
     app: truth-hitl
 spec:
@@ -33,7 +33,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: truth-hitl-truth-hitl
-  namespace: holiday-peak
+  namespace: holiday-peak-agents
   labels:
     app: truth-hitl
 spec:
@@ -114,17 +114,15 @@ spec:
             - name: PLATFORM_JOBS_EVENT_HUB_NAMESPACE
               value: "holidaypeakhub405-dev-jobs-eh"
             - name: POSTGRES_AUTH_MODE
-              value: "password"
+              value: "entra"
             - name: POSTGRES_DATABASE
               value: "holiday_peak_crud"
             - name: POSTGRES_HOST
               value: "holidaypeakhub405-dev-postgres.postgres.database.azure.com"
-            - name: POSTGRES_PORT
-              value: "5432"
             - name: POSTGRES_SSL
               value: "true"
             - name: POSTGRES_USER
-              value: "crud_workload"
+              value: "holidaypeakhub405-dev-crud-identity"
             - name: PROJECT_ENDPOINT
               value: "https://holidaypeakhub405devais.services.ai.azure.com/api/projects/aipholidaris"
             - name: PROJECT_NAME
@@ -133,8 +131,6 @@ spec:
               value: "holidaypeakhub405-dev-redis.redis.cache.windows.net"
             - name: REDIS_PASSWORD_SECRET_NAME
               value: "redis-primary-key"
-            - name: REDIS_URL
-              value: "rediss://holidaypeakhub405-dev-redis.redis.cache.windows.net:6380/0"
             - name: TRUTH_EVENT_HUB_CONSUMER_GROUP
               value: "hitl-service"
             - name: TRUTH_EVENT_HUB_NAME
@@ -170,32 +166,3 @@ spec:
             requests:
               cpu: 250m
               memory: 256Mi
----
-# Source: holiday-peak-service/templates/agc-routing.yaml
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: truth-hitl-truth-hitl-agc
-  namespace: holiday-peak
-  labels:
-    app: truth-hitl
-spec:
-  parentRefs:
-    - name: "holiday-peak-agc"
-      namespace: "holiday-peak"
-  hostnames:
-    - "e3g0avgfauc3e4cp.fz87.alb.azure.com"
-  rules:
-    - matches:
-        - path:
-            type: PathPrefix
-            value: "/truth-hitl"
-      filters:
-        - type: URLRewrite
-          urlRewrite:
-            path:
-              type: ReplacePrefixMatch
-              replacePrefixMatch: "/"
-      backendRefs:
-        - name: truth-hitl-truth-hitl
-          port: 80

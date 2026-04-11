@@ -3,7 +3,15 @@ param(
     [string]$ServiceName
 )
 
-$namespace = if ($env:K8S_NAMESPACE) { $env:K8S_NAMESPACE } else { "holiday-peak" }
+$namespace = if ($ServiceName -eq "crud-service") {
+    if ($env:K8S_CRUD_NAMESPACE) { $env:K8S_CRUD_NAMESPACE }
+    elseif ($env:K8S_NAMESPACE) { $env:K8S_NAMESPACE }
+    else { "holiday-peak-crud" }
+} else {
+    if ($env:K8S_AGENTS_NAMESPACE) { $env:K8S_AGENTS_NAMESPACE }
+    elseif ($env:K8S_NAMESPACE) { $env:K8S_NAMESPACE }
+    else { "holiday-peak-agents" }
+}
 $imagePrefix = if ($env:IMAGE_PREFIX) { $env:IMAGE_PREFIX } else { "ghcr.io/azure-samples" }
 $imageTag = if ($env:IMAGE_TAG) { $env:IMAGE_TAG } else { "latest" }
 $imageDigest = if ($env:IMAGE_DIGEST) { $env:IMAGE_DIGEST } else { "" }
