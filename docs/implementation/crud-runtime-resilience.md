@@ -21,6 +21,7 @@ Hardened `apps/crud-service` list endpoints and readiness checks to prevent recu
   - Provides `check_pool_health()` with a live `SELECT 1` probe.
   - Converts pool acquisition failures to explicit runtime errors with stable messaging.
   - Skips malformed DB row payloads during query hydration instead of crashing request flows.
+  - Repository bootstrap now checks whether a table already exists before running DDL, so Entra workload identities can read pre-provisioned tables without requiring table-owner permissions for `CREATE INDEX IF NOT EXISTS`.
 
 - Hardened route-level behavior for list endpoints:
   - Repository/transient runtime failures now return `503 Service Unavailable` with endpoint-specific messages.
@@ -64,3 +65,10 @@ Hardened `apps/crud-service` list endpoints and readiness checks to prevent recu
 - Addressed focused review finding where stale startup DB init errors could keep `/ready` degraded after transient failures.
 - Added explicit test coverage for recovery path.
 - Preserved existing degraded behavior for true dependency failures.
+
+## Shared Optional Hot Memory Resilience (2026-04-10)
+
+- Shared library startup now upgrades passwordless Azure-style `REDIS_URL` values with a Key Vault secret when `KEY_VAULT_URI` and `REDIS_PASSWORD_SECRET_NAME` are configured.
+- `HotMemory.get()` now fails open on Redis auth/connectivity faults and behaves like a cache miss (`None`).
+- `HotMemory.set()` now fails open on Redis auth/connectivity faults and becomes a no-op.
+- These Redis failures are logged as warnings and request handling continues without making optional hot memory a hard runtime dependency.

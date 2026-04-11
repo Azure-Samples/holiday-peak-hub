@@ -4,6 +4,9 @@ import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from redis.exceptions import AuthenticationError as RedisAuthenticationError
+from redis.exceptions import ConnectionError as RedisConnectionError
+
 from holiday_peak_lib.agents.memory.cold import ColdMemory
 from holiday_peak_lib.agents.memory.hot import HotMemory
 from holiday_peak_lib.agents.memory.warm import WarmMemory
@@ -85,24 +88,40 @@ class TestHotMemory:
             await memory.get("key")
 
     @pytest.mark.asyncio
+    async def test_get_returns_none_when_redis_auth_fails(self, mock_redis_client, monkeypatch):
+        """Redis auth failures should degrade to a cache miss."""
+        memory = HotMemory("redis://localhost:6379")
+        monkeypatch.setattr(memory, "client", mock_redis_client)
+        mock_redis_client.get.side_effect = RedisAuthenticationError("invalid password")
+
+        result = await memory.get("test_key")
+
+        assert result is None
+        assert memory.client is None
+
+    @pytest.mark.asyncio
+    async def test_set_does_not_raise_when_redis_connection_fails(
+        self, mock_redis_client, monkeypatch
+    ):
+        """Redis connectivity failures should make set a no-op."""
+        memory = HotMemory("redis://localhost:6379")
+        monkeypatch.setattr(memory, "client", mock_redis_client)
+        mock_redis_client.set.side_effect = RedisConnectionError("unavailable")
+
+        await memory.set("test_key", "value", ttl_seconds=60)
+
+        assert memory.client is None
+
+    @pytest.mark.asyncio
     async def test_connect_is_single_init_under_concurrency(self, mock_redis_client):
         """Concurrent first-use connect should initialize once."""
         memory = HotMemory("redis://localhost:6379")
 
-        async def delayed_log_operation(*_, **kwargs):
-            await asyncio.sleep(0.01)
-            return await kwargs["func"]()
-
-        with patch(
-            "holiday_peak_lib.agents.memory.hot.log_async_operation", new=delayed_log_operation
-        ):
-            with patch(
-                "holiday_peak_lib.agents.memory.hot.redis.ConnectionPool.from_url"
-            ) as mock_pool:
-                with patch("holiday_peak_lib.agents.memory.hot.redis.Redis") as mock_redis:
-                    mock_pool.return_value = object()
-                    mock_redis.return_value = mock_redis_client
-                    await asyncio.gather(memory.connect(), memory.connect())
+        with patch("holiday_peak_lib.agents.memory.hot.redis.ConnectionPool.from_url") as mock_pool:
+            with patch("holiday_peak_lib.agents.memory.hot.redis.Redis") as mock_redis:
+                mock_pool.return_value = object()
+                mock_redis.return_value = mock_redis_client
+                await asyncio.gather(memory.connect(), memory.connect())
 
         assert memory.client is mock_redis_client
         assert mock_redis.call_count == 1
