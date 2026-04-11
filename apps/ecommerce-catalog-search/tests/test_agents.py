@@ -386,7 +386,7 @@ class TestCatalogSearchAgent:
 
             await agent.handle(
                 {
-                    "query": "test product",
+                    "query": "SKU-001",
                     "limit": 5,
                     "mode": "keyword",
                     "search_stage": "rerank",
@@ -514,18 +514,18 @@ class TestCatalogSearchAgent:
             )
 
             agent = CatalogSearchAgent(config=agent_dependencies)
-            result = await agent.handle({"query": "running shoes", "limit": 5, "mode": "keyword"})
+            result = await agent.handle({"query": "test product", "limit": 5, "mode": "keyword"})
 
             assert len(result["results"]) == 1
             assert result["results"][0]["item_id"] == "SKU-001"
-            mock_search.assert_awaited_once_with(query="running shoes", limit=5)
+            mock_search.assert_awaited_once_with(query="test product", limit=5)
             mock_products.get_related.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_handle_falls_back_when_ai_search_empty(
         self, agent_dependencies, mock_catalog_product
     ):
-        """Test fallback path remains active when AI Search has no hits."""
+        """Natural-language keyword queries should return empty when retrieval has no relevant hits."""
         mock_inventory_item = InventoryItem(sku="SKU-001", available=10, reserved=0)
 
         with (
@@ -552,9 +552,9 @@ class TestCatalogSearchAgent:
             agent = CatalogSearchAgent(config=agent_dependencies)
             result = await agent.handle({"query": "fallback query", "limit": 3, "mode": "keyword"})
 
-            assert len(result["results"]) == 1
+            assert len(result["results"]) == 0
             mock_search.assert_awaited_once_with(query="fallback query", limit=3)
-            mock_products.get_related.assert_awaited_once()
+            mock_products.get_related.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_handle_uses_text_search_fallback_when_ai_search_empty(
@@ -570,7 +570,14 @@ class TestCatalogSearchAgent:
             mock_search.return_value = AISearchSkuResult(skus=[])
 
             mock_products = AsyncMock()
-            mock_products.search = AsyncMock(return_value=[mock_catalog_product])
+            text_match_product = mock_catalog_product.model_copy(
+                update={
+                    "name": "Rain Jacket",
+                    "description": "Waterproof rain jacket for cold weather travel.",
+                    "category": "clothing",
+                }
+            )
+            mock_products.search = AsyncMock(return_value=[text_match_product])
             mock_products.get_product = AsyncMock(return_value=None)
             mock_products.get_related = AsyncMock(return_value=[])
 
@@ -760,8 +767,7 @@ class TestCatalogSearchAgent:
                     {"query": "show me travel accessories", "limit": 5, "mode": "intelligent"}
                 )
 
-            assert len(result["results"]) == 1
-            assert result["results"][0]["item_id"] == "SKU-001"
+            assert len(result["results"]) == 0
             mock_multi.assert_not_awaited()
             assert mock_search.await_count >= 1
 
@@ -793,7 +799,14 @@ class TestCatalogSearchAgent:
             ]
 
             mock_products = AsyncMock()
-            mock_products.get_product = AsyncMock(return_value=mock_catalog_product)
+            relevant_product = mock_catalog_product.model_copy(
+                update={
+                    "name": "Travel Headphones Pro",
+                    "description": "Noise-canceling headphones for travel and commute.",
+                    "category": "audio",
+                }
+            )
+            mock_products.get_product = AsyncMock(return_value=relevant_product)
             mock_products.get_related = AsyncMock(return_value=[])
 
             mock_inventory = AsyncMock()

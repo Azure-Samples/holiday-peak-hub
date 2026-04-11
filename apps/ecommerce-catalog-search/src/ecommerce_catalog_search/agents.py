@@ -95,6 +95,7 @@ GENERIC_KEYWORD_STOPWORDS = frozenset(
         "are",
         "be",
         "best",
+        "buy",
         "by",
         "for",
         "from",
@@ -110,11 +111,13 @@ GENERIC_KEYWORD_STOPWORDS = frozenset(
         "or",
         "please",
         "recommend",
+        "should",
         "show",
         "suggest",
         "that",
         "the",
         "to",
+        "want",
         "what",
         "which",
         "with",
@@ -126,6 +129,9 @@ GENERIC_KEYWORD_STOPWORDS = frozenset(
 LEXICAL_CANONICAL_OVERRIDES: dict[str, str] = {
     "bags": "bag",
     "backpacks": "backpack",
+    "cloth": "clothing",
+    "clothes": "clothing",
+    "clothing": "clothing",
     "headphones": "headphone",
     "laptops": "laptop",
     "phones": "phone",
@@ -753,6 +759,14 @@ def _product_search_text(product: CatalogProduct) -> str:
     return " ".join(values).lower()
 
 
+def _search_relevance_tokens(value: str) -> set[str]:
+    return {
+        token
+        for token in _tokenize_lexical_terms(value)
+        if token not in GENERIC_KEYWORD_STOPWORDS and len(token) >= 3
+    }
+
+
 def _rank_products_by_query_relevance(
     *,
     query: str,
@@ -762,10 +776,10 @@ def _rank_products_by_query_relevance(
     if limit <= 0:
         return []
 
-    query_tokens = _tokenize_lexical_terms(query)
+    query_tokens = _search_relevance_tokens(query)
     ranked_entries: dict[str, tuple[CatalogProduct, int, int]] = {}
     for index, product in enumerate(products):
-        product_tokens = _tokenize_lexical_terms(_product_search_text(product))
+        product_tokens = _search_relevance_tokens(_product_search_text(product))
         overlap_score = len(query_tokens & product_tokens)
         existing = ranked_entries.get(product.sku)
         if existing is None or overlap_score > existing[1]:
@@ -776,6 +790,18 @@ def _rank_products_by_query_relevance(
         key=lambda entry: (-entry[1], entry[2], entry[0].sku),
     )
     return [entry[0] for entry in ranked[:limit]]
+
+
+def _max_query_overlap(query: str, products: list[CatalogProduct]) -> int:
+    if not products:
+        return 0
+
+    query_tokens = _search_relevance_tokens(query)
+    max_overlap = 0
+    for product in products:
+        product_tokens = _search_relevance_tokens(_product_search_text(product))
+        max_overlap = max(max_overlap, len(query_tokens & product_tokens))
+    return max_overlap
 
 
 async def _expand_products_with_sub_queries(
@@ -822,11 +848,14 @@ async def _expand_products_with_sub_queries(
                 product for product in batch if isinstance(product, CatalogProduct)
             )
 
-    return _rank_products_by_query_relevance(
+    ranked_products = _rank_products_by_query_relevance(
         query=query,
         products=expanded_products,
         limit=limit,
     )
+    if _max_query_overlap(query, ranked_products) <= 0:
+        return []
+    return ranked_products
 
 
 async def _search_products_text_fallback(
@@ -898,7 +927,13 @@ async def _search_products_keyword(
         )
         ai_search_products = [product for product in resolved_products if product is not None]
         if ai_search_products:
-            return ai_search_products[:limit]
+            ranked_products = _rank_products_by_query_relevance(
+                query=query,
+                products=ai_search_products,
+                limit=limit,
+            )
+            if ranked_products and _max_query_overlap(query, ranked_products) > 0:
+                return ranked_products
 
     if ai_search_result.fallback_reason is not None:
         logger.warning(
@@ -928,7 +963,17 @@ async def _search_products_keyword(
             limit=limit,
         )
         if text_fallback_products:
-            return text_fallback_products
+            ranked_text_fallback = _rank_products_by_query_relevance(
+                query=query,
+                products=text_fallback_products,
+                limit=limit,
+            )
+            if _max_query_overlap(query, ranked_text_fallback) > 0:
+                return ranked_text_fallback
+
+        # Avoid hash-based SKU fallbacks for natural-language queries; they create
+        # unrelated recommendations and degrade trust in search results.
+        return []
 
     primary_sku = _coerce_query_to_sku(query)
     primary = await adapters.products.get_product(primary_sku)
@@ -974,7 +1019,18 @@ async def _search_products_intelligent(
         limit,
     )
     if intelligent_products:
-        return intelligent_products, enrichment_by_sku, intent
+        ranked_intelligent = _rank_products_by_query_relevance(
+            query=query,
+            products=intelligent_products,
+            limit=limit,
+        )
+        if _max_query_overlap(query, ranked_intelligent) > 0:
+            filtered_enrichment = {
+                sku: enrichment_by_sku[sku]
+                for sku in [product.sku for product in ranked_intelligent]
+                if sku in enrichment_by_sku
+            }
+            return ranked_intelligent, filtered_enrichment, intent
 
     expanded_products = await _expand_products_with_sub_queries(
         adapters=adapters,

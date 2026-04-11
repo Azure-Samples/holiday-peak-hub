@@ -75,17 +75,6 @@ class AISearchSeedResult:
     reason: str | None = None
 
 
-_SEARCH_SELECT_FIELDS = [
-    "sku",
-    "id",
-    "title",
-    "description",
-    "content",
-    "use_cases",
-    "complementary_products",
-    "substitute_products",
-    "enriched_description",
-]
 _ENRICHED_FIELDS = (
     "use_cases",
     "complementary_products",
@@ -287,15 +276,15 @@ async def _search_documents(
         credential=credential,
     )
     filter_expression = _as_search_filter(filters)
+    search_kwargs: dict[str, Any] = {
+        "search_text": search_text,
+        "top": top_k,
+        "filter": filter_expression,
+        "vector_queries": vector_queries,
+    }
 
     try:
-        results = await client.search(
-            search_text=search_text,
-            top=top_k,
-            select=_SEARCH_SELECT_FIELDS,
-            filter=filter_expression,
-            vector_queries=vector_queries,
-        )
+        results = await client.search(**search_kwargs)
         documents: list[AISearchDocumentResult] = []
         async for document in results:
             parsed = _normalize_result_document(document)
@@ -691,8 +680,12 @@ def _to_search_document(product: dict[str, Any]) -> dict[str, Any] | None:
 
     title = str(product.get("name") or sku).strip() or sku
     description = str(product.get("description") or "")
-    category = str(product.get("category") or "")
+    category = str(product.get("category") or product.get("category_id") or "")
     brand = str(product.get("brand") or "")
+    features_raw = product.get("features")
+    features: list[str] = []
+    if isinstance(features_raw, list):
+        features = [str(item).strip() for item in features_raw if str(item).strip()]
 
     price_raw = product.get("price")
     try:
@@ -705,7 +698,17 @@ def _to_search_document(product: dict[str, Any]) -> dict[str, Any] | None:
         "sku": sku,
         "title": title,
         "description": description,
-        "content": " ".join(part for part in (title, description, category, brand) if part).strip(),
+        "content": " ".join(
+            part
+            for part in (
+                title,
+                description,
+                category,
+                brand,
+                " ".join(features),
+            )
+            if part
+        ).strip(),
         "category": category,
         "brand": brand,
         "availability": _resolve_availability_from_product(product),

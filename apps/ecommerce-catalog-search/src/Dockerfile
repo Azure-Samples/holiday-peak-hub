@@ -30,9 +30,11 @@ USER appuser
 CMD ["uvicorn", "ecommerce_catalog_search.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
 FROM base AS prod-builder
+ARG CACHE_BUST=0
 ENV APP_ENV=prod
 COPY pyproject.toml uv.lock ./
 COPY . ./
+RUN echo "cache_bust=${CACHE_BUST}" > /tmp/cache-bust.txt
 ENV PYTHONPATH=/app/src
 ENV PATH="/app/src/.venv/bin:$PATH"
 RUN uv sync --frozen --no-dev

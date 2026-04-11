@@ -1033,7 +1033,7 @@ wheels = [
 [[package]]
 name = "holiday-peak-lib"
 version = "0.1.0"
-source = { git = "https://github.com/Azure-Samples/holiday-peak-hub.git?subdirectory=lib%2Fsrc&branch=main#b23caf979509f3ad5a4734473c892e2896e57952" }
+source = { git = "https://github.com/Azure-Samples/holiday-peak-hub.git?subdirectory=lib%2Fsrc&branch=main#5c5157611f33996e4b77b3e043e22f629f7e7d12" }
 dependencies = [
     { name = "agent-framework" },
     { name = "aiohttp" },
