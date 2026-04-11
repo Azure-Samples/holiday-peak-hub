@@ -2306,6 +2306,8 @@ jobs:
       - deploy-crud
       - deploy-agents
       - build-aks-images
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
