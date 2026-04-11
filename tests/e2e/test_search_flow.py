@@ -240,7 +240,12 @@ async def test_ai_search_unavailable_uses_fallback_path(
     build_catalog_harness,
     catalog_product,
     caplog,
+    monkeypatch,
 ) -> None:
+    # Disable strict mode so the fallback path is exercised regardless of
+    # CI environment (KUBERNETES_SERVICE_HOST may enable strict mode by default).
+    monkeypatch.setenv("CATALOG_SEARCH_REQUIRE_AI_SEARCH", "false")
+
     harness = build_catalog_harness(default_product=catalog_product, related_products=[])
 
     caplog.set_level(logging.WARNING, logger="ecommerce_catalog_search.agents")
