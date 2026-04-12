@@ -7,6 +7,7 @@ Agent into a ``ModelTarget`` invoker for ``BaseRetailAgent``.
 
 from __future__ import annotations
 
+import asyncio
 import inspect
 import os
 from dataclasses import dataclass
@@ -21,6 +22,8 @@ from azure.identity.aio import DefaultAzureCredential
 from .base_agent import ModelTarget
 
 _FOUNDRY_PROJECT_HOST_SUFFIX = ".services.ai.azure.com"
+
+_DEFAULT_FOUNDRY_INVOKE_TIMEOUT = float(os.getenv("AGENT_FOUNDRY_INVOKE_TIMEOUT_SECONDS", "55"))
 
 
 # Lazy imports for MAF FoundryAgent (Phase 1)
@@ -605,10 +608,11 @@ class FoundryAgentInvoker:
     middleware, telemetry, and tool execution loop.
     """
 
-    def __init__(self, config: FoundryAgentConfig) -> None:
+    def __init__(self, config: FoundryAgentConfig, *, timeout: float | None = None) -> None:
         self.config = config
         self._agent: Any = None
         self._credential: Any = None
+        self._timeout = timeout if timeout is not None else _DEFAULT_FOUNDRY_INVOKE_TIMEOUT
 
     def _ensure_agent(self) -> Any:
         """Create or return the cached FoundryAgent instance."""
@@ -655,12 +659,51 @@ class FoundryAgentInvoker:
 
         agent = self._ensure_agent()
 
-        # Call through full MAF pipeline
-        response = await agent.run(
-            maf_messages,
-            stream=stream,
-            tools=tool_callables,
-        )
+        # Call through full MAF pipeline with explicit timeout
+        try:
+            response = await asyncio.wait_for(
+                agent.run(
+                    maf_messages,
+                    stream=stream,
+                    tools=tool_callables,
+                ),
+                timeout=self._timeout,
+            )
+        except asyncio.TimeoutError:
+            elapsed_ms = (perf_counter() - started) * 1000
+            reference_name = self.config.agent_name or self.config.agent_id
+            return {
+                "messages": [
+                    {
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": (
+                                    "The request could not be completed within"
+                                    " the allowed time. Please try a simpler"
+                                    " query or retry shortly."
+                                ),
+                            }
+                        ],
+                    }
+                ],
+                "stream": stream,
+                "error": "timeout",
+                "telemetry": {
+                    "endpoint": self.config.endpoint,
+                    "agent_name": reference_name,
+                    "deployment_name": self.config.deployment_name or reference_name,
+                    "stream": stream,
+                    "messages_sent": len(normalized),
+                    "duration_ms": elapsed_ms,
+                    "api_version": "responses",
+                    "runtime": "maf",
+                    "timeout_seconds": self._timeout,
+                    "outcome": "timeout",
+                },
+            }
 
         # Convert AgentResponse to expected dict format
         assistant_text = response.text if hasattr(response, "text") else str(response)

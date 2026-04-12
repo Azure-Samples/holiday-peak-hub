@@ -1,6 +1,7 @@
 """Base agent abstraction with model selection and SDK integration points."""
 
 import asyncio
+import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from time import perf_counter
@@ -35,6 +36,9 @@ from .provider_policy import (
 ModelInvoker = Callable[..., Awaitable[dict[str, Any]]]
 
 UPGRADE_TOKEN = "upgrade"
+
+_DEFAULT_AGENT_INVOKE_TIMEOUT = float(os.getenv("AGENT_INVOKE_TIMEOUT_SECONDS", "90"))
+_DEFAULT_ROUTING_EVAL_TIMEOUT = float(os.getenv("AGENT_ROUTING_EVAL_TIMEOUT_SECONDS", "15"))
 
 
 @dataclass
@@ -384,6 +388,10 @@ class BaseRetailAgent(BaseAgent, ABC):
         error_text: str | None = None
         try:
             result = await target.invoker(**payload)
+        except asyncio.TimeoutError:
+            outcome = "timeout"
+            error_text = "Model invocation timed out"
+            raise
         except Exception as exc:
             outcome = "error"
             error_text = str(exc)
@@ -481,10 +489,31 @@ class BaseRetailAgent(BaseAgent, ABC):
             },
         )
 
-        if self.slm and self.llm:
-            return await self._evaluate_with_slm_routing(request, messages, payload_tools, **kwargs)
+        try:
+            if self.slm and self.llm:
+                return await asyncio.wait_for(
+                    self._evaluate_with_slm_routing(request, messages, payload_tools, **kwargs),
+                    timeout=_DEFAULT_AGENT_INVOKE_TIMEOUT,
+                )
 
-        return await self._direct_model_selection(request, messages, payload_tools, **kwargs)
+            return await asyncio.wait_for(
+                self._direct_model_selection(request, messages, payload_tools, **kwargs),
+                timeout=_DEFAULT_AGENT_INVOKE_TIMEOUT,
+            )
+        except asyncio.TimeoutError:
+            self._trace_decision(
+                decision="invoke_model",
+                outcome="timeout",
+                metadata={"timeout_seconds": _DEFAULT_AGENT_INVOKE_TIMEOUT},
+            )
+            return {
+                "error": "timeout",
+                "message": "The agent could not complete the request within the allowed time.",
+                "_telemetry": {
+                    "outcome": "timeout",
+                    "timeout_seconds": _DEFAULT_AGENT_INVOKE_TIMEOUT,
+                },
+            }
 
     async def _evaluate_with_slm_routing(
         self,
@@ -523,9 +552,18 @@ class BaseRetailAgent(BaseAgent, ABC):
             "different sources to be understood and processed, return a single word 'upgrade'.\n\n"
             f"Request: {request}"
         )
-        evaluation_result = await self.__invoke_target(
-            self.slm, evaluation_prompt, payload_tools, **kwargs
-        )
+        try:
+            evaluation_result = await asyncio.wait_for(
+                self.__invoke_target(self.slm, evaluation_prompt, payload_tools, **kwargs),
+                timeout=_DEFAULT_ROUTING_EVAL_TIMEOUT,
+            )
+        except asyncio.TimeoutError:
+            self._trace_decision(
+                decision="routing_evaluation",
+                outcome="timeout_fallback_slm",
+                metadata={"timeout_seconds": _DEFAULT_ROUTING_EVAL_TIMEOUT},
+            )
+            return await self.__invoke_target(self.slm, messages, payload_tools, **kwargs)
         evaluation_text = ""
         if isinstance(evaluation_result, dict):
             evaluation_text = str(
