@@ -7,6 +7,7 @@ import pytest
 from azure.core.exceptions import HttpResponseError
 from holiday_peak_lib.agents.foundry import (
     FoundryAgentConfig,
+    FoundryAgentInvoker,
     FoundryInvoker,
     _ensure_client,
     build_foundry_model_target,
@@ -271,7 +272,7 @@ class TestBuildFoundryModelTarget:
         assert target.name == "agent-123"
         assert target.model == "gpt-4"
         assert target.stream is False
-        assert isinstance(target.invoker, FoundryInvoker)
+        assert isinstance(target.invoker, FoundryAgentInvoker)
 
     def test_build_model_target_with_streaming(self):
         """Test building a streaming model target."""
