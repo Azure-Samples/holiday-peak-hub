@@ -21,6 +21,17 @@ from azure.identity.aio import DefaultAzureCredential
 from .base_agent import ModelTarget
 
 _FOUNDRY_PROJECT_HOST_SUFFIX = ".services.ai.azure.com"
+
+
+# Lazy imports for MAF FoundryAgent (Phase 1)
+def _import_foundry_agent():
+    """Lazy import for FoundryAgent to maintain import resilience."""
+    from agent_framework import Message as MAFMessage
+    from agent_framework_foundry import FoundryAgent as _FoundryAgent
+
+    return _FoundryAgent, MAFMessage
+
+
 _FOUNDRY_RESOURCE_HOST_SUFFIX = ".cognitiveservices.azure.com"
 _FOUNDRY_PROJECT_PATH_PREFIX = "/api/projects/"
 
@@ -586,8 +597,120 @@ def _normalize_messages(messages: Any) -> list[dict[str, str]]:
     return list(messages or [])
 
 
+class FoundryAgentInvoker:
+    """Invoke a Foundry Agent through the MAF pipeline (Responses API).
+
+    This replaces FoundryInvoker by delegating to FoundryAgent from
+    agent-framework-foundry, restoring the full MAF execution stack:
+    middleware, telemetry, and tool execution loop.
+    """
+
+    def __init__(self, config: FoundryAgentConfig) -> None:
+        self.config = config
+        self._agent: Any = None
+        self._credential: Any = None
+
+    def _ensure_agent(self) -> Any:
+        """Create or return the cached FoundryAgent instance."""
+        _FoundryAgent, _ = _import_foundry_agent()
+
+        if self._agent is None:
+            self._credential = self.config.credential or DefaultAzureCredential()
+            self._agent = _FoundryAgent(
+                project_endpoint=self.config.endpoint,
+                agent_name=self.config.agent_name,
+                credential=self._credential,
+            )
+        return self._agent
+
+    async def __call__(self, **kwargs: Any) -> dict[str, Any]:
+        """Invoke via FoundryAgent.run() with full MAF pipeline."""
+        _, MAFMessage = _import_foundry_agent()
+
+        messages_raw = kwargs.pop("messages", [])
+        stream = kwargs.pop("stream", False)
+        tools_raw = kwargs.pop("tools", None)
+        kwargs.pop("model", None)
+        kwargs.pop("temperature", None)
+        kwargs.pop("top_p", None)
+        kwargs.pop("client", None)
+        kwargs.pop("thread_id", None)
+        kwargs.pop("conversation_id", None)
+
+        started = perf_counter()
+
+        # Convert messages to MAF Message objects
+        normalized = _normalize_messages(messages_raw)
+        maf_messages = [
+            MAFMessage(role=msg.get("role", "user"), contents=[msg.get("content", "")])
+            for msg in normalized
+        ]
+
+        # Convert tools dict to list of callables
+        tool_callables = None
+        if isinstance(tools_raw, dict) and tools_raw:
+            tool_callables = list(tools_raw.values())
+        elif isinstance(tools_raw, (list, tuple)) and tools_raw:
+            tool_callables = list(tools_raw)
+
+        agent = self._ensure_agent()
+
+        # Call through full MAF pipeline
+        response = await agent.run(
+            maf_messages,
+            stream=stream,
+            tools=tool_callables,
+        )
+
+        # Convert AgentResponse to expected dict format
+        assistant_text = response.text if hasattr(response, "text") else str(response)
+        output_messages = []
+        if assistant_text:
+            output_messages.append(
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{"type": "output_text", "text": assistant_text}],
+                }
+            )
+
+        elapsed_ms = (perf_counter() - started) * 1000
+        reference_name = self.config.agent_name or self.config.agent_id
+
+        telemetry = {
+            "endpoint": self.config.endpoint,
+            "agent_name": reference_name,
+            "deployment_name": self.config.deployment_name or reference_name,
+            "stream": stream,
+            "messages_sent": len(normalized),
+            "duration_ms": elapsed_ms,
+            "api_version": "responses",
+            "runtime": "maf",
+        }
+
+        return {
+            "messages": output_messages,
+            "stream": stream,
+            "telemetry": telemetry,
+        }
+
+    async def close(self) -> None:
+        """Clean up credential resources."""
+        if self._credential is not None and self.config.credential is None:
+            close_method = getattr(self._credential, "close", None)
+            if callable(close_method):
+                await _maybe_await(close_method())  # pylint: disable=not-callable
+            self._credential = None
+        self._agent = None
+
+
 class FoundryInvoker:
-    """Callable wrapper to invoke a Foundry Agent with telemetry."""
+    """Callable wrapper to invoke a Foundry Agent with telemetry.
+
+    .. deprecated::
+        Use :class:`FoundryAgentInvoker` instead. This class uses the
+        deprecated V1 thread/message/run API and will be removed.
+    """
 
     def __init__(self, config: FoundryAgentConfig) -> None:
         """Create a new invoker.
@@ -740,7 +863,7 @@ def build_foundry_model_target(config: FoundryAgentConfig) -> ModelTarget:
     return ModelTarget(
         name=config.agent_name or runtime_agent_id,
         model=config.deployment_name or runtime_agent_id,
-        invoker=FoundryInvoker(config),
+        invoker=FoundryAgentInvoker(config),
         stream=config.stream,
         provider="foundry",
     )
@@ -748,6 +871,7 @@ def build_foundry_model_target(config: FoundryAgentConfig) -> ModelTarget:
 
 __all__ = [
     "FoundryAgentConfig",
+    "FoundryAgentInvoker",
     "FoundryInvoker",
     "build_foundry_model_target",
     "ensure_foundry_agent",
