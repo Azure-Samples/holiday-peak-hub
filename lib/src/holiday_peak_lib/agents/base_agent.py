@@ -1,5 +1,6 @@
 """Base agent abstraction with model selection and SDK integration points."""
 
+import asyncio
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from time import perf_counter
@@ -259,6 +260,44 @@ class BaseRetailAgent(BaseAgent, ABC):
 
     def attach_self_healing(self, self_healing_kernel: Any) -> None:
         self.self_healing_kernel = self_healing_kernel
+
+    def memory_tool_definitions(self) -> dict[str, Callable[..., Any]]:
+        """Return memory read/write as LLM-callable tool definitions.
+
+        These tools allow the model to manage session/conversation memory
+        directly, enabling a 'check memory first' strategy before deeper searches.
+        """
+        tools: dict[str, Callable[..., Any]] = {}
+        if self.memory_client is None:
+            return tools
+
+        async def memory_read(key: str) -> Any:
+            """Read a value from the agent's tiered memory by key."""
+            return await self.memory_client.get(key)
+
+        async def memory_write(key: str, value: Any) -> str:
+            """Write a value to the agent's tiered memory."""
+            await self.memory_client.set(key, value)
+            return "stored"
+
+        tools["memory_read"] = memory_read
+        tools["memory_write"] = memory_write
+        return tools
+
+    @staticmethod
+    async def gather_adapters(*coros: Awaitable[Any]) -> tuple[Any, ...]:
+        """Execute multiple adapter/MCP coroutines in parallel.
+
+        Provides a framework-level entry point so agents can dispatch
+        concurrent adapter and MCP calls without manually importing asyncio::
+
+            product, pricing, inventory = await self.gather_adapters(
+                self.adapters.products.build_product_context(sku),
+                self.adapters.pricing.build_price_context(sku),
+                self.adapters.inventory.build_inventory_context(sku),
+            )
+        """
+        return await asyncio.gather(*coros)
 
     def _get_foundry_tracer(self):
         service = self.service_name or type(self).__name__

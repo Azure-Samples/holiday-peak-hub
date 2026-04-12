@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from dataclasses import dataclass
 from typing import Any
@@ -40,44 +41,71 @@ class MemoryClient:
         self.rules = rules or MemoryRules()
 
     async def get(self, key: str) -> Any:
-        if self.hot:
-            value = await self.hot.get(key)
-            if value is not None:
-                return value
-
-        if not self.rules.read_fallback:
-            return None
-
-        if self.warm:
-            doc = await self.warm.read(item_id=key, partition_key=key)
-            if doc is not None:
-                value = doc.get("value", doc)
-                if self.promote_to_hot() and self.hot:
+        # Parallel hot + warm when both available
+        if self.hot and self.warm and self.rules.read_fallback:
+            hot_value, warm_doc = await asyncio.gather(
+                self.hot.get(key),
+                self.warm.read(item_id=key, partition_key=key),
+            )
+            if hot_value is not None:
+                return hot_value
+            if warm_doc is not None:
+                value = warm_doc.get("value", warm_doc)
+                if self.promote_to_hot():
                     await self.hot.set(key, value, ttl_seconds=self.rules.hot_ttl_seconds or 900)
                 return value
+        else:
+            # Single-tier fast path
+            if self.hot:
+                value = await self.hot.get(key)
+                if value is not None:
+                    return value
+            if not self.rules.read_fallback:
+                return None
+            if self.warm:
+                doc = await self.warm.read(item_id=key, partition_key=key)
+                if doc is not None:
+                    value = doc.get("value", doc)
+                    if self.promote_to_hot() and self.hot:
+                        await self.hot.set(
+                            key, value, ttl_seconds=self.rules.hot_ttl_seconds or 900
+                        )
+                    return value
 
+        # Cold fallback (sequential — archival tier, rarely hit)
         if self.cold:
             blob = await self.cold.download_text(key)
             if blob is None:
                 return None
             value = blob.decode("utf-8") if isinstance(blob, (bytes, bytearray)) else blob
+            # Parallel promotion from cold to hot + warm
+            promotion_tasks = []
             if self.promote_to_hot() and self.hot:
-                await self.hot.set(key, value, ttl_seconds=self.rules.hot_ttl_seconds or 900)
+                promotion_tasks.append(
+                    self.hot.set(key, value, ttl_seconds=self.rules.hot_ttl_seconds or 900)
+                )
             if self.promote_to_warm() and self.warm:
-                await self.warm.upsert(self._warm_item(key, value, ttl=self.rules.warm_ttl_seconds))
+                promotion_tasks.append(
+                    self.warm.upsert(self._warm_item(key, value, ttl=self.rules.warm_ttl_seconds))
+                )
+            if promotion_tasks:
+                await asyncio.gather(*promotion_tasks)
             return value
         return None
 
     async def set(self, key: str, value: Any) -> None:
+        tasks: list[Any] = []
         if self.hot:
-            await self.hot.set(key, value, ttl_seconds=self.rules.hot_ttl_seconds or 900)
-
+            tasks.append(self.hot.set(key, value, ttl_seconds=self.rules.hot_ttl_seconds or 900))
         if self.rules.write_through and self.warm:
-            await self.warm.upsert(self._warm_item(key, value, ttl=self.rules.warm_ttl_seconds))
-
+            tasks.append(
+                self.warm.upsert(self._warm_item(key, value, ttl=self.rules.warm_ttl_seconds))
+            )
         if self.rules.write_cold and self.cold:
             payload = value if isinstance(value, str) else json.dumps(value)
-            await self.cold.upload_text(key, payload)
+            tasks.append(self.cold.upload_text(key, payload))
+        if tasks:
+            await asyncio.gather(*tasks)
 
     def promote_to_hot(self) -> bool:
         return self.rules.promote_on_read and self.hot is not None
