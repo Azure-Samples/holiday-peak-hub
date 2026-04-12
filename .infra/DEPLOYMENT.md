@@ -252,7 +252,7 @@ python cli.py deploy-all --location eastus2
 
 ## Service Inventory
 
-### 22 Deployable Services
+### 28 Deployable Services
 
 | # | Service | Domain | Type |
 |---|---------|--------|------|
@@ -278,12 +278,12 @@ python cli.py deploy-all --location eastus2
 | 20 | product-management-assortment-optimization | Product Mgmt | Agent |
 | 21 | product-management-consistency-validation | Product Mgmt | Agent |
 | 22 | product-management-normalization-classification | Product Mgmt | Agent |
-
-### Frontend
-
-| Service | Type | Hosting |
-|---------|------|---------|
-| ui | Next.js 15 | Azure Static Web Apps |
+| 23 | search-enrichment-agent | Search | Agent |
+| 24 | truth-enrichment | Truth Layer | Agent |
+| 25 | truth-export | Truth Layer | Agent |
+| 26 | truth-hitl | Truth Layer | Agent |
+| 27 | truth-ingestion | Truth Layer | Agent |
+| 28 | ui | Frontend | Next.js 15 (Azure Static Web Apps) |
 
 ---
 

@@ -1,7 +1,7 @@
 # Security Exception Register
 
 **Owner**: Platform Engineering  
-**Last Updated**: 2026-04-02
+**Last Updated**: 2026-04-12
 
 This register is the time-boxed exception ledger for open high-severity security alerts that are not yet closed at merge time.
 

@@ -9,13 +9,24 @@ Core micro-framework providing reusable patterns for retail AI agents.
 | Component | Path | Description | Pattern |
 |-----------|------|-------------|---------|
 | [Adapters](components/libs/adapters.md) | `lib/src/holiday_peak_lib/adapters/` | Pluggable retail system integrations | Adapter Pattern |
-| [Agents](components/libs/agents.md) | `lib/src/holiday_peak_lib/agents/` | Agent orchestration and MCP wrappers | Builder Pattern (memory) |
-| [Memory](components/libs/memory.md) | `lib/src/holiday_peak_lib/memory/` | Three-tier memory management | Tiered Caching |
+| [Agents](components/libs/agents.md) | `lib/src/holiday_peak_lib/agents/` | Agent orchestration, MCP wrappers, guardrails | Builder Pattern (memory) |
+| [Memory](components/libs/memory.md) | `lib/src/holiday_peak_lib/agents/memory/` | Three-tier memory with parallel I/O | Tiered Caching |
 | [Orchestration](components/libs/orchestration.md) | `lib/src/holiday_peak_lib/orchestration/` | SAGA choreography helpers | Event-driven |
 | [Schemas](components/libs/schemas.md) | `lib/src/holiday_peak_lib/schemas/` | Pydantic models for data contracts | Domain Models |
 | [Utils](components/libs/utils.md) | `lib/src/holiday_peak_lib/utils/` | Logging, config, retry logic | Utilities |
 | [Integrations](components/libs/integrations.md) | `lib/src/holiday_peak_lib/integrations/` | Connector contracts, registry, writeback | Integration Pattern |
 | [Connectors](components/libs/connectors.md) | `lib/src/holiday_peak_lib/connectors/` | Enterprise system connectors | Adapter Pattern |
+
+### Agent Runtime (v2.1.0)
+
+| Component | Path | Purpose |
+|-----------|------|---------|
+| FoundryAgentInvoker | `agents/foundry.py` | MAF `FoundryAgent` wrapper — routes tools and middleware correctly |
+| FoundryInvoker (deprecated) | `agents/foundry.py` | Legacy invoker — tools silently dropped, replaced by FoundryAgentInvoker |
+| Enrichment Guardrail | `agents/guardrails/enrichment_guardrail.py` | Validation layer for enrichment outputs |
+| Memory Tools | `agents/memory/builder.py` | `get_memory`, `set_memory`, `search_memory` tools for agent use |
+| Parallel Memory I/O | `agents/memory/` | `asyncio.gather`-based concurrent hot/warm/cold tier operations |
+| `gather_adapters` | `agents/base_agent.py` | Helper for concurrent adapter initialization |
 
 ## Enterprise Connectors (v1.1.0)
 

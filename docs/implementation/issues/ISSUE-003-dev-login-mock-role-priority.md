@@ -13,5 +13,5 @@ Live dev login appears Microsoft-first and does not reliably surface mock role a
 - [ ] Existing Microsoft auth path remains available.
 
 ## Validation
-- Open `https://blue-meadow-00fcb8810.4.azurestaticapps.net/auth/login` and verify role buttons appear first in dev mode.
+- Open the deployed dev environment's `/auth/login` page and verify role buttons appear first in dev mode.
 - Confirm sign-in via both mock role and Microsoft path remains functional.

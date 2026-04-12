@@ -1,26 +1,47 @@
 # Project Status & Issue Prioritization
 
-> Generated: 2026-03-27 | Version: main (post PR #559) | Branch: `main`
+> Generated: 2026-04-12 | Version: main (post PR #802) | Branch: `main`
 
-## Current Main Snapshot (2026-03-27)
+## Current Main Snapshot (2026-04-12)
 
-### Recently Merged
-- Issue #558: enrichment/search orchestration hardening.
-- PR #559: hardening merge to main with protected-branch auto-merge.
+### Recently Merged (April 2026)
 
-### What Changed
-- Truth ingestion now emits `enrichment-jobs`.
-- Truth HITL approval now emits both `export-jobs` and `search-enrichment-jobs`.
-- Truth enrichment now uses human-gated lifecycle (`pending_review`) with no direct auto-approval write path.
-- Catalog search now returns/uses stage and session metadata and persists search history context.
-- UI search now uses baseline-first retrieval with background intelligent rerank refresh.
-- Agent API proxy now forwards correlation and user/session/IP context headers.
+| PR | Title | Impact |
+|----|-------|--------|
+| #802 | Replace FoundryInvoker with FoundryAgentInvoker (MAF runtime) | Fixes silent tool-dropping; upgrades `agent-framework` to 1.0.1 GA |
+| #800 | Parallelize memory reads/writes, add memory tools | Concurrent hot/warm/cold I/O via `asyncio.gather` |
+| #798 | Add start-dev-environment script | MCAPSGov nightly shutdown recovery automation |
+| #797 | Add fix-issues-pipeline prompt | End-to-end issue resolution workflow |
+| #796 | Parallelize catalog-search I/O | Eliminates duplicate keyword search, reduces p95 latency |
+| #794 | Fix CRUD_SERVICE_URL port 8000→80 | Resolves inter-service connectivity in AKS |
+| #793 | Scaffold MkDocs documentation site | Future docs-as-website in `mkdocs/` |
+| #792 | Flux Phase B — full GitOps reconciliation | Removes kubectl-apply fallback |
+| #789 | API Center governance + APIM MCP strategy | ADR-035 implementation |
+| #788 | Namespace isolation (ADR-034) | Separate CRUD and agent Kubernetes namespaces |
+| #785 | Flux CD migration (ADR-033) | Declarative manifest reconciliation |
+| #776 | Harden CRUD Entra auth rollout | Improved authentication contracts |
+| #771 | Complete self-healing epic | Incident lifecycle, remediation policy, audit trail |
+
+### What Changed (Since Last Snapshot)
+
+- **FoundryAgentInvoker** replaces legacy `FoundryInvoker`: agent tools are now properly forwarded through the Microsoft Agent Framework `FoundryAgent` runtime instead of being silently dropped.
+- `agent-framework` upgraded from unpinned to `>=1.0.1` GA across all 27 Python service packages; resolves `ContextProvider` vs `BaseContextProvider` import incompatibility.
+- Memory tier operations parallelized with `asyncio.gather` for reduced latency; new memory tools (`get_memory`, `set_memory`, `search_memory`) and `gather_adapters` helper available.
+- AKS deployments now reconcile through Flux CD GitOps (ADR-033); kubectl-apply path removed.
+- CRUD and agent services run in separate Kubernetes namespaces (ADR-034).
+- API Center governance and APIM MCP strategy implemented (ADR-035).
+- Self-healing runtime completed with incident lifecycle state machine, remediation policy, and audit trail.
+- Catalog-search I/O parallelized; duplicate keyword search eliminated.
 
 ### Validation
-- Full local test run on latest merged state: 1647 passed, 2 warnings.
+
+- Full local test run: **1796 passed** (1136 lib + 660 app), 0 failures.
+- CI gate: lint, test, CodeQL, pip-audit, contract-gate all passing on `main`.
+- 35 Architecture Decision Records (ADR-001 through ADR-035).
 
 ### Note
-- Historical sections below preserve earlier v1.1.0 planning/trackers for audit context and may include superseded planning entries.
+
+- Historical sections below preserve earlier v1.1.0 and v2.0.0 planning/trackers for audit context and may include superseded planning entries.
 
 ---
 

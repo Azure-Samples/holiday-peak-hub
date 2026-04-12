@@ -96,12 +96,22 @@ response = await agent.handle({"query": "Check inventory for SKU-123"})
 
 ✅ **Foundry Integration Helpers**:
 
-- `FoundryAgentConfig` + `build_foundry_model_target` (Azure AI Foundry Agents via `AIProjectClient`)
+- `FoundryAgentConfig` + `build_foundry_model_target` (Azure AI Foundry Agents)
+- `FoundryAgentInvoker`: wraps the Microsoft Agent Framework `FoundryAgent` runtime, ensuring tools and middleware are properly forwarded (replaces deprecated `FoundryInvoker`)
 - Foundry prompt governance in `BaseRetailAgent` (system/developer prompts are stripped in Foundry mode)
 - Agents V2 provisioning path (`project_client.agents.create_version` with `PromptAgentDefinition`)
-- Agents V2 execution path (`openai_client.conversations` + `openai_client.responses` + `agent_reference`)
 - **42 V2 agents provisioned** in Foundry project `aipholidaris` (21 services × 2 roles: fast + rich)
-- SDK requirement: `azure-ai-projects>=2.0.0b4` for V2 `create_version` support
+- SDK requirement: `agent-framework>=1.0.1` for MAF GA runtime
+
+✅ **Memory Tools and Parallel I/O**:
+
+- `get_memory`, `set_memory`, `search_memory` tools exposed for agent use
+- `asyncio.gather`-based concurrent hot/warm/cold tier operations
+- `gather_adapters` helper for concurrent adapter initialization
+
+✅ **Guardrails**:
+
+- `enrichment_guardrail.py`: validation layer for enrichment outputs
 
 ✅ **MCP Server Exposure**:
 
@@ -132,8 +142,6 @@ response = await agent.handle({"query": "Check inventory for SKU-123"})
 
 ### Production Integration Example (Microsoft Agent Framework)
 
-```python
-from typing import Any
 ```python
 from typing import Any
 

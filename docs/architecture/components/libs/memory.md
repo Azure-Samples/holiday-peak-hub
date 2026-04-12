@@ -116,6 +116,9 @@ Builder-level features:
 ✅ **MemoryBuilder**: Fluent builder that assembles tiers and rules into a `MemoryClient`  
 ✅ **MemoryClient**: Cascading read/write orchestration across tiers  
 ✅ **MemorySettings**: Environment-driven configuration for tier endpoints  
+✅ **Parallel I/O**: Hot/warm/cold tier reads and writes execute concurrently via `asyncio.gather` (PR #800)  
+✅ **Memory Tools**: `get_memory`, `set_memory`, `search_memory` tools exposed for agent use  
+✅ **gather_adapters**: Concurrent adapter initialization helper in `BaseRetailAgent`
 
 ## What's NOT Implemented
 

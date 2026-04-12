@@ -15,7 +15,7 @@ All infrastructure uses [Azure Verified Modules (AVM)](https://azure.github.io/A
 ├── modules/
 │   ├── shared-infrastructure/   # ✅ Shared infrastructure (AKS, Cosmos DB, Event Hubs, etc.)
 │   ├── static-web-app/          # ✅ Frontend hosting (Azure Static Web Apps)
-│   └── [21 agent modules]/      # Per-service standalone demo resources
+│   └── [26 agent modules]/      # Per-service standalone demo resources
 └── templates/
     ├── app.bicep.tpl            # Bicep template for standalone agent services
     ├── main.bicep.tpl           # Main Bicep template wrapper (subscription-scoped)
@@ -48,7 +48,7 @@ We support two infrastructure provisioning strategies:
 
 ### 1) Demo (per-service standalone)
 
-Each of the 21 agent services deploys its **own isolated** resources (Cosmos DB, Redis, Storage, AI Search, OpenAI, AKS) using `app.bicep.tpl`. This is suitable for quick single-service demos and lightweight validation.
+Each of the 26 agent services deploys its **own isolated** resources (Cosmos DB, Redis, Storage, AI Search, OpenAI, AKS) using `app.bicep.tpl`. This is suitable for quick single-service demos and lightweight validation.
 
 - Use the Python CLI (`python cli.py deploy` / `deploy-all`) or `azd deploy --service <name>`.
 - Each service is fully independent — no shared infrastructure required.
@@ -56,7 +56,7 @@ Each of the 21 agent services deploys its **own isolated** resources (Cosmos DB,
 
 ### 2) Production (shared infrastructure)
 
-A single shared stack is deployed first, and all 22 services (21 agents + 1 CRUD) run as workloads in the shared AKS cluster.
+A single shared stack is deployed first, and all 28 services (26 agents + 1 CRUD + 1 UI) run as workloads in the shared AKS cluster.
 
 - Single shared stack: AKS, PostgreSQL (CRUD), Cosmos DB (agent warm memory), Redis, Storage, Event Hubs, AI Foundry, APIM, Key Vault, ACR, VNet, App Insights.
 - Services reference shared data stores and memory tiers.
@@ -477,7 +477,7 @@ The shared infrastructure provisions **three node pools** with dedicated taints:
 | Pool | Purpose | Taint | VM Size | Autoscale (dev) | Autoscale (prod) |
 |------|---------|-------|---------|-----------------|------------------|
 | `system` | Kubernetes system components | *(none)* | Standard_D8ds_v5 | 1–3 | 1–5 |
-| `agents` | 21 agent services | `workload=agents:NoSchedule` | Standard_D8ds_v5 | 2–10 | 2–20 |
+| `agents` | 26 agent services | `workload=agents:NoSchedule` | Standard_D8ds_v5 | 2–10 | 2–20 |
 | `crud` | CRUD service | `workload=crud:NoSchedule` | Standard_D8ds_v5 | 1–5 | 1–10 |
 
 #### Scale a Node Pool
@@ -586,7 +586,7 @@ kubectl scale deployment -n holiday-peak -l app=crud-service --replicas=3
 
 ### 5. Deploying Workloads — Agent Services
 
-All 21 agent services run on the `agents` node pool (toleration: `workload=agents`).
+All 26 agent services run on the `agents` node pool (toleration: `workload=agents`).
 
 #### Deploy All Agents via azd
 
@@ -992,7 +992,7 @@ python cli.py generate-dockerfile --apply-all                         # All agen
 
 ---
 
-### 🔄 Agent Service Modules (21 services)
+### 🔄 Agent Service Modules (26 services)
 
 **Path**: `modules/{agent-name}/`
 

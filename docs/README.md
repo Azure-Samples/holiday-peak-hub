@@ -1,23 +1,23 @@
 # Holiday Peak Hub - Architecture Documentation
 
-**Last Updated**: April 8, 2026
-**Version**: main (post PR #559)  
+**Last Updated**: April 12, 2026
+**Version**: main (post PR #802)  
 **Status**: Active Development
 
-## Latest Update Snapshot (April 8, 2026)
+## Latest Update Snapshot (April 12, 2026)
 
-- Reusable deployment now temporarily re-enables ACR public access with `defaultAction=Deny` for GitHub-hosted tested-image builds when the registry public endpoint is disabled, reuses the existing runner-IP allowlist, and restores the original ACR network posture after the build phase.
-- Enrichment/search orchestration hardening merged via PR #559 (Issue #558).
-- Truth flow now enforces human-gated enrichment validation (`pending_review`) with dual HITL publish (`export-jobs` and `search-enrichment-jobs`).
-- Search flow now supports two-stage UX (baseline first, background rerank) and request context propagation.
-- Catalog search now stores stage/session search context with best-effort persistence across hot/warm/cold memory tiers.
-- Validation status: local repository test run reports 1647 passed (2 warnings).
-- Agentic app README deployment docs are standardized with standalone azd-first guidance and app-specific ACR/AKS paths.
-- UI/UX modernization review added with per-view recommendations for customer, staff, admin, and observability surfaces.
-- Protected dev live validation now has a dedicated GitHub Actions workflow with trusted triggers, OIDC-only Azure auth, and the `dev` environment boundary; final environment protection remains a repo-admin step.
-- Dev deployment now promotes tested `main` commits only: `deploy-azd-dev` auto-starts from successful `test` workflow runs on `main`, builds changed AKS images once per tested SHA, and deploys rendered manifests pinned to immutable image digests.
-- Reusable deployment now includes a blocking Foundry contract drift gate that compares workflow intent, rendered Helm manifests, live AKS Deployment env values, ensure results, and `/ready` responses for changed agent services.
-- Reusable deployment now idempotently ensures `AcrPush` on the environment ACR for the OIDC deploy principal and retries `az acr login` with bounded backoff so tested-image builds survive RBAC propagation delay without adding static registry credentials.
+- **FoundryAgentInvoker** replaces legacy `FoundryInvoker` (PR #802 / Issue #801): agent tools are now properly forwarded through the Microsoft Agent Framework `FoundryAgent` runtime. `agent-framework` upgraded to `>=1.0.1` GA across all 27 Python services.
+- Memory tier reads/writes parallelized via `asyncio.gather` (PR #800): concurrent hot/warm/cold I/O reduces agent memory latency. New memory tools (`get_memory`, `set_memory`, `search_memory`) and `gather_adapters` helper added.
+- Catalog-search I/O parallelized and duplicate keyword search eliminated (PR #796).
+- CRUD_SERVICE_URL port corrected from 8000 to 80 for all agent deployments in AKS (PR #794).
+- Flux CD Phase B complete (PR #792): kubectl-apply removed, full GitOps reconciliation via Flux.
+- API Center governance, sync pipeline, and APIM MCP strategy added (PR #789 / ADR-035).
+- Namespace isolation (PR #788 / ADR-034): CRUD and agent services now run in separate Kubernetes namespaces.
+- AKS deployments migrated to Flux CD GitOps (PR #785 / ADR-033).
+- Self-healing epic complete (PR #771): incident lifecycle kernel, remediation policy, and audit trail across all agent surfaces.
+- CRUD Entra ID auth rollout contracts hardened (PR #776).
+- Validation status: **1796 tests passed** (1136 lib + 660 app), 0 failures.
+- 35 Architecture Decision Records (ADR-001 through ADR-035).
 
 ## Overview
 
@@ -337,6 +337,11 @@ az acr update -n <acrName> --public-network-enabled false
 - **[Business Summary](architecture/business-summary.md)** - Business requirements and use cases
 - **[Components Documentation](architecture/components.md)** - All framework and service components
 - **[ADRs (Architecture Decision Records)](architecture/ADRs.md)** - Index of architectural decisions
+- **[Agentic Microservices Reference](agentic-microservices-reference.md)** - Why this is a reference architecture for agentic microservices on Azure
+- **[MAF Integration Rationale](architecture/maf-integration-rationale.md)** - Why Microsoft Agent Framework is wrapped inside the lib
+- **[Solution Architecture Diagrams](architecture/solution-architecture-diagrams.md)** - Per-domain Mermaid diagrams (system context, container, 7 domains, data flow)
+- **[Standalone Deployment Guide](architecture/standalone-deployment-guide.md)** - How to deploy a single agent service to AKS
+- **[Test Coverage Gap Analysis](architecture/test-coverage-gap-analysis.md)** - Coverage gaps, patterns, and remediation plan
 
 ---
 
@@ -370,7 +375,7 @@ az acr update -n <acrName> --public-network-enabled false
 
 ### Application Layer
 **Technology**: FastAPI (Python 3.13)  
-**Status**: ✅ CRUD Service Complete, ✅ 21 Agent Services Complete
+**Status**: ✅ CRUD Service Complete, ✅ 26 Agent Services Complete
 
 **CRUD Service** ✅ **IMPLEMENTED**:
 - **31 REST endpoints** across 15 route modules
@@ -383,22 +388,14 @@ az acr update -n <acrName> --public-network-enabled false
 - **Location**: `apps/crud-service/`
 - **Documentation**: [CRUD Service Implementation](architecture/crud-service-implementation.md)
 
-**Agent Services** (21):
+**Agent Services** (26):
 - E-Commerce (5): catalog-search, product-detail-enrichment, cart-intelligence, checkout-support, order-status
 - Product Management (4): normalization-classification, acp-transformation, consistency-validation, assortment-optimization
 - CRM (4): profile-aggregation, segmentation-personalization, campaign-intelligence, support-assistance
 - Inventory (4): health-check, jit-replenishment, reservation-validation, alerts-triggers
 - Logistics (4): eta-computation, carrier-selection, returns-support, route-issue-detection
-
-**CRUD Service** ✅ **IMPLEMENTED**:
-- **31 REST endpoints** across 15 route modules
-- **Authentication**: Entra ID JWT validation, RBAC (anonymous, customer, staff, admin)
-- **Repositories**: Base + specialized (User, Product, Order, Cart)
-- **Routes**: health, auth, users, products, categories, cart, orders, checkout, payments, reviews
-- **Staff Routes**: analytics, tickets, returns, shipments
-- **Integrations**: Event Hubs publisher (5 topics), MCP agent client
-- **Testing**: Unit, integration, and e2e test structure
-- **Location**: `apps/crud-service/`
+- Search (1): search-enrichment-agent
+- Truth Layer (4): truth-ingestion, truth-enrichment, truth-hitl, truth-export
 
 ### Data Layer
 **Technology**: Cosmos DB, Redis, Blob Storage  
