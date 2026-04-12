@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from dataclasses import dataclass
@@ -393,8 +394,13 @@ async def multi_query_search(
         return []
 
     merged: dict[str, dict[str, Any]] = {}
-    for query in cleaned_queries:
-        query_results = await hybrid_search(query_text=query, filters=filters, top_k=top_k)
+    all_results = await asyncio.gather(
+        *[hybrid_search(query_text=q, filters=filters, top_k=top_k) for q in cleaned_queries],
+        return_exceptions=True,
+    )
+    for query_results in all_results:
+        if isinstance(query_results, BaseException):
+            continue
         for rank, candidate in enumerate(query_results, start=1):
             entry = merged.setdefault(
                 candidate.sku,

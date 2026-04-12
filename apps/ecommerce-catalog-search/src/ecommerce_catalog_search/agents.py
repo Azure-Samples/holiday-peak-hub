@@ -317,7 +317,7 @@ class CatalogSearchAgent(BaseRetailAgent):
             },
         )
 
-        products, enrichment_by_sku, intent = await _search_products(
+        products, enrichment_by_sku, intent, baseline_products = await _search_products(
             self,
             self.adapters,
             query=query,
@@ -333,11 +333,6 @@ class CatalogSearchAgent(BaseRetailAgent):
             )
             for idx, product in enumerate(products)
         ]
-        baseline_products: list[CatalogProduct] = []
-        if mode == "intelligent":
-            baseline_products = await _search_products_keyword(
-                self.adapters, query=query, limit=limit
-            )
 
         _record_search_evaluation(
             self,
@@ -473,7 +468,7 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
         filter_payload = filters if isinstance(filters, dict) else None
 
         search_agent = agent if isinstance(agent, CatalogSearchAgent) else None
-        products, enrichment_by_sku, intent = await _search_products(
+        products, enrichment_by_sku, intent, _baseline = await _search_products(
             search_agent,
             adapters,
             query=query,
@@ -897,7 +892,12 @@ async def _search_products(
     limit: int,
     mode: str,
     filters: dict[str, Any] | None,
-) -> tuple[list[CatalogProduct], dict[str, dict[str, Any]], IntentClassification | None]:
+) -> tuple[
+    list[CatalogProduct],
+    dict[str, dict[str, Any]],
+    IntentClassification | None,
+    list[CatalogProduct],
+]:
     if mode == "intelligent":
         return await _search_products_intelligent(
             agent,
@@ -908,7 +908,7 @@ async def _search_products(
         )
 
     products = await _search_products_keyword(adapters, query=query, limit=limit)
-    return products, {}, _deterministic_intent_policy(query)
+    return products, {}, _deterministic_intent_policy(query), []
 
 
 async def _search_products_keyword(
@@ -989,12 +989,17 @@ async def _search_products_intelligent(
     query: str,
     limit: int,
     filters: dict[str, Any] | None,
-) -> tuple[list[CatalogProduct], dict[str, dict[str, Any]], IntentClassification | None]:
+) -> tuple[
+    list[CatalogProduct],
+    dict[str, dict[str, Any]],
+    IntentClassification | None,
+    list[CatalogProduct],
+]:
     baseline_products = await _search_products_keyword(adapters, query=query, limit=limit)
     fallback_intent = _deterministic_intent_policy(query)
 
     if agent is None:
-        return baseline_products, {}, fallback_intent
+        return baseline_products, {}, fallback_intent, baseline_products
 
     intent = await agent.classify_intent(query)
     sub_queries = agent.build_sub_queries(query=query, intent=intent)
@@ -1007,7 +1012,7 @@ async def _search_products_intelligent(
             sub_queries=sub_queries,
             limit=limit,
         )
-        return expanded_products, {}, intent
+        return expanded_products, {}, intent, baseline_products
 
     ranked_batches = [
         await multi_query_search(sub_queries=sub_queries, filters=filters, top_k=limit)
@@ -1030,7 +1035,7 @@ async def _search_products_intelligent(
                 for sku in [product.sku for product in ranked_intelligent]
                 if sku in enrichment_by_sku
             }
-            return ranked_intelligent, filtered_enrichment, intent
+            return ranked_intelligent, filtered_enrichment, intent, baseline_products
 
     expanded_products = await _expand_products_with_sub_queries(
         adapters=adapters,
@@ -1039,7 +1044,7 @@ async def _search_products_intelligent(
         sub_queries=sub_queries,
         limit=limit,
     )
-    return expanded_products, {}, intent
+    return expanded_products, {}, intent, baseline_products
 
 
 def _build_sub_queries(query: str, intent: IntentClassification) -> list[str]:
@@ -1100,14 +1105,17 @@ async def _resolve_ranked_products(
     if not ranked_results:
         return [], {}
 
+    resolved = await asyncio.gather(
+        *[adapters.products.get_product(result.sku) for result in ranked_results[:limit]],
+        return_exceptions=True,
+    )
     products: list[CatalogProduct] = []
     enrichment_by_sku: dict[str, dict[str, Any]] = {}
-    for result in ranked_results[:limit]:
-        product = await adapters.products.get_product(result.sku)
-        if product is None:
-            continue
-        products.append(product)
-        enrichment_by_sku[result.sku] = result.enriched_fields
+    for idx, product in enumerate(resolved):
+        if isinstance(product, CatalogProduct) and product is not None:
+            products.append(product)
+            sku = ranked_results[idx].sku
+            enrichment_by_sku[sku] = ranked_results[idx].enriched_fields
     return products[:limit], enrichment_by_sku
 
 
