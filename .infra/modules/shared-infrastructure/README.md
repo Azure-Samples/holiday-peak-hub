@@ -1,6 +1,6 @@
 # Shared Infrastructure Module
 
-This module provisions **shared infrastructure** for Holiday Peak Hub that is used by all services (CRUD service + 21 agent services).
+This module provisions **shared infrastructure** for Holiday Peak Hub that is used by all services (CRUD service + 26 agent services).
 Provisioning is implemented with Azure Verified Modules (AVM) for consistent, supportable resource definitions.
 AVM module versions are pinned per resource in the shared infrastructure Bicep file to ensure compatibility with the registry.
 

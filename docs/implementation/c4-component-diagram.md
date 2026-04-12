@@ -587,44 +587,55 @@ async def get_enrichment(product_id: str) -> dict:
 ```
 holiday-peak-hub (AKS cluster)
 │
-├── namespace: crud
+├── namespace: holiday-peak-crud
 │   ├── deployment: crud-service (3 replicas)
 │   ├── service: crud-service-svc
 │   └── hpa: crud-service-hpa (3-20 replicas)
 │
-├── namespace: agents-ecommerce
-│   ├── deployment: catalog-search (3 replicas)
-│   ├── deployment: product-enrichment (2 replicas)
-│   ├── deployment: cart-intelligence (2 replicas)
-│   ├── deployment: checkout-support (2 replicas)
-│   └── deployment: order-status (2 replicas)
-│
-├── namespace: agents-crm
-│   ├── deployment: profile-aggregation (2 replicas)
-│   ├── deployment: segmentation (2 replicas)
-│   ├── deployment: campaign-intelligence (2 replicas)
-│   └── deployment: support-assistance (2 replicas)
-│
-├── namespace: agents-inventory
-│   ├── deployment: health-check (2 replicas)
-│   ├── deployment: jit-replenishment (2 replicas)
-│   ├── deployment: reservation-validation (3 replicas)
-│   └── deployment: alerts-triggers (2 replicas)
-│
-├── namespace: agents-logistics
-│   ├── deployment: eta-computation (2 replicas)
-│   ├── deployment: carrier-selection (2 replicas)
-│   ├── deployment: returns-support (2 replicas)
-│   └── deployment: route-detection (2 replicas)
-│
-└── namespace: agents-product
-    ├── deployment: normalization (2 replicas)
-    ├── deployment: acp-transformation (2 replicas)
-    ├── deployment: consistency-validation (2 replicas)
-    └── deployment: assortment-optimization (2 replicas)
+└── namespace: holiday-peak-agents
+    │
+    ├── eCommerce Domain
+    │   ├── deployment: catalog-search (3 replicas)
+    │   ├── deployment: product-enrichment (2 replicas)
+    │   ├── deployment: cart-intelligence (2 replicas)
+    │   ├── deployment: checkout-support (2 replicas)
+    │   └── deployment: order-status (2 replicas)
+    │
+    ├── CRM Domain
+    │   ├── deployment: profile-aggregation (2 replicas)
+    │   ├── deployment: segmentation (2 replicas)
+    │   ├── deployment: campaign-intelligence (2 replicas)
+    │   └── deployment: support-assistance (2 replicas)
+    │
+    ├── Inventory Domain
+    │   ├── deployment: health-check (2 replicas)
+    │   ├── deployment: jit-replenishment (2 replicas)
+    │   ├── deployment: reservation-validation (3 replicas)
+    │   └── deployment: alerts-triggers (2 replicas)
+    │
+    ├── Logistics Domain
+    │   ├── deployment: eta-computation (2 replicas)
+    │   ├── deployment: carrier-selection (2 replicas)
+    │   ├── deployment: returns-support (2 replicas)
+    │   └── deployment: route-detection (2 replicas)
+    │
+    ├── Product Management Domain
+    │   ├── deployment: normalization (2 replicas)
+    │   ├── deployment: acp-transformation (2 replicas)
+    │   ├── deployment: consistency-validation (2 replicas)
+    │   └── deployment: assortment-optimization (2 replicas)
+    │
+    ├── Search Domain
+    │   └── deployment: search-enrichment-agent (2 replicas)
+    │
+    └── Truth Layer Domain
+        ├── deployment: truth-ingestion (2 replicas)
+        ├── deployment: truth-enrichment (2 replicas)
+        ├── deployment: truth-hitl (2 replicas)
+        └── deployment: truth-export (2 replicas)
 ```
 
-**Total Pods**: ~50 (CRUD: 3-20, Agents: 2-3 each × 21)
+**Total Pods**: ~55 (CRUD: 3-20, Agents: 2-3 each × 26)
 
 ---
 

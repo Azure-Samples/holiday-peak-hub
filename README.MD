@@ -9,6 +9,7 @@ Agent-driven retail accelerator for building and operating intelligent, cloud-na
 [![Code Style](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Python](https://img.shields.io/badge/python-3.13-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![TypeScript](https://img.shields.io/badge/typescript-5.x-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Tests](https://img.shields.io/badge/tests-1796%20passed-brightgreen)](docs/project-status.md)
 [![License](https://img.shields.io/github/license/Azure-Samples/holiday-peak-hub)](LICENSE)
 
 ## Quick links

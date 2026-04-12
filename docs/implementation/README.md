@@ -117,7 +117,7 @@ The implementation plan includes a comprehensive C4 Component Diagram (Level 3) 
 - Frontend Layer (Next.js)
 - API Gateway (Azure API Management)
 - CRUD Service (FastAPI with event publishing and agent client)
-- 21 Agent Services (5 domains)
+- 26 Agent Services (7 domains: eCommerce, CRM, Inventory, Logistics, Product Mgmt, Search, Truth Layer)
 - Data Layer (PostgreSQL for CRUD, Cosmos DB for agent memory, Redis, Blob Storage, Event Hubs)
 - Platform Services (Azure Monitor, Key Vault)
 

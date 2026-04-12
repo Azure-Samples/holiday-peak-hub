@@ -1,26 +1,34 @@
 # Implementation Roadmap
 
-**Last Updated**: March 27, 2026  
-**Version**: main (post PR #559)  
-**Status**: Active Execution | Enrichment/Search Hardening Merged
+**Last Updated**: April 12, 2026  
+**Version**: main (post PR #802)  
+**Status**: Active Execution | Agent Runtime Migration Complete
 
 ---
 
 ## Overview
 
-This document tracks the implementation progress of the Holiday Peak Hub platform. The CRUD service, frontend integration, 21 AI agents, and shared infrastructure (Bicep) are complete. v1.1.0 adds enterprise system connectors (Oracle, Salesforce, SAP, Dynamics 365), the Product Truth Layer foundation, HITL review system, and enterprise hardening patterns (circuit breaker, bulkhead, rate limiter).
+This document tracks the implementation progress of the Holiday Peak Hub platform. The CRUD service, frontend integration, 21+ AI agents, and shared infrastructure (Bicep) are complete. v1.1.0 adds enterprise system connectors (Oracle, Salesforce, SAP, Dynamics 365), the Product Truth Layer foundation, HITL review system, and enterprise hardening patterns. v2.0.0 enforces single-path completeness operations. Current work focuses on agent runtime correctness, operational automation, and GitOps deployment.
 
-## Current Execution State (March 27, 2026)
+## Current Execution State (April 12, 2026)
 
-### Completed in Latest Merge Wave
-- Issue #558 / PR #559 merged to main.
-- Enrichment/search orchestration hardening implemented across truth-ingestion, truth-enrichment, truth-hitl, ecommerce-catalog-search, and ui.
-- Human-only validation enforcement in enrichment proposal lifecycle.
-- Two-stage search UX delivery with baseline and rerank stages.
-- Search context propagation and memory persistence improvements.
+### Completed in Latest Merge Wave (PRs #771–#802)
+
+- **Agent Runtime Migration** (PR #802): Replaced `FoundryInvoker` with `FoundryAgentInvoker` wrapping the MAF `FoundryAgent`, fixing silent tool-dropping. Upgraded `agent-framework` to `>=1.0.1` GA across all 27 service packages.
+- **Memory Parallelization** (PR #800): Concurrent hot/warm/cold I/O via `asyncio.gather`; new memory tools and `gather_adapters` helper.
+- **Catalog-Search Optimization** (PR #796): Parallelized I/O, eliminated duplicate keyword search.
+- **Infrastructure Fixes** (PRs #794, #798): CRUD port correction, dev-environment recovery script.
+- **Flux CD GitOps** (PRs #785, #787, #792): Full Flux reconciliation; kubectl-apply removed.
+- **Namespace Isolation** (PR #788 / ADR-034): Separate CRUD and agent Kubernetes namespaces.
+- **API Center Governance** (PR #789 / ADR-035): APIM MCP strategy implementation.
+- **Self-Healing Runtime** (PR #771): Incident lifecycle state machine, remediation policy, audit trail.
+- **CRUD Auth Hardening** (PR #776): Entra ID rollout contracts improved.
+- **MkDocs Scaffold** (PR #793): Documentation site preparation in `mkdocs/`.
 
 ### Validation Snapshot
-- Repository local validation completed: 1647 tests passed (2 warnings).
+
+- Repository local validation: **1796 tests passed** (1136 lib + 660 app), 0 failures.
+- 35 ADRs (ADR-001 through ADR-035).
 
 ### Backlog Guidance
 - Legacy phase/task checklists below are retained for traceability; use `docs/roadmap/` and open GitHub issues as the canonical source for next execution priorities.

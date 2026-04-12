@@ -38,6 +38,9 @@ This document indexes all architectural decisions for the Holiday Peak Hub accel
 | [ADR-030](adrs/adr-030-search-enrichment-bounded-context.md) | Search Enrichment as an Isolated Bounded Context | Accepted | 2026-03 |
 | [ADR-031](adrs/adr-031-mcp-internal-communication-policy.md) | MCP Internal Communication Policy Addendum | Accepted | 2026-03 |
 | [ADR-032](adrs/adr-032-self-healing-boundaries.md) | Self-Healing Boundaries, Risk Tiers, and Prohibited Actions | Accepted | 2026-04 |
+| [ADR-033](adrs/adr-033-helm-deployment-strategy.md) | Helm Deployment Strategy with Flux CD GitOps | Accepted | 2026-04 |
+| [ADR-034](adrs/adr-034-namespace-isolation-strategy.md) | Namespace Isolation Strategy (CRUD vs Agent Namespaces) | Accepted | 2026-04 |
+| [ADR-035](adrs/adr-035-api-center-apim-mcp-strategy.md) | API Center + APIM MCP Strategy | Accepted | 2026-04 |
 
 ## How to Use ADRs
 
@@ -98,11 +101,14 @@ Each ADR follows a standard template:
 - azd-first deployment with GitHub Actions CI/CD ([ADR-021](adrs/adr-021-azd-first-deployment.md))
 - AGIC/classic Application Gateway approach retained as historical context only ([ADR-026](adrs/adr-026-agic-traffic-management.md))
 - APIM + AGC as the canonical AKS edge ([ADR-027](adrs/adr-027-apim-agc-edge.md))
+- Helm deployment strategy with Flux CD GitOps reconciliation ([ADR-033](adrs/adr-033-helm-deployment-strategy.md))
+- Namespace isolation for CRUD and agent workloads ([ADR-034](adrs/adr-034-namespace-isolation-strategy.md))
 
 ### Governance
 - Git branch naming convention ([ADR-022](adrs/adr-022-branch-naming-convention.md))
 - MCP internal communication policy and rollout gates ([ADR-031](adrs/adr-031-mcp-internal-communication-policy.md))
 - Self-healing boundaries, risk tiers, and prohibited actions ([ADR-032](adrs/adr-032-self-healing-boundaries.md))
+- API Center + APIM MCP strategy for API governance ([ADR-035](adrs/adr-035-api-center-apim-mcp-strategy.md))
 
 ### Enterprise Integration
 - Enterprise resilience patterns (Circuit Breaker, Bulkhead, Rate Limiter) ([ADR-023](adrs/adr-023-enterprise-resilience-patterns.md))

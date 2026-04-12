@@ -1,13 +1,13 @@
 # Agent Demonstration Guide
 
-**Last Updated**: February 3, 2026  
-**Status**: Phase 1 Complete | Phases 2-4 In Progress
+**Last Updated**: April 12, 2026  
+**Status**: Phase 1 Complete | Phase 2 In Progress
 
 ---
 
 ## Overview
 
-This directory contains comprehensive demonstrations for all 21 agent services in Holiday Peak Hub. Each demo is designed to showcase agent capabilities through realistic retail scenarios, from quick API calls to complex multi-agent workflows.
+This directory contains comprehensive demonstrations for all 27 agent/service apps in Holiday Peak Hub. Each demo is designed to showcase agent capabilities through realistic retail scenarios, from quick API calls to complex multi-agent workflows.
 
 ### Live Operator Runbook
 

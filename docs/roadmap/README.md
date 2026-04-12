@@ -1,9 +1,21 @@
 # Roadmap & Known Issues
 
 **Created**: February 27, 2026  
-**Source**: Deployment validation audit (February 2026)
+**Last Updated**: April 12, 2026  
+**Source**: Deployment validation audit (February 2026) + ongoing issue tracking
 
 This folder tracks corrections, gaps, and planned enhancements discovered during architecture review and deployment validation.
+
+## Recent Resolutions (April 2026)
+
+| Resolution | PR | Impact |
+|-----------|-----|--------|
+| Silent tool-dropping in FoundryInvoker | #802 | Agent tools now forwarded correctly via MAF FoundryAgent |
+| Memory tier I/O latency | #800 | Parallel hot/warm/cold operations via asyncio.gather |
+| Catalog-search duplicate queries | #796 | Eliminated redundant keyword search execution |
+| CRUD_SERVICE_URL port mismatch | #794 | Agent inter-service connectivity restored |
+| Flux CD GitOps migration | #785, #792 | Declarative manifest reconciliation, kubectl-apply removed |
+| Namespace isolation | #788 | CRUD and agent services in separate namespaces |
 
 ## Issue Index
 
