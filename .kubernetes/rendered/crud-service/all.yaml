@@ -1,4 +1,4 @@
-﻿---
+---
 # Source: holiday-peak-service/templates/serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
@@ -115,6 +115,8 @@ spec:
               value: "holiday_peak_crud"
             - name: POSTGRES_HOST
               value: "holidaypeakhub405-dev-postgres.postgres.database.azure.com"
+            - name: POSTGRES_PORT
+              value: "5432"
             - name: POSTGRES_SSL
               value: "true"
             - name: POSTGRES_USER
@@ -158,3 +160,64 @@ spec:
             requests:
               cpu: 250m
               memory: 256Mi
+---
+# Source: holiday-peak-service/templates/agc-routing.yaml
+apiVersion: alb.networking.azure.io/v1
+kind: ApplicationLoadBalancer
+metadata:
+  name: holiday-peak-agc
+  namespace: holiday-peak-crud
+  labels:
+    app: crud-service
+spec:
+  associations:
+    - "/subscriptions/150e82e8-25db-4f1a-8e04-a2f6a77d26c4/resourceGroups/holidaypeakhub405-dev-rg/providers/Microsoft.Network/virtualNetworks/holidaypeakhub405-dev-vnet/subnets/agc"
+---
+# Source: holiday-peak-service/templates/agc-routing.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: holiday-peak-agc
+  namespace: holiday-peak-crud
+  labels:
+    app: crud-service
+spec:
+  gatewayClassName: "azure-alb-external"
+  listeners:
+    - name: "http"
+      protocol: "HTTP"
+      port: 80
+      hostname: "e3g0avgfauc3e4cp.fz87.alb.azure.com"
+      allowedRoutes:
+        namespaces:
+          from: Same
+---
+# Source: holiday-peak-service/templates/agc-routing.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: crud-service-crud-service-agc
+  namespace: holiday-peak-crud
+  labels:
+    app: crud-service
+spec:
+  parentRefs:
+    - name: "holiday-peak-agc"
+      namespace: "holiday-peak-crud"
+  hostnames:
+    - "e3g0avgfauc3e4cp.fz87.alb.azure.com"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: "/health"
+      backendRefs:
+        - name: crud-service-crud-service
+          port: 80
+    - matches:
+        - path:
+            type: PathPrefix
+            value: "/api"
+      backendRefs:
+        - name: crud-service-crud-service
+          port: 80

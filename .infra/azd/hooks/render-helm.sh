@@ -419,7 +419,7 @@ add_env_arg "APPLICATIONINSIGHTS_CONNECTION_STRING" "${APPLICATIONINSIGHTS_CONNE
 # Cross-namespace CRUD service URL for agent→CRUD communication (ADR-034)
 if is_agent_service; then
   CRUD_NS="${K8S_CRUD_NAMESPACE:-${K8S_NAMESPACE:-holiday-peak-crud}}"
-  add_env_arg "CRUD_SERVICE_URL" "${CRUD_SERVICE_URL:-http://crud-service-crud-service.${CRUD_NS}.svc.cluster.local:8000}"
+  add_env_arg "CRUD_SERVICE_URL" "${CRUD_SERVICE_URL:-http://crud-service-crud-service.${CRUD_NS}.svc.cluster.local:80}"
 fi
 
 if [ "$SERVICE_NAME" = "ecommerce-catalog-search" ]; then

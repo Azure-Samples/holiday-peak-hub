@@ -397,7 +397,7 @@ if ($ServiceName -ne "crud-service") {
   $crudNs = if ($env:K8S_CRUD_NAMESPACE) { $env:K8S_CRUD_NAMESPACE }
             elseif ($env:K8S_NAMESPACE) { $env:K8S_NAMESPACE }
             else { "holiday-peak-crud" }
-  $defaultCrudUrl = "http://crud-service-crud-service.${crudNs}.svc.cluster.local:8000"
+  $defaultCrudUrl = "http://crud-service-crud-service.${crudNs}.svc.cluster.local:80"
   $envMappings["CRUD_SERVICE_URL"] = if ($env:CRUD_SERVICE_URL) { $env:CRUD_SERVICE_URL } else { $defaultCrudUrl }
 }
 

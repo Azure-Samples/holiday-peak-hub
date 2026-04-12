@@ -1,4 +1,4 @@
-﻿---
+---
 # Source: holiday-peak-service/templates/serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
@@ -94,7 +94,7 @@ spec:
             - name: COSMOS_DATABASE
               value: "holiday-peak-db"
             - name: CRUD_SERVICE_URL
-              value: "http://crud-service-crud-service.holiday-peak-crud.svc.cluster.local:8000"
+              value: "https://holidaypeakhub405-dev-apim.azure-api.net"
             - name: EMBEDDING_DEPLOYMENT_NAME
               value: "text-embedding-3-large"
             - name: EVENT_HUB_NAMESPACE
@@ -121,6 +121,8 @@ spec:
               value: "holiday_peak_crud"
             - name: POSTGRES_HOST
               value: "holidaypeakhub405-dev-postgres.postgres.database.azure.com"
+            - name: POSTGRES_PORT
+              value: "5432"
             - name: POSTGRES_SSL
               value: "true"
             - name: POSTGRES_USER
@@ -168,3 +170,32 @@ spec:
             requests:
               cpu: 250m
               memory: 256Mi
+---
+# Source: holiday-peak-service/templates/agc-routing.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: ecommerce-catalog-search-ecommerce-catalog-search-agc
+  namespace: holiday-peak-agents
+  labels:
+    app: ecommerce-catalog-search
+spec:
+  parentRefs:
+    - name: "holiday-peak-agc"
+      namespace: "holiday-peak-agents"
+  hostnames:
+    - "e3g0avgfauc3e4cp.fz87.alb.azure.com"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: "/ecommerce-catalog-search"
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: "/"
+      backendRefs:
+        - name: ecommerce-catalog-search-ecommerce-catalog-search
+          port: 80
