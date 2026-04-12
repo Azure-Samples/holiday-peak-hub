@@ -1122,6 +1122,8 @@ jobs:
 
               service_match = re.match(r"^  ([a-z0-9\-]+):\s*$", line)
               if service_match:
+                  if current_service == service_name:
+                      break
                   current_service = service_match.group(1)
                   project_path = None
                   docker_path = None
