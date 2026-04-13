@@ -17,7 +17,7 @@ dependencies = [
     "azure-cosmos",
     "azure-storage-blob",
     "azure-eventhub",
-    "redis>=5.2.0",
+    "redis>=7.4.0",
     "asyncpg>=0.30.0",
     "holiday-peak-lib>=0.2.0"
 ]
