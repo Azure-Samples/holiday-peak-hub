@@ -787,6 +787,15 @@ jobs:
               --scope "$KEY_VAULT_ID"
           fi
 
+      - name: Refresh azd environment from deployed infrastructure
+        if: ${{ inputs.skipProvision }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "skipProvision=true: refreshing azd environment outputs from the last successful deployment."
+          azd env refresh -e '${{ inputs.environment }}' --no-prompt
+          echo "azd env refresh completed."
+
       - name: Export provisioned outputs
         id: outputs
         run: |
