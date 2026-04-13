@@ -11,7 +11,7 @@ dependencies = [
     "uvicorn>=0.32.0",
     "pydantic>=2",
     "agent-framework>=1.0.1",
-    "azure-ai-projects>=2.0.0b4",
+    "azure-ai-projects>=2.0.1",
     "azure-identity",
     "azure-search-documents",
     "azure-cosmos",
