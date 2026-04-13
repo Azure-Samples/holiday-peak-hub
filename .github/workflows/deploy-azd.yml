@@ -847,6 +847,7 @@ jobs:
       login_server: ${{ steps.registry.outputs.login_server }}
       public_network_access_before: ${{ steps.access.outputs.public_network_access_before }}
       default_action_before: ${{ steps.access.outputs.default_action_before }}
+      export_policy_before: ${{ steps.access.outputs.export_policy_before }}
       public_access_temporarily_enabled: ${{ steps.access.outputs.public_access_temporarily_enabled }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -911,6 +912,14 @@ jobs:
                 --resource-group "$RG_NAME" \
                 --public-network-enabled false >/dev/null || true
             fi
+
+            if [ "${EXPORT_POLICY_BEFORE:-}" = "disabled" ]; then
+              az resource update \
+                --resource-group "$RG_NAME" \
+                --name "$ACR_NAME" \
+                --resource-type "Microsoft.ContainerRegistry/registries" \
+                --set "properties.policies.exportPolicy.status=disabled" >/dev/null || true
+            fi
           }
           trap cleanup EXIT
 
@@ -922,13 +931,21 @@ jobs:
             --resource-group "$RG_NAME" \
             --name "$ACR_NAME" \
             --query "networkRuleSet.defaultAction" -o tsv)
+          EXPORT_POLICY_BEFORE=$(az acr show \
+            --resource-group "$RG_NAME" \
+            --name "$ACR_NAME" \
+            --query "policies.exportPolicy.status" -o tsv)
 
           if [ -z "$DEFAULT_ACTION_BEFORE" ] || [ "$DEFAULT_ACTION_BEFORE" = "null" ]; then
             DEFAULT_ACTION_BEFORE="Allow"
           fi
+          if [ -z "$EXPORT_POLICY_BEFORE" ] || [ "$EXPORT_POLICY_BEFORE" = "null" ]; then
+            EXPORT_POLICY_BEFORE="enabled"
+          fi
 
           echo "public_network_access_before=${PUBLIC_NETWORK_ACCESS_BEFORE}" >> "$GITHUB_OUTPUT"
           echo "default_action_before=${DEFAULT_ACTION_BEFORE}" >> "$GITHUB_OUTPUT"
+          echo "export_policy_before=${EXPORT_POLICY_BEFORE}" >> "$GITHUB_OUTPUT"
           echo "public_access_temporarily_enabled=false" >> "$GITHUB_OUTPUT"
 
           if [ "${{ inputs.autoAllowAcrRunnerIp }}" != "true" ] || [ "$PUBLIC_NETWORK_ACCESS_BEFORE" != "Disabled" ]; then
@@ -936,6 +953,16 @@ jobs:
           fi
 
           RESTORE_ON_ERROR=true
+
+          # Export policy must be enabled before publicNetworkAccess can be turned on
+          if [ "$EXPORT_POLICY_BEFORE" = "disabled" ]; then
+            az resource update \
+              --resource-group "$RG_NAME" \
+              --name "$ACR_NAME" \
+              --resource-type "Microsoft.ContainerRegistry/registries" \
+              --set "properties.policies.exportPolicy.status=enabled" >/dev/null
+          fi
+
           az acr update \
             --name "$ACR_NAME" \
             --resource-group "$RG_NAME" \
@@ -1294,6 +1321,7 @@ jobs:
           RG_NAME="${{ needs.prepare-acr-build-access.outputs.rg_name }}"
           PUBLIC_NETWORK_ACCESS_BEFORE="${{ needs.prepare-acr-build-access.outputs.public_network_access_before }}"
           DEFAULT_ACTION_BEFORE="${{ needs.prepare-acr-build-access.outputs.default_action_before }}"
+          EXPORT_POLICY_BEFORE="${{ needs.prepare-acr-build-access.outputs.export_policy_before }}"
 
           if [ -n "$DEFAULT_ACTION_BEFORE" ] && [ "$DEFAULT_ACTION_BEFORE" != "null" ]; then
             az acr update \
@@ -1307,6 +1335,15 @@ jobs:
               --name "$ACR_NAME" \
               --resource-group "$RG_NAME" \
               --public-network-enabled false >/dev/null
+          fi
+
+          # Restore export policy after public network access is disabled
+          if [ "$EXPORT_POLICY_BEFORE" = "disabled" ]; then
+            az resource update \
+              --resource-group "$RG_NAME" \
+              --name "$ACR_NAME" \
+              --resource-type "Microsoft.ContainerRegistry/registries" \
+              --set "properties.policies.exportPolicy.status=disabled" >/dev/null
           fi
 
           CURRENT_PUBLIC_NETWORK_ACCESS=$(az acr show \
