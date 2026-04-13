@@ -61,17 +61,17 @@ wheels = [
 
 [[package]]
 name = "agent-framework-ag-ui"
-version = "1.0.0b260409"
+version = "1.0.0b260311"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "ag-ui-protocol" },
     { name = "agent-framework-core" },
     { name = "fastapi" },
-    { name = "uvicorn", extra = ["standard"] },
+    { name = "uvicorn" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/74/05/8441c47586a4ace62a735ce6dc5159e7b968e00e8bfafe4624f0c0d055e3/agent_framework_ag_ui-1.0.0b260409.tar.gz", hash = "sha256:e666d61c8bde8787e8bae3e434e2d93be04234d263dc50a9228a26a5517a1845", size = 171851, upload-time = "2026-04-10T03:26:24.131Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/97/7f/5faff29c8919cfacac84132c3b257268eb2cac0abc866eb59d44dc609865/agent_framework_ag_ui-1.0.0b260311.tar.gz", hash = "sha256:82c607fcf94b0bb0481afe4c9d9d3383633841f66e56b13bfc6aeeaf3d5b545e", size = 156469, upload-time = "2026-03-11T23:19:23.738Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/55/91/d1ab5483001a5ef2ac37df23303b5eddc6c3c25b081d90571df7110d345e/agent_framework_ag_ui-1.0.0b260409-py3-none-any.whl", hash = "sha256:28094773d2287f5e5b25d8d5c165e5eb81c0b2a88348f5164e4f5a11ab9c260b", size = 91757, upload-time = "2026-04-10T03:26:14.453Z" },
+    { url = "https://files.pythonhosted.org/packages/77/e0/b60a25847b925c21768cb1bbf07bb4a451b188303f2ab7ad669844910366/agent_framework_ag_ui-1.0.0b260311-py3-none-any.whl", hash = "sha256:e7db53c2791720e9de197a9f4962696b133c114b8225024dac2b854b1bc123be", size = 87571, upload-time = "2026-03-11T23:19:41.691Z" },
 ]
 
 [[package]]
@@ -236,18 +236,17 @@ wheels = [
 
 [[package]]
 name = "agent-framework-devui"
-version = "1.0.0b260409"
+version = "1.0.0b260311"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "agent-framework-core" },
     { name = "fastapi" },
-    { name = "openai" },
-    { name = "opentelemetry-sdk" },
+    { name = "python-dotenv" },
     { name = "uvicorn", extra = ["standard"] },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/72/f9/bff1f4acc7709584ed076923addae79b29aeeb12c19278e970a8f2bad750/agent_framework_devui-1.0.0b260409.tar.gz", hash = "sha256:10f3332b424808c7c41510f47ad49684d06bb855c7ac9d1f815ba396d122a94d", size = 358370, upload-time = "2026-04-10T03:26:11.229Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/32/da/90812632eaa128e1bb4ee2442a6fb45fb0cafc855a554bfc880f9e5dbd83/agent_framework_devui-1.0.0b260311.tar.gz", hash = "sha256:c28819872b61b9575aa0ac3ddeaf91e486680bd49ab792d475610f3ba857d0ef", size = 357631, upload-time = "2026-03-11T23:19:53.812Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7e/9f/f4ff37b9c2267b661f81344f722d37fab739fea2d685572f00d798031fb1/agent_framework_devui-1.0.0b260409-py3-none-any.whl", hash = "sha256:4ed6b1adbba603b845b4c1b29a85c2218eada51bf6e4af0c48c522ce8bf22962", size = 363513, upload-time = "2026-04-10T03:26:17.985Z" },
+    { url = "https://files.pythonhosted.org/packages/92/21/3504433fe89d28678dc865afa9c374ebb9b6a8be26c3dc9473bb42ff229b/agent_framework_devui-1.0.0b260311-py3-none-any.whl", hash = "sha256:f0224e8cf7d22cc93af168ca42ef50a79e1575a39ca57c77ee02faea6ca57ff4", size = 362793, upload-time = "2026-03-11T23:19:50.609Z" },
 ]
 
 [[package]]
@@ -1043,7 +1042,7 @@ name = "clr-loader"
 version = "0.2.10"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cffi" },
+    { name = "cffi", marker = "python_full_version < '3.14'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/18/24/c12faf3f61614b3131b5c98d3bf0d376b49c7feaa73edca559aeb2aee080/clr_loader-0.2.10.tar.gz", hash = "sha256:81f114afbc5005bafc5efe5af1341d400e22137e275b042a8979f3feb9fc9446", size = 83605, upload-time = "2026-01-03T23:13:06.984Z" }
 wheels = [
@@ -1174,7 +1173,7 @@ requires-dist = [
     { name = "black", extras = ["jupyter"], marker = "extra == 'lint'", specifier = ">=25.1.0" },
     { name = "debugpy", marker = "extra == 'dev'" },
     { name = "faker", marker = "extra == 'dev'" },
-    { name = "fastapi", specifier = ">=0.115.0" },
+    { name = "fastapi", specifier = ">=0.135.3" },
     { name = "fastapi-mcp" },
     { name = "holiday-peak-lib", git = "https://github.com/Azure-Samples/holiday-peak-hub.git?subdirectory=lib%2Fsrc&branch=main" },
     { name = "httpx", marker = "extra == 'test'" },
@@ -1358,17 +1357,18 @@ wheels = [
 
 [[package]]
 name = "fastapi"
-version = "0.128.0"
+version = "0.135.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "annotated-doc" },
     { name = "pydantic" },
     { name = "starlette" },
     { name = "typing-extensions" },
+    { name = "typing-inspection" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/52/08/8c8508db6c7b9aae8f7175046af41baad690771c9bcde676419965e338c7/fastapi-0.128.0.tar.gz", hash = "sha256:1cc179e1cef10a6be60ffe429f79b829dce99d8de32d7acb7e6c8dfdf7f2645a", size = 365682, upload-time = "2025-12-27T15:21:13.714Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f7/e6/7adb4c5fa231e82c35b8f5741a9f2d055f520c29af5546fd70d3e8e1cd2e/fastapi-0.135.3.tar.gz", hash = "sha256:bd6d7caf1a2bdd8d676843cdcd2287729572a1ef524fc4d65c17ae002a1be654", size = 396524, upload-time = "2026-04-01T16:23:58.188Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/5c/05/5cbb59154b093548acd0f4c7c474a118eda06da25aa75c616b72d8fcd92a/fastapi-0.128.0-py3-none-any.whl", hash = "sha256:aebd93f9716ee3b4f4fcfe13ffb7cf308d99c9f3ab5622d8877441072561582d", size = 103094, upload-time = "2025-12-27T15:21:12.154Z" },
+    { url = "https://files.pythonhosted.org/packages/84/a4/5caa2de7f917a04ada20018eccf60d6cc6145b0199d55ca3711b0fc08312/fastapi-0.135.3-py3-none-any.whl", hash = "sha256:9b0f590c813acd13d0ab43dd8494138eb58e484bfac405db1f3187cfc5810d98", size = 117734, upload-time = "2026-04-01T16:23:59.328Z" },
 ]
 
 [[package]]
@@ -2784,8 +2784,8 @@ name = "powerfx"
 version = "0.0.34"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cffi" },
-    { name = "pythonnet" },
+    { name = "cffi", marker = "python_full_version < '3.14'" },
+    { name = "pythonnet", marker = "python_full_version < '3.14'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/9f/fb/6c4bf87e0c74ca1c563921ce89ca1c5785b7576bca932f7255cdf81082a7/powerfx-0.0.34.tar.gz", hash = "sha256:956992e7afd272657ed16d80f4cad24ec95d9e4a79fb9dfa4a068a09e136af32", size = 3237555, upload-time = "2025-12-22T15:50:59.682Z" }
 wheels = [
@@ -3201,7 +3201,7 @@ name = "pythonnet"
 version = "3.0.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "clr-loader" },
+    { name = "clr-loader", marker = "python_full_version < '3.14'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/9a/d6/1afd75edd932306ae9bd2c2d961d603dc2b52fcec51b04afea464f1f6646/pythonnet-3.0.5.tar.gz", hash = "sha256:48e43ca463941b3608b32b4e236db92d8d40db4c58a75ace902985f76dac21cf", size = 239212, upload-time = "2024-12-13T08:30:44.393Z" }
 wheels = [
