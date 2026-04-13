@@ -1338,18 +1338,21 @@ jobs:
           DEFAULT_ACTION_BEFORE="${{ needs.prepare-acr-build-access.outputs.default_action_before }}"
           EXPORT_POLICY_BEFORE="${{ needs.prepare-acr-build-access.outputs.export_policy_before }}"
 
-          if [ -n "$DEFAULT_ACTION_BEFORE" ] && [ "$DEFAULT_ACTION_BEFORE" != "null" ]; then
-            az acr update \
-              --name "$ACR_NAME" \
-              --resource-group "$RG_NAME" \
-              --default-action "$DEFAULT_ACTION_BEFORE" >/dev/null
-          fi
-
           if [ "$PUBLIC_NETWORK_ACCESS_BEFORE" = "Disabled" ]; then
+            # Disable public network access first; defaultAction is irrelevant
+            # when public access is off (Azure may report any value).
             az acr update \
               --name "$ACR_NAME" \
               --resource-group "$RG_NAME" \
               --public-network-enabled false >/dev/null
+          else
+            # Public access stays enabled — restore the original defaultAction
+            if [ -n "$DEFAULT_ACTION_BEFORE" ] && [ "$DEFAULT_ACTION_BEFORE" != "null" ]; then
+              az acr update \
+                --name "$ACR_NAME" \
+                --resource-group "$RG_NAME" \
+                --default-action "$DEFAULT_ACTION_BEFORE" >/dev/null
+            fi
           fi
 
           # Restore export policy after public network access is disabled
@@ -1365,23 +1368,28 @@ jobs:
             --resource-group "$RG_NAME" \
             --name "$ACR_NAME" \
             --query "publicNetworkAccess" -o tsv)
-          CURRENT_DEFAULT_ACTION=$(az acr show \
-            --resource-group "$RG_NAME" \
-            --name "$ACR_NAME" \
-            --query "networkRuleSet.defaultAction" -o tsv)
-
-          if [ -z "$CURRENT_DEFAULT_ACTION" ] || [ "$CURRENT_DEFAULT_ACTION" = "null" ]; then
-            CURRENT_DEFAULT_ACTION="Allow"
-          fi
 
           if [ "$CURRENT_PUBLIC_NETWORK_ACCESS" != "$PUBLIC_NETWORK_ACCESS_BEFORE" ]; then
             echo "Failed to restore ACR public network access state for ${ACR_NAME}: expected ${PUBLIC_NETWORK_ACCESS_BEFORE}, got ${CURRENT_PUBLIC_NETWORK_ACCESS}." >&2
             exit 1
           fi
 
-          if [ "$CURRENT_DEFAULT_ACTION" != "$DEFAULT_ACTION_BEFORE" ]; then
-            echo "Failed to restore ACR default network action for ${ACR_NAME}: expected ${DEFAULT_ACTION_BEFORE}, got ${CURRENT_DEFAULT_ACTION}." >&2
-            exit 1
+          # Only validate defaultAction when public access is enabled (it is
+          # meaningless when public access is Disabled — Azure can report any value).
+          if [ "$PUBLIC_NETWORK_ACCESS_BEFORE" != "Disabled" ]; then
+            CURRENT_DEFAULT_ACTION=$(az acr show \
+              --resource-group "$RG_NAME" \
+              --name "$ACR_NAME" \
+              --query "networkRuleSet.defaultAction" -o tsv)
+
+            if [ -z "$CURRENT_DEFAULT_ACTION" ] || [ "$CURRENT_DEFAULT_ACTION" = "null" ]; then
+              CURRENT_DEFAULT_ACTION="Allow"
+            fi
+
+            if [ "$CURRENT_DEFAULT_ACTION" != "$DEFAULT_ACTION_BEFORE" ]; then
+              echo "Failed to restore ACR default network action for ${ACR_NAME}: expected ${DEFAULT_ACTION_BEFORE}, got ${CURRENT_DEFAULT_ACTION}." >&2
+              exit 1
+            fi
           fi
 
   deploy-foundry-models:
