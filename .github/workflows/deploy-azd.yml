@@ -715,7 +715,10 @@ jobs:
           if [ "${{ inputs.environment }}" != "prod" ] && [ "${{ inputs.environment }}" != "production" ] \
             && grep -q "RoleAssignmentExists" "$PROVISION_LOG" \
             && ! grep -q "BadRequest:" "$PROVISION_LOG"; then
-            echo "Non-prod provision hit an idempotent RoleAssignmentExists conflict; continuing." >&2
+            echo "Non-prod provision hit an idempotent RoleAssignmentExists conflict." >&2
+            echo "Infrastructure was deployed but azd did not save outputs. Running azd env refresh to populate them." >&2
+            azd env refresh -e '${{ inputs.environment }}' --no-prompt
+            echo "azd env refresh completed after RoleAssignmentExists fallback."
             exit 0
           fi
 
