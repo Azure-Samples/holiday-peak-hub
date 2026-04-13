@@ -1346,7 +1346,21 @@ module apim 'br/public:avm/res/api-management/service:0.14.1' = {
 }
 
 // API Center — centralized API governance and discovery
-resource apiCenter 'Microsoft.ApiCenter/services@2024-03-01' = {
+// ApiCenter is only available in select regions; skip provisioning when the
+// deployment location is not in the supported list to avoid validation errors.
+var apicSupportedRegions = [
+  'eastus'
+  'westeurope'
+  'uksouth'
+  'centralindia'
+  'australiaeast'
+  'francecentral'
+  'swedencentral'
+  'canadacentral'
+]
+var apicEnabled = contains(apicSupportedRegions, toLower(location))
+
+resource apiCenter 'Microsoft.ApiCenter/services@2024-03-01' = if (apicEnabled) {
   name: apicName
   location: location
   identity: {
@@ -1686,7 +1700,7 @@ output keyVaultName string = keyVault.outputs.name
 output keyVaultUri string = keyVault.outputs.uri
 output apimName string = apim.outputs.name
 output apimGatewayUrl string = 'https://${apimName}.azure-api.net'
-output apicName string = apiCenter.name
+output apicName string = apicEnabled ? apiCenter.name : ''
 output aiServicesName string = aiFoundry.outputs.aiServicesName
 output aiProjectName string = aiFoundry.outputs.aiProjectName
 output aiSearchName string = aiSearchName
