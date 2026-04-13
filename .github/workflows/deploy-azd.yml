@@ -416,9 +416,10 @@ jobs:
           azd env set K8S_CRUD_NAMESPACE holiday-peak-crud -e "${{ inputs.environment }}"
           azd env set K8S_AGENTS_NAMESPACE holiday-peak-agents -e "${{ inputs.environment }}"
           azd env set KEDA_ENABLED true -e "${{ inputs.environment }}"
-          if [ "${{ inputs.environment }}" = "dev" ]; then
-            azd env set POSTGRES_AUTH_MODE entra -e "${{ inputs.environment }}"
-          fi
+          # PostgreSQL auth: use password for dev until Entra AD admin is configured
+          # in Bicep (administrators param on AVM PostgreSQL module). Enabling
+          # activeDirectoryAuth without an admin has no effect — see ADR-033 follow-up.
+          azd env set POSTGRES_AUTH_MODE password -e "${{ inputs.environment }}"
 
       - name: Install kubelogin
         run: |
