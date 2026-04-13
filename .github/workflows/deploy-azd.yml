@@ -799,6 +799,167 @@ jobs:
           azd env refresh -e '${{ inputs.environment }}' --no-prompt
           echo "azd env refresh completed."
 
+      # ── Recover outputs when ARM deployment state is Failed ──────────
+      # azd env refresh silently returns no values when the ARM deployment
+      # is in a Failed state (e.g. RoleAssignmentExists conflicts cause
+      # the deployment to be marked Failed even though resources deployed).
+      # This step validates critical outputs and queries Azure directly
+      # for any that are missing.
+      - name: Validate and recover provisioned outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          ENV="${{ inputs.environment }}"
+          RG="${{ inputs.projectName }}-${ENV}-rg"
+
+          # Load current azd env values
+          eval "$(azd env get-values -e "$ENV" | sed 's/^/export /')"
+
+          RECOVERED=0
+
+          set_if_empty() {
+            local k="$1" v="$2"
+            azd env set "$k" "$v" -e "$ENV"
+            export "${k}=${v}"
+            echo "  ✓ Recovered ${k}"
+            RECOVERED=$((RECOVERED + 1))
+          }
+
+          # ── PostgreSQL ─────────────────────────────────────────────
+          if [ -z "${POSTGRES_HOST:-}" ]; then
+            V=$(az postgres flexible-server list -g "$RG" \
+              --query "[0].fullyQualifiedDomainName" -o tsv 2>/dev/null || true)
+            [ -n "${V:-}" ] && set_if_empty POSTGRES_HOST "$V"
+          fi
+
+          if [ -z "${POSTGRES_ADMIN_USER:-}" ]; then
+            V=$(az postgres flexible-server list -g "$RG" \
+              --query "[0].administratorLogin" -o tsv 2>/dev/null || true)
+            [ -n "${V:-}" ] && set_if_empty POSTGRES_ADMIN_USER "$V"
+          fi
+
+          if [ -z "${POSTGRES_DATABASE:-}" ]; then
+            set_if_empty POSTGRES_DATABASE "holiday_peak_crud"
+          fi
+
+          if [ -z "${POSTGRES_AUTH_MODE:-}" ]; then
+            set_if_empty POSTGRES_AUTH_MODE "password"
+          fi
+
+          if [ -z "${POSTGRES_USER:-}" ]; then
+            if [ "${POSTGRES_AUTH_MODE:-password}" = "password" ]; then
+              set_if_empty POSTGRES_USER "${POSTGRES_ADMIN_USER:-crud_admin}"
+            else
+              set_if_empty POSTGRES_USER "${{ inputs.projectName }}-${ENV}-crud-identity"
+            fi
+          fi
+
+          # ── Cosmos DB ──────────────────────────────────────────────
+          if [ -z "${COSMOS_ACCOUNT_URI:-}" ]; then
+            V=$(az cosmosdb list -g "$RG" \
+              --query "[0].documentEndpoint" -o tsv 2>/dev/null || true)
+            [ -n "${V:-}" ] && set_if_empty COSMOS_ACCOUNT_URI "$V"
+          fi
+
+          if [ -z "${COSMOS_DATABASE:-}" ]; then
+            set_if_empty COSMOS_DATABASE "holiday-peak-db"
+          fi
+
+          # ── Key Vault ──────────────────────────────────────────────
+          if [ -z "${KEY_VAULT_URI:-}" ]; then
+            V=$(az keyvault list -g "$RG" \
+              --query "[0].properties.vaultUri" -o tsv 2>/dev/null || true)
+            [ -n "${V:-}" ] && set_if_empty KEY_VAULT_URI "$V"
+          fi
+
+          # ── Redis ──────────────────────────────────────────────────
+          if [ -z "${REDIS_HOST:-}" ]; then
+            V=$(az redis list -g "$RG" \
+              --query "[0].name" -o tsv 2>/dev/null || true)
+            [ -n "${V:-}" ] && set_if_empty REDIS_HOST "$V"
+          fi
+
+          # ── Event Hubs (main namespace, not platform-jobs) ─────────
+          if [ -z "${EVENT_HUB_NAMESPACE:-}" ]; then
+            V=$(az eventhubs namespace list -g "$RG" \
+              --query "[?ends_with(name, '-eventhub')].name | [0]" -o tsv 2>/dev/null || true)
+            [ -n "${V:-}" ] && set_if_empty EVENT_HUB_NAMESPACE "$V"
+          fi
+
+          # ── Application Insights ───────────────────────────────────
+          if [ -z "${APPLICATIONINSIGHTS_CONNECTION_STRING:-}" ]; then
+            V=$(az monitor app-insights component list -g "$RG" \
+              --query "[0].connectionString" -o tsv 2>/dev/null || true)
+            [ -n "${V:-}" ] && set_if_empty APPLICATIONINSIGHTS_CONNECTION_STRING "$V"
+          fi
+
+          # ── Storage ────────────────────────────────────────────────
+          if [ -z "${BLOB_ACCOUNT_URL:-}" ]; then
+            V=$(az storage account list -g "$RG" \
+              --query "[0].name" -o tsv 2>/dev/null || true)
+            if [ -n "${V:-}" ]; then
+              set_if_empty BLOB_ACCOUNT_URL "https://${V}.blob.core.windows.net"
+            fi
+          fi
+
+          # ── AI Search ──────────────────────────────────────────────
+          if [ -z "${AI_SEARCH_NAME:-}" ]; then
+            V=$(az search service list -g "$RG" \
+              --query "[0].name" -o tsv 2>/dev/null || true)
+            [ -n "${V:-}" ] && set_if_empty AI_SEARCH_NAME "$V"
+          fi
+
+          if [ -z "${AI_SEARCH_ENDPOINT:-}" ] && [ -n "${AI_SEARCH_NAME:-}" ]; then
+            set_if_empty AI_SEARCH_ENDPOINT "https://${AI_SEARCH_NAME}.search.windows.net"
+          fi
+
+          if [ -z "${AI_SEARCH_INDEX:-}" ]; then
+            set_if_empty AI_SEARCH_INDEX "catalog-products"
+          fi
+
+          if [ -z "${AI_SEARCH_VECTOR_INDEX:-}" ]; then
+            set_if_empty AI_SEARCH_VECTOR_INDEX "product_search_index"
+          fi
+
+          if [ -z "${AI_SEARCH_INDEXER_NAME:-}" ]; then
+            set_if_empty AI_SEARCH_INDEXER_NAME "search-enriched-products-indexer"
+          fi
+
+          if [ -z "${EMBEDDING_DEPLOYMENT_NAME:-}" ]; then
+            set_if_empty EMBEDDING_DEPLOYMENT_NAME "text-embedding-3-large"
+          fi
+
+          if [ -z "${AI_SEARCH_AUTH_MODE:-}" ]; then
+            set_if_empty AI_SEARCH_AUTH_MODE "managed_identity"
+          fi
+
+          # ── AI Services ────────────────────────────────────────────
+          if [ -z "${AI_SERVICES_NAME:-}" ]; then
+            V=$(az cognitiveservices account list -g "$RG" \
+              --query "[?kind=='AIServices'] | [0].name" -o tsv 2>/dev/null || true)
+            [ -n "${V:-}" ] && set_if_empty AI_SERVICES_NAME "$V"
+          fi
+
+          # ── AI Project ─────────────────────────────────────────────
+          if [ -z "${PROJECT_NAME:-}" ]; then
+            V=$(az resource list -g "$RG" \
+              --resource-type "Microsoft.MachineLearningServices/workspaces" \
+              --query "[?kind=='Project'] | [0].name" -o tsv 2>/dev/null || true)
+            [ -n "${V:-}" ] && set_if_empty PROJECT_NAME "$V"
+          fi
+
+          if [ -z "${PROJECT_ENDPOINT:-}" ] && [ -n "${AI_SERVICES_NAME:-}" ] && [ -n "${PROJECT_NAME:-}" ]; then
+            set_if_empty PROJECT_ENDPOINT \
+              "https://${AI_SERVICES_NAME}.services.ai.azure.com/api/projects/${PROJECT_NAME}"
+          fi
+
+          # ── Summary ────────────────────────────────────────────────
+          if [ "$RECOVERED" -gt 0 ]; then
+            echo "::warning::Recovered $RECOVERED output(s) via direct Azure queries. ARM deployment state may be Failed — investigate RoleAssignment conflicts in shared-infrastructure."
+          else
+            echo "All provisioned outputs present — no recovery needed."
+          fi
+
       - name: Export provisioned outputs
         id: outputs
         run: |
