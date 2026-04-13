@@ -9,7 +9,7 @@ requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.115.0",
     "fastapi-mcp",
-    "uvicorn>=0.32.0",
+    "uvicorn>=0.44.0",
     "pydantic>=2",
     "agent-framework>=1.0.1",
     "azure-ai-projects>=2.0.0b4",
