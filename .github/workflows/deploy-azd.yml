@@ -967,7 +967,7 @@ jobs:
             --name "$ACR_NAME" \
             --resource-group "$RG_NAME" \
             --public-network-enabled true \
-            --default-action Deny >/dev/null
+            --default-action Allow >/dev/null
 
           CURRENT_PUBLIC_NETWORK_ACCESS=""
           CURRENT_DEFAULT_ACTION=""
@@ -981,15 +981,30 @@ jobs:
               --name "$ACR_NAME" \
               --query "networkRuleSet.defaultAction" -o tsv)
 
-            if [ "$CURRENT_PUBLIC_NETWORK_ACCESS" = "Enabled" ] && [ "$CURRENT_DEFAULT_ACTION" = "Deny" ]; then
+            if [ "$CURRENT_PUBLIC_NETWORK_ACCESS" = "Enabled" ] && [ "$CURRENT_DEFAULT_ACTION" = "Allow" ]; then
               break
             fi
 
             sleep 10
           done
 
-          if [ "$CURRENT_PUBLIC_NETWORK_ACCESS" != "Enabled" ] || [ "$CURRENT_DEFAULT_ACTION" != "Deny" ]; then
+          if [ "$CURRENT_PUBLIC_NETWORK_ACCESS" != "Enabled" ] || [ "$CURRENT_DEFAULT_ACTION" != "Allow" ]; then
             echo "Failed to temporarily enable least-open ACR public access on ${ACR_NAME} for GitHub-hosted tested-image builds." >&2
+            exit 1
+          fi
+
+          # Wait for ACR data-plane to serve OAuth token exchange after state change
+          DATA_PLANE_READY=false
+          for dp_attempt in 1 2 3 4 5 6; do
+            if az acr login --name "$ACR_NAME" 2>/dev/null; then
+              DATA_PLANE_READY=true
+              break
+            fi
+            sleep 15
+          done
+
+          if [ "$DATA_PLANE_READY" != "true" ]; then
+            echo "ACR data-plane not ready after enabling public access on ${ACR_NAME}. Token exchange unavailable." >&2
             exit 1
           fi
 
