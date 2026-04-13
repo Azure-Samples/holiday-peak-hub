@@ -291,6 +291,8 @@ jobs:
             done
             if [ "$CRUD_IN_FILTER" = false ]; then
               CRUD_CHANGED=false
+            else
+              CRUD_CHANGED=true
             fi
             UI_CHANGED=false
             echo "Service filter applied: ${CHANGED_AGENTS[*]:-none}"
