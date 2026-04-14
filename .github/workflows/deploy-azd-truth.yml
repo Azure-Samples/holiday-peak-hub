@@ -16,10 +16,10 @@ on:
         required: true
         default: latest
       forceApimSync:
-        description: Force APIM sync after deploying truth agents
+        description: Explicitly force APIM sync after deploying truth agents during an image-only update
         required: true
         type: boolean
-        default: true
+        default: false
       autoAllowAcrRunnerIp:
         description: Temporarily allow GitHub runner egress IP in ACR firewall during deploy
         required: true
@@ -50,6 +50,7 @@ jobs:
       uiOnly: false
       apiBaseUrl: ''
       deployChangedOnly: true
+      skipProvision: true
       forceApimSync: ${{ inputs.forceApimSync }}
       autoAllowAcrRunnerIp: ${{ inputs.autoAllowAcrRunnerIp }}
       skipApiSmokeChecks: false
