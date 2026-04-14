@@ -31,10 +31,10 @@ on:
         required: false
         default: ''
       skipProvision:
-        description: Skip azd provision and reuse the current dev infrastructure for a manual emergency redeploy
+        description: Reuse the current provisioned infrastructure and skip azd provision for normal code updates; set false only when infrastructure reconciliation is required
         required: true
         type: boolean
-        default: false
+        default: true
       serviceFilter:
         description: Optional comma-separated AKS service names to deploy (empty = all changed services)
         required: false
@@ -50,10 +50,20 @@ on:
         type: boolean
         default: false
       forceApimSync:
-        description: Force APIM sync and smoke checks even when no changed services are detected
+        description: Explicitly force APIM sync and smoke checks during an image-only update
+        required: true
+        type: boolean
+        default: false
+      autoAllowAcrRunnerIp:
+        description: Temporarily allow GitHub runner egress IP in ACR firewall during deploy and remove it afterward
         required: true
         type: boolean
         default: true
+      skipApiSmokeChecks:
+        description: Skip API smoke checks (use only for urgent UI-only rollouts)
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   id-token: write
@@ -84,8 +94,8 @@ jobs:
       skipProvision: ${{ github.event_name != 'workflow_dispatch' || inputs.skipProvision }}
       serviceFilter: ${{ github.event_name == 'workflow_dispatch' && inputs.serviceFilter || '' }}
       forceApimSync: ${{ github.event_name == 'workflow_dispatch' && inputs.forceApimSync }}
-      autoAllowAcrRunnerIp: true
-      skipApiSmokeChecks: false
+      autoAllowAcrRunnerIp: ${{ github.event_name != 'workflow_dispatch' || inputs.autoAllowAcrRunnerIp }}
+      skipApiSmokeChecks: ${{ github.event_name == 'workflow_dispatch' && inputs.skipApiSmokeChecks }}
     secrets:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
