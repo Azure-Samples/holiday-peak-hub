@@ -106,6 +106,28 @@ flowchart LR
 
 This ADR supersedes the **implementation details** of [ADR-026](adr-026-agic-traffic-management.md) while preserving its core intent of unified ingress and `ClusterIP` service exposure.
 
+## Operational Recovery
+
+When `azd env refresh` fails to populate AGC outputs (due to ARM deployment state being `Failed`),
+the CI/CD pipeline recovers AGC keys via direct Azure CLI queries. This recovery path is critical
+because `AGC_SUPPORT_ENABLED` gates three downstream pipeline jobs:
+
+- `validate-agc-readiness` — verifies GatewayClass status and AGC frontend health
+- `sync-apim` — configures APIM backends to target the AGC frontend hostname
+- `sync-apic` — registers APIs in Azure API Center
+
+**Recovery dependency chain**:
+
+1. `AGC_SUPPORT_ENABLED` is inferred from the existence of the `agc` subnet in the VNet
+2. When enabled, deterministic keys (`AGC_GATEWAY_CLASS`, `AGC_FRONTEND_REFERENCE`, `AGC_CONTROLLER_DEPLOYMENT_MODE`) are set as constants
+3. Infrastructure keys (`AGC_SUBNET_ID`, `AGC_CONTROLLER_IDENTITY_NAME`, `AGC_CONTROLLER_IDENTITY_CLIENT_ID`) are queried via `az network` and `az identity` commands
+4. `AGC_FRONTEND_HOSTNAME` is queried via the `alb` CLI extension (`az network alb frontend list`); empty is treated as non-fatal since the ALB controller may not have reconciled yet
+
+**Edge case**: On first deployment, `AGC_FRONTEND_HOSTNAME` is empty until the ALB controller
+reconciles a `Gateway` resource. In this scenario, `validate-agc-readiness` will fail (expected),
+and `sync-apim` will be skipped. A subsequent pipeline run after ALB controller reconciliation
+will succeed.
+
 ## References
 
 - [ADR-009](adr-009-aks-deployment.md)
