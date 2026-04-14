@@ -2231,11 +2231,31 @@ jobs:
           smoke_endpoint "${API_BASE_URL}/api/products?limit=1" "Products"
           smoke_endpoint "${API_BASE_URL}/api/categories" "Categories"
 
+  debug-detect-outputs:
+    runs-on: ubuntu-latest
+    if: ${{ !inputs.uiOnly }}
+    needs:
+      - detect-changes
+    steps:
+      - name: Dump detect-changes outputs
+        shell: bash
+        run: |
+          echo "=== detect-changes outputs ==="
+          echo "crud_changed=${{ needs.detect-changes.outputs.crud_changed }}"
+          echo "ui_changed=${{ needs.detect-changes.outputs.ui_changed }}"
+          echo "agents_changed=${{ needs.detect-changes.outputs.agents_changed }}"
+          echo "changed_agent_services_csv=${{ needs.detect-changes.outputs.changed_agent_services_csv }}"
+          echo "changed_aks_services_csv=${{ needs.detect-changes.outputs.changed_aks_services_csv }}"
+          echo "lib_changed=${{ needs.detect-changes.outputs.lib_changed }}"
+          echo "infra_changed=${{ needs.detect-changes.outputs.infra_changed }}"
+          echo "changed_agents_matrix=${{ needs.detect-changes.outputs.changed_agents_matrix }}"
+          echo "changed_aks_matrix=${{ needs.detect-changes.outputs.changed_aks_matrix }}"
+          echo "=== end ==="
+
   deploy-agents:
     runs-on: ubuntu-latest
-    # Use changed_agent_services_csv (same reliability as build-aks-images uses changed_aks_services_csv)
-    # because agents_changed output can silently remain 'false' due to GitHub Actions output evaluation timing
-    if: ${{ !inputs.uiOnly && needs.detect-changes.outputs.changed_agent_services_csv != '' && (needs.deploy-crud.result == 'success' || needs.deploy-crud.result == 'skipped') && (needs.deploy-foundry-models.result == 'success' || needs.deploy-foundry-models.result == 'skipped') }}
+    # Use always() to ensure condition is evaluated even with skipped dependencies (deploy-foundry-models)
+    if: ${{ always() && !cancelled() && !inputs.uiOnly && needs.detect-changes.outputs.changed_agent_services_csv != '' && needs.detect-changes.result == 'success' && (needs.deploy-crud.result == 'success' || needs.deploy-crud.result == 'skipped') && (needs.deploy-foundry-models.result == 'success' || needs.deploy-foundry-models.result == 'skipped') && (needs.build-aks-images.result == 'success' || needs.build-aks-images.result == 'skipped') && (needs.restore-acr-build-access.result == 'success' || needs.restore-acr-build-access.result == 'skipped') }}
     needs:
       - provision
       - deploy-crud
