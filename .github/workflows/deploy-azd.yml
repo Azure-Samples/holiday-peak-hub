@@ -969,9 +969,8 @@ jobs:
           for key in BLOB_ACCOUNT_URL BLOB_CONTAINER COSMOS_CONTAINER PROJECT_ENDPOINT PROJECT_NAME APPLICATIONINSIGHTS_CONNECTION_STRING AGC_SUPPORT_ENABLED AGC_GATEWAY_CLASS AGC_SUBNET_ID AGC_FRONTEND_HOSTNAME AGC_FRONTEND_REFERENCE; do
             eval "cur=\${$key:-}"
             if [ -z "$cur" ]; then
-              val=$(azd env get-value "$key" -e '${{ inputs.environment }}' 2>/dev/null || true)
-              if [ -n "$val" ]; then
-                export "$key=$val"
+              if val=$(azd env get-value "$key" -e '${{ inputs.environment }}' 2>/dev/null); then
+                [ -n "$val" ] && export "$key=$val"
               fi
             fi
           done
