@@ -1,0 +1,30 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../crm-campaign-intelligence/all.yaml
+  - ../crm-profile-aggregation/all.yaml
+  - ../crm-segmentation-personalization/all.yaml
+  - ../crm-support-assistance/all.yaml
+  - ../ecommerce-cart-intelligence/all.yaml
+  - ../ecommerce-catalog-search/all.yaml
+  - ../ecommerce-checkout-support/all.yaml
+  - ../ecommerce-order-status/all.yaml
+  - ../ecommerce-product-detail-enrichment/all.yaml
+  - ../inventory-alerts-triggers/all.yaml
+  - ../inventory-health-check/all.yaml
+  - ../inventory-jit-replenishment/all.yaml
+  - ../inventory-reservation-validation/all.yaml
+  - ../logistics-carrier-selection/all.yaml
+  - ../logistics-eta-computation/all.yaml
+  - ../logistics-returns-support/all.yaml
+  - ../logistics-route-issue-detection/all.yaml
+  - ../product-management-acp-transformation/all.yaml
+  - ../product-management-assortment-optimization/all.yaml
+  - ../product-management-consistency-validation/all.yaml
+  - ../product-management-normalization-classification/all.yaml
+  - ../search-enrichment-agent/all.yaml
+  - ../truth-enrichment/all.yaml
+  - ../truth-export/all.yaml
+  - ../truth-hitl/all.yaml
+  - ../truth-ingestion/all.yaml

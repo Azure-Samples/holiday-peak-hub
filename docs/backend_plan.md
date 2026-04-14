@@ -1,8 +1,10 @@
 # Backend Implementation Plan
 
-**Version**: 1.0  
-**Date**: 2026-01-30  
-**Status**: Draft
+**Version**: 2.0  
+**Date**: 2026-01-30 (created) | 2026-04-12 (updated)  
+**Status**: Implemented
+
+> **Note**: This plan was the original design document for CRUD service capabilities. The implementation is now complete — see [crud-features-map.md](crud-features-map.md) for the live feature matrix and [apps/crud-service/README.md](../apps/crud-service/README.md) for the current service documentation.
 
 ## Executive Summary
 

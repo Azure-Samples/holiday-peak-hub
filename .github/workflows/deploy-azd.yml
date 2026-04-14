@@ -86,7 +86,7 @@ on:
 
 permissions:
   id-token: write
-  contents: read
+  contents: write
 
 env:
   FOUNDRY_RUNTIME_STRICT_ENFORCEMENT: "true"
@@ -112,6 +112,7 @@ jobs:
       changed_aks_services_csv: ${{ steps.detect.outputs.changed_aks_services_csv }}
       changed_aks_matrix: ${{ steps.detect.outputs.changed_aks_matrix }}
       lib_changed: ${{ steps.detect.outputs.lib_changed }}
+      infra_changed: ${{ steps.detect.outputs.infra_changed }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -245,6 +246,11 @@ jobs:
             LIB_CHANGED=true
           fi
 
+          INFRA_CHANGED=false
+          if echo "$CHANGED_FILES" | grep -Eq '^(\.infra/|azure\.yaml|\.kubernetes/)'; then
+            INFRA_CHANGED=true
+          fi
+
           AGENTS_CHANGED=false
           MATRIX='[]'
           CHANGED_AGENTS=()
@@ -285,6 +291,8 @@ jobs:
             done
             if [ "$CRUD_IN_FILTER" = false ]; then
               CRUD_CHANGED=false
+            else
+              CRUD_CHANGED=true
             fi
             UI_CHANGED=false
             echo "Service filter applied: ${CHANGED_AGENTS[*]:-none}"
@@ -322,6 +330,7 @@ jobs:
           echo "changed_aks_services_csv=$CHANGED_AKS_SERVICES_CSV" >> "$GITHUB_OUTPUT"
           printf 'changed_aks_matrix=%s\n' "$CHANGED_AKS_MATRIX" >> "$GITHUB_OUTPUT"
           echo "lib_changed=$LIB_CHANGED" >> "$GITHUB_OUTPUT"
+          echo "infra_changed=$INFRA_CHANGED" >> "$GITHUB_OUTPUT"
 
   provision:
     if: ${{ !inputs.uiOnly }}
@@ -342,10 +351,13 @@ jobs:
       APIM_GATEWAY_URL: ${{ steps.outputs.outputs.APIM_GATEWAY_URL }}
       COSMOS_ACCOUNT_URI: ${{ steps.outputs.outputs.COSMOS_ACCOUNT_URI }}
       COSMOS_DATABASE: ${{ steps.outputs.outputs.COSMOS_DATABASE }}
+      COSMOS_CONTAINER: ${{ steps.outputs.outputs.COSMOS_CONTAINER }}
       KEY_VAULT_URI: ${{ steps.outputs.outputs.KEY_VAULT_URI }}
       REDIS_HOST: ${{ steps.outputs.outputs.REDIS_HOST }}
       EVENT_HUB_NAMESPACE: ${{ steps.outputs.outputs.EVENT_HUB_NAMESPACE }}
       APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ steps.outputs.outputs.APPLICATIONINSIGHTS_CONNECTION_STRING }}
+      BLOB_ACCOUNT_URL: ${{ steps.outputs.outputs.BLOB_ACCOUNT_URL }}
+      BLOB_CONTAINER: ${{ steps.outputs.outputs.BLOB_CONTAINER }}
       POSTGRES_HOST: ${{ steps.outputs.outputs.POSTGRES_HOST }}
       POSTGRES_USER: ${{ steps.outputs.outputs.POSTGRES_USER }}
       POSTGRES_ADMIN_USER: ${{ steps.outputs.outputs.POSTGRES_ADMIN_USER }}
@@ -356,6 +368,9 @@ jobs:
       AGC_SUBNET_ID: ${{ steps.outputs.outputs.AGC_SUBNET_ID }}
       AGC_FRONTEND_HOSTNAME: ${{ steps.outputs.outputs.AGC_FRONTEND_HOSTNAME }}
       AGC_FRONTEND_REFERENCE: ${{ steps.outputs.outputs.AGC_FRONTEND_REFERENCE }}
+      AGC_CONTROLLER_DEPLOYMENT_MODE: ${{ steps.outputs.outputs.AGC_CONTROLLER_DEPLOYMENT_MODE }}
+      AGC_CONTROLLER_IDENTITY_NAME: ${{ steps.outputs.outputs.AGC_CONTROLLER_IDENTITY_NAME }}
+      AGC_CONTROLLER_IDENTITY_CLIENT_ID: ${{ steps.outputs.outputs.AGC_CONTROLLER_IDENTITY_CLIENT_ID }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -401,7 +416,13 @@ jobs:
           azd env set IMAGE_PREFIX "ghcr.io/${{ github.repository_owner }}" -e "${{ inputs.environment }}"
           azd env set IMAGE_TAG "${{ inputs.imageTag }}" -e "${{ inputs.environment }}"
           azd env set K8S_NAMESPACE holiday-peak -e "${{ inputs.environment }}"
-          azd env set KEDA_ENABLED false -e "${{ inputs.environment }}"
+          azd env set K8S_CRUD_NAMESPACE holiday-peak-crud -e "${{ inputs.environment }}"
+          azd env set K8S_AGENTS_NAMESPACE holiday-peak-agents -e "${{ inputs.environment }}"
+          azd env set KEDA_ENABLED true -e "${{ inputs.environment }}"
+          # PostgreSQL auth: use password for dev until Entra AD admin is configured
+          # in Bicep (administrators param on AVM PostgreSQL module). Enabling
+          # activeDirectoryAuth without an admin has no effect — see ADR-033 follow-up.
+          azd env set POSTGRES_AUTH_MODE password -e "${{ inputs.environment }}"
 
       - name: Install kubelogin
         run: |
@@ -483,7 +504,7 @@ jobs:
           fi
 
       - name: Preflight drift remediation (non-prod)
-        if: ${{ inputs.environment != 'prod' && inputs.environment != 'production' }}
+        if: ${{ !inputs.skipProvision && inputs.environment != 'prod' && inputs.environment != 'production' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -576,6 +597,7 @@ jobs:
           fi
 
       - name: Validate truth Event Hubs IaC declarations
+        if: ${{ !inputs.skipProvision }}
         shell: bash
         run: |
           set -euo pipefail
@@ -626,6 +648,7 @@ jobs:
           PY
 
       - name: Validate app dependency manifest coverage
+        if: ${{ !inputs.skipProvision }}
         shell: bash
         run: |
           set -euo pipefail
@@ -635,6 +658,7 @@ jobs:
             --manifest .infra/app-dependency-manifest.yaml
 
       - name: Validate Event Hubs IaC declarations
+        if: ${{ !inputs.skipProvision }}
         shell: bash
         run: |
           set -euo pipefail
@@ -666,18 +690,19 @@ jobs:
 
           echo "Event Hub and consumer group declarations are present in IaC."
 
-      - name: Validate skip-provision emergency redeploy mode
+      - name: Validate skip-provision mode
         if: ${{ inputs.skipProvision }}
         shell: bash
         run: |
           set -euo pipefail
 
-          if [ "${{ inputs.environment }}" != "dev" ]; then
-            echo "skipProvision is reserved for manual dev emergency redeploys against already-provisioned infrastructure." >&2
-            exit 1
+          INFRA_CHANGED="${{ needs.detect-changes.outputs.infra_changed }}"
+
+          if [ "$INFRA_CHANGED" = "true" ]; then
+            echo "::warning::skipProvision is active but infrastructure files changed. Provisioning will be skipped. If you need infra reconciliation, rerun with skipProvision=false."
           fi
 
-          echo "skipProvision=true: reusing the current azd environment values and existing infrastructure for this dev redeploy."
+          echo "skipProvision=true: reusing the current azd environment values and existing infrastructure for this deploy."
 
       - name: Provision infrastructure
         if: ${{ !inputs.skipProvision }}
@@ -694,7 +719,10 @@ jobs:
           if [ "${{ inputs.environment }}" != "prod" ] && [ "${{ inputs.environment }}" != "production" ] \
             && grep -q "RoleAssignmentExists" "$PROVISION_LOG" \
             && ! grep -q "BadRequest:" "$PROVISION_LOG"; then
-            echo "Non-prod provision hit an idempotent RoleAssignmentExists conflict; continuing." >&2
+            echo "Non-prod provision hit an idempotent RoleAssignmentExists conflict." >&2
+            echo "Infrastructure was deployed but azd did not save outputs. Running azd env refresh to populate them." >&2
+            azd env refresh -e '${{ inputs.environment }}' --no-prompt
+            echo "azd env refresh completed after RoleAssignmentExists fallback."
             exit 0
           fi
 
@@ -766,10 +794,272 @@ jobs:
               --scope "$KEY_VAULT_ID"
           fi
 
+      - name: Refresh azd environment from deployed infrastructure
+        if: ${{ inputs.skipProvision }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "skipProvision=true: refreshing azd environment outputs from the last successful deployment."
+          azd env refresh -e '${{ inputs.environment }}' --no-prompt
+          echo "azd env refresh completed."
+
+      # ── Recover outputs when ARM deployment state is Failed ──────────
+      # azd env refresh silently returns no values when the ARM deployment
+      # is in a Failed state (e.g. RoleAssignmentExists conflicts cause
+      # the deployment to be marked Failed even though resources deployed).
+      # This step validates critical outputs and queries Azure directly
+      # for any that are missing.
+      - name: Validate and recover provisioned outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          ENV="${{ inputs.environment }}"
+          RG="${{ inputs.projectName }}-${ENV}-rg"
+
+          # Install ALB CLI extension for AGC recovery queries
+          az extension add --name alb --only-show-errors 2>/dev/null || true
+
+          # Load current azd env values
+          eval "$(azd env get-values -e "$ENV" | sed 's/^/export /')"
+
+          RECOVERED=0
+          AGC_RECOVERED=0
+
+          set_if_empty() {
+            local k="$1" v="$2"
+            azd env set "$k" "$v" -e "$ENV"
+            export "${k}=${v}"
+            echo "  ✓ Recovered ${k}"
+            RECOVERED=$((RECOVERED + 1))
+          }
+
+          # ── PostgreSQL ─────────────────────────────────────────────
+          if [ -z "${POSTGRES_HOST:-}" ]; then
+            V=$(az postgres flexible-server list -g "$RG" \
+              --query "[0].fullyQualifiedDomainName" -o tsv 2>/dev/null || true)
+            [ -n "${V:-}" ] && set_if_empty POSTGRES_HOST "$V"
+          fi
+
+          if [ -z "${POSTGRES_ADMIN_USER:-}" ]; then
+            V=$(az postgres flexible-server list -g "$RG" \
+              --query "[0].administratorLogin" -o tsv 2>/dev/null || true)
+            [ -n "${V:-}" ] && set_if_empty POSTGRES_ADMIN_USER "$V"
+          fi
+
+          if [ -z "${POSTGRES_DATABASE:-}" ]; then
+            set_if_empty POSTGRES_DATABASE "holiday_peak_crud"
+          fi
+
+          if [ -z "${POSTGRES_AUTH_MODE:-}" ]; then
+            set_if_empty POSTGRES_AUTH_MODE "password"
+          fi
+
+          if [ -z "${POSTGRES_USER:-}" ]; then
+            if [ "${POSTGRES_AUTH_MODE:-password}" = "password" ]; then
+              set_if_empty POSTGRES_USER "${POSTGRES_ADMIN_USER:-crud_admin}"
+            else
+              set_if_empty POSTGRES_USER "${{ inputs.projectName }}-${ENV}-crud-identity"
+            fi
+          fi
+
+          # ── Cosmos DB ──────────────────────────────────────────────
+          if [ -z "${COSMOS_ACCOUNT_URI:-}" ]; then
+            V=$(az cosmosdb list -g "$RG" \
+              --query "[0].documentEndpoint" -o tsv 2>/dev/null || true)
+            [ -n "${V:-}" ] && set_if_empty COSMOS_ACCOUNT_URI "$V"
+          fi
+
+          if [ -z "${COSMOS_DATABASE:-}" ]; then
+            set_if_empty COSMOS_DATABASE "holiday-peak-db"
+          fi
+
+          # ── Key Vault ──────────────────────────────────────────────
+          if [ -z "${KEY_VAULT_URI:-}" ]; then
+            V=$(az keyvault list -g "$RG" \
+              --query "[0].properties.vaultUri" -o tsv 2>/dev/null || true)
+            [ -n "${V:-}" ] && set_if_empty KEY_VAULT_URI "$V"
+          fi
+
+          # ── Redis ──────────────────────────────────────────────────
+          if [ -z "${REDIS_HOST:-}" ]; then
+            V=$(az redis list -g "$RG" \
+              --query "[0].name" -o tsv 2>/dev/null || true)
+            [ -n "${V:-}" ] && set_if_empty REDIS_HOST "$V"
+          fi
+
+          # ── Event Hubs (main namespace, not platform-jobs) ─────────
+          if [ -z "${EVENT_HUB_NAMESPACE:-}" ]; then
+            V=$(az eventhubs namespace list -g "$RG" \
+              --query "[?ends_with(name, '-eventhub')].name | [0]" -o tsv 2>/dev/null || true)
+            [ -n "${V:-}" ] && set_if_empty EVENT_HUB_NAMESPACE "$V"
+          fi
+
+          # ── Application Insights ───────────────────────────────────
+          if [ -z "${APPLICATIONINSIGHTS_CONNECTION_STRING:-}" ]; then
+            V=$(az monitor app-insights component list -g "$RG" \
+              --query "[0].connectionString" -o tsv 2>/dev/null || true)
+            [ -n "${V:-}" ] && set_if_empty APPLICATIONINSIGHTS_CONNECTION_STRING "$V"
+          fi
+
+          # ── Storage ────────────────────────────────────────────────
+          if [ -z "${BLOB_ACCOUNT_URL:-}" ]; then
+            V=$(az storage account list -g "$RG" \
+              --query "[0].name" -o tsv 2>/dev/null || true)
+            if [ -n "${V:-}" ]; then
+              set_if_empty BLOB_ACCOUNT_URL "https://${V}.blob.core.windows.net"
+            fi
+          fi
+
+          # ── AI Search ──────────────────────────────────────────────
+          if [ -z "${AI_SEARCH_NAME:-}" ]; then
+            V=$(az search service list -g "$RG" \
+              --query "[0].name" -o tsv 2>/dev/null || true)
+            [ -n "${V:-}" ] && set_if_empty AI_SEARCH_NAME "$V"
+          fi
+
+          if [ -z "${AI_SEARCH_ENDPOINT:-}" ] && [ -n "${AI_SEARCH_NAME:-}" ]; then
+            set_if_empty AI_SEARCH_ENDPOINT "https://${AI_SEARCH_NAME}.search.windows.net"
+          fi
+
+          if [ -z "${AI_SEARCH_INDEX:-}" ]; then
+            set_if_empty AI_SEARCH_INDEX "catalog-products"
+          fi
+
+          if [ -z "${AI_SEARCH_VECTOR_INDEX:-}" ]; then
+            set_if_empty AI_SEARCH_VECTOR_INDEX "product_search_index"
+          fi
+
+          if [ -z "${AI_SEARCH_INDEXER_NAME:-}" ]; then
+            set_if_empty AI_SEARCH_INDEXER_NAME "search-enriched-products-indexer"
+          fi
+
+          if [ -z "${EMBEDDING_DEPLOYMENT_NAME:-}" ]; then
+            set_if_empty EMBEDDING_DEPLOYMENT_NAME "text-embedding-3-large"
+          fi
+
+          if [ -z "${AI_SEARCH_AUTH_MODE:-}" ]; then
+            set_if_empty AI_SEARCH_AUTH_MODE "managed_identity"
+          fi
+
+          # ── AI Services ────────────────────────────────────────────
+          if [ -z "${AI_SERVICES_NAME:-}" ]; then
+            V=$(az cognitiveservices account list -g "$RG" \
+              --query "[?kind=='AIServices'] | [0].name" -o tsv 2>/dev/null || true)
+            [ -n "${V:-}" ] && set_if_empty AI_SERVICES_NAME "$V"
+          fi
+
+          # ── AI Project ─────────────────────────────────────────────
+          if [ -z "${PROJECT_NAME:-}" ]; then
+            V=$(az resource list -g "$RG" \
+              --resource-type "Microsoft.MachineLearningServices/workspaces" \
+              --query "[?kind=='Project'] | [0].name" -o tsv 2>/dev/null || true)
+            [ -n "${V:-}" ] && set_if_empty PROJECT_NAME "$V"
+          fi
+
+          if [ -z "${PROJECT_ENDPOINT:-}" ] && [ -n "${AI_SERVICES_NAME:-}" ] && [ -n "${PROJECT_NAME:-}" ]; then
+            set_if_empty PROJECT_ENDPOINT \
+              "https://${AI_SERVICES_NAME}.services.ai.azure.com/api/projects/${PROJECT_NAME}"
+          fi
+
+          # ── Application Gateway for Containers (AGC) ──────────────
+          # AGC outputs are critical for validate-agc-readiness, sync-apim,
+          # and sync-apic jobs. Recover from Azure CLI when azd env refresh
+          # returns empty values due to ARM deployment state being Failed.
+          VNET_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-vnet"
+
+          # Detect AGC support by checking for the agc subnet
+          if [ -z "${AGC_SUPPORT_ENABLED:-}" ] || [ "${AGC_SUPPORT_ENABLED}" != "true" ]; then
+            AGC_SUBNET_EXISTS=$(az network vnet subnet show \
+              -g "$RG" --vnet-name "$VNET_NAME" -n agc \
+              --query "name" -o tsv 2>/dev/null || true)
+            if [ -n "${AGC_SUBNET_EXISTS:-}" ]; then
+              set_if_empty AGC_SUPPORT_ENABLED "true"
+              AGC_RECOVERED=$((AGC_RECOVERED + 1))
+            fi
+          fi
+
+          if [ "${AGC_SUPPORT_ENABLED:-}" = "true" ]; then
+            # Deterministic keys
+            if [ -z "${AGC_GATEWAY_CLASS:-}" ]; then
+              set_if_empty AGC_GATEWAY_CLASS "azure-alb-external"
+              AGC_RECOVERED=$((AGC_RECOVERED + 1))
+            fi
+
+            if [ -z "${AGC_FRONTEND_REFERENCE:-}" ]; then
+              set_if_empty AGC_FRONTEND_REFERENCE "gateway-class:azure-alb-external"
+              AGC_RECOVERED=$((AGC_RECOVERED + 1))
+            fi
+
+            if [ -z "${AGC_CONTROLLER_DEPLOYMENT_MODE:-}" ]; then
+              set_if_empty AGC_CONTROLLER_DEPLOYMENT_MODE "helm-workload-identity"
+              AGC_RECOVERED=$((AGC_RECOVERED + 1))
+            fi
+
+            # Subnet ID via CLI query
+            if [ -z "${AGC_SUBNET_ID:-}" ]; then
+              V=$(az network vnet subnet show \
+                -g "$RG" --vnet-name "$VNET_NAME" -n agc \
+                --query "id" -o tsv 2>/dev/null || true)
+              [ -n "${V:-}" ] && { set_if_empty AGC_SUBNET_ID "$V"; AGC_RECOVERED=$((AGC_RECOVERED + 1)); }
+            fi
+
+            # Controller identity (naming convention: {project}-{env}-agc-controller)
+            AGC_IDENTITY_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-agc-controller"
+            if [ -z "${AGC_CONTROLLER_IDENTITY_NAME:-}" ]; then
+              V=$(az identity show -g "$RG" -n "$AGC_IDENTITY_NAME" \
+                --query "name" -o tsv 2>/dev/null || true)
+              [ -n "${V:-}" ] && { set_if_empty AGC_CONTROLLER_IDENTITY_NAME "$V"; AGC_RECOVERED=$((AGC_RECOVERED + 1)); }
+            fi
+
+            if [ -z "${AGC_CONTROLLER_IDENTITY_CLIENT_ID:-}" ]; then
+              V=$(az identity show -g "$RG" -n "$AGC_IDENTITY_NAME" \
+                --query "clientId" -o tsv 2>/dev/null || true)
+              [ -n "${V:-}" ] && { set_if_empty AGC_CONTROLLER_IDENTITY_CLIENT_ID "$V"; AGC_RECOVERED=$((AGC_RECOVERED + 1)); }
+            fi
+
+            # Frontend hostname via ALB CLI (two-step: list ALBs, then list frontends)
+            if [ -z "${AGC_FRONTEND_HOSTNAME:-}" ]; then
+              ALB_NAME=$(az network alb list -g "$RG" \
+                --query "[0].name" -o tsv 2>/dev/null || true)
+              if [ -n "${ALB_NAME:-}" ]; then
+                V=$(az network alb frontend list -g "$RG" --alb-name "$ALB_NAME" \
+                  --query "[0].fqdn" -o tsv 2>/dev/null || true)
+                if [ -n "${V:-}" ]; then
+                  set_if_empty AGC_FRONTEND_HOSTNAME "$V"
+                  AGC_RECOVERED=$((AGC_RECOVERED + 1))
+                else
+                  echo "::notice::AGC_FRONTEND_HOSTNAME is empty — ALB controller may not have reconciled yet. Non-fatal; validate-agc-readiness will gate downstream jobs."
+                fi
+              else
+                echo "::notice::No ALB resource found in $RG — AGC_FRONTEND_HOSTNAME cannot be recovered. Non-fatal; validate-agc-readiness will gate downstream jobs."
+              fi
+            fi
+
+            if [ "$AGC_RECOVERED" -gt 0 ]; then
+              echo "::warning::Recovered $AGC_RECOVERED AGC output(s) via direct Azure CLI queries."
+            fi
+          fi
+
+          # ── Summary ────────────────────────────────────────────────
+          if [ "$RECOVERED" -gt 0 ]; then
+            echo "::warning::Recovered $RECOVERED output(s) via direct Azure queries. ARM deployment state may be Failed — investigate RoleAssignment conflicts in shared-infrastructure."
+          else
+            echo "All provisioned outputs present — no recovery needed."
+          fi
+
       - name: Export provisioned outputs
         id: outputs
         run: |
           eval "$(azd env get-values -e '${{ inputs.environment }}' | sed 's/^/export /')"
+          # Fallback: read individual keys directly from azd env when eval drops them
+          for key in BLOB_ACCOUNT_URL BLOB_CONTAINER COSMOS_CONTAINER PROJECT_ENDPOINT PROJECT_NAME APPLICATIONINSIGHTS_CONNECTION_STRING AGC_SUPPORT_ENABLED AGC_GATEWAY_CLASS AGC_SUBNET_ID AGC_FRONTEND_HOSTNAME AGC_FRONTEND_REFERENCE AGC_CONTROLLER_DEPLOYMENT_MODE AGC_CONTROLLER_IDENTITY_NAME AGC_CONTROLLER_IDENTITY_CLIENT_ID; do
+            eval "cur=\${$key:-}"
+            if [ -z "$cur" ]; then
+              if val=$(azd env get-value "$key" -e '${{ inputs.environment }}' 2>/dev/null); then
+                [ -n "$val" ] && export "$key=$val"
+              fi
+            fi
+          done
           APIM_GATEWAY_URL_VALUE="${APIM_GATEWAY_URL:-${apimGatewayUrl:-}}"
           if [ "$APIM_GATEWAY_URL_VALUE" = "null" ]; then
             APIM_GATEWAY_URL_VALUE=""
@@ -802,6 +1092,9 @@ jobs:
             echo "AGC_SUBNET_ID=${AGC_SUBNET_ID}"
             echo "AGC_FRONTEND_HOSTNAME=${AGC_FRONTEND_HOSTNAME}"
             echo "AGC_FRONTEND_REFERENCE=${AGC_FRONTEND_REFERENCE}"
+            echo "AGC_CONTROLLER_DEPLOYMENT_MODE=${AGC_CONTROLLER_DEPLOYMENT_MODE}"
+            echo "AGC_CONTROLLER_IDENTITY_NAME=${AGC_CONTROLLER_IDENTITY_NAME}"
+            echo "AGC_CONTROLLER_IDENTITY_CLIENT_ID=${AGC_CONTROLLER_IDENTITY_CLIENT_ID}"
           } >> "$GITHUB_OUTPUT"
 
   prepare-acr-build-access:
@@ -817,6 +1110,7 @@ jobs:
       login_server: ${{ steps.registry.outputs.login_server }}
       public_network_access_before: ${{ steps.access.outputs.public_network_access_before }}
       default_action_before: ${{ steps.access.outputs.default_action_before }}
+      export_policy_before: ${{ steps.access.outputs.export_policy_before }}
       public_access_temporarily_enabled: ${{ steps.access.outputs.public_access_temporarily_enabled }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -881,6 +1175,14 @@ jobs:
                 --resource-group "$RG_NAME" \
                 --public-network-enabled false >/dev/null || true
             fi
+
+            if [ "${EXPORT_POLICY_BEFORE:-}" = "disabled" ]; then
+              az resource update \
+                --resource-group "$RG_NAME" \
+                --name "$ACR_NAME" \
+                --resource-type "Microsoft.ContainerRegistry/registries" \
+                --set "properties.policies.exportPolicy.status=disabled" >/dev/null || true
+            fi
           }
           trap cleanup EXIT
 
@@ -892,13 +1194,21 @@ jobs:
             --resource-group "$RG_NAME" \
             --name "$ACR_NAME" \
             --query "networkRuleSet.defaultAction" -o tsv)
+          EXPORT_POLICY_BEFORE=$(az acr show \
+            --resource-group "$RG_NAME" \
+            --name "$ACR_NAME" \
+            --query "policies.exportPolicy.status" -o tsv)
 
           if [ -z "$DEFAULT_ACTION_BEFORE" ] || [ "$DEFAULT_ACTION_BEFORE" = "null" ]; then
             DEFAULT_ACTION_BEFORE="Allow"
           fi
+          if [ -z "$EXPORT_POLICY_BEFORE" ] || [ "$EXPORT_POLICY_BEFORE" = "null" ]; then
+            EXPORT_POLICY_BEFORE="enabled"
+          fi
 
           echo "public_network_access_before=${PUBLIC_NETWORK_ACCESS_BEFORE}" >> "$GITHUB_OUTPUT"
           echo "default_action_before=${DEFAULT_ACTION_BEFORE}" >> "$GITHUB_OUTPUT"
+          echo "export_policy_before=${EXPORT_POLICY_BEFORE}" >> "$GITHUB_OUTPUT"
           echo "public_access_temporarily_enabled=false" >> "$GITHUB_OUTPUT"
 
           if [ "${{ inputs.autoAllowAcrRunnerIp }}" != "true" ] || [ "$PUBLIC_NETWORK_ACCESS_BEFORE" != "Disabled" ]; then
@@ -906,11 +1216,21 @@ jobs:
           fi
 
           RESTORE_ON_ERROR=true
+
+          # Export policy must be enabled before publicNetworkAccess can be turned on
+          if [ "$EXPORT_POLICY_BEFORE" = "disabled" ]; then
+            az resource update \
+              --resource-group "$RG_NAME" \
+              --name "$ACR_NAME" \
+              --resource-type "Microsoft.ContainerRegistry/registries" \
+              --set "properties.policies.exportPolicy.status=enabled" >/dev/null
+          fi
+
           az acr update \
             --name "$ACR_NAME" \
             --resource-group "$RG_NAME" \
             --public-network-enabled true \
-            --default-action Deny >/dev/null
+            --default-action Allow >/dev/null
 
           CURRENT_PUBLIC_NETWORK_ACCESS=""
           CURRENT_DEFAULT_ACTION=""
@@ -924,15 +1244,30 @@ jobs:
               --name "$ACR_NAME" \
               --query "networkRuleSet.defaultAction" -o tsv)
 
-            if [ "$CURRENT_PUBLIC_NETWORK_ACCESS" = "Enabled" ] && [ "$CURRENT_DEFAULT_ACTION" = "Deny" ]; then
+            if [ "$CURRENT_PUBLIC_NETWORK_ACCESS" = "Enabled" ] && [ "$CURRENT_DEFAULT_ACTION" = "Allow" ]; then
               break
             fi
 
             sleep 10
           done
 
-          if [ "$CURRENT_PUBLIC_NETWORK_ACCESS" != "Enabled" ] || [ "$CURRENT_DEFAULT_ACTION" != "Deny" ]; then
+          if [ "$CURRENT_PUBLIC_NETWORK_ACCESS" != "Enabled" ] || [ "$CURRENT_DEFAULT_ACTION" != "Allow" ]; then
             echo "Failed to temporarily enable least-open ACR public access on ${ACR_NAME} for GitHub-hosted tested-image builds." >&2
+            exit 1
+          fi
+
+          # Wait for ACR data-plane to serve OAuth token exchange after state change
+          DATA_PLANE_READY=false
+          for dp_attempt in 1 2 3 4 5 6; do
+            if az acr login --name "$ACR_NAME" 2>/dev/null; then
+              DATA_PLANE_READY=true
+              break
+            fi
+            sleep 15
+          done
+
+          if [ "$DATA_PLANE_READY" != "true" ]; then
+            echo "ACR data-plane not ready after enabling public access on ${ACR_NAME}. Token exchange unavailable." >&2
             exit 1
           fi
 
@@ -1103,6 +1438,8 @@ jobs:
 
               service_match = re.match(r"^  ([a-z0-9\-]+):\s*$", line)
               if service_match:
+                  if current_service == service_name:
+                      break
                   current_service = service_match.group(1)
                   project_path = None
                   docker_path = None
@@ -1262,47 +1599,68 @@ jobs:
           RG_NAME="${{ needs.prepare-acr-build-access.outputs.rg_name }}"
           PUBLIC_NETWORK_ACCESS_BEFORE="${{ needs.prepare-acr-build-access.outputs.public_network_access_before }}"
           DEFAULT_ACTION_BEFORE="${{ needs.prepare-acr-build-access.outputs.default_action_before }}"
-
-          if [ -n "$DEFAULT_ACTION_BEFORE" ] && [ "$DEFAULT_ACTION_BEFORE" != "null" ]; then
-            az acr update \
-              --name "$ACR_NAME" \
-              --resource-group "$RG_NAME" \
-              --default-action "$DEFAULT_ACTION_BEFORE" >/dev/null
-          fi
+          EXPORT_POLICY_BEFORE="${{ needs.prepare-acr-build-access.outputs.export_policy_before }}"
 
           if [ "$PUBLIC_NETWORK_ACCESS_BEFORE" = "Disabled" ]; then
+            # Disable public network access first; defaultAction is irrelevant
+            # when public access is off (Azure may report any value).
             az acr update \
               --name "$ACR_NAME" \
               --resource-group "$RG_NAME" \
               --public-network-enabled false >/dev/null
+          else
+            # Public access stays enabled — restore the original defaultAction
+            if [ -n "$DEFAULT_ACTION_BEFORE" ] && [ "$DEFAULT_ACTION_BEFORE" != "null" ]; then
+              az acr update \
+                --name "$ACR_NAME" \
+                --resource-group "$RG_NAME" \
+                --default-action "$DEFAULT_ACTION_BEFORE" >/dev/null
+            fi
+          fi
+
+          # Restore export policy after public network access is disabled
+          if [ "$EXPORT_POLICY_BEFORE" = "disabled" ]; then
+            az resource update \
+              --resource-group "$RG_NAME" \
+              --name "$ACR_NAME" \
+              --resource-type "Microsoft.ContainerRegistry/registries" \
+              --set "properties.policies.exportPolicy.status=disabled" >/dev/null
           fi
 
           CURRENT_PUBLIC_NETWORK_ACCESS=$(az acr show \
             --resource-group "$RG_NAME" \
             --name "$ACR_NAME" \
             --query "publicNetworkAccess" -o tsv)
-          CURRENT_DEFAULT_ACTION=$(az acr show \
-            --resource-group "$RG_NAME" \
-            --name "$ACR_NAME" \
-            --query "networkRuleSet.defaultAction" -o tsv)
-
-          if [ -z "$CURRENT_DEFAULT_ACTION" ] || [ "$CURRENT_DEFAULT_ACTION" = "null" ]; then
-            CURRENT_DEFAULT_ACTION="Allow"
-          fi
 
           if [ "$CURRENT_PUBLIC_NETWORK_ACCESS" != "$PUBLIC_NETWORK_ACCESS_BEFORE" ]; then
             echo "Failed to restore ACR public network access state for ${ACR_NAME}: expected ${PUBLIC_NETWORK_ACCESS_BEFORE}, got ${CURRENT_PUBLIC_NETWORK_ACCESS}." >&2
             exit 1
           fi
 
-          if [ "$CURRENT_DEFAULT_ACTION" != "$DEFAULT_ACTION_BEFORE" ]; then
-            echo "Failed to restore ACR default network action for ${ACR_NAME}: expected ${DEFAULT_ACTION_BEFORE}, got ${CURRENT_DEFAULT_ACTION}." >&2
-            exit 1
+          # Only validate defaultAction when public access is enabled (it is
+          # meaningless when public access is Disabled — Azure can report any value).
+          if [ "$PUBLIC_NETWORK_ACCESS_BEFORE" != "Disabled" ]; then
+            CURRENT_DEFAULT_ACTION=$(az acr show \
+              --resource-group "$RG_NAME" \
+              --name "$ACR_NAME" \
+              --query "networkRuleSet.defaultAction" -o tsv)
+
+            if [ -z "$CURRENT_DEFAULT_ACTION" ] || [ "$CURRENT_DEFAULT_ACTION" = "null" ]; then
+              CURRENT_DEFAULT_ACTION="Allow"
+            fi
+
+            if [ "$CURRENT_DEFAULT_ACTION" != "$DEFAULT_ACTION_BEFORE" ]; then
+              echo "Failed to restore ACR default network action for ${ACR_NAME}: expected ${DEFAULT_ACTION_BEFORE}, got ${CURRENT_DEFAULT_ACTION}." >&2
+              exit 1
+            fi
           fi
 
   deploy-foundry-models:
     runs-on: ubuntu-latest
-    needs: provision
+    needs:
+      - provision
+      - detect-changes
+    if: ${{ !inputs.skipProvision && needs.detect-changes.outputs.infra_changed == 'true' }}
     environment: ${{ inputs.environment }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -1375,6 +1733,38 @@ jobs:
             --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
             --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
             --overwrite-existing
+          kubelogin convert-kubeconfig -l azurecli
+
+      - name: Verify AKS API connectivity
+        shell: bash
+        run: |
+          set -euo pipefail
+          AKS_FQDN=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}' | sed 's|https://||;s|:.*||')
+          echo "Probing AKS API server DNS: $AKS_FQDN"
+          for attempt in $(seq 1 10); do
+            if kubectl cluster-info >/dev/null 2>&1; then
+              echo "AKS API reachable (attempt $attempt)."
+              exit 0
+            fi
+            BACKOFF=$((5 * attempt))
+            echo "Attempt $attempt/10 failed (DNS or TCP). Retrying in ${BACKOFF}s..."
+            sleep "$BACKOFF"
+          done
+          echo "AKS API DNS resolution failed after 10 attempts for $AKS_FQDN." >&2
+          nslookup "$AKS_FQDN" || true
+          exit 1
+
+      - name: Ensure target namespaces exist
+        shell: bash
+        run: |
+          set -euo pipefail
+          for ns in holiday-peak-crud holiday-peak-agents; do
+            if ! kubectl get namespace "$ns" >/dev/null 2>&1; then
+              kubectl create namespace "$ns"
+              echo "Created namespace $ns"
+            fi
+            kubectl label namespace "$ns" holiday-peak/ingress-allowed=true --overwrite
+          done
 
       - name: Resolve AKS managed identity client ID
         run: |
@@ -1412,71 +1802,64 @@ jobs:
           name: tested-image-crud-service
           path: ${{ runner.temp }}/tested-image/crud-service
 
+      - name: Validate PostgreSQL auth contract
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${POSTGRES_HOST:-}" ] || [ -z "${POSTGRES_AUTH_MODE:-}" ]; then
+            echo "Missing PostgreSQL deployment outputs required for auth validation." >&2
+            exit 1
+          fi
+
+          POSTGRES_SERVER="${POSTGRES_HOST%%.*}"
+          AUTH_JSON=$(az postgres flexible-server show \
+            --resource-group "${RESOURCE_GROUP_NAME}" \
+            --name "${POSTGRES_SERVER}" \
+            --query '{passwordAuth:authConfig.passwordAuth,activeDirectoryAuth:authConfig.activeDirectoryAuth}' \
+            -o json)
+
+          PASSWORD_AUTH=$(python3 -c "import json,sys; print(json.load(sys.stdin).get('passwordAuth', ''))" <<<"${AUTH_JSON}")
+          ACTIVE_DIRECTORY_AUTH=$(python3 -c "import json,sys; print(json.load(sys.stdin).get('activeDirectoryAuth', ''))" <<<"${AUTH_JSON}")
+
+          echo "Configured POSTGRES_AUTH_MODE=${POSTGRES_AUTH_MODE}"
+          echo "Live PostgreSQL auth config: passwordAuth=${PASSWORD_AUTH}, activeDirectoryAuth=${ACTIVE_DIRECTORY_AUTH}"
+
+          case "${POSTGRES_AUTH_MODE}" in
+            password)
+              if [ "${PASSWORD_AUTH}" != "Enabled" ]; then
+                echo "Configured password auth, but live PostgreSQL server '${POSTGRES_SERVER}' does not have passwordAuth enabled." >&2
+                exit 1
+              fi
+              ;;
+            entra)
+              if [ "${ACTIVE_DIRECTORY_AUTH}" != "Enabled" ]; then
+                echo "Configured Entra auth, but live PostgreSQL server '${POSTGRES_SERVER}' does not have activeDirectoryAuth enabled." >&2
+                exit 1
+              fi
+              ;;
+            *)
+              echo "Unsupported POSTGRES_AUTH_MODE '${POSTGRES_AUTH_MODE}'." >&2
+              exit 1
+              ;;
+          esac
+        env:
+          POSTGRES_AUTH_MODE: ${{ needs.provision.outputs.POSTGRES_AUTH_MODE }}
+          POSTGRES_HOST: ${{ needs.provision.outputs.POSTGRES_HOST }}
+          RESOURCE_GROUP_NAME: ${{ inputs.projectName }}-${{ inputs.environment }}-rg
+
       - name: Deploy CRUD service
         timeout-minutes: 25
         shell: bash
         run: |
           set -euo pipefail
           export AZURE_CLIENT_ID="${WORKLOAD_AZURE_CLIENT_ID}"
-          TRIAGE_DIR="${RUNNER_TEMP}/deploy-triage"
-          mkdir -p "$TRIAGE_DIR"
           CRUD_IMAGE_REF=$(tr -d '\r\n' < "${RUNNER_TEMP}/tested-image/crud-service/image-ref.txt")
 
-          deploy_crud() {
-            export SERVICE_CRUD_SERVICE_IMAGE_NAME="$CRUD_IMAGE_REF"
-            bash .infra/azd/hooks/render-helm.sh crud-service
-            kubectl apply --dry-run=server -f .kubernetes/rendered/crud-service/all.yaml -n holiday-peak >/dev/null
-            kubectl apply -f .kubernetes/rendered/crud-service/all.yaml -n holiday-peak >/dev/null
-
-            DEPLOYMENT_NAME=$(kubectl get deployment -n holiday-peak -l 'app=crud-service,canary=false' -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-            if [ -z "$DEPLOYMENT_NAME" ]; then
-              echo "Failed to resolve CRUD deployment name after manifest apply." >&2
-              return 1
-            fi
-
-            kubectl rollout status "deployment/${DEPLOYMENT_NAME}" -n holiday-peak --timeout=300s
-          }
-
-          if deploy_crud; then
-            echo "CRUD deploy succeeded with tested image ${CRUD_IMAGE_REF}."
-            exit 0
-          fi
-
-          echo "CRUD deploy failed on first attempt; collecting deterministic triage evidence..."
-          {
-            echo "run_id=${{ github.run_id }}"
-            echo "run_attempt=${{ github.run_attempt }}"
-            echo "job=deploy-crud"
-            echo "workflow=${{ github.workflow }}"
-            echo "sha=${DEPLOY_SOURCE_SHA}"
-            echo "ref=${DEPLOY_SOURCE_REF}"
-            echo "actor=${{ github.actor }}"
-            echo "event=${{ github.event_name }}"
-            echo "environment=${{ inputs.environment }}"
-            echo "tested_image_ref=${CRUD_IMAGE_REF}"
-            echo "first_failed_step_hint=Render/apply CRUD manifest"
-          } > "$TRIAGE_DIR/run-metadata.txt"
-
-          kubectl get ingressclass -o wide > "$TRIAGE_DIR/kubectl-ingressclass.txt" 2>&1 || true
-          kubectl get ingress -n holiday-peak -o wide > "$TRIAGE_DIR/kubectl-ingress.txt" 2>&1 || true
-          kubectl get pods -n app-routing-system -o wide > "$TRIAGE_DIR/kubectl-app-routing-pods.txt" 2>&1 || true
-          kubectl get pods -n ingress-nginx -o wide > "$TRIAGE_DIR/kubectl-ingress-nginx-pods.txt" 2>&1 || true
-          kubectl -n holiday-peak get deployment -l app=crud-service,canary=false -o wide > "$TRIAGE_DIR/kubectl-crud-deployment.txt" 2>&1 || true
-          kubectl -n holiday-peak describe deployment $(kubectl get deployment -n holiday-peak -l app=crud-service,canary=false -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo crud-service-crud-service) > "$TRIAGE_DIR/kubectl-crud-deployment-describe.txt" 2>&1 || true
-          kubectl -n holiday-peak get rs -l app=crud-service -o wide > "$TRIAGE_DIR/kubectl-crud-rs.txt" 2>&1 || true
-          kubectl -n holiday-peak get pods -l app=crud-service -o wide > "$TRIAGE_DIR/kubectl-crud-pods.txt" 2>&1 || true
-          kubectl -n holiday-peak get events --sort-by='.lastTimestamp' | tail -n 200 > "$TRIAGE_DIR/kubectl-events-tail.txt" 2>&1 || true
-          cp .kubernetes/rendered/crud-service/all.yaml "$TRIAGE_DIR/rendered-crud-all.yaml" 2>/dev/null || true
-
-          NEW_POD=$(kubectl -n holiday-peak get pods -l app=crud-service --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1:].metadata.name}' 2>/dev/null || true)
-          if [ -n "$NEW_POD" ]; then
-            kubectl -n holiday-peak describe pod "$NEW_POD" > "$TRIAGE_DIR/kubectl-new-pod-describe.txt" 2>&1 || true
-            kubectl -n holiday-peak logs "$NEW_POD" --tail=300 > "$TRIAGE_DIR/kubectl-new-pod-logs.txt" 2>&1 || true
-            kubectl -n holiday-peak logs "$NEW_POD" --previous --tail=300 > "$TRIAGE_DIR/kubectl-new-pod-logs-previous.txt" 2>&1 || true
-          fi
-
-          echo "CRUD deploy failed on first attempt. Review first-failure protocol in run summary before rerun." >&2
-          exit 1
+          # Phase B (ADR-033): Render only — Flux reconciles from Git
+          export SERVICE_CRUD_SERVICE_IMAGE_NAME="$CRUD_IMAGE_REF"
+          bash .infra/azd/hooks/render-helm.sh crud-service
+          echo "Rendered CRUD manifest for Flux reconciliation (image: ${CRUD_IMAGE_REF})."
         env:
           DEPLOY_ENV: ${{ inputs.environment }}
           AZURE_TENANT_ID: ${{ env.AZURE_TENANT_ID }}
@@ -1490,10 +1873,13 @@ jobs:
           PROJECT_ENDPOINT: ${{ needs.provision.outputs.PROJECT_ENDPOINT }}
           PROJECT_NAME: ${{ needs.provision.outputs.PROJECT_NAME }}
           MODEL_DEPLOYMENT_NAME_FAST: gpt-5-nano
-          MODEL_DEPLOYMENT_NAME_RICH: gpt-5-nano
+          MODEL_DEPLOYMENT_NAME_RICH: gpt-5
           POSTGRES_AUTH_MODE: ${{ needs.provision.outputs.POSTGRES_AUTH_MODE }}
           COSMOS_ACCOUNT_URI: ${{ needs.provision.outputs.COSMOS_ACCOUNT_URI }}
           COSMOS_DATABASE: ${{ needs.provision.outputs.COSMOS_DATABASE }}
+          COSMOS_CONTAINER: ${{ needs.provision.outputs.COSMOS_CONTAINER }}
+          BLOB_ACCOUNT_URL: ${{ needs.provision.outputs.BLOB_ACCOUNT_URL }}
+          BLOB_CONTAINER: ${{ needs.provision.outputs.BLOB_CONTAINER }}
           REDIS_HOST: ${{ needs.provision.outputs.REDIS_HOST }}
           EVENT_HUB_NAMESPACE: ${{ needs.provision.outputs.EVENT_HUB_NAMESPACE }}
           KEY_VAULT_URI: ${{ needs.provision.outputs.KEY_VAULT_URI }}
@@ -1502,101 +1888,12 @@ jobs:
           POSTGRES_USER: ${{ needs.provision.outputs.POSTGRES_AUTH_MODE == 'password' && needs.provision.outputs.POSTGRES_ADMIN_USER || needs.provision.outputs.POSTGRES_USER }}
           POSTGRES_DATABASE: ${{ needs.provision.outputs.POSTGRES_DATABASE }}
 
-      - name: First-failure summary and rerun gate
-        if: ${{ failure() }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          TRIAGE_DIR="${RUNNER_TEMP}/deploy-triage"
-          ARTIFACT_NAME="deploy-crud-first-failure-${{ github.run_id }}-attempt-${{ github.run_attempt }}"
-          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-
-          {
-            echo "## First-failure investigation required"
-            echo ""
-            echo "- Run: $RUN_URL"
-            echo "- Job: deploy-crud"
-            echo "- Artifact: $ARTIFACT_NAME"
-            echo "- First failed step hint: Deploy CRUD service"
-            echo ""
-            echo "### Required before rerun"
-            echo "- Capture root-cause category (config/code/infra/identity/quota/transient/platform)."
-            echo "- Document deterministic vs transient assessment in the linked issue/PR." 
-            echo "- Include hypothesis and evidence links (logs/artifacts) before rerun approval."
-            echo "- If deterministic, link the fix or rollback PR before rerun."
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          if [ -f "$TRIAGE_DIR/run-metadata.txt" ]; then
-            echo "Collected run metadata:"
-            cat "$TRIAGE_DIR/run-metadata.txt"
-          fi
-
-      - name: Upload CRUD first-failure triage artifact
-        if: ${{ failure() }}
+      - name: Upload rendered CRUD manifest for Flux commit
         uses: actions/upload-artifact@v4
         with:
-          name: deploy-crud-first-failure-${{ github.run_id }}-attempt-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/deploy-triage
-          if-no-files-found: warn
-          retention-days: 14
-
-      - name: Gate CRUD readiness (/ready)
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          APIM_BASE="${{ needs.provision.outputs.APIM_GATEWAY_URL }}"
-          APIM_BASE="${APIM_BASE%/}"
-          APIM_READY_URL="${APIM_BASE}/api/ready"
-          SERVICE_READY_URL="http://127.0.0.1:18080/ready"
-
-          check_ready() {
-            local url="$1"
-            local label="$2"
-
-            for attempt in $(seq 1 24); do
-              if ! STATUS_CODE=$(curl -sS -o /tmp/crud-ready.json -w "%{http_code}" "$url"); then
-                STATUS_CODE="000"
-              fi
-              if [ "$STATUS_CODE" = "200" ]; then
-                echo "[OK] ${label} ready on attempt ${attempt}: ${url}"
-                return 0
-              fi
-              echo "Attempt ${attempt}/24: ${label} returned HTTP ${STATUS_CODE}"
-              sleep 10
-            done
-
-            echo "[FAIL] ${label} readiness did not return HTTP 200: ${url}" >&2
-            cat /tmp/crud-ready.json 2>/dev/null || true
-            return 1
-          }
-
-          APIM_READY=false
-          if [ -n "$APIM_BASE" ]; then
-            if check_ready "$APIM_READY_URL" "APIM /api/ready"; then
-              APIM_READY=true
-            fi
-          else
-            echo "APIM gateway URL not provided by provision outputs; skipping APIM /api/ready check."
-          fi
-
-          kubectl port-forward svc/crud-service 18080:8000 -n holiday-peak >/tmp/crud-port-forward.log 2>&1 &
-          PF_PID=$!
-          trap 'kill "$PF_PID" >/dev/null 2>&1 || true' EXIT
-          sleep 3
-
-          SERVICE_READY=false
-          if check_ready "$SERVICE_READY_URL" "service /ready"; then
-            SERVICE_READY=true
-          fi
-
-          if [ "$APIM_READY" != "true" ] && [ "$SERVICE_READY" != "true" ]; then
-            echo "CRUD readiness gate failed: both APIM and direct service /ready checks are unhealthy." >&2
-            echo "Port-forward log:" >&2
-            cat /tmp/crud-port-forward.log 2>/dev/null || true
-            exit 1
-          fi
+          name: rendered-manifest-crud-service
+          path: .kubernetes/rendered/crud-service/all.yaml
+          retention-days: 1
 
   deploy-ui:
     runs-on: ubuntu-latest
@@ -1720,7 +2017,7 @@ jobs:
             return 1
           }
 
-          smoke_endpoint "${API_BASE_URL}/api/health" "crud-health"
+          smoke_endpoint "${API_BASE_URL}/api/ready" "crud-ready"
           smoke_endpoint "${API_BASE_URL}/api/products?limit=1" "crud-products"
           smoke_endpoint "${API_BASE_URL}/api/categories" "crud-categories"
 
@@ -1817,7 +2114,7 @@ jobs:
             sleep 10
           done
 
-          API_HEALTH_URL="${API_BASE_URL%/}/api/health"
+          API_HEALTH_URL="${API_BASE_URL%/}/api/ready"
           if ! STATUS_CODE=$(curl -sS -o /tmp/ui-api-health.json -w "%{http_code}" "$API_HEALTH_URL"); then
             echo "API health check failed after UI deploy due to transport error at $API_HEALTH_URL" >&2
             cat /tmp/ui-api-health.json 2>/dev/null || true
@@ -1945,7 +2242,7 @@ jobs:
             fi
           }
 
-          smoke_endpoint "${API_BASE_URL}/api/health" "APIM health"
+          smoke_endpoint "${API_BASE_URL}/api/ready" "APIM ready"
           smoke_endpoint "${API_BASE_URL}/api/products?limit=1" "Products"
           smoke_endpoint "${API_BASE_URL}/api/categories" "Categories"
 
@@ -2033,9 +2330,31 @@ jobs:
           smoke_endpoint "${API_BASE_URL}/api/products?limit=1" "Products"
           smoke_endpoint "${API_BASE_URL}/api/categories" "Categories"
 
+  debug-detect-outputs:
+    runs-on: ubuntu-latest
+    if: ${{ !inputs.uiOnly }}
+    needs:
+      - detect-changes
+    steps:
+      - name: Dump detect-changes outputs
+        shell: bash
+        run: |
+          echo "=== detect-changes outputs ==="
+          echo "crud_changed=${{ needs.detect-changes.outputs.crud_changed }}"
+          echo "ui_changed=${{ needs.detect-changes.outputs.ui_changed }}"
+          echo "agents_changed=${{ needs.detect-changes.outputs.agents_changed }}"
+          echo "changed_agent_services_csv=${{ needs.detect-changes.outputs.changed_agent_services_csv }}"
+          echo "changed_aks_services_csv=${{ needs.detect-changes.outputs.changed_aks_services_csv }}"
+          echo "lib_changed=${{ needs.detect-changes.outputs.lib_changed }}"
+          echo "infra_changed=${{ needs.detect-changes.outputs.infra_changed }}"
+          echo "changed_agents_matrix=${{ needs.detect-changes.outputs.changed_agents_matrix }}"
+          echo "changed_aks_matrix=${{ needs.detect-changes.outputs.changed_aks_matrix }}"
+          echo "=== end ==="
+
   deploy-agents:
     runs-on: ubuntu-latest
-    if: ${{ !inputs.uiOnly && needs.detect-changes.outputs.agents_changed == 'true' && (needs.deploy-crud.result == 'success' || needs.deploy-crud.result == 'skipped') }}
+    # Use always() to ensure condition is evaluated even with skipped dependencies (deploy-foundry-models)
+    if: ${{ always() && !cancelled() && !inputs.uiOnly && needs.detect-changes.outputs.changed_agent_services_csv != '' && needs.detect-changes.result == 'success' && (needs.deploy-crud.result == 'success' || needs.deploy-crud.result == 'skipped') && (needs.deploy-foundry-models.result == 'success' || needs.deploy-foundry-models.result == 'skipped') && (needs.build-aks-images.result == 'success' || needs.build-aks-images.result == 'skipped') && (needs.restore-acr-build-access.result == 'success' || needs.restore-acr-build-access.result == 'skipped') }}
     needs:
       - provision
       - deploy-crud
@@ -2064,12 +2383,54 @@ jobs:
           tenant-id: ${{ env.AZURE_TENANT_ID }}
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Install kubelogin
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if az aks install-cli --kubelogin-version latest; then
+              exit 0
+            fi
+            echo "kubelogin install failed on attempt ${attempt}; retrying..."
+            sleep 15
+          done
+          echo "kubelogin install failed after retries"
+          exit 1
+
       - name: Get AKS credentials
         run: |
           az aks get-credentials \
             --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
             --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
             --overwrite-existing
+          kubelogin convert-kubeconfig -l azurecli
+
+      - name: Verify AKS API connectivity
+        shell: bash
+        run: |
+          set -euo pipefail
+          AKS_FQDN=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}' | sed 's|https://||;s|:.*||')
+          echo "Probing AKS API server DNS: $AKS_FQDN"
+          for attempt in $(seq 1 10); do
+            if kubectl cluster-info >/dev/null 2>&1; then
+              echo "AKS API reachable (attempt $attempt)."
+              exit 0
+            fi
+            BACKOFF=$((5 * attempt))
+            echo "Attempt $attempt/10 failed (DNS or TCP). Retrying in ${BACKOFF}s..."
+            sleep "$BACKOFF"
+          done
+          echo "AKS API DNS resolution failed after 10 attempts for $AKS_FQDN." >&2
+          nslookup "$AKS_FQDN" || true
+          exit 1
+
+      - name: Ensure agents namespace exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! kubectl get namespace holiday-peak-agents >/dev/null 2>&1; then
+            kubectl create namespace holiday-peak-agents
+            echo "Created namespace holiday-peak-agents"
+          fi
+          kubectl label namespace holiday-peak-agents holiday-peak/ingress-allowed=true --overwrite
 
       - name: Resolve AKS managed identity client ID
         run: |
@@ -2107,17 +2468,9 @@ jobs:
           SERVICE_IMAGE_VAR_NAME="SERVICE_$(printf '%s' "$SERVICE_NAME" | tr '[:lower:]-' '[:upper:]_')_IMAGE_NAME"
           export "${SERVICE_IMAGE_VAR_NAME}=${IMAGE_REF}"
 
+          # Phase B (ADR-033): Render only — Flux reconciles from Git
           bash .infra/azd/hooks/render-helm.sh "$SERVICE_NAME"
-          kubectl apply --dry-run=server -f ".kubernetes/rendered/${SERVICE_NAME}/all.yaml" -n holiday-peak >/dev/null
-          kubectl apply -f ".kubernetes/rendered/${SERVICE_NAME}/all.yaml" -n holiday-peak >/dev/null
-
-          DEPLOYMENT_NAME=$(kubectl get deployment -n holiday-peak -l "app=${SERVICE_NAME},canary=false" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-          if [ -z "$DEPLOYMENT_NAME" ]; then
-            echo "Failed to resolve deployment name for ${SERVICE_NAME} after manifest apply." >&2
-            exit 1
-          fi
-
-          kubectl rollout status "deployment/${DEPLOYMENT_NAME}" -n holiday-peak --timeout=300s
+          echo "Rendered ${SERVICE_NAME} manifest for Flux reconciliation (image: ${IMAGE_REF})."
         env:
           DEPLOY_ENV: ${{ inputs.environment }}
           AZURE_TENANT_ID: ${{ env.AZURE_TENANT_ID }}
@@ -2135,10 +2488,13 @@ jobs:
           FOUNDRY_AUTO_ENSURE_ON_STARTUP: ${{ env.FOUNDRY_RUNTIME_AUTO_ENSURE_ON_STARTUP }}
           FOUNDRY_STRICT_ENFORCEMENT: ${{ env.FOUNDRY_RUNTIME_STRICT_ENFORCEMENT }}
           MODEL_DEPLOYMENT_NAME_FAST: gpt-5-nano
-          MODEL_DEPLOYMENT_NAME_RICH: gpt-5-nano
+          MODEL_DEPLOYMENT_NAME_RICH: gpt-5
           POSTGRES_AUTH_MODE: ${{ needs.provision.outputs.POSTGRES_AUTH_MODE }}
           COSMOS_ACCOUNT_URI: ${{ needs.provision.outputs.COSMOS_ACCOUNT_URI }}
           COSMOS_DATABASE: ${{ needs.provision.outputs.COSMOS_DATABASE }}
+          COSMOS_CONTAINER: ${{ needs.provision.outputs.COSMOS_CONTAINER }}
+          BLOB_ACCOUNT_URL: ${{ needs.provision.outputs.BLOB_ACCOUNT_URL }}
+          BLOB_CONTAINER: ${{ needs.provision.outputs.BLOB_CONTAINER }}
           REDIS_HOST: ${{ needs.provision.outputs.REDIS_HOST }}
           EVENT_HUB_NAMESPACE: ${{ needs.provision.outputs.EVENT_HUB_NAMESPACE }}
           KEY_VAULT_URI: ${{ needs.provision.outputs.KEY_VAULT_URI }}
@@ -2147,9 +2503,175 @@ jobs:
           POSTGRES_USER: ${{ needs.provision.outputs.POSTGRES_AUTH_MODE == 'password' && needs.provision.outputs.POSTGRES_ADMIN_USER || needs.provision.outputs.POSTGRES_USER }}
           POSTGRES_DATABASE: ${{ needs.provision.outputs.POSTGRES_DATABASE }}
 
+      - name: Upload rendered agent manifest for Flux commit
+        if: ${{ success() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: rendered-manifest-${{ matrix.service }}
+          path: .kubernetes/rendered/${{ matrix.service }}/all.yaml
+          retention-days: 1
+
+  commit-rendered-manifests:
+    runs-on: ubuntu-latest
+    if: ${{ always() && !cancelled() && !inputs.uiOnly && (needs.deploy-crud.result == 'success' || needs.deploy-agents.result == 'success') }}
+    needs:
+      - detect-changes
+      - provision
+      - deploy-crud
+      - deploy-agents
+      - build-aks-images
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 1
+          token: ${{ github.token }}
+
+      - name: Download rendered manifests
+        uses: actions/download-artifact@v4
+        with:
+          pattern: rendered-manifest-*
+          path: ${{ runner.temp }}/rendered-artifacts
+
+      - name: Copy rendered manifests into repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          for artifact_dir in "${RUNNER_TEMP}"/rendered-artifacts/rendered-manifest-*; do
+            [ -d "$artifact_dir" ] || continue
+            svc_name=$(basename "$artifact_dir" | sed 's/^rendered-manifest-//')
+            mkdir -p ".kubernetes/rendered/${svc_name}"
+            cp "${artifact_dir}/all.yaml" ".kubernetes/rendered/${svc_name}/all.yaml"
+            echo "Copied rendered manifest for ${svc_name}"
+          done
+
+      - name: Commit rendered manifests for Flux reconciliation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .kubernetes/rendered/ || true
+          if git diff --cached --quiet; then
+            echo "No rendered manifest changes to commit."
+            exit 0
+          fi
+          git commit -m "deploy: update rendered manifests [skip ci]"
+          git push
+
+  wait-flux-reconciliation:
+    runs-on: ubuntu-latest
+    if: ${{ !inputs.uiOnly && (needs.commit-rendered-manifests.result == 'success') }}
+    needs:
+      - commit-rendered-manifests
+      - detect-changes
+    environment: ${{ inputs.environment }}
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install kubelogin
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if az aks install-cli --kubelogin-version latest; then
+              exit 0
+            fi
+            echo "kubelogin install failed on attempt ${attempt}; retrying..."
+            sleep 15
+          done
+          echo "kubelogin install failed after retries"
+          exit 1
+
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
+            --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
+            --overwrite-existing
+          kubelogin convert-kubeconfig -l azurecli
+
+      - name: Trigger Flux reconciliation
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Triggering Flux kustomization reconciliation..."
+
+          # Install Flux CLI if not present
+          if ! command -v flux &>/dev/null; then
+            curl -s https://fluxcd.io/install.sh | bash 2>/dev/null || true
+          fi
+
+          # Trigger reconciliation for both kustomizations
+          flux reconcile source git flux-system -n flux-system --timeout=2m || true
+          flux reconcile kustomization holiday-peak-gitops-holiday-peak-crud -n flux-system --timeout=5m || true
+          flux reconcile kustomization holiday-peak-gitops-holiday-peak-agents -n flux-system --timeout=5m || true
+
+          echo "Flux reconciliation triggered."
+
+      - name: Wait for CRUD rollout
+        if: ${{ needs.detect-changes.outputs.crud_changed == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Waiting for CRUD deployment rollout via Flux..."
+          DEPLOYMENT_NAME=$(kubectl get deployment -n holiday-peak-crud -l 'app=crud-service,canary=false' -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+          if [ -n "$DEPLOYMENT_NAME" ]; then
+            kubectl rollout status "deployment/${DEPLOYMENT_NAME}" -n holiday-peak-crud --timeout=300s
+            echo "CRUD rollout completed: ${DEPLOYMENT_NAME}"
+          else
+            echo "No CRUD deployment found — may be first deploy."
+          fi
+
+      - name: Wait for agent rollouts
+        if: ${{ needs.detect-changes.outputs.changed_agent_services_csv != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Waiting for agent deployment rollouts via Flux..."
+          CHANGED="${{ needs.detect-changes.outputs.changed_agent_services_csv }}"
+          if [ -z "$CHANGED" ]; then
+            echo "No specific changed agents detected; checking all deployments."
+            kubectl rollout status deployment --all -n holiday-peak-agents --timeout=600s || true
+          else
+            IFS=',' read -ra SERVICES <<< "$CHANGED"
+            for svc in "${SERVICES[@]}"; do
+              svc=$(echo "$svc" | xargs)
+              DEPLOYMENT_NAME=$(kubectl get deployment -n holiday-peak-agents -l "app=${svc},canary=false" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+              if [ -n "$DEPLOYMENT_NAME" ]; then
+                kubectl rollout status "deployment/${DEPLOYMENT_NAME}" -n holiday-peak-agents --timeout=300s
+                echo "Agent rollout completed: ${DEPLOYMENT_NAME}"
+              else
+                echo "No deployment found for ${svc} — may be first deploy."
+              fi
+            done
+          fi
+
+      - name: Verify Flux kustomization health
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Flux kustomization status:"
+          kubectl get kustomizations -n flux-system
+          echo ""
+          # Report but don't fail — health checks may fail on first deploy (no images yet)
+          CRUD_READY=$(kubectl get kustomization holiday-peak-gitops-holiday-peak-crud -n flux-system -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "Unknown")
+          AGENTS_READY=$(kubectl get kustomization holiday-peak-gitops-holiday-peak-agents -n flux-system -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "Unknown")
+          echo "CRUD kustomization ready: ${CRUD_READY}"
+          echo "Agents kustomization ready: ${AGENTS_READY}"
+
   validate-agc-readiness:
     runs-on: ubuntu-latest
-    if: ${{ !inputs.uiOnly && (inputs.forceApimSync || needs.detect-changes.outputs.agents_changed == 'true' || needs.detect-changes.outputs.crud_changed == 'true' || needs.detect-changes.outputs.ui_changed == 'true') && (needs.deploy-crud.result == 'success' || needs.deploy-crud.result == 'skipped') && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') }}
+    if: ${{ always() && !cancelled() && !inputs.uiOnly && (inputs.forceApimSync || needs.detect-changes.outputs.changed_agent_services_csv != '' || needs.detect-changes.outputs.crud_changed == 'true' || needs.detect-changes.outputs.ui_changed == 'true') && (needs.deploy-crud.result == 'success' || needs.deploy-crud.result == 'skipped') && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') }}
     needs:
       - provision
       - deploy-crud
@@ -2217,12 +2739,44 @@ jobs:
           echo "agc_gateway_class=$AGC_GATEWAY_CLASS_VALUE" >> "$GITHUB_OUTPUT"
           echo "agc_frontend_url=${AGC_FRONTEND_SCHEME_VALUE}://${AGC_FRONTEND_HOST_VALUE}" >> "$GITHUB_OUTPUT"
 
+      - name: Install kubelogin
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if az aks install-cli --kubelogin-version latest; then
+              exit 0
+            fi
+            echo "kubelogin install failed on attempt ${attempt}; retrying..."
+            sleep 15
+          done
+          echo "kubelogin install failed after retries"
+          exit 1
+
       - name: Get AKS credentials
         run: |
           az aks get-credentials \
             --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
             --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
             --overwrite-existing
+          kubelogin convert-kubeconfig -l azurecli
+
+      - name: Verify AKS API connectivity
+        shell: bash
+        run: |
+          set -euo pipefail
+          AKS_FQDN=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}' | sed 's|https://||;s|:.*||')
+          echo "Probing AKS API server DNS: $AKS_FQDN"
+          for attempt in $(seq 1 10); do
+            if kubectl cluster-info >/dev/null 2>&1; then
+              echo "AKS API reachable (attempt $attempt)."
+              exit 0
+            fi
+            BACKOFF=$((5 * attempt))
+            echo "Attempt $attempt/10 failed (DNS or TCP). Retrying in ${BACKOFF}s..."
+            sleep "$BACKOFF"
+          done
+          echo "AKS API DNS resolution failed after 10 attempts for $AKS_FQDN." >&2
+          nslookup "$AKS_FQDN" || true
+          exit 1
 
       - name: Validate AGC gateway class and direct CRUD health
         shell: bash
@@ -2256,7 +2810,7 @@ jobs:
 
   sync-apim:
     runs-on: ubuntu-latest
-    if: ${{ !inputs.uiOnly && (inputs.forceApimSync || needs.detect-changes.outputs.agents_changed == 'true' || needs.detect-changes.outputs.crud_changed == 'true' || needs.detect-changes.outputs.ui_changed == 'true') && (needs.deploy-crud.result == 'success' || needs.deploy-crud.result == 'skipped') && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') && needs.validate-agc-readiness.result == 'success' }}
+    if: ${{ always() && !cancelled() && !inputs.uiOnly && (inputs.forceApimSync || needs.detect-changes.outputs.changed_agent_services_csv != '' || needs.detect-changes.outputs.crud_changed == 'true' || needs.detect-changes.outputs.ui_changed == 'true') && (needs.deploy-crud.result == 'success' || needs.deploy-crud.result == 'skipped') && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') && needs.validate-agc-readiness.result == 'success' }}
     needs:
       - deploy-crud
       - deploy-agents
@@ -2282,12 +2836,44 @@ jobs:
           tenant-id: ${{ env.AZURE_TENANT_ID }}
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Install kubelogin
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if az aks install-cli --kubelogin-version latest; then
+              exit 0
+            fi
+            echo "kubelogin install failed on attempt ${attempt}; retrying..."
+            sleep 15
+          done
+          echo "kubelogin install failed after retries"
+          exit 1
+
       - name: Get AKS credentials
         run: |
           az aks get-credentials \
             --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
             --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
             --overwrite-existing
+          kubelogin convert-kubeconfig -l azurecli
+
+      - name: Verify AKS API connectivity
+        shell: bash
+        run: |
+          set -euo pipefail
+          AKS_FQDN=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}' | sed 's|https://||;s|:.*||')
+          echo "Probing AKS API server DNS: $AKS_FQDN"
+          for attempt in $(seq 1 10); do
+            if kubectl cluster-info >/dev/null 2>&1; then
+              echo "AKS API reachable (attempt $attempt)."
+              exit 0
+            fi
+            BACKOFF=$((5 * attempt))
+            echo "Attempt $attempt/10 failed (DNS or TCP). Retrying in ${BACKOFF}s..."
+            sleep "$BACKOFF"
+          done
+          echo "AKS API DNS resolution failed after 10 attempts for $AKS_FQDN." >&2
+          nslookup "$AKS_FQDN" || true
+          exit 1
 
       - name: Sync APIM agent APIs
         run: |
@@ -2295,9 +2881,38 @@ jobs:
         env:
           AZURE_RESOURCE_GROUP: ${{ inputs.projectName }}-${{ inputs.environment }}-rg
 
+  sync-apic:
+    runs-on: ubuntu-latest
+    if: ${{ always() && !cancelled() && !inputs.uiOnly && (inputs.forceApimSync || needs.detect-changes.outputs.changed_agent_services_csv != '' || needs.detect-changes.outputs.crud_changed == 'true') && (needs.sync-apim.result == 'success' || needs.sync-apim.result == 'skipped') }}
+    needs:
+      - detect-changes
+      - sync-apim
+    environment: ${{ inputs.environment }}
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SOURCE_CHECKOUT_REF }}
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Sync API Center
+        run: |
+          bash .infra/azd/hooks/sync-apic-apis.sh
+        env:
+          AZURE_RESOURCE_GROUP: ${{ inputs.projectName }}-${{ inputs.environment }}-rg
+
   smoke-apim:
     runs-on: ubuntu-latest
-    if: ${{ !inputs.uiOnly && (inputs.forceApimSync || needs.detect-changes.outputs.agents_changed == 'true' || needs.detect-changes.outputs.crud_changed == 'true' || needs.detect-changes.outputs.ui_changed == 'true') && needs.validate-agc-readiness.result == 'success' && (needs.sync-apim.result == 'success' || needs.sync-apim.result == 'skipped') && (needs.ensure-foundry-agents.result == 'success' || needs.ensure-foundry-agents.result == 'skipped') }}
+    if: ${{ always() && !cancelled() && !inputs.uiOnly && (inputs.forceApimSync || needs.detect-changes.outputs.changed_agent_services_csv != '' || needs.detect-changes.outputs.crud_changed == 'true' || needs.detect-changes.outputs.ui_changed == 'true') && needs.validate-agc-readiness.result == 'success' && (needs.sync-apim.result == 'success' || needs.sync-apim.result == 'skipped') && (needs.ensure-foundry-agents.result == 'success' || needs.ensure-foundry-agents.result == 'skipped') }}
     needs:
       - detect-changes
       - sync-apim
@@ -2326,7 +2941,7 @@ jobs:
           RG_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
           APIM_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-apim"
           AKS_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-aks"
-          K8S_NAMESPACE="holiday-peak"
+          K8S_NAMESPACE="holiday-peak-crud"
 
           fetch_crud_endpoint_ips() {
             local logs
@@ -2481,7 +3096,7 @@ jobs:
             return 1
           }
 
-          smoke_health "${API_BASE}/api/health" "crud-health"
+          smoke_health "${API_BASE}/api/ready" "crud-ready"
           smoke_health "${API_BASE}/api/products?limit=1" "crud-products"
           smoke_health "${API_BASE}/api/categories" "crud-categories"
 
@@ -2533,7 +3148,7 @@ jobs:
 
   ensure-foundry-agents:
     runs-on: ubuntu-latest
-    if: ${{ !inputs.uiOnly && needs.detect-changes.outputs.agents_changed == 'true' && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') }}
+    if: ${{ always() && !cancelled() && !inputs.uiOnly && needs.detect-changes.outputs.changed_agent_services_csv != '' && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') }}
     needs:
       - deploy-agents
       - detect-changes
@@ -2560,12 +3175,44 @@ jobs:
         with:
           python-version: '3.13'
 
+      - name: Install kubelogin
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if az aks install-cli --kubelogin-version latest; then
+              exit 0
+            fi
+            echo "kubelogin install failed on attempt ${attempt}; retrying..."
+            sleep 15
+          done
+          echo "kubelogin install failed after retries"
+          exit 1
+
       - name: Get AKS credentials
         run: |
           az aks get-credentials \
             --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
             --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
             --overwrite-existing
+          kubelogin convert-kubeconfig -l azurecli
+
+      - name: Verify AKS API connectivity
+        shell: bash
+        run: |
+          set -euo pipefail
+          AKS_FQDN=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}' | sed 's|https://||;s|:.*||')
+          echo "Probing AKS API server DNS: $AKS_FQDN"
+          for attempt in $(seq 1 10); do
+            if kubectl cluster-info >/dev/null 2>&1; then
+              echo "AKS API reachable (attempt $attempt)."
+              exit 0
+            fi
+            BACKOFF=$((5 * attempt))
+            echo "Attempt $attempt/10 failed (DNS or TCP). Retrying in ${BACKOFF}s..."
+            sleep "$BACKOFF"
+          done
+          echo "AKS API DNS resolution failed after 10 attempts for $AKS_FQDN." >&2
+          nslookup "$AKS_FQDN" || true
+          exit 1
 
       - name: Ensure hook scripts executable
         shell: bash
@@ -2574,7 +3221,7 @@ jobs:
       - name: Render changed agent manifests for Foundry contract validation
         shell: bash
         env:
-          K8S_NAMESPACE: holiday-peak
+          K8S_NAMESPACE: holiday-peak-agents
         run: |
           set -euo pipefail
 
@@ -2657,7 +3304,7 @@ jobs:
           export FOUNDRY_AUTO_ENSURE_ON_STARTUP="${FOUNDRY_RUNTIME_AUTO_ENSURE_ON_STARTUP}"
           bash .infra/azd/hooks/ensure-foundry-agents.sh --port-forward --fail-on-error
         env:
-          K8S_NAMESPACE: holiday-peak
+          K8S_NAMESPACE: holiday-peak-agents
           VALIDATE_RENDERED_FOUNDRY_CONTRACT: "true"
           VALIDATE_READY_AFTER_ENSURE: "true"
 
@@ -2670,7 +3317,10 @@ jobs:
       - detect-changes
       - deploy-crud
       - deploy-agents
+      - commit-rendered-manifests
+      - wait-flux-reconciliation
       - sync-apim
+      - sync-apic
       - smoke-apim
       - deploy-ui
       - ensure-foundry-agents

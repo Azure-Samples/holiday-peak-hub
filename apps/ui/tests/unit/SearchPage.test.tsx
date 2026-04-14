@@ -220,6 +220,40 @@ describe('SearchPage', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('shows unavailable warning for agent_unavailable fallback', () => {
+    mockUseIntelligentSearch.mockReturnValue({
+      data: {
+        items: [],
+        source: 'crud',
+        mode: 'keyword',
+        requested_mode: 'intelligent',
+        fallback_reason: 'agent_unavailable',
+        intent: null,
+        subqueries: [],
+      },
+      isLoading: false,
+      error: null,
+      isFetching: false,
+      refetch: jest.fn(),
+      isReranking: false,
+      baselineData: {
+        items: [],
+        source: 'crud',
+        mode: 'keyword',
+      },
+      rerankedData: undefined,
+      preference: 'intelligent',
+      setPreference,
+      resolvedMode: 'intelligent',
+    });
+
+    render(<SearchPage />);
+
+    expect(
+      screen.getByText('Results are from CRUD catalog search because the agent path was unavailable.')
+    ).toBeInTheDocument();
+  });
+
   it('shows degraded fallback warning when agent model synthesis fails', () => {
     mockUseIntelligentSearch.mockReturnValue({
       data: {

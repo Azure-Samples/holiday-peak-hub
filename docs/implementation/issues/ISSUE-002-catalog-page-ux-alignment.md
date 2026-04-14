@@ -16,4 +16,4 @@ Category/catalog pages diverge from homepage visual system and include broken/aw
 
 ## Validation
 - Manual UI verification in desktop and mobile breakpoints.
-- Live check on `https://blue-meadow-00fcb8810.4.azurestaticapps.net/category` and `/category/[slug]` pages.
+- Check deployed demo environment on `/category` and `/category/[slug]` pages.

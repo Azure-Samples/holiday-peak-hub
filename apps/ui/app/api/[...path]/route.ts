@@ -327,7 +327,7 @@ const CATALOG_READ_FALLBACK_STRATEGIES: readonly EndpointFallbackStrategy[] = [
     path: '/api/categories',
     retry: {
       maxAttempts: 2,
-      retryableStatuses: [502, 503, 504] as const,
+      retryableStatuses: [500, 502, 503, 504] as const,
     },
     buildPayload: () => [],
   },
@@ -337,7 +337,7 @@ const CATALOG_READ_FALLBACK_STRATEGIES: readonly EndpointFallbackStrategy[] = [
     path: '/api/products',
     retry: {
       maxAttempts: 2,
-      retryableStatuses: [502, 503, 504] as const,
+      retryableStatuses: [500, 502, 503, 504] as const,
     },
     buildPayload: () => [],
   },

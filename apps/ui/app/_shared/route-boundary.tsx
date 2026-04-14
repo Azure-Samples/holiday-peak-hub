@@ -32,6 +32,7 @@ export function RouteErrorBoundary({
           width={64}
           src="/images/illustration.svg"
           alt="Error illustration"
+          loading="eager"
         />
         <h3 className="text-blue-500 mb-4">Oops!</h3>
         {error.digest && (

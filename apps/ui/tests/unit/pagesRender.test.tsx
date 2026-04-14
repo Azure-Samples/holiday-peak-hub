@@ -486,6 +486,29 @@ jest.mock('../../lib/hooks/useTruth', () => ({
   useReviewAction: () => ({ mutate: jest.fn(), isPending: false }),
 }));
 
+jest.mock('../../lib/hooks/useAgentMonitor', () => ({
+  useAgentMonitorDashboard: () => ({
+    data: null,
+    isLoading: false,
+    isError: false,
+    error: null,
+    isFetching: false,
+  }),
+  useAgentHealth: () => ({
+    data: null,
+    isLoading: false,
+    isError: false,
+  }),
+  useRecentTraces: () => ({
+    data: null,
+    isLoading: false,
+    isError: false,
+  }),
+  DEFAULT_AGENT_MONITOR_RANGE: '1h',
+  AGENT_MONITOR_RANGE_OPTIONS: [{ value: '1h', label: 'Last 1 hour' }],
+  isTracingUnavailableError: () => false,
+}));
+
 jest.mock('../../components/organisms/ProductGraphCanvas', () => ({
   ProductGraphCanvas: () => <div data-testid="product-graph" />,
 }));
@@ -596,7 +619,7 @@ describe('Page rendering smoke tests', () => {
 
   it('renders dashboard page', () => {
     render(<DashboardPage />);
-    expect(screen.getByText('My Dashboard')).toBeInTheDocument();
+    expect(screen.getByText('Dashboard')).toBeInTheDocument();
     expect(screen.getByText('Total Orders')).toBeInTheDocument();
     expect(screen.getAllByText('Unavailable').length).toBeGreaterThan(0);
     expect(screen.getByText('Rewards data is not available in the current API contract.')).toBeInTheDocument();

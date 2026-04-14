@@ -51,9 +51,10 @@ def generate_bicep(
 
 def write_dockerfile(app_path: Path) -> None:
     app_name = app_path.name
+    module_name = app_name.replace("-", "_")
     docker_path = app_path / "src" / "Dockerfile"
     template = load_template("Dockerfile.template")
-    content = template.format(app_name=app_name)
+    content = template.format(app_name=app_name, module_name=module_name)
     docker_path.write_text(content, encoding="utf-8")
     typer.echo(f"Wrote Dockerfile for {app_name} to {docker_path}")
 

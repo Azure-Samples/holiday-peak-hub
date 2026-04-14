@@ -9,9 +9,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Issue #801 / PR #802: replaced `FoundryInvoker` with `FoundryAgentInvoker` wrapping the Microsoft Agent Framework `FoundryAgent` runtime. Tools are now properly forwarded to the agent instead of being silently dropped. Upgraded `agent-framework` to `>=1.0.1` GA across all 27 service packages.
+
+- PR #796: parallelized catalog-search I/O paths and eliminated duplicate keyword search execution, reducing p95 latency for product discovery flows.
+
+- PR #794: corrected `CRUD_SERVICE_URL` port from 8000 to 80 for all agent deployments in AKS, resolving inter-service connectivity failures.
+
 - Issue #29: made `lib/tests/test_config.py` deterministic by isolating settings env-file loading in tests only (`_env_file=None`), preventing local `.env` values from affecting `MemorySettings`, `ServiceSettings`, `PostgresSettings`, and `TruthLayerSettings` test outcomes.
 
 - Issue #246: stabilized `main` quality gates after dependency updates by restoring deterministic product-search fallback and enrichment URL guard behavior in CRUD (`apps/crud-service/src/crud_service/routes/products.py`, `apps/crud-service/src/crud_service/integrations/agent_client.py`), resolving regressions in `test_list_products_with_search` and `test_get_product_enrichment_no_agent_url`.
+
+### Changed
+
+- PR #800: parallelized memory tier reads/writes across hot (Redis), warm (Cosmos DB), and cold (Blob) tiers using `asyncio.gather`, added memory tools (`get_memory`, `set_memory`, `search_memory`) and `gather_adapters` helper. Reduces agent memory I/O latency by executing tier operations concurrently.
+
+- PR #792: Flux Phase B — removed kubectl-apply deployment path in favor of full Flux CD GitOps reconciliation for AKS manifests.
+
+- PR #789: added API Center governance, sync pipeline, and APIM MCP strategy (ADR-035).
+
+- PR #788: namespace isolation — split CRUD and agent services into separate Kubernetes namespaces (ADR-034).
+
+- PR #785: migrated AKS deployments to Flux CD GitOps for declarative manifest reconciliation (ADR-033).
+
+- PR #776: hardened CRUD Entra ID authentication rollout contracts.
+
+- PR #771: completed autonomous agent-surface self-healing epic with incident lifecycle kernel, remediation policy, and audit trail.
+
+### Added
+
+- PR #798: `scripts/ops/start-dev-environment.ps1` for MCAPSGov nightly shutdown recovery, automating Azure resource restart sequence.
+
+- PR #797: `fix-issues-pipeline.prompt.md` for end-to-end issue resolution workflow automation.
+
+- PR #793: MkDocs documentation site scaffold in `mkdocs/` folder for future docs-as-website publishing.
+
+- PR #787: seed rendered Kubernetes manifests for Flux reconciliation under `.infra/k8s/`.
+
+- ADR-033: Helm Deployment Strategy (Flux CD GitOps).
+- ADR-034: Namespace Isolation Strategy (CRUD vs agent namespaces).
+- ADR-035: API Center + APIM MCP Strategy.
 
 - Issue #248: completed branch/artifact hygiene for remediation flow by pruning temporary local branches and cleanup artifacts so local working clones retain only `main` for stabilization operations.
 

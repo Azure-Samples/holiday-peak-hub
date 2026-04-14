@@ -53,6 +53,17 @@ jobs:
         working-directory: lib
         run: |
           pytest tests/ --maxfail=1 --cov=src --cov-report=xml:../coverage-lib.xml --cov-fail-under=75 --junitxml=../test-results-lib.xml
+      - name: Self-healing quality gate
+        working-directory: lib
+        run: |
+          echo "::group::Self-healing contract tests"
+          pytest tests/test_self_healing_core.py \
+                 tests/test_self_healing_apim_strategy.py \
+                 tests/test_self_healing_aks_strategy.py \
+                 tests/test_self_healing_messaging_strategy.py \
+                 tests/test_self_healing_verification_escalation.py \
+                 -v --tb=short --junitxml=../test-results-self-healing.xml
+          echo "::endgroup::"
       - name: Run app tests
         run: |
           pytest apps/*/tests --ignore=apps/ui/tests --cov=apps --cov-report=xml:coverage-apps.xml --cov-fail-under=60 --junitxml=test-results-apps.xml
@@ -70,6 +81,7 @@ jobs:
           path: |
             test-results-lib.xml
             test-results-apps.xml
+            test-results-self-healing.xml
             coverage-lib.xml
             coverage-apps.xml
       - name: Publish Python test summary
@@ -103,7 +115,7 @@ jobs:
       - name: Run UI type-check
         run: yarn type-check
       - name: Run UI unit tests
-        run: yarn test --ci --coverage --forceExit --testPathIgnorePatterns=tests/unit/pagesRender.test.tsx
+        run: yarn test --ci --coverage --forceExit
       - name: Install Playwright browser
         run: yarn playwright install --with-deps chromium
       - name: Run UI E2E smoke tests

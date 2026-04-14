@@ -15,24 +15,22 @@ import {
 import type { Product as UiProduct } from '../../components/types';
 
 const AGENT_API_BASE_URL = resolveAgentApiClientBaseUrl().baseUrl || '';
-const MOCK_HOST_SUFFIX = 'example.com';
+const MOCK_TITLE_PATTERN = /\bmock\b/i;
 
 export type SearchResultType = 'deterministic' | 'model_answer' | 'degraded_fallback';
 export type SearchDegradedReason = 'model_timeout' | 'model_error';
 
-function usesMockHost(rawUrl: string): boolean {
-  const candidate = rawUrl.trim();
-  if (!candidate) {
-    return false;
-  }
+type SearchFallbackReason = NonNullable<SemanticSearchResponse['fallback_reason']>;
 
-  try {
-    const parsed = new URL(candidate, 'https://placeholder.invalid');
-    const hostname = parsed.hostname.toLowerCase();
-    return hostname === MOCK_HOST_SUFFIX || hostname.endsWith(`.${MOCK_HOST_SUFFIX}`);
-  } catch {
-    return false;
-  }
+function appearsMockPayload(results: AcpProduct[]): boolean {
+  // No GoF pattern applies here; this is a narrow contract check for explicit mock payloads.
+  return results.some((item) => MOCK_TITLE_PATTERN.test(String(item?.title || '')));
+}
+
+function getFallbackReason(error: unknown): SearchFallbackReason {
+  return error instanceof Error && error.name === 'AgentMockPayloadError'
+    ? 'agent_mock'
+    : 'agent_unavailable';
 }
 
 function parseSearchResultType(value: unknown): SearchResultType | undefined {
@@ -134,6 +132,8 @@ export const semanticSearchService = {
   async search(request: SemanticSearchRequest): Promise<SemanticSearchResponse> {
     const trimmed = request.query.trim();
     const requestedMode = request.mode;
+    let fallbackReason: SearchFallbackReason | undefined;
+
     if (!trimmed) {
       return {
         items: [],
@@ -151,19 +151,10 @@ export const semanticSearchService = {
         const payload = response.data || {};
         const results = (payload.results || payload.items || []) as AcpProduct[];
 
-        const appearsMockPayload = results.some((item) => {
-          const title = String(item?.title || '').toLowerCase();
-          const imageUrl = String(item?.image_url || '');
-          const itemUrl = String((item as { url?: string })?.url || '');
-          return (
-            title.includes('mock')
-            || usesMockHost(imageUrl)
-            || usesMockHost(itemUrl)
-          );
-        });
-
-        if (appearsMockPayload) {
-          throw new Error('Agent returned mock payload');
+        if (appearsMockPayload(results)) {
+          const error = new Error('Agent returned mock payload');
+          error.name = 'AgentMockPayloadError';
+          throw error;
         }
 
         const mode = payload.mode === 'intelligent' ? 'intelligent' : 'keyword';
@@ -187,9 +178,12 @@ export const semanticSearchService = {
           fallback_keywords: fallbackKeywords.length > 0 ? fallbackKeywords : undefined,
         };
       } catch (error) {
+        fallbackReason = getFallbackReason(error);
         console.error('Semantic search failed:', error);
         // Fall back to CRUD search
       }
+    } else if (requestedMode === 'intelligent') {
+      fallbackReason = 'agent_unavailable';
     }
 
     const fallback = await productService.search(trimmed, request.limit || 20);
@@ -198,12 +192,7 @@ export const semanticSearchService = {
       source: 'crud',
       mode: 'keyword',
       requested_mode: requestedMode,
-      fallback_reason:
-        requestedMode === 'intelligent'
-          ? AGENT_API_BASE_URL
-            ? 'agent_mock'
-            : 'agent_unavailable'
-          : undefined,
+      fallback_reason: requestedMode === 'intelligent' ? fallbackReason : undefined,
       result_type: 'deterministic',
       degraded: false,
     };

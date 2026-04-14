@@ -357,7 +357,7 @@ All infrastructure uses [Azure Verified Modules](https://azure.github.io/Azure-V
 
 ### ADR-1: Hybrid Provisioning Strategy
 
-**Context**: 21 agent services + 1 CRUD service need infrastructure. Per-service isolation maximizes independence but is cost-prohibitive.
+**Context**: 26 agent services + 1 CRUD service + 1 UI need infrastructure. Per-service isolation maximizes independence but is cost-prohibitive.
 
 **Decision**: Shared infrastructure for production, per-service standalone for demos.
 

@@ -29,6 +29,7 @@ def fixture_mock_agent(mock_catalog_product, mock_inventory_item):
     mock_products = AsyncMock()
     mock_products.get_product = AsyncMock(return_value=mock_catalog_product)
     mock_products.get_related = AsyncMock(return_value=[])
+    mock_products.search = AsyncMock(return_value=[mock_catalog_product])
 
     mock_inventory = AsyncMock()
     mock_inventory.get_item = AsyncMock(return_value=mock_inventory_item)

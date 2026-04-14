@@ -220,6 +220,7 @@ class TestTruthEventPublisher:
             service_name="truth-hitl",
             manifest=default_surface_manifest("truth-hitl"),
             enabled=True,
+            reconcile_on_messaging_error=True,
         )
 
         publisher = TruthEventPublisher(

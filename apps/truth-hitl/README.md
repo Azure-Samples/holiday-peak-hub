@@ -51,7 +51,7 @@ SERVICE_NAME="truth-hitl"
 APP_PATH="apps/truth-hitl/src"
 DOCKERFILE_PATH="${APP_PATH}/Dockerfile"
 AZD_ENV_NAME="dev"
-K8S_NAMESPACE="holiday-peak"
+K8S_NAMESPACE="holiday-peak-agents"
 IMAGE_TAG="$(git rev-parse --short HEAD)"
 ```
 

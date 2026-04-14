@@ -1,6 +1,6 @@
 #!/usr/bin/env pwsh
 param(
-    [string]$Namespace = $(if ($env:K8S_NAMESPACE) { $env:K8S_NAMESPACE } else { 'holiday-peak' }),
+    [string]$Namespace = $(if ($env:K8S_CRUD_NAMESPACE) { $env:K8S_CRUD_NAMESPACE } elseif ($env:K8S_NAMESPACE) { $env:K8S_NAMESPACE } else { 'holiday-peak-crud' }),
     [string]$EnvironmentName = $(if ($env:AZURE_ENV_NAME) { $env:AZURE_ENV_NAME } else { 'dev' }),
     [int]$WaitTimeoutSeconds = 600,
     [bool]$EnableSeed = $(if ($env:DEMO_SEED_ENABLED) { $env:DEMO_SEED_ENABLED -eq 'true' } else { $true }),

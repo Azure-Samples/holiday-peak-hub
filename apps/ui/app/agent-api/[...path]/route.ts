@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { resolveAgentApiBaseUrl, validateProxyBaseUrlPolicy } from '../../api/_shared/base-url-resolver';
 
+const AGENT_PROXY_TIMEOUT_MS = Number(process.env.AGENT_PROXY_TIMEOUT_MS ?? '120000');
+
 type TargetResolution = {
   targetUrl: string | null;
   baseUrl: string | null;
@@ -264,6 +266,9 @@ async function proxyRequest(
 
   let upstream: Response;
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), AGENT_PROXY_TIMEOUT_MS);
+
   try {
     upstream = await fetch(targetUrl, {
       method,
@@ -271,8 +276,35 @@ async function proxyRequest(
       body,
       redirect: 'manual',
       cache: 'no-store',
+      signal: controller.signal,
     });
   } catch (error) {
+    clearTimeout(timeoutId);
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      console.error('Agent API proxy upstream request timed out', {
+        attemptedPath: upstreamPath,
+        sourceKey,
+        timeoutMs: AGENT_PROXY_TIMEOUT_MS,
+      });
+      return NextResponse.json(
+        buildProxyErrorPayload({
+          failureKind: 'network',
+          sourceKey,
+          baseUrl,
+          attemptedPath: upstreamPath,
+          method,
+          upstreamError: `Request timed out after ${AGENT_PROXY_TIMEOUT_MS}ms`,
+        }),
+        {
+          status: 504,
+          headers: {
+            'x-holiday-peak-proxy': 'next-app-agent-api',
+            'x-holiday-peak-proxy-source': sourceKey ?? '',
+            'x-holiday-peak-proxy-failure-kind': 'timeout',
+          },
+        },
+      );
+    }
     if (error instanceof Error) {
       console.error('Agent API proxy upstream fetch failed', {
         attemptedPath: upstreamPath,
@@ -299,6 +331,8 @@ async function proxyRequest(
       },
     );
   }
+
+  clearTimeout(timeoutId);
 
   if (upstream.status === 502) {
     const upstreamError = await readUpstreamErrorPayload(upstream);

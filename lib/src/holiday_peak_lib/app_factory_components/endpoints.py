@@ -1,5 +1,7 @@
 """Endpoint registration helpers for service apps."""
 
+import asyncio
+import os
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -9,6 +11,8 @@ from holiday_peak_lib.connectors.registry import ConnectorRegistry
 from holiday_peak_lib.self_healing import FailureSignal, SelfHealingKernel, SurfaceType
 from holiday_peak_lib.utils import get_tracer
 from holiday_peak_lib.utils.logging import log_async_operation
+
+_DEFAULT_ENDPOINT_TIMEOUT = float(os.getenv("AGENT_ENDPOINT_TIMEOUT_SECONDS", "120"))
 
 
 def register_standard_endpoints(
@@ -347,17 +351,42 @@ def register_standard_endpoints(
                         )
                     return await router.route(intent, request_payload)
 
-            response_payload = await log_async_operation(
-                logger,
-                name="service.invoke",
-                intent=intent,
-                func=_route_with_span,
-                token_count=None,
-                metadata={
-                    "payload_size": len(str(request_payload)),
-                    "service": service_name,
-                },
-            )
+            try:
+                response_payload = await asyncio.wait_for(
+                    log_async_operation(
+                        logger,
+                        name="service.invoke",
+                        intent=intent,
+                        func=_route_with_span,
+                        token_count=None,
+                        metadata={
+                            "payload_size": len(str(request_payload)),
+                            "service": service_name,
+                        },
+                    ),
+                    timeout=_DEFAULT_ENDPOINT_TIMEOUT,
+                )
+            except asyncio.TimeoutError:
+                _log_info(
+                    "invoke_endpoint_timeout",
+                    extra={
+                        "service": service_name,
+                        "intent": intent,
+                        "timeout_seconds": _DEFAULT_ENDPOINT_TIMEOUT,
+                    },
+                )
+                _emit_invoke_outcome_telemetry(
+                    intent=intent,
+                    request_payload=request_payload,
+                    error=TimeoutError(f"Invoke timed out after {_DEFAULT_ENDPOINT_TIMEOUT}s"),
+                )
+                raise HTTPException(
+                    status_code=504,
+                    detail=(
+                        f"Agent invocation timed out after {_DEFAULT_ENDPOINT_TIMEOUT:.0f}s. "
+                        "Please retry with a simpler query."
+                    ),
+                )
             _emit_invoke_outcome_telemetry(
                 intent=intent,
                 request_payload=request_payload,
