@@ -100,6 +100,8 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 - Optional UI-only deployment path constrained by SWA token flow and health checks.
 - ACR runner-IP allowlist exceptions may be applied/removed automatically when enabled.
 - If the environment ACR public endpoint is disabled, the tested-image build guard must temporarily enable public access with `defaultAction=Deny`, reuse the runner-IP allowlist flow, and restore the prior `publicNetworkAccess` and `networkRuleSet.defaultAction` after the build phase completes.
+- When restoring ACR access state, `defaultAction` validation must be skipped if `publicNetworkAccess` is being set to `Disabled` — Azure may report any `defaultAction` value when public access is off and the value is semantically irrelevant.
+- When `azd provision` fails with `RoleAssignmentExists` in a non-prod environment, the infrastructure is typically deployed successfully but azd does not write outputs. The workflow must run `azd env refresh` after this fallback to populate outputs (POSTGRES_HOST, COSMOS_ACCOUNT_URI, etc.) from the deployed resources.
 
 ## Data Connectivity Guardrails
 

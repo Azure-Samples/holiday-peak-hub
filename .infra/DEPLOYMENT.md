@@ -10,7 +10,8 @@ Comprehensive deployment guide for Holiday Peak Hub infrastructure.
 
 | Tool | Version | Purpose |
 |------|---------|---------|
-| [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) | ≥ 2.60 | Azure resource management |
+| [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) | ≥ 2.67 | Azure resource management |
+| [Azure CLI `alb` extension](https://learn.microsoft.com/cli/azure/network/alb) | latest | AGC (Application Gateway for Containers) management — install with `az extension add --name alb` |
 | [azd](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd) | ≥ 1.10 | Provisioning + deployment |
 | [Bicep CLI](https://learn.microsoft.com/azure/azure-resource-manager/bicep/install) | ≥ 0.30 | Infrastructure-as-code (bundled with Azure CLI) |
 azd env set deployShared true -e <environment>
@@ -138,6 +139,8 @@ If `agcSupportEnabled` is enabled for the environment, the shared stack also pro
 - RBAC for AGC controller access to the AKS node resource group and delegated subnet.
 
 During `azd provision`, the `postprovision` hook installs the ALB controller Helm chart and validates that GatewayClass `azure-alb-external` is present. No `ApplicationLoadBalancer` or workload route is created in this step.
+
+> **Note**: The CI/CD pipeline's output recovery step uses `az network alb frontend list` to query AGC frontend hostnames. This requires the Azure CLI `alb` extension (`az extension add --name alb --only-show-errors`). The extension is GA and requires Azure CLI ≥ 2.67.
 
 **Private endpoints** are created for: ACR, Cosmos DB, Redis, Storage, Event Hubs, Key Vault, AI Services.
 

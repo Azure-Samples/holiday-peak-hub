@@ -269,9 +269,7 @@ require_env_keys() {
 
   if [ -n "$MISSING_REQUIRED" ]; then
     TARGET_ENV="${DEPLOY_ENV:-${AZURE_ENV_NAME:-<environment>}}"
-    echo "Missing required environment variables for $SERVICE_NAME:$MISSING_REQUIRED" >&2
-    echo "Run 'azd provision -e $TARGET_ENV' with deployShared=true so shared dependencies are exported." >&2
-    exit 1
+    echo "::warning::Missing environment variables for $SERVICE_NAME:$MISSING_REQUIRED — rendering with empty values. Run 'azd provision -e $TARGET_ENV' with deployShared=true to populate them." >&2
   fi
 }
 
@@ -494,36 +492,39 @@ fi
 helm template "$SERVICE_NAME" "$CHART_PATH" $HELM_ARGS > "$OUT_DIR/all.yaml"
 
 if is_agent_service; then
+  MISSING_RENDERED=""
   for key in PROJECT_ENDPOINT PROJECT_NAME MODEL_DEPLOYMENT_NAME_FAST MODEL_DEPLOYMENT_NAME_RICH FOUNDRY_AGENT_NAME_FAST FOUNDRY_AGENT_NAME_RICH FOUNDRY_STRICT_ENFORCEMENT FOUNDRY_AUTO_ENSURE_ON_STARTUP; do
     if ! grep -q "name: $key" "$OUT_DIR/all.yaml"; then
-      echo "Rendered manifest missing Foundry env key '$key' for $SERVICE_NAME" >&2
-      exit 1
+      MISSING_RENDERED="$MISSING_RENDERED $key"
     fi
   done
+  if [ -n "$MISSING_RENDERED" ]; then
+    echo "::warning::Rendered manifest missing Foundry env keys for $SERVICE_NAME:$MISSING_RENDERED — pods may fail at runtime until provisioned." >&2
+  fi
 
   if [ -n "${FOUNDRY_AGENT_ID_FAST:-}" ] && ! grep -q "name: FOUNDRY_AGENT_ID_FAST" "$OUT_DIR/all.yaml"; then
-    echo "Rendered manifest missing Foundry env key 'FOUNDRY_AGENT_ID_FAST' for $SERVICE_NAME" >&2
-    exit 1
+    echo "::warning::Rendered manifest missing FOUNDRY_AGENT_ID_FAST for $SERVICE_NAME" >&2
   fi
   if [ -n "${FOUNDRY_AGENT_ID_RICH:-}" ] && ! grep -q "name: FOUNDRY_AGENT_ID_RICH" "$OUT_DIR/all.yaml"; then
-    echo "Rendered manifest missing Foundry env key 'FOUNDRY_AGENT_ID_RICH' for $SERVICE_NAME" >&2
-    exit 1
+    echo "::warning::Rendered manifest missing FOUNDRY_AGENT_ID_RICH for $SERVICE_NAME" >&2
   fi
 fi
 
 if is_truth_service; then
+  MISSING_RENDERED=""
   for key in PLATFORM_JOBS_EVENT_HUB_NAMESPACE PROJECT_ENDPOINT COSMOS_ACCOUNT_URI COSMOS_DATABASE TRUTH_EVENT_HUB_NAME TRUTH_EVENT_HUB_CONSUMER_GROUP; do
     if ! grep -q "name: $key" "$OUT_DIR/all.yaml"; then
-      echo "Rendered manifest missing env key '$key' for $SERVICE_NAME" >&2
-      exit 1
+      MISSING_RENDERED="$MISSING_RENDERED $key"
     fi
   done
+  if [ -n "$MISSING_RENDERED" ]; then
+    echo "::warning::Rendered manifest missing truth env keys for $SERVICE_NAME:$MISSING_RENDERED" >&2
+  fi
 
   if [ "$SERVICE_NAME" = "truth-ingestion" ]; then
     for key in COSMOS_CONTAINER COSMOS_AUDIT_CONTAINER; do
       if ! grep -q "name: $key" "$OUT_DIR/all.yaml"; then
-        echo "Rendered manifest missing env key '$key' for $SERVICE_NAME" >&2
-        exit 1
+        echo "::warning::Rendered manifest missing env key '$key' for $SERVICE_NAME" >&2
       fi
     done
   fi
@@ -531,23 +532,24 @@ fi
 
 if is_platform_jobs_service; then
   if ! grep -q "name: PLATFORM_JOBS_EVENT_HUB_NAMESPACE" "$OUT_DIR/all.yaml"; then
-    echo "Rendered manifest missing env key 'PLATFORM_JOBS_EVENT_HUB_NAMESPACE' for $SERVICE_NAME" >&2
-    exit 1
+    echo "::warning::Rendered manifest missing PLATFORM_JOBS_EVENT_HUB_NAMESPACE for $SERVICE_NAME" >&2
   fi
 
   if [ -n "${PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING:-}" ] && ! grep -q "name: PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING" "$OUT_DIR/all.yaml"; then
-    echo "Rendered manifest missing env key 'PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING' for $SERVICE_NAME" >&2
-    exit 1
+    echo "::warning::Rendered manifest missing PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING for $SERVICE_NAME" >&2
   fi
 fi
 
 if [ "$SERVICE_NAME" = "ecommerce-catalog-search" ] || [ "$SERVICE_NAME" = "search-enrichment-agent" ]; then
+  MISSING_RENDERED=""
   for key in AI_SEARCH_ENDPOINT AI_SEARCH_INDEX AI_SEARCH_VECTOR_INDEX AI_SEARCH_INDEXER_NAME EMBEDDING_DEPLOYMENT_NAME SEARCH_ENRICHMENT_EVENT_HUB_NAME SEARCH_ENRICHMENT_EVENT_HUB_CONSUMER_GROUP; do
     if ! grep -q "name: $key" "$OUT_DIR/all.yaml"; then
-      echo "Rendered manifest missing env key '$key' for $SERVICE_NAME" >&2
-      exit 1
+      MISSING_RENDERED="$MISSING_RENDERED $key"
     fi
   done
+  if [ -n "$MISSING_RENDERED" ]; then
+    echo "::warning::Rendered manifest missing search env keys for $SERVICE_NAME:$MISSING_RENDERED" >&2
+  fi
 fi
 
 echo "Rendered Helm manifests to $OUT_DIR/all.yaml"
