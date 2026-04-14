@@ -1598,10 +1598,23 @@ resource postgresPasswordSecret 'Microsoft.KeyVault/vaults/secrets@2025-05-01' =
 
 // RBAC Assignments — AKS → resource roles are now declared inline via AVM module
 // roleAssignments parameters (ACR, Cosmos, EventHubs, KeyVault, Storage, AI Search).
-// Only AI Search → Cosmos roles remain standalone because the AI Search principal ID
-// is only available after the AI Foundry module completes (circular dependency).
+//
+// Standalone role assignments below fall into two categories:
+//
+// 1. AI Search → Cosmos (2 roles): MUST remain standalone because the AI Search
+//    principal ID is only available after the AI Foundry module completes, creating
+//    a circular dependency that prevents inlining into the Cosmos AVM module.
+//
+// 2. Workload Identity → AI Services (4 roles): Standalone with empty-principal
+//    guards to prevent RoleAssignmentExists conflicts when ARM retries a deployment.
+//    The aiServicesAccount is created by the AI Foundry module and referenced via
+//    'existing', so AVM inline roleAssignments are not available.
+//
+// guid() seeds are intentionally stable — do NOT change the seed strings without
+// verifying via `az deployment sub what-if` that no Delete actions are produced.
 
 // Azure AI Search managed identity -> Cosmos DB (control plane)
+// Standalone: AI Search principalId comes from AI Foundry (circular dependency).
 resource aiSearchCosmosAccountReaderRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(resourceGroup().id, aiSearchName, cosmosAccountName, 'CosmosAccountReader')
   scope: cosmosAccount
@@ -1613,6 +1626,8 @@ resource aiSearchCosmosAccountReaderRole 'Microsoft.Authorization/roleAssignment
 }
 
 // Azure AI Search managed identity -> Cosmos DB (data plane)
+// Standalone: AI Search principalId comes from AI Foundry (circular dependency).
+// Note: sqlRoleAssignments API does not support principalType property.
 resource aiSearchCosmosDataReaderRole 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2025-10-15' = {
   parent: cosmosAccount
   name: guid(resourceGroup().id, aiSearchName, cosmosAccountName, 'CosmosDataReader')
@@ -1632,6 +1647,9 @@ resource aiServicesAccount 'Microsoft.CognitiveServices/accounts@2025-12-01' exi
 }
 
 // Workload identity (batch 1) -> AI Services (Cognitive Services OpenAI User — required for Foundry agent invocation)
+// Standalone: aiServicesAccount is an existing reference (no AVM inline roleAssignments).
+// Idempotent via deterministic guid() name + principalType: 'ServicePrincipal'.
+// RoleAssignmentExists conflicts from ARM retries are handled by pipeline output recovery.
 resource agentsAiServicesOpenAIUserRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(resourceGroup().id, agentsIdentityName, aiServicesName, 'CognitiveServicesOpenAIUser')
   scope: aiServicesAccount
