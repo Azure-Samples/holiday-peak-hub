@@ -11,7 +11,8 @@ How to deploy a single agent service independently on AKS. This guide covers bot
 
 | Requirement | Version | Check |
 |------------|---------|-------|
-| Azure CLI | ≥ 2.60 | `az version` |
+| Azure CLI | ≥ 2.67 | `az version` |
+| Azure CLI `alb` extension | latest | `az extension add --name alb` (required for AGC management) |
 | azd | ≥ 1.10 | `azd version` |
 | Docker | ≥ 24 | `docker version` |
 | Helm | ≥ 3.12 | `helm version` |

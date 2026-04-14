@@ -368,6 +368,9 @@ jobs:
       AGC_SUBNET_ID: ${{ steps.outputs.outputs.AGC_SUBNET_ID }}
       AGC_FRONTEND_HOSTNAME: ${{ steps.outputs.outputs.AGC_FRONTEND_HOSTNAME }}
       AGC_FRONTEND_REFERENCE: ${{ steps.outputs.outputs.AGC_FRONTEND_REFERENCE }}
+      AGC_CONTROLLER_DEPLOYMENT_MODE: ${{ steps.outputs.outputs.AGC_CONTROLLER_DEPLOYMENT_MODE }}
+      AGC_CONTROLLER_IDENTITY_NAME: ${{ steps.outputs.outputs.AGC_CONTROLLER_IDENTITY_NAME }}
+      AGC_CONTROLLER_IDENTITY_CLIENT_ID: ${{ steps.outputs.outputs.AGC_CONTROLLER_IDENTITY_CLIENT_ID }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -813,10 +816,14 @@ jobs:
           ENV="${{ inputs.environment }}"
           RG="${{ inputs.projectName }}-${ENV}-rg"
 
+          # Install ALB CLI extension for AGC recovery queries
+          az extension add --name alb --only-show-errors 2>/dev/null || true
+
           # Load current azd env values
           eval "$(azd env get-values -e "$ENV" | sed 's/^/export /')"
 
           RECOVERED=0
+          AGC_RECOVERED=0
 
           set_if_empty() {
             local k="$1" v="$2"
@@ -954,6 +961,85 @@ jobs:
               "https://${AI_SERVICES_NAME}.services.ai.azure.com/api/projects/${PROJECT_NAME}"
           fi
 
+          # ── Application Gateway for Containers (AGC) ──────────────
+          # AGC outputs are critical for validate-agc-readiness, sync-apim,
+          # and sync-apic jobs. Recover from Azure CLI when azd env refresh
+          # returns empty values due to ARM deployment state being Failed.
+          VNET_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-vnet"
+
+          # Detect AGC support by checking for the agc subnet
+          if [ -z "${AGC_SUPPORT_ENABLED:-}" ] || [ "${AGC_SUPPORT_ENABLED}" != "true" ]; then
+            AGC_SUBNET_EXISTS=$(az network vnet subnet show \
+              -g "$RG" --vnet-name "$VNET_NAME" -n agc \
+              --query "name" -o tsv 2>/dev/null || true)
+            if [ -n "${AGC_SUBNET_EXISTS:-}" ]; then
+              set_if_empty AGC_SUPPORT_ENABLED "true"
+              AGC_RECOVERED=$((AGC_RECOVERED + 1))
+            fi
+          fi
+
+          if [ "${AGC_SUPPORT_ENABLED:-}" = "true" ]; then
+            # Deterministic keys
+            if [ -z "${AGC_GATEWAY_CLASS:-}" ]; then
+              set_if_empty AGC_GATEWAY_CLASS "azure-alb-external"
+              AGC_RECOVERED=$((AGC_RECOVERED + 1))
+            fi
+
+            if [ -z "${AGC_FRONTEND_REFERENCE:-}" ]; then
+              set_if_empty AGC_FRONTEND_REFERENCE "gateway-class:azure-alb-external"
+              AGC_RECOVERED=$((AGC_RECOVERED + 1))
+            fi
+
+            if [ -z "${AGC_CONTROLLER_DEPLOYMENT_MODE:-}" ]; then
+              set_if_empty AGC_CONTROLLER_DEPLOYMENT_MODE "helm-workload-identity"
+              AGC_RECOVERED=$((AGC_RECOVERED + 1))
+            fi
+
+            # Subnet ID via CLI query
+            if [ -z "${AGC_SUBNET_ID:-}" ]; then
+              V=$(az network vnet subnet show \
+                -g "$RG" --vnet-name "$VNET_NAME" -n agc \
+                --query "id" -o tsv 2>/dev/null || true)
+              [ -n "${V:-}" ] && { set_if_empty AGC_SUBNET_ID "$V"; AGC_RECOVERED=$((AGC_RECOVERED + 1)); }
+            fi
+
+            # Controller identity (naming convention: {project}-{env}-agc-controller)
+            AGC_IDENTITY_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-agc-controller"
+            if [ -z "${AGC_CONTROLLER_IDENTITY_NAME:-}" ]; then
+              V=$(az identity show -g "$RG" -n "$AGC_IDENTITY_NAME" \
+                --query "name" -o tsv 2>/dev/null || true)
+              [ -n "${V:-}" ] && { set_if_empty AGC_CONTROLLER_IDENTITY_NAME "$V"; AGC_RECOVERED=$((AGC_RECOVERED + 1)); }
+            fi
+
+            if [ -z "${AGC_CONTROLLER_IDENTITY_CLIENT_ID:-}" ]; then
+              V=$(az identity show -g "$RG" -n "$AGC_IDENTITY_NAME" \
+                --query "clientId" -o tsv 2>/dev/null || true)
+              [ -n "${V:-}" ] && { set_if_empty AGC_CONTROLLER_IDENTITY_CLIENT_ID "$V"; AGC_RECOVERED=$((AGC_RECOVERED + 1)); }
+            fi
+
+            # Frontend hostname via ALB CLI (two-step: list ALBs, then list frontends)
+            if [ -z "${AGC_FRONTEND_HOSTNAME:-}" ]; then
+              ALB_NAME=$(az network alb list -g "$RG" \
+                --query "[0].name" -o tsv 2>/dev/null || true)
+              if [ -n "${ALB_NAME:-}" ]; then
+                V=$(az network alb frontend list -g "$RG" --alb-name "$ALB_NAME" \
+                  --query "[0].fqdn" -o tsv 2>/dev/null || true)
+                if [ -n "${V:-}" ]; then
+                  set_if_empty AGC_FRONTEND_HOSTNAME "$V"
+                  AGC_RECOVERED=$((AGC_RECOVERED + 1))
+                else
+                  echo "::notice::AGC_FRONTEND_HOSTNAME is empty — ALB controller may not have reconciled yet. Non-fatal; validate-agc-readiness will gate downstream jobs."
+                fi
+              else
+                echo "::notice::No ALB resource found in $RG — AGC_FRONTEND_HOSTNAME cannot be recovered. Non-fatal; validate-agc-readiness will gate downstream jobs."
+              fi
+            fi
+
+            if [ "$AGC_RECOVERED" -gt 0 ]; then
+              echo "::warning::Recovered $AGC_RECOVERED AGC output(s) via direct Azure CLI queries."
+            fi
+          fi
+
           # ── Summary ────────────────────────────────────────────────
           if [ "$RECOVERED" -gt 0 ]; then
             echo "::warning::Recovered $RECOVERED output(s) via direct Azure queries. ARM deployment state may be Failed — investigate RoleAssignment conflicts in shared-infrastructure."
@@ -966,7 +1052,7 @@ jobs:
         run: |
           eval "$(azd env get-values -e '${{ inputs.environment }}' | sed 's/^/export /')"
           # Fallback: read individual keys directly from azd env when eval drops them
-          for key in BLOB_ACCOUNT_URL BLOB_CONTAINER COSMOS_CONTAINER PROJECT_ENDPOINT PROJECT_NAME APPLICATIONINSIGHTS_CONNECTION_STRING AGC_SUPPORT_ENABLED AGC_GATEWAY_CLASS AGC_SUBNET_ID AGC_FRONTEND_HOSTNAME AGC_FRONTEND_REFERENCE; do
+          for key in BLOB_ACCOUNT_URL BLOB_CONTAINER COSMOS_CONTAINER PROJECT_ENDPOINT PROJECT_NAME APPLICATIONINSIGHTS_CONNECTION_STRING AGC_SUPPORT_ENABLED AGC_GATEWAY_CLASS AGC_SUBNET_ID AGC_FRONTEND_HOSTNAME AGC_FRONTEND_REFERENCE AGC_CONTROLLER_DEPLOYMENT_MODE AGC_CONTROLLER_IDENTITY_NAME AGC_CONTROLLER_IDENTITY_CLIENT_ID; do
             eval "cur=\${$key:-}"
             if [ -z "$cur" ]; then
               if val=$(azd env get-value "$key" -e '${{ inputs.environment }}' 2>/dev/null); then
@@ -1006,6 +1092,9 @@ jobs:
             echo "AGC_SUBNET_ID=${AGC_SUBNET_ID}"
             echo "AGC_FRONTEND_HOSTNAME=${AGC_FRONTEND_HOSTNAME}"
             echo "AGC_FRONTEND_REFERENCE=${AGC_FRONTEND_REFERENCE}"
+            echo "AGC_CONTROLLER_DEPLOYMENT_MODE=${AGC_CONTROLLER_DEPLOYMENT_MODE}"
+            echo "AGC_CONTROLLER_IDENTITY_NAME=${AGC_CONTROLLER_IDENTITY_NAME}"
+            echo "AGC_CONTROLLER_IDENTITY_CLIENT_ID=${AGC_CONTROLLER_IDENTITY_CLIENT_ID}"
           } >> "$GITHUB_OUTPUT"
 
   prepare-acr-build-access:
