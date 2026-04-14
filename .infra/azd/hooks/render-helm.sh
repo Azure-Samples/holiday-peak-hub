@@ -269,9 +269,7 @@ require_env_keys() {
 
   if [ -n "$MISSING_REQUIRED" ]; then
     TARGET_ENV="${DEPLOY_ENV:-${AZURE_ENV_NAME:-<environment>}}"
-    echo "Missing required environment variables for $SERVICE_NAME:$MISSING_REQUIRED" >&2
-    echo "Run 'azd provision -e $TARGET_ENV' with deployShared=true so shared dependencies are exported." >&2
-    exit 1
+    echo "::warning::Missing environment variables for $SERVICE_NAME:$MISSING_REQUIRED — rendering with empty values. Run 'azd provision -e $TARGET_ENV' with deployShared=true to populate them." >&2
   fi
 }
 
