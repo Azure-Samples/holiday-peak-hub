@@ -10,6 +10,7 @@ This folder tracks corrections, gaps, and planned enhancements discovered during
 
 | Resolution | PR | Impact |
 |-----------|-----|--------|
+| Deploy pipeline hardening (9 fixes) | #813-#833 | Full AKS deploy unblocked: parser, change detection, ACR access, provision outputs |
 | Silent tool-dropping in FoundryInvoker | #802 | Agent tools now forwarded correctly via MAF FoundryAgent |
 | Memory tier I/O latency | #800 | Parallel hot/warm/cold operations via asyncio.gather |
 | Catalog-search duplicate queries | #796 | Eliminated redundant keyword search execution |
@@ -31,6 +32,7 @@ This folder tracks corrections, gaps, and planned enhancements discovered during
 | 8 | [AI Search not provisioned](008-ai-search-not-provisioned.md) | Medium | Infrastructure | [#32](https://github.com/Azure-Samples/holiday-peak-hub/issues/32) |
 | 9 | [Route protection middleware implemented (resolved)](009-missing-middleware-ts.md) | Medium | Frontend | [#33](https://github.com/Azure-Samples/holiday-peak-hub/issues/33) |
 | 13 | [AGC edge migration plan](013-agc-edge-migration.md) | High | Infrastructure | [#282](https://github.com/Azure-Samples/holiday-peak-hub/issues/282) - [#287](https://github.com/Azure-Samples/holiday-peak-hub/issues/287) |
+| 14 | [Deploy pipeline hardening (resolved)](014-deploy-pipeline-hardening.md) | Critical | CI/CD | #813-#833 |
 
 ### Feature Requests
 
