@@ -1,9 +1,11 @@
 # Ecommerce Catalog Search
 
 ## Purpose
+
 Provides product discovery and ACP-aligned catalog search responses.
 
 ## Responsibilities
+
 - Resolve search queries into relevant product sets.
 - Default to intelligent search mode when no mode is specified, while keeping explicit keyword mode available for demos and compatibility.
 - Return inventory-aware and commerce-ready product context.
@@ -13,11 +15,13 @@ Provides product discovery and ACP-aligned catalog search responses.
 - Runs a full retrieval cycle (baseline keyword retrieval, intent-driven query expansion, semantic retrieval, and fallback rerank) to return relevant results.
 
 ## Key endpoints or interfaces
+
 - `POST /invoke` for synchronous service requests.
 - MCP interfaces under `/mcp/*` for agent-to-agent usage.
 - Event Hub subscription: `product-events` / consumer group `catalog-search-group`.
 
 ## Run/Test commands
+
 ```bash
 cd apps/ecommerce-catalog-search/src
 uv sync
@@ -26,7 +30,9 @@ python -m pytest ../tests
 ```
 
 ## Configuration notes
+
 - Uses Foundry model settings (`PROJECT_ENDPOINT` or `FOUNDRY_ENDPOINT`, fast/rich model identifiers).
+- `keyword` mode never performs model response synthesis, even when Foundry models are configured.
 - Supports Redis/Cosmos/Blob memory configuration via shared memory settings.
 - Requires Event Hub namespace and consumer configuration for background jobs.
 - Uses strict AI Search runtime mode by default on AKS unless `CATALOG_SEARCH_REQUIRE_AI_SEARCH` is explicitly overridden.
@@ -48,7 +54,7 @@ Use azd as the primary deployment path. Use the manual ACR -> AKS path only when
 ### Prerequisites
 
 | Tool | Why it is needed |
-|------|------------------|
+| ------ | ------------------ |
 | az CLI | Azure authentication and resource operations |
 | azd | Environment selection and service deploy |
 | docker (or az acr build) | Build and push the container image |
@@ -61,7 +67,7 @@ SERVICE_NAME="ecommerce-catalog-search"
 APP_PATH="apps/ecommerce-catalog-search/src"
 DOCKERFILE_PATH="${APP_PATH}/Dockerfile"
 AZD_ENV_NAME="dev"
-K8S_NAMESPACE="holiday-peak"
+K8S_NAMESPACE="holiday-peak-agents"
 IMAGE_TAG="$(git rev-parse --short HEAD)"
 ```
 
@@ -70,35 +76,35 @@ IMAGE_TAG="$(git rev-parse --short HEAD)"
 Set these in the selected azd environment (recommended) or in your manual Helm values file:
 
 | Variable | Required (AKS strict path) | Notes |
-|----------|----------------------------|-------|
-| CATALOG_SEARCH_REQUIRE_AI_SEARCH | Yes | Set to `true` for strict runtime contract; use `false` only for non-strict local/debug paths |
-| AI_SEARCH_ENDPOINT | Yes | Azure AI Search endpoint |
-| AI_SEARCH_INDEX | Yes | Keyword/SKU lookup index |
-| AI_SEARCH_VECTOR_INDEX | Yes | Vector/hybrid index |
-| AI_SEARCH_INDEXER_NAME | Yes | Indexer identifier used by deployment/runtime wiring |
-| AI_SEARCH_AUTH_MODE | Yes | `managed_identity` (recommended) or `api_key` |
-| EMBEDDING_DEPLOYMENT_NAME | Yes | Embedding deployment name used by vector flows |
-| AI_SEARCH_KEY | Conditional | Required only when `AI_SEARCH_AUTH_MODE=api_key` |
-| CATALOG_SEARCH_SEED_MAX_ATTEMPTS | Optional | Bounded startup/readiness seed budget (default `2`, min `1`, max `10`) |
-| CATALOG_SEARCH_SEED_BATCH_SIZE | Optional | Per-attempt seed batch size (default `50`, min `1`, max `100`) |
-| CATALOG_SEARCH_SEED_HTTP_TIMEOUT_SECONDS | Optional | CRUD seed fetch timeout in seconds (default `5`) |
-| CRUD_SERVICE_URL | Yes | Source for CRUD bootstrap seeding and adapter lookups |
-| PROJECT_ENDPOINT or FOUNDRY_ENDPOINT | Yes | Azure AI Foundry project endpoint |
-| PROJECT_NAME or FOUNDRY_PROJECT_NAME | Yes | Foundry project name used by runtime ensure flow |
-| FOUNDRY_AGENT_ID_FAST or FOUNDRY_AGENT_NAME_FAST | Yes | Fast-role Foundry agent identity |
-| MODEL_DEPLOYMENT_NAME_FAST | Yes | Fast-role deployment name |
-| FOUNDRY_AGENT_ID_RICH or FOUNDRY_AGENT_NAME_RICH | Yes | Rich-role Foundry agent identity |
-| MODEL_DEPLOYMENT_NAME_RICH | Yes | Rich-role deployment name |
-| KEY_VAULT_URI | Yes | Key Vault endpoint for secret-backed runtime configuration |
-| EVENT_HUB_NAMESPACE or EVENTHUB_NAMESPACE | Yes | Event Hub namespace FQDN |
-| APP_NAME | Recommended | Set to `ecommerce-catalog-search` |
-| REDIS_URL / COSMOS_* / BLOB_* | Optional | Three-tier memory configuration |
-| APPLICATIONINSIGHTS_CONNECTION_STRING | Optional | App telemetry |
+| ---------- | ---------------------------- | ------- |
+| `CATALOG_SEARCH_REQUIRE_AI_SEARCH` | Yes | Set to `true` for strict runtime contract; use `false` only for non-strict local/debug paths |
+| `AI_SEARCH_ENDPOINT` | Yes | Azure AI Search endpoint |
+| `AI_SEARCH_INDEX` | Yes | Keyword/SKU lookup index |
+| `AI_SEARCH_VECTOR_INDEX` | Yes | Vector/hybrid index |
+| `AI_SEARCH_INDEXER_NAME` | Yes | Indexer identifier used by deployment/runtime wiring |
+| `AI_SEARCH_AUTH_MODE` | Yes | `managed_identity` (recommended) or `api_key` |
+| `EMBEDDING_DEPLOYMENT_NAME` | Yes | Embedding deployment name used by vector flows |
+| `AI_SEARCH_KEY` | Conditional | Required only when `AI_SEARCH_AUTH_MODE=api_key` |
+| `CATALOG_SEARCH_SEED_MAX_ATTEMPTS` | Optional | Bounded startup/readiness seed budget (default `2`, min `1`, max `10`) |
+| `CATALOG_SEARCH_SEED_BATCH_SIZE` | Optional | Per-attempt seed batch size (default `50`, min `1`, max `100`) |
+| `CATALOG_SEARCH_SEED_HTTP_TIMEOUT_SECONDS` | Optional | CRUD seed fetch timeout in seconds (default `5`) |
+| `CRUD_SERVICE_URL` | Yes | Source for CRUD bootstrap seeding and adapter lookups |
+| `PROJECT_ENDPOINT` or `FOUNDRY_ENDPOINT` | Yes | Azure AI Foundry project endpoint |
+| `PROJECT_NAME` or `FOUNDRY_PROJECT_NAME` | Yes | Foundry project name used by runtime ensure flow |
+| `FOUNDRY_AGENT_ID_FAST` or `FOUNDRY_AGENT_NAME_FAST` | Yes | Fast-role Foundry agent identity |
+| `MODEL_DEPLOYMENT_NAME_FAST` | Yes | Fast-role deployment name |
+| `FOUNDRY_AGENT_ID_RICH` or `FOUNDRY_AGENT_NAME_RICH` | Yes | Rich-role Foundry agent identity |
+| `MODEL_DEPLOYMENT_NAME_RICH` | Yes | Rich-role deployment name |
+| `KEY_VAULT_URI` | Yes | Key Vault endpoint for secret-backed runtime configuration |
+| `EVENT_HUB_NAMESPACE` or `EVENTHUB_NAMESPACE` | Yes | Event Hub namespace FQDN |
+| `APP_NAME` | Recommended | Set to `ecommerce-catalog-search` |
+| `REDIS_URL / COSMOS_* / BLOB_*` | Optional | Three-tier memory configuration |
+| `APPLICATIONINSIGHTS_CONNECTION_STRING` | Optional | App telemetry |
 
 ### Authorization and RBAC expectations by dependency
 
 | Dependency | Runtime auth pattern | Authorization expectation |
-|------------|----------------------|---------------------------|
+| ------------ | ---------------------- | --------------------------- |
 | Azure AI Search | Managed identity (`AI_SEARCH_AUTH_MODE=managed_identity`) or API key | Managed identity should have `Search Index Data Contributor` on the AI Search service for query + upsert/delete + seed flows. If using API key mode, `AI_SEARCH_KEY` must grant equivalent index data permissions. |
 | CRUD source (`CRUD_SERVICE_URL`) | Internal HTTP call from service container | The service does not inject an auth header for CRUD requests; enforce trust with AKS network boundaries and/or gateway policy. Runtime needs access to `GET /api/products` and related CRUD product endpoints. |
 | Azure Key Vault (`KEY_VAULT_URI`) | Managed identity | Workload identity must have `Key Vault Secrets User` on the target vault to resolve secret-backed settings. |

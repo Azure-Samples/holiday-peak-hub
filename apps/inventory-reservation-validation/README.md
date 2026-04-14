@@ -49,7 +49,7 @@ SERVICE_NAME="inventory-reservation-validation"
 APP_PATH="apps/inventory-reservation-validation/src"
 DOCKERFILE_PATH="${APP_PATH}/Dockerfile"
 AZD_ENV_NAME="dev"
-K8S_NAMESPACE="holiday-peak"
+K8S_NAMESPACE="holiday-peak-agents"
 IMAGE_TAG="$(git rev-parse --short HEAD)"
 ```
 

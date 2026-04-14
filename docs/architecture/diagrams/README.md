@@ -18,6 +18,9 @@ Canonical diagram index for Holiday Peak Hub.
 | `sequence-catalog-search.md` | E-commerce | Search flow with model routing and enrichment |
 | `sequence-inventory-health.md` | Inventory | Health monitoring, anomaly detection, and remediation |
 | `sequence-returns-support.md` | Logistics/CRM | Returns evaluation and resolution flow |
+| `sequence-foundry-agent-invocation.md` | Agent Runtime | FoundryAgentInvoker → MAF FoundryAgent tool-forwarding flow |
+| `sequence-memory-parallel-io.md` | Memory | Three-tier parallel read/write via asyncio.gather |
+| `sequence-flux-gitops-deployment.md` | Infrastructure | Flux CD GitOps reconciliation and namespace-isolated deploy |
 
 ## Usage Guidelines
 

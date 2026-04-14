@@ -62,7 +62,7 @@ Shared resolver module: `app/api/_shared/base-url-resolver.ts`
   - Local loopback hosts (`localhost`, `127.0.0.1`, `::1`) are allowed for development/test runtime.
   - Optional local-only override: `UI_ALLOW_NON_APIM_PROXY_URL=true` (must remain disabled in production).
 - Catalog read resiliency policy (`/api/categories`, `/api/products`):
-  - Strategy retries transient upstream failures (`502`, `503`, `504`) with up to 2 attempts.
+  - Strategy retries transient upstream failures (`500`, `502`, `503`, `504`) with up to 2 attempts.
   - Each fallback-protected upstream attempt is capped at 10 seconds with `AbortSignal.timeout(...)` so stalled APIM reads fail fast into the existing fallback path.
   - If transient failures persist (or network fetch fails), the proxy returns HTTP `200` with an empty array fallback payload.
   - Fallback responses include diagnostics headers for triage:

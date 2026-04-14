@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from collections.abc import Awaitable, Callable
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from inspect import isawaitable
 from typing import Any
 from uuid import uuid4
@@ -28,11 +28,35 @@ _RECOVERABLE_MESSAGING_FAILURE_CATEGORIES = frozenset(
 )
 _FORBIDDEN_ACTION_TOKENS = frozenset(
     {
+        # Image operations
         "restore_image",
         "image_restore",
         "redeploy_image",
         "image_redeploy",
         "image_rollback",
+        # Code redeploy
+        "redeploy_code",
+        "code_redeploy",
+        "code_deploy",
+        # Resource deletion
+        "delete_namespace",
+        "namespace_delete",
+        "delete_resource",
+        # Secret / certificate rotation
+        "rotate_secret",
+        "secret_rotate",
+        "rotate_cert",
+        "cert_rotate",
+        # Scaling changes
+        "scale_up",
+        "scale_down",
+        "scale_out",
+        "scale_in",
+        "autoscale",
+        # Database schema changes
+        "migrate_schema",
+        "schema_migrate",
+        "run_migration",
     }
 )
 
@@ -98,6 +122,8 @@ class SelfHealingKernel:
         detect_only: bool = False,
         reconcile_on_messaging_error: bool = False,
         max_incidents: int = 200,
+        max_retries: int = 2,
+        cooldown_seconds: float = 5.0,
     ) -> None:
         self.service_name = service_name
         self.manifest = manifest
@@ -105,6 +131,8 @@ class SelfHealingKernel:
         self.detect_only = detect_only
         self.reconcile_on_messaging_error = reconcile_on_messaging_error
         self.max_incidents = max(10, max_incidents)
+        self.max_retries = max(0, max_retries)
+        self.cooldown_seconds = max(0.0, cooldown_seconds)
         self._incidents: OrderedDict[str, Incident] = OrderedDict()
         self._actions: dict[str, ActionHandler] = {
             "reconcile_api_surface_contract": self._action_reconcile_api_surface_contract,
@@ -119,6 +147,8 @@ class SelfHealingKernel:
     def from_env(cls, service_name: str) -> "SelfHealingKernel":
         """Create kernel from feature flags and manifest environment settings."""
 
+        import os
+
         manifest = load_surface_manifest(service_name)
         return cls(
             service_name=service_name,
@@ -129,6 +159,8 @@ class SelfHealingKernel:
                 "SELF_HEALING_RECONCILE_ON_MESSAGING_ERROR",
                 default=False,
             ),
+            max_retries=int(os.getenv("SELF_HEALING_MAX_RETRIES", "2")),
+            cooldown_seconds=float(os.getenv("SELF_HEALING_COOLDOWN_SECONDS", "5.0")),
         )
 
     def register_action(self, name: str, handler: ActionHandler) -> None:
@@ -195,6 +227,15 @@ class SelfHealingKernel:
             )
             return incident
 
+        if incident.surface == SurfaceType.MESSAGING and not self.reconcile_on_messaging_error:
+            self._transition(
+                incident,
+                IncidentState.ESCALATED,
+                event="incident_escalated",
+                details={"reason": "messaging_remediation_opt_in_disabled"},
+            )
+            return incident
+
         await self._attempt_recovery(incident)
         return incident
 
@@ -212,7 +253,7 @@ class SelfHealingKernel:
         candidates: list[Incident] = []
         if incident_id:
             incident = self._incidents.get(incident_id)
-            if incident is not None:
+            if incident is not None and not self._is_in_cooldown(incident):
                 candidates = [incident]
         else:
             candidates = [
@@ -220,6 +261,7 @@ class SelfHealingKernel:
                 for incident in self._incidents.values()
                 if incident.recoverable
                 and incident.state in {IncidentState.CLASSIFIED, IncidentState.ESCALATED}
+                and not self._is_in_cooldown(incident)
             ]
 
         reconciled_ids: list[str] = []
@@ -243,6 +285,49 @@ class SelfHealingKernel:
             "reconciled_incidents": len(reconciled_ids),
             "incident_ids": reconciled_ids,
         }
+
+    def escalation_payload(self, incident_id: str) -> dict[str, Any] | None:
+        """Return full diagnostic context for an incident, or None if not found."""
+
+        incident = self._incidents.get(incident_id)
+        if incident is None:
+            return None
+
+        remediation_history: list[dict[str, Any]] = []
+        for record in incident.audit:
+            if record.event in ("action_executed", "action_failed"):
+                remediation_history.append(
+                    {
+                        "action": record.details.get("action"),
+                        "success": record.details.get("success", False),
+                        "event": record.event,
+                    }
+                )
+
+        return {
+            "incident": incident.model_dump(mode="json"),
+            "audit_trail": [r.model_dump(mode="json") for r in incident.audit],
+            "remediation_history": remediation_history,
+            "manifest": self.manifest.model_dump(mode="json"),
+            "kernel_config": {
+                "enabled": self.enabled,
+                "detect_only": self.detect_only,
+                "max_retries": self.max_retries,
+                "cooldown_seconds": self.cooldown_seconds,
+            },
+        }
+
+    def _is_in_cooldown(self, incident: Incident) -> bool:
+        """Check whether an incident is still within its cooldown window."""
+
+        cooldown_until_str = incident.metadata.get("_cooldown_until")
+        if not cooldown_until_str:
+            return False
+        try:
+            cooldown_until = datetime.fromisoformat(cooldown_until_str)
+            return _utc_now() < cooldown_until
+        except (ValueError, TypeError):
+            return False
 
     def _detect(self, signal: FailureSignal) -> Incident:
         incident = Incident(
@@ -300,40 +385,67 @@ class SelfHealingKernel:
             )
             return
 
-        self._transition(
-            incident,
-            IncidentState.REMEDIATING,
-            event="remediation_started",
-            details={"actions": actions},
-        )
+        total_attempts = 1 + self.max_retries
 
-        results: list[RemediationActionResult] = []
-        for action_name in actions:
-            result = await self._execute_action(action_name, incident)
-            results.append(result)
+        for attempt in range(total_attempts):
+            if attempt > 0:
+                cooldown_until = _utc_now() + timedelta(seconds=self.cooldown_seconds)
+                incident.metadata["_cooldown_until"] = cooldown_until.isoformat()
+                self._record_audit(
+                    incident,
+                    event="cooldown_scheduled",
+                    details={
+                        "attempt": attempt + 1,
+                        "cooldown_seconds": self.cooldown_seconds,
+                        "cooldown_until": cooldown_until.isoformat(),
+                    },
+                )
 
-        self._transition(
-            incident,
-            IncidentState.VERIFIED,
-            event="verification_started",
-            details={"actions": actions},
-        )
-
-        if all(result.success for result in results):
             self._transition(
                 incident,
-                IncidentState.CLOSED,
-                event="incident_closed",
-                details={"verified": True},
+                IncidentState.REMEDIATING,
+                event="remediation_started",
+                details={"actions": actions, "attempt": attempt + 1},
             )
-            return
 
-        self._transition(
-            incident,
-            IncidentState.ESCALATED,
-            event="incident_escalated",
-            details={"reason": "verification_failed"},
-        )
+            results: list[RemediationActionResult] = []
+            for action_name in actions:
+                result = await self._execute_action(action_name, incident)
+                results.append(result)
+
+            self._transition(
+                incident,
+                IncidentState.VERIFIED,
+                event="verification_started",
+                details={"actions": actions, "attempt": attempt + 1},
+            )
+
+            if all(result.success for result in results):
+                self._transition(
+                    incident,
+                    IncidentState.CLOSED,
+                    event="incident_closed",
+                    details={"verified": True},
+                )
+                return
+
+            if attempt < total_attempts - 1:
+                self._transition(
+                    incident,
+                    IncidentState.ESCALATED,
+                    event="incident_escalated",
+                    details={"reason": "verification_failed", "attempt": attempt + 1},
+                )
+            else:
+                self._transition(
+                    incident,
+                    IncidentState.ESCALATED,
+                    event="incident_escalated",
+                    details={
+                        "reason": "max_retries_exhausted",
+                        "attempts": total_attempts,
+                    },
+                )
 
     def _plan_actions(self, incident: Incident) -> list[str]:
         if incident.surface == SurfaceType.MESSAGING:

@@ -6,7 +6,11 @@ import logging
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-from azure.core.exceptions import ClientAuthenticationError, ServiceRequestError
+from azure.core.exceptions import (
+    ClientAuthenticationError,
+    HttpResponseError,
+    ServiceRequestError,
+)
 from ecommerce_catalog_search.ai_search import (
     AISearchDocumentResult,
     AISearchIndexStatus,
@@ -242,6 +246,146 @@ async def test_vector_search_uses_vector_index_and_returns_enriched_fields(
     assert len(result) == 1
     assert result[0].sku == "SKU-101"
     assert result[0].enriched_fields["use_cases"] == ["gaming", "streaming"]
+    assert client.search.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_vector_search_sends_no_select_restriction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AI Search queries must not include a $select clause so the index schema never blocks results."""
+    monkeypatch.setenv("AI_SEARCH_ENDPOINT", "https://example.search.windows.net")
+    monkeypatch.setenv("AI_SEARCH_VECTOR_INDEX", "product_search_index")
+
+    credential = Mock()
+    credential.close = AsyncMock()
+
+    client = Mock()
+    client.close = AsyncMock()
+    client.search = AsyncMock(
+        return_value=_AsyncResults(
+            [{"sku": "SKU-303", "@search.score": 1.0, "title": "Trail Jacket"}]
+        )
+    )
+
+    with (
+        patch("ecommerce_catalog_search.ai_search._resolve_credential", return_value=credential),
+        patch("ecommerce_catalog_search.ai_search.SearchClient", return_value=client),
+    ):
+        result = await vector_search(
+            query_text="outdoor jacket",
+            filters=None,
+            top_k=2,
+        )
+
+    assert [item.sku for item in result] == ["SKU-303"]
+    assert client.search.await_count == 1
+    call_kwargs = client.search.await_args_list[0].kwargs
+    assert "select" not in call_kwargs
+
+
+@pytest.mark.asyncio
+async def test_vector_search_returns_all_document_fields_for_model_filtering(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """All fields returned by the index are available on the document for model-side filtering."""
+    monkeypatch.setenv("AI_SEARCH_ENDPOINT", "https://example.search.windows.net")
+    monkeypatch.setenv("AI_SEARCH_VECTOR_INDEX", "product_search_index")
+
+    credential = Mock()
+    credential.close = AsyncMock()
+
+    document = {
+        "sku": "SKU-101",
+        "@search.score": 0.95,
+        "title": "Merino Wool Base Layer",
+        "description": "Lightweight thermal layer for cold weather.",
+        "category": "clothing",
+        "brand": "Contoso",
+        "price": "49.99 usd",
+    }
+    client = Mock()
+    client.close = AsyncMock()
+    client.search = AsyncMock(return_value=_AsyncResults([document]))
+
+    with (
+        patch(
+            "ecommerce_catalog_search.ai_search._resolve_credential",
+            return_value=Mock(close=AsyncMock()),
+        ),
+        patch("ecommerce_catalog_search.ai_search.SearchClient", return_value=client),
+    ):
+        result = await vector_search(
+            query_text="warm clothing for winter travel",
+            filters=None,
+            top_k=3,
+        )
+
+    assert len(result) == 1
+    assert result[0].sku == "SKU-101"
+    assert result[0].document["title"] == "Merino Wool Base Layer"
+    assert result[0].document["category"] == "clothing"
+    assert result[0].document["price"] == "49.99 usd"
+
+
+@pytest.mark.asyncio
+async def test_vector_search_returns_empty_on_http_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AI_SEARCH_ENDPOINT", "https://example.search.windows.net")
+    monkeypatch.setenv("AI_SEARCH_VECTOR_INDEX", "product_search_index")
+
+    credential = Mock()
+    credential.close = AsyncMock()
+
+    client = Mock()
+    client.close = AsyncMock()
+    client.search = AsyncMock(
+        side_effect=HttpResponseError(message="Query syntax error in filter expression")
+    )
+
+    with (
+        patch("ecommerce_catalog_search.ai_search._resolve_credential", return_value=credential),
+        patch("ecommerce_catalog_search.ai_search.SearchClient", return_value=client),
+    ):
+        result = await vector_search(
+            query_text="wireless headset",
+            filters=None,
+            top_k=2,
+        )
+
+    assert result == []
+    assert client.search.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_vector_search_returns_empty_on_permission_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AI_SEARCH_ENDPOINT", "https://example.search.windows.net")
+    monkeypatch.setenv("AI_SEARCH_VECTOR_INDEX", "product_search_index")
+
+    forbidden_error = HttpResponseError(message="Access denied")
+    forbidden_error.status_code = 403
+
+    client = Mock()
+    client.close = AsyncMock()
+    client.search = AsyncMock(side_effect=forbidden_error)
+
+    with (
+        patch(
+            "ecommerce_catalog_search.ai_search._resolve_credential",
+            return_value=Mock(close=AsyncMock()),
+        ),
+        patch("ecommerce_catalog_search.ai_search.SearchClient", return_value=client),
+    ):
+        result = await vector_search(
+            query_text="wireless headset",
+            filters=None,
+            top_k=2,
+        )
+
+    assert result == []
     assert client.search.await_count == 1
 
 

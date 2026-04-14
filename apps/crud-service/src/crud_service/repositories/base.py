@@ -374,13 +374,26 @@ class BaseRepository(Generic[T]):
                 return str(value)
         return str(item.get("id", ""))
 
-    async def _ensure_table(self):
+    async def _table_exists(self, conn: asyncpg.Connection) -> bool:
+        """Return whether the repository table already exists."""
+        return bool(
+            await conn.fetchval(
+                "SELECT to_regclass($1) IS NOT NULL",
+                self.table_name,
+            )
+        )
+
+    async def _ensure_table(self) -> None:
         """Ensure JSONB table exists for this repository."""
         if self.table_name in self._initialized_tables:
             return
 
         pool = await self._get_pool()
         async with pool.acquire() as conn:
+            if await self._table_exists(conn):
+                self._initialized_tables.add(self.table_name)
+                return
+
             await conn.execute(f"""
                 CREATE TABLE IF NOT EXISTS {self.table_name} (
                     id TEXT PRIMARY KEY,

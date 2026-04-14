@@ -20,6 +20,12 @@ param agcSubnetAddressPrefix string = '10.0.12.0/24'
 @secure()
 @description('Optional PostgreSQL admin password for CRUD database. Leave empty to auto-generate.')
 param postgresAdminPassword string = ''
+@allowed([
+  'password'
+  'entra'
+])
+@description('CRUD PostgreSQL auth mode. Set POSTGRES_AUTH_MODE=entra only when the environment is configured for Entra database authentication.')
+param POSTGRES_AUTH_MODE string = 'password'
 @description('Optional email receiver for infrastructure alerts action group.')
 param alertNotificationEmail string = ''
 @secure()
@@ -37,8 +43,8 @@ param repositoryUrl string = 'https://github.com/Azure-Samples/holiday-peak-hub'
 param branch string = 'main'
 
 // Keep deployment-facing auth/user outputs explicit and deterministic.
-var postgresAuthMode = 'password'
-var postgresWorkloadUser = deployShared ? '${sharedInfra!.outputs.aksClusterName}-agentpool' : ''
+var postgresAuthMode = POSTGRES_AUTH_MODE
+var postgresWorkloadUser = deployShared ? sharedInfra!.outputs.postgresWorkloadUser : ''
 var staticWebAppBaseName = empty(appName) ? '${projectName}-ui' : appName
 
 @description('UTC timestamp for unique deployment naming. Do not override.')
@@ -55,6 +61,7 @@ module sharedInfra '../modules/shared-infrastructure/shared-infrastructure-main.
     agcSupportEnabled: agcSupportEnabled
     agcSubnetAddressPrefix: agcSubnetAddressPrefix
     postgresAdminPassword: postgresAdminPassword
+    postgresAuthMode: postgresAuthMode
     alertNotificationEmail: alertNotificationEmail
     alertTeamsWebhookUrl: alertTeamsWebhookUrl
     aksNodeCount: aksNodeCount
@@ -98,6 +105,7 @@ output PROJECT_ENDPOINT string = deployShared
   : ''
 output COSMOS_ACCOUNT_URI string = deployShared ? sharedInfra!.outputs.cosmosEndpoint : ''
 output COSMOS_DATABASE string = deployShared ? sharedInfra!.outputs.databaseName : ''
+output COSMOS_CONTAINER string = deployShared ? sharedInfra!.outputs.agentMemoryContainerName : ''
 output KEY_VAULT_URI string = deployShared ? sharedInfra!.outputs.keyVaultUri : ''
 output REDIS_HOST string = deployShared ? sharedInfra!.outputs.redisName : ''
 #disable-next-line outputs-should-not-contain-secrets
@@ -105,6 +113,8 @@ output REDIS_PASSWORD_SECRET_NAME string = deployShared ? sharedInfra!.outputs.r
 output EVENT_HUB_NAMESPACE string = deployShared ? sharedInfra!.outputs.eventHubsNamespaceName : ''
 output PLATFORM_JOBS_EVENT_HUB_NAMESPACE string = deployShared ? sharedInfra!.outputs.platformJobsNamespaceName : ''
 output APPLICATIONINSIGHTS_CONNECTION_STRING string = deployShared ? sharedInfra!.outputs.appInsightsConnectionString : ''
+output BLOB_ACCOUNT_URL string = deployShared ? sharedInfra!.outputs.storageAccountUrl : ''
+output BLOB_CONTAINER string = deployShared ? sharedInfra!.outputs.agentMemoryContainerName : ''
 output POSTGRES_HOST string = deployShared ? sharedInfra!.outputs.postgresFqdn : ''
 output POSTGRES_USER string = deployShared
   ? (postgresAuthMode == 'password' ? sharedInfra!.outputs.postgresAdminUser : postgresWorkloadUser)
@@ -128,4 +138,5 @@ output AKS_NODE_RESOURCE_GROUP string = deployShared ? sharedInfra!.outputs.aksN
 output MONITORING_ACTION_GROUP_ID string = deployShared ? sharedInfra!.outputs.monitoringActionGroupId : ''
 output MONITORING_ACTION_GROUP_NAME string = deployShared ? sharedInfra!.outputs.monitoringActionGroupName : ''
 output AGENTS_WORKLOAD_CLIENT_ID string = deployShared ? sharedInfra!.outputs.agentsWorkloadIdentityClientId : ''
+output AGENTS2_WORKLOAD_CLIENT_ID string = deployShared ? sharedInfra!.outputs.agents2WorkloadIdentityClientId : ''
 output CRUD_WORKLOAD_CLIENT_ID string = deployShared ? sharedInfra!.outputs.crudWorkloadIdentityClientId : ''

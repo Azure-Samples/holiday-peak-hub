@@ -19,7 +19,9 @@ async def test_simple_keyword_query_uses_keyword_path(
     harness = build_catalog_harness(products_by_sku={"SKU-100": catalog_product})
 
     with (
-        patch("ecommerce_catalog_search.agents.build_catalog_adapters", return_value=harness.adapters),
+        patch(
+            "ecommerce_catalog_search.agents.build_catalog_adapters", return_value=harness.adapters
+        ),
         patch(
             "ecommerce_catalog_search.agents.search_catalog_skus_detailed",
             return_value=AISearchSkuResult(skus=["SKU-100"]),
@@ -54,7 +56,9 @@ async def test_complex_query_uses_intelligent_path_with_intent_and_hybrid_search
     ]
 
     with (
-        patch("ecommerce_catalog_search.agents.build_catalog_adapters", return_value=harness.adapters),
+        patch(
+            "ecommerce_catalog_search.agents.build_catalog_adapters", return_value=harness.adapters
+        ),
         patch(
             "ecommerce_catalog_search.agents.search_catalog_skus_detailed",
             return_value=AISearchSkuResult(skus=[]),
@@ -111,7 +115,9 @@ async def test_use_case_intent_matches_include_use_cases(
     harness = build_catalog_harness(products_by_sku={"SKU-100": catalog_product})
 
     with (
-        patch("ecommerce_catalog_search.agents.build_catalog_adapters", return_value=harness.adapters),
+        patch(
+            "ecommerce_catalog_search.agents.build_catalog_adapters", return_value=harness.adapters
+        ),
         patch(
             "ecommerce_catalog_search.agents.search_catalog_skus_detailed",
             return_value=AISearchSkuResult(skus=[]),
@@ -166,7 +172,9 @@ async def test_complementary_resolution_includes_readable_related_products(
     harness = build_catalog_harness(products_by_sku={"SKU-100": catalog_product})
 
     with (
-        patch("ecommerce_catalog_search.agents.build_catalog_adapters", return_value=harness.adapters),
+        patch(
+            "ecommerce_catalog_search.agents.build_catalog_adapters", return_value=harness.adapters
+        ),
         patch(
             "ecommerce_catalog_search.agents.search_catalog_skus_detailed",
             return_value=AISearchSkuResult(skus=[]),
@@ -218,11 +226,15 @@ async def test_complementary_resolution_includes_readable_related_products(
     assert all(isinstance(item, str) and len(item.strip().split()) >= 1 for item in related)
 
 
-async def test_indexer_lag_returns_no_results(agent_config_without_models, build_catalog_harness) -> None:
+async def test_indexer_lag_returns_no_results(
+    agent_config_without_models, build_catalog_harness
+) -> None:
     harness = build_catalog_harness(products_by_sku={}, default_product=None, related_products=[])
 
     with (
-        patch("ecommerce_catalog_search.agents.build_catalog_adapters", return_value=harness.adapters),
+        patch(
+            "ecommerce_catalog_search.agents.build_catalog_adapters", return_value=harness.adapters
+        ),
         patch(
             "ecommerce_catalog_search.agents.search_catalog_skus_detailed",
             return_value=AISearchSkuResult(skus=[]),
@@ -240,20 +252,28 @@ async def test_ai_search_unavailable_uses_fallback_path(
     build_catalog_harness,
     catalog_product,
     caplog,
+    monkeypatch,
 ) -> None:
+    # Disable strict mode so the fallback path is exercised regardless of
+    # CI environment (KUBERNETES_SERVICE_HOST may enable strict mode by default).
+    monkeypatch.setenv("CATALOG_SEARCH_REQUIRE_AI_SEARCH", "false")
+
     harness = build_catalog_harness(default_product=catalog_product, related_products=[])
+    harness.products.search = AsyncMock(return_value=[catalog_product])
 
     caplog.set_level(logging.WARNING, logger="ecommerce_catalog_search.agents")
 
     with (
-        patch("ecommerce_catalog_search.agents.build_catalog_adapters", return_value=harness.adapters),
+        patch(
+            "ecommerce_catalog_search.agents.build_catalog_adapters", return_value=harness.adapters
+        ),
         patch(
             "ecommerce_catalog_search.agents.search_catalog_skus_detailed",
             return_value=AISearchSkuResult(skus=[], fallback_reason="ai_search_transport_error"),
         ),
     ):
         agent = CatalogSearchAgent(config=agent_config_without_models)
-        result = await agent.handle({"query": "wireless earbuds", "limit": 4})
+        result = await agent.handle({"query": "explorer headphones", "limit": 4})
 
     assert result["results"]
     assert result["results"][0]["item_id"] == "SKU-100"

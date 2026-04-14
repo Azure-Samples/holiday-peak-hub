@@ -6,7 +6,7 @@
 
 ## Overview
 
-This directory contains quick-start API examples for all 21 agent services, including curl scripts, PowerShell examples, and Postman collections.
+This directory contains quick-start API examples for the 26 agent services plus the CRUD service, including curl scripts, PowerShell examples, and Postman collections.
 
 ---
 

@@ -4,7 +4,7 @@ set -eu
 
 REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 AZURE_YAML_PATH="${AZURE_YAML_PATH:-$REPO_ROOT/azure.yaml}"
-NAMESPACE="${K8S_NAMESPACE:-holiday-peak}"
+NAMESPACE="${K8S_NAMESPACE:-holiday-peak-agents}"
 API_PATH_PREFIX="${API_PATH_PREFIX:-agents}"
 CHANGED_SERVICES="${CHANGED_SERVICES:-}"
 RESOURCE_GROUP="${AZURE_RESOURCE_GROUP:-${RESOURCE_GROUP:-}}"

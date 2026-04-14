@@ -1,0 +1,272 @@
+site_name: Holiday Peak Hub
+site_description: Agentic Retail Platform — Documentation
+site_url: https://azure-samples.github.io/holiday-peak-hub/
+
+docs_dir: ../docs
+site_dir: site
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+extra_css:
+  - stylesheets/extra.css
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - toc:
+      permalink: true
+  - tables
+  - attr_list
+  - md_in_html
+
+plugins:
+  - search
+
+nav:
+  - Home: README.md
+  - Overview:
+      - Project Status: project-status.md
+      - Implementation Roadmap: IMPLEMENTATION_ROADMAP.md
+      - Backend Plan: backend_plan.md
+      - CRUD Features Map: crud-features-map.md
+
+  - Architecture:
+      - Overview: architecture/index.md
+      - Architecture: architecture/architecture.md
+      - Components: architecture/components.md
+      - Business Summary: architecture/business-summary.md
+      - CRUD Implementation: architecture/crud-service-implementation.md
+      - Enrichment & Search Flows: architecture/design-enrichment-search-flows.md
+      - EventHub Topology Matrix: architecture/eventhub-topology-matrix.md
+      - Compliance Review: architecture/architecture-compliance-review.md
+      - ADRs:
+          - Index: architecture/ADRs.md
+          - ADR-001 Python 3.13: architecture/adrs/adr-001-python-3.13.md
+          - ADR-002 Azure Services: architecture/adrs/adr-002-azure-services.md
+          - ADR-003 Adapter Pattern: architecture/adrs/adr-003-adapter-pattern.md
+          - ADR-004 Builder Pattern Memory: architecture/adrs/adr-004-builder-pattern-memory.md
+          - ADR-005 FastAPI MCP: architecture/adrs/adr-005-fastapi-mcp.md
+          - ADR-006 Agent Framework: architecture/adrs/adr-006-agent-framework.md
+          - ADR-007 Saga Choreography: architecture/adrs/adr-007-saga-choreography.md
+          - ADR-008 Memory Tiers: architecture/adrs/adr-008-memory-tiers.md
+          - ADR-009 AKS Deployment: architecture/adrs/adr-009-aks-deployment.md
+          - ADR-010 REST & MCP Exposition: architecture/adrs/adr-010-rest-and-mcp-exposition.md
+          - ADR-011 ACP Catalog Search: architecture/adrs/adr-011-acp-catalog-search.md
+          - ADR-012 Adapter Boundaries: architecture/adrs/adr-012-adapter-boundaries.md
+          - ADR-013 Model Routing: architecture/adrs/adr-013-model-routing.md
+          - ADR-014 Memory Partitioning: architecture/adrs/adr-014-memory-partitioning.md
+          - ADR-015 Next.js App Router: architecture/adrs/adr-015-nextjs-app-router.md
+          - ADR-016 Atomic Design System: architecture/adrs/adr-016-atomic-design-system.md
+          - ADR-017 AG-UI Protocol: architecture/adrs/adr-017-ag-ui-protocol.md
+          - ADR-018 ACP Frontend: architecture/adrs/adr-018-acp-frontend.md
+          - ADR-019 Authentication RBAC: architecture/adrs/adr-019-authentication-rbac.md
+          - ADR-020 API Client Architecture: architecture/adrs/adr-020-api-client-architecture.md
+          - ADR-021 azd-First Deployment: architecture/adrs/adr-021-azd-first-deployment.md
+          - ADR-022 Branch Naming: architecture/adrs/adr-022-branch-naming-convention.md
+          - ADR-023 Enterprise Resilience: architecture/adrs/adr-023-enterprise-resilience-patterns.md
+          - ADR-024 Connector Registry: architecture/adrs/adr-024-connector-registry-pattern.md
+          - ADR-025 Product Truth Layer: architecture/adrs/adr-025-product-truth-layer.md
+          - ADR-026 AGIC Traffic: architecture/adrs/adr-026-agic-traffic-management.md
+          - ADR-027 APIM AGC Edge: architecture/adrs/adr-027-apim-agc-edge.md
+          - ADR-028 Memory Namespace Isolation: architecture/adrs/adr-028-memory-namespace-isolation-contract.md
+          - ADR-029 DAM Image Analysis: architecture/adrs/adr-029-dam-image-analysis-enrichment-pipeline-boundary.md
+          - ADR-030 Search Enrichment: architecture/adrs/adr-030-search-enrichment-bounded-context.md
+          - ADR-031 MCP Communication: architecture/adrs/adr-031-mcp-internal-communication-policy.md
+          - ADR-032 Self-Healing: architecture/adrs/adr-032-self-healing-boundaries.md
+          - ADR-033 Helm/Flux Deployment: architecture/adrs/adr-033-helm-deployment-strategy.md
+          - ADR-034 Namespace Isolation: architecture/adrs/adr-034-namespace-isolation-strategy.md
+          - ADR-035 API Center & APIM MCP: architecture/adrs/adr-035-api-center-apim-mcp-strategy.md
+      - Components:
+          - Overview: architecture/components/apps/README.md
+          - CRUD Service: architecture/components/apps/crud-service.md
+          - CRM Campaign Intelligence: architecture/components/apps/crm-campaign-intelligence.md
+          - CRM Profile Aggregation: architecture/components/apps/crm-profile-aggregation.md
+          - CRM Segmentation: architecture/components/apps/crm-segmentation-personalization.md
+          - CRM Support Assistance: architecture/components/apps/crm-support-assistance.md
+          - Cart Intelligence: architecture/components/apps/ecommerce-cart-intelligence.md
+          - Catalog Search: architecture/components/apps/ecommerce-catalog-search.md
+          - Checkout Support: architecture/components/apps/ecommerce-checkout-support.md
+          - Order Status: architecture/components/apps/ecommerce-order-status.md
+          - Product Detail Enrichment: architecture/components/apps/ecommerce-product-detail-enrichment.md
+          - Inventory Alerts: architecture/components/apps/inventory-alerts-triggers.md
+          - Inventory Health: architecture/components/apps/inventory-health-check.md
+          - JIT Replenishment: architecture/components/apps/inventory-jit-replenishment.md
+          - Reservation Validation: architecture/components/apps/inventory-reservation-validation.md
+          - Carrier Selection: architecture/components/apps/logistics-carrier-selection.md
+          - ETA Computation: architecture/components/apps/logistics-eta-computation.md
+          - Returns Support: architecture/components/apps/logistics-returns-support.md
+          - Route Issue Detection: architecture/components/apps/logistics-route-issue-detection.md
+          - ACP Transformation: architecture/components/apps/product-management-acp-transformation.md
+          - Assortment Optimization: architecture/components/apps/product-management-assortment-optimization.md
+          - Consistency Validation: architecture/components/apps/product-management-consistency-validation.md
+          - Normalization: architecture/components/apps/product-management-normalization-classification.md
+      - Libraries:
+          - Adapters: architecture/components/libs/adapters.md
+          - Agents: architecture/components/libs/agents.md
+          - Connectors: architecture/components/libs/connectors.md
+          - Integrations: architecture/components/libs/integrations.md
+          - Memory: architecture/components/libs/memory.md
+          - Orchestration: architecture/components/libs/orchestration.md
+          - Schemas: architecture/components/libs/schemas.md
+          - Utils: architecture/components/libs/utils.md
+      - Diagrams:
+          - Overview: architecture/diagrams/README.md
+          - Catalog Search Sequence: architecture/diagrams/sequence-catalog-search.md
+          - Inventory Health Sequence: architecture/diagrams/sequence-inventory-health.md
+          - Returns Support Sequence: architecture/diagrams/sequence-returns-support.md
+      - Playbooks:
+          - Index: architecture/playbooks/README.md
+          - Incident Response: architecture/playbooks/incident-response.md
+          - Adapter Failure: architecture/playbooks/playbook-adapter-failure.md
+          - Adapter Latency: architecture/playbooks/playbook-adapter-latency-spikes.md
+          - Adapter Schema Changes: architecture/playbooks/playbook-adapter-schema-changes.md
+          - Agent Latency: architecture/playbooks/playbook-agent-latency-spikes.md
+          - Blob Throttling: architecture/playbooks/playbook-blob-throttling.md
+          - Connection Pool: architecture/playbooks/playbook-connection-pool-exhaustion.md
+          - Cosmos High RU: architecture/playbooks/playbook-cosmos-high-ru.md
+          - Model Degradation: architecture/playbooks/playbook-model-degradation.md
+          - Observability Queries: architecture/playbooks/playbook-observability-queries.md
+          - Redis OOM: architecture/playbooks/playbook-redis-oom.md
+          - Tool Call Failures: architecture/playbooks/playbook-tool-call-failures.md
+          - TTL Not Expiring: architecture/playbooks/playbook-ttl-not-expiring.md
+          - UI Proxy Failures: architecture/playbooks/playbook-ui-proxy-failures.md
+      - Test Plans:
+          - Overview: architecture/test-plans/README.md
+          - Cosmos DB Load: architecture/test-plans/cosmos-db-load-resilience.md
+          - EventHub Load: architecture/test-plans/eventhub-load-resilience.md
+
+  - Business Scenarios:
+      - Overview: business_scenarios/README.md
+      - Competitive Intelligence: business_scenarios/competitive-intelligence-enrichment-search.md
+      - Cost-Benefit Analysis: business_scenarios/cost-benefit-enrichment-search.md
+      - Risk Assessment: business_scenarios/risk-assessment-enrichment-search.md
+      - Order to Fulfillment:
+          - Overview: business_scenarios/01-order-to-fulfillment/README.md
+          - Cart, Checkout & Confirmation: business_scenarios/01-order-to-fulfillment/customer-cart-checkout-and-order-confirmation.md
+      - Product Discovery:
+          - Overview: business_scenarios/02-product-discovery-enrichment/README.md
+          - Category Browsing: business_scenarios/02-product-discovery-enrichment/category-browsing-and-product-detail.md
+          - Intelligent Search: business_scenarios/02-product-discovery-enrichment/intelligent-search-and-agent-comparison.md
+      - Returns & Refunds:
+          - Overview: business_scenarios/03-returns-refund-processing/README.md
+          - Return Request: business_scenarios/03-returns-refund-processing/customer-return-request-and-refund-status.md
+      - Inventory Optimization:
+          - Overview: business_scenarios/04-inventory-optimization/README.md
+          - Checkout Signals: business_scenarios/04-inventory-optimization/checkout-inventory-signals-and-reservations.md
+      - Shipment Tracking:
+          - Overview: business_scenarios/05-shipment-delivery-tracking/README.md
+          - Customer Tracking: business_scenarios/05-shipment-delivery-tracking/customer-order-tracking-and-logistics-enrichment.md
+          - Staff Console: business_scenarios/05-shipment-delivery-tracking/staff-logistics-tracking-console.md
+      - Customer 360:
+          - Overview: business_scenarios/06-customer-360-personalization/README.md
+          - Dashboard: business_scenarios/06-customer-360-personalization/customer-dashboard-personalization.md
+          - Profile Management: business_scenarios/06-customer-360-personalization/profile-management.md
+      - Product Lifecycle:
+          - Overview: business_scenarios/07-product-lifecycle-management/README.md
+          - Enrichment Trigger: business_scenarios/07-product-lifecycle-management/admin-enrichment-trigger-and-monitor.md
+          - Schema Configuration: business_scenarios/07-product-lifecycle-management/admin-schema-and-tenant-configuration.md
+          - Truth Analytics: business_scenarios/07-product-lifecycle-management/admin-truth-analytics-and-observability.md
+          - HITL Review: business_scenarios/07-product-lifecycle-management/staff-hitl-review-and-decisioning.md
+      - Customer Support:
+          - Overview: business_scenarios/08-customer-support-resolution/README.md
+          - Ticket Resolution: business_scenarios/08-customer-support-resolution/staff-ticket-resolution-and-escalation.md
+
+  - Demos:
+      - Overview: demos/README.md
+      - Live Demo: demos/live-demo-search-enrichment-hitl.md
+      - Agent Playgrounds: demos/agent-playgrounds/README.md
+      - API Examples: demos/api-examples/README.md
+      - Interactive Scenarios:
+          - CRM Campaigns: demos/interactive-scenarios/crm-campaigns.md
+          - Customer Journey: demos/interactive-scenarios/customer-journey.md
+          - Order Fulfillment: demos/interactive-scenarios/order-fulfillment.md
+          - Product Lifecycle: demos/interactive-scenarios/product-lifecycle.md
+      - Sample Data: demos/sample-data/README.md
+
+  - Governance:
+      - Overview: governance/README.md
+      - Backend Governance: governance/backend-governance.md
+      - Frontend Governance: governance/frontend-governance.md
+      - Infrastructure Governance: governance/infrastructure-governance.md
+      - Dependency Audit: governance/dependency-audit-wave0.md
+      - Repository Hygiene: governance/repository-hygiene-cleanup.md
+      - Security Exception Register: governance/security-exception-register.md
+      - Security Triage: governance/security-triage-weekly.md
+      - Self-Healing RBAC: governance/self-healing-rbac-matrix.md
+      - Self-Healing Rollout: governance/self-healing-rollout-runbook.md
+
+  - Implementation:
+      - Overview: implementation/README.md
+      - Architecture Plan: implementation/architecture-implementation-plan.md
+      - C4 Component Diagram: implementation/c4-component-diagram.md
+      - Compliance Analysis: implementation/compliance-analysis.md
+      - CRUD Runtime Resilience: implementation/crud-runtime-resilience.md
+      - Entra ID Setup: implementation/entra-id-setup.md
+      - Incident Hardening: implementation/incident-infra-hardening-plan.md
+      - Returns Lifecycle: implementation/issue-217-returns-refund-lifecycle-architecture.md
+      - Search Enriched Products: implementation/issue-340-search-enriched-products.md
+      - Truth Layer Demo: implementation/live-demo-truth-program.md
+      - Execution Wave Plan: implementation/open-issues-execution-wave-plan.md
+      - Per-Agent Deployment: implementation/per-agent-azd-deployment.md
+      - Single RG Runbook: implementation/single-rg-deployment-runbook.md
+      - Telemetry Envelope: implementation/telemetry-envelope-v1.md
+      - Tested Image Promotion: implementation/tested-image-promotion.md
+      - Truth Layer API: implementation/truth-layer-api.md
+      - UI CRUD Alignment: implementation/ui-crud-route-alignment.md
+      - UI/UX Modernization: implementation/ui-ux-modernization-review.md
+      - ACR Export Policy: implementation/acr-export-policy-governance.md
+      - Issues:
+          - ISSUE-001 Fake Catalog Seed: implementation/issues/ISSUE-001-remove-fake-catalog-seed-and-live-data.md
+          - ISSUE-002 Catalog UX: implementation/issues/ISSUE-002-catalog-page-ux-alignment.md
+          - ISSUE-003 Dev Login Mock: implementation/issues/ISSUE-003-dev-login-mock-role-priority.md
+          - ISSUE-004 Mobile Navbar: implementation/issues/ISSUE-004-mobile-navbar-hamburger-visibility.md
+          - ISSUE-005 Enrichment Hardening: implementation/issues/ISSUE-005-enrichment-search-orchestration-hardening.md
+
+  - Roadmap:
+      - Overview: roadmap/README.md
+      - 001 CRUD APIM Routing: roadmap/001-crud-apim-routing.md
+      - 002 Agent Health 500: roadmap/002-agent-health-500.md
+      - 003 SWA API Proxy 404: roadmap/003-swa-api-proxy-404.md
+      - 004 Frontend Mock Data: roadmap/004-frontend-mock-data.md
+      - 005 Lib Config Test Failures: roadmap/005-lib-config-test-failures.md
+      - 006 CI Agent Tests: roadmap/006-ci-agent-tests-swallowed.md
+      - 007 Payments Stubbed: roadmap/007-payments-stubbed.md
+      - 008 AI Search Not Provisioned: roadmap/008-ai-search-not-provisioned.md
+      - 009 Missing Middleware: roadmap/009-missing-middleware-ts.md
+      - 010 PIM DAM Feature: roadmap/010-pim-dam-feature-request.md
+      - 011 Retail Integration: roadmap/011-retail-system-integration-strategy.md
+      - 012 Truth Layer Plan: roadmap/012-product-truth-layer-plan.md
+      - 013 AGC Edge Migration: roadmap/013-agc-edge-migration.md

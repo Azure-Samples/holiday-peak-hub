@@ -49,7 +49,7 @@ SERVICE_NAME="product-management-assortment-optimization"
 APP_PATH="apps/product-management-assortment-optimization/src"
 DOCKERFILE_PATH="${APP_PATH}/Dockerfile"
 AZD_ENV_NAME="dev"
-K8S_NAMESPACE="holiday-peak"
+K8S_NAMESPACE="holiday-peak-agents"
 IMAGE_TAG="$(git rev-parse --short HEAD)"
 ```
 

@@ -1,7 +1,7 @@
 # Repository Hygiene Cleanup Runbook
 
 **Version**: 1.0  
-**Last Updated**: 2026-04-02  
+**Last Updated**: 2026-04-12  
 **Audience**: Repository maintainers and admins
 
 ## Purpose

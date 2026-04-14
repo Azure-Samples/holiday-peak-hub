@@ -49,7 +49,7 @@ SERVICE_NAME="logistics-route-issue-detection"
 APP_PATH="apps/logistics-route-issue-detection/src"
 DOCKERFILE_PATH="${APP_PATH}/Dockerfile"
 AZD_ENV_NAME="dev"
-K8S_NAMESPACE="holiday-peak"
+K8S_NAMESPACE="holiday-peak-agents"
 IMAGE_TAG="$(git rev-parse --short HEAD)"
 ```
 

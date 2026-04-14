@@ -3,7 +3,15 @@ param(
     [string]$ServiceName
 )
 
-$namespace = if ($env:K8S_NAMESPACE) { $env:K8S_NAMESPACE } else { "holiday-peak" }
+$namespace = if ($ServiceName -eq "crud-service") {
+    if ($env:K8S_CRUD_NAMESPACE) { $env:K8S_CRUD_NAMESPACE }
+    elseif ($env:K8S_NAMESPACE) { $env:K8S_NAMESPACE }
+    else { "holiday-peak-crud" }
+} else {
+    if ($env:K8S_AGENTS_NAMESPACE) { $env:K8S_AGENTS_NAMESPACE }
+    elseif ($env:K8S_NAMESPACE) { $env:K8S_NAMESPACE }
+    else { "holiday-peak-agents" }
+}
 $imagePrefix = if ($env:IMAGE_PREFIX) { $env:IMAGE_PREFIX } else { "ghcr.io/azure-samples" }
 $imageTag = if ($env:IMAGE_TAG) { $env:IMAGE_TAG } else { "latest" }
 $imageDigest = if ($env:IMAGE_DIGEST) { $env:IMAGE_DIGEST } else { "" }
@@ -36,8 +44,7 @@ if ($ServiceName -eq "crud-service") {
   $nodePool = "crud"
   $workloadType = "crud"
   if ($deployEnv -in @("dev", "development", "local")) {
-    # Dev profile prioritizes fast iteration over strict availability.
-    $readinessPath = "/health"
+    # Dev profile prioritizes fast iteration while preserving dependency-aware readiness.
     $replicaCount = "1"
     $pdbEnabled = "false"
     $pdbMinAvailable = ""
@@ -223,6 +230,30 @@ if ($pdbEnabled -eq "true") {
   }
 }
 
+# Workload Identity — bind pods to the correct UAMI via ServiceAccount
+# Batch 1 agents (first 20) use AGENTS_WORKLOAD_CLIENT_ID; batch 2 (overflow) use AGENTS2_WORKLOAD_CLIENT_ID.
+$helmArgs += @('--set', 'serviceAccount.create=true')
+if ($ServiceName -eq 'crud-service') {
+  $workloadClientId = $env:CRUD_WORKLOAD_CLIENT_ID
+} else {
+  $batch2Services = @(
+    'product-management-normalization-classification',
+    'search-enrichment-agent',
+    'truth-enrichment',
+    'truth-export',
+    'truth-hitl',
+    'truth-ingestion'
+  )
+  if ($batch2Services -contains $ServiceName) {
+    $workloadClientId = if ($env:AGENTS2_WORKLOAD_CLIENT_ID) { $env:AGENTS2_WORKLOAD_CLIENT_ID } else { $env:AGENTS_WORKLOAD_CLIENT_ID }
+  } else {
+    $workloadClientId = $env:AGENTS_WORKLOAD_CLIENT_ID
+  }
+}
+if ($workloadClientId) {
+  $helmArgs += @('--set-string', "serviceAccount.clientId=$workloadClientId")
+}
+
 $isAgentService = $ServiceName -ne "crud-service"
 $resolvedFoundryAgentNameFast = $env:FOUNDRY_AGENT_NAME_FAST
 $resolvedFoundryAgentNameRich = $env:FOUNDRY_AGENT_NAME_RICH
@@ -295,6 +326,14 @@ if (-not [string]::IsNullOrWhiteSpace($resolvedRedisHost) -and -not $resolvedRed
   $resolvedRedisHost = "$resolvedRedisHost.redis.cache.windows.net"
 }
 $resolvedRedisPasswordSecretName = if ($env:REDIS_PASSWORD_SECRET_NAME) { $env:REDIS_PASSWORD_SECRET_NAME } else { 'redis-primary-key' }
+$resolvedRedisUrl = $null
+if (-not [string]::IsNullOrWhiteSpace($env:REDIS_URL)) {
+  $candidateRedisUrl = $env:REDIS_URL.Trim()
+  $hasEmbeddedRedisCredentials = $candidateRedisUrl -match '^[^:]+://[^/@\s]+@'
+  if ($hasEmbeddedRedisCredentials -or [string]::IsNullOrWhiteSpace($resolvedRedisHost)) {
+    $resolvedRedisUrl = $candidateRedisUrl
+  }
+}
 $resolvedAiSearchAuthMode = if ($env:AI_SEARCH_AUTH_MODE) { $env:AI_SEARCH_AUTH_MODE } else { '' }
 $shouldInjectAiSearchKey = -not [string]::IsNullOrWhiteSpace($resolvedAiSearchAuthMode) -and $resolvedAiSearchAuthMode.Trim().Equals('api_key', [System.StringComparison]::OrdinalIgnoreCase)
 $resolvedAiSearchKey = if ($shouldInjectAiSearchKey) { $env:AI_SEARCH_KEY } else { $null }
@@ -314,7 +353,7 @@ $envMappings = @{
   REDIS_HOST = $resolvedRedisHost
   REDIS_PASSWORD = $env:REDIS_PASSWORD
   REDIS_PASSWORD_SECRET_NAME = $resolvedRedisPasswordSecretName
-  AZURE_CLIENT_ID = $env:AZURE_CLIENT_ID
+  AZURE_CLIENT_ID = if ($workloadClientId) { $workloadClientId } else { $env:AZURE_CLIENT_ID }
   AZURE_TENANT_ID = $env:AZURE_TENANT_ID
 
   # Azure AI Foundry
@@ -341,7 +380,7 @@ $envMappings = @{
   EMBEDDING_DEPLOYMENT_NAME = $env:EMBEDDING_DEPLOYMENT_NAME
 
   # Memory tiers
-  REDIS_URL = $env:REDIS_URL
+  REDIS_URL = $resolvedRedisUrl
   COSMOS_ACCOUNT_URI = $env:COSMOS_ACCOUNT_URI
   COSMOS_DATABASE = $env:COSMOS_DATABASE
   COSMOS_CONTAINER = $env:COSMOS_CONTAINER
@@ -351,6 +390,15 @@ $envMappings = @{
 
   # Observability
   APPLICATIONINSIGHTS_CONNECTION_STRING = $env:APPLICATIONINSIGHTS_CONNECTION_STRING
+}
+
+# Cross-namespace CRUD service URL for agent->CRUD communication (ADR-034)
+if ($ServiceName -ne "crud-service") {
+  $crudNs = if ($env:K8S_CRUD_NAMESPACE) { $env:K8S_CRUD_NAMESPACE }
+            elseif ($env:K8S_NAMESPACE) { $env:K8S_NAMESPACE }
+            else { "holiday-peak-crud" }
+  $defaultCrudUrl = "http://crud-service-crud-service.${crudNs}.svc.cluster.local:80"
+  $envMappings["CRUD_SERVICE_URL"] = if ($env:CRUD_SERVICE_URL) { $env:CRUD_SERVICE_URL } else { $defaultCrudUrl }
 }
 
 $truthServiceEventHubMappings = @{

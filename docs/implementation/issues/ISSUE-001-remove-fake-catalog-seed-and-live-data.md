@@ -19,8 +19,8 @@ Live demo catalog contains unrealistic placeholder categories and products (for 
 
 ## Validation
 
-- Query `https://blue-meadow-00fcb8810.4.azurestaticapps.net/api/categories` and confirm absence of fake names.
-- Query `https://blue-meadow-00fcb8810.4.azurestaticapps.net/api/products?limit=300` and confirm no products belong to removed fake category IDs.
+- Query the deployed demo environment's `/api/categories` endpoint and confirm absence of fake names.
+- Query the deployed demo environment's `/api/products?limit=300` endpoint and confirm no products belong to removed fake category IDs.
 
 ## Implementation Notes
 

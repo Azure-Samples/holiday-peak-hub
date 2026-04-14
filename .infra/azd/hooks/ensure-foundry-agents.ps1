@@ -12,7 +12,7 @@
     The script is idempotent — it creates agents only if they don't already exist.
 
 .PARAMETER Namespace
-    Kubernetes namespace. Defaults to K8S_NAMESPACE or 'holiday-peak'.
+    Kubernetes namespace. Defaults to K8S_AGENTS_NAMESPACE or K8S_NAMESPACE or 'holiday-peak-agents'.
 
 .PARAMETER UsePortForward
     If set, uses kubectl port-forward to reach services. Otherwise expects
@@ -29,7 +29,7 @@
     Number of retries per service if the ensure call fails. Default 3.
 #>
 param(
-    [string]$Namespace = $(if ($env:K8S_NAMESPACE) { $env:K8S_NAMESPACE } else { 'holiday-peak' }),
+    [string]$Namespace = $(if ($env:K8S_AGENTS_NAMESPACE) { $env:K8S_AGENTS_NAMESPACE } elseif ($env:K8S_NAMESPACE) { $env:K8S_NAMESPACE } else { 'holiday-peak-agents' }),
     [switch]$UsePortForward,
     [string]$BaseUrl,
     [string]$AzureYamlPath,

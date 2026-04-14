@@ -1,0 +1,170 @@
+---
+# Source: holiday-peak-service/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: truth-hitl
+  namespace: holiday-peak-agents
+  labels:
+    app: truth-hitl
+  annotations:
+    azure.workload.identity/client-id: "e9c11fac-45b3-4057-8477-1d96703eaae4"
+---
+# Source: holiday-peak-service/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: truth-hitl-truth-hitl
+  namespace: holiday-peak-agents
+  labels:
+    app: truth-hitl
+spec:
+  selector:
+    app: truth-hitl
+    # When canary is disabled, select all pods
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
+  type: ClusterIP
+---
+# Source: holiday-peak-service/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: truth-hitl-truth-hitl
+  namespace: holiday-peak-agents
+  labels:
+    app: truth-hitl
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
+  selector:
+    matchLabels:
+      app: truth-hitl
+  template:
+    metadata:
+      labels:
+        app: truth-hitl
+        canary: "false"
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: truth-hitl
+      nodeSelector:
+        agentpool: agents
+      tolerations:
+        - effect: NoSchedule
+          key: workload
+          operator: Equal
+          value: agents
+      containers:
+        - name: truth-hitl
+          image: "holidaypeakhub405devacr.azurecr.io/holiday-peak-hub/truth-hitl-dev:azd-deploy-1775350566"
+          env:
+            - name: AI_SEARCH_AUTH_MODE
+              value: "managed_identity"
+            - name: AI_SEARCH_ENDPOINT
+              value: "https://holidaypeakhub405devsearch.search.windows.net"
+            - name: AI_SEARCH_INDEX
+              value: "catalog-products"
+            - name: AI_SEARCH_INDEXER_NAME
+              value: "search-enriched-products-indexer"
+            - name: AI_SEARCH_VECTOR_INDEX
+              value: "product_search_index"
+            - name: APPLICATIONINSIGHTS_CONNECTION_STRING
+              value: "InstrumentationKey=d2fb45bc-e648-4da2-9345-d278636aede5;IngestionEndpoint=https://centralus-2.in.applicationinsights.azure.com/;LiveEndpoint=https://centralus.livediagnostics.monitor.azure.com/;ApplicationId=d8eb64c4-956d-46ab-a02e-d481deadaa0b"
+            - name: AZURE_CLIENT_ID
+              value: "e9c11fac-45b3-4057-8477-1d96703eaae4"
+            - name: AZURE_TENANT_ID
+              value: "16b3c013-d300-468d-ac64-7eda0820b6d3"
+            - name: BLOB_ACCOUNT_URL
+              value: "https://holidaypeakhub405devstor.blob.core.windows.net"
+            - name: BLOB_CONTAINER
+              value: "agent-memory"
+            - name: CATALOG_SEARCH_REQUIRE_AI_SEARCH
+              value: "true"
+            - name: COSMOS_ACCOUNT_URI
+              value: "https://holidaypeakhub405-dev-cosmos.documents.azure.com:443/"
+            - name: COSMOS_CONTAINER
+              value: "agent-memory"
+            - name: COSMOS_DATABASE
+              value: "holiday-peak-db"
+            - name: CRUD_SERVICE_URL
+              value: "http://crud-service-crud-service.holiday-peak-crud.svc.cluster.local:80"
+            - name: EMBEDDING_DEPLOYMENT_NAME
+              value: "text-embedding-3-large"
+            - name: FOUNDRY_AGENT_NAME_FAST
+              value: "truth-hitl-fast"
+            - name: FOUNDRY_AGENT_NAME_RICH
+              value: "truth-hitl-rich"
+            - name: FOUNDRY_AUTO_ENSURE_ON_STARTUP
+              value: "true"
+            - name: FOUNDRY_STREAM
+              value: "false"
+            - name: FOUNDRY_STRICT_ENFORCEMENT
+              value: "false"
+            - name: KEY_VAULT_URI
+              value: "https://holidaypeakhub405-dev-kv.vault.azure.net/"
+            - name: MODEL_DEPLOYMENT_NAME_FAST
+              value: "gpt-5-nano"
+            - name: MODEL_DEPLOYMENT_NAME_RICH
+              value: "gpt-5"
+            - name: PLATFORM_JOBS_EVENT_HUB_NAMESPACE
+              value: "holidaypeakhub405-dev-jobs-eh"
+            - name: POSTGRES_AUTH_MODE
+              value: "entra"
+            - name: POSTGRES_DATABASE
+              value: "holiday_peak_crud"
+            - name: POSTGRES_HOST
+              value: "holidaypeakhub405-dev-postgres.postgres.database.azure.com"
+            - name: POSTGRES_SSL
+              value: "true"
+            - name: POSTGRES_USER
+              value: "holidaypeakhub405-dev-crud-identity"
+            - name: PROJECT_ENDPOINT
+              value: "https://holidaypeakhub405devais.services.ai.azure.com/api/projects/aipholidaris"
+            - name: PROJECT_NAME
+              value: "aipholidaris"
+            - name: REDIS_HOST
+              value: "holidaypeakhub405-dev-redis.redis.cache.windows.net"
+            - name: REDIS_PASSWORD_SECRET_NAME
+              value: "redis-primary-key"
+            - name: TRUTH_EVENT_HUB_CONSUMER_GROUP
+              value: "hitl-service"
+            - name: TRUTH_EVENT_HUB_NAME
+              value: "hitl-jobs"
+          ports:
+            - containerPort: 8000
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 250m
+              memory: 256Mi

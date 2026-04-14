@@ -1,7 +1,7 @@
 # CRUD Service Features Map — Gap Analysis & Roadmap
 
-> **Generated**: 2026-02-28  
-> **Scope**: All 21 agent apps, shared lib schemas, 59 open issues  
+> **Generated**: 2026-02-28 | **Last Reviewed**: 2026-04-12  
+> **Scope**: All 27 agent/service apps, shared lib schemas  
 > **Purpose**: Document every capability gap between the CRUD service and the agent ecosystem, propose new Postgres models, adapter integrations, and issues for feature parity.
 
 ---

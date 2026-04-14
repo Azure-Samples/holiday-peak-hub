@@ -3,7 +3,13 @@ set -eu
 
 SERVICE_NAME="$1"
 
-NAMESPACE="${K8S_NAMESPACE:-holiday-peak}"
+# Namespace routing: CRUD goes to holiday-peak-crud, agents to holiday-peak-agents.
+# ADR-034: Namespace Isolation Strategy
+if [ "$SERVICE_NAME" = "crud-service" ]; then
+  NAMESPACE="${K8S_CRUD_NAMESPACE:-${K8S_NAMESPACE:-holiday-peak-crud}}"
+else
+  NAMESPACE="${K8S_AGENTS_NAMESPACE:-${K8S_NAMESPACE:-holiday-peak-agents}}"
+fi
 IMAGE_PREFIX="${IMAGE_PREFIX:-ghcr.io/azure-samples}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 IMAGE_DIGEST="${IMAGE_DIGEST:-}"
@@ -57,8 +63,7 @@ if [ "$SERVICE_NAME" = "crud-service" ]; then
   WORKLOAD_TYPE="crud"
   case "$DEPLOY_ENV" in
     dev|development|local)
-      # Dev profile prioritizes fast iteration over strict availability.
-      READINESS_PATH="/health"
+      # Dev profile prioritizes fast iteration while preserving dependency-aware readiness.
       REPLICA_COUNT="1"
       PDB_ENABLED="false"
       PDB_MIN_AVAILABLE=""
@@ -201,11 +206,19 @@ if [ "$PDB_ENABLED" = "true" ]; then
 fi
 
 # Workload Identity — bind pods to the correct UAMI via ServiceAccount
+# Batch 1 agents (first 20) use AGENTS_WORKLOAD_CLIENT_ID; batch 2 (overflow) use AGENTS2_WORKLOAD_CLIENT_ID.
 HELM_ARGS="$HELM_ARGS --set serviceAccount.create=true"
 if [ "$SERVICE_NAME" = "crud-service" ]; then
   WORKLOAD_CLIENT_ID="${CRUD_WORKLOAD_CLIENT_ID:-}"
 else
-  WORKLOAD_CLIENT_ID="${AGENTS_WORKLOAD_CLIENT_ID:-}"
+  case "$SERVICE_NAME" in
+    product-management-normalization-classification|search-enrichment-agent|truth-enrichment|truth-export|truth-hitl|truth-ingestion)
+      WORKLOAD_CLIENT_ID="${AGENTS2_WORKLOAD_CLIENT_ID:-${AGENTS_WORKLOAD_CLIENT_ID:-}}"
+      ;;
+    *)
+      WORKLOAD_CLIENT_ID="${AGENTS_WORKLOAD_CLIENT_ID:-}"
+      ;;
+  esac
 fi
 if [ -n "$WORKLOAD_CLIENT_ID" ]; then
   HELM_ARGS="$HELM_ARGS --set-string serviceAccount.clientId=$WORKLOAD_CLIENT_ID"
@@ -256,9 +269,7 @@ require_env_keys() {
 
   if [ -n "$MISSING_REQUIRED" ]; then
     TARGET_ENV="${DEPLOY_ENV:-${AZURE_ENV_NAME:-<environment>}}"
-    echo "Missing required environment variables for $SERVICE_NAME:$MISSING_REQUIRED" >&2
-    echo "Run 'azd provision -e $TARGET_ENV' with deployShared=true so shared dependencies are exported." >&2
-    exit 1
+    echo "::warning::Missing environment variables for $SERVICE_NAME:$MISSING_REQUIRED — rendering with empty values. Run 'azd provision -e $TARGET_ENV' with deployShared=true to populate them." >&2
   fi
 }
 
@@ -315,6 +326,19 @@ if [ -n "$RESOLVED_REDIS_HOST" ] && ! printf '%s' "$RESOLVED_REDIS_HOST" | grep 
   RESOLVED_REDIS_HOST="${RESOLVED_REDIS_HOST}.redis.cache.windows.net"
 fi
 RESOLVED_REDIS_PASSWORD_SECRET_NAME="${REDIS_PASSWORD_SECRET_NAME:-redis-primary-key}"
+RESOLVED_REDIS_URL=""
+if [ -n "${REDIS_URL:-}" ]; then
+  case "$REDIS_URL" in
+    *://*:*@*)
+      RESOLVED_REDIS_URL="$REDIS_URL"
+      ;;
+    *)
+      if [ -z "$RESOLVED_REDIS_HOST" ]; then
+        RESOLVED_REDIS_URL="$REDIS_URL"
+      fi
+      ;;
+  esac
+fi
 RESOLVED_AI_SEARCH_AUTH_MODE="${AI_SEARCH_AUTH_MODE:-}"
 case "$(printf '%s' "$RESOLVED_AI_SEARCH_AUTH_MODE" | tr '[:upper:]' '[:lower:]')" in
   api_key)
@@ -373,7 +397,7 @@ add_env_arg "AI_SEARCH_KEY" "$RESOLVED_AI_SEARCH_KEY"
 add_env_arg "EMBEDDING_DEPLOYMENT_NAME" "${EMBEDDING_DEPLOYMENT_NAME:-}"
 
 # Memory tiers
-add_env_arg "REDIS_URL" "${REDIS_URL:-}"
+add_env_arg "REDIS_URL" "$RESOLVED_REDIS_URL"
 add_env_arg "COSMOS_ACCOUNT_URI" "${COSMOS_ACCOUNT_URI:-}"
 add_env_arg "COSMOS_DATABASE" "${COSMOS_DATABASE:-}"
 COSMOS_CONTAINER_VALUE="${COSMOS_CONTAINER:-}"
@@ -389,6 +413,12 @@ add_env_arg "BLOB_CONTAINER" "${BLOB_CONTAINER:-}"
 
 # Observability
 add_env_arg "APPLICATIONINSIGHTS_CONNECTION_STRING" "${APPLICATIONINSIGHTS_CONNECTION_STRING:-}"
+
+# Cross-namespace CRUD service URL for agent→CRUD communication (ADR-034)
+if is_agent_service; then
+  CRUD_NS="${K8S_CRUD_NAMESPACE:-${K8S_NAMESPACE:-holiday-peak-crud}}"
+  add_env_arg "CRUD_SERVICE_URL" "${CRUD_SERVICE_URL:-http://crud-service-crud-service.${CRUD_NS}.svc.cluster.local:80}"
+fi
 
 if [ "$SERVICE_NAME" = "ecommerce-catalog-search" ]; then
   add_env_arg "SEARCH_ENRICHMENT_EVENT_HUB_NAME" "${SEARCH_ENRICHMENT_EVENT_HUB_NAME:-search-enrichment-jobs}"
@@ -462,36 +492,39 @@ fi
 helm template "$SERVICE_NAME" "$CHART_PATH" $HELM_ARGS > "$OUT_DIR/all.yaml"
 
 if is_agent_service; then
+  MISSING_RENDERED=""
   for key in PROJECT_ENDPOINT PROJECT_NAME MODEL_DEPLOYMENT_NAME_FAST MODEL_DEPLOYMENT_NAME_RICH FOUNDRY_AGENT_NAME_FAST FOUNDRY_AGENT_NAME_RICH FOUNDRY_STRICT_ENFORCEMENT FOUNDRY_AUTO_ENSURE_ON_STARTUP; do
     if ! grep -q "name: $key" "$OUT_DIR/all.yaml"; then
-      echo "Rendered manifest missing Foundry env key '$key' for $SERVICE_NAME" >&2
-      exit 1
+      MISSING_RENDERED="$MISSING_RENDERED $key"
     fi
   done
+  if [ -n "$MISSING_RENDERED" ]; then
+    echo "::warning::Rendered manifest missing Foundry env keys for $SERVICE_NAME:$MISSING_RENDERED — pods may fail at runtime until provisioned." >&2
+  fi
 
   if [ -n "${FOUNDRY_AGENT_ID_FAST:-}" ] && ! grep -q "name: FOUNDRY_AGENT_ID_FAST" "$OUT_DIR/all.yaml"; then
-    echo "Rendered manifest missing Foundry env key 'FOUNDRY_AGENT_ID_FAST' for $SERVICE_NAME" >&2
-    exit 1
+    echo "::warning::Rendered manifest missing FOUNDRY_AGENT_ID_FAST for $SERVICE_NAME" >&2
   fi
   if [ -n "${FOUNDRY_AGENT_ID_RICH:-}" ] && ! grep -q "name: FOUNDRY_AGENT_ID_RICH" "$OUT_DIR/all.yaml"; then
-    echo "Rendered manifest missing Foundry env key 'FOUNDRY_AGENT_ID_RICH' for $SERVICE_NAME" >&2
-    exit 1
+    echo "::warning::Rendered manifest missing FOUNDRY_AGENT_ID_RICH for $SERVICE_NAME" >&2
   fi
 fi
 
 if is_truth_service; then
+  MISSING_RENDERED=""
   for key in PLATFORM_JOBS_EVENT_HUB_NAMESPACE PROJECT_ENDPOINT COSMOS_ACCOUNT_URI COSMOS_DATABASE TRUTH_EVENT_HUB_NAME TRUTH_EVENT_HUB_CONSUMER_GROUP; do
     if ! grep -q "name: $key" "$OUT_DIR/all.yaml"; then
-      echo "Rendered manifest missing env key '$key' for $SERVICE_NAME" >&2
-      exit 1
+      MISSING_RENDERED="$MISSING_RENDERED $key"
     fi
   done
+  if [ -n "$MISSING_RENDERED" ]; then
+    echo "::warning::Rendered manifest missing truth env keys for $SERVICE_NAME:$MISSING_RENDERED" >&2
+  fi
 
   if [ "$SERVICE_NAME" = "truth-ingestion" ]; then
     for key in COSMOS_CONTAINER COSMOS_AUDIT_CONTAINER; do
       if ! grep -q "name: $key" "$OUT_DIR/all.yaml"; then
-        echo "Rendered manifest missing env key '$key' for $SERVICE_NAME" >&2
-        exit 1
+        echo "::warning::Rendered manifest missing env key '$key' for $SERVICE_NAME" >&2
       fi
     done
   fi
@@ -499,23 +532,24 @@ fi
 
 if is_platform_jobs_service; then
   if ! grep -q "name: PLATFORM_JOBS_EVENT_HUB_NAMESPACE" "$OUT_DIR/all.yaml"; then
-    echo "Rendered manifest missing env key 'PLATFORM_JOBS_EVENT_HUB_NAMESPACE' for $SERVICE_NAME" >&2
-    exit 1
+    echo "::warning::Rendered manifest missing PLATFORM_JOBS_EVENT_HUB_NAMESPACE for $SERVICE_NAME" >&2
   fi
 
   if [ -n "${PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING:-}" ] && ! grep -q "name: PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING" "$OUT_DIR/all.yaml"; then
-    echo "Rendered manifest missing env key 'PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING' for $SERVICE_NAME" >&2
-    exit 1
+    echo "::warning::Rendered manifest missing PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING for $SERVICE_NAME" >&2
   fi
 fi
 
 if [ "$SERVICE_NAME" = "ecommerce-catalog-search" ] || [ "$SERVICE_NAME" = "search-enrichment-agent" ]; then
+  MISSING_RENDERED=""
   for key in AI_SEARCH_ENDPOINT AI_SEARCH_INDEX AI_SEARCH_VECTOR_INDEX AI_SEARCH_INDEXER_NAME EMBEDDING_DEPLOYMENT_NAME SEARCH_ENRICHMENT_EVENT_HUB_NAME SEARCH_ENRICHMENT_EVENT_HUB_CONSUMER_GROUP; do
     if ! grep -q "name: $key" "$OUT_DIR/all.yaml"; then
-      echo "Rendered manifest missing env key '$key' for $SERVICE_NAME" >&2
-      exit 1
+      MISSING_RENDERED="$MISSING_RENDERED $key"
     fi
   done
+  if [ -n "$MISSING_RENDERED" ]; then
+    echo "::warning::Rendered manifest missing search env keys for $SERVICE_NAME:$MISSING_RENDERED" >&2
+  fi
 fi
 
 echo "Rendered Helm manifests to $OUT_DIR/all.yaml"

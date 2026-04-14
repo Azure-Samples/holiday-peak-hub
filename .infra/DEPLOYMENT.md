@@ -10,7 +10,8 @@ Comprehensive deployment guide for Holiday Peak Hub infrastructure.
 
 | Tool | Version | Purpose |
 |------|---------|---------|
-| [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) | ≥ 2.60 | Azure resource management |
+| [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) | ≥ 2.67 | Azure resource management |
+| [Azure CLI `alb` extension](https://learn.microsoft.com/cli/azure/network/alb) | latest | AGC (Application Gateway for Containers) management — install with `az extension add --name alb` |
 | [azd](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd) | ≥ 1.10 | Provisioning + deployment |
 | [Bicep CLI](https://learn.microsoft.com/azure/azure-resource-manager/bicep/install) | ≥ 0.30 | Infrastructure-as-code (bundled with Azure CLI) |
 azd env set deployShared true -e <environment>
@@ -139,6 +140,8 @@ If `agcSupportEnabled` is enabled for the environment, the shared stack also pro
 
 During `azd provision`, the `postprovision` hook installs the ALB controller Helm chart and validates that GatewayClass `azure-alb-external` is present. No `ApplicationLoadBalancer` or workload route is created in this step.
 
+> **Note**: The CI/CD pipeline's output recovery step uses `az network alb frontend list` to query AGC frontend hostnames. This requires the Azure CLI `alb` extension (`az extension add --name alb --only-show-errors`). The extension is GA and requires Azure CLI ≥ 2.67.
+
 **Private endpoints** are created for: ACR, Cosmos DB, Redis, Storage, Event Hubs, Key Vault, AI Services.
 
 ### Step 2: Provision Static Web App
@@ -252,7 +255,7 @@ python cli.py deploy-all --location eastus2
 
 ## Service Inventory
 
-### 22 Deployable Services
+### 28 Deployable Services
 
 | # | Service | Domain | Type |
 |---|---------|--------|------|
@@ -278,12 +281,12 @@ python cli.py deploy-all --location eastus2
 | 20 | product-management-assortment-optimization | Product Mgmt | Agent |
 | 21 | product-management-consistency-validation | Product Mgmt | Agent |
 | 22 | product-management-normalization-classification | Product Mgmt | Agent |
-
-### Frontend
-
-| Service | Type | Hosting |
-|---------|------|---------|
-| ui | Next.js 15 | Azure Static Web Apps |
+| 23 | search-enrichment-agent | Search | Agent |
+| 24 | truth-enrichment | Truth Layer | Agent |
+| 25 | truth-export | Truth Layer | Agent |
+| 26 | truth-hitl | Truth Layer | Agent |
+| 27 | truth-ingestion | Truth Layer | Agent |
+| 28 | ui | Frontend | Next.js 15 (Azure Static Web Apps) |
 
 ---
 

@@ -2,7 +2,7 @@
 
 **Issue**: [#372](https://github.com/Azure-Samples/holiday-peak-hub/issues/372)  
 **Owner**: Platform Quality / Platform Engineering  
-**Last Updated**: 2026-03-19
+**Last Updated**: 2026-04-12
 
 ## Baseline Evidence
 

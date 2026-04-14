@@ -86,24 +86,28 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 - ACR login in tested-image build jobs must use the OIDC Azure CLI session and bounded retry with actionable failure text to absorb ARM-to-data-plane RBAC propagation delay; admin-user and static registry credentials are prohibited.
 - Push-event changed-service detection must diff `${{ github.event.before }}...${{ github.sha }}` to avoid empty comparisons against `origin/main` after merge.
 - APIM sync/smoke checks for API path health after relevant changes.
-- Deployment workflows must validate AGC GatewayClass readiness and direct CRUD `/health` reachability on the approved AGC frontend hostname before APIM sync.
+- Deployment workflows must validate AGC GatewayClass readiness and direct CRUD `/ready` reachability on the approved AGC frontend hostname before APIM sync so PostgreSQL, Redis, and Cosmos dependency regressions fail rollout validation.
 - APIM sync determinism is required: ingress sync must resolve against an explicit AGC target in workflow execution.
 - APIM smoke coverage must include direct AGC CRUD health, APIM CRUD health, CRUD CORS preflight behavior, and at least one negative CRUD path that proves failures are not masked as upstream 5xx responses.
 - Transitional workflow or manifest logic may still detect legacy ingress classes during migration, but AGC is the canonical target state and must take precedence in governance and cutover planning.
 - APIM sync filtering must always include `crud-service` when CRUD sync is enabled, even under changed-services filtering.
 - For AGC-backed CRUD routing, ingress must expose app-native paths (`/health`, `/api`) and APIM CRUD backend must target the AGC listener root with no workload-specific suffix.
 - Path translation must not be split across AGC and APIM for CRUD. APIM keeps health rewrite (`/api/health -> /health`), while `/api/*` routes are forwarded as-is.
+- Helm render hooks must not inject a passwordless `REDIS_URL` when `REDIS_HOST` is available for deployed services; that contract would bypass the runtime Key Vault resolution path for Redis credentials and can surface false-ready process health with broken hot-memory access.
 - Agent-service deployments must enforce the Foundry runtime contract end to end: workflow intent currently requires `FOUNDRY_STRICT_ENFORCEMENT=true` and `FOUNDRY_AUTO_ENSURE_ON_STARTUP=true`, render hooks must emit both keys into Helm output, and the post-deploy gate must compare workflow intent, rendered manifests, live Deployment env values, `POST /foundry/agents/ensure`, and live `/ready` behavior for each changed agent service.
 - A changed agent service is a hard deployment failure when any Foundry contract seam drifts: missing rendered keys, rendered-versus-live env mismatch, ensure responses without resolved `fast` and `rich` agent ids, or `/ready` responses that remain healthy while the strict Foundry contract is not actually enforced.
 - During migration, legacy AGIC or Web App Routing configuration may exist only as transitional state and must not be described as the target architecture.
 - Optional UI-only deployment path constrained by SWA token flow and health checks.
 - ACR runner-IP allowlist exceptions may be applied/removed automatically when enabled.
 - If the environment ACR public endpoint is disabled, the tested-image build guard must temporarily enable public access with `defaultAction=Deny`, reuse the runner-IP allowlist flow, and restore the prior `publicNetworkAccess` and `networkRuleSet.defaultAction` after the build phase completes.
+- When restoring ACR access state, `defaultAction` validation must be skipped if `publicNetworkAccess` is being set to `Disabled` — Azure may report any `defaultAction` value when public access is off and the value is semantically irrelevant.
+- When `azd provision` fails with `RoleAssignmentExists` in a non-prod environment, the infrastructure is typically deployed successfully but azd does not write outputs. The workflow must run `azd env refresh` after this fallback to populate outputs (POSTGRES_HOST, COSMOS_ACCOUNT_URI, etc.) from the deployed resources.
 
 ## Data Connectivity Guardrails
 
-- For CRUD PostgreSQL Entra mode, `POSTGRES_USER` must be a workload identity principal (for example AKS agentpool principal), not admin login `crud_admin`.
+- For CRUD PostgreSQL Entra mode, `POSTGRES_USER` must be the CRUD workload identity principal name (for example `holidaypeakhub405-dev-crud-identity`), not admin login `crud_admin`.
 - CRUD env-generation hooks must normalize invalid/missing Entra users to the environment-derived AKS principal name before manifest rendering.
+- Shared-infrastructure PostgreSQL auth policy must be set explicitly from `POSTGRES_AUTH_MODE`; deploy workflows must fail before CRUD rollout if the live Flexible Server auth config drifts from the configured runtime mode.
 
 ## Observability and Operational Policy
 

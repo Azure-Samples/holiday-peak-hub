@@ -1,6 +1,6 @@
 [project]
 name = "holiday-peak-lib"
-version = "0.2.0"
+version = "0.2.1"
 description = "Core micro-framework for retail agent adapters, agents, and memory tiers"
 authors = [
     {name = "Ricardo Cataldi", email = "rcataldi@microsoft.com"}
@@ -13,7 +13,7 @@ dependencies = [
     "uvicorn",
     "pydantic>=2",
     "pydantic-settings>=2",
-    "agent-framework",
+    "agent-framework>=1.0.1",
     "httpx",
     "azure-ai-projects>=2.0.0b4",
     "azure-identity",
