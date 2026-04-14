@@ -64,7 +64,8 @@ jobs:
       uiOnly: false
       apiBaseUrl: ''
       deployChangedOnly: true
-      forceApimSync: true
+      skipProvision: true
+      forceApimSync: false
       autoAllowAcrRunnerIp: false
     secrets:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
