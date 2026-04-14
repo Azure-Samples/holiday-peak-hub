@@ -234,3 +234,43 @@ Use Azure DevOps instead of GitHub Actions.
 
 - [ADR-002: Azure Services](adr-002-azure-services.md) — Service stack selection
 - [ADR-009: AKS Deployment](adr-009-aks-deployment.md) — AKS, Helm, and KEDA details
+
+## Operational Recovery
+
+### Output Recovery Mechanism
+
+When ARM deployment state is `Failed` (e.g. `RoleAssignmentExists` conflicts mark the
+deployment as Failed despite all resources being fully provisioned), `azd env refresh`
+returns no values. The `Validate and recover provisioned outputs` step in `deploy-azd.yml`
+queries Azure directly for missing outputs.
+
+**Recovered resource categories** (ordered as in the workflow):
+
+| Category | Keys recovered | Recovery method |
+|----------|---------------|-----------------|
+| PostgreSQL | `POSTGRES_HOST`, `POSTGRES_ADMIN_USER`, `POSTGRES_DATABASE`, `POSTGRES_AUTH_MODE`, `POSTGRES_USER` | `az postgres flexible-server list` |
+| Cosmos DB | `COSMOS_ACCOUNT_URI`, `COSMOS_DATABASE` | `az cosmosdb list` |
+| Key Vault | `KEY_VAULT_URI` | `az keyvault list` |
+| Redis | `REDIS_HOST` | `az redis list` |
+| Event Hubs | `EVENT_HUB_NAMESPACE` | `az eventhubs namespace list` |
+| App Insights | `APPLICATIONINSIGHTS_CONNECTION_STRING` | `az monitor app-insights component list` |
+| Storage | `BLOB_ACCOUNT_URL` | `az storage account list` |
+| AI Search | `AI_SEARCH_NAME`, `AI_SEARCH_ENDPOINT`, `AI_SEARCH_INDEX`, `AI_SEARCH_VECTOR_INDEX`, `AI_SEARCH_INDEXER_NAME`, `EMBEDDING_DEPLOYMENT_NAME`, `AI_SEARCH_AUTH_MODE` | `az search service list` + defaults |
+| AI Services | `AI_SERVICES_NAME` | `az cognitiveservices account list` |
+| AI Project | `PROJECT_NAME`, `PROJECT_ENDPOINT` | `az resource list` + naming convention |
+| **AGC** | `AGC_SUPPORT_ENABLED`, `AGC_GATEWAY_CLASS`, `AGC_FRONTEND_REFERENCE`, `AGC_CONTROLLER_DEPLOYMENT_MODE`, `AGC_SUBNET_ID`, `AGC_CONTROLLER_IDENTITY_NAME`, `AGC_CONTROLLER_IDENTITY_CLIENT_ID`, `AGC_FRONTEND_HOSTNAME` | `az network vnet subnet show`, `az identity show`, `az network alb list/frontend list` |
+
+**AGC recovery notes**:
+- Requires `alb` CLI extension (`az extension add --name alb`)
+- `AGC_FRONTEND_HOSTNAME` may be empty if the ALB controller has not yet reconciled; treated as non-fatal
+- Deterministic keys (`AGC_GATEWAY_CLASS`, `AGC_FRONTEND_REFERENCE`, `AGC_CONTROLLER_DEPLOYMENT_MODE`) are hardcoded constants
+
+### RoleAssignment Idempotency
+
+Standalone `RoleAssignment` resources in `shared-infrastructure.bicep` can produce
+`RoleAssignmentExists` conflicts on re-deployment, marking the ARM deployment as `Failed`.
+Mitigations:
+- 4 workload identity → AI Services role assignments use empty-principal guards (`if (!empty(...))`)
+- 2 AI Search → Cosmos roles remain standalone due to circular dependency (AI Search principal from AI Foundry)
+- All ARM-API role assignments specify `principalType: 'ServicePrincipal'` to prevent AAD graph race conditions
+- `guid()` seeds must remain stable across deployments — verify with `az deployment sub what-if` before changing
