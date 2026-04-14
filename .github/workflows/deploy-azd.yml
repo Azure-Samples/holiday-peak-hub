@@ -1635,6 +1635,7 @@ jobs:
             --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
             --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
             --overwrite-existing
+          kubelogin convert-kubeconfig -l azurecli
 
       - name: Verify AKS API connectivity
         shell: bash
@@ -2284,12 +2285,25 @@ jobs:
           tenant-id: ${{ env.AZURE_TENANT_ID }}
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Install kubelogin
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if az aks install-cli --kubelogin-version latest; then
+              exit 0
+            fi
+            echo "kubelogin install failed on attempt ${attempt}; retrying..."
+            sleep 15
+          done
+          echo "kubelogin install failed after retries"
+          exit 1
+
       - name: Get AKS credentials
         run: |
           az aks get-credentials \
             --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
             --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
             --overwrite-existing
+          kubelogin convert-kubeconfig -l azurecli
 
       - name: Verify AKS API connectivity
         shell: bash
@@ -2401,7 +2415,7 @@ jobs:
 
   commit-rendered-manifests:
     runs-on: ubuntu-latest
-    if: ${{ !inputs.uiOnly && (needs.deploy-crud.result == 'success' || needs.deploy-agents.result == 'success') }}
+    if: ${{ always() && !cancelled() && !inputs.uiOnly && (needs.deploy-crud.result == 'success' || needs.deploy-agents.result == 'success') }}
     needs:
       - detect-changes
       - provision
@@ -2468,12 +2482,25 @@ jobs:
           tenant-id: ${{ env.AZURE_TENANT_ID }}
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Install kubelogin
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if az aks install-cli --kubelogin-version latest; then
+              exit 0
+            fi
+            echo "kubelogin install failed on attempt ${attempt}; retrying..."
+            sleep 15
+          done
+          echo "kubelogin install failed after retries"
+          exit 1
+
       - name: Get AKS credentials
         run: |
           az aks get-credentials \
             --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
             --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
             --overwrite-existing
+          kubelogin convert-kubeconfig -l azurecli
 
       - name: Trigger Flux reconciliation
         shell: bash
@@ -2546,7 +2573,7 @@ jobs:
 
   validate-agc-readiness:
     runs-on: ubuntu-latest
-    if: ${{ !inputs.uiOnly && (inputs.forceApimSync || needs.detect-changes.outputs.changed_agent_services_csv != '' || needs.detect-changes.outputs.crud_changed == 'true' || needs.detect-changes.outputs.ui_changed == 'true') && (needs.deploy-crud.result == 'success' || needs.deploy-crud.result == 'skipped') && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') }}
+    if: ${{ always() && !cancelled() && !inputs.uiOnly && (inputs.forceApimSync || needs.detect-changes.outputs.changed_agent_services_csv != '' || needs.detect-changes.outputs.crud_changed == 'true' || needs.detect-changes.outputs.ui_changed == 'true') && (needs.deploy-crud.result == 'success' || needs.deploy-crud.result == 'skipped') && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') }}
     needs:
       - provision
       - deploy-crud
@@ -2614,12 +2641,25 @@ jobs:
           echo "agc_gateway_class=$AGC_GATEWAY_CLASS_VALUE" >> "$GITHUB_OUTPUT"
           echo "agc_frontend_url=${AGC_FRONTEND_SCHEME_VALUE}://${AGC_FRONTEND_HOST_VALUE}" >> "$GITHUB_OUTPUT"
 
+      - name: Install kubelogin
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if az aks install-cli --kubelogin-version latest; then
+              exit 0
+            fi
+            echo "kubelogin install failed on attempt ${attempt}; retrying..."
+            sleep 15
+          done
+          echo "kubelogin install failed after retries"
+          exit 1
+
       - name: Get AKS credentials
         run: |
           az aks get-credentials \
             --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
             --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
             --overwrite-existing
+          kubelogin convert-kubeconfig -l azurecli
 
       - name: Verify AKS API connectivity
         shell: bash
@@ -2672,7 +2712,7 @@ jobs:
 
   sync-apim:
     runs-on: ubuntu-latest
-    if: ${{ !inputs.uiOnly && (inputs.forceApimSync || needs.detect-changes.outputs.changed_agent_services_csv != '' || needs.detect-changes.outputs.crud_changed == 'true' || needs.detect-changes.outputs.ui_changed == 'true') && (needs.deploy-crud.result == 'success' || needs.deploy-crud.result == 'skipped') && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') && needs.validate-agc-readiness.result == 'success' }}
+    if: ${{ always() && !cancelled() && !inputs.uiOnly && (inputs.forceApimSync || needs.detect-changes.outputs.changed_agent_services_csv != '' || needs.detect-changes.outputs.crud_changed == 'true' || needs.detect-changes.outputs.ui_changed == 'true') && (needs.deploy-crud.result == 'success' || needs.deploy-crud.result == 'skipped') && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') && needs.validate-agc-readiness.result == 'success' }}
     needs:
       - deploy-crud
       - deploy-agents
@@ -2698,12 +2738,25 @@ jobs:
           tenant-id: ${{ env.AZURE_TENANT_ID }}
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Install kubelogin
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if az aks install-cli --kubelogin-version latest; then
+              exit 0
+            fi
+            echo "kubelogin install failed on attempt ${attempt}; retrying..."
+            sleep 15
+          done
+          echo "kubelogin install failed after retries"
+          exit 1
+
       - name: Get AKS credentials
         run: |
           az aks get-credentials \
             --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
             --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
             --overwrite-existing
+          kubelogin convert-kubeconfig -l azurecli
 
       - name: Verify AKS API connectivity
         shell: bash
@@ -2732,7 +2785,7 @@ jobs:
 
   sync-apic:
     runs-on: ubuntu-latest
-    if: ${{ !inputs.uiOnly && (inputs.forceApimSync || needs.detect-changes.outputs.changed_agent_services_csv != '' || needs.detect-changes.outputs.crud_changed == 'true') && (needs.sync-apim.result == 'success' || needs.sync-apim.result == 'skipped') }}
+    if: ${{ always() && !cancelled() && !inputs.uiOnly && (inputs.forceApimSync || needs.detect-changes.outputs.changed_agent_services_csv != '' || needs.detect-changes.outputs.crud_changed == 'true') && (needs.sync-apim.result == 'success' || needs.sync-apim.result == 'skipped') }}
     needs:
       - detect-changes
       - sync-apim
@@ -2761,7 +2814,7 @@ jobs:
 
   smoke-apim:
     runs-on: ubuntu-latest
-    if: ${{ !inputs.uiOnly && (inputs.forceApimSync || needs.detect-changes.outputs.changed_agent_services_csv != '' || needs.detect-changes.outputs.crud_changed == 'true' || needs.detect-changes.outputs.ui_changed == 'true') && needs.validate-agc-readiness.result == 'success' && (needs.sync-apim.result == 'success' || needs.sync-apim.result == 'skipped') && (needs.ensure-foundry-agents.result == 'success' || needs.ensure-foundry-agents.result == 'skipped') }}
+    if: ${{ always() && !cancelled() && !inputs.uiOnly && (inputs.forceApimSync || needs.detect-changes.outputs.changed_agent_services_csv != '' || needs.detect-changes.outputs.crud_changed == 'true' || needs.detect-changes.outputs.ui_changed == 'true') && needs.validate-agc-readiness.result == 'success' && (needs.sync-apim.result == 'success' || needs.sync-apim.result == 'skipped') && (needs.ensure-foundry-agents.result == 'success' || needs.ensure-foundry-agents.result == 'skipped') }}
     needs:
       - detect-changes
       - sync-apim
@@ -2997,7 +3050,7 @@ jobs:
 
   ensure-foundry-agents:
     runs-on: ubuntu-latest
-    if: ${{ !inputs.uiOnly && needs.detect-changes.outputs.changed_agent_services_csv != '' && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') }}
+    if: ${{ always() && !cancelled() && !inputs.uiOnly && needs.detect-changes.outputs.changed_agent_services_csv != '' && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') }}
     needs:
       - deploy-agents
       - detect-changes
@@ -3024,12 +3077,25 @@ jobs:
         with:
           python-version: '3.13'
 
+      - name: Install kubelogin
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if az aks install-cli --kubelogin-version latest; then
+              exit 0
+            fi
+            echo "kubelogin install failed on attempt ${attempt}; retrying..."
+            sleep 15
+          done
+          echo "kubelogin install failed after retries"
+          exit 1
+
       - name: Get AKS credentials
         run: |
           az aks get-credentials \
             --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
             --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
             --overwrite-existing
+          kubelogin convert-kubeconfig -l azurecli
 
       - name: Verify AKS API connectivity
         shell: bash
