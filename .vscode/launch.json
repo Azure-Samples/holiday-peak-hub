@@ -417,6 +417,66 @@
         "PYTHONPATH": "${workspaceFolder}/lib/src"
       },
       "jinja": true
+    },
+    {
+      "name": "UI: Next.js (Server + Client)",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/apps/ui",
+      "runtimeExecutable": "yarn",
+      "runtimeArgs": ["dev"],
+      "console": "integratedTerminal",
+      "serverReadyAction": {
+        "pattern": "- Local:.+(https?://.+)",
+        "uriFormat": "%s",
+        "action": "debugWithEdge"
+      },
+      "skipFiles": [
+        "<node_internals>/**",
+        "${workspaceFolder}/apps/ui/node_modules/**"
+      ]
+    },
+    {
+      "name": "UI: Next.js Client (attach)",
+      "type": "msedge",
+      "request": "launch",
+      "url": "http://localhost:3000",
+      "webRoot": "${workspaceFolder}/apps/ui",
+      "sourceMaps": true,
+      "sourceMapPathOverrides": {
+        "webpack://_N_E/*": "${workspaceFolder}/apps/ui/*"
+      },
+      "skipFiles": [
+        "<node_internals>/**",
+        "${workspaceFolder}/apps/ui/node_modules/**"
+      ]
+    },
+    {
+      "name": "UI: Jest Tests (current file)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "yarn",
+      "runtimeArgs": ["test", "--", "--runInBand", "${relativeFile}"],
+      "cwd": "${workspaceFolder}/apps/ui",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "UI: Jest Tests (all)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "yarn",
+      "runtimeArgs": ["test", "--", "--runInBand"],
+      "cwd": "${workspaceFolder}/apps/ui",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "UI: Playwright E2E (headed)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "yarn",
+      "runtimeArgs": ["test:e2e", "--headed"],
+      "cwd": "${workspaceFolder}/apps/ui",
+      "console": "integratedTerminal"
     }
   ]
 }
