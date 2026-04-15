@@ -22,7 +22,7 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 
 ### Core policy
 
-- **azd-first deployment is mandatory** (ADR-021). Routine update entrypoints use image-only deploys by default: they set `skipProvision=true`, reuse already-provisioned infrastructure, and skip only `azd provision`. Explicit infrastructure reconciliation remains opt-in.
+- **azd-first deployment is mandatory** (ADR-021). The only approved exception is the manual dev emergency redeploy path in `deploy-azd-dev.yml` with `skipProvision=true`, which reuses already-provisioned infrastructure and skips only `azd provision`.
 - Reusable workflow `deploy-azd.yml` is not the primary operator entrypoint; use env-specific entrypoint workflows.
 - OIDC Azure login is required in CI/CD; no static cloud credentials committed to repository.
 - Provisioning must fail fast when `projectName` is not `holidaypeakhub405` or when `resourceGroupName`/`AZURE_RESOURCE_GROUP` are not `holidaypeakhub405-<environment>-rg`; this is enforced through azd `preprovision` hooks.
@@ -38,10 +38,10 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 | Main lineage gate | Not required | Required: tagged commit must be reachable from `main` | N/A |
 | Demo data seeding mode | Local/manual only (not part of CI deploy) | Local/manual only | Local/manual only |
 | Changed-only deployment | Enabled | Enabled | N/A |
-| Skip-provision update mode | Default for routine `workflow_run` and `workflow_dispatch` code updates on `deploy-azd-dev.yml`; set `skipProvision=false` only when explicit infrastructure reconciliation is required. May optionally set `serviceFilter` to scope AKS services | Enabled by default in `deploy-azd-prod.yml` tag updates; infrastructure reconciliation is not part of the release update path | Would follow the same image-only update policy if introduced |
-| Force APIM sync default | `false` | `false` | N/A |
+| Manual skip-provision redeploy | Allowed only through `workflow_dispatch` on `deploy-azd-dev.yml` for already-provisioned infrastructure; may optionally set `serviceFilter` to scope AKS services | Not exposed | Not exposed |
+| Force APIM sync default | `true` | `true` | N/A |
 | Auto allow ACR runner IP | `true` default | `false` default | N/A |
-| Non-prod drift remediation | Disabled in the normal update path; use explicit infrastructure reconciliation when drift must be addressed | Disabled | Would be treated the same if introduced |
+| Non-prod drift remediation | Enabled | Disabled | Would be treated as non-prod if introduced |
 
 ### Workflow deduplication policy
 
@@ -80,12 +80,13 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 - Before `build-aks-images` runs, the reusable deploy workflow must verify or create `AcrPush` for the OIDC deploy principal at the environment ACR scope.
 - AKS service deployment must build or resolve immutable per-SHA images first, then render/apply manifests pinned by digest (`repo@sha256:...`); deploy jobs must not rebuild service images during manifest rollout.
 - Changed-service detection to reduce blast radius and deployment duration.
-- Image-only update entrypoints may set `serviceFilter` to scope AKS rollout to a comma-separated subset of already-defined services; services outside the filter remain untouched.
+- Manual dev emergency redeploys may set `serviceFilter` to scope AKS rollout to a comma-separated subset of already-defined services; services outside the filter remain untouched.
 - Reusable deploy workflows must accept an explicit tested source SHA/ref and use that checkout consistently across detection, build, render, sync, and validation jobs.
-- When an update entrypoint sets `skipProvision=true`, the reusable deploy workflow may skip only the `azd provision` step. OIDC login, azd auth/context setup, AKS/ACR/Key Vault role guards, azd env output export, image build, deploy, Foundry ensure, and downstream health gates must remain active.
+- When the dev entrypoint explicitly sets `skipProvision=true`, the reusable deploy workflow may skip only the `azd provision` step. OIDC login, azd auth/context setup, AKS/ACR/Key Vault role guards, azd env output export, image build, deploy, Foundry ensure, and downstream smoke/deploy gates must remain active.
 - ACR login in tested-image build jobs must use the OIDC Azure CLI session and bounded retry with actionable failure text to absorb ARM-to-data-plane RBAC propagation delay; admin-user and static registry credentials are prohibited.
 - Push-event changed-service detection must diff `${{ github.event.before }}...${{ github.sha }}` to avoid empty comparisons against `origin/main` after merge.
-- APIM sync/smoke checks are explicit reconciliation actions triggered when an entrypoint sets `forceApimSync=true`; when active, deployment workflows must validate AGC GatewayClass readiness and direct CRUD `/ready` reachability on the approved AGC frontend hostname before APIM sync so PostgreSQL, Redis, and Cosmos dependency regressions fail rollout validation.
+- APIM sync/smoke checks for API path health after relevant changes.
+- Deployment workflows must validate AGC GatewayClass readiness and direct CRUD `/ready` reachability on the approved AGC frontend hostname before APIM sync so PostgreSQL, Redis, and Cosmos dependency regressions fail rollout validation.
 - APIM sync determinism is required: ingress sync must resolve against an explicit AGC target in workflow execution.
 - APIM smoke coverage must include direct AGC CRUD health, APIM CRUD health, CRUD CORS preflight behavior, and at least one negative CRUD path that proves failures are not masked as upstream 5xx responses.
 - Transitional workflow or manifest logic may still detect legacy ingress classes during migration, but AGC is the canonical target state and must take precedence in governance and cutover planning.
@@ -95,7 +96,6 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 - Helm render hooks must not inject a passwordless `REDIS_URL` when `REDIS_HOST` is available for deployed services; that contract would bypass the runtime Key Vault resolution path for Redis credentials and can surface false-ready process health with broken hot-memory access.
 - Agent-service deployments must enforce the Foundry runtime contract end to end: workflow intent currently requires `FOUNDRY_STRICT_ENFORCEMENT=true` and `FOUNDRY_AUTO_ENSURE_ON_STARTUP=true`, render hooks must emit both keys into Helm output, and the post-deploy gate must compare workflow intent, rendered manifests, live Deployment env values, `POST /foundry/agents/ensure`, and live `/ready` behavior for each changed agent service.
 - A changed agent service is a hard deployment failure when any Foundry contract seam drifts: missing rendered keys, rendered-versus-live env mismatch, ensure responses without resolved `fast` and `rich` agent ids, or `/ready` responses that remain healthy while the strict Foundry contract is not actually enforced.
-- Foundry model deployment is not part of the normal image-only update path; run it only during explicit reconciliation when changed agent services require model or project updates.
 - During migration, legacy AGIC or Web App Routing configuration may exist only as transitional state and must not be described as the target architecture.
 - Optional UI-only deployment path constrained by SWA token flow and health checks.
 - ACR runner-IP allowlist exceptions may be applied/removed automatically when enabled.

@@ -72,7 +72,7 @@ on:
         type: string
         default: ''
       skipProvision:
-        description: Skip azd provision and reuse the current azd environment plus existing infrastructure for image-only code updates
+        description: Skip azd provision and reuse the current azd environment plus existing infrastructure for an emergency redeploy
         required: false
         type: boolean
         default: false
@@ -690,7 +690,7 @@ jobs:
 
           echo "Event Hub and consumer group declarations are present in IaC."
 
-      - name: Validate image-only update mode
+      - name: Validate skip-provision mode
         if: ${{ inputs.skipProvision }}
         shell: bash
         run: |
@@ -702,7 +702,7 @@ jobs:
             echo "::warning::skipProvision is active but infrastructure files changed. Provisioning will be skipped. If you need infra reconciliation, rerun with skipProvision=false."
           fi
 
-          echo "skipProvision=true: reusing the current azd environment values and existing infrastructure for this image-only update."
+          echo "skipProvision=true: reusing the current azd environment values and existing infrastructure for this deploy."
 
       - name: Provision infrastructure
         if: ${{ !inputs.skipProvision }}
@@ -1657,10 +1657,10 @@ jobs:
 
   deploy-foundry-models:
     runs-on: ubuntu-latest
-    if: ${{ !inputs.uiOnly && !inputs.skipProvision && needs.detect-changes.outputs.agents_changed == 'true' }}
     needs:
       - provision
       - detect-changes
+    if: ${{ !inputs.skipProvision && needs.detect-changes.outputs.infra_changed == 'true' }}
     environment: ${{ inputs.environment }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -2671,7 +2671,7 @@ jobs:
 
   validate-agc-readiness:
     runs-on: ubuntu-latest
-    if: ${{ always() && !cancelled() && !inputs.uiOnly && inputs.forceApimSync && (needs.deploy-crud.result == 'success' || needs.deploy-crud.result == 'skipped') && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') }}
+    if: ${{ always() && !cancelled() && !inputs.uiOnly && (inputs.forceApimSync || needs.detect-changes.outputs.changed_agent_services_csv != '' || needs.detect-changes.outputs.crud_changed == 'true' || needs.detect-changes.outputs.ui_changed == 'true') && (needs.deploy-crud.result == 'success' || needs.deploy-crud.result == 'skipped') && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') }}
     needs:
       - provision
       - deploy-crud
@@ -2810,7 +2810,7 @@ jobs:
 
   sync-apim:
     runs-on: ubuntu-latest
-    if: ${{ always() && !cancelled() && !inputs.uiOnly && inputs.forceApimSync && (needs.deploy-crud.result == 'success' || needs.deploy-crud.result == 'skipped') && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') && needs.validate-agc-readiness.result == 'success' }}
+    if: ${{ always() && !cancelled() && !inputs.uiOnly && (inputs.forceApimSync || needs.detect-changes.outputs.changed_agent_services_csv != '' || needs.detect-changes.outputs.crud_changed == 'true' || needs.detect-changes.outputs.ui_changed == 'true') && (needs.deploy-crud.result == 'success' || needs.deploy-crud.result == 'skipped') && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') && needs.validate-agc-readiness.result == 'success' }}
     needs:
       - deploy-crud
       - deploy-agents
@@ -2821,7 +2821,7 @@ jobs:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      CHANGED_SERVICES: ${{ needs.detect-changes.outputs.changed_aks_services_csv }}
+      CHANGED_SERVICES: ${{ needs.detect-changes.outputs.changed_aks_services_csv != '' && needs.detect-changes.outputs.changed_aks_services_csv || (needs.detect-changes.outputs.ui_changed == 'true' && 'crud-service' || '') }}
       APIM_APPROVED_BACKEND_HOSTNAMES: ${{ needs.validate-agc-readiness.outputs.approved_backend_hostnames }}
       APIM_APPROVED_BACKEND_SCHEME: ${{ needs.validate-agc-readiness.outputs.approved_backend_scheme }}
     steps:
@@ -2912,7 +2912,7 @@ jobs:
 
   smoke-apim:
     runs-on: ubuntu-latest
-    if: ${{ always() && !cancelled() && !inputs.uiOnly && inputs.forceApimSync && needs.validate-agc-readiness.result == 'success' && (needs.sync-apim.result == 'success' || needs.sync-apim.result == 'skipped') && (needs.ensure-foundry-agents.result == 'success' || needs.ensure-foundry-agents.result == 'skipped') }}
+    if: ${{ always() && !cancelled() && !inputs.uiOnly && (inputs.forceApimSync || needs.detect-changes.outputs.changed_agent_services_csv != '' || needs.detect-changes.outputs.crud_changed == 'true' || needs.detect-changes.outputs.ui_changed == 'true') && needs.validate-agc-readiness.result == 'success' && (needs.sync-apim.result == 'success' || needs.sync-apim.result == 'skipped') && (needs.ensure-foundry-agents.result == 'success' || needs.ensure-foundry-agents.result == 'skipped') }}
     needs:
       - detect-changes
       - sync-apim

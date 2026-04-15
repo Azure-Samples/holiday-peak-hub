@@ -31,10 +31,10 @@ on:
         required: false
         default: ''
       skipProvision:
-        description: Reuse the current provisioned infrastructure and skip azd provision for normal code updates; set false only when infrastructure reconciliation is required
+        description: Skip azd provision and reuse the current dev infrastructure for a manual emergency redeploy
         required: true
         type: boolean
-        default: true
+        default: false
       serviceFilter:
         description: Optional comma-separated AKS service names to deploy (empty = all changed services)
         required: false
@@ -50,20 +50,10 @@ on:
         type: boolean
         default: false
       forceApimSync:
-        description: Explicitly force APIM sync and smoke checks during an image-only update
-        required: true
-        type: boolean
-        default: false
-      autoAllowAcrRunnerIp:
-        description: Temporarily allow GitHub runner egress IP in ACR firewall during deploy and remove it afterward
+        description: Force APIM sync and smoke checks even when no changed services are detected
         required: true
         type: boolean
         default: true
-      skipApiSmokeChecks:
-        description: Skip API smoke checks (use only for urgent UI-only rollouts)
-        required: true
-        type: boolean
-        default: false
 
 permissions:
   id-token: write
@@ -91,11 +81,11 @@ jobs:
       uiOnly: ${{ github.event_name == 'workflow_dispatch' && inputs.uiOnly }}
       apiBaseUrl: ''
       deployChangedOnly: true
-      skipProvision: ${{ github.event_name != 'workflow_dispatch' || inputs.skipProvision }}
+      skipProvision: ${{ github.event_name == 'workflow_dispatch' && inputs.skipProvision }}
       serviceFilter: ${{ github.event_name == 'workflow_dispatch' && inputs.serviceFilter || '' }}
       forceApimSync: ${{ github.event_name == 'workflow_dispatch' && inputs.forceApimSync }}
-      autoAllowAcrRunnerIp: ${{ github.event_name != 'workflow_dispatch' || inputs.autoAllowAcrRunnerIp }}
-      skipApiSmokeChecks: ${{ github.event_name == 'workflow_dispatch' && inputs.skipApiSmokeChecks }}
+      autoAllowAcrRunnerIp: true
+      skipApiSmokeChecks: false
     secrets:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}

@@ -16,7 +16,6 @@
 - AKS deployments migrated to Flux CD GitOps (PR #785 / ADR-033).
 - Self-healing epic complete (PR #771): incident lifecycle kernel, remediation policy, and audit trail across all agent surfaces.
 - CRUD Entra ID auth rollout contracts hardened (PR #776).
-- Update entrypoints now treat routine code updates as image-only deploys by default: they reuse already-provisioned infrastructure, skip `azd provision`, and leave APIM sync plus Foundry model deployment as explicit reconciliation actions instead of normal rollout side effects.
 - Validation status: **1796 tests passed** (1136 lib + 660 app), 0 failures.
 - 35 Architecture Decision Records (ADR-001 through ADR-035).
 
@@ -52,7 +51,7 @@ Use environment-specific entry workflows:
 - `.github/workflows/protected-dev-live-agent-readiness.yml` runs protected live validation against dev after successful `deploy-azd-dev` runs on `main`, or by explicit manual/scheduled execution through the `dev` environment boundary.
 - `.github/workflows/ci.yml` publishes GHCR images automatically for stable tags (`v*.*.*`) and can still be run manually for build/optional publish.
 
-> Routine update entrypoints now default to image-only deploys. They reuse the current azd environment values and already-provisioned infrastructure with `skipProvision=true`, while still running the reusable workflow's auth, guard, build, deploy, and health-validation paths. Explicit infrastructure reconciliation remains opt-in by setting `skipProvision=false` on the dev entrypoint.
+> Provisioning remains the default path for all automatic deploys and normal manual rollouts. The only approved exception is a manual dev emergency redeploy through `deploy-azd-dev.yml` with `skipProvision=true`, which reuses the current azd environment values and already-provisioned infrastructure while still running the reusable workflow's auth, guard, build, deploy, and smoke paths.
 
 **Required repository/environment secrets**:
 
@@ -76,22 +75,22 @@ Repository code establishes this environment-scoped secret boundary. The `dev` e
 - Day-to-day development rollout (recommended default):
 
 ```bash
-gh workflow run deploy-azd-dev.yml -f location=eastus2 -f projectName=holidaypeakhub405 -f imageTag=latest -f skipProvision=true -f deployStatic=true -f autoAllowAcrRunnerIp=true
+gh workflow run deploy-azd-dev.yml -f location=eastus2 -f projectName=holidaypeakhub405 -f imageTag=latest -f deployStatic=true -f autoAllowAcrRunnerIp=true
 ```
 
-- Development rerun that also reconciles infrastructure and APIM explicitly:
+- Fast development rerun without APIM sync:
 
 ```bash
-gh workflow run deploy-azd-dev.yml -f location=eastus2 -f projectName=holidaypeakhub405 -f imageTag=latest -f skipProvision=false -f forceApimSync=true -f deployStatic=true -f autoAllowAcrRunnerIp=true
+gh workflow run deploy-azd-dev.yml -f location=eastus2 -f projectName=holidaypeakhub405 -f imageTag=latest -f deployStatic=true -f forceApimSync=false -f autoAllowAcrRunnerIp=true
 ```
 
-- Manual dev image-only redeploy on already-provisioned infrastructure, scoped to a subset of AKS services:
+- Manual dev emergency redeploy on already-provisioned infrastructure, scoped to a subset of AKS services:
 
 ```bash
-gh workflow run deploy-azd-dev.yml -f location=eastus2 -f projectName=holidaypeakhub405 -f imageTag=latest -f skipProvision=true -f serviceFilter=ecommerce-catalog-search -f forceApimSync=false -f autoAllowAcrRunnerIp=true
+gh workflow run deploy-azd-dev.yml -f location=eastus2 -f projectName=holidaypeakhub405 -f imageTag=latest -f skipProvision=true -f serviceFilter=ecommerce-catalog-search -f forceApimSync=true -f autoAllowAcrRunnerIp=true
 ```
 
-Use this when dev infrastructure already exists and the immediate goal is to redeploy specific runtime changes without reconciling shared infrastructure or APIM configuration.
+Use this only when dev infrastructure already exists and the immediate goal is to redeploy specific runtime changes without reconciling shared infrastructure.
 
 - Production rollout (stable release tag + published GitHub Release):
 
@@ -106,12 +105,12 @@ Core workflow note: `.github/workflows/deploy-azd.yml` is reusable-only and not 
 
 **Execution order**:
 
-1. `provision` job: sets azd env values and idempotently ensures the OIDC deploy principal has `Azure Kubernetes Service RBAC Cluster Admin` on the environment resource group plus `AcrPush` on the environment ACR. It runs `azd provision` only when the entrypoint requests explicit infrastructure reconciliation (`skipProvision=false`).
+1. `provision` job: sets azd env values, runs `azd provision`, and idempotently ensures the OIDC deploy principal has `Azure Kubernetes Service RBAC Cluster Admin` on the environment resource group plus `AcrPush` on the environment ACR.
 2. `build-aks-images` job: builds changed AKS workloads from the tested source SHA into the existing ACR (or reuses an existing per-SHA image), retries `az acr login` with bounded backoff to absorb RBAC propagation delay, and then records immutable digest refs for downstream deploy jobs. When `autoAllowAcrRunnerIp=true`, the workflow also reuses the existing runner-IP allowlist path; if the ACR public endpoint is disabled, it first enables public access with `defaultAction=Deny`, adds only the active GitHub-hosted runner IP, and restores the original public-access setting after the build phase. This is required because disabling ACR public network access overrides firewall rules, and GitHub-hosted runners do not have private network line of sight to a private-only registry.
 3. `deploy-crud` job: renders and applies the `crud-service` Helm manifest pinned to the tested image digest when CRUD/lib changes are detected.
-4. `deploy-foundry-models` and `deploy-agents` jobs: `deploy-agents` deploys changed agent services from prebuilt digest-pinned manifests (and can proceed when `deploy-crud` is skipped for agent-only changes). `deploy-foundry-models` only runs during explicit infrastructure reconciliation when changed agent services also require model-deployment reconciliation.
+4. `deploy-foundry-models` and `deploy-agents` jobs: run after provision; `deploy-agents` deploys changed agent services from prebuilt digest-pinned manifests (and can proceed when `deploy-crud` is skipped for agent-only changes).
 5. `ensure-foundry-agents` job: re-renders changed agent manifests with the workflow's strict/auto-ensure contract, compares rendered env values against live AKS Deployments, then validates `POST /foundry/agents/ensure` plus `/ready` for each changed agent service.
-6. `sync-apim` and `smoke-apim` jobs: run only when `forceApimSync=true`.
+6. `sync-apim` and `smoke-apim` jobs: run when CRUD/agent changes are present or `forceApimSync=true`.
 7. `deploy-ui` job (when `deployStatic=true`): runs after APIM sync/smoke gates, resolves APIM URL with fail-fast validation, fetches the SWA deployment token from Azure, and deploys `apps/ui` via `Azure/static-web-apps-deploy@v1` (framework-aware build for dynamic Next.js routes).
 8. Demo data seeding is operator-driven and must be run locally (outside CI) when needed.
 
@@ -119,10 +118,8 @@ Core workflow note: `.github/workflows/deploy-azd.yml` is reusable-only and not 
 
 - Keep `deployShared=true` for all shared-environment rollouts.
 - Dev AKS rollouts must use the tested source checkout plus immutable image digests (`repo@sha256:...`); deploy jobs render/apply Kubernetes manifests directly and must not rebuild service images inline.
-- Routine update entrypoints use `skipProvision=true` by default for already-provisioned environments. This skips only the `azd provision` step; Azure login, azd environment setup, AKS/ACR/Key Vault guards, output export, image build, deploy, Foundry ensure, and downstream health gates remain active.
-- Set `skipProvision=false` only when an operator explicitly wants infrastructure reconciliation as part of the deploy.
+- `skipProvision=true` is a manual dev-only emergency path for already-provisioned infrastructure. It skips only the `azd provision` step; Azure login, azd environment setup, AKS/ACR/Key Vault guards, output export, image build, deploy, Foundry ensure, and downstream smoke/deploy gates remain active.
 - For GitHub-hosted tested-image builds, `autoAllowAcrRunnerIp=true` preserves OIDC-only auth and the existing ACR IP allowlist flow. If the environment registry is private-only (`publicNetworkAccess=Disabled`), the workflow temporarily reopens the public endpoint with `defaultAction=Deny`, scopes access to the current runner IP, and restores the original ACR public-access state immediately after the build phase.
-- `forceApimSync=false` is now the normal update posture. Set it to `true` only when an operator intends to reconcile APIM configuration as part of the rollout.
 - For changed AKS agent services, treat the Foundry runtime contract as a blocking gate: expected `FOUNDRY_STRICT_ENFORCEMENT=true` and `FOUNDRY_AUTO_ENSURE_ON_STARTUP=true` must survive render and rollout, and `/ready` is only accepted when it matches successful Foundry ensure results.
 - UI deployment intentionally uses the SWA GitHub Action path (not `azd deploy --service ui`) so App Router dynamic segments (`[id]`, `[slug]`) are built in the same mode as standard SWA workflows.
 - Frontend API calls must always use APIM via validated runtime env aliases (`NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_CRUD_API_URL` are set together in deployment workflows).
