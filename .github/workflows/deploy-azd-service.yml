@@ -1,0 +1,113 @@
+name: deploy-azd-service (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      serviceName:
+        description: Exact AZD service name from azure.yaml
+        required: true
+        type: string
+      environment:
+        description: Deployment environment name
+        required: false
+        type: string
+        default: dev
+      location:
+        description: Azure location
+        required: false
+        type: string
+        default: centralus
+      projectName:
+        description: Project prefix used by naming convention
+        required: false
+        type: string
+        default: holidaypeakhub405
+      imageTag:
+        description: Image tag to deploy
+        required: false
+        type: string
+        default: latest
+      testedSourceSha:
+        description: Optional tested source commit SHA to deploy
+        required: false
+        type: string
+        default: ''
+      testedSourceRef:
+        description: Optional tested source ref to deploy
+        required: false
+        type: string
+        default: ''
+      skipProvision:
+        description: Skip azd provision and reuse the current environment infrastructure
+        required: false
+        type: boolean
+        default: true
+      forceApimSync:
+        description: Force APIM sync and smoke checks
+        required: false
+        type: boolean
+        default: true
+      autoAllowAcrRunnerIp:
+        description: Temporarily allow the GitHub runner egress IP in the ACR firewall during deploy
+        required: false
+        type: boolean
+        default: true
+    secrets:
+      AZURE_CLIENT_ID:
+        required: true
+      AZURE_TENANT_ID:
+        required: true
+      AZURE_SUBSCRIPTION_ID:
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-azd-${{ inputs.environment }}-${{ inputs.serviceName }}
+  cancel-in-progress: false
+
+jobs:
+  validate-environment:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce non-prod wrapper policy
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TARGET_ENV="${{ inputs.environment }}"
+          if [ "$TARGET_ENV" = "prod" ]; then
+            echo "Service-scoped deployment wrappers are restricted to non-production targets." >&2
+            echo "Use the production release workflow for prod deployments." >&2
+            exit 1
+          fi
+
+  deploy:
+    needs: validate-environment
+    permissions:
+      id-token: write
+      contents: read
+      issues: write
+    uses: ./.github/workflows/deploy-azd.yml
+    with:
+      environment: ${{ inputs.environment }}
+      location: ${{ inputs.location }}
+      projectName: ${{ inputs.projectName }}
+      imageTag: ${{ inputs.imageTag }}
+      sourceSha: ${{ inputs.testedSourceSha }}
+      sourceRef: ${{ inputs.testedSourceRef }}
+      deployStatic: false
+      uiOnly: false
+      apiBaseUrl: ''
+      deployChangedOnly: true
+      skipProvision: ${{ inputs.skipProvision }}
+      serviceFilter: ${{ inputs.serviceName }}
+      forceApimSync: ${{ inputs.forceApimSync }}
+      autoAllowAcrRunnerIp: ${{ inputs.autoAllowAcrRunnerIp }}
+      skipApiSmokeChecks: false
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}

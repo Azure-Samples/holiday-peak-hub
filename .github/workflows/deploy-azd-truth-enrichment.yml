@@ -1,23 +1,24 @@
-name: deploy-azd-truth-agents (scoped entrypoint)
+name: deploy-azd-truth-enrichment (entrypoint)
 
 on:
   push:
     branches:
       - '**'
     paths:
-      - apps/search-enrichment-agent/**
-      - apps/truth-ingestion/**
       - apps/truth-enrichment/**
-      - apps/truth-export/**
-      - apps/truth-hitl/**
       - lib/**
       - azure.yaml
       - .infra/**
       - .kubernetes/**
       - .github/workflows/deploy-azd.yml
-      - .github/workflows/deploy-azd-truth.yml
+      - .github/workflows/deploy-azd-service.yml
+      - .github/workflows/deploy-azd-truth-enrichment.yml
   workflow_dispatch:
     inputs:
+      environment:
+        description: Target deployment environment
+        required: true
+        default: dev
       location:
         description: Azure location
         required: true
@@ -30,11 +31,24 @@ on:
         description: Image tag to deploy
         required: true
         default: latest
-      forceApimSync:
-        description: Explicitly force APIM sync after deploying truth agents during an image-only update
+      testedSourceSha:
+        description: Optional tested source commit SHA to deploy
+        required: false
+        default: ''
+      testedSourceRef:
+        description: Optional tested source ref to deploy when testedSourceSha is empty
+        required: false
+        default: ''
+      skipProvision:
+        description: Skip azd provision and reuse the current environment infrastructure
         required: true
         type: boolean
-        default: false
+        default: true
+      forceApimSync:
+        description: Force APIM sync and smoke checks even when no changed services are detected
+        required: true
+        type: boolean
+        default: true
       autoAllowAcrRunnerIp:
         description: Temporarily allow GitHub runner egress IP in ACR firewall during deploy
         required: true
@@ -46,7 +60,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: deploy-azd-truth-agents
+  group: deploy-azd-${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}-truth-enrichment
   cancel-in-progress: false
 
 jobs:
@@ -55,21 +69,18 @@ jobs:
       id-token: write
       contents: read
       issues: write
-    uses: ./.github/workflows/deploy-azd.yml
+    uses: ./.github/workflows/deploy-azd-service.yml
     with:
-      environment: truth-agents
+      serviceName: truth-enrichment
+      environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
       location: ${{ github.event_name == 'workflow_dispatch' && inputs.location || 'centralus' }}
       projectName: ${{ github.event_name == 'workflow_dispatch' && inputs.projectName || 'holidaypeakhub405' }}
       imageTag: ${{ github.event_name == 'workflow_dispatch' && inputs.imageTag || github.sha }}
-      deployStatic: false
-      uiOnly: false
-      apiBaseUrl: ''
-      deployChangedOnly: true
-      skipProvision: true
-      forceApimSync: ${{ fromJSON(github.event_name == 'workflow_dispatch' && toJSON(inputs.forceApimSync) || 'false') }}
+      testedSourceSha: ${{ github.event_name == 'workflow_dispatch' && inputs.testedSourceSha || github.sha }}
+      testedSourceRef: ${{ github.event_name == 'workflow_dispatch' && inputs.testedSourceRef || github.ref }}
+      skipProvision: ${{ fromJSON(github.event_name == 'workflow_dispatch' && toJSON(inputs.skipProvision) || 'true') }}
+      forceApimSync: ${{ fromJSON(github.event_name == 'workflow_dispatch' && toJSON(inputs.forceApimSync) || 'true') }}
       autoAllowAcrRunnerIp: ${{ fromJSON(github.event_name == 'workflow_dispatch' && toJSON(inputs.autoAllowAcrRunnerIp) || 'true') }}
-      skipApiSmokeChecks: false
-      serviceFilter: search-enrichment-agent,truth-ingestion,truth-enrichment,truth-export,truth-hitl
     secrets:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}

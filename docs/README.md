@@ -41,6 +41,18 @@ Python package management in this repository is uv-first. In CI, dependency inst
 Provisioning and deployment use the azd project defined in `azure.yaml`.
 The Python CLI in `.infra/cli.py` is scaffolding-only (`generate-bicep`, `generate-dockerfile`).
 
+### Service-scoped deployment wrappers
+
+In addition to the shared environment entrypoints, the repository supports thin service-scoped GitHub workflow wrappers for agent-by-agent deployment operations. These wrappers forward to the reusable azd deployment engine and can target an explicit branch or commit SHA without first merging to `main`.
+
+Examples:
+
+```bash
+gh workflow run deploy-azd-ecommerce-catalog-search.yml -f environment=dev -f testedSourceRef=refs/heads/feature/123-catalog-update
+gh workflow run deploy-azd-truth-enrichment.yml -f environment=dev -f testedSourceSha=<commit-sha>
+gh workflow run deploy-ui-swa.yml -f environment=dev -f sourceRef=refs/heads/feature/123-ui-update
+```
+
 ### Deployment Runbook (GitHub Actions + azd)
 
 Use environment-specific entry workflows:
