@@ -1016,11 +1016,32 @@ async def _search_products_keyword(
     ai_search_skus = ai_search_result.skus
     strict_mode = ai_search_required_runtime_enabled()
     if ai_search_skus:
+        # Fail-soft boundary: dependency exceptions should degrade search quality,
+        # not bubble out as a 500 response.
         resolved_products = await asyncio.gather(
             *[adapters.products.get_product(sku) for sku in ai_search_skus],
-            return_exceptions=False,
+            return_exceptions=True,
         )
-        ai_search_products = [product for product in resolved_products if product is not None]
+        ai_search_products: list[CatalogProduct] = []
+        for idx, resolved_product in enumerate(resolved_products):
+            if isinstance(resolved_product, Exception):
+                logger.warning(
+                    "catalog_search_product_lookup_failed",
+                    extra={
+                        "sku": ai_search_skus[idx],
+                        "query_length": len(query),
+                        "limit": limit,
+                    },
+                    exc_info=(
+                        type(resolved_product),
+                        resolved_product,
+                        resolved_product.__traceback__,
+                    ),
+                )
+                continue
+            if resolved_product is not None:
+                ai_search_products.append(resolved_product)
+
         if ai_search_products:
             ranked_products = _rank_products_by_query_relevance(
                 query=query,
@@ -1071,8 +1092,17 @@ async def _search_products_keyword(
         return []
 
     primary_sku = _coerce_query_to_sku(query)
-    primary = await adapters.products.get_product(primary_sku)
-    related = await adapters.products.get_related(primary_sku, limit=max(limit - 1, 0))
+    try:
+        primary = await adapters.products.get_product(primary_sku)
+        related = await adapters.products.get_related(primary_sku, limit=max(limit - 1, 0))
+    except Exception:  # pylint: disable=broad-exception-caught
+        logger.warning(
+            "catalog_search_sku_fallback_lookup_failed",
+            extra={"sku": primary_sku, "query_length": len(query), "limit": limit},
+            exc_info=True,
+        )
+        return []
+
     products = [p for p in [primary] if p is not None] + related
     return products[:limit]
 
@@ -1248,11 +1278,18 @@ async def _resolve_availability(
 ) -> list[str]:
     inventory = await asyncio.gather(
         *[adapters.inventory.get_item(product.sku) for product in products],
-        return_exceptions=False,
+        return_exceptions=True,
     )
     availability: list[str] = []
-    for item in inventory:
-        if item is None:
+    for idx, item in enumerate(inventory):
+        if isinstance(item, Exception):
+            logger.warning(
+                "catalog_search_inventory_lookup_failed",
+                extra={"sku": products[idx].sku},
+                exc_info=(type(item), item, item.__traceback__),
+            )
+            availability.append("unknown")
+        elif item is None:
             availability.append("unknown")
         elif item.available > 0:
             availability.append("in_stock")
@@ -1262,7 +1299,16 @@ async def _resolve_availability(
 
 
 async def _availability_for_sku(adapters: CatalogAdapters, sku: str) -> str:
-    item = await adapters.inventory.get_item(sku)
+    try:
+        item = await adapters.inventory.get_item(sku)
+    except Exception:  # pylint: disable=broad-exception-caught
+        logger.warning(
+            "catalog_search_inventory_lookup_failed",
+            extra={"sku": sku},
+            exc_info=True,
+        )
+        return "unknown"
+
     if item is None:
         return "unknown"
     return "in_stock" if item.available > 0 else "out_of_stock"
