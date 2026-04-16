@@ -171,24 +171,16 @@ class TestBaseRetailAgent:
 
     @pytest.mark.asyncio
     async def test_invoke_model_with_routing(self, slm_target, llm_target):
-        """Test invoking model with SLM to LLM routing."""
+        """Test invoking model routes simple requests to SLM."""
 
-        # Mock invoker that returns upgrade for evaluation
-        async def routing_invoker(**kwargs):
-            messages = kwargs.get("messages", "")
-            if "Evaluate this request" in str(messages):
-                return {"response": "normal", "content": "normal"}
-            return {"response": "test response", "content": "result"}
-
-        slm = ModelTarget(name="slm", model="small", invoker=routing_invoker)
-        llm = ModelTarget(name="llm", model="large", invoker=routing_invoker)
-        deps = AgentDependencies(slm=slm, llm=llm)
+        deps = AgentDependencies(slm=slm_target, llm=llm_target)
         agent = SimpleTestAgent(config=deps)
 
         result = await agent.invoke_model(
             {"query": "simple query"}, [{"role": "user", "content": "test"}]
         )
         assert result is not None
+        assert result.get("_target") == "test-slm"
 
     @pytest.mark.asyncio
     async def test_foundry_governance_strips_system_prompt(self):
@@ -216,7 +208,7 @@ class TestBaseRetailAgent:
 
     @pytest.mark.asyncio
     async def test_foundry_governance_uses_slm_first_then_llm_by_complexity(self):
-        """Test Foundry governance preserves SLM-first and escalates by complexity threshold."""
+        """Test Foundry governance routes complex requests directly to LLM (single call)."""
         invocation_order = []
 
         async def slm_invoker(**kwargs):
@@ -245,7 +237,7 @@ class TestBaseRetailAgent:
             [{"role": "user", "content": "request"}],
         )
 
-        assert invocation_order == ["slm", "llm"]
+        assert invocation_order == ["llm"]
         assert result.get("_target") == "llm"
 
     @pytest.mark.asyncio

@@ -19,7 +19,7 @@ if (!AGENT_API_BASE_URL && typeof window === 'undefined') {
 
 export const agentApiClient: AxiosInstance = axios.create({
   baseURL: AGENT_API_BASE_URL,
-  timeout: 5000,
+  timeout: 60_000,
   headers: {
     'Content-Type': 'application/json',
   },

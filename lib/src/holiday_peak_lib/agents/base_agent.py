@@ -22,10 +22,7 @@ from holiday_peak_lib.mcp.server import FastAPIMCPServer
 from holiday_peak_lib.self_healing import SelfHealingKernel
 from pydantic import BaseModel, ConfigDict, Field
 
-from .provider_policy import (
-    sanitize_messages_for_provider,
-    should_use_local_routing_prompt,
-)
+from .provider_policy import sanitize_messages_for_provider
 
 ModelInvoker = Callable[..., Awaitable[dict[str, Any]]]
 
@@ -67,10 +64,7 @@ def _extract_text_from_response(result: dict[str, Any]) -> str:
     return "".join(parts)
 
 
-UPGRADE_TOKEN = "upgrade"
-
 _DEFAULT_AGENT_INVOKE_TIMEOUT = float(os.getenv("AGENT_INVOKE_TIMEOUT_SECONDS", "90"))
-_DEFAULT_ROUTING_EVAL_TIMEOUT = float(os.getenv("AGENT_ROUTING_EVAL_TIMEOUT_SECONDS", "15"))
 
 
 @dataclass
@@ -470,16 +464,19 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
         )
 
         try:
-            if self.slm and self.llm:
-                result = await asyncio.wait_for(
-                    self._evaluate_with_slm_routing(request, messages, payload_tools, **kwargs),
-                    timeout=_DEFAULT_AGENT_INVOKE_TIMEOUT,
-                )
-            else:
-                result = await asyncio.wait_for(
-                    self._direct_model_selection(request, messages, payload_tools, **kwargs),
-                    timeout=_DEFAULT_AGENT_INVOKE_TIMEOUT,
-                )
+            target = self._select_model(request)
+            self._trace_decision(
+                decision="routing_strategy",
+                outcome=target.name,
+                metadata={
+                    "complexity": self._assess_complexity(request),
+                    "complexity_threshold": self.complexity_threshold,
+                },
+            )
+            result = await asyncio.wait_for(
+                self.__invoke_target(target, messages, payload_tools, **kwargs),
+                timeout=_DEFAULT_AGENT_INVOKE_TIMEOUT,
+            )
         except asyncio.TimeoutError:
             self._trace_decision(
                 decision="invoke_model",
@@ -578,119 +575,6 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
         stream_gen = await target.invoker(**payload)
         async for chunk in stream_gen:
             yield chunk
-
-    async def _evaluate_with_slm_routing(
-        self,
-        request: dict[str, Any],
-        messages: Any,
-        payload_tools: Any,
-        **kwargs: Any,
-    ) -> dict[str, Any]:
-        """Evaluate request complexity with SLM and optionally upgrade to LLM."""
-
-        if self.slm is None:
-            raise RuntimeError("SLM target is required for routed model evaluation")
-
-        if not should_use_local_routing_prompt(
-            provider=self._shared_provider_for_routing(),
-            enforce_prompt_governance=self.enforce_foundry_prompt_governance,
-        ):
-            self._trace_decision(
-                decision="routing_strategy",
-                outcome="provider_controlled",
-                metadata={"enforce_prompt_governance": self.enforce_foundry_prompt_governance},
-            )
-            slm_result = await self.__invoke_target(self.slm, messages, payload_tools, **kwargs)
-            if self.llm and self._assess_complexity(request) >= self.complexity_threshold:
-                self._trace_decision(
-                    decision="model_upgrade",
-                    outcome="llm_by_complexity",
-                    metadata={"complexity_threshold": self.complexity_threshold},
-                )
-                return await self.__invoke_target(self.llm, messages, payload_tools, **kwargs)
-            return slm_result
-
-        evaluation_prompt = (
-            "Evaluate this request and identify the complexity. If the complexity is higher than "
-            "medium, that is, if the request contains more than 2 steps to be fulfilled and needs "
-            "different sources to be understood and processed, return a single word 'upgrade'.\n\n"
-            f"Request: {request}"
-        )
-        try:
-            evaluation_result = await asyncio.wait_for(
-                self.__invoke_target(self.slm, evaluation_prompt, payload_tools, **kwargs),
-                timeout=_DEFAULT_ROUTING_EVAL_TIMEOUT,
-            )
-        except asyncio.TimeoutError:
-            self._trace_decision(
-                decision="routing_evaluation",
-                outcome="timeout_fallback_slm",
-                metadata={"timeout_seconds": _DEFAULT_ROUTING_EVAL_TIMEOUT},
-            )
-            return await self.__invoke_target(self.slm, messages, payload_tools, **kwargs)
-        evaluation_text = ""
-        if isinstance(evaluation_result, dict):
-            evaluation_text = str(
-                evaluation_result.get("response")
-                or evaluation_result.get("content")
-                or evaluation_result.get("message")
-                or evaluation_result
-            )
-
-        if evaluation_text.strip().lower() == UPGRADE_TOKEN:
-            if self.llm is None:
-                raise RuntimeError("LLM target is required for model upgrade")
-            self._trace_decision(
-                decision="model_upgrade",
-                outcome="llm_by_slm_upgrade",
-                metadata={"upgrade_token": UPGRADE_TOKEN},
-            )
-            if isinstance(messages, list):
-                upgraded_messages = [
-                    {
-                        "role": "system",
-                        "content": "You must reason on the request before proceeding with the response.",
-                    },
-                    *messages,
-                ]
-            elif isinstance(messages, dict):
-                upgraded_messages = [
-                    {
-                        "role": "system",
-                        "content": "You must reason on the request before proceeding with the response.",
-                    },
-                    messages,
-                ]
-            else:
-                upgraded_messages = (
-                    "You must reason on the request before proceeding with the response.\n\n"
-                    + str(messages)
-                )
-            return await self.__invoke_target(self.llm, upgraded_messages, payload_tools, **kwargs)
-
-        self._trace_decision(
-            decision="model_selection",
-            outcome="slm",
-            metadata={"reason": "no_upgrade"},
-        )
-        return await self.__invoke_target(self.slm, messages, payload_tools, **kwargs)
-
-    async def _direct_model_selection(
-        self,
-        request: dict[str, Any],
-        messages: Any,
-        payload_tools: Any,
-        **kwargs: Any,
-    ) -> dict[str, Any]:
-        """Fallback path when SLM/LLM combo is not available: select a single model and invoke it."""
-
-        target = self._select_model(request)
-        self._trace_decision(
-            decision="model_selection",
-            outcome=target.name,
-            metadata={"mode": "direct"},
-        )
-        return await self.__invoke_target(target, messages, payload_tools, **kwargs)
 
     @abstractmethod
     async def handle(self, request: dict[str, Any]) -> dict[str, Any]:

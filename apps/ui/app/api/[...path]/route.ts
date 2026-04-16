@@ -1390,8 +1390,35 @@ function buildAgentActivityDashboardFromSources(sources: AgentSourceData[]): Age
   const telemetryAvailable = sources.some(
     (source) => source.traces.length > 0 || source.metrics !== null || source.latestEvaluation !== null,
   );
-  const allSummaries = sources
-    .flatMap((source) => source.traces.map((entry, index) => mapTraceEntryToSummary(entry, source.service, index)))
+  const rawSummaries = sources
+    .flatMap((source) => source.traces.map((entry, index) => mapTraceEntryToSummary(entry, source.service, index)));
+
+  // Deduplicate spans sharing the same trace_id into a single representative
+  // row. When multiple spans belong to the same trace, keep the one with a
+  // terminal status (ok/error/warning) and the longest duration — this is
+  // the primary operation, not an intermediate routing/upgrade span.
+  const traceMap = new Map<string, AgentTraceSummaryShape>();
+  for (const summary of rawSummaries) {
+    const existing = traceMap.get(summary.trace_id);
+    if (!existing) {
+      traceMap.set(summary.trace_id, summary);
+      continue;
+    }
+    const existingTerminal = existing.status !== 'unknown';
+    const candidateTerminal = summary.status !== 'unknown';
+    if (
+      (!existingTerminal && candidateTerminal)
+      || (existingTerminal === candidateTerminal && summary.duration_ms > existing.duration_ms)
+    ) {
+      // Accumulate error counts across all spans in this trace
+      summary.error_count = Math.max(summary.error_count, existing.error_count);
+      traceMap.set(summary.trace_id, summary);
+    } else {
+      existing.error_count = Math.max(existing.error_count, summary.error_count);
+    }
+  }
+
+  const allSummaries = Array.from(traceMap.values())
     .sort((left, right) => Date.parse(right.started_at) - Date.parse(left.started_at));
 
   const healthCards = sources.map((source) => {
