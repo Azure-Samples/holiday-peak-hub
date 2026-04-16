@@ -49,6 +49,27 @@ jobs:
               echo "Skipping $d (no pyproject.toml)"
             fi
           done
+      - name: Re-install lib (restore editable after app overrides)
+        run: uv pip install --system -e ./lib/src
+      - name: Verify core imports
+        run: |
+          python -c "
+          import traceback, sys
+          try:
+              from agent_framework import BaseAgent
+              print(f'OK: BaseAgent={BaseAgent}')
+          except Exception:
+              traceback.print_exc()
+              print('---')
+              # Show what is actually in the module
+              try:
+                  import agent_framework
+                  print(f'agent_framework.__file__={agent_framework.__file__}')
+                  print(f'dir={[x for x in dir(agent_framework) if not x.startswith(\"_\")]}')
+              except Exception:
+                  traceback.print_exc()
+              sys.exit(1)
+          "
       - name: Run lib tests with coverage
         working-directory: lib
         run: |
