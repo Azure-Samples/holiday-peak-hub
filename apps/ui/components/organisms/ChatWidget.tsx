@@ -8,6 +8,7 @@ import { FiMessageSquare, FiSend, FiMinimize2, FiRefreshCw } from 'react-icons/f
 import { Card } from '@/components/molecules/Card';
 import { SearchComparisonScorecard } from '@/components/enrichment/SearchComparisonScorecard';
 import { semanticSearchService } from '@/lib/services/semanticSearchService';
+import type { StreamingSearchCallbacks } from '@/lib/services/semanticSearchService';
 
 type ProductPreview = {
   sku: string;
@@ -134,19 +135,51 @@ export const ChatWidget: React.FC = () => {
         text: trimmed,
       },
     ]);
-    setStatusMessage('Comparing intelligent and keyword retrieval now.');
+    setStatusMessage('Streaming intelligent results and comparing with keyword retrieval.');
     setInputValue('');
 
-    try {
-      const [intelligentResult, keywordResult] = await Promise.allSettled([
-        semanticSearchService.searchWithMode(trimmed, 'intelligent', 8),
-        semanticSearchService.searchWithMode(trimmed, 'keyword', 8),
-      ]);
+    const agentMessageId = `${Date.now()}-agent`;
+    let intelligentPreview: ProductPreview[] = [];
+    let streamedAnswer = '';
 
-      const intelligentPreview =
-        intelligentResult.status === 'fulfilled'
-          ? buildPreview(intelligentResult.value.items as unknown as Array<Record<string, unknown>>)
-          : [];
+    try {
+      // Start keyword search (non-streaming) and intelligent search (streaming) in parallel
+      const keywordPromise = semanticSearchService.searchWithMode(trimmed, 'keyword', 8);
+
+      const intelligentStreamDone = new Promise<void>((resolve, reject) => {
+        const callbacks: StreamingSearchCallbacks = {
+          onResults: (response) => {
+            intelligentPreview = buildPreview(
+              response.items as unknown as Array<Record<string, unknown>>,
+            );
+          },
+          onToken: (text) => {
+            streamedAnswer += text;
+            // Progressively update the agent message with the streaming answer
+            setMessages((prev) => {
+              const existing = prev.find((m) => m.id === agentMessageId);
+              if (existing) {
+                return prev.map((m) =>
+                  m.id === agentMessageId ? { ...m, text: streamedAnswer } : m,
+                );
+              }
+              return [
+                ...prev,
+                { id: agentMessageId, role: 'agent' as const, text: streamedAnswer },
+              ];
+            });
+          },
+          onDone: () => resolve(),
+          onError: (error) => reject(error),
+        };
+        semanticSearchService.searchStream(
+          { query: trimmed, limit: 8, mode: 'intelligent' },
+          callbacks,
+        );
+      });
+
+      const [keywordResult] = await Promise.allSettled([keywordPromise, intelligentStreamDone]);
+
       const keywordPreview =
         keywordResult.status === 'fulfilled'
           ? buildPreview(keywordResult.value.items as unknown as Array<Record<string, unknown>>)
@@ -156,22 +189,28 @@ export const ChatWidget: React.FC = () => {
         throw new Error('No usable comparison results');
       }
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `${Date.now()}-agent`,
-          role: 'agent',
-          text: 'Agent retrieval is tuned for intent and relevance context. Compare the two lists below.',
-          comparison: {
-            intelligent: intelligentPreview,
-            keyword: keywordPreview,
+      const finalText = streamedAnswer
+        || 'Agent retrieval is tuned for intent and relevance context. Compare the two lists below.';
+
+      setMessages((prev) => {
+        const filtered = prev.filter((m) => m.id !== agentMessageId);
+        return [
+          ...filtered,
+          {
+            id: agentMessageId,
+            role: 'agent' as const,
+            text: finalText,
+            comparison: {
+              intelligent: intelligentPreview,
+              keyword: keywordPreview,
+            },
           },
-        },
-      ]);
+        ];
+      });
       setStatusMessage('Comparison ready. Review intelligent and keyword results below.');
     } catch {
       setMessages((prev) => [
-        ...prev,
+        ...prev.filter((m) => m.id !== agentMessageId),
         {
           id: `${Date.now()}-agent-error`,
           role: 'agent',

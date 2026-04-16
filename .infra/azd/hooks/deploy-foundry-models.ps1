@@ -79,14 +79,14 @@ $models = @(
         Model      = 'gpt-5-nano'
         Version    = '2025-08-07'
         SkuName    = 'GlobalStandard'
-        Capacity   = 30
+        Capacity   = 5000
     },
     @{
         Name       = 'gpt-5'
         Model      = 'gpt-5'
         Version    = '2025-08-07'
         SkuName    = 'GlobalStandard'
-        Capacity   = 30
+        Capacity   = 1000
     }
 )
 

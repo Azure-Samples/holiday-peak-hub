@@ -74,7 +74,7 @@ deploy_model() {
   echo "  [done] Deployment '$DEPLOYMENT_NAME' created."
 }
 
-deploy_model "gpt-5-nano"  "gpt-5-nano"  "2025-08-07"  "GlobalStandard"  30
-deploy_model "gpt-5"       "gpt-5"       "2025-08-07"  "GlobalStandard"  30
+deploy_model "gpt-5-nano"  "gpt-5-nano"  "2025-08-07"  "GlobalStandard"  5000
+deploy_model "gpt-5"       "gpt-5"       "2025-08-07"  "GlobalStandard"  1000
 
 echo "All model deployments are ready."

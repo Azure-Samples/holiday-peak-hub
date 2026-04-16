@@ -11,7 +11,8 @@ dependencies = [
     "fastapi-mcp",
     "uvicorn>=0.44.0",
     "pydantic>=2",
-    "agent-framework>=1.0.1",
+    "agent-framework-core>=1.0.1",
+    "agent-framework-foundry>=1.0.1",
     "azure-ai-projects>=2.0.1",
     "azure-identity",
     "azure-search-documents",
@@ -44,7 +45,7 @@ lint = [
 ]
 
 [tool.uv.sources]
-holiday-peak-lib = { git = "https://github.com/Azure-Samples/holiday-peak-hub.git", branch = "main", subdirectory = "lib/src" }
+holiday-peak-lib = { path = "../../../lib/src", editable = true }
 
 [tool.pytest.ini_options]
 addopts = "-ra -q -s --cov=ecommerce_catalog_search --cov-report=term-missing"

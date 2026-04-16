@@ -436,6 +436,24 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
         """
 
         payload_tools = kwargs.get("tools") or (self.tools if self.tools else None)
+
+        # Thread Foundry session for page-level conversation reuse.
+        # When a ``session_id`` is present in the request, we load the
+        # persisted session state from hot memory (Redis) and forward it
+        # through kwargs so the invoker can resume the Foundry thread.
+        session_id = request.get("session_id") if isinstance(request, dict) else None
+        if session_id and "session_id" not in kwargs:
+            kwargs["session_id"] = session_id
+            if self.hot_memory is not None and "_foundry_session_state" not in kwargs:
+                cached_state = await self.hot_memory.get(f"foundry_session:{session_id}")
+                if cached_state:
+                    try:
+                        import json as _json
+
+                        kwargs["_foundry_session_state"] = _json.loads(cached_state)
+                    except (TypeError, ValueError):
+                        pass
+
         messages = sanitize_messages_for_provider(
             messages,
             provider=self._shared_provider_for_routing(),
@@ -453,15 +471,15 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
 
         try:
             if self.slm and self.llm:
-                return await asyncio.wait_for(
+                result = await asyncio.wait_for(
                     self._evaluate_with_slm_routing(request, messages, payload_tools, **kwargs),
                     timeout=_DEFAULT_AGENT_INVOKE_TIMEOUT,
                 )
-
-            return await asyncio.wait_for(
-                self._direct_model_selection(request, messages, payload_tools, **kwargs),
-                timeout=_DEFAULT_AGENT_INVOKE_TIMEOUT,
-            )
+            else:
+                result = await asyncio.wait_for(
+                    self._direct_model_selection(request, messages, payload_tools, **kwargs),
+                    timeout=_DEFAULT_AGENT_INVOKE_TIMEOUT,
+                )
         except asyncio.TimeoutError:
             self._trace_decision(
                 decision="invoke_model",
@@ -476,6 +494,25 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
                     "timeout_seconds": _DEFAULT_AGENT_INVOKE_TIMEOUT,
                 },
             }
+
+        # Persist updated Foundry session state to hot memory so
+        # subsequent requests in the same page-level thread can resume.
+        if (
+            session_id
+            and self.hot_memory is not None
+            and isinstance(result, dict)
+            and result.get("_foundry_session_state")
+        ):
+            import json as _json
+
+            _session_ttl = 1800  # 30 min idle TTL per page thread
+            await self.hot_memory.set(
+                f"foundry_session:{session_id}",
+                _json.dumps(result["_foundry_session_state"]),
+                ttl_seconds=_session_ttl,
+            )
+
+        return result
 
     async def invoke_model_stream(
         self,

@@ -4,7 +4,8 @@ version = "1.0.0"
 description = "Product consistency validation"
 authors = [{name = "Ricardo Cataldi", email = "rcataldi@microsoft.com"}]
 requires-python = ">=3.13"
-dependencies = ["fastapi>=0.135.3", "fastapi-mcp", "uvicorn>=0.44.0", "pydantic>=2", "agent-framework>=1.0.1", "azure-ai-projects>=2.0.1", "azure-identity", "azure-search-documents", "azure-cosmos", "azure-storage-blob", "azure-eventhub", "redis>=7.4.0", "asyncpg>=0.30.0", "holiday-peak-lib>=0.2.0"]
+dependencies = ["fastapi>=0.135.3", "fastapi-mcp", "uvicorn>=0.44.0", "pydantic>=2", "agent-framework-core>=1.0.1",
+    "agent-framework-foundry>=1.0.1", "azure-ai-projects>=2.0.1", "azure-identity", "azure-search-documents", "azure-cosmos", "azure-storage-blob", "azure-eventhub", "redis>=7.4.0", "asyncpg>=0.30.0", "holiday-peak-lib>=0.2.0"]
 
 [project.optional-dependencies]
 dev = ["faker", "pre-commit", "python-dotenv", "debugpy"]
@@ -12,7 +13,7 @@ test = ["pytest", "pytest-cov", "pytest-asyncio", "httpx", "requests"]
 lint = ["pylint", "isort", "black[jupyter]>=25.1.0"]
 
 [tool.uv.sources]
-holiday-peak-lib = { git = "https://github.com/Azure-Samples/holiday-peak-hub.git", branch = "main", subdirectory = "lib/src" }
+holiday-peak-lib = { path = "../../../lib/src", editable = true }
 
 [tool.pytest.ini_options]
 addopts = "-ra -q -s --cov=product_management_consistency_validation --cov-report=term-missing"

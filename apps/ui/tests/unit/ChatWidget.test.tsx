@@ -5,6 +5,7 @@ import { ChatWidget } from '../../components/organisms/ChatWidget';
 const usePathnameMock = jest.fn();
 const searchParamsGetMock = jest.fn();
 const searchWithModeMock = jest.fn();
+const searchStreamMock = jest.fn();
 
 jest.mock('next/navigation', () => ({
   usePathname: () => usePathnameMock(),
@@ -16,6 +17,8 @@ jest.mock('next/navigation', () => ({
 jest.mock('../../lib/services/semanticSearchService', () => ({
   semanticSearchService: {
     searchWithMode: (...args: unknown[]) => searchWithModeMock(...args),
+    searchStream: (...args: unknown[]) => searchStreamMock(...args),
+    search: (...args: unknown[]) => searchWithModeMock(...args),
   },
 }));
 
@@ -24,6 +27,7 @@ describe('ChatWidget', () => {
     usePathnameMock.mockReturnValue('/search');
     searchParamsGetMock.mockReturnValue(null);
     searchWithModeMock.mockReset();
+    searchStreamMock.mockReset();
     window.history.replaceState(null, '', '/search');
   });
 
@@ -57,11 +61,21 @@ describe('ChatWidget', () => {
   });
 
   it('renders comparison results after a successful send', async () => {
-    searchWithModeMock.mockImplementation(async (_query: string, mode: 'intelligent' | 'keyword') => ({
-      items: mode === 'intelligent'
-        ? [{ sku: 'intel-1', title: 'Intelligent Pick', score: 0.98 }]
-        : [{ sku: 'key-1', title: 'Keyword Pick', score: 0.52 }],
+    // searchWithMode is still used for keyword path
+    searchWithModeMock.mockImplementation(async () => ({
+      items: [{ sku: 'key-1', title: 'Keyword Pick', score: 0.52 }],
     }));
+
+    // searchStream is used for intelligent path — invoke callbacks synchronously
+    searchStreamMock.mockImplementation(
+      (_request: unknown, callbacks: { onResults?: (r: unknown) => void; onDone?: () => void }) => {
+        callbacks.onResults?.({
+          items: [{ sku: 'intel-1', title: 'Intelligent Pick', score: 0.98 }],
+        });
+        callbacks.onDone?.();
+        return { abort: jest.fn() };
+      },
+    );
 
     render(<ChatWidget />);
 
@@ -78,6 +92,14 @@ describe('ChatWidget', () => {
 
   it('shows fallback message when both comparison calls fail', async () => {
     searchWithModeMock.mockRejectedValue(new Error('backend unavailable'));
+
+    // searchStream invokes onError immediately
+    searchStreamMock.mockImplementation(
+      (_request: unknown, callbacks: { onError?: (e: unknown) => void }) => {
+        callbacks.onError?.(new Error('stream failed'));
+        return { abort: jest.fn() };
+      },
+    );
 
     render(<ChatWidget />);
 

@@ -9,6 +9,7 @@ from time import perf_counter
 from typing import Any, AsyncGenerator, NamedTuple
 from urllib.parse import quote, unquote, urlsplit, urlunsplit
 
+from agent_framework import AgentSession
 from agent_framework import Message as MAFMessage
 from agent_framework_foundry import FoundryAgent
 from azure.ai.projects.aio import AIProjectClient
@@ -160,7 +161,7 @@ class FoundryAgentConfig:
     agent_name: str | None = None
     deployment_name: str | None = None
     project_name: str | None = None
-    stream: bool = False
+    stream: bool = True
     credential: Any | None = None
     resolved_agent_id: str | None = None
 
@@ -201,7 +202,8 @@ class FoundryAgentConfig:
         agent_id = os.getenv("FOUNDRY_AGENT_ID") or os.getenv("AGENT_ID")
         agent_name = os.getenv("FOUNDRY_AGENT_NAME")
         deployment = os.getenv("MODEL_DEPLOYMENT_NAME")
-        stream = (os.getenv("FOUNDRY_STREAM") or "").lower() in {"1", "true", "yes"}
+        stream_raw = os.getenv("FOUNDRY_STREAM", "true").lower()
+        stream = stream_raw not in {"0", "false", "no"}
         if not endpoint:
             raise ValueError("PROJECT_ENDPOINT/FOUNDRY_ENDPOINT is required")
         if not agent_id and not agent_name:
@@ -508,6 +510,7 @@ class _PreparedInvocation(NamedTuple):
     maf_messages: list[Any]
     tool_callables: list[Any] | None
     normalized: list[dict[str, str]]
+    session: AgentSession | None
 
 
 class FoundryAgentInvoker:
@@ -545,6 +548,9 @@ class FoundryAgentInvoker:
         messages_raw = kwargs.pop("messages", [])
         kwargs.pop("stream", None)
         tools_raw = kwargs.pop("tools", None)
+        # Extract session data before discarding transport-only kwargs
+        session_id = kwargs.pop("session_id", None)
+        session_state = kwargs.pop("_foundry_session_state", None)
         # Discard transport-only kwargs not consumed by MAF
         for _discard_key in (
             "model",
@@ -555,6 +561,16 @@ class FoundryAgentInvoker:
             "conversation_id",
         ):
             kwargs.pop(_discard_key, None)
+
+        # Restore AgentSession from prior state or create new one
+        session: AgentSession | None = None
+        if isinstance(session_state, dict):
+            try:
+                session = AgentSession.from_dict(session_state)
+            except (KeyError, TypeError, ValueError):
+                pass
+        if session is None and session_id:
+            session = AgentSession(session_id=str(session_id))
 
         # MAF Message expects string content; dict/list payloads from agent
         # handlers must be serialized to JSON first to avoid
@@ -578,6 +594,7 @@ class FoundryAgentInvoker:
             maf_messages=maf_messages,
             tool_callables=tool_callables,
             normalized=normalized,
+            session=session,
         )
 
     async def __call__(self, **kwargs: Any) -> dict[str, Any] | AsyncGenerator[str, None]:
@@ -607,12 +624,18 @@ class FoundryAgentInvoker:
         started = perf_counter()
         agent = self._ensure_agent()
 
+        run_kwargs: dict[str, Any] = {
+            "stream": False,
+            "tools": prep.tool_callables,
+        }
+        if prep.session is not None:
+            run_kwargs["session"] = prep.session
+
         try:
             response = await asyncio.wait_for(
                 agent.run(
                     prep.maf_messages,
-                    stream=False,
-                    tools=prep.tool_callables,
+                    **run_kwargs,
                 ),
                 timeout=self._timeout,
             )
@@ -644,6 +667,17 @@ class FoundryAgentInvoker:
                 ),
             }
 
+        # Extract updated session state from response for thread reuse.
+        # AgentResponse.session carries the service_session_id assigned by
+        # Foundry on the first call and must be returned to the caller so
+        # subsequent requests in the same page-level thread can resume.
+        updated_session_state: dict[str, Any] | None = None
+        resp_session = getattr(response, "session", None)
+        if resp_session is not None and hasattr(resp_session, "to_dict"):
+            updated_session_state = resp_session.to_dict()
+        elif prep.session is not None:
+            updated_session_state = prep.session.to_dict()
+
         assistant_text = response.text if hasattr(response, "text") else str(response)
         output_messages = []
         if assistant_text:
@@ -655,11 +689,14 @@ class FoundryAgentInvoker:
                 }
             )
 
-        return {
+        result: dict[str, Any] = {
             "messages": output_messages,
             "stream": False,
             "telemetry": self._build_telemetry(started, prep.normalized, stream=False),
         }
+        if updated_session_state is not None:
+            result["_foundry_session_state"] = updated_session_state
+        return result
 
     def _build_telemetry(
         self,
@@ -702,10 +739,16 @@ class FoundryAgentInvoker:
         """
         agent = self._ensure_agent()
 
+        run_kwargs: dict[str, Any] = {
+            "stream": True,
+            "tools": prep.tool_callables,
+        }
+        if prep.session is not None:
+            run_kwargs["session"] = prep.session
+
         stream_response = agent.run(
             prep.maf_messages,
-            stream=True,
-            tools=prep.tool_callables,
+            **run_kwargs,
         )
 
         prev_len = 0

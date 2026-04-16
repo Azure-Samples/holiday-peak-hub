@@ -140,21 +140,37 @@ class TestFoundryAgentConfig:
             FoundryAgentConfig.from_env()
 
     def test_stream_flag_variants(self, monkeypatch):
-        """Test different stream flag values."""
+        """Test different stream flag values — streaming is on by default."""
         monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
         monkeypatch.setenv("FOUNDRY_AGENT_ID", "agent-123")
 
-        # Test "1"
+        # Test "1" → True
         monkeypatch.setenv("FOUNDRY_STREAM", "1")
         assert FoundryAgentConfig.from_env().stream is True
 
-        # Test "yes"
+        # Test "yes" → True
         monkeypatch.setenv("FOUNDRY_STREAM", "yes")
         assert FoundryAgentConfig.from_env().stream is True
 
-        # Test "false"
+        # Test "true" → True
+        monkeypatch.setenv("FOUNDRY_STREAM", "true")
+        assert FoundryAgentConfig.from_env().stream is True
+
+        # Test "false" → False (explicit opt-out)
         monkeypatch.setenv("FOUNDRY_STREAM", "false")
         assert FoundryAgentConfig.from_env().stream is False
+
+        # Test "0" → False (explicit opt-out)
+        monkeypatch.setenv("FOUNDRY_STREAM", "0")
+        assert FoundryAgentConfig.from_env().stream is False
+
+        # Test "no" → False (explicit opt-out)
+        monkeypatch.setenv("FOUNDRY_STREAM", "no")
+        assert FoundryAgentConfig.from_env().stream is False
+
+        # Test default (unset) → True (streaming-first)
+        monkeypatch.delenv("FOUNDRY_STREAM", raising=False)
+        assert FoundryAgentConfig.from_env().stream is True
 
 
 class TestBuildFoundryModelTarget:
@@ -173,7 +189,7 @@ class TestBuildFoundryModelTarget:
 
         assert target.name == "agent-123"
         assert target.model == "gpt-4"
-        assert target.stream is False
+        assert target.stream is True  # streaming-first default
         assert isinstance(target.invoker, FoundryAgentInvoker)
 
     def test_build_model_target_with_streaming(self):
@@ -268,6 +284,137 @@ class TestFoundryAgentInvokerMessages:
         )
         assert contents is not None
         assert contents[0] == "hello world"
+
+
+@pytest.mark.asyncio
+class TestFoundryAgentInvokerSession:
+    """Tests for AgentSession handling in FoundryAgentInvoker."""
+
+    @patch("holiday_peak_lib.agents.foundry.FoundryAgent")
+    async def test_session_id_creates_agent_session(self, mock_foundry_agent_cls):
+        """When session_id is provided, an AgentSession is passed to agent.run()."""
+        mock_agent = AsyncMock()
+        response_mock = MagicMock(text="response text")
+        response_mock.session = None
+        mock_agent.run = AsyncMock(return_value=response_mock)
+        mock_foundry_agent_cls.return_value = mock_agent
+
+        config = FoundryAgentConfig(
+            endpoint=TEST_PROJECT_ENDPOINT,
+            agent_id="test-agent",
+            agent_name="test-agent",
+            deployment_name="gpt-5-nano",
+            resolved_agent_id="test-agent",
+        )
+        invoker = FoundryAgentInvoker(config)
+
+        await invoker(
+            messages=[{"role": "user", "content": "hello"}],
+            model="gpt-5-nano",
+            session_id="page-session-abc",
+        )
+
+        run_call = mock_agent.run
+        assert run_call.called
+        call_kwargs = run_call.call_args.kwargs
+        assert "session" in call_kwargs
+        session = call_kwargs["session"]
+        assert session.session_id == "page-session-abc"
+
+    @patch("holiday_peak_lib.agents.foundry.FoundryAgent")
+    async def test_session_state_restores_from_dict(self, mock_foundry_agent_cls):
+        """When _foundry_session_state dict is provided, AgentSession.from_dict is used."""
+        mock_agent = AsyncMock()
+        response_mock = MagicMock(text="ok")
+        response_mock.session = None
+        mock_agent.run = AsyncMock(return_value=response_mock)
+        mock_foundry_agent_cls.return_value = mock_agent
+
+        config = FoundryAgentConfig(
+            endpoint=TEST_PROJECT_ENDPOINT,
+            agent_id="test-agent",
+            agent_name="test-agent",
+            deployment_name="gpt-5-nano",
+            resolved_agent_id="test-agent",
+        )
+        invoker = FoundryAgentInvoker(config)
+
+        session_state = {
+            "type": "session",
+            "session_id": "page-session-abc",
+            "service_session_id": "foundry-thread-xyz",
+            "state": {},
+        }
+        await invoker(
+            messages=[{"role": "user", "content": "follow-up"}],
+            model="gpt-5-nano",
+            session_id="page-session-abc",
+            _foundry_session_state=session_state,
+        )
+
+        call_kwargs = mock_agent.run.call_args.kwargs
+        session = call_kwargs["session"]
+        assert session.session_id == "page-session-abc"
+        serialized = session.to_dict()
+        assert serialized["service_session_id"] == "foundry-thread-xyz"
+
+    @patch("holiday_peak_lib.agents.foundry.FoundryAgent")
+    async def test_no_session_when_no_session_id(self, mock_foundry_agent_cls):
+        """When no session_id is provided, session kwarg is not passed."""
+        mock_agent = AsyncMock()
+        mock_agent.run = AsyncMock(return_value=MagicMock(text="ok"))
+        mock_foundry_agent_cls.return_value = mock_agent
+
+        config = FoundryAgentConfig(
+            endpoint=TEST_PROJECT_ENDPOINT,
+            agent_id="test-agent",
+            agent_name="test-agent",
+            deployment_name="gpt-5-nano",
+            resolved_agent_id="test-agent",
+        )
+        invoker = FoundryAgentInvoker(config)
+
+        await invoker(
+            messages=[{"role": "user", "content": "hello"}],
+            model="gpt-5-nano",
+        )
+
+        call_kwargs = mock_agent.run.call_args.kwargs
+        assert "session" not in call_kwargs
+
+    @patch("holiday_peak_lib.agents.foundry.FoundryAgent")
+    async def test_response_includes_session_state(self, mock_foundry_agent_cls):
+        """Response includes _foundry_session_state when session is used."""
+        mock_agent = AsyncMock()
+        resp_session_mock = MagicMock()
+        resp_session_mock.to_dict.return_value = {
+            "type": "session",
+            "session_id": "page-abc",
+            "service_session_id": "foundry-thread-new",
+            "state": {},
+        }
+        response_mock = MagicMock(text="answer")
+        response_mock.session = resp_session_mock
+        mock_agent.run = AsyncMock(return_value=response_mock)
+        mock_foundry_agent_cls.return_value = mock_agent
+
+        config = FoundryAgentConfig(
+            endpoint=TEST_PROJECT_ENDPOINT,
+            agent_id="test-agent",
+            agent_name="test-agent",
+            deployment_name="gpt-5-nano",
+            resolved_agent_id="test-agent",
+        )
+        invoker = FoundryAgentInvoker(config)
+
+        result = await invoker(
+            messages=[{"role": "user", "content": "hello"}],
+            model="gpt-5-nano",
+            session_id="page-abc",
+        )
+
+        assert "_foundry_session_state" in result
+        assert result["_foundry_session_state"]["service_session_id"] == "foundry-thread-new"
 
 
 @pytest.mark.asyncio
