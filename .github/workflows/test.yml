@@ -49,34 +49,15 @@ jobs:
               echo "Skipping $d (no pyproject.toml)"
             fi
           done
-      - name: Re-install lib (restore editable after app overrides)
-        run: uv pip install --system -e ./lib/src
-      - name: Verify core imports
+      - name: Re-install lib and fix agent-framework
         run: |
-          python -c "
-          import traceback, sys, os, importlib.metadata
-          # Show installed agent-framework packages
-          for dist in importlib.metadata.distributions():
-              if 'agent-framework' in dist.metadata['Name']:
-                  loc = dist._path.parent
-                  print(f'{dist.metadata[\"Name\"]}=={dist.metadata[\"Version\"]}  @ {loc}')
-          # Show the actual __init__.py content
-          af_init = os.path.join(sys.prefix, 'lib', 'python3.13', 'site-packages', 'agent_framework', '__init__.py')
-          if os.path.exists(af_init):
-              content = open(af_init).read()
-              print(f'--- {af_init} ({len(content)} bytes) ---')
-              print(content[:2000])
-              print('--- END ---')
-          else:
-              print(f'NOT FOUND: {af_init}')
-          # Try the import
-          try:
-              from agent_framework import BaseAgent
-              print(f'OK: BaseAgent={BaseAgent}')
-          except Exception:
-              traceback.print_exc()
-              sys.exit(1)
-          "
+          # App installs pull agent-framework[all] from git-pinned lib on main.
+          # Sub-packages overwrite agent_framework/__init__.py with an empty file.
+          # Force-reinstall core so the real __init__.py is restored.
+          uv pip install --system -e ./lib/src
+          uv pip install --system --reinstall-package agent-framework-core agent-framework-core
+      - name: Verify core imports
+        run: python -c "from agent_framework import BaseAgent; print(f'OK: {BaseAgent}')"
       - name: Run lib tests with coverage
         working-directory: lib
         run: |
