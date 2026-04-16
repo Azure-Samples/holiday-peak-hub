@@ -7,6 +7,11 @@ on:
         description: Deployment environment name (for azd -e)
         required: true
         type: string
+      githubEnvironment:
+        description: GitHub Actions environment name used for approvals and protection rules
+        required: false
+        type: string
+        default: branch
       location:
         description: Azure location
         required: true
@@ -336,7 +341,7 @@ jobs:
     if: ${{ !inputs.uiOnly }}
     needs: detect-changes
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
+    environment: ${{ inputs.githubEnvironment }}
     outputs:
       AI_SERVICES_NAME: ${{ steps.outputs.outputs.AI_SERVICES_NAME }}
       AI_SEARCH_NAME: ${{ steps.outputs.outputs.AI_SEARCH_NAME }}
@@ -1103,7 +1108,7 @@ jobs:
     needs:
       - provision
       - detect-changes
-    environment: ${{ inputs.environment }}
+    environment: ${{ inputs.githubEnvironment }}
     outputs:
       acr_name: ${{ steps.registry.outputs.acr_name }}
       rg_name: ${{ steps.registry.outputs.rg_name }}
@@ -1281,7 +1286,7 @@ jobs:
       - provision
       - detect-changes
       - prepare-acr-build-access
-    environment: ${{ inputs.environment }}
+    environment: ${{ inputs.githubEnvironment }}
     strategy:
       fail-fast: false
       matrix:
@@ -1572,7 +1577,7 @@ jobs:
       - detect-changes
       - prepare-acr-build-access
       - build-aks-images
-    environment: ${{ inputs.environment }}
+    environment: ${{ inputs.githubEnvironment }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -1661,7 +1666,7 @@ jobs:
       - provision
       - detect-changes
     if: ${{ !inputs.skipProvision && needs.detect-changes.outputs.infra_changed == 'true' }}
-    environment: ${{ inputs.environment }}
+    environment: ${{ inputs.githubEnvironment }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -1695,7 +1700,7 @@ jobs:
       - build-aks-images
       - restore-acr-build-access
     if: ${{ !inputs.uiOnly && needs.detect-changes.outputs.crud_changed == 'true' }}
-    environment: ${{ inputs.environment }}
+    environment: ${{ inputs.githubEnvironment }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -1906,7 +1911,7 @@ jobs:
       - sync-apim
       - ensure-foundry-agents
       - smoke-apim
-    environment: ${{ inputs.environment }}
+    environment: ${{ inputs.githubEnvironment }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -2153,7 +2158,7 @@ jobs:
   deploy-ui-token:
     runs-on: ubuntu-latest
     if: ${{ inputs.deployStatic && inputs.uiOnly }}
-    environment: ${{ inputs.environment }}
+    environment: ${{ inputs.githubEnvironment }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -2362,7 +2367,7 @@ jobs:
       - detect-changes
       - build-aks-images
       - restore-acr-build-access
-    environment: ${{ inputs.environment }}
+    environment: ${{ inputs.githubEnvironment }}
     strategy:
       fail-fast: false
       matrix:
@@ -2567,7 +2572,7 @@ jobs:
     needs:
       - commit-rendered-manifests
       - detect-changes
-    environment: ${{ inputs.environment }}
+    environment: ${{ inputs.githubEnvironment }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -2677,7 +2682,7 @@ jobs:
       - deploy-crud
       - deploy-agents
       - detect-changes
-    environment: ${{ inputs.environment }}
+    environment: ${{ inputs.githubEnvironment }}
     outputs:
       approved_backend_hostnames: ${{ steps.resolve.outputs.approved_backend_hostnames }}
       approved_backend_scheme: ${{ steps.resolve.outputs.approved_backend_scheme }}
@@ -2816,7 +2821,7 @@ jobs:
       - deploy-agents
       - detect-changes
       - validate-agc-readiness
-    environment: ${{ inputs.environment }}
+    environment: ${{ inputs.githubEnvironment }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -2887,7 +2892,7 @@ jobs:
     needs:
       - detect-changes
       - sync-apim
-    environment: ${{ inputs.environment }}
+    environment: ${{ inputs.githubEnvironment }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -2918,7 +2923,7 @@ jobs:
       - sync-apim
       - ensure-foundry-agents
       - validate-agc-readiness
-    environment: ${{ inputs.environment }}
+    environment: ${{ inputs.githubEnvironment }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -3152,7 +3157,7 @@ jobs:
     needs:
       - deploy-agents
       - detect-changes
-    environment: ${{ inputs.environment }}
+    environment: ${{ inputs.githubEnvironment }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -3324,7 +3329,7 @@ jobs:
       - smoke-apim
       - deploy-ui
       - ensure-foundry-agents
-    environment: ${{ inputs.environment }}
+    environment: ${{ inputs.githubEnvironment }}
     permissions:
       id-token: write
       contents: read

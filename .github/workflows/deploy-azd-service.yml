@@ -12,6 +12,11 @@ on:
         required: false
         type: string
         default: dev
+      githubEnvironment:
+        description: GitHub Actions environment name used for approvals and protection rules
+        required: false
+        type: string
+        default: branch
       location:
         description: Azure location
         required: false
@@ -93,6 +98,7 @@ jobs:
     uses: ./.github/workflows/deploy-azd.yml
     with:
       environment: ${{ inputs.environment }}
+      githubEnvironment: ${{ inputs.githubEnvironment }}
       location: ${{ inputs.location }}
       projectName: ${{ inputs.projectName }}
       imageTag: ${{ inputs.imageTag }}

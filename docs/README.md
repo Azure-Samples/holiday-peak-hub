@@ -45,6 +45,8 @@ The Python CLI in `.infra/cli.py` is scaffolding-only (`generate-bicep`, `genera
 
 In addition to the shared environment entrypoints, the repository supports thin service-scoped GitHub workflow wrappers for agent-by-agent deployment operations. These wrappers forward to the reusable azd deployment engine and can target an explicit branch or commit SHA without first merging to `main`.
 
+Push-triggered service and UI wrapper runs now use a non-protected GitHub deployment context while still targeting the selected Azure environment. This keeps feature-branch validation unblocked without weakening the protected `dev` live-validation boundary or the protected production release path.
+
 Examples:
 
 ```bash
