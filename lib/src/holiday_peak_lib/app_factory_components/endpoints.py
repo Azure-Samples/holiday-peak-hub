@@ -1,8 +1,10 @@
 """Endpoint registration helpers for service apps."""
 
 import asyncio
+import json
 import os
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
@@ -11,32 +13,86 @@ from holiday_peak_lib.connectors.registry import ConnectorRegistry
 from holiday_peak_lib.self_healing import FailureSignal, SelfHealingKernel, SurfaceType
 from holiday_peak_lib.utils import get_tracer
 from holiday_peak_lib.utils.logging import log_async_operation
+from starlette.responses import StreamingResponse
 
 _DEFAULT_ENDPOINT_TIMEOUT = float(os.getenv("AGENT_ENDPOINT_TIMEOUT_SECONDS", "120"))
+
+
+@dataclass(frozen=True, slots=True)
+class EndpointContext:
+    """Bundles all dependencies needed by ``register_standard_endpoints``.
+
+    Replaces the 14-parameter function signature with a single immutable
+    Parameter Object (Refactoring: *Introduce Parameter Object*).
+    """
+
+    service_name: str
+    registry: ConnectorRegistry
+    router: RoutingStrategy
+    tracer: Any
+    logger: Any
+    strict_foundry_mode: bool
+    require_foundry_readiness: bool
+    is_foundry_ready: Callable[[], bool]
+    set_foundry_ready: Callable[[bool], None]
+    requires_foundry_runtime_resolution: Callable[[], bool]
+    foundry_capabilities: Callable[[], dict[str, Any]]
+    ensure_agents_handler: Callable[[dict | None], Awaitable[dict[str, Any]]]
+    self_healing_kernel: SelfHealingKernel | None = field(default=None)
+
+
+def _sse_event(event_type: str, data: Any) -> str:
+    """Format a single Server-Sent Event frame.
+
+    # No GoF pattern applies — pure data formatting utility.
+    """
+    payload = json.dumps(data, default=str) if not isinstance(data, str) else data
+    return f"event: {event_type}\ndata: {payload}\n\n"
 
 
 def register_standard_endpoints(
     app: FastAPI,
     *,
-    service_name: str,
-    registry: ConnectorRegistry,
-    router: RoutingStrategy,
-    tracer: Any,
-    logger: Any,
-    strict_foundry_mode: bool,
-    require_foundry_readiness: bool,
-    is_foundry_ready: Callable[[], bool],
-    set_foundry_ready: Callable[[bool], None],
-    requires_foundry_runtime_resolution: Callable[[], bool],
-    foundry_capabilities: Callable[[], dict[str, Any]],
-    ensure_agents_handler: Callable[[dict | None], Awaitable[dict[str, Any]]],
+    # Accept either an EndpointContext or individual keyword arguments.
+    ctx: EndpointContext | None = None,
+    service_name: str = "",
+    registry: ConnectorRegistry | None = None,
+    router: RoutingStrategy | None = None,
+    tracer: Any = None,
+    logger: Any = None,
+    strict_foundry_mode: bool = False,
+    require_foundry_readiness: bool = False,
+    is_foundry_ready: Callable[[], bool] | None = None,
+    set_foundry_ready: Callable[[bool], None] | None = None,
+    requires_foundry_runtime_resolution: Callable[[], bool] | None = None,
+    foundry_capabilities: Callable[[], dict[str, Any]] | None = None,
+    ensure_agents_handler: Callable[[dict | None], Awaitable[dict[str, Any]]] | None = None,
     self_healing_kernel: SelfHealingKernel | None = None,
 ) -> None:
     """Register common health, invoke, telemetry and Foundry endpoints.
 
+    Accepts either an ``EndpointContext`` via *ctx* or individual keyword
+    arguments for backward compatibility.  When *ctx* is supplied, the
+    individual kwargs are ignored.
+
     Foundry readiness enforcement is controlled by
     ``require_foundry_readiness`` and ``strict_foundry_mode``.
     """
+    # --- Resolve EndpointContext -------------------------------------------
+    if ctx is not None:
+        service_name = ctx.service_name
+        registry = ctx.registry
+        router = ctx.router
+        tracer = ctx.tracer
+        logger = ctx.logger
+        strict_foundry_mode = ctx.strict_foundry_mode
+        require_foundry_readiness = ctx.require_foundry_readiness
+        is_foundry_ready = ctx.is_foundry_ready
+        set_foundry_ready = ctx.set_foundry_ready
+        requires_foundry_runtime_resolution = ctx.requires_foundry_runtime_resolution
+        foundry_capabilities = ctx.foundry_capabilities
+        ensure_agents_handler = ctx.ensure_agents_handler
+        self_healing_kernel = ctx.self_healing_kernel
 
     def _log_info(message: str, extra: dict[str, Any] | None = None) -> None:
         _log_with_level("info", message, extra=extra)
@@ -140,7 +196,7 @@ def register_standard_endpoints(
         trace_decision = getattr(tracer, "trace_decision", None)
         if callable(trace_decision):
             try:
-                trace_decision(
+                trace_decision(  # pylint: disable=not-callable
                     decision="invoke_outcome",
                     outcome=outcome_status,
                     metadata=outcome_metadata,
@@ -406,6 +462,69 @@ def register_standard_endpoints(
                 metadata={"intent": intent, "payload_size": len(str(request_payload))},
             )
             raise
+
+    @app.post("/invoke/stream")
+    async def invoke_stream(payload: dict) -> StreamingResponse:
+        """SSE endpoint that streams agent responses as Server-Sent Events.
+
+        Event types:
+        - ``results``: deterministic search results (emitted first)
+        - ``token``: model answer text chunk
+        - ``done``: final metadata
+        - ``error``: on failure
+        """
+        intent = str(payload.get("intent", "default"))
+        request_payload = payload.get("payload", payload)
+        if not isinstance(request_payload, dict):
+            request_payload = {"query": str(request_payload)}
+
+        # Signal the agent handler to return a streaming response
+        request_payload["_stream"] = True
+
+        async def event_generator():
+            try:
+                result = await router.route(intent, request_payload)
+
+                # If the agent returned an async generator, iterate it
+                if hasattr(result, "__aiter__"):
+                    async for event in result:
+                        if isinstance(event, dict):
+                            event_type = event.get("event", "token")
+                            yield _sse_event(event_type, event)
+                        else:
+                            yield _sse_event("token", {"text": str(event)})
+                elif isinstance(result, dict):
+                    # Non-streaming fallback: emit the entire response as one SSE event
+                    yield _sse_event("results", result)
+
+                yield _sse_event("done", {"status": "complete"})
+
+            except asyncio.TimeoutError:
+                yield _sse_event(
+                    "error",
+                    {
+                        "error": "timeout",
+                        "message": f"Agent invocation timed out after {_DEFAULT_ENDPOINT_TIMEOUT:.0f}s.",
+                    },
+                )
+            except Exception as exc:
+                yield _sse_event(
+                    "error",
+                    {
+                        "error": type(exc).__name__,
+                        "message": str(exc)[:500],
+                    },
+                )
+
+        return StreamingResponse(
+            event_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
     @app.get("/self-healing/status")
     async def self_healing_status() -> dict[str, Any]:

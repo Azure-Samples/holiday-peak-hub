@@ -1,7 +1,5 @@
 """Unit tests for telemetry helpers."""
 
-import sys
-
 from holiday_peak_lib.utils.correlation import clear_correlation_id, set_correlation_id
 from holiday_peak_lib.utils.telemetry import (
     FoundryTracer,
@@ -15,12 +13,10 @@ from holiday_peak_lib.utils.telemetry import (
 
 
 class TestGetTracer:
-    def test_returns_noop_tracer_without_otel(self, monkeypatch):
-        telemetry_mod = sys.modules[get_tracer.__module__]
-
-        monkeypatch.setattr(telemetry_mod, "_OTEL_AVAILABLE", False)
+    def test_returns_real_tracer_with_otel(self):
         tracer = get_tracer("svc")
-        assert isinstance(tracer, _NoopTracer)
+        # OTel is a hard dependency, so we always get a real tracer
+        assert not isinstance(tracer, _NoopTracer)
 
     def test_noop_tracer_context_manager(self):
         tracer = _NoopTracer("svc")
@@ -36,12 +32,10 @@ class TestGetTracer:
 
 
 class TestGetMeter:
-    def test_returns_noop_meter_without_otel(self, monkeypatch):
-        telemetry_mod = sys.modules[get_meter.__module__]
-
-        monkeypatch.setattr(telemetry_mod, "_OTEL_AVAILABLE", False)
+    def test_returns_real_meter_with_otel(self):
         meter = get_meter("svc")
-        assert isinstance(meter, _NoopMeter)
+        # OTel is a hard dependency, so we always get a real meter
+        assert not isinstance(meter, _NoopMeter)
 
     def test_noop_meter_creates_instruments(self):
         meter = _NoopMeter("svc")

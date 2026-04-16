@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-import os
 from typing import Any
 
-from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
@@ -17,6 +15,10 @@ from holiday_peak_lib.agents.memory import (
     resolve_namespace_context,
 )
 from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
+from holiday_peak_lib.agents.registration_helpers import (
+    get_agent_adapters,
+    register_crud_tools,
+)
 
 from .adapters import (
     EnrichmentAdapters,
@@ -61,42 +63,9 @@ class ProductDetailEnrichmentAgent(BaseRetailAgent):
                 ttl_seconds=cache_ttl_seconds,
             )
 
-        product_task = self.adapters.products.get_product(str(sku))
-        related_task = self.adapters.products.get_related(str(sku), limit=related_limit)
-        inventory_task = self.adapters.inventory.build_inventory_context(str(sku))
-        acp_task = self.adapters.acp.get_content(str(sku))
-        review_task = self.adapters.reviews.get_summary(str(sku))
-
-        product, related, inventory, acp_content, review_summary = await asyncio.gather(
-            product_task,
-            related_task,
-            inventory_task,
-            acp_task,
-            review_task,
-        )
-
-        validation = self._guardrail.validate_sources(product=product, acp_content=acp_content)
-        if not validation.is_valid:
-            self._guardrail.log_audit(str(sku), [], rejection_reason=validation.rejection_reason)
-            return {"error": "enrichment not available", "reason": validation.rejection_reason}
-
-        self._guardrail.log_audit(str(sku), validation.source_ids)
-
-        enriched = merge_product_enrichment(product, acp_content, review_summary)
-        enriched["inventory"] = inventory.model_dump() if inventory else None
-        enriched["related"] = [item.model_dump() for item in related]
-        availability = "unknown"
-        if inventory and inventory.item.available > 0:
-            availability = "in_stock"
-        elif inventory:
-            availability = "out_of_stock"
-        if product:
-            enriched["acp_product"] = self.adapters.acp_mapper.to_acp_product(
-                product,
-                availability=availability,
-            )
-
-        enriched = self._guardrail.tag_content(enriched, validation.source_ids)
+        enriched = await self._fetch_and_enrich(str(sku), related_limit)
+        if "error" in enriched:
+            return enriched
 
         if self.hot_memory:
             await self.hot_memory.set(
@@ -123,10 +92,43 @@ class ProductDetailEnrichmentAgent(BaseRetailAgent):
 
         return enriched
 
+    async def _fetch_and_enrich(self, sku: str, related_limit: int) -> dict[str, Any]:
+        """Fetch product data in parallel, validate via guardrails, and merge enrichment."""
+        product, related, inventory, acp_content, review_summary = await asyncio.gather(
+            self.adapters.products.get_product(sku),
+            self.adapters.products.get_related(sku, limit=related_limit),
+            self.adapters.inventory.build_inventory_context(sku),
+            self.adapters.acp.get_content(sku),
+            self.adapters.reviews.get_summary(sku),
+        )
+
+        validation = self._guardrail.validate_sources(product=product, acp_content=acp_content)
+        if not validation.is_valid:
+            self._guardrail.log_audit(sku, [], rejection_reason=validation.rejection_reason)
+            return {"error": "enrichment not available", "reason": validation.rejection_reason}
+
+        self._guardrail.log_audit(sku, validation.source_ids)
+
+        enriched = merge_product_enrichment(product, acp_content, review_summary)
+        enriched["inventory"] = inventory.model_dump() if inventory else None
+        enriched["related"] = [item.model_dump() for item in related]
+        availability = "unknown"
+        if inventory and inventory.item.available > 0:
+            availability = "in_stock"
+        elif inventory:
+            availability = "out_of_stock"
+        if product:
+            enriched["acp_product"] = self.adapters.acp_mapper.to_acp_product(
+                product,
+                availability=availability,
+            )
+
+        return self._guardrail.tag_content(enriched, validation.source_ids)
+
 
 def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
     """Expose MCP tools for product detail enrichment workflows."""
-    adapters = getattr(agent, "adapters", build_enrichment_adapters())
+    adapters = get_agent_adapters(agent, build_enrichment_adapters)
 
     async def get_product_details(payload: dict[str, Any]) -> dict[str, Any]:
         sku = payload.get("sku")
@@ -163,14 +165,7 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
 
     mcp.add_tool("/product/detail", get_product_details)
     mcp.add_tool("/product/similar", get_similar_products)
-    _register_crud_tools(mcp)
-
-
-def _register_crud_tools(mcp: FastAPIMCPServer) -> None:
-    crud_url = os.getenv("CRUD_SERVICE_URL")
-    if not crud_url:
-        return
-    BaseCRUDAdapter(crud_url).register_mcp_tools(mcp)
+    register_crud_tools(mcp)
 
 
 def _enrichment_instructions(service_name: str) -> str:

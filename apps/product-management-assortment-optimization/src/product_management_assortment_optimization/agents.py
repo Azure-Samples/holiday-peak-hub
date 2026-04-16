@@ -2,17 +2,22 @@
 
 from __future__ import annotations
 
-import os
+import asyncio
 from typing import Any
 
-from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.adapters.acp_mapper import AcpCatalogMapper
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
+from holiday_peak_lib.agents.registration_helpers import (
+    get_agent_adapters,
+    register_crud_tools,
+)
 
 from .adapters import AssortmentAdapters, build_assortment_adapters
+
+_ACP_MAPPER = AcpCatalogMapper()
 
 
 class AssortmentOptimizationAgent(BaseRetailAgent):
@@ -32,11 +37,8 @@ class AssortmentOptimizationAgent(BaseRetailAgent):
         if not skus:
             return {"error": "skus is required"}
 
-        products = []
-        for sku in skus:
-            product = await self.adapters.products.get_product(sku)
-            if product:
-                products.append(product)
+        fetched = await asyncio.gather(*(self.adapters.products.get_product(sku) for sku in skus))
+        products = [p for p in fetched if p]
 
         if not products:
             return {"error": "no products found", "skus": skus}
@@ -44,9 +46,8 @@ class AssortmentOptimizationAgent(BaseRetailAgent):
         recommendations = await self.adapters.optimizer.recommend_assortment(
             products, target_size=target_size
         )
-        mapper = AcpCatalogMapper()
         acp_products = [
-            mapper.to_acp_product(product, availability="unknown") for product in products
+            _ACP_MAPPER.to_acp_product(product, availability="unknown") for product in products
         ]
 
         if self.slm or self.llm:
@@ -74,17 +75,17 @@ class AssortmentOptimizationAgent(BaseRetailAgent):
 
 def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
     """Expose MCP tools for assortment optimization workflows."""
-    adapters = getattr(agent, "adapters", build_assortment_adapters())
+    adapters = get_agent_adapters(agent, build_assortment_adapters)
 
     async def score_products(payload: dict[str, Any]) -> dict[str, Any]:
         skus = [str(sku) for sku in payload.get("skus", [])]
         if not skus:
             return {"error": "skus is required"}
-        products = [p for p in [await adapters.products.get_product(sku) for sku in skus] if p]
-        mapper = AcpCatalogMapper()
+        fetched = await asyncio.gather(*(adapters.products.get_product(sku) for sku in skus))
+        products = [p for p in fetched if p]
         scored = await adapters.optimizer.score_products(products)
         acp_products = [
-            mapper.to_acp_product(product, availability="unknown") for product in products
+            _ACP_MAPPER.to_acp_product(product, availability="unknown") for product in products
         ]
         return {"scores": scored, "acp_products": acp_products}
 
@@ -92,27 +93,20 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
         skus = [str(sku) for sku in payload.get("skus", [])]
         if not skus:
             return {"error": "skus is required"}
-        products = [p for p in [await adapters.products.get_product(sku) for sku in skus] if p]
+        fetched = await asyncio.gather(*(adapters.products.get_product(sku) for sku in skus))
+        products = [p for p in fetched if p]
         target_size = int(payload.get("target_size", 5))
-        mapper = AcpCatalogMapper()
         recommendations = await adapters.optimizer.recommend_assortment(
             products, target_size=target_size
         )
         acp_products = [
-            mapper.to_acp_product(product, availability="unknown") for product in products
+            _ACP_MAPPER.to_acp_product(product, availability="unknown") for product in products
         ]
         return {"assortment": recommendations, "acp_products": acp_products}
 
     mcp.add_tool("/assortment/score", score_products)
     mcp.add_tool("/assortment/recommendations", recommend_assortment)
-    _register_crud_tools(mcp)
-
-
-def _register_crud_tools(mcp: FastAPIMCPServer) -> None:
-    crud_url = os.getenv("CRUD_SERVICE_URL")
-    if not crud_url:
-        return
-    BaseCRUDAdapter(crud_url).register_mcp_tools(mcp)
+    register_crud_tools(mcp)
 
 
 def _assortment_instructions() -> str:

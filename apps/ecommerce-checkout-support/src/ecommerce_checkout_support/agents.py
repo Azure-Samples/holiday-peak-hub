@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import asyncio
-import os
 from typing import Any
 
-from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
+from holiday_peak_lib.agents.registration_helpers import (
+    get_agent_adapters,
+    register_crud_tools,
+)
 
 from .adapters import (
     CheckoutAdapters,
@@ -84,7 +86,7 @@ class CheckoutSupportAgent(BaseRetailAgent):
 
 def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
     """Expose MCP tools for checkout support workflows."""
-    adapters = getattr(agent, "adapters", build_checkout_adapters())
+    adapters = get_agent_adapters(agent, build_checkout_adapters)
 
     async def validate_checkout(payload: dict[str, Any]) -> dict[str, Any]:
         items = _coerce_items(payload.get("items"))
@@ -152,15 +154,8 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
     mcp.add_tool("/checkout/validate", validate_checkout)
     mcp.add_tool("/checkout/pricing", get_pricing)
     mcp.add_tool("/checkout/inventory", get_inventory)
-    _register_crud_tools(mcp)
+    register_crud_tools(mcp)
     register_external_api_tools(mcp)
-
-
-def _register_crud_tools(mcp: FastAPIMCPServer) -> None:
-    crud_url = os.getenv("CRUD_SERVICE_URL")
-    if not crud_url:
-        return
-    BaseCRUDAdapter(crud_url).register_mcp_tools(mcp)
 
 
 def _coerce_items(raw_items: Any) -> list[dict[str, object]]:

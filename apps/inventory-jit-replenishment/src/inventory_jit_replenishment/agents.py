@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
-from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
+from holiday_peak_lib.agents.registration_helpers import (
+    get_agent_adapters,
+    mcp_context_tool,
+    register_crud_tools,
+)
 
 from .adapters import InventoryReplenishmentAdapters, build_replenishment_adapters
 
@@ -63,14 +66,13 @@ class InventoryReplenishmentAgent(BaseRetailAgent):
 
 def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
     """Expose MCP tools for JIT replenishment workflows."""
-    adapters = getattr(agent, "adapters", build_replenishment_adapters())
+    adapters = get_agent_adapters(agent, build_replenishment_adapters)
 
-    async def get_inventory_context(payload: dict[str, Any]) -> dict[str, Any]:
-        sku = payload.get("sku")
-        if not sku:
-            return {"error": "sku is required"}
-        context = await adapters.inventory.build_inventory_context(str(sku))
-        return {"inventory_context": context.model_dump() if context else None}
+    get_inventory_context = mcp_context_tool(
+        adapters.inventory.build_inventory_context,
+        id_param="sku",
+        result_key="inventory_context",
+    )
 
     async def get_replenishment_plan(payload: dict[str, Any]) -> dict[str, Any]:
         sku = payload.get("sku")
@@ -85,14 +87,7 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
 
     mcp.add_tool("/inventory/replenishment/context", get_inventory_context)
     mcp.add_tool("/inventory/replenishment/plan", get_replenishment_plan)
-    _register_crud_tools(mcp)
-
-
-def _register_crud_tools(mcp: FastAPIMCPServer) -> None:
-    crud_url = os.getenv("CRUD_SERVICE_URL")
-    if not crud_url:
-        return
-    BaseCRUDAdapter(crud_url).register_mcp_tools(mcp)
+    register_crud_tools(mcp)
 
 
 def _replenishment_instructions() -> str:

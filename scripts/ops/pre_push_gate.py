@@ -16,6 +16,19 @@ def run_step(command: list[str], *, title: str) -> None:
     subprocess.run(command, check=True, cwd=ROOT)
 
 
+def run_pylint_step(command: list[str], *, title: str) -> None:
+    """Run pylint and fail only on fatal (bit 0) or error (bit 1) exit codes.
+
+    Pylint returns a bitmask: F=1, E=2, W=4, R=8, C=16. Pre-existing
+    convention/refactor/warning messages must not block the push gate.
+    """
+    print(f"\n==> {title}")
+    print("$", " ".join(command))
+    result = subprocess.run(command, cwd=ROOT)
+    if result.returncode & 0b11:  # fatal | error
+        raise subprocess.CalledProcessError(result.returncode, command)
+
+
 def run_lint_gate() -> None:
     run_step(
         ["python", "-m", "isort", "--check-only", "lib", "apps"],
@@ -32,8 +45,13 @@ def run_lint_gate() -> None:
         for path in sorted((ROOT / "apps").glob("*/src"))
         if (path / "pyproject.toml").exists()
     )
-    run_step(
-        ["python", "-m", "pylint", "--fail-on=E,F", *pylint_targets],
+    run_pylint_step(
+        [
+            "python", "-m", "pylint",
+            "--fail-on=E,F",
+            "--ignore=build",
+            *pylint_targets,
+        ],
         title="Lint gate: pylint",
     )
     run_step(

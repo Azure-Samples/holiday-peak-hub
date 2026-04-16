@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { MainLayout } from '@/components/templates/MainLayout';
 import { Card } from '@/components/molecules/Card';
+import { CsvUploadPanel } from '@/components/enrichment/CsvUploadPanel';
+import { LiveProcessingLog } from '@/components/enrichment/LiveProcessingLog';
 import { EnrichmentPipelineStatus } from '@/components/enrichment/EnrichmentPipelineStatus';
 import { useEnrichmentMonitorDashboard } from '@/lib/hooks/useEnrichmentMonitor';
 
@@ -40,6 +42,8 @@ export default function EnrichmentMonitorPage() {
             </Link>
           </div>
         </header>
+
+        <CsvUploadPanel />
 
         {isLoading && <Card className="p-6 text-gray-600 dark:text-gray-400">Loading monitor data…</Card>}
 
@@ -164,6 +168,10 @@ export default function EnrichmentMonitorPage() {
                   </div>
                 </div>
               </Card>
+            </section>
+
+            <section aria-label="Live processing log">
+              <LiveProcessingLog />
             </section>
 
             <section aria-label="Error log">

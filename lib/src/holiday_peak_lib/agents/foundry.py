@@ -1,38 +1,34 @@
-"""Helpers for Azure AI Foundry (Microsoft Agent Framework) integration.
-
-This module keeps Azure AI Projects imports lazy to avoid hard failures
-when the SDK is not installed. It provides a small adapter that turns a Foundry
-Agent into a ``ModelTarget`` invoker for ``BaseRetailAgent``.
-"""
-
-from __future__ import annotations
+"""Helpers for Azure AI Foundry (Microsoft Agent Framework) integration."""
 
 import asyncio
 import inspect
+import json
 import os
 from dataclasses import dataclass
 from time import perf_counter
-from typing import Any
+from typing import Any, AsyncGenerator, NamedTuple
 from urllib.parse import quote, unquote, urlsplit, urlunsplit
 
+from agent_framework import AgentSession
+from agent_framework import Message as MAFMessage
+from agent_framework_foundry import FoundryAgent
 from azure.ai.projects.aio import AIProjectClient
+from azure.ai.projects.models import PromptAgentDefinition
 from azure.core.exceptions import HttpResponseError
 from azure.identity.aio import DefaultAzureCredential
+from opentelemetry.trace import NonRecordingSpan as _NRS
 
 from .base_agent import ModelTarget
+
+# Workaround: azure-ai-projects <=2.0.1 NonRecordingSpan bug.
+# The SDK instrumentor reads span.span_instance.attributes, but the OTel
+# no-op span lacks the property. Adding a falsy .attributes is safe.
+if not hasattr(_NRS, "attributes"):
+    _NRS.attributes = None  # type: ignore[attr-defined]
 
 _FOUNDRY_PROJECT_HOST_SUFFIX = ".services.ai.azure.com"
 
 _DEFAULT_FOUNDRY_INVOKE_TIMEOUT = float(os.getenv("AGENT_FOUNDRY_INVOKE_TIMEOUT_SECONDS", "55"))
-
-
-# Lazy imports for MAF FoundryAgent (Phase 1)
-def _import_foundry_agent():
-    """Lazy import for FoundryAgent to maintain import resilience."""
-    from agent_framework import Message as MAFMessage
-    from agent_framework_foundry import FoundryAgent as _FoundryAgent
-
-    return _FoundryAgent, MAFMessage
 
 
 _FOUNDRY_RESOURCE_HOST_SUFFIX = ".cognitiveservices.azure.com"
@@ -165,7 +161,7 @@ class FoundryAgentConfig:
     agent_name: str | None = None
     deployment_name: str | None = None
     project_name: str | None = None
-    stream: bool = False
+    stream: bool = True
     credential: Any | None = None
     resolved_agent_id: str | None = None
 
@@ -206,7 +202,8 @@ class FoundryAgentConfig:
         agent_id = os.getenv("FOUNDRY_AGENT_ID") or os.getenv("AGENT_ID")
         agent_name = os.getenv("FOUNDRY_AGENT_NAME")
         deployment = os.getenv("MODEL_DEPLOYMENT_NAME")
-        stream = (os.getenv("FOUNDRY_STREAM") or "").lower() in {"1", "true", "yes"}
+        stream_raw = os.getenv("FOUNDRY_STREAM", "true").lower()
+        stream = stream_raw not in {"0", "false", "no"}
         if not endpoint:
             raise ValueError("PROJECT_ENDPOINT/FOUNDRY_ENDPOINT is required")
         if not agent_id and not agent_name:
@@ -223,50 +220,14 @@ class FoundryAgentConfig:
         )
 
 
-def _ensure_client(config: FoundryAgentConfig):
-    """Create an async :class:`AIProjectClient` with Entra ID credentials.
-
-    We load the SDK lazily so consumers without Foundry dependencies can import
-    this module safely. The project client is required for Agents v2 and exposes
-    an ``agents`` subclient used for threads, messages, and runs.
-
-    :param config: Foundry configuration.
-    :returns: A configured :class:`AIProjectClient`.
-    :raises ImportError: If the required SDK packages are missing.
-    """
-    try:
-        config.apply_project_contract()
-        credential = config.credential or DefaultAzureCredential()
-        client = AIProjectClient(endpoint=config.endpoint, credential=credential)
-        if config.credential is None:
-            setattr(client, "_holiday_peak_owned_credential", credential)
-        return client
-    except ImportError as exc:  # pragma: no cover - guard for missing SDK
-        raise ImportError(
-            "azure-ai-projects and azure-identity are required for Foundry integration"
-        ) from exc
-
-
-def _ensure_agents_client(config: FoundryAgentConfig):
-    """Create an async Azure AI Agents client with Entra ID credentials.
-
-    :param config: Foundry configuration.
-    :returns: A configured ``azure.ai.agents.aio.AgentsClient``.
-    :raises ImportError: If the required SDK packages are missing.
-    """
-    try:
-        from azure.ai.agents.aio import AgentsClient
-
-        config.apply_project_contract()
-        credential = config.credential or DefaultAzureCredential()
-        client = AgentsClient(endpoint=config.endpoint, credential=credential)
-        if config.credential is None:
-            setattr(client, "_holiday_peak_owned_credential", credential)
-        return client
-    except ImportError as exc:  # pragma: no cover - guard for missing SDK
-        raise ImportError(
-            "azure-ai-agents and azure-identity are required for Foundry runtime integration"
-        ) from exc
+def _ensure_client(config: FoundryAgentConfig) -> AIProjectClient:
+    """Create an async :class:`AIProjectClient` with Entra ID credentials."""
+    config.apply_project_contract()
+    credential = config.credential or DefaultAzureCredential()
+    client = AIProjectClient(endpoint=config.endpoint, credential=credential)
+    if config.credential is None:
+        setattr(client, "_holiday_peak_owned_credential", credential)
+    return client
 
 
 async def _close_owned_credential(client: Any) -> None:
@@ -292,78 +253,6 @@ async def _call_first_available(
         if callable(method):
             return await _maybe_await(method(*args, **kwargs))
     raise AttributeError(f"None of methods {method_names} found on {type(target).__name__}")
-
-
-def _is_agents_runtime_client(client: Any) -> bool:
-    return all(hasattr(client, operation) for operation in ("threads", "messages", "runs"))
-
-
-def _to_string_enum(value: Any) -> str:
-    if value is None:
-        return ""
-    enum_value = getattr(value, "value", None)
-    if enum_value is not None:
-        return str(enum_value)
-    return str(value)
-
-
-def _to_dict(value: Any) -> dict[str, Any]:
-    if value is None:
-        return {}
-    if isinstance(value, dict):
-        return value
-
-    for method_name in ("model_dump", "as_dict", "to_dict"):
-        method = getattr(value, method_name, None)
-        if callable(method):
-            payload = method()
-            if isinstance(payload, dict):
-                return payload
-
-    payload = getattr(value, "__dict__", None)
-    if isinstance(payload, dict):
-        return dict(payload)
-    return {}
-
-
-def _message_text_value(value: Any) -> str | None:
-    if value is None:
-        return None
-    if isinstance(value, str):
-        return value
-    if isinstance(value, dict):
-        text_block = value.get("text")
-        if isinstance(text_block, dict):
-            inner_value = text_block.get("value")
-            if inner_value:
-                return str(inner_value)
-        raw_value = value.get("value")
-        if raw_value:
-            return str(raw_value)
-
-    text_block = getattr(value, "text", None)
-    text_value = getattr(text_block, "value", None) if text_block is not None else None
-    if text_value:
-        return str(text_value)
-
-    raw_value = getattr(value, "value", None)
-    if raw_value:
-        return str(raw_value)
-    return None
-
-
-async def _get_last_assistant_text(messages_client: Any, thread_id: str) -> str | None:
-    try:
-        text_content = await _call_first_available(
-            messages_client,
-            ("get_last_message_text_by_role",),
-            thread_id=thread_id,
-            role="assistant",
-        )
-    except (AttributeError, HttpResponseError, TypeError, ValueError):
-        return None
-
-    return _message_text_value(text_content)
 
 
 def _agent_id(agent_obj: Any) -> str | None:
@@ -423,6 +312,126 @@ def _is_service_invocation_exception(exc: BaseException) -> bool:
     return "ServiceInvocationException" in str(exc)
 
 
+async def _lookup_existing_agent(
+    agents_client: Any,
+    *,
+    configured_agent_id: str | None,
+    resolved_agent_name: str | None,
+    create_if_missing: bool,
+) -> dict[str, Any] | None:
+    """Search for an existing agent by ID or name. Return result dict or ``None``."""
+    if not configured_agent_id and not resolved_agent_name:
+        return None
+    try:
+        for candidate in await _list_agents(agents_client):
+            if configured_agent_id and (_agent_id(candidate) or "") == configured_agent_id:
+                return {
+                    "status": "exists",
+                    "agent_id": _agent_id(candidate),
+                    "agent_name": _agent_name(candidate),
+                    "created": False,
+                    "api_version": "v2",
+                }
+            if (_agent_name(candidate) or "") == resolved_agent_name:
+                return {
+                    "status": "found_by_name",
+                    "agent_id": _agent_id(candidate),
+                    "agent_name": _agent_name(candidate),
+                    "created": False,
+                    "api_version": "v2",
+                }
+    except HttpResponseError as exc:
+        if _is_service_invocation_exception(exc):
+            return {
+                "status": "agents_service_unavailable",
+                "agent_id": None,
+                "agent_name": resolved_agent_name,
+                "created": False,
+                "error_code": "UserError.ServiceInvocationException",
+                "detail": str(exc),
+            }
+        if not create_if_missing:
+            return {
+                "status": "list_failed",
+                "agent_id": None,
+                "agent_name": resolved_agent_name,
+                "created": False,
+            }
+    except (AttributeError, TypeError, ValueError, RuntimeError):
+        if not create_if_missing:
+            return {
+                "status": "list_failed",
+                "agent_id": None,
+                "agent_name": resolved_agent_name,
+                "created": False,
+            }
+    return None
+
+
+async def _create_agent_version(
+    agents_client: Any,
+    *,
+    config: FoundryAgentConfig,
+    resolved_agent_name: str | None,
+    instructions: str | None,
+    model: str | None,
+) -> dict[str, Any]:
+    """Create a new Foundry agent version and return a result dict."""
+    resolved_model = model or config.deployment_name
+    fallback_name = resolved_agent_name or f"agent-{config.agent_id}"
+
+    if not resolved_model:
+        return {
+            "status": "missing_model",
+            "agent_id": None,
+            "agent_name": fallback_name,
+            "created": False,
+        }
+
+    try:
+        definition = PromptAgentDefinition(
+            model=resolved_model,
+            instructions=instructions or "You are a helpful retail assistant.",
+        )
+        created = await _call_first_available(
+            agents_client,
+            ("create_version",),
+            agent_name=fallback_name,
+            definition=definition,
+        )
+        return {
+            "status": "created",
+            "agent_id": _agent_id(created),
+            "agent_name": _agent_name(created) or resolved_agent_name,
+            "created": True,
+            "api_version": "v2",
+        }
+    except HttpResponseError as exc:
+        message = str(exc)
+        if _is_service_invocation_exception(exc):
+            return {
+                "status": "agents_service_unavailable",
+                "agent_id": None,
+                "agent_name": fallback_name,
+                "created": False,
+                "error_code": "UserError.ServiceInvocationException",
+                "detail": message,
+                "hint": (
+                    "Model deployment may be missing or unavailable in the Foundry project. "
+                    "Verify the deployment exists, uses a GlobalStandard/global deployment SKU, "
+                    "and pass its exact deployment name."
+                ),
+            }
+        return {
+            "status": "create_failed",
+            "agent_id": None,
+            "agent_name": fallback_name,
+            "created": False,
+            "error_code": str(getattr(exc, "code", None) or "HttpResponseError"),
+            "detail": message,
+        }
+
+
 async def ensure_foundry_agent(
     config: FoundryAgentConfig,
     *,
@@ -461,53 +470,14 @@ async def ensure_foundry_agent(
                     ),
                 }
 
-            if configured_agent_id or resolved_agent_name:
-                try:
-                    for candidate in await _list_agents(agents_client):
-                        if (
-                            configured_agent_id
-                            and (_agent_id(candidate) or "") == configured_agent_id
-                        ):
-                            return {
-                                "status": "exists",
-                                "agent_id": _agent_id(candidate),
-                                "agent_name": _agent_name(candidate),
-                                "created": False,
-                                "api_version": "v2",
-                            }
-                        if (_agent_name(candidate) or "") == resolved_agent_name:
-                            return {
-                                "status": "found_by_name",
-                                "agent_id": _agent_id(candidate),
-                                "agent_name": _agent_name(candidate),
-                                "created": False,
-                                "api_version": "v2",
-                            }
-                except HttpResponseError as exc:
-                    if _is_service_invocation_exception(exc):
-                        return {
-                            "status": "agents_service_unavailable",
-                            "agent_id": None,
-                            "agent_name": resolved_agent_name,
-                            "created": False,
-                            "error_code": "UserError.ServiceInvocationException",
-                            "detail": str(exc),
-                        }
-                    if not create_if_missing:
-                        return {
-                            "status": "list_failed",
-                            "agent_id": None,
-                            "agent_name": resolved_agent_name,
-                            "created": False,
-                        }
-                except (AttributeError, TypeError, ValueError, RuntimeError):
-                    if not create_if_missing:
-                        return {
-                            "status": "list_failed",
-                            "agent_id": None,
-                            "agent_name": resolved_agent_name,
-                            "created": False,
-                        }
+            found = await _lookup_existing_agent(
+                agents_client,
+                configured_agent_id=configured_agent_id,
+                resolved_agent_name=resolved_agent_name,
+                create_if_missing=create_if_missing,
+            )
+            if found is not None:
+                return found
 
             if not create_if_missing:
                 return {
@@ -517,95 +487,39 @@ async def ensure_foundry_agent(
                     "created": False,
                 }
 
-            resolved_model = model or config.deployment_name
-            if not resolved_model:
-                return {
-                    "status": "missing_model",
-                    "agent_id": None,
-                    "agent_name": resolved_agent_name or f"agent-{config.agent_id}",
-                    "created": False,
-                }
-
-            try:
-                try:
-                    from azure.ai.projects.models import PromptAgentDefinition
-
-                    definition: Any = PromptAgentDefinition(
-                        model=resolved_model,
-                        instructions=instructions or "You are a helpful retail assistant.",
-                    )
-                except (ImportError, AttributeError, TypeError, ValueError):
-                    definition = {
-                        "kind": "prompt",
-                        "model": resolved_model,
-                        "instructions": instructions or "You are a helpful retail assistant.",
-                    }
-
-                created = await _call_first_available(
-                    agents_client,
-                    ("create_version",),
-                    agent_name=resolved_agent_name or f"agent-{config.agent_id}",
-                    definition=definition,
-                )
-
-                return {
-                    "status": "created",
-                    "agent_id": _agent_id(created),
-                    "agent_name": _agent_name(created) or resolved_agent_name,
-                    "created": True,
-                    "api_version": "v2",
-                }
-            except HttpResponseError as exc:
-                message = str(exc)
-                if _is_service_invocation_exception(exc):
-                    return {
-                        "status": "agents_service_unavailable",
-                        "agent_id": None,
-                        "agent_name": resolved_agent_name or f"agent-{config.agent_id}",
-                        "created": False,
-                        "error_code": "UserError.ServiceInvocationException",
-                        "detail": message,
-                        "hint": (
-                            "Model deployment may be missing or unavailable in the Foundry project. "
-                            "Verify the deployment exists, uses a GlobalStandard/global deployment SKU, "
-                            "and pass its exact deployment name."
-                        ),
-                    }
-
-                return {
-                    "status": "create_failed",
-                    "agent_id": None,
-                    "agent_name": resolved_agent_name or f"agent-{config.agent_id}",
-                    "created": False,
-                    "error_code": str(getattr(exc, "code", None) or "HttpResponseError"),
-                    "detail": message,
-                }
+            return await _create_agent_version(
+                agents_client,
+                config=config,
+                resolved_agent_name=resolved_agent_name,
+                instructions=instructions,
+                model=model,
+            )
     finally:
         await _close_owned_credential(project_client)
 
 
-def _normalize_messages(messages: Any) -> list[dict[str, str]]:
-    """Normalize input into a list of role/content message dictionaries.
+# Re-export from canonical module — avoids duplicated logic.
+from holiday_peak_lib.agents.provider_policy import (  # noqa: E402
+    normalize_messages as _normalize_messages,
+)
 
-    This keeps the call surface flexible while ensuring the Agents SDK receives
-    the ``role`` and ``content`` fields it expects.
 
-    :param messages: A string, a single message dict, or an iterable of dicts.
-    :returns: A list of message dictionaries.
-    """
-    if isinstance(messages, str):
-        return [{"role": "user", "content": messages}]
-    if isinstance(messages, dict):
-        return [messages]
-    return list(messages or [])
+class _PreparedInvocation(NamedTuple):
+    """Extracted payload shared by streaming and non-streaming paths."""
+
+    maf_messages: list[Any]
+    tool_callables: list[Any] | None
+    normalized: list[dict[str, str]]
+    session: AgentSession | None
 
 
 class FoundryAgentInvoker:
     """Invoke a Foundry Agent through the MAF pipeline (Responses API).
 
-    This replaces FoundryInvoker by delegating to FoundryAgent from
-    agent-framework-foundry, restoring the full MAF execution stack:
-    middleware, telemetry, and tool execution loop.
+    Implements the Strategy pattern for model invocation: ``__call__`` handles
+    the non-streaming path, ``invoke_stream`` handles the streaming path.
+    Both delegate message preparation to ``_prepare_invocation`` (Extract
+    Method) to eliminate duplication.
     """
 
     def __init__(self, config: FoundryAgentConfig, *, timeout: float | None = None) -> None:
@@ -614,64 +528,118 @@ class FoundryAgentInvoker:
         self._credential: Any = None
         self._timeout = timeout if timeout is not None else _DEFAULT_FOUNDRY_INVOKE_TIMEOUT
 
-    def _ensure_agent(self) -> Any:
+    def _ensure_agent(self) -> FoundryAgent:
         """Create or return the cached FoundryAgent instance."""
-        _FoundryAgent, _ = _import_foundry_agent()
-
         if self._agent is None:
             self._credential = self.config.credential or DefaultAzureCredential()
-            self._agent = _FoundryAgent(
+            self._agent = FoundryAgent(
                 project_endpoint=self.config.endpoint,
                 agent_name=self.config.agent_name,
                 credential=self._credential,
             )
         return self._agent
 
-    async def __call__(self, **kwargs: Any) -> dict[str, Any]:
-        """Invoke via FoundryAgent.run() with full MAF pipeline."""
-        _, MAFMessage = _import_foundry_agent()
+    def _prepare_invocation(self, **kwargs: Any) -> _PreparedInvocation:
+        """Extract and normalize messages/tools from kwargs.
 
+        Shared by ``__call__`` and ``invoke_stream`` to avoid
+        duplicating message serialization and tool extraction.
+        """
         messages_raw = kwargs.pop("messages", [])
-        stream = kwargs.pop("stream", False)
+        kwargs.pop("stream", None)
         tools_raw = kwargs.pop("tools", None)
-        kwargs.pop("model", None)
-        kwargs.pop("temperature", None)
-        kwargs.pop("top_p", None)
-        kwargs.pop("client", None)
-        kwargs.pop("thread_id", None)
-        kwargs.pop("conversation_id", None)
+        # Extract session data before discarding transport-only kwargs
+        session_id = kwargs.pop("session_id", None)
+        session_state = kwargs.pop("_foundry_session_state", None)
+        # Discard transport-only kwargs not consumed by MAF
+        for _discard_key in (
+            "model",
+            "temperature",
+            "top_p",
+            "client",
+            "thread_id",
+            "conversation_id",
+        ):
+            kwargs.pop(_discard_key, None)
 
-        started = perf_counter()
+        # Restore AgentSession from prior state or create new one
+        session: AgentSession | None = None
+        if isinstance(session_state, dict):
+            try:
+                session = AgentSession.from_dict(session_state)
+            except (KeyError, TypeError, ValueError):
+                pass
+        if session is None and session_id:
+            session = AgentSession(session_id=str(session_id))
 
-        # Convert messages to MAF Message objects
+        # MAF Message expects string content; dict/list payloads from agent
+        # handlers must be serialized to JSON first to avoid
+        # ``ValueError: Content mapping requires 'type'``.
         normalized = _normalize_messages(messages_raw)
-        maf_messages = [
-            MAFMessage(role=msg.get("role", "user"), contents=[msg.get("content", "")])
-            for msg in normalized
-        ]
+        maf_messages = []
+        for msg in normalized:
+            raw_content = msg.get("content", "")
+            if isinstance(raw_content, (dict, list)):
+                raw_content = json.dumps(raw_content, default=str)
+            maf_messages.append(MAFMessage(role=msg.get("role", "user"), contents=[raw_content]))
 
-        # Convert tools dict to list of callables
+        # Normalize tool callables from dict, list, or tuple
         tool_callables = None
         if isinstance(tools_raw, dict) and tools_raw:
             tool_callables = list(tools_raw.values())
         elif isinstance(tools_raw, (list, tuple)) and tools_raw:
             tool_callables = list(tools_raw)
 
+        return _PreparedInvocation(
+            maf_messages=maf_messages,
+            tool_callables=tool_callables,
+            normalized=normalized,
+            session=session,
+        )
+
+    async def __call__(self, **kwargs: Any) -> dict[str, Any] | AsyncGenerator[str, None]:
+        """Invoke the Foundry Agent.
+
+        Strategy dispatch lives here:
+        - ``stream=False`` (default) → awaits ``agent.run()`` and returns a dict.
+        - ``stream=True`` → returns an ``AsyncGenerator[str, None]`` that
+          yields text-token deltas.  Callers iterate with ``async for``.
+
+        The dunder method remains the single public entry point so that
+        ``invoker(**payload)`` always works regardless of streaming mode.
+        """
+        stream = kwargs.pop("stream", False)
+        prep = self._prepare_invocation(**kwargs)
+
+        if stream:
+            return self._stream_impl(prep)
+
+        return await self._request_response_impl(prep)
+
+    async def _request_response_impl(
+        self,
+        prep: _PreparedInvocation,
+    ) -> dict[str, Any]:
+        """Non-streaming path: await a single AgentResponse."""
+        started = perf_counter()
         agent = self._ensure_agent()
 
-        # Call through full MAF pipeline with explicit timeout
+        run_kwargs: dict[str, Any] = {
+            "stream": False,
+            "tools": prep.tool_callables,
+        }
+        if prep.session is not None:
+            run_kwargs["session"] = prep.session
+
         try:
             response = await asyncio.wait_for(
                 agent.run(
-                    maf_messages,
-                    stream=stream,
-                    tools=tool_callables,
+                    prep.maf_messages,
+                    **run_kwargs,
                 ),
                 timeout=self._timeout,
             )
         except asyncio.TimeoutError:
-            elapsed_ms = (perf_counter() - started) * 1000
-            reference_name = self.config.agent_name or self.config.agent_id
             return {
                 "messages": [
                     {
@@ -689,23 +657,27 @@ class FoundryAgentInvoker:
                         ],
                     }
                 ],
-                "stream": stream,
+                "stream": False,
                 "error": "timeout",
-                "telemetry": {
-                    "endpoint": self.config.endpoint,
-                    "agent_name": reference_name,
-                    "deployment_name": self.config.deployment_name or reference_name,
-                    "stream": stream,
-                    "messages_sent": len(normalized),
-                    "duration_ms": elapsed_ms,
-                    "api_version": "responses",
-                    "runtime": "maf",
-                    "timeout_seconds": self._timeout,
-                    "outcome": "timeout",
-                },
+                "telemetry": self._build_telemetry(
+                    started,
+                    prep.normalized,
+                    stream=False,
+                    outcome="timeout",
+                ),
             }
 
-        # Convert AgentResponse to expected dict format
+        # Extract updated session state from response for thread reuse.
+        # AgentResponse.session carries the service_session_id assigned by
+        # Foundry on the first call and must be returned to the caller so
+        # subsequent requests in the same page-level thread can resume.
+        updated_session_state: dict[str, Any] | None = None
+        resp_session = getattr(response, "session", None)
+        if resp_session is not None and hasattr(resp_session, "to_dict"):
+            updated_session_state = resp_session.to_dict()
+        elif prep.session is not None:
+            updated_session_state = prep.session.to_dict()
+
         assistant_text = response.text if hasattr(response, "text") else str(response)
         output_messages = []
         if assistant_text:
@@ -717,25 +689,75 @@ class FoundryAgentInvoker:
                 }
             )
 
-        elapsed_ms = (perf_counter() - started) * 1000
-        reference_name = self.config.agent_name or self.config.agent_id
+        result: dict[str, Any] = {
+            "messages": output_messages,
+            "stream": False,
+            "telemetry": self._build_telemetry(started, prep.normalized, stream=False),
+        }
+        if updated_session_state is not None:
+            result["_foundry_session_state"] = updated_session_state
+        return result
 
-        telemetry = {
+    def _build_telemetry(
+        self,
+        started: float,
+        normalized: list[dict[str, str]],
+        *,
+        stream: bool,
+        outcome: str = "success",
+    ) -> dict[str, Any]:
+        """Build a standard telemetry dict (Extract Method)."""
+        reference_name = self.config.agent_name or self.config.agent_id
+        telemetry: dict[str, Any] = {
             "endpoint": self.config.endpoint,
             "agent_name": reference_name,
             "deployment_name": self.config.deployment_name or reference_name,
             "stream": stream,
             "messages_sent": len(normalized),
-            "duration_ms": elapsed_ms,
+            "duration_ms": (perf_counter() - started) * 1000,
             "api_version": "responses",
             "runtime": "maf",
         }
+        if outcome != "success":
+            telemetry["timeout_seconds"] = self._timeout
+            telemetry["outcome"] = outcome
+        return telemetry
 
-        return {
-            "messages": output_messages,
-            "stream": stream,
-            "telemetry": telemetry,
+    async def _stream_impl(
+        self,
+        prep: _PreparedInvocation,
+    ) -> AsyncGenerator[str, None]:
+        """Streaming path: yield text-token deltas.
+
+        ``agent.run(stream=True)`` returns a ``ResponseStream`` (AsyncIterable),
+        NOT a coroutine, so we guard with ``asyncio.timeout`` instead of
+        ``asyncio.wait_for``.
+
+        MAF ``AgentResponseUpdate.text`` is *cumulative* — each update contains
+        the full text assembled so far.  We track ``prev_len`` and yield only
+        the new portion (the delta).
+        """
+        agent = self._ensure_agent()
+
+        run_kwargs: dict[str, Any] = {
+            "stream": True,
+            "tools": prep.tool_callables,
         }
+        if prep.session is not None:
+            run_kwargs["session"] = prep.session
+
+        stream_response = agent.run(
+            prep.maf_messages,
+            **run_kwargs,
+        )
+
+        prev_len = 0
+        async with asyncio.timeout(self._timeout):
+            async for update in stream_response:
+                text = update.text if hasattr(update, "text") else str(update)
+                if len(text) > prev_len:
+                    yield text[prev_len:]
+                    prev_len = len(text)
 
     async def close(self) -> None:
         """Clean up credential resources."""
@@ -747,156 +769,11 @@ class FoundryAgentInvoker:
         self._agent = None
 
 
-class FoundryInvoker:
-    """Callable wrapper to invoke a Foundry Agent with telemetry.
-
-    .. deprecated::
-        Use :class:`FoundryAgentInvoker` instead. This class uses the
-        deprecated V1 thread/message/run API and will be removed.
-    """
-
-    def __init__(self, config: FoundryAgentConfig) -> None:
-        """Create a new invoker.
-
-        :param config: Foundry configuration describing the target agent.
-        """
-        self.config = config
-
-    async def __call__(self, **kwargs: Any) -> dict[str, Any]:
-        """Invoke a Foundry Agent through Azure AI Agents thread/run APIs.
-
-        :param kwargs: Invocation options such as ``messages`` and ``thread_id``.
-        :returns: A dictionary containing thread/run identifiers, responses, and telemetry.
-        """
-
-        runtime_client = kwargs.pop("client", None)
-        owns_client = runtime_client is None or not _is_agents_runtime_client(runtime_client)
-        if owns_client:
-            runtime_client = _ensure_agents_client(self.config)
-
-        if owns_client:
-            try:
-                async with runtime_client:
-                    return await self._invoke(runtime_client, **kwargs)
-            finally:
-                await _close_owned_credential(runtime_client)
-        return await self._invoke(runtime_client, **kwargs)
-
-    async def _invoke(self, client: Any, **kwargs) -> dict[str, Any]:
-        # No GoF pattern applies here; this is a thin data-oriented SDK adapter.
-        messages = _normalize_messages(kwargs.pop("messages", []))
-        started = perf_counter()
-        runtime_agent_id = self.config.runtime_agent_id
-        thread_id = kwargs.pop("thread_id", None) or kwargs.pop("conversation_id", None)
-        requested_model = kwargs.pop("model", None)
-        temperature = kwargs.pop("temperature", None)
-        top_p = kwargs.pop("top_p", None)
-        kwargs.pop("tools", None)
-        kwargs.pop("stream", None)
-
-        if runtime_agent_id is None:
-            raise RuntimeError("Foundry runtime target requires a resolved agent id")
-
-        if not _is_agents_runtime_client(client):
-            raise TypeError(
-                "Foundry runtime client must expose threads/messages/runs operations "
-                "from azure-ai-agents"
-            )
-
-        if not thread_id:
-            thread = await _maybe_await(client.threads.create())
-            thread_dict = _to_dict(thread)
-            thread_id = thread_dict.get("id") or getattr(thread, "id", None)
-
-        if not thread_id:
-            raise RuntimeError("Unable to resolve Foundry thread identifier")
-
-        for message in messages:
-            content = str(message.get("content", "")).strip()
-            if not content:
-                continue
-            role = str(message.get("role", "user")).lower()
-            if role not in {"user", "assistant"}:
-                role = "user"
-
-            await _maybe_await(
-                client.messages.create(
-                    thread_id=str(thread_id),
-                    role=role,
-                    content=content,
-                )
-            )
-
-        run_kwargs: dict[str, Any] = {
-            "thread_id": str(thread_id),
-            "agent_id": runtime_agent_id,
-        }
-        if requested_model and requested_model != runtime_agent_id:
-            run_kwargs["model"] = requested_model
-        if temperature is not None:
-            run_kwargs["temperature"] = temperature
-        if top_p is not None:
-            run_kwargs["top_p"] = top_p
-
-        run = await _maybe_await(client.runs.create_and_process(**run_kwargs))
-        run_dict = _to_dict(run)
-        run_id = run_dict.get("id") or getattr(run, "id", None)
-        run_status = _to_string_enum(run_dict.get("status") or getattr(run, "status", None)).lower()
-
-        if run_status != "completed":
-            error_payload = run_dict.get("last_error") or getattr(run, "last_error", None)
-            raise RuntimeError(
-                "Foundry run did not complete "
-                f"(status={run_status or 'unknown'}): {_to_dict(error_payload) or error_payload}"
-            )
-
-        assistant_text = await _get_last_assistant_text(client.messages, str(thread_id))
-        output_messages = (
-            [
-                {
-                    "type": "message",
-                    "role": "assistant",
-                    "content": [{"type": "output_text", "text": assistant_text}],
-                }
-            ]
-            if assistant_text
-            else []
-        )
-
-        usage_payload = run_dict.get("usage") or getattr(run, "usage", None)
-        usage = usage_payload if isinstance(usage_payload, dict) else _to_dict(usage_payload)
-
-        reference_name = self.config.agent_name or _agent_name_from_identifier(runtime_agent_id)
-        telemetry = {
-            "endpoint": self.config.endpoint,
-            "agent_id": runtime_agent_id,
-            "agent_name": reference_name,
-            "deployment_name": self.config.deployment_name
-            or (requested_model if isinstance(requested_model, str) else runtime_agent_id),
-            "stream": False,
-            "messages_sent": len(messages),
-            "duration_ms": (perf_counter() - started) * 1000,
-            "run_status": run_status,
-            "api_version": "v2",
-        }
-        if usage:
-            telemetry["usage"] = usage
-        return {
-            "thread_id": str(thread_id),
-            "conversation_id": str(thread_id),
-            "run_id": str(run_id) if run_id is not None else None,
-            "response_id": str(run_id) if run_id is not None else None,
-            "messages": output_messages,
-            "stream": False,
-            "telemetry": telemetry,
-        }
-
-
 def build_foundry_model_target(config: FoundryAgentConfig) -> ModelTarget:
     """Create a ``ModelTarget`` backed by Azure AI Foundry Agents.
 
     :param config: Foundry configuration describing the target agent.
-    :returns: A :class:`ModelTarget` that delegates to :class:`FoundryInvoker`.
+    :returns: A :class:`ModelTarget` that delegates to :class:`FoundryAgentInvoker`.
     """
     config.apply_project_contract()
     runtime_agent_id = config.runtime_agent_id
@@ -915,7 +792,6 @@ def build_foundry_model_target(config: FoundryAgentConfig) -> ModelTarget:
 __all__ = [
     "FoundryAgentConfig",
     "FoundryAgentInvoker",
-    "FoundryInvoker",
     "build_foundry_model_target",
     "ensure_foundry_agent",
 ]

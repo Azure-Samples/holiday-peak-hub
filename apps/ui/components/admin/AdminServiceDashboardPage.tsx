@@ -1483,7 +1483,7 @@ export function AdminServiceDashboardPage({ domain, service }: AdminServiceDashb
                               <td className="px-4 py-2.5">
                                 <Badge variant={ACTIVITY_STATUS_BADGE_VARIANT[row.status]} size="xs">{row.status}</Badge>
                               </td>
-                              <td className="px-4 py-2.5 text-xs text-gray-500 tabular-nums">{Math.round(row.latency_ms)} ms</td>
+                              <td className="px-4 py-2.5 text-xs text-gray-500 tabular-nums">{row.latency_ms != null ? (row.latency_ms < 1 ? '< 1 ms' : `${Math.round(row.latency_ms)} ms`) : '—'}</td>
                             </tr>
                           ))}
                         </tbody>

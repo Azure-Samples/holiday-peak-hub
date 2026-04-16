@@ -2,17 +2,51 @@
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
-from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
+from holiday_peak_lib.agents.registration_helpers import (
+    get_agent_adapters,
+    register_crud_tools,
+)
 
 from .adapters import ProductConsistencyAdapters, build_consistency_adapters
 from .completeness_engine import CompletenessEngine
+
+_ENGINE = CompletenessEngine()
+
+
+async def _evaluate_completeness(
+    sku: str,
+    adapters: ProductConsistencyAdapters,
+    category_id: str | None = None,
+) -> dict[str, Any]:
+    """Shared evaluation logic used by agent and MCP tool."""
+    product = await adapters.products.get_product(str(sku))
+    if not product:
+        return {"error": "sku not found", "sku": sku}
+
+    resolved_category = category_id or product.category or "default"
+    schema = await adapters.completeness.get_schema(resolved_category)
+    if schema is None:
+        return {
+            "error": "schema not found",
+            "sku": sku,
+            "category_id": resolved_category,
+        }
+
+    report = _ENGINE.evaluate(str(sku), product.model_dump(), schema)
+    await adapters.completeness.store_gap_report(report)
+
+    return {
+        "sku": sku,
+        "category_id": resolved_category,
+        "completeness": report.model_dump(mode="json"),
+        "needs_enrichment": bool(report.enrichable_gaps),
+    }
 
 
 class ProductConsistencyAgent(BaseRetailAgent):
@@ -21,7 +55,6 @@ class ProductConsistencyAgent(BaseRetailAgent):
     def __init__(self, config: AgentDependencies, *args: Any, **kwargs: Any) -> None:
         super().__init__(config, *args, **kwargs)
         self._adapters = build_consistency_adapters()
-        self._engine = CompletenessEngine()
 
     @property
     def adapters(self) -> ProductConsistencyAdapters:
@@ -30,28 +63,7 @@ class ProductConsistencyAgent(BaseRetailAgent):
     async def evaluate_completeness(
         self, sku: str, category_id: str | None = None
     ) -> dict[str, Any]:
-        product = await self.adapters.products.get_product(str(sku))
-        if not product:
-            return {"error": "sku not found", "sku": sku}
-
-        resolved_category = category_id or product.category or "default"
-        schema = await self.adapters.completeness.get_schema(resolved_category)
-        if schema is None:
-            return {
-                "error": "schema not found",
-                "sku": sku,
-                "category_id": resolved_category,
-            }
-
-        report = self._engine.evaluate(str(sku), product.model_dump(), schema)
-        await self.adapters.completeness.store_gap_report(report)
-
-        return {
-            "sku": sku,
-            "category_id": resolved_category,
-            "completeness": report.model_dump(mode="json"),
-            "needs_enrichment": bool(report.enrichable_gaps),
-        }
+        return await _evaluate_completeness(sku, self.adapters, category_id)
 
     async def handle(self, request: dict[str, Any]) -> dict[str, Any]:
         sku = request.get("sku")
@@ -80,55 +92,20 @@ class ProductConsistencyAgent(BaseRetailAgent):
 
 def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
     """Expose MCP tools for schema-driven completeness workflows."""
-    completeness_agent = agent if isinstance(agent, ProductConsistencyAgent) else None
-    adapters = (
-        completeness_agent.adapters
-        if completeness_agent is not None
-        else build_consistency_adapters()
-    )
-    engine = CompletenessEngine()
+    adapters = get_agent_adapters(agent, build_consistency_adapters)
 
     async def evaluate_product_completeness(payload: dict[str, Any]) -> dict[str, Any]:
         sku = payload.get("sku")
         if not sku:
             return {"error": "sku is required"}
-        category_id = payload.get("category_id")
-        if completeness_agent is not None:
-            return await completeness_agent.evaluate_completeness(
-                sku=str(sku), category_id=category_id
-            )
-
-        product = await adapters.products.get_product(str(sku))
-        if not product:
-            return {"error": "sku not found", "sku": sku}
-
-        resolved_category = category_id or product.category or "default"
-        schema = await adapters.completeness.get_schema(resolved_category)
-        if schema is None:
-            return {
-                "error": "schema not found",
-                "sku": sku,
-                "category_id": resolved_category,
-            }
-
-        report = engine.evaluate(str(sku), product.model_dump(), schema)
-        await adapters.completeness.store_gap_report(report)
-        return {
-            "sku": str(sku),
-            "category_id": resolved_category,
-            "completeness": report.model_dump(mode="json"),
-            "needs_enrichment": bool(report.enrichable_gaps),
-        }
+        return await _evaluate_completeness(
+            sku=str(sku),
+            adapters=adapters,
+            category_id=payload.get("category_id"),
+        )
 
     mcp.add_tool("/product/completeness/evaluate", evaluate_product_completeness)
-    _register_crud_tools(mcp)
-
-
-def _register_crud_tools(mcp: FastAPIMCPServer) -> None:
-    crud_url = os.getenv("CRUD_SERVICE_URL")
-    if not crud_url:
-        return
-    BaseCRUDAdapter(crud_url).register_mcp_tools(mcp)
+    register_crud_tools(mcp)
 
 
 def _consistency_instructions() -> str:

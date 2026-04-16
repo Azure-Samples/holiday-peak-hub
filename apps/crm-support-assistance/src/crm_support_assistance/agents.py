@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
-from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
+from holiday_peak_lib.agents.registration_helpers import (
+    get_agent_adapters,
+    register_crud_tools,
+)
 
 from .adapters import SupportAdapters, build_support_adapters
 
@@ -68,7 +70,7 @@ class SupportAssistanceAgent(BaseRetailAgent):
 
 def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
     """Expose MCP tools for CRM support assistance workflows."""
-    adapters = getattr(agent, "adapters", build_support_adapters())
+    adapters = get_agent_adapters(agent, build_support_adapters)
 
     async def get_contact_context(payload: dict[str, Any]) -> dict[str, Any]:
         contact_id = payload.get("contact_id")
@@ -109,14 +111,7 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
     mcp.add_tool("/crm/support/brief", get_support_brief)
     mcp.add_tool("/crm/support/contact-context", get_contact_context)
     mcp.add_tool("/crm/support/interaction-summary", get_interaction_summary)
-    _register_crud_tools(mcp)
-
-
-def _register_crud_tools(mcp: FastAPIMCPServer) -> None:
-    crud_url = os.getenv("CRUD_SERVICE_URL")
-    if not crud_url:
-        return
-    BaseCRUDAdapter(crud_url).register_mcp_tools(mcp)
+    register_crud_tools(mcp)
 
 
 def _support_instructions() -> str:

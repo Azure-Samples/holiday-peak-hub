@@ -3,6 +3,7 @@
 import inspect
 from typing import Any, Callable
 
+from holiday_peak_lib.agents.complexity import assess_complexity
 from holiday_peak_lib.utils.logging import configure_logging, log_async_operation
 
 logger = configure_logging()
@@ -26,12 +27,8 @@ class RoutingStrategy:
         self._complexity_threshold = complexity_threshold
 
     def _assess_complexity(self, payload: dict[str, Any]) -> float:
-        """Return a lightweight complexity score in the range [0, 1]."""
-
-        text = str(payload.get("query") or payload)
-        word_score = min(len(text.split()) / 50.0, 1.0)
-        multi_tool_score = 0.2 if payload.get("requires_multi_tool") else 0.0
-        return min(word_score + multi_tool_score, 1.0)
+        """Delegate to shared complexity heuristic."""
+        return assess_complexity(payload)
 
     def _extract_result_text(self, result: Any) -> str:
         """Best-effort extraction of textual response for upgrade checks."""

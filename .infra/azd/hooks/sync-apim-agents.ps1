@@ -575,6 +575,23 @@ function Ensure-AgentApi {
 
     if ($DryRun) {
         Write-Host "[preview] api-id=$apiId path=$path"
+        $serviceSpecificOps = @{
+            'truth-hitl' = @(
+                @{ id = 'review-queue'; method = 'GET'; template = '/review/queue'; name = 'Review Queue' },
+                @{ id = 'review-stats'; method = 'GET'; template = '/review/stats'; name = 'Review Stats' },
+                @{ id = 'review-entity'; method = 'GET'; template = '/review/{entity_id}'; name = 'Review Entity' },
+                @{ id = 'review-approve'; method = 'POST'; template = '/review/{entity_id}/approve'; name = 'Review Approve' },
+                @{ id = 'review-reject'; method = 'POST'; template = '/review/{entity_id}/reject'; name = 'Review Reject' },
+                @{ id = 'review-edit'; method = 'POST'; template = '/review/{entity_id}/edit'; name = 'Review Edit' },
+                @{ id = 'review-batch-approve'; method = 'POST'; template = '/review/approve/batch'; name = 'Review Batch Approve' },
+                @{ id = 'review-batch-reject'; method = 'POST'; template = '/review/reject/batch'; name = 'Review Batch Reject' }
+            )
+        }
+        if ($serviceSpecificOps.ContainsKey($Service)) {
+            foreach ($op in $serviceSpecificOps[$Service]) {
+                Write-Host "[preview]   + operation: $($op.method) $($op.template) ($($op.name))"
+            }
+        }
         return
     }
 
@@ -626,6 +643,52 @@ function Ensure-AgentApi {
         }
 
         az @createArgs *> $null
+    }
+
+    # Service-specific extra operations (extensible per-service)
+    $serviceSpecificOperations = @{
+        'truth-hitl' = @(
+            @{ id = 'review-queue'; method = 'GET'; template = '/review/queue'; name = 'Review Queue' },
+            @{ id = 'review-stats'; method = 'GET'; template = '/review/stats'; name = 'Review Stats' },
+            @{ id = 'review-entity'; method = 'GET'; template = '/review/{entity_id}'; name = 'Review Entity'; templateParams = @(@{ name = 'entity_id'; description = 'Product entity ID'; type = 'string'; required = 'true' }) },
+            @{ id = 'review-approve'; method = 'POST'; template = '/review/{entity_id}/approve'; name = 'Review Approve'; templateParams = @(@{ name = 'entity_id'; description = 'Product entity ID'; type = 'string'; required = 'true' }) },
+            @{ id = 'review-reject'; method = 'POST'; template = '/review/{entity_id}/reject'; name = 'Review Reject'; templateParams = @(@{ name = 'entity_id'; description = 'Product entity ID'; type = 'string'; required = 'true' }) },
+            @{ id = 'review-edit'; method = 'POST'; template = '/review/{entity_id}/edit'; name = 'Review Edit'; templateParams = @(@{ name = 'entity_id'; description = 'Product entity ID'; type = 'string'; required = 'true' }) },
+            @{ id = 'review-batch-approve'; method = 'POST'; template = '/review/approve/batch'; name = 'Review Batch Approve' },
+            @{ id = 'review-batch-reject'; method = 'POST'; template = '/review/reject/batch'; name = 'Review Batch Reject' }
+        )
+    }
+
+    if ($serviceSpecificOperations.ContainsKey($Service)) {
+        foreach ($op in $serviceSpecificOperations[$Service]) {
+            az apim api operation delete --resource-group $Rg --service-name $Apim --api-id $apiId --operation-id $op.id --if-match '*' --only-show-errors *> $null
+            $createArgs = @(
+                'apim', 'api', 'operation', 'create',
+                '--resource-group', $Rg,
+                '--service-name', $Apim,
+                '--api-id', $apiId,
+                '--operation-id', $op.id,
+                '--display-name', $op.name,
+                '--method', $op.method,
+                '--url-template', $op.template,
+                '--only-show-errors'
+            )
+
+            if ($op.templateParams) {
+                foreach ($tp in $op.templateParams) {
+                    $createArgs += @(
+                        '--template-parameters',
+                        "name=$($tp.name)",
+                        "description=$($tp.description)",
+                        "type=$($tp.type)",
+                        "required=$($tp.required)"
+                    )
+                }
+            }
+
+            az @createArgs *> $null
+        }
+        Write-Host "Registered $($serviceSpecificOperations[$Service].Count) extra operations for $Service"
     }
 }
 

@@ -61,15 +61,11 @@ def configure_logging(
         or os.getenv("APPINSIGHTS_CONNECTION_STRING")
     )
     if conn:
-        try:
-            from azure.monitor.opentelemetry import configure_azure_monitor
+        from azure.monitor.opentelemetry import configure_azure_monitor
 
+        try:
             configure_azure_monitor(connection_string=conn)
             base_logger.info("Azure Monitor logging enabled via configure_azure_monitor.")
-        except ImportError:
-            base_logger.warning(
-                "Azure Monitor logging disabled: missing or incompatible OpenTelemetry packages."
-            )
         except Exception as exc:
             base_logger.warning("Azure Monitor logging setup error: %s", exc)
 

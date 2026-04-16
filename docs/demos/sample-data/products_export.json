@@ -1,0 +1,2312 @@
+[
+  {
+    "id": "d9c3b1de-7158-5ea1-9f33-7bdaec2f0462",
+    "name": "Wireless Noise-Cancelling Headphones",
+    "description": "Premium over-ear headphones with active noise cancellation, 30-hour battery life, and Hi-Res audio support.",
+    "price": 249.99,
+    "category_id": "cat-electronics",
+    "category_name": "Electronics",
+    "image_url": "https://images.unsplash.com/photo-headphones?w=800&q=80",
+    "features": [
+      "Noise Cancelling",
+      "Bluetooth 5.3",
+      "30h Battery"
+    ],
+    "rating": null,
+    "tags": [
+      "Noise Cancelling",
+      "Bluetooth 5.3",
+      "30h Battery"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "9bda5daa-d0ba-54c8-a32f-3a3fe4dc4af8",
+    "name": "Ultra-Slim 15\" Laptop",
+    "description": "Lightweight laptop with 15.6\" OLED display, 16 GB RAM, 512 GB SSD, and all-day battery.",
+    "price": 899.99,
+    "category_id": "cat-electronics",
+    "category_name": "Electronics",
+    "image_url": "https://images.unsplash.com/photo-laptop?w=800&q=80",
+    "features": [
+      "OLED Display",
+      "16 GB RAM",
+      "512 GB SSD"
+    ],
+    "rating": null,
+    "tags": [
+      "OLED Display",
+      "16 GB RAM",
+      "512 GB SSD"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "343a3a17-8ccc-5ac7-939c-f4dcdc93fde8",
+    "name": "Smart 4K Streaming Stick",
+    "description": "Plug-and-play 4K HDR streaming device with voice remote and Dolby Atmos support.",
+    "price": 39.99,
+    "category_id": "cat-electronics",
+    "category_name": "Electronics",
+    "image_url": "https://images.unsplash.com/photo-streaming-device?w=800&q=80",
+    "features": [
+      "4K HDR",
+      "Voice Control",
+      "Dolby Atmos"
+    ],
+    "rating": null,
+    "tags": [
+      "4K HDR",
+      "Voice Control",
+      "Dolby Atmos"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "0a660b76-78a2-5651-ba62-bd7acce4d888",
+    "name": "Portable Bluetooth Speaker",
+    "description": "Waterproof portable speaker with 360\u00b0 sound, 12-hour playtime, and built-in microphone.",
+    "price": 79.99,
+    "category_id": "cat-electronics",
+    "category_name": "Electronics",
+    "image_url": "https://images.unsplash.com/photo-bluetooth-speaker?w=800&q=80",
+    "features": [
+      "Waterproof IP67",
+      "12h Playtime",
+      "360\u00b0 Sound"
+    ],
+    "rating": null,
+    "tags": [
+      "Waterproof IP67",
+      "12h Playtime",
+      "360\u00b0 Sound"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "e36b95d9-8d81-5d17-a6d8-301eed1413b3",
+    "name": "Wireless Charging Pad Duo",
+    "description": "Dual wireless charger for phone and earbuds with Qi2 fast charging up to 15 W.",
+    "price": 34.99,
+    "category_id": "cat-electronics",
+    "category_name": "Electronics",
+    "image_url": "https://images.unsplash.com/photo-wireless-charger?w=800&q=80",
+    "features": [
+      "Qi2 Fast Charge",
+      "Dual Device",
+      "LED Indicator"
+    ],
+    "rating": null,
+    "tags": [
+      "Qi2 Fast Charge",
+      "Dual Device",
+      "LED Indicator"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "517290d8-2941-5c34-9382-7aa988f91458",
+    "name": "Smart Fitness Tracker",
+    "description": "Advanced fitness band with heart rate monitoring, GPS, sleep tracking, and 7-day battery.",
+    "price": 129.99,
+    "category_id": "cat-electronics",
+    "category_name": "Electronics",
+    "image_url": "https://images.unsplash.com/photo-fitness-tracker?w=800&q=80",
+    "features": [
+      "Heart Rate",
+      "Built-in GPS",
+      "7-Day Battery"
+    ],
+    "rating": null,
+    "tags": [
+      "Heart Rate",
+      "Built-in GPS",
+      "7-Day Battery"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "b6af46e3-71f3-5e5a-bdff-614d84863045",
+    "name": "Mechanical Gaming Keyboard",
+    "description": "RGB mechanical keyboard with hot-swappable switches, N-key rollover, and aluminum frame.",
+    "price": 119.99,
+    "category_id": "cat-electronics",
+    "category_name": "Electronics",
+    "image_url": "https://images.unsplash.com/photo-gaming-keyboard?w=800&q=80",
+    "features": [
+      "Hot-Swap Switches",
+      "RGB Backlit",
+      "N-Key Rollover"
+    ],
+    "rating": null,
+    "tags": [
+      "Hot-Swap Switches",
+      "RGB Backlit",
+      "N-Key Rollover"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "9ead7278-719e-5e7b-9c31-f94462b3cca0",
+    "name": "USB-C Hub 8-in-1",
+    "description": "Multiport adapter with HDMI 4K, USB-A, SD card reader, Ethernet, and 100 W pass-through charging.",
+    "price": 49.99,
+    "category_id": "cat-electronics",
+    "category_name": "Electronics",
+    "image_url": "https://images.unsplash.com/photo-usb-hub?w=800&q=80",
+    "features": [
+      "HDMI 4K",
+      "100 W PD",
+      "8 Ports"
+    ],
+    "rating": null,
+    "tags": [
+      "HDMI 4K",
+      "100 W PD",
+      "8 Ports"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "b275a1b3-9f9f-5161-bd44-d5098f9f114a",
+    "name": "True Wireless Earbuds Pro",
+    "description": "In-ear wireless earbuds with adaptive ANC, transparency mode, and wireless charging case.",
+    "price": 179.99,
+    "category_id": "cat-electronics",
+    "category_name": "Electronics",
+    "image_url": "https://images.unsplash.com/photo-wireless-earbuds?w=800&q=80",
+    "features": [
+      "Adaptive ANC",
+      "Wireless Case",
+      "IPX4"
+    ],
+    "rating": null,
+    "tags": [
+      "Adaptive ANC",
+      "Wireless Case",
+      "IPX4"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "7be43a7a-6ee5-5f4b-a842-b0317fb04948",
+    "name": "Digital Drawing Tablet",
+    "description": "10\" pen display with 8192 pressure levels, tilt support, and laminated screen.",
+    "price": 199.99,
+    "category_id": "cat-electronics",
+    "category_name": "Electronics",
+    "image_url": "https://images.unsplash.com/photo-drawing-tablet?w=800&q=80",
+    "features": [
+      "8192 Pressure Levels",
+      "Tilt Support",
+      "10\" Display"
+    ],
+    "rating": null,
+    "tags": [
+      "8192 Pressure Levels",
+      "Tilt Support",
+      "10\" Display"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "02e5da34-55fd-59a3-9db5-b7e2d5d896ef",
+    "name": "Merino Wool Crewneck Sweater",
+    "description": "Classic-fit crewneck sweater in 100% extra-fine Merino wool. Machine washable.",
+    "price": 89.99,
+    "category_id": "cat-clothing",
+    "category_name": "Clothes & Apparel",
+    "image_url": "https://images.unsplash.com/photo-sweater?w=800&q=80",
+    "features": [
+      "Merino Wool",
+      "Machine Washable",
+      "Classic Fit"
+    ],
+    "rating": null,
+    "tags": [
+      "Merino Wool",
+      "Machine Washable",
+      "Classic Fit"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "faf5fb06-0165-5d08-bf07-7166c1af046f",
+    "name": "Insulated Puffer Jacket",
+    "description": "Lightweight and warm puffer jacket with recycled fill, water-resistant shell, and packable design.",
+    "price": 149.99,
+    "category_id": "cat-clothing",
+    "category_name": "Clothes & Apparel",
+    "image_url": "https://images.unsplash.com/photo-puffer-jacket?w=800&q=80",
+    "features": [
+      "Recycled Fill",
+      "Water Resistant",
+      "Packable"
+    ],
+    "rating": null,
+    "tags": [
+      "Recycled Fill",
+      "Water Resistant",
+      "Packable"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "b356fe85-789b-590c-9d26-8779b95c0897",
+    "name": "Stretch Slim Chinos",
+    "description": "Comfortable slim-fit chinos with 2% stretch for all-day comfort. Available in 6 colors.",
+    "price": 59.99,
+    "category_id": "cat-clothing",
+    "category_name": "Clothes & Apparel",
+    "image_url": "https://images.unsplash.com/photo-chinos?w=800&q=80",
+    "features": [
+      "2% Stretch",
+      "Slim Fit",
+      "6 Colors"
+    ],
+    "rating": null,
+    "tags": [
+      "2% Stretch",
+      "Slim Fit",
+      "6 Colors"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "852e0078-9559-5631-bf03-6eb802181eef",
+    "name": "Holiday Flannel Pajama Set",
+    "description": "Cozy brushed cotton flannel pajama set with festive plaid pattern.",
+    "price": 44.99,
+    "category_id": "cat-clothing",
+    "category_name": "Clothes & Apparel",
+    "image_url": "https://images.unsplash.com/photo-flannel-pajamas?w=800&q=80",
+    "features": [
+      "Brushed Cotton",
+      "Button Front",
+      "Plaid Pattern"
+    ],
+    "rating": null,
+    "tags": [
+      "Brushed Cotton",
+      "Button Front",
+      "Plaid Pattern"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "c018284d-5b1b-57ea-8fb6-5831899e280a",
+    "name": "Cashmere Blend Scarf",
+    "description": "Luxuriously soft cashmere-blend scarf in timeless herringbone pattern.",
+    "price": 65.0,
+    "category_id": "cat-clothing",
+    "category_name": "Clothes & Apparel",
+    "image_url": "https://images.unsplash.com/photo-scarf?w=800&q=80",
+    "features": [
+      "Cashmere Blend",
+      "Herringbone",
+      "Unisex"
+    ],
+    "rating": null,
+    "tags": [
+      "Cashmere Blend",
+      "Herringbone",
+      "Unisex"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "641bb6cb-35fb-576b-b720-94f53bc774ff",
+    "name": "Sherpa-Lined Hoodie",
+    "description": "Heavyweight hoodie with plush sherpa lining, kangaroo pocket, and ribbed cuffs.",
+    "price": 74.99,
+    "category_id": "cat-clothing",
+    "category_name": "Clothes & Apparel",
+    "image_url": "https://images.unsplash.com/photo-hoodie?w=800&q=80",
+    "features": [
+      "Sherpa Lined",
+      "Heavyweight",
+      "Kangaroo Pocket"
+    ],
+    "rating": null,
+    "tags": [
+      "Sherpa Lined",
+      "Heavyweight",
+      "Kangaroo Pocket"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "9078a059-4764-5b60-936f-b5b93e03532b",
+    "name": "Performance Running Tights",
+    "description": "High-waist running tights with side pockets, reflective details, and moisture-wicking fabric.",
+    "price": 68.0,
+    "category_id": "cat-clothing",
+    "category_name": "Clothes & Apparel",
+    "image_url": "https://images.unsplash.com/photo-running-tights?w=800&q=80",
+    "features": [
+      "Moisture Wicking",
+      "Reflective",
+      "Side Pockets"
+    ],
+    "rating": null,
+    "tags": [
+      "Moisture Wicking",
+      "Reflective",
+      "Side Pockets"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "c1f03d9f-0650-5e30-b506-52602cf088c3",
+    "name": "Leather Chelsea Boots",
+    "description": "Handcrafted leather Chelsea boots with cushioned insole and durable rubber outsole.",
+    "price": 189.99,
+    "category_id": "cat-clothing",
+    "category_name": "Clothes & Apparel",
+    "image_url": "https://images.unsplash.com/photo-chelsea-boots?w=800&q=80",
+    "features": [
+      "Genuine Leather",
+      "Cushioned Insole",
+      "Rubber Sole"
+    ],
+    "rating": null,
+    "tags": [
+      "Genuine Leather",
+      "Cushioned Insole",
+      "Rubber Sole"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "2ce6f615-d5fa-5486-8c43-af2ba11519ad",
+    "name": "Down-Fill Vest",
+    "description": "Lightweight goose-down vest with snap pockets and elasticized armholes.",
+    "price": 99.99,
+    "category_id": "cat-clothing",
+    "category_name": "Clothes & Apparel",
+    "image_url": "https://images.unsplash.com/photo-down-vest?w=800&q=80",
+    "features": [
+      "Goose Down",
+      "Snap Pockets",
+      "Lightweight"
+    ],
+    "rating": null,
+    "tags": [
+      "Goose Down",
+      "Snap Pockets",
+      "Lightweight"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "23c29eab-a914-5e4f-a26b-f61b0f96397b",
+    "name": "Silk Tie Gift Set",
+    "description": "Set of three premium silk ties in a presentation gift box.",
+    "price": 79.99,
+    "category_id": "cat-clothing",
+    "category_name": "Clothes & Apparel",
+    "image_url": "https://images.unsplash.com/photo-silk-ties?w=800&q=80",
+    "features": [
+      "100% Silk",
+      "Gift Box",
+      "3-Pack"
+    ],
+    "rating": null,
+    "tags": [
+      "100% Silk",
+      "Gift Box",
+      "3-Pack"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "7c519dc3-fe92-55f1-a714-dba47e1ba94d",
+    "name": "Hawthorne Home Novara Oak Dining Table",
+    "description": "Solid oak dining table with matte sealant finish, seating for 6, and reinforced steel underframe.",
+    "price": 749.99,
+    "category_id": "cat-furniture",
+    "category_name": "Furniture",
+    "image_url": "https://images.unsplash.com/photo-oak-dining-table?w=800&q=80",
+    "features": [
+      "Solid Oak",
+      "Seats 6",
+      "Steel Reinforcement"
+    ],
+    "rating": null,
+    "tags": [
+      "Solid Oak",
+      "Seats 6",
+      "Steel Reinforcement"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "47c02c8c-6411-5763-83f6-d1615a586175",
+    "name": "Arden Living Luma Linen Sectional Sofa",
+    "description": "Three-seat sectional with performance linen upholstery, high-resilience foam, and reversible chaise.",
+    "price": 1199.99,
+    "category_id": "cat-furniture",
+    "category_name": "Furniture",
+    "image_url": "https://images.unsplash.com/photo-sectional-sofa?w=800&q=80",
+    "features": [
+      "Performance Linen",
+      "Reversible Chaise",
+      "High-Resilience Foam"
+    ],
+    "rating": null,
+    "tags": [
+      "Performance Linen",
+      "Reversible Chaise",
+      "High-Resilience Foam"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "db91203b-0c03-5ccd-a15f-2e423d8cf22c",
+    "name": "Northfield Studio Mid-Century TV Console",
+    "description": "Walnut-veneer media console with cable management channels and soft-close storage doors.",
+    "price": 429.99,
+    "category_id": "cat-furniture",
+    "category_name": "Furniture",
+    "image_url": "https://images.unsplash.com/photo-tv-console?w=800&q=80",
+    "features": [
+      "Walnut Veneer",
+      "Cable Management",
+      "Soft-Close Doors"
+    ],
+    "rating": null,
+    "tags": [
+      "Walnut Veneer",
+      "Cable Management",
+      "Soft-Close Doors"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "1192d8d7-68ef-5660-b413-00ed4d723b0a",
+    "name": "Brentwood Sleep Haven Upholstered Bed Frame",
+    "description": "Queen-size platform bed frame with tufted headboard, center support rail, and noise-free slats.",
+    "price": 599.99,
+    "category_id": "cat-furniture",
+    "category_name": "Furniture",
+    "image_url": "https://images.unsplash.com/photo-upholstered-bed?w=800&q=80",
+    "features": [
+      "Queen Size",
+      "Tufted Headboard",
+      "Noise-Free Slats"
+    ],
+    "rating": null,
+    "tags": [
+      "Queen Size",
+      "Tufted Headboard",
+      "Noise-Free Slats"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "613b6ace-38ac-56ad-ae4a-d629a8e22319",
+    "name": "Kensington Works Adjustable Standing Desk",
+    "description": "Electric height-adjustable desk with dual motors, memory presets, and cable tray.",
+    "price": 499.99,
+    "category_id": "cat-furniture",
+    "category_name": "Furniture",
+    "image_url": "https://images.unsplash.com/photo-standing-desk?w=800&q=80",
+    "features": [
+      "Dual Motor",
+      "4 Memory Presets",
+      "Integrated Cable Tray"
+    ],
+    "rating": null,
+    "tags": [
+      "Dual Motor",
+      "4 Memory Presets",
+      "Integrated Cable Tray"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "98f3b28a-3fb8-5df3-85a7-418d2805181c",
+    "name": "Willow & Finch Accent Lounge Chair",
+    "description": "Compact accent chair with kiln-dried hardwood frame and textured boucle upholstery.",
+    "price": 319.99,
+    "category_id": "cat-furniture",
+    "category_name": "Furniture",
+    "image_url": "https://images.unsplash.com/photo-accent-chair?w=800&q=80",
+    "features": [
+      "Hardwood Frame",
+      "Boucle Upholstery",
+      "Compact Footprint"
+    ],
+    "rating": null,
+    "tags": [
+      "Hardwood Frame",
+      "Boucle Upholstery",
+      "Compact Footprint"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "d27a04a8-18d0-5eb1-adb9-8dd3509681f0",
+    "name": "Parkline Home 6-Drawer Dresser",
+    "description": "Modern dresser with anti-tip kit, full-extension drawers, and scratch-resistant finish.",
+    "price": 389.99,
+    "category_id": "cat-furniture",
+    "category_name": "Furniture",
+    "image_url": "https://images.unsplash.com/photo-dresser?w=800&q=80",
+    "features": [
+      "6 Drawers",
+      "Anti-Tip Kit",
+      "Scratch Resistant"
+    ],
+    "rating": null,
+    "tags": [
+      "6 Drawers",
+      "Anti-Tip Kit",
+      "Scratch Resistant"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "912b9c56-bcb7-59e1-aa27-3bcf520e284c",
+    "name": "Orchard Lane Nesting Coffee Table Set",
+    "description": "Two-piece nesting coffee table set in black metal and smoked glass for flexible layouts.",
+    "price": 229.99,
+    "category_id": "cat-furniture",
+    "category_name": "Furniture",
+    "image_url": "https://images.unsplash.com/photo-coffee-table?w=800&q=80",
+    "features": [
+      "2-Piece Set",
+      "Smoked Glass",
+      "Space Saving"
+    ],
+    "rating": null,
+    "tags": [
+      "2-Piece Set",
+      "Smoked Glass",
+      "Space Saving"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "3905f76b-e0b7-571d-a8fa-67f757317893",
+    "name": "Monroe Office Ergonomic Task Chair",
+    "description": "Mesh-back task chair with lumbar support, synchro tilt, and 4D adjustable armrests.",
+    "price": 279.99,
+    "category_id": "cat-furniture",
+    "category_name": "Furniture",
+    "image_url": "https://images.unsplash.com/photo-office-chair?w=800&q=80",
+    "features": [
+      "Lumbar Support",
+      "Synchro Tilt",
+      "4D Armrests"
+    ],
+    "rating": null,
+    "tags": [
+      "Lumbar Support",
+      "Synchro Tilt",
+      "4D Armrests"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "7519eb50-a2c6-5d19-97fd-12549f4360a2",
+    "name": "Riverside Loft Bookshelf 5-Tier",
+    "description": "Open-frame bookshelf with powder-coated steel, engineered wood shelves, and leveling feet.",
+    "price": 189.99,
+    "category_id": "cat-furniture",
+    "category_name": "Furniture",
+    "image_url": "https://images.unsplash.com/photo-bookshelf?w=800&q=80",
+    "features": [
+      "5 Tiers",
+      "Steel Frame",
+      "Leveling Feet"
+    ],
+    "rating": null,
+    "tags": [
+      "5 Tiers",
+      "Steel Frame",
+      "Leveling Feet"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "394d1a4c-b5e5-5397-aa88-b56668f3b06a",
+    "name": "Cast Iron Dutch Oven 6 Qt",
+    "description": "Enameled cast iron Dutch oven with self-basting lid. Oven safe to 500\u00b0F.",
+    "price": 89.99,
+    "category_id": "cat-home-kitchen",
+    "category_name": "Home & Kitchen",
+    "image_url": "https://images.unsplash.com/photo-dutch-oven?w=800&q=80",
+    "features": [
+      "Enameled Cast Iron",
+      "6 Quart",
+      "Oven Safe 500\u00b0F"
+    ],
+    "rating": null,
+    "tags": [
+      "Enameled Cast Iron",
+      "6 Quart",
+      "Oven Safe 500\u00b0F"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "b2447821-08e8-53fd-9c56-a4e75120d69c",
+    "name": "Smart Coffee Maker",
+    "description": "12-cup programmable coffee maker with WiFi, brew scheduling, and thermal carafe.",
+    "price": 129.99,
+    "category_id": "cat-home-kitchen",
+    "category_name": "Home & Kitchen",
+    "image_url": "https://images.unsplash.com/photo-coffee-maker?w=800&q=80",
+    "features": [
+      "WiFi Connected",
+      "Thermal Carafe",
+      "12-Cup"
+    ],
+    "rating": null,
+    "tags": [
+      "WiFi Connected",
+      "Thermal Carafe",
+      "12-Cup"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "bb97fc14-0747-565c-aeb3-ab82e4947929",
+    "name": "Scented Candle Gift Set",
+    "description": "Set of four hand-poured soy candles in seasonal fragrances: Pine, Cinnamon, Vanilla, and Cranberry.",
+    "price": 42.99,
+    "category_id": "cat-home-kitchen",
+    "category_name": "Home & Kitchen",
+    "image_url": "https://images.unsplash.com/photo-candle-set?w=800&q=80",
+    "features": [
+      "Soy Wax",
+      "4-Pack",
+      "40h Burn Time"
+    ],
+    "rating": null,
+    "tags": [
+      "Soy Wax",
+      "4-Pack",
+      "40h Burn Time"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "516dded2-f36c-5c40-a2c6-e2403f7733da",
+    "name": "Cotton Waffle Throw Blanket",
+    "description": "Oversized waffle-knit throw in organic cotton. 60\" \u00d7 80\".",
+    "price": 54.99,
+    "category_id": "cat-home-kitchen",
+    "category_name": "Home & Kitchen",
+    "image_url": "https://images.unsplash.com/photo-throw-blanket?w=800&q=80",
+    "features": [
+      "Organic Cotton",
+      "60\u00d780\"",
+      "Waffle Knit"
+    ],
+    "rating": null,
+    "tags": [
+      "Organic Cotton",
+      "60\u00d780\"",
+      "Waffle Knit"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "de34cd4a-814b-539e-90bf-1bcc7329ddbc",
+    "name": "Air Fryer 5.8 Qt",
+    "description": "Digital air fryer with 8 presets, non-stick basket, and rapid air circulation.",
+    "price": 79.99,
+    "category_id": "cat-home-kitchen",
+    "category_name": "Home & Kitchen",
+    "image_url": "https://images.unsplash.com/photo-air-fryer?w=800&q=80",
+    "features": [
+      "5.8 Quart",
+      "8 Presets",
+      "Non-Stick"
+    ],
+    "rating": null,
+    "tags": [
+      "5.8 Quart",
+      "8 Presets",
+      "Non-Stick"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "920933e7-29bc-5a6c-974b-c7b95700f4bb",
+    "name": "Bamboo Cutting Board Set",
+    "description": "Three-piece bamboo cutting board set with juice grooves and easy-grip handles.",
+    "price": 29.99,
+    "category_id": "cat-home-kitchen",
+    "category_name": "Home & Kitchen",
+    "image_url": "https://images.unsplash.com/photo-cutting-boards?w=800&q=80",
+    "features": [
+      "Bamboo",
+      "3-Piece Set",
+      "Juice Grooves"
+    ],
+    "rating": null,
+    "tags": [
+      "Bamboo",
+      "3-Piece Set",
+      "Juice Grooves"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "2978cf1e-24ef-53a3-998e-251f0f9dd55e",
+    "name": "Stand Mixer 5 Qt",
+    "description": "Tilt-head stand mixer with 10 speeds, stainless steel bowl, and three attachments.",
+    "price": 299.99,
+    "category_id": "cat-home-kitchen",
+    "category_name": "Home & Kitchen",
+    "image_url": "https://images.unsplash.com/photo-stand-mixer?w=800&q=80",
+    "features": [
+      "10 Speeds",
+      "5 Quart",
+      "3 Attachments"
+    ],
+    "rating": null,
+    "tags": [
+      "10 Speeds",
+      "5 Quart",
+      "3 Attachments"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "d6d3a57a-1f2f-5d6f-a7bf-28ae3cde7ecc",
+    "name": "Ceramic Dinnerware Set 16-Piece",
+    "description": "Modern stoneware dinnerware set for 4. Microwave and dishwasher safe.",
+    "price": 69.99,
+    "category_id": "cat-home-kitchen",
+    "category_name": "Home & Kitchen",
+    "image_url": "https://images.unsplash.com/photo-dinnerware?w=800&q=80",
+    "features": [
+      "Stoneware",
+      "16-Piece",
+      "Dishwasher Safe"
+    ],
+    "rating": null,
+    "tags": [
+      "Stoneware",
+      "16-Piece",
+      "Dishwasher Safe"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "32d832d2-1cae-5119-8799-e615171ea5c5",
+    "name": "Smart LED Light Strip 16 ft",
+    "description": "WiFi-enabled RGB LED strip with music sync, voice control, and app scheduling.",
+    "price": 24.99,
+    "category_id": "cat-home-kitchen",
+    "category_name": "Home & Kitchen",
+    "image_url": "https://images.unsplash.com/photo-led-strip?w=800&q=80",
+    "features": [
+      "16 ft",
+      "Music Sync",
+      "Voice Control"
+    ],
+    "rating": null,
+    "tags": [
+      "16 ft",
+      "Music Sync",
+      "Voice Control"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "0bea2a02-b347-5f04-8a4c-ed72aa92a6fd",
+    "name": "Essential Oil Diffuser",
+    "description": "Ultrasonic aromatherapy diffuser with 7 LED colors and 300 ml tank.",
+    "price": 34.99,
+    "category_id": "cat-home-kitchen",
+    "category_name": "Home & Kitchen",
+    "image_url": "https://images.unsplash.com/photo-diffuser?w=800&q=80",
+    "features": [
+      "Ultrasonic",
+      "300 ml",
+      "7 LED Colors"
+    ],
+    "rating": null,
+    "tags": [
+      "Ultrasonic",
+      "300 ml",
+      "7 LED Colors"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "57c3a26e-fd14-5f3f-824e-183599ab15e3",
+    "name": "Building Block Castle Set",
+    "description": "1,200-piece medieval castle building set with 8 minifigures and working drawbridge.",
+    "price": 69.99,
+    "category_id": "cat-toys-games",
+    "category_name": "Toys & Games",
+    "image_url": "https://images.unsplash.com/photo-building-blocks?w=800&q=80",
+    "features": [
+      "1200 Pieces",
+      "8 Minifigures",
+      "Ages 8+"
+    ],
+    "rating": null,
+    "tags": [
+      "1200 Pieces",
+      "8 Minifigures",
+      "Ages 8+"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "d3e2e1b7-6a69-5795-936f-5ed90230c48a",
+    "name": "Remote Control Monster Truck",
+    "description": "1:16 scale RC monster truck with 4WD, 2.4 GHz remote, and rechargeable battery.",
+    "price": 44.99,
+    "category_id": "cat-toys-games",
+    "category_name": "Toys & Games",
+    "image_url": "https://images.unsplash.com/photo-rc-truck?w=800&q=80",
+    "features": [
+      "1:16 Scale",
+      "4WD",
+      "2.4 GHz"
+    ],
+    "rating": null,
+    "tags": [
+      "1:16 Scale",
+      "4WD",
+      "2.4 GHz"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "e1f9c10f-fde1-5dec-b845-a36fe29f3c77",
+    "name": "Strategy Board Game Collection",
+    "description": "Family game night bundle with three award-winning strategy board games.",
+    "price": 54.99,
+    "category_id": "cat-toys-games",
+    "category_name": "Toys & Games",
+    "image_url": "https://images.unsplash.com/photo-board-games?w=800&q=80",
+    "features": [
+      "3 Games",
+      "2-6 Players",
+      "Ages 10+"
+    ],
+    "rating": null,
+    "tags": [
+      "3 Games",
+      "2-6 Players",
+      "Ages 10+"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "a95d5588-01af-538d-b2f1-51d8e0b547e5",
+    "name": "Interactive Coding Robot",
+    "description": "Programmable robot toy that teaches coding through play. Compatible with block-based coding app.",
+    "price": 79.99,
+    "category_id": "cat-toys-games",
+    "category_name": "Toys & Games",
+    "image_url": "https://images.unsplash.com/photo-coding-robot?w=800&q=80",
+    "features": [
+      "App Compatible",
+      "STEM Learning",
+      "Ages 6+"
+    ],
+    "rating": null,
+    "tags": [
+      "App Compatible",
+      "STEM Learning",
+      "Ages 6+"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "c2783319-1ea8-509e-a625-9493d45fe11a",
+    "name": "1000-Piece Jigsaw Puzzle",
+    "description": "Holiday winter landscape 1000-piece jigsaw puzzle with poster guide.",
+    "price": 19.99,
+    "category_id": "cat-toys-games",
+    "category_name": "Toys & Games",
+    "image_url": "https://images.unsplash.com/photo-jigsaw-puzzle?w=800&q=80",
+    "features": [
+      "1000 Pieces",
+      "Poster Guide",
+      "Winter Theme"
+    ],
+    "rating": null,
+    "tags": [
+      "1000 Pieces",
+      "Poster Guide",
+      "Winter Theme"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "b3df9ece-5940-5393-8b90-11707fcd9c14",
+    "name": "Wooden Train Set 100-Piece",
+    "description": "Classic wooden railway set with tracks, bridges, trains, and town accessories.",
+    "price": 49.99,
+    "category_id": "cat-toys-games",
+    "category_name": "Toys & Games",
+    "image_url": "https://images.unsplash.com/photo-train-set?w=800&q=80",
+    "features": [
+      "100 Pieces",
+      "Real Wood",
+      "Ages 3+"
+    ],
+    "rating": null,
+    "tags": [
+      "100 Pieces",
+      "Real Wood",
+      "Ages 3+"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "517c7663-59dd-5bde-bb0f-59c2e70872a9",
+    "name": "Art Supply Kit Deluxe",
+    "description": "150-piece art kit with colored pencils, markers, watercolors, and carry case.",
+    "price": 34.99,
+    "category_id": "cat-toys-games",
+    "category_name": "Toys & Games",
+    "image_url": "https://images.unsplash.com/photo-art-kit?w=800&q=80",
+    "features": [
+      "150 Pieces",
+      "Carry Case",
+      "All Media"
+    ],
+    "rating": null,
+    "tags": [
+      "150 Pieces",
+      "Carry Case",
+      "All Media"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "1c628ba6-981e-5a61-82e0-4b752cb31c52",
+    "name": "Outdoor Adventure Binoculars",
+    "description": "Kid-friendly 8\u00d721 binoculars with rubber grip, neck strap, and carry pouch.",
+    "price": 24.99,
+    "category_id": "cat-toys-games",
+    "category_name": "Toys & Games",
+    "image_url": "https://images.unsplash.com/photo-kids-binoculars?w=800&q=80",
+    "features": [
+      "8\u00d721 Zoom",
+      "Rubber Grip",
+      "Carry Pouch"
+    ],
+    "rating": null,
+    "tags": [
+      "8\u00d721 Zoom",
+      "Rubber Grip",
+      "Carry Pouch"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "f78735aa-bdf0-5d29-8884-1ed4a7fff0e5",
+    "name": "Plush Stuffed Animal Collection",
+    "description": "Set of three ultra-soft plush animals: bear, bunny, and fox. 12\" each.",
+    "price": 29.99,
+    "category_id": "cat-toys-games",
+    "category_name": "Toys & Games",
+    "image_url": "https://images.unsplash.com/photo-plush-animals?w=800&q=80",
+    "features": [
+      "3-Pack",
+      "Ultra Soft",
+      "12\" Each"
+    ],
+    "rating": null,
+    "tags": [
+      "3-Pack",
+      "Ultra Soft",
+      "12\" Each"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "82d0c4e2-0c79-552f-a6fb-9850d089f04c",
+    "name": "Science Experiment Kit",
+    "description": "Over 30 science experiments covering chemistry, physics, and biology for young scientists.",
+    "price": 39.99,
+    "category_id": "cat-toys-games",
+    "category_name": "Toys & Games",
+    "image_url": "https://images.unsplash.com/photo-science-kit?w=800&q=80",
+    "features": [
+      "30+ Experiments",
+      "Lab Manual",
+      "Ages 8+"
+    ],
+    "rating": null,
+    "tags": [
+      "30+ Experiments",
+      "Lab Manual",
+      "Ages 8+"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "a37ea5f7-2018-5b0d-b600-1dde13c6e39c",
+    "name": "Insulated Stainless Steel Water Bottle",
+    "description": "32 oz vacuum-insulated bottle that keeps drinks cold 24 h or hot 12 h.",
+    "price": 29.99,
+    "category_id": "cat-sports-outdoors",
+    "category_name": "Sports & Outdoors",
+    "image_url": "https://images.unsplash.com/photo-water-bottle?w=800&q=80",
+    "features": [
+      "32 oz",
+      "Vacuum Insulated",
+      "BPA Free"
+    ],
+    "rating": null,
+    "tags": [
+      "32 oz",
+      "Vacuum Insulated",
+      "BPA Free"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "641e4217-e878-5a99-9d03-009d516cf687",
+    "name": "Yoga Mat Premium 6 mm",
+    "description": "Non-slip TPE yoga mat with alignment lines and carrying strap.",
+    "price": 39.99,
+    "category_id": "cat-sports-outdoors",
+    "category_name": "Sports & Outdoors",
+    "image_url": "https://images.unsplash.com/photo-yoga-mat?w=800&q=80",
+    "features": [
+      "6 mm Thick",
+      "Non-Slip TPE",
+      "Alignment Lines"
+    ],
+    "rating": null,
+    "tags": [
+      "6 mm Thick",
+      "Non-Slip TPE",
+      "Alignment Lines"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "9fa9fc1a-b477-54f0-b013-e9579412c19d",
+    "name": "Adjustable Dumbbell Set",
+    "description": "Pair of adjustable dumbbells from 5 to 25 lb each with quick-lock mechanism.",
+    "price": 199.99,
+    "category_id": "cat-sports-outdoors",
+    "category_name": "Sports & Outdoors",
+    "image_url": "https://images.unsplash.com/photo-dumbbells?w=800&q=80",
+    "features": [
+      "5-25 lb",
+      "Quick-Lock",
+      "Pair"
+    ],
+    "rating": null,
+    "tags": [
+      "5-25 lb",
+      "Quick-Lock",
+      "Pair"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "a017e9e7-6fa6-57d8-b884-4cf4da2dddfa",
+    "name": "Winter Ski Goggles",
+    "description": "Anti-fog dual-lens ski goggles with UV400 protection and OTG design for glasses.",
+    "price": 59.99,
+    "category_id": "cat-sports-outdoors",
+    "category_name": "Sports & Outdoors",
+    "image_url": "https://images.unsplash.com/photo-ski-goggles?w=800&q=80",
+    "features": [
+      "Anti-Fog",
+      "UV400",
+      "OTG Compatible"
+    ],
+    "rating": null,
+    "tags": [
+      "Anti-Fog",
+      "UV400",
+      "OTG Compatible"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "3dc4e804-9295-5831-a6e6-3f204371278a",
+    "name": "Camping Hammock with Straps",
+    "description": "Lightweight parachute nylon hammock supporting up to 400 lb, with tree straps included.",
+    "price": 32.99,
+    "category_id": "cat-sports-outdoors",
+    "category_name": "Sports & Outdoors",
+    "image_url": "https://images.unsplash.com/photo-hammock?w=800&q=80",
+    "features": [
+      "Parachute Nylon",
+      "400 lb Capacity",
+      "Tree Straps"
+    ],
+    "rating": null,
+    "tags": [
+      "Parachute Nylon",
+      "400 lb Capacity",
+      "Tree Straps"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "5d50346b-022f-52ed-9567-d71783f386b7",
+    "name": "Resistance Band Set",
+    "description": "Five-level resistance band set with door anchor, handles, and ankle straps.",
+    "price": 24.99,
+    "category_id": "cat-sports-outdoors",
+    "category_name": "Sports & Outdoors",
+    "image_url": "https://images.unsplash.com/photo-resistance-bands?w=800&q=80",
+    "features": [
+      "5 Bands",
+      "Door Anchor",
+      "Handles Included"
+    ],
+    "rating": null,
+    "tags": [
+      "5 Bands",
+      "Door Anchor",
+      "Handles Included"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "cb9f259f-884c-5105-ac4e-3b242b575da0",
+    "name": "Trail Running Shoes",
+    "description": "Breathable trail runners with Vibram outsole, rock plate, and waterproof membrane.",
+    "price": 134.99,
+    "category_id": "cat-sports-outdoors",
+    "category_name": "Sports & Outdoors",
+    "image_url": "https://images.unsplash.com/photo-trail-shoes?w=800&q=80",
+    "features": [
+      "Vibram Outsole",
+      "Waterproof",
+      "Rock Plate"
+    ],
+    "rating": null,
+    "tags": [
+      "Vibram Outsole",
+      "Waterproof",
+      "Rock Plate"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "13fd9b2b-7710-5168-9e37-f91328159c41",
+    "name": "Compression Recovery Boots",
+    "description": "Pneumatic leg compression system with 4 chambers and adjustable intensity.",
+    "price": 249.99,
+    "category_id": "cat-sports-outdoors",
+    "category_name": "Sports & Outdoors",
+    "image_url": "https://images.unsplash.com/photo-recovery-boots?w=800&q=80",
+    "features": [
+      "4 Chambers",
+      "Adjustable Intensity",
+      "Travel Bag"
+    ],
+    "rating": null,
+    "tags": [
+      "4 Chambers",
+      "Adjustable Intensity",
+      "Travel Bag"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "c777ef76-b4e7-56c3-a42c-8b03ec57800a",
+    "name": "Folding Camping Chair",
+    "description": "Compact folding chair with cup holder, side pocket, and 300 lb capacity.",
+    "price": 34.99,
+    "category_id": "cat-sports-outdoors",
+    "category_name": "Sports & Outdoors",
+    "image_url": "https://images.unsplash.com/photo-camping-chair?w=800&q=80",
+    "features": [
+      "300 lb Capacity",
+      "Cup Holder",
+      "Carry Bag"
+    ],
+    "rating": null,
+    "tags": [
+      "300 lb Capacity",
+      "Cup Holder",
+      "Carry Bag"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "08b91b27-e62c-5103-8ab8-756c0f068e2f",
+    "name": "GPS Running Watch",
+    "description": "Multisport GPS watch with wrist HR, pace coaching, and 14-day battery life.",
+    "price": 299.99,
+    "category_id": "cat-sports-outdoors",
+    "category_name": "Sports & Outdoors",
+    "image_url": "https://images.unsplash.com/photo-running-watch?w=800&q=80",
+    "features": [
+      "GPS + HR",
+      "Pace Coach",
+      "14-Day Battery"
+    ],
+    "rating": null,
+    "tags": [
+      "GPS + HR",
+      "Pace Coach",
+      "14-Day Battery"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "88f46f27-dbe8-5b6c-8544-94d43277383a",
+    "name": "Vitamin C Brightening Serum",
+    "description": "30 ml facial serum with 20% Vitamin C, hyaluronic acid, and ferulic acid.",
+    "price": 28.99,
+    "category_id": "cat-beauty-health",
+    "category_name": "Beauty & Health",
+    "image_url": "https://images.unsplash.com/photo-vitamin-c-serum?w=800&q=80",
+    "features": [
+      "20% Vitamin C",
+      "Hyaluronic Acid",
+      "30 ml"
+    ],
+    "rating": null,
+    "tags": [
+      "20% Vitamin C",
+      "Hyaluronic Acid",
+      "30 ml"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "a8744a55-3648-5047-aa6e-8e383114a603",
+    "name": "Electric Toothbrush Pro",
+    "description": "Sonic electric toothbrush with 5 modes, pressure sensor, and 2-week battery.",
+    "price": 69.99,
+    "category_id": "cat-beauty-health",
+    "category_name": "Beauty & Health",
+    "image_url": "https://images.unsplash.com/photo-electric-toothbrush?w=800&q=80",
+    "features": [
+      "Sonic",
+      "5 Modes",
+      "Pressure Sensor"
+    ],
+    "rating": null,
+    "tags": [
+      "Sonic",
+      "5 Modes",
+      "Pressure Sensor"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "30538e64-6d3b-5a98-8b25-f1ca8e4ecb04",
+    "name": "Luxury Bath Bomb Set",
+    "description": "Set of 12 handcrafted bath bombs with essential oils and shea butter.",
+    "price": 24.99,
+    "category_id": "cat-beauty-health",
+    "category_name": "Beauty & Health",
+    "image_url": "https://images.unsplash.com/photo-bath-bombs?w=800&q=80",
+    "features": [
+      "12-Pack",
+      "Essential Oils",
+      "Shea Butter"
+    ],
+    "rating": null,
+    "tags": [
+      "12-Pack",
+      "Essential Oils",
+      "Shea Butter"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "49da0f72-05a7-5c63-9932-a6c9039ca31e",
+    "name": "Hair Dryer Professional",
+    "description": "1875 W ionic hair dryer with diffuser, concentrator, and cool-shot button.",
+    "price": 49.99,
+    "category_id": "cat-beauty-health",
+    "category_name": "Beauty & Health",
+    "image_url": "https://images.unsplash.com/photo-hair-dryer?w=800&q=80",
+    "features": [
+      "1875 W",
+      "Ionic",
+      "3 Attachments"
+    ],
+    "rating": null,
+    "tags": [
+      "1875 W",
+      "Ionic",
+      "3 Attachments"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "82c6566a-1db0-5cca-a5a8-6751a923795f",
+    "name": "Retinol Night Cream",
+    "description": "50 ml anti-aging night cream with encapsulated retinol and peptide complex.",
+    "price": 38.99,
+    "category_id": "cat-beauty-health",
+    "category_name": "Beauty & Health",
+    "image_url": "https://images.unsplash.com/photo-night-cream?w=800&q=80",
+    "features": [
+      "Retinol",
+      "Peptide Complex",
+      "50 ml"
+    ],
+    "rating": null,
+    "tags": [
+      "Retinol",
+      "Peptide Complex",
+      "50 ml"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "d81d5df1-bc67-58ef-b2ca-711fe2b59400",
+    "name": "Aromatherapy Gift Set",
+    "description": "Collection of 6 pure essential oils: lavender, eucalyptus, peppermint, tea tree, lemon, and orange.",
+    "price": 22.99,
+    "category_id": "cat-beauty-health",
+    "category_name": "Beauty & Health",
+    "image_url": "https://images.unsplash.com/photo-essential-oils?w=800&q=80",
+    "features": [
+      "6 Oils",
+      "100% Pure",
+      "Gift Box"
+    ],
+    "rating": null,
+    "tags": [
+      "6 Oils",
+      "100% Pure",
+      "Gift Box"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "036b53c0-5667-59ca-990d-0646fa256376",
+    "name": "Jade Facial Roller Set",
+    "description": "Dual-ended jade roller and gua sha set in bamboo packaging.",
+    "price": 19.99,
+    "category_id": "cat-beauty-health",
+    "category_name": "Beauty & Health",
+    "image_url": "https://images.unsplash.com/photo-jade-roller?w=800&q=80",
+    "features": [
+      "Natural Jade",
+      "Dual-Ended",
+      "Gua Sha Included"
+    ],
+    "rating": null,
+    "tags": [
+      "Natural Jade",
+      "Dual-Ended",
+      "Gua Sha Included"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "36ca2971-0a59-5a36-a92e-4ad62b4cc9b3",
+    "name": "Men's Grooming Kit",
+    "description": "Complete grooming set with trimmer, scissors, comb, and leather travel case.",
+    "price": 44.99,
+    "category_id": "cat-beauty-health",
+    "category_name": "Beauty & Health",
+    "image_url": "https://images.unsplash.com/photo-grooming-kit?w=800&q=80",
+    "features": [
+      "6-Piece",
+      "Stainless Steel",
+      "Travel Case"
+    ],
+    "rating": null,
+    "tags": [
+      "6-Piece",
+      "Stainless Steel",
+      "Travel Case"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "b5ce2ec4-7e9f-5142-ac9a-eb3c08bd164f",
+    "name": "SPF 50 Daily Sunscreen",
+    "description": "Lightweight daily sunscreen with broad-spectrum SPF 50 and no white cast.",
+    "price": 16.99,
+    "category_id": "cat-beauty-health",
+    "category_name": "Beauty & Health",
+    "image_url": "https://images.unsplash.com/photo-sunscreen?w=800&q=80",
+    "features": [
+      "SPF 50",
+      "Broad Spectrum",
+      "Lightweight"
+    ],
+    "rating": null,
+    "tags": [
+      "SPF 50",
+      "Broad Spectrum",
+      "Lightweight"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "e9cf0a10-698c-5713-b073-a0973d907db5",
+    "name": "Heated Eye Mask",
+    "description": "USB-rechargeable heated eye mask with lavender inserts for relaxation.",
+    "price": 29.99,
+    "category_id": "cat-beauty-health",
+    "category_name": "Beauty & Health",
+    "image_url": "https://images.unsplash.com/photo-eye-mask?w=800&q=80",
+    "features": [
+      "Heated",
+      "Lavender Inserts",
+      "Rechargeable"
+    ],
+    "rating": null,
+    "tags": [
+      "Heated",
+      "Lavender Inserts",
+      "Rechargeable"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "fb237934-9efb-524c-b4d1-8ae2b5bae22e",
+    "name": "Bestseller Fiction Box Set",
+    "description": "Collection of three New York Times bestselling novels in hardcover.",
+    "price": 39.99,
+    "category_id": "cat-books-media",
+    "category_name": "Books & Media",
+    "image_url": "https://images.unsplash.com/photo-book-set?w=800&q=80",
+    "features": [
+      "3 Books",
+      "Hardcover",
+      "NYT Bestseller"
+    ],
+    "rating": null,
+    "tags": [
+      "3 Books",
+      "Hardcover",
+      "NYT Bestseller"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "ca0dac28-cf0a-5e2e-8c0b-bb84b0f803b5",
+    "name": "Vinyl Record Player",
+    "description": "Belt-drive turntable with built-in speakers, Bluetooth output, and USB recording.",
+    "price": 129.99,
+    "category_id": "cat-books-media",
+    "category_name": "Books & Media",
+    "image_url": "https://images.unsplash.com/photo-record-player?w=800&q=80",
+    "features": [
+      "Belt-Drive",
+      "Bluetooth",
+      "USB Recording"
+    ],
+    "rating": null,
+    "tags": [
+      "Belt-Drive",
+      "Bluetooth",
+      "USB Recording"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "5b23dc87-f1a6-54d7-8579-b93467cff564",
+    "name": "Cookbook: Holiday Feasts",
+    "description": "200+ holiday recipes from around the world with full-color photography.",
+    "price": 29.99,
+    "category_id": "cat-books-media",
+    "category_name": "Books & Media",
+    "image_url": "https://images.unsplash.com/photo-cookbook?w=800&q=80",
+    "features": [
+      "200+ Recipes",
+      "Full Color",
+      "Hardcover"
+    ],
+    "rating": null,
+    "tags": [
+      "200+ Recipes",
+      "Full Color",
+      "Hardcover"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "e1ff8f15-f7d9-5fe1-8424-378c276ab0e5",
+    "name": "Streaming Gift Card $50",
+    "description": "Digital gift card redeemable on major streaming platforms.",
+    "price": 50.0,
+    "category_id": "cat-books-media",
+    "category_name": "Books & Media",
+    "image_url": "https://images.unsplash.com/photo-gift-card-streaming?w=800&q=80",
+    "features": [
+      "$50 Value",
+      "Digital Delivery",
+      "Multi-Platform"
+    ],
+    "rating": null,
+    "tags": [
+      "$50 Value",
+      "Digital Delivery",
+      "Multi-Platform"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "845cda73-e772-5798-9ab6-e69d92dfe4f3",
+    "name": "Podcasting Microphone Kit",
+    "description": "USB condenser microphone with pop filter, boom arm, and shock mount.",
+    "price": 89.99,
+    "category_id": "cat-books-media",
+    "category_name": "Books & Media",
+    "image_url": "https://images.unsplash.com/photo-podcast-mic?w=800&q=80",
+    "features": [
+      "USB-C",
+      "Pop Filter",
+      "Boom Arm"
+    ],
+    "rating": null,
+    "tags": [
+      "USB-C",
+      "Pop Filter",
+      "Boom Arm"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "421edfb9-cfec-571b-96fc-440fd98d1497",
+    "name": "Adult Coloring Book Set",
+    "description": "Set of three premium coloring books with 120 intricate designs and 24 colored pencils.",
+    "price": 24.99,
+    "category_id": "cat-books-media",
+    "category_name": "Books & Media",
+    "image_url": "https://images.unsplash.com/photo-coloring-books?w=800&q=80",
+    "features": [
+      "3 Books",
+      "120 Designs",
+      "Pencils Included"
+    ],
+    "rating": null,
+    "tags": [
+      "3 Books",
+      "120 Designs",
+      "Pencils Included"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "f2f62365-d515-5435-b627-e3adbf537e67",
+    "name": "E-Reader Paperwhite",
+    "description": "6.8\" glare-free display e-reader with adjustable warm light and 16 GB storage.",
+    "price": 139.99,
+    "category_id": "cat-books-media",
+    "category_name": "Books & Media",
+    "image_url": "https://images.unsplash.com/photo-e-reader?w=800&q=80",
+    "features": [
+      "6.8\" Display",
+      "Warm Light",
+      "16 GB"
+    ],
+    "rating": null,
+    "tags": [
+      "6.8\" Display",
+      "Warm Light",
+      "16 GB"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "a68a9857-98f5-5e35-ae96-005d6aeeb430",
+    "name": "Music Theory for Beginners",
+    "description": "Comprehensive guide to music theory with exercises and online video lessons.",
+    "price": 19.99,
+    "category_id": "cat-books-media",
+    "category_name": "Books & Media",
+    "image_url": "https://images.unsplash.com/photo-music-theory?w=800&q=80",
+    "features": [
+      "Beginner Friendly",
+      "Online Videos",
+      "Paperback"
+    ],
+    "rating": null,
+    "tags": [
+      "Beginner Friendly",
+      "Online Videos",
+      "Paperback"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "a089fe1b-b8c4-59e4-9400-e948afdbf76a",
+    "name": "Audiobook Subscription Gift",
+    "description": "3-month audiobook subscription with one credit per month.",
+    "price": 44.97,
+    "category_id": "cat-books-media",
+    "category_name": "Books & Media",
+    "image_url": "https://images.unsplash.com/photo-audiobook-sub?w=800&q=80",
+    "features": [
+      "3 Months",
+      "1 Credit/Month",
+      "Gift Card"
+    ],
+    "rating": null,
+    "tags": [
+      "3 Months",
+      "1 Credit/Month",
+      "Gift Card"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "bd893b49-dd50-5ad2-9ab6-f31a11b24d0e",
+    "name": "Photography Art Book",
+    "description": "Large-format coffee table book showcasing award-winning landscape photography.",
+    "price": 49.99,
+    "category_id": "cat-books-media",
+    "category_name": "Books & Media",
+    "image_url": "https://images.unsplash.com/photo-photo-book?w=800&q=80",
+    "features": [
+      "Large Format",
+      "200 Photos",
+      "Hardcover"
+    ],
+    "rating": null,
+    "tags": [
+      "Large Format",
+      "200 Photos",
+      "Hardcover"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "31382bd7-78da-5c01-a98e-dc89bc7b5984",
+    "name": "Sterling Silver Pendant Necklace",
+    "description": "Handcrafted sterling silver pendant on 18\" chain with spring-ring clasp.",
+    "price": 59.99,
+    "category_id": "cat-jewelry-watches",
+    "category_name": "Jewelry & Watches",
+    "image_url": "https://images.unsplash.com/photo-pendant-necklace?w=800&q=80",
+    "features": [
+      "925 Sterling Silver",
+      "18\" Chain",
+      "Handcrafted"
+    ],
+    "rating": null,
+    "tags": [
+      "925 Sterling Silver",
+      "18\" Chain",
+      "Handcrafted"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "a825627f-066d-578d-8c33-defa5a8c6abb",
+    "name": "Automatic Dive Watch",
+    "description": "200 m water-resistant automatic watch with sapphire crystal and stainless steel bracelet.",
+    "price": 349.99,
+    "category_id": "cat-jewelry-watches",
+    "category_name": "Jewelry & Watches",
+    "image_url": "https://images.unsplash.com/photo-dive-watch?w=800&q=80",
+    "features": [
+      "Automatic",
+      "Sapphire Crystal",
+      "200 m WR"
+    ],
+    "rating": null,
+    "tags": [
+      "Automatic",
+      "Sapphire Crystal",
+      "200 m WR"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "1cba1e57-705f-5536-a2fb-7cd63f543443",
+    "name": "Gold-Plated Hoop Earrings",
+    "description": "18K gold-plated stainless steel hoop earrings. Hypoallergenic and tarnish resistant.",
+    "price": 29.99,
+    "category_id": "cat-jewelry-watches",
+    "category_name": "Jewelry & Watches",
+    "image_url": "https://images.unsplash.com/photo-hoop-earrings?w=800&q=80",
+    "features": [
+      "18K Gold Plated",
+      "Hypoallergenic",
+      "Stainless Steel"
+    ],
+    "rating": null,
+    "tags": [
+      "18K Gold Plated",
+      "Hypoallergenic",
+      "Stainless Steel"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "814e218e-5e8d-5a4c-bfc4-054dfe5a54d5",
+    "name": "Minimalist Leather Watch",
+    "description": "Ultra-thin quartz watch with genuine leather strap and Japanese movement.",
+    "price": 89.99,
+    "category_id": "cat-jewelry-watches",
+    "category_name": "Jewelry & Watches",
+    "image_url": "https://images.unsplash.com/photo-leather-watch?w=800&q=80",
+    "features": [
+      "Japanese Quartz",
+      "Leather Strap",
+      "Ultra-Thin"
+    ],
+    "rating": null,
+    "tags": [
+      "Japanese Quartz",
+      "Leather Strap",
+      "Ultra-Thin"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "87d1d52d-2aea-50c8-96be-00542f172ef9",
+    "name": "Freshwater Pearl Bracelet",
+    "description": "Elegant bracelet featuring genuine freshwater pearls on sterling silver wire.",
+    "price": 45.0,
+    "category_id": "cat-jewelry-watches",
+    "category_name": "Jewelry & Watches",
+    "image_url": "https://images.unsplash.com/photo-pearl-bracelet?w=800&q=80",
+    "features": [
+      "Freshwater Pearls",
+      "Sterling Silver",
+      "Adjustable"
+    ],
+    "rating": null,
+    "tags": [
+      "Freshwater Pearls",
+      "Sterling Silver",
+      "Adjustable"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "3a9a379f-6d58-5064-8dc5-ff5c0c2ffda5",
+    "name": "Chronograph Sport Watch",
+    "description": "Stainless steel chronograph with tachymeter bezel and 100 m water resistance.",
+    "price": 179.99,
+    "category_id": "cat-jewelry-watches",
+    "category_name": "Jewelry & Watches",
+    "image_url": "https://images.unsplash.com/photo-sport-watch?w=800&q=80",
+    "features": [
+      "Chronograph",
+      "Tachymeter",
+      "100 m WR"
+    ],
+    "rating": null,
+    "tags": [
+      "Chronograph",
+      "Tachymeter",
+      "100 m WR"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "15a38ba8-3166-5025-9dd2-f16ced900275",
+    "name": "Birthstone Ring Collection",
+    "description": "Stackable birthstone ring in your choice of 12 gemstones. Set in 14K gold vermeil.",
+    "price": 39.99,
+    "category_id": "cat-jewelry-watches",
+    "category_name": "Jewelry & Watches",
+    "image_url": "https://images.unsplash.com/photo-birthstone-ring?w=800&q=80",
+    "features": [
+      "14K Gold Vermeil",
+      "12 Options",
+      "Stackable"
+    ],
+    "rating": null,
+    "tags": [
+      "14K Gold Vermeil",
+      "12 Options",
+      "Stackable"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "6ae5509c-1a88-5d3d-b39d-68d4372bdeab",
+    "name": "Cufflink & Tie Bar Set",
+    "description": "Brushed stainless steel cufflinks and tie bar in a walnut presentation box.",
+    "price": 54.99,
+    "category_id": "cat-jewelry-watches",
+    "category_name": "Jewelry & Watches",
+    "image_url": "https://images.unsplash.com/photo-cufflinks?w=800&q=80",
+    "features": [
+      "Stainless Steel",
+      "Walnut Box",
+      "Brushed Finish"
+    ],
+    "rating": null,
+    "tags": [
+      "Stainless Steel",
+      "Walnut Box",
+      "Brushed Finish"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "e3f853ac-3e23-5ac2-b749-5423886d487c",
+    "name": "Crystal Tennis Bracelet",
+    "description": "Rhodium-plated tennis bracelet with brilliant-cut cubic zirconia stones.",
+    "price": 69.99,
+    "category_id": "cat-jewelry-watches",
+    "category_name": "Jewelry & Watches",
+    "image_url": "https://images.unsplash.com/photo-tennis-bracelet?w=800&q=80",
+    "features": [
+      "Rhodium Plated",
+      "CZ Stones",
+      "Box Clasp"
+    ],
+    "rating": null,
+    "tags": [
+      "Rhodium Plated",
+      "CZ Stones",
+      "Box Clasp"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "7769769c-4a69-54ca-b96f-06eac9a2af11",
+    "name": "Smart Hybrid Watch",
+    "description": "Analog watch face with smart notifications, step tracking, and 6-month battery.",
+    "price": 199.99,
+    "category_id": "cat-jewelry-watches",
+    "category_name": "Jewelry & Watches",
+    "image_url": "https://images.unsplash.com/photo-hybrid-watch?w=800&q=80",
+    "features": [
+      "Analog + Smart",
+      "Notifications",
+      "6-Month Battery"
+    ],
+    "rating": null,
+    "tags": [
+      "Analog + Smart",
+      "Notifications",
+      "6-Month Battery"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "bac4fc44-c255-5123-87b0-9c8a3b671f9f",
+    "name": "Artisan Chocolate Truffle Box",
+    "description": "24-piece collection of handmade Belgian chocolate truffles in assorted flavors.",
+    "price": 34.99,
+    "category_id": "cat-food-gourmet",
+    "category_name": "Food & Gourmet",
+    "image_url": "https://images.unsplash.com/photo-chocolate-truffles?w=800&q=80",
+    "features": [
+      "24 Pieces",
+      "Belgian Chocolate",
+      "Handmade"
+    ],
+    "rating": null,
+    "tags": [
+      "24 Pieces",
+      "Belgian Chocolate",
+      "Handmade"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "022895d9-30c1-5849-a7a4-c9a906cd551e",
+    "name": "Holiday Cookie Gift Tin",
+    "description": "2 lb tin of assorted butter cookies in festive holiday shapes.",
+    "price": 22.99,
+    "category_id": "cat-food-gourmet",
+    "category_name": "Food & Gourmet",
+    "image_url": "https://images.unsplash.com/photo-cookie-tin?w=800&q=80",
+    "features": [
+      "2 lb Tin",
+      "Butter Cookies",
+      "Holiday Shapes"
+    ],
+    "rating": null,
+    "tags": [
+      "2 lb Tin",
+      "Butter Cookies",
+      "Holiday Shapes"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "24908bbb-6314-52ca-85b9-366520fa21b1",
+    "name": "Single-Origin Coffee Sampler",
+    "description": "Set of four 4 oz bags of specialty single-origin coffees from around the world.",
+    "price": 29.99,
+    "category_id": "cat-food-gourmet",
+    "category_name": "Food & Gourmet",
+    "image_url": "https://images.unsplash.com/photo-coffee-sampler?w=800&q=80",
+    "features": [
+      "4 Origins",
+      "Whole Bean",
+      "Freshly Roasted"
+    ],
+    "rating": null,
+    "tags": [
+      "4 Origins",
+      "Whole Bean",
+      "Freshly Roasted"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "fb34af42-d821-5955-b656-4f61eb1e45d2",
+    "name": "Gourmet Cheese Board Set",
+    "description": "Artisan cheese selection with crackers, fig jam, and bamboo serving board.",
+    "price": 49.99,
+    "category_id": "cat-food-gourmet",
+    "category_name": "Food & Gourmet",
+    "image_url": "https://images.unsplash.com/photo-cheese-board?w=800&q=80",
+    "features": [
+      "4 Cheeses",
+      "Bamboo Board",
+      "Fig Jam"
+    ],
+    "rating": null,
+    "tags": [
+      "4 Cheeses",
+      "Bamboo Board",
+      "Fig Jam"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "23c91b1e-e4e7-55e6-9002-0975690be3f9",
+    "name": "Organic Tea Collection",
+    "description": "Gift box of 60 organic tea bags in 6 flavors: chamomile, green, earl grey, peppermint, chai, and rooibos.",
+    "price": 19.99,
+    "category_id": "cat-food-gourmet",
+    "category_name": "Food & Gourmet",
+    "image_url": "https://images.unsplash.com/photo-tea-collection?w=800&q=80",
+    "features": [
+      "60 Bags",
+      "6 Flavors",
+      "Organic"
+    ],
+    "rating": null,
+    "tags": [
+      "60 Bags",
+      "6 Flavors",
+      "Organic"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "5d02e386-4a04-5682-82af-96b1484bcdf2",
+    "name": "Hot Sauce Trio",
+    "description": "Set of three small-batch hot sauces: smoky chipotle, habanero mango, and ghost pepper.",
+    "price": 24.99,
+    "category_id": "cat-food-gourmet",
+    "category_name": "Food & Gourmet",
+    "image_url": "https://images.unsplash.com/photo-hot-sauce?w=800&q=80",
+    "features": [
+      "3 Bottles",
+      "Small Batch",
+      "Varying Heat"
+    ],
+    "rating": null,
+    "tags": [
+      "3 Bottles",
+      "Small Batch",
+      "Varying Heat"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "9150305b-6e0d-5093-ae2a-8ec0fee76992",
+    "name": "Olive Oil & Vinegar Set",
+    "description": "Premium extra-virgin olive oil and aged balsamic vinegar in glass bottles.",
+    "price": 32.99,
+    "category_id": "cat-food-gourmet",
+    "category_name": "Food & Gourmet",
+    "image_url": "https://images.unsplash.com/photo-olive-oil-set?w=800&q=80",
+    "features": [
+      "Extra Virgin",
+      "Aged Balsamic",
+      "Glass Bottles"
+    ],
+    "rating": null,
+    "tags": [
+      "Extra Virgin",
+      "Aged Balsamic",
+      "Glass Bottles"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "3a3aa8f0-bfee-50d2-a52c-b573bb08a227",
+    "name": "Holiday Nuts & Dried Fruit Basket",
+    "description": "Gift basket with roasted almonds, cashews, dried cranberries, and apricots.",
+    "price": 27.99,
+    "category_id": "cat-food-gourmet",
+    "category_name": "Food & Gourmet",
+    "image_url": "https://images.unsplash.com/photo-nuts-basket?w=800&q=80",
+    "features": [
+      "Mixed Nuts",
+      "Dried Fruit",
+      "Gift Basket"
+    ],
+    "rating": null,
+    "tags": [
+      "Mixed Nuts",
+      "Dried Fruit",
+      "Gift Basket"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "a90b4d97-8596-5361-a249-201063ea251b",
+    "name": "Craft Beer Advent Calendar",
+    "description": "24 craft beers from independent breweries, one for each day of December.",
+    "price": 59.99,
+    "category_id": "cat-food-gourmet",
+    "category_name": "Food & Gourmet",
+    "image_url": "https://images.unsplash.com/photo-beer-advent?w=800&q=80",
+    "features": [
+      "24 Beers",
+      "Independent Breweries",
+      "Advent Calendar"
+    ],
+    "rating": null,
+    "tags": [
+      "24 Beers",
+      "Independent Breweries",
+      "Advent Calendar"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "bedddb61-1c66-5877-84a4-c27febb9b522",
+    "name": "Maple Syrup Gift Set",
+    "description": "Three-bottle set of grade A maple syrup: amber, dark, and very dark.",
+    "price": 28.99,
+    "category_id": "cat-food-gourmet",
+    "category_name": "Food & Gourmet",
+    "image_url": "https://images.unsplash.com/photo-maple-syrup?w=800&q=80",
+    "features": [
+      "Grade A",
+      "3 Bottles",
+      "Vermont Maple"
+    ],
+    "rating": null,
+    "tags": [
+      "Grade A",
+      "3 Bottles",
+      "Vermont Maple"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "5b67b850-6f72-5ae8-bd5f-fe60bb424080",
+    "name": "Orthopedic Dog Bed Large",
+    "description": "Memory foam dog bed with waterproof liner and removable washable cover.",
+    "price": 59.99,
+    "category_id": "cat-pet-supplies",
+    "category_name": "Pet Supplies",
+    "image_url": "https://images.unsplash.com/photo-dog-bed?w=800&q=80",
+    "features": [
+      "Memory Foam",
+      "Waterproof Liner",
+      "Washable Cover"
+    ],
+    "rating": null,
+    "tags": [
+      "Memory Foam",
+      "Waterproof Liner",
+      "Washable Cover"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "91383486-a187-5f70-a1e5-c836fc36a74e",
+    "name": "Interactive Cat Puzzle Feeder",
+    "description": "Slow-feeder puzzle toy that stimulates your cat's natural hunting instincts.",
+    "price": 19.99,
+    "category_id": "cat-pet-supplies",
+    "category_name": "Pet Supplies",
+    "image_url": "https://images.unsplash.com/photo-cat-puzzle?w=800&q=80",
+    "features": [
+      "Slow Feeder",
+      "BPA Free",
+      "Dishwasher Safe"
+    ],
+    "rating": null,
+    "tags": [
+      "Slow Feeder",
+      "BPA Free",
+      "Dishwasher Safe"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "2e29b81f-61d7-5be6-b2af-4dfa0fb9d159",
+    "name": "Premium Grain-Free Dog Food 15 lb",
+    "description": "All-natural grain-free kibble with real salmon as the first ingredient.",
+    "price": 49.99,
+    "category_id": "cat-pet-supplies",
+    "category_name": "Pet Supplies",
+    "image_url": "https://images.unsplash.com/photo-dog-food?w=800&q=80",
+    "features": [
+      "Grain Free",
+      "Real Salmon",
+      "15 lb Bag"
+    ],
+    "rating": null,
+    "tags": [
+      "Grain Free",
+      "Real Salmon",
+      "15 lb Bag"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "e5a67196-c661-5617-8639-54f1f2d5f2f6",
+    "name": "Retractable Dog Leash 16 ft",
+    "description": "One-handed retractable leash with anti-slip handle and reflective cord.",
+    "price": 22.99,
+    "category_id": "cat-pet-supplies",
+    "category_name": "Pet Supplies",
+    "image_url": "https://images.unsplash.com/photo-dog-leash?w=800&q=80",
+    "features": [
+      "16 ft",
+      "Retractable",
+      "Reflective"
+    ],
+    "rating": null,
+    "tags": [
+      "16 ft",
+      "Retractable",
+      "Reflective"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "940da85c-3d0d-5b05-8802-fa498bbea0bd",
+    "name": "Cat Tower 5-Level",
+    "description": "Multi-level cat tree with sisal scratching posts, hammock, and plush perches.",
+    "price": 79.99,
+    "category_id": "cat-pet-supplies",
+    "category_name": "Pet Supplies",
+    "image_url": "https://images.unsplash.com/photo-cat-tower?w=800&q=80",
+    "features": [
+      "5 Levels",
+      "Sisal Posts",
+      "Hammock"
+    ],
+    "rating": null,
+    "tags": [
+      "5 Levels",
+      "Sisal Posts",
+      "Hammock"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "5a399d6f-2218-5c61-bffb-f2ff1ada1b56",
+    "name": "Pet Grooming Glove",
+    "description": "De-shedding grooming glove that works for cats and dogs. Gentle massage tips.",
+    "price": 12.99,
+    "category_id": "cat-pet-supplies",
+    "category_name": "Pet Supplies",
+    "image_url": "https://images.unsplash.com/photo-grooming-glove?w=800&q=80",
+    "features": [
+      "Cats & Dogs",
+      "De-Shedding",
+      "Massage Tips"
+    ],
+    "rating": null,
+    "tags": [
+      "Cats & Dogs",
+      "De-Shedding",
+      "Massage Tips"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "79be7acc-72bc-55ec-81fc-939266326fa1",
+    "name": "Automatic Pet Water Fountain",
+    "description": "2 L circulating water fountain with triple filtration and ultra-quiet pump.",
+    "price": 29.99,
+    "category_id": "cat-pet-supplies",
+    "category_name": "Pet Supplies",
+    "image_url": "https://images.unsplash.com/photo-water-fountain?w=800&q=80",
+    "features": [
+      "2 L Capacity",
+      "Triple Filter",
+      "Ultra Quiet"
+    ],
+    "rating": null,
+    "tags": [
+      "2 L Capacity",
+      "Triple Filter",
+      "Ultra Quiet"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "bc9f6f0d-817b-5540-a4a9-90abdf15be24",
+    "name": "Holiday Pet Outfit Set",
+    "description": "Festive holiday costume set with Santa hat, bandana, and bow tie for dogs.",
+    "price": 18.99,
+    "category_id": "cat-pet-supplies",
+    "category_name": "Pet Supplies",
+    "image_url": "https://images.unsplash.com/photo-pet-costume?w=800&q=80",
+    "features": [
+      "3-Piece Set",
+      "Adjustable",
+      "Machine Washable"
+    ],
+    "rating": null,
+    "tags": [
+      "3-Piece Set",
+      "Adjustable",
+      "Machine Washable"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "26822889-fb3b-5478-8834-e3286bf92b75",
+    "name": "GPS Pet Tracker",
+    "description": "Lightweight GPS tracker for collars with real-time location and activity monitoring.",
+    "price": 44.99,
+    "category_id": "cat-pet-supplies",
+    "category_name": "Pet Supplies",
+    "image_url": "https://images.unsplash.com/photo-pet-tracker?w=800&q=80",
+    "features": [
+      "Real-Time GPS",
+      "Activity Monitor",
+      "Lightweight"
+    ],
+    "rating": null,
+    "tags": [
+      "Real-Time GPS",
+      "Activity Monitor",
+      "Lightweight"
+    ],
+    "in_stock": true
+  },
+  {
+    "id": "f1797489-5ba1-5931-ab83-89ec383fc9e0",
+    "name": "Natural Catnip Toy Bundle",
+    "description": "Set of 5 organic catnip toys in assorted shapes with crinkle filling.",
+    "price": 14.99,
+    "category_id": "cat-pet-supplies",
+    "category_name": "Pet Supplies",
+    "image_url": "https://images.unsplash.com/photo-catnip-toys?w=800&q=80",
+    "features": [
+      "5 Toys",
+      "Organic Catnip",
+      "Crinkle Filling"
+    ],
+    "rating": null,
+    "tags": [
+      "5 Toys",
+      "Organic Catnip",
+      "Crinkle Filling"
+    ],
+    "in_stock": true
+  }
+]

@@ -4,9 +4,12 @@ Adapter interfaces and connector helpers for agent-ready context building.
 This module defines:
 
 - `AdapterError` for consistent error propagation from adapters and connectors.
+- `RateLimiter`, a token-bucket-style async rate limiter.
+- `AsyncCache`, a TTL-bounded LRU cache for adapter fetch results.
 - `BaseAdapter`, a resilient base that all upstream integrations inherit. It
-    adds rate limiting, caching, retries, timeouts, and circuit breaking around
-    child implementations.
+    composes `RateLimiter`, `CircuitBreaker`, and `AsyncCache` around child
+    implementations to provide rate limiting, caching, retries, timeouts, and
+    circuit breaking.
 - `BaseConnector`, shared fetch and mapping helpers to turn adapter payloads into
         validated domain models with bounded concurrency.
 
@@ -21,6 +24,10 @@ from abc import ABC, abstractmethod
 from collections import OrderedDict, deque
 from typing import Any, Iterable, TypeVar
 
+from holiday_peak_lib.utils.circuit_breaker import (
+    CircuitBreaker,
+    CircuitBreakerOpenError,
+)
 from pydantic import BaseModel, ValidationError
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
@@ -34,6 +41,83 @@ class AdapterError(Exception):
     ...
     AdapterError: bad state
     """
+
+
+class RateLimiter:
+    """Token-bucket-style async rate limiter.
+
+    Enforces at most *max_calls* within a sliding window of *per_seconds*.
+
+    >>> import asyncio
+    >>> rl = RateLimiter(max_calls=2, per_seconds=0.5)
+    >>> asyncio.run(rl.acquire())
+    """
+
+    def __init__(self, max_calls: int, per_seconds: float) -> None:
+        self.max_calls = max_calls
+        self.per_seconds = per_seconds
+        self._window: deque[float] = deque()
+        self._lock = asyncio.Lock()
+
+    async def acquire(self) -> None:
+        async with self._lock:
+            now = time.monotonic()
+            while self._window and now - self._window[0] > self.per_seconds:
+                self._window.popleft()
+            if len(self._window) < self.max_calls:
+                self._window.append(now)
+                return
+            wait_for = self.per_seconds - (now - self._window[0])
+        await asyncio.sleep(wait_for)
+        await self.acquire()
+
+
+class AsyncCache:
+    """TTL-bounded LRU cache for adapter fetch results.
+
+    >>> import asyncio
+    >>> cache = AsyncCache(ttl=10.0, max_size=128)
+    >>> asyncio.run(cache.get(("k",))) is None
+    True
+    """
+
+    def __init__(self, ttl: float, max_size: int) -> None:
+        self.ttl = ttl
+        self.max_size = max_size
+        self._store: OrderedDict[tuple, tuple[float, list[dict[str, Any]]]] = OrderedDict()
+        self._lock = asyncio.Lock()
+
+    async def get(self, key: tuple) -> list[dict[str, Any]] | None:
+        if self.ttl <= 0:
+            return None
+        async with self._lock:
+            entry = self._store.get(key)
+            if entry is None:
+                return None
+            expires_at, value = entry
+            if time.monotonic() > expires_at:
+                self._store.pop(key, None)
+                return None
+            self._store.move_to_end(key)
+            return value
+
+    async def set(self, key: tuple, value: Iterable[dict[str, Any]]) -> None:
+        if self.ttl <= 0:
+            return
+        async with self._lock:
+            expires_at = time.monotonic() + self.ttl
+            self._store[key] = (expires_at, list(value))
+            self._store.move_to_end(key)
+            if len(self._store) > self.max_size:
+                self._store.popitem(last=False)
+
+    async def clear(self) -> None:
+        async with self._lock:
+            self._store.clear()
+
+    @staticmethod
+    def make_key(query: dict[str, Any]) -> tuple:
+        return tuple(sorted(query.items()))
 
 
 class BaseAdapter(ABC):
@@ -77,22 +161,18 @@ class BaseAdapter(ABC):
         circuit_breaker_threshold: int = 5,
         circuit_reset_seconds: float = 30.0,
     ) -> None:
-        self._max_calls = max_calls
-        self._per_seconds = per_seconds
-        self._cache_ttl = cache_ttl
-        self._cache_size = cache_size
         self._retries = retries
         self._base_delay = base_delay
         self._max_delay = max_delay
         self._timeout = timeout
-        self._circuit_breaker_threshold = circuit_breaker_threshold
-        self._circuit_reset_seconds = circuit_reset_seconds
 
-        self._rate_window: deque[float] = deque()
-        self._cache: OrderedDict[tuple, tuple[float, list[dict[str, Any]]]] = OrderedDict()
-        self._lock = asyncio.Lock()
-        self._failure_count = 0
-        self._opened_until: float = 0.0
+        self._rate_limiter = RateLimiter(max_calls, per_seconds)
+        self._circuit_breaker = CircuitBreaker(
+            name=type(self).__name__,
+            failure_threshold=circuit_breaker_threshold,
+            recovery_timeout=circuit_reset_seconds,
+        )
+        self._cache = AsyncCache(cache_ttl, cache_size)
 
     # Public methods (resilient wrappers)
     async def connect(self, **kwargs: Any) -> None:
@@ -100,7 +180,7 @@ class BaseAdapter(ABC):
 
     async def fetch(self, query: dict[str, Any]) -> Iterable[dict[str, Any]]:
         key = self._cache_key(query)
-        cached = await self._get_cached(key)
+        cached = await self._cache.get(key)
         if cached is not None:
             return cached
 
@@ -108,7 +188,7 @@ class BaseAdapter(ABC):
             return await self._fetch_impl(query)
 
         result = await self._call_with_resilience(op)
-        await self._set_cache(key, result)
+        await self._cache.set(key, result)
         return result
 
     async def upsert(self, payload: dict[str, Any]) -> dict[str, Any] | None:
@@ -116,7 +196,7 @@ class BaseAdapter(ABC):
             return await self._upsert_impl(payload)
 
         result = await self._call_with_resilience(op)
-        await self._clear_cache()
+        await self._cache.clear()
         return result
 
     async def delete(self, identifier: str) -> bool:
@@ -124,7 +204,7 @@ class BaseAdapter(ABC):
             return await self._delete_impl(identifier)
 
         result = await self._call_with_resilience(op)
-        await self._clear_cache()
+        await self._cache.clear()
         return result
 
     # Protected hooks to implement
@@ -146,18 +226,21 @@ class BaseAdapter(ABC):
 
     # Resilience helpers
     async def _call_with_resilience(self, func):
-        await self._acquire_rate_limit()
-        await self._ensure_circuit_allows()
+        await self._rate_limiter.acquire()
 
         last_error: Exception | None = None
         for attempt in range(1, self._retries + 2):
             try:
-                result = await asyncio.wait_for(func(), timeout=self._timeout)
-                await self._record_success()
+
+                async def _timed_call() -> Any:
+                    return await asyncio.wait_for(func(), timeout=self._timeout)
+
+                result = await self._circuit_breaker.call(_timed_call)
                 return result
+            except CircuitBreakerOpenError as exc:
+                raise AdapterError("Circuit breaker open") from exc
             except Exception as exc:  # noqa: BLE001
                 last_error = exc
-                await self._record_failure()
                 if attempt > self._retries:
                     break
                 delay = min(self._max_delay, self._base_delay * (2 ** (attempt - 1)))
@@ -165,81 +248,18 @@ class BaseAdapter(ABC):
                 await asyncio.sleep(delay)
         raise AdapterError("Operation failed after retries") from last_error
 
-    async def _acquire_rate_limit(self) -> None:
-        async with self._lock:
-            now = time.monotonic()
-            window = self._rate_window
-            while window and now - window[0] > self._per_seconds:
-                window.popleft()
-            if len(window) < self._max_calls:
-                window.append(now)
-                return
-            wait_for = self._per_seconds - (now - window[0])
-        await asyncio.sleep(wait_for)
-        await self._acquire_rate_limit()
-
-    async def _ensure_circuit_allows(self) -> None:
-        async with self._lock:
-            now = time.monotonic()
-            if self._opened_until and now < self._opened_until:
-                raise AdapterError("Circuit breaker open")
-            if self._opened_until and now >= self._opened_until:
-                self._opened_until = 0.0
-                self._failure_count = 0
-
-    async def _record_success(self) -> None:
-        async with self._lock:
-            self._failure_count = 0
-
-    async def _record_failure(self) -> None:
-        async with self._lock:
-            self._failure_count += 1
-            if self._failure_count >= self._circuit_breaker_threshold:
-                self._opened_until = time.monotonic() + self._circuit_reset_seconds
-
     def resilience_status(self) -> dict[str, Any]:
         """Return current resilience/circuit-breaker state for observability."""
-        now = time.monotonic()
-        circuit_open = bool(self._opened_until and now < self._opened_until)
-        opened_for_seconds = max(0.0, self._opened_until - now) if circuit_open else 0.0
         return {
-            "failure_count": self._failure_count,
-            "circuit_open": circuit_open,
-            "opened_for_seconds": opened_for_seconds,
-            "threshold": self._circuit_breaker_threshold,
-            "reset_seconds": self._circuit_reset_seconds,
+            "failure_count": self._circuit_breaker.failure_count,
+            "circuit_open": self._circuit_breaker.state.value == "open",
+            "threshold": self._circuit_breaker.failure_threshold,
+            "reset_seconds": self._circuit_breaker.recovery_timeout,
         }
 
-    async def _get_cached(self, key: tuple) -> list[dict[str, Any]] | None:
-        if self._cache_ttl <= 0:
-            return None
-        async with self._lock:
-            entry = self._cache.get(key)
-            if entry is None:
-                return None
-            expires_at, value = entry
-            if time.monotonic() > expires_at:
-                self._cache.pop(key, None)
-                return None
-            self._cache.move_to_end(key)
-            return value
-
-    async def _set_cache(self, key: tuple, value: Iterable[dict[str, Any]]) -> None:
-        if self._cache_ttl <= 0:
-            return
-        async with self._lock:
-            expires_at = time.monotonic() + self._cache_ttl
-            self._cache[key] = (expires_at, list(value))
-            self._cache.move_to_end(key)
-            if len(self._cache) > self._cache_size:
-                self._cache.popitem(last=False)
-
-    async def _clear_cache(self) -> None:
-        async with self._lock:
-            self._cache.clear()
-
     def _cache_key(self, query: dict[str, Any]) -> tuple:
-        return tuple(sorted(query.items()))
+        """Build a hashable cache key from *query*. Override for custom keys."""
+        return AsyncCache.make_key(query)
 
 
 class BaseConnector:

@@ -365,7 +365,7 @@ $envMappings = @{
   FOUNDRY_AGENT_NAME_RICH = $resolvedFoundryAgentNameRich
   MODEL_DEPLOYMENT_NAME_FAST = $resolvedModelDeploymentFast
   MODEL_DEPLOYMENT_NAME_RICH = $resolvedModelDeploymentRich
-  FOUNDRY_STREAM = $env:FOUNDRY_STREAM
+  FOUNDRY_STREAM = if ($env:FOUNDRY_STREAM) { $env:FOUNDRY_STREAM } else { 'true' }
   FOUNDRY_STRICT_ENFORCEMENT = $env:FOUNDRY_STRICT_ENFORCEMENT
   FOUNDRY_AUTO_ENSURE_ON_STARTUP = $env:FOUNDRY_AUTO_ENSURE_ON_STARTUP
 
@@ -390,6 +390,7 @@ $envMappings = @{
 
   # Observability
   APPLICATIONINSIGHTS_CONNECTION_STRING = $env:APPLICATIONINSIGHTS_CONNECTION_STRING
+  OTEL_SERVICE_NAME = $ServiceName
 }
 
 # Cross-namespace CRUD service URL for agent->CRUD communication (ADR-034)

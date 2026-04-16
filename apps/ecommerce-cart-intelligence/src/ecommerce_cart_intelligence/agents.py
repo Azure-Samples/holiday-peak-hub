@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-import os
 from typing import Any
 
-from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
@@ -16,6 +14,10 @@ from holiday_peak_lib.agents.memory import (
     resolve_namespace_context,
 )
 from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
+from holiday_peak_lib.agents.registration_helpers import (
+    get_agent_adapters,
+    register_crud_tools,
+)
 
 from .adapters import CartAdapters, build_cart_adapters
 
@@ -126,7 +128,7 @@ class CartIntelligenceAgent(BaseRetailAgent):
 
 def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
     """Expose MCP tools for cart intelligence workflows."""
-    adapters = getattr(agent, "adapters", build_cart_adapters())
+    adapters = get_agent_adapters(agent, build_cart_adapters)
 
     async def get_cart_context(payload: dict[str, Any]) -> dict[str, Any]:
         items = _coerce_cart_items(payload.get("items"))
@@ -166,11 +168,11 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
 
     async def estimate_abandonment_risk(payload: dict[str, Any]) -> dict[str, Any]:
         items = _coerce_cart_items(payload.get("items"))
-        pricing_contexts = await asyncio.gather(
-            *[adapters.pricing.build_price_context(item["sku"]) for item in items]
-        )
-        inventory_contexts = await asyncio.gather(
-            *[adapters.inventory.build_inventory_context(item["sku"]) for item in items]
+        pricing_contexts, inventory_contexts = await asyncio.gather(
+            asyncio.gather(*[adapters.pricing.build_price_context(item["sku"]) for item in items]),
+            asyncio.gather(
+                *[adapters.inventory.build_inventory_context(item["sku"]) for item in items]
+            ),
         )
         risk = await adapters.analytics.estimate_abandonment_risk(
             items, inventory=inventory_contexts, pricing=pricing_contexts
@@ -187,11 +189,11 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
 
     async def recommend_actions(payload: dict[str, Any]) -> dict[str, Any]:
         items = _coerce_cart_items(payload.get("items"))
-        pricing_contexts = await asyncio.gather(
-            *[adapters.pricing.build_price_context(item["sku"]) for item in items]
-        )
-        inventory_contexts = await asyncio.gather(
-            *[adapters.inventory.build_inventory_context(item["sku"]) for item in items]
+        pricing_contexts, inventory_contexts = await asyncio.gather(
+            asyncio.gather(*[adapters.pricing.build_price_context(item["sku"]) for item in items]),
+            asyncio.gather(
+                *[adapters.inventory.build_inventory_context(item["sku"]) for item in items]
+            ),
         )
         risk = await adapters.analytics.estimate_abandonment_risk(
             items, inventory=inventory_contexts, pricing=pricing_contexts
@@ -215,14 +217,7 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
     mcp.add_tool("/cart/context", get_cart_context)
     mcp.add_tool("/cart/abandonment-risk", estimate_abandonment_risk)
     mcp.add_tool("/cart/recommendations", recommend_actions)
-    _register_crud_tools(mcp)
-
-
-def _register_crud_tools(mcp: FastAPIMCPServer) -> None:
-    crud_url = os.getenv("CRUD_SERVICE_URL")
-    if not crud_url:
-        return
-    BaseCRUDAdapter(crud_url).register_mcp_tools(mcp)
+    register_crud_tools(mcp)
 
 
 def _coerce_cart_items(raw_items: Any) -> list[dict[str, object]]:

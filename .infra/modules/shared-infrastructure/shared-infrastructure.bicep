@@ -395,8 +395,11 @@ module acr 'br/public:avm/res/container-registry/registry:0.12.0' = {
     location: location
     acrSku: 'Premium'
     acrAdminUserEnabled: false
-    publicNetworkAccess: 'Disabled'
+    // Dev: public with Allow default (authenticated pushes from any IP).
+    // Non-dev: fully private, reachable only via private endpoint.
+    publicNetworkAccess: environment == 'dev' ? 'Enabled' : 'Disabled'
     networkRuleBypassOptions: 'AzureServices'
+    networkRuleSetDefaultAction: 'Allow'
     managedIdentities: {
       systemAssigned: true
     }

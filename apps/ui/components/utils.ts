@@ -3,7 +3,7 @@
  * Provides helper functions for styling, formatting, and common operations
  */
 
-import clsx from 'clsx';
+import clsx, { type ClassValue } from 'clsx';
 import type { Rounded, Spacing } from './types';
 
 // ===== CLASS NAME UTILITIES =====
@@ -11,7 +11,7 @@ import type { Rounded, Spacing } from './types';
 /**
  * Merges multiple class names, filtering out falsy values
  */
-export const cn = (...classes: clsx.ClassValue[]): string => {
+export const cn = (...classes: ClassValue[]): string => {
   return clsx(classes);
 };
 

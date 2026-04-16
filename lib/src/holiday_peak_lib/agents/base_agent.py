@@ -5,40 +5,66 @@ import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from time import perf_counter
-from typing import Any, Awaitable, Callable
+from typing import Any, AsyncGenerator, Awaitable, Callable
 
-try:
-    from agent_framework import BaseAgent
-except Exception:
+from agent_framework import BaseAgent
+from holiday_peak_lib.agents.complexity import assess_complexity
 
-    class BaseAgent:  # type: ignore[too-many-ancestors]
-        """Fallback base to keep local/test imports resilient.
-
-        Some CI environments can transiently resolve incompatible transitive
-        observability dependencies for `agent_framework`, causing import-time
-        failures before tests can run. This shim preserves importability for
-        framework-independent tests.
-        """
-
-        def __init__(self, *args: Any, **kwargs: Any) -> None:
-            _ = args
-            _ = kwargs
-
-
-from holiday_peak_lib.utils.telemetry import get_foundry_tracer
+# Runtime imports for Pydantic model field resolution.
+# Circular-import safe: none of these modules import base_agent.
+from holiday_peak_lib.agents.memory.builder import MemoryClient
+from holiday_peak_lib.agents.memory.cold import ColdMemory
+from holiday_peak_lib.agents.memory.hot import HotMemory
+from holiday_peak_lib.agents.memory.warm import WarmMemory
+from holiday_peak_lib.agents.orchestration.router import RoutingStrategy
+from holiday_peak_lib.agents.telemetry_mixin import AgentTelemetryMixin
+from holiday_peak_lib.mcp.server import FastAPIMCPServer
+from holiday_peak_lib.self_healing import SelfHealingKernel
 from pydantic import BaseModel, ConfigDict, Field
 
-from .provider_policy import (
-    sanitize_messages_for_provider,
-    should_use_local_routing_prompt,
-)
+from .provider_policy import sanitize_messages_for_provider
 
 ModelInvoker = Callable[..., Awaitable[dict[str, Any]]]
 
-UPGRADE_TOKEN = "upgrade"
+
+class StreamingModelInvoker:
+    """Protocol-style interface for invokers that support streaming.
+
+    Pattern: Strategy — invokers implement ``__call__`` as the single entry
+    point.  When ``stream=True`` is passed, ``__call__`` dispatches to the
+    private ``_stream_impl`` method and returns an ``AsyncGenerator``.
+    ``_supports_streaming()`` checks for this method's presence.
+    """
+
+    def _stream_impl(  # noqa: ARG002
+        self,
+        prep: Any,
+    ) -> AsyncGenerator[str, None]:
+        """Yield text token deltas from a streaming model call."""
+        raise NotImplementedError  # pragma: no cover
+
+
+def _supports_streaming(invoker: Any) -> bool:
+    """Check whether an invoker's ``__call__`` supports ``stream=True``.\n\n    Convention: invokers that support streaming implement a ``_stream_impl``\n    method.  ``__call__`` dispatches to it when ``stream=True``.\n"""
+    return callable(getattr(invoker, "_stream_impl", None))
+
+
+def _extract_text_from_response(result: dict[str, Any]) -> str:
+    """Extract concatenated assistant text from a model response dict.
+
+    # No GoF pattern applies — simple data extraction utility.
+    """
+    parts: list[str] = []
+    for msg in result.get("messages", []):
+        for content in msg.get("content", []):
+            if isinstance(content, dict):
+                text = content.get("text", "")
+                if text:
+                    parts.append(text)
+    return "".join(parts)
+
 
 _DEFAULT_AGENT_INVOKE_TIMEOUT = float(os.getenv("AGENT_INVOKE_TIMEOUT_SECONDS", "90"))
-_DEFAULT_ROUTING_EVAL_TIMEOUT = float(os.getenv("AGENT_ROUTING_EVAL_TIMEOUT_SECONDS", "15"))
 
 
 @dataclass
@@ -67,19 +93,19 @@ class AgentDependencies(BaseModel):
     router: Any | None = None
     tools: dict[str, Callable[..., Any]] = Field(default_factory=dict)
     service_name: str | None = None
-    memory_client: Any = None
-    hot_memory: Any = None
-    warm_memory: Any = None
-    cold_memory: Any = None
-    mcp_server: Any = None
-    self_healing_kernel: Any = None
+    memory_client: Any | None = None
+    hot_memory: Any | None = None
+    warm_memory: Any | None = None
+    cold_memory: Any | None = None
+    mcp_server: Any | None = None
+    self_healing_kernel: Any | None = None
     slm: ModelTarget | None = None
     llm: ModelTarget | None = None
     complexity_threshold: float = 0.5
     enforce_foundry_prompt_governance: bool = True
 
 
-class BaseRetailAgent(BaseAgent, ABC):
+class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
     """Common ingestion, routing, memory ops, and model selection.
 
     Configure two model targets (SLM/LLM or fast/slow) and the agent will choose
@@ -104,46 +130,12 @@ class BaseRetailAgent(BaseAgent, ABC):
     def config(self, deps: AgentDependencies) -> None:
         self._config = deps
 
-    def __getattr__(self, name: str) -> Any:
-        """Delegate unknown attribute access to the underlying config object.
-
-        This reduces the need for repetitive property definitions that simply
-        forward to ``self.config`` while preserving a flat attribute surface.
-        """
-        # Avoid recursion during initialization or when _config is missing
-        config = self.__dict__.get("_config", None)
-        if config is not None and hasattr(config, name):
-            return getattr(config, name)
-        raise AttributeError(f"{type(self).__name__!r} object has no attribute {name!r}")
-
-    def __setattr__(self, name: str, value: Any) -> None:
-        """Delegate setting unknown attributes to the config when appropriate.
-
-        Core attributes and private names are always set on the instance itself.
-        """
-        if name in {"_config", "config"} or name.startswith("_"):
-            super().__setattr__(name, value)
-            return
-
-        # If the attribute already exists on the instance, set it here
-        if name in self.__dict__ or any(name in cls.__dict__ for cls in type(self).__mro__):
-            super().__setattr__(name, value)
-            return
-
-        # Otherwise, try to set it on the config object if possible
-        config = self.__dict__.get("_config", None)
-        if config is not None and hasattr(config, name):
-            setattr(config, name, value)
-        else:
-            # Fallback: create a normal attribute on the instance
-            super().__setattr__(name, value)
-
     @property
-    def router(self) -> Any | None:
+    def router(self) -> RoutingStrategy | None:
         return self.config.router
 
     @router.setter
-    def router(self, value: Any | None) -> None:
+    def router(self, value: RoutingStrategy | None) -> None:
         self.config.router = value
 
     @property
@@ -163,51 +155,51 @@ class BaseRetailAgent(BaseAgent, ABC):
         self.config.service_name = value
 
     @property
-    def memory_client(self) -> Any:
+    def memory_client(self) -> MemoryClient | None:
         return self.config.memory_client
 
     @memory_client.setter
-    def memory_client(self, value: Any) -> None:
+    def memory_client(self, value: MemoryClient | None) -> None:
         self.config.memory_client = value
 
     @property
-    def hot_memory(self) -> Any:
+    def hot_memory(self) -> HotMemory | None:
         return self.config.hot_memory
 
     @hot_memory.setter
-    def hot_memory(self, value: Any) -> None:
+    def hot_memory(self, value: HotMemory | None) -> None:
         self.config.hot_memory = value
 
     @property
-    def warm_memory(self) -> Any:
+    def warm_memory(self) -> WarmMemory | None:
         return self.config.warm_memory
 
     @warm_memory.setter
-    def warm_memory(self, value: Any) -> None:
+    def warm_memory(self, value: WarmMemory | None) -> None:
         self.config.warm_memory = value
 
     @property
-    def cold_memory(self) -> Any:
+    def cold_memory(self) -> ColdMemory | None:
         return self.config.cold_memory
 
     @cold_memory.setter
-    def cold_memory(self, value: Any) -> None:
+    def cold_memory(self, value: ColdMemory | None) -> None:
         self.config.cold_memory = value
 
     @property
-    def mcp_server(self) -> Any:
+    def mcp_server(self) -> FastAPIMCPServer | None:
         return self.config.mcp_server
 
     @mcp_server.setter
-    def mcp_server(self, value: Any) -> None:
+    def mcp_server(self, value: FastAPIMCPServer | None) -> None:
         self.config.mcp_server = value
 
     @property
-    def self_healing_kernel(self) -> Any:
+    def self_healing_kernel(self) -> SelfHealingKernel | None:
         return self.config.self_healing_kernel
 
     @self_healing_kernel.setter
-    def self_healing_kernel(self, value: Any) -> None:
+    def self_healing_kernel(self, value: SelfHealingKernel | None) -> None:
         self.config.self_healing_kernel = value
 
     @property
@@ -254,15 +246,20 @@ class BaseRetailAgent(BaseAgent, ABC):
             return slm_provider
         return None
 
-    def attach_memory(self, hot: Any, warm: Any, cold: Any) -> None:
+    def attach_memory(
+        self,
+        hot: HotMemory | None,
+        warm: WarmMemory | None,
+        cold: ColdMemory | None,
+    ) -> None:
         self.hot_memory = hot
         self.warm_memory = warm
         self.cold_memory = cold
 
-    def attach_mcp(self, mcp_server: Any) -> None:
+    def attach_mcp(self, mcp_server: FastAPIMCPServer) -> None:
         self.mcp_server = mcp_server
 
-    def attach_self_healing(self, self_healing_kernel: Any) -> None:
+    def attach_self_healing(self, self_healing_kernel: SelfHealingKernel) -> None:
         self.self_healing_kernel = self_healing_kernel
 
     def memory_tool_definitions(self) -> dict[str, Callable[..., Any]]:
@@ -303,53 +300,9 @@ class BaseRetailAgent(BaseAgent, ABC):
         """
         return await asyncio.gather(*coros)
 
-    def _get_foundry_tracer(self):
-        service = self.service_name or type(self).__name__
-        return get_foundry_tracer(service)
-
-    def _trace_decision(self, decision: str, outcome: str, metadata: dict[str, Any]) -> None:
-        try:
-            self._get_foundry_tracer().trace_decision(
-                decision=decision,
-                outcome=outcome,
-                metadata=metadata,
-            )
-        except (AttributeError, TypeError, ValueError, RuntimeError):
-            return
-
-    def _trace_tools(self, payload_tools: Any, outcome: str, metadata: dict[str, Any]) -> None:
-        tool_names: list[str] = []
-        if isinstance(payload_tools, dict):
-            tool_names = [str(name) for name in payload_tools.keys()]
-        elif isinstance(payload_tools, (list, tuple, set)):
-            tool_names = [str(name) for name in payload_tools]
-        elif payload_tools is not None:
-            tool_names = [str(payload_tools)]
-
-        if not tool_names:
-            return
-
-        tracer = self._get_foundry_tracer()
-        for tool_name in tool_names:
-            try:
-                tracer.trace_tool_call(
-                    tool_name=tool_name,
-                    outcome=outcome,
-                    metadata=metadata,
-                )
-            except (AttributeError, TypeError, ValueError, RuntimeError):
-                continue
-
     def _assess_complexity(self, request: dict[str, Any]) -> float:
-        """Crude complexity heuristic using token-ish count and tool hints.
-
-        Returns a float in [0, 1]; higher means more complex and should route to LLM.
-        """
-
-        text = str(request.get("query") or request)
-        word_score = min(len(text.split()) / 50.0, 1.0)
-        tool_score = 0.2 if request.get("requires_multi_tool") else 0.0
-        return min(word_score + tool_score, 1.0)
+        """Delegate to shared complexity heuristic."""
+        return assess_complexity(request)
 
     def _select_model(self, request: dict[str, Any]) -> ModelTarget:
         """Select SLM vs LLM based on heuristic and configuration."""
@@ -380,7 +333,10 @@ class BaseRetailAgent(BaseAgent, ABC):
             "model": target.model,
             "temperature": target.temperature,
             "top_p": target.top_p,
-            "stream": kwargs.get("stream", target.stream),
+            # Always stream=False here — this is the request/response path
+            # that expects a dict back.  The streaming path goes through
+            # invoke_model_stream() which passes stream=True explicitly.
+            "stream": False,
             "tools": payload_tools,
         }
         started = perf_counter()
@@ -474,6 +430,24 @@ class BaseRetailAgent(BaseAgent, ABC):
         """
 
         payload_tools = kwargs.get("tools") or (self.tools if self.tools else None)
+
+        # Thread Foundry session for page-level conversation reuse.
+        # When a ``session_id`` is present in the request, we load the
+        # persisted session state from hot memory (Redis) and forward it
+        # through kwargs so the invoker can resume the Foundry thread.
+        session_id = request.get("session_id") if isinstance(request, dict) else None
+        if session_id and "session_id" not in kwargs:
+            kwargs["session_id"] = session_id
+            if self.hot_memory is not None and "_foundry_session_state" not in kwargs:
+                cached_state = await self.hot_memory.get(f"foundry_session:{session_id}")
+                if cached_state:
+                    try:
+                        import json as _json
+
+                        kwargs["_foundry_session_state"] = _json.loads(cached_state)
+                    except (TypeError, ValueError):
+                        pass
+
         messages = sanitize_messages_for_provider(
             messages,
             provider=self._shared_provider_for_routing(),
@@ -490,14 +464,17 @@ class BaseRetailAgent(BaseAgent, ABC):
         )
 
         try:
-            if self.slm and self.llm:
-                return await asyncio.wait_for(
-                    self._evaluate_with_slm_routing(request, messages, payload_tools, **kwargs),
-                    timeout=_DEFAULT_AGENT_INVOKE_TIMEOUT,
-                )
-
-            return await asyncio.wait_for(
-                self._direct_model_selection(request, messages, payload_tools, **kwargs),
+            target = self._select_model(request)
+            self._trace_decision(
+                decision="routing_strategy",
+                outcome=target.name,
+                metadata={
+                    "complexity": self._assess_complexity(request),
+                    "complexity_threshold": self.complexity_threshold,
+                },
+            )
+            result = await asyncio.wait_for(
+                self.__invoke_target(target, messages, payload_tools, **kwargs),
                 timeout=_DEFAULT_AGENT_INVOKE_TIMEOUT,
             )
         except asyncio.TimeoutError:
@@ -515,118 +492,89 @@ class BaseRetailAgent(BaseAgent, ABC):
                 },
             }
 
-    async def _evaluate_with_slm_routing(
+        # Persist updated Foundry session state to hot memory so
+        # subsequent requests in the same page-level thread can resume.
+        if (
+            session_id
+            and self.hot_memory is not None
+            and isinstance(result, dict)
+            and result.get("_foundry_session_state")
+        ):
+            import json as _json
+
+            _session_ttl = 1800  # 30 min idle TTL per page thread
+            await self.hot_memory.set(
+                f"foundry_session:{session_id}",
+                _json.dumps(result["_foundry_session_state"]),
+                ttl_seconds=_session_ttl,
+            )
+
+        return result
+
+    async def invoke_model_stream(
         self,
         request: dict[str, Any],
         messages: Any,
-        payload_tools: Any,
         **kwargs: Any,
-    ) -> dict[str, Any]:
-        """Evaluate request complexity with SLM and optionally upgrade to LLM."""
+    ) -> AsyncGenerator[str, None]:
+        """Streaming counterpart of ``invoke_model``.
 
-        if self.slm is None:
-            raise RuntimeError("SLM target is required for routed model evaluation")
+        Yields text token chunks from the underlying model invoker.
+        Falls back to a single-yield non-streaming call when the invoker
+        does not support the ``StreamingModelInvoker`` protocol.
 
-        if not should_use_local_routing_prompt(
+        Pattern: Strategy — delegates to the invoker's ``invoke_stream``
+        when available, otherwise falls back to the non-streaming path.
+        """
+        payload_tools = kwargs.get("tools") or (self.tools if self.tools else None)
+        messages = sanitize_messages_for_provider(
+            messages,
             provider=self._shared_provider_for_routing(),
             enforce_prompt_governance=self.enforce_foundry_prompt_governance,
-        ):
-            self._trace_decision(
-                decision="routing_strategy",
-                outcome="provider_controlled",
-                metadata={"enforce_prompt_governance": self.enforce_foundry_prompt_governance},
-            )
-            slm_result = await self.__invoke_target(self.slm, messages, payload_tools, **kwargs)
-            if self.llm and self._assess_complexity(request) >= self.complexity_threshold:
-                self._trace_decision(
-                    decision="model_upgrade",
-                    outcome="llm_by_complexity",
-                    metadata={"complexity_threshold": self.complexity_threshold},
-                )
-                return await self.__invoke_target(self.llm, messages, payload_tools, **kwargs)
-            return slm_result
-
-        evaluation_prompt = (
-            "Evaluate this request and identify the complexity. If the complexity is higher than "
-            "medium, that is, if the request contains more than 2 steps to be fulfilled and needs "
-            "different sources to be understood and processed, return a single word 'upgrade'.\n\n"
-            f"Request: {request}"
         )
-        try:
-            evaluation_result = await asyncio.wait_for(
-                self.__invoke_target(self.slm, evaluation_prompt, payload_tools, **kwargs),
-                timeout=_DEFAULT_ROUTING_EVAL_TIMEOUT,
-            )
-        except asyncio.TimeoutError:
-            self._trace_decision(
-                decision="routing_evaluation",
-                outcome="timeout_fallback_slm",
-                metadata={"timeout_seconds": _DEFAULT_ROUTING_EVAL_TIMEOUT},
-            )
-            return await self.__invoke_target(self.slm, messages, payload_tools, **kwargs)
-        evaluation_text = ""
-        if isinstance(evaluation_result, dict):
-            evaluation_text = str(
-                evaluation_result.get("response")
-                or evaluation_result.get("content")
-                or evaluation_result.get("message")
-                or evaluation_result
-            )
 
-        if evaluation_text.strip().lower() == UPGRADE_TOKEN:
-            if self.llm is None:
-                raise RuntimeError("LLM target is required for model upgrade")
-            self._trace_decision(
-                decision="model_upgrade",
-                outcome="llm_by_slm_upgrade",
-                metadata={"upgrade_token": UPGRADE_TOKEN},
-            )
-            if isinstance(messages, list):
-                upgraded_messages = [
-                    {
-                        "role": "system",
-                        "content": "You must reason on the request before proceeding with the response.",
-                    },
-                    *messages,
-                ]
-            elif isinstance(messages, dict):
-                upgraded_messages = [
-                    {
-                        "role": "system",
-                        "content": "You must reason on the request before proceeding with the response.",
-                    },
-                    messages,
-                ]
-            else:
-                upgraded_messages = (
-                    "You must reason on the request before proceeding with the response.\n\n"
-                    + str(messages)
-                )
-            return await self.__invoke_target(self.llm, upgraded_messages, payload_tools, **kwargs)
+        # Use SLM when available (matches provider_controlled path)
+        target = self.slm or self.llm
+        if target is None:
+            raise RuntimeError("No models configured on BaseRetailAgent")
 
         self._trace_decision(
-            decision="model_selection",
-            outcome="slm",
-            metadata={"reason": "no_upgrade"},
+            decision="invoke_model_stream",
+            outcome="start",
+            metadata={
+                "target": target.name,
+                "supports_streaming": _supports_streaming(target.invoker),
+            },
         )
-        return await self.__invoke_target(self.slm, messages, payload_tools, **kwargs)
 
-    async def _direct_model_selection(
-        self,
-        request: dict[str, Any],
-        messages: Any,
-        payload_tools: Any,
-        **kwargs: Any,
-    ) -> dict[str, Any]:
-        """Fallback path when SLM/LLM combo is not available: select a single model and invoke it."""
+        if not _supports_streaming(target.invoker):
+            # Graceful degradation: yield the complete non-streaming response
+            # as a single text chunk so callers always get an async generator.
+            self._trace_decision(
+                decision="invoke_model_stream",
+                outcome="fallback_non_streaming",
+                metadata={"target": target.name},
+            )
+            result = await self.invoke_model(request, messages, **kwargs)
+            text = _extract_text_from_response(result)
+            if text:
+                yield text
+            return
 
-        target = self._select_model(request)
-        self._trace_decision(
-            decision="model_selection",
-            outcome=target.name,
-            metadata={"mode": "direct"},
-        )
-        return await self.__invoke_target(target, messages, payload_tools, **kwargs)
+        payload = {
+            **kwargs,
+            "messages": messages,
+            "model": target.model,
+            "temperature": target.temperature,
+            "top_p": target.top_p,
+            "stream": True,
+            "tools": payload_tools,
+        }
+
+        # __call__ with stream=True returns an AsyncGenerator
+        stream_gen = await target.invoker(**payload)
+        async for chunk in stream_gen:
+            yield chunk
 
     @abstractmethod
     async def handle(self, request: dict[str, Any]) -> dict[str, Any]:

@@ -167,7 +167,7 @@ type AdminServiceActivityRow = {
   event: string;
   entity: string;
   status: 'ok' | 'warning' | 'error' | 'unknown';
-  latency_ms: number;
+  latency_ms: number | null;
 };
 
 type AdminServiceModelUsageRow = {
@@ -1390,8 +1390,35 @@ function buildAgentActivityDashboardFromSources(sources: AgentSourceData[]): Age
   const telemetryAvailable = sources.some(
     (source) => source.traces.length > 0 || source.metrics !== null || source.latestEvaluation !== null,
   );
-  const allSummaries = sources
-    .flatMap((source) => source.traces.map((entry, index) => mapTraceEntryToSummary(entry, source.service, index)))
+  const rawSummaries = sources
+    .flatMap((source) => source.traces.map((entry, index) => mapTraceEntryToSummary(entry, source.service, index)));
+
+  // Deduplicate spans sharing the same trace_id into a single representative
+  // row. When multiple spans belong to the same trace, keep the one with a
+  // terminal status (ok/error/warning) and the longest duration — this is
+  // the primary operation, not an intermediate routing/upgrade span.
+  const traceMap = new Map<string, AgentTraceSummaryShape>();
+  for (const summary of rawSummaries) {
+    const existing = traceMap.get(summary.trace_id);
+    if (!existing) {
+      traceMap.set(summary.trace_id, summary);
+      continue;
+    }
+    const existingTerminal = existing.status !== 'unknown';
+    const candidateTerminal = summary.status !== 'unknown';
+    if (
+      (!existingTerminal && candidateTerminal)
+      || (existingTerminal === candidateTerminal && summary.duration_ms > existing.duration_ms)
+    ) {
+      // Accumulate error counts across all spans in this trace
+      summary.error_count = Math.max(summary.error_count, existing.error_count);
+      traceMap.set(summary.trace_id, summary);
+    } else {
+      existing.error_count = Math.max(existing.error_count, summary.error_count);
+    }
+  }
+
+  const allSummaries = Array.from(traceMap.values())
     .sort((left, right) => Date.parse(right.started_at) - Date.parse(left.started_at));
 
   const healthCards = sources.map((source) => {
@@ -1822,9 +1849,8 @@ async function buildAdminServiceSecondaryPayload(params: {
       || readString(entry, ['entity_id', 'id'])
       || route.agentService;
     const latency =
-      readNumber(metadata, ['latency_ms', 'duration_ms'])
-      || readNumber(entry, ['latency_ms', 'duration_ms'])
-      || 0;
+      readNumber(metadata, ['latency_ms', 'duration_ms', 'elapsed_ms'])
+      ?? readNumber(entry, ['latency_ms', 'duration_ms']);
     const id =
       readString(metadata, ['trace_id', 'id'])
       || readString(entry, ['trace_id', 'id'])
@@ -1842,8 +1868,11 @@ async function buildAdminServiceSecondaryPayload(params: {
 
   const errorCount = activity.filter((row) => row.status === 'error').length;
   const totalCount = activity.length;
+  const measuredRows = activity.filter((row) => row.latency_ms != null);
   const averageLatency =
-    totalCount > 0 ? Math.round(activity.reduce((sum, row) => sum + row.latency_ms, 0) / totalCount) : 0;
+    measuredRows.length > 0
+      ? Math.round(measuredRows.reduce((sum, row) => sum + (row.latency_ms as number), 0) / measuredRows.length)
+      : 0;
   const errorRate = totalCount > 0 ? errorCount / totalCount : 0;
   const evaluationScore = readNumber(latestEvaluation, ['overall_score', 'score', 'quality_score', 'accuracy']) || 0;
   const metricsEnabled = typeof metrics?.enabled === 'boolean' ? metrics.enabled : totalCount > 0;
@@ -2166,6 +2195,39 @@ function mapReviewStatusToEnrichmentStatus(status: string | null): 'pending' | '
   return 'pending';
 }
 
+function buildEnrichmentMonitorEmptyPayload(
+  upstreamPath: string,
+): EnrichmentMonitorFallbackPayload {
+  const detailMatch = upstreamPath.match(/^\/api\/admin\/enrichment-monitor\/([^/]+)$/);
+  if (detailMatch && detailMatch[1]) {
+    const entityId = decodeURIComponent(detailMatch[1]);
+    return {
+      entity_id: entityId,
+      title: entityId,
+      status: 'unknown',
+      confidence: 0,
+      source_assets: [],
+      image_evidence: [],
+      attribute_diffs: [],
+      diffs: [],
+      reasoning: '',
+      trace_id: null,
+    };
+  }
+
+  return {
+    status_cards: [
+      { label: 'Pending review', value: 0 },
+      { label: 'Approved', value: 0 },
+      { label: 'Rejected', value: 0 },
+      { label: 'Active jobs', value: 0 },
+    ],
+    active_jobs: [],
+    error_log: [],
+    throughput: { per_minute: 0, last_10m: 0, failed_last_10m: 0 },
+  };
+}
+
 async function buildEnrichmentMonitorSecondaryPayload(
   upstreamPath: string,
   {
@@ -2396,6 +2458,71 @@ async function proxyRequest(
   const requestHeaders = new Headers(request.headers);
   requestHeaders.delete('host');
   requestHeaders.delete('content-length');
+
+  // ── Enrichment-monitor: route directly to truth-hitl (skip CRUD) ──────────
+  // The enrichment monitor data lives in the truth-hitl service, not the CRUD
+  // service.  Routing through CRUD first always 404s and wastes a round-trip.
+  if (isEnrichmentMonitorRoute(upstreamPath)) {
+    if (method === 'GET') {
+      const enrichmentPayload = await buildEnrichmentMonitorSecondaryPayload(upstreamPath, {
+        baseUrl,
+        requestHeaders,
+      });
+
+      if (enrichmentPayload !== null) {
+        return NextResponse.json(enrichmentPayload, {
+          status: 200,
+          headers: {
+            'x-holiday-peak-proxy': 'next-app-api',
+            'x-holiday-peak-proxy-source': sourceKey ?? '',
+            'x-holiday-peak-proxy-primary': 'truth-hitl-direct',
+          },
+        });
+      }
+
+      // truth-hitl unreachable — return a valid empty dashboard so the UI
+      // renders the empty state instead of a permanent loading spinner.
+      return NextResponse.json(
+        buildEnrichmentMonitorEmptyPayload(upstreamPath),
+        {
+          status: 200,
+          headers: {
+            'x-holiday-peak-proxy': 'next-app-api',
+            'x-holiday-peak-proxy-source': sourceKey ?? '',
+            'x-holiday-peak-proxy-fallback': 'enrichment-monitor-empty',
+          },
+        },
+      );
+    }
+
+    // POST/PUT/DELETE — forward enrichment decisions to truth-hitl directly.
+    const reviewBaseUrl = baseUrl ? `${baseUrl}/agents/truth-hitl/review` : null;
+    if (reviewBaseUrl) {
+      const decisionMatch = upstreamPath.match(
+        /^\/api\/admin\/enrichment-monitor\/([^/]+)\/decision$/,
+      );
+      if (decisionMatch && decisionMatch[1]) {
+        const entityId = decodeURIComponent(decisionMatch[1]);
+        const body = await request.arrayBuffer();
+        let parsed: Record<string, unknown> = {};
+        try {
+          parsed = JSON.parse(new TextDecoder().decode(body)) as Record<string, unknown>;
+        } catch { /* fall through with empty */ }
+        const action = typeof parsed.action === 'string' ? parsed.action : 'approve';
+        const hitlUrl = `${reviewBaseUrl}/${encodeURIComponent(entityId)}/${action}`;
+        const result = await postJsonIfOk(hitlUrl, requestHeaders, parsed);
+        if (result !== null) {
+          return NextResponse.json(result, {
+            status: 200,
+            headers: {
+              'x-holiday-peak-proxy': 'next-app-api',
+              'x-holiday-peak-proxy-primary': 'truth-hitl-direct',
+            },
+          });
+        }
+      }
+    }
+  }
 
   const body = method === 'GET' || method === 'HEAD' ? undefined : await request.arrayBuffer();
   const endpointFallbackStrategy = resolveEndpointFallbackStrategy(method, upstreamPath);

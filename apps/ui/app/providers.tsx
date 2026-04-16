@@ -5,6 +5,7 @@ import { ReactNode } from 'react';
 import dynamic from 'next/dynamic';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { QueryProvider } from '@/lib/providers/QueryProvider';
+import { PageSessionProvider } from '@/lib/providers/PageSessionProvider';
 
 const AuthProvider = dynamic(
   () => import('@/contexts/AuthContext').then((mod) => mod.AuthProvider),
@@ -21,8 +22,10 @@ export default function Providers({ children }: { children: ReactNode }) {
     <AuthProvider>
       <QueryProvider>
         <ThemeProvider>
-          {children}
-          <ChatWidget />
+          <PageSessionProvider>
+            {children}
+            <ChatWidget />
+          </PageSessionProvider>
         </ThemeProvider>
       </QueryProvider>
     </AuthProvider>

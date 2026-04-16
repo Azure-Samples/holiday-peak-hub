@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
-from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
+from holiday_peak_lib.agents.registration_helpers import (
+    get_agent_adapters,
+    register_crud_tools,
+)
 
 from .adapters import AcpTransformationAdapters, build_acp_transformation_adapters
 
@@ -64,7 +66,7 @@ class ProductAcpTransformationAgent(BaseRetailAgent):
 
 def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
     """Expose MCP tools for ACP transformation workflows."""
-    adapters = getattr(agent, "adapters", build_acp_transformation_adapters())
+    adapters = get_agent_adapters(agent, build_acp_transformation_adapters)
 
     async def transform_product(payload: dict[str, Any]) -> dict[str, Any]:
         sku = payload.get("sku")
@@ -89,14 +91,7 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
 
     mcp.add_tool("/product/acp/transform", transform_product)
     mcp.add_tool("/product/acp/product", get_product)
-    _register_crud_tools(mcp)
-
-
-def _register_crud_tools(mcp: FastAPIMCPServer) -> None:
-    crud_url = os.getenv("CRUD_SERVICE_URL")
-    if not crud_url:
-        return
-    BaseCRUDAdapter(crud_url).register_mcp_tools(mcp)
+    register_crud_tools(mcp)
 
 
 def _acp_instructions() -> str:

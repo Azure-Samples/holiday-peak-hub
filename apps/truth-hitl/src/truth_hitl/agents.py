@@ -7,6 +7,7 @@ from typing import Any
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
+from holiday_peak_lib.agents.registration_helpers import get_agent_adapters
 
 from .adapters import HITLAdapters, build_hitl_adapters
 from .review_manager import ReviewItem
@@ -129,7 +130,7 @@ class TruthHITLAgent(BaseRetailAgent):
 
 def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
     """Expose MCP tools for the HITL review workflow."""
-    adapters = getattr(agent, "adapters", build_hitl_adapters())
+    adapters = get_agent_adapters(agent, build_hitl_adapters)
 
     async def get_review_queue(payload: dict[str, Any]) -> dict[str, Any]:
         entity_id = payload.get("entity_id")

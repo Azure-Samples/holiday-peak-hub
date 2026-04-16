@@ -7,12 +7,11 @@ import json
 import logging
 import os
 import re
+from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
-from types import SimpleNamespace
-from typing import Any
+from typing import Any, NamedTuple
 from uuid import uuid4
 
-from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
@@ -21,43 +20,21 @@ from holiday_peak_lib.agents.memory import (
     build_canonical_memory_key,
     resolve_namespace_context,
 )
+from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
+from holiday_peak_lib.agents.registration_helpers import (
+    get_agent_adapters,
+    register_crud_tools,
+)
+from holiday_peak_lib.evaluation import (
+    intent_accuracy,
+    mean_reciprocal_rank,
+    ndcg_at_k,
+    precision_at_k,
+    run_evaluation,
+)
 from holiday_peak_lib.schemas.product import CatalogProduct
 from holiday_peak_lib.schemas.truth import IntentClassification
 from pydantic import ValidationError
-
-try:
-    from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
-except ImportError:
-
-    def load_prompt_instructions(*_args: Any, **_kwargs: Any) -> str:
-        return ""
-
-
-try:
-    from holiday_peak_lib.evaluation import (
-        intent_accuracy,
-        mean_reciprocal_rank,
-        ndcg_at_k,
-        precision_at_k,
-        run_evaluation,
-    )
-except ImportError:
-
-    def run_evaluation(*_args: Any, **_kwargs: Any) -> Any:
-        return SimpleNamespace(backend="disabled", status="skipped", metrics={}, details={})
-
-    def precision_at_k(*_args: Any, **_kwargs: Any) -> float:
-        return 0.0
-
-    def mean_reciprocal_rank(*_args: Any, **_kwargs: Any) -> float:
-        return 0.0
-
-    def ndcg_at_k(*_args: Any, **_kwargs: Any) -> float:
-        return 0.0
-
-    def intent_accuracy(*_args: Any, **_kwargs: Any) -> float:
-        return 0.0
-
 
 from .adapters import (
     CatalogAdapters,
@@ -84,6 +61,26 @@ DEGRADED_MODEL_FALLBACK_MESSAGE = (
     "Showing the best available catalog guidance while intelligent generation "
     "is temporarily unavailable."
 )
+
+
+class _StreamContext(NamedTuple):
+    """Parameter Object for ``_handle_stream`` (Introduce Parameter Object).
+
+    Groups the 10 arguments required to produce the SSE event stream
+    into a single immutable, typed carrier.
+    """
+
+    request: dict[str, Any]
+    mode: str
+    requested_mode: str
+    search_stage: str | None
+    namespace_context: NamespaceContext
+    deterministic_response: dict[str, Any]
+    acp_products: list[dict[str, Any]]
+    query: str
+    summary: str
+    recommendation: str
+
 
 _LEXICAL_TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
 
@@ -379,8 +376,146 @@ class CatalogSearchAgent(BaseRetailAgent):
             "model_attempted": False,
         }
 
+        if request.get("_stream"):
+            ctx = _StreamContext(
+                request=request,
+                mode=mode,
+                requested_mode=requested_mode,
+                search_stage=search_stage,
+                namespace_context=namespace_context,
+                deterministic_response=deterministic_response,
+                acp_products=acp_products,
+                query=str(query),
+                summary=summary,
+                recommendation=recommendation,
+            )
+            return self._handle_stream(ctx)
+
         if mode != "keyword" and (self.slm is not None or self.llm is not None):
-            deterministic_response["model_attempted"] = True
+            return await self._try_model_answer(
+                request=request,
+                deterministic_response=deterministic_response,
+                query=str(query),
+                acp_products=acp_products,
+                summary=summary,
+                recommendation=recommendation,
+                mode=mode,
+                requested_mode=requested_mode,
+                search_stage=search_stage,
+                namespace_context=namespace_context,
+                intent=intent,
+            )
+
+        return deterministic_response
+
+    async def _try_model_answer(
+        self,
+        *,
+        request: dict[str, Any],
+        deterministic_response: dict[str, Any],
+        query: str,
+        acp_products: list[dict[str, Any]],
+        summary: str,
+        recommendation: str,
+        mode: str,
+        requested_mode: str,
+        search_stage: str | None,
+        namespace_context: NamespaceContext,
+        intent: IntentClassification | None,
+    ) -> dict[str, Any]:
+        """Attempt model-enriched answer with graceful degradation to deterministic fallback."""
+        deterministic_response["model_attempted"] = True
+        messages = [
+            {
+                "role": "system",
+                "content": _catalog_instructions(self.service_name or "catalog"),
+            },
+            {
+                "role": "user",
+                "content": {
+                    "query": query,
+                    "results": acp_products,
+                    "fallback_summary": summary,
+                    "fallback_recommendation": recommendation,
+                },
+            },
+        ]
+        try:
+            model_response = await asyncio.wait_for(
+                self.invoke_model(request=request, messages=messages),
+                timeout=_resolve_timeout_seconds(
+                    "CATALOG_RESPONSE_MODEL_TIMEOUT_SECONDS",
+                    14.0,
+                ),
+            )
+            model_response["requested_mode"] = requested_mode
+            model_response["search_stage"] = search_stage
+            model_response["session_id"] = namespace_context.session_id
+            model_response["answer_source"] = "agent_model"
+            model_response["result_type"] = "model_answer"
+            model_response["degraded"] = False
+            model_response["model_attempted"] = True
+            model_response["model_status"] = "success"
+            return model_response
+        except asyncio.TimeoutError:
+            logger.warning(
+                "catalog_search_model_response_timeout",
+                extra={
+                    "query_length": len(query),
+                    "mode": mode,
+                    "search_stage": search_stage,
+                },
+            )
+            deterministic_response.update(
+                {
+                    "result_type": "degraded_fallback",
+                    "degraded": True,
+                    "degraded_reason": "model_timeout",
+                    "degraded_message": DEGRADED_MODEL_FALLBACK_MESSAGE,
+                    "fallback_keywords": _build_fallback_keywords(query, intent),
+                    "model_status": "timeout",
+                }
+            )
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.warning(
+                "catalog_search_model_response_fallback",
+                extra={
+                    "query_length": len(query),
+                    "mode": mode,
+                    "search_stage": search_stage,
+                },
+                exc_info=True,
+            )
+            deterministic_response.update(
+                {
+                    "result_type": "degraded_fallback",
+                    "degraded": True,
+                    "degraded_reason": "model_error",
+                    "degraded_message": DEGRADED_MODEL_FALLBACK_MESSAGE,
+                    "fallback_keywords": _build_fallback_keywords(query, intent),
+                    "model_status": "error",
+                }
+            )
+
+        return deterministic_response
+
+    async def _handle_stream(
+        self,
+        ctx: _StreamContext,
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        """Async generator yielding SSE-ready event dicts.
+
+        Pattern: Template Method — the streaming pipeline follows a fixed
+        sequence (results → tokens → done) with the model streaming step
+        being the variable part.
+
+        First event: deterministic search results (< 1s).
+        Subsequent events: model answer tokens.
+        Final event: done marker with metadata.
+        """
+        yield {"event": "results", **ctx.deterministic_response}
+
+        if ctx.mode != "keyword" and (self.slm is not None or self.llm is not None):
             messages = [
                 {
                     "role": "system",
@@ -389,76 +524,43 @@ class CatalogSearchAgent(BaseRetailAgent):
                 {
                     "role": "user",
                     "content": {
-                        "query": query,
-                        "results": acp_products,
-                        "fallback_summary": summary,
-                        "fallback_recommendation": recommendation,
+                        "query": ctx.query,
+                        "results": ctx.acp_products,
+                        "fallback_summary": ctx.summary,
+                        "fallback_recommendation": ctx.recommendation,
                     },
                 },
             ]
             try:
-                model_response = await asyncio.wait_for(
-                    self.invoke_model(request=request, messages=messages),
-                    timeout=_resolve_timeout_seconds(
-                        "CATALOG_RESPONSE_MODEL_TIMEOUT_SECONDS",
-                        14.0,
-                    ),
-                )
-                model_response["requested_mode"] = requested_mode
-                model_response["search_stage"] = search_stage
-                model_response["session_id"] = namespace_context.session_id
-                model_response["answer_source"] = "agent_model"
-                model_response["result_type"] = "model_answer"
-                model_response["degraded"] = False
-                model_response["model_attempted"] = True
-                model_response["model_status"] = "success"
-                return model_response
-            except asyncio.TimeoutError:
-                logger.warning(
-                    "catalog_search_model_response_timeout",
-                    extra={
-                        "query_length": len(str(query)),
-                        "mode": mode,
-                        "search_stage": search_stage,
-                    },
-                )
-                deterministic_response.update(
-                    {
-                        "result_type": "degraded_fallback",
-                        "degraded": True,
-                        "degraded_reason": "model_timeout",
-                        "degraded_message": DEGRADED_MODEL_FALLBACK_MESSAGE,
-                        "fallback_keywords": _build_fallback_keywords(str(query), intent),
-                        "model_status": "timeout",
-                    }
-                )
+                async for chunk in self.invoke_model_stream(
+                    request=ctx.request,
+                    messages=messages,
+                ):
+                    yield {"event": "token", "text": chunk}
             except Exception:  # pylint: disable=broad-exception-caught
                 logger.warning(
-                    "catalog_search_model_response_fallback",
-                    extra={
-                        "query_length": len(str(query)),
-                        "mode": mode,
-                        "search_stage": search_stage,
-                    },
+                    "catalog_search_stream_model_error",
+                    extra={"mode": ctx.mode, "search_stage": ctx.search_stage},
                     exc_info=True,
                 )
-                deterministic_response.update(
-                    {
-                        "result_type": "degraded_fallback",
-                        "degraded": True,
-                        "degraded_reason": "model_error",
-                        "degraded_message": DEGRADED_MODEL_FALLBACK_MESSAGE,
-                        "fallback_keywords": _build_fallback_keywords(str(query), intent),
-                        "model_status": "error",
-                    }
-                )
+                yield {
+                    "event": "error",
+                    "error": "model_error",
+                    "message": DEGRADED_MODEL_FALLBACK_MESSAGE,
+                }
 
-        return deterministic_response
+        yield {
+            "event": "done",
+            "session_id": ctx.namespace_context.session_id,
+            "mode": ctx.mode,
+            "requested_mode": ctx.requested_mode,
+            "search_stage": ctx.search_stage,
+        }
 
 
 def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
     """Expose MCP tools for ACP catalog search."""
-    adapters = getattr(agent, "adapters", build_catalog_adapters())
+    adapters = get_agent_adapters(agent, build_catalog_adapters)
 
     async def search_catalog(payload: dict[str, Any]) -> dict[str, Any]:
         query = payload.get("query", "")
@@ -523,14 +625,7 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
     mcp.add_tool("/catalog/search", search_catalog)
     mcp.add_tool("/catalog/intent", classify_catalog_intent)
     mcp.add_tool("/catalog/product", get_product_details)
-    _register_crud_tools(mcp)
-
-
-def _register_crud_tools(mcp: FastAPIMCPServer) -> None:
-    crud_url = os.getenv("CRUD_SERVICE_URL")
-    if not crud_url:
-        return
-    BaseCRUDAdapter(crud_url).register_mcp_tools(mcp)
+    register_crud_tools(mcp)
 
 
 def _catalog_instructions(service_name: str) -> str:

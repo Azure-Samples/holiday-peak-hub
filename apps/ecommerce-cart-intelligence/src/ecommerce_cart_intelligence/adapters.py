@@ -15,6 +15,7 @@ from holiday_peak_lib.adapters.pricing_adapter import PricingConnector
 from holiday_peak_lib.adapters.product_adapter import ProductConnector
 from holiday_peak_lib.schemas.inventory import InventoryContext
 from holiday_peak_lib.schemas.pricing import PriceContext
+from holiday_peak_lib.utils.inventory_rules import StockStatus, classify_item_stock
 
 
 @dataclass
@@ -43,15 +44,14 @@ class CartAnalyticsAdapter:
         for item, inv in zip(cart_items, inventory):
             sku = str(item.get("sku"))
             qty = int(item.get("quantity", 1))
-            if inv is None:
+            classification = classify_item_stock(sku, qty, inv)
+            if classification.status == StockStatus.MISSING:
                 risk += 0.15
                 drivers.append(f"missing inventory for {sku}")
-                continue
-            available = inv.item.available
-            if available <= 0:
+            elif classification.status == StockStatus.OUT_OF_STOCK:
                 risk += 0.35
                 drivers.append(f"out of stock for {sku}")
-            elif available < qty:
+            elif classification.status == StockStatus.LOW_STOCK:
                 risk += 0.2
                 drivers.append(f"low stock for {sku}")
 

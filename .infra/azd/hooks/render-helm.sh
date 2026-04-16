@@ -382,7 +382,7 @@ add_env_arg "FOUNDRY_AGENT_NAME_FAST" "${FOUNDRY_AGENT_NAME_FAST:-}"
 add_env_arg "FOUNDRY_AGENT_NAME_RICH" "${FOUNDRY_AGENT_NAME_RICH:-}"
 add_env_arg "MODEL_DEPLOYMENT_NAME_FAST" "${MODEL_DEPLOYMENT_NAME_FAST:-}"
 add_env_arg "MODEL_DEPLOYMENT_NAME_RICH" "${MODEL_DEPLOYMENT_NAME_RICH:-}"
-add_env_arg "FOUNDRY_STREAM" "${FOUNDRY_STREAM:-}"
+add_env_arg "FOUNDRY_STREAM" "${FOUNDRY_STREAM:-true}"
 add_env_arg "FOUNDRY_STRICT_ENFORCEMENT" "${FOUNDRY_STRICT_ENFORCEMENT:-}"
 add_env_arg "FOUNDRY_AUTO_ENSURE_ON_STARTUP" "${FOUNDRY_AUTO_ENSURE_ON_STARTUP:-}"
 
@@ -411,8 +411,12 @@ add_env_arg "COSMOS_AUDIT_CONTAINER" "$COSMOS_AUDIT_CONTAINER_VALUE"
 add_env_arg "BLOB_ACCOUNT_URL" "${BLOB_ACCOUNT_URL:-}"
 add_env_arg "BLOB_CONTAINER" "${BLOB_CONTAINER:-}"
 
+# Runtime tuning
+add_env_arg "WEB_CONCURRENCY" "${WEB_CONCURRENCY:-2}"
+
 # Observability
 add_env_arg "APPLICATIONINSIGHTS_CONNECTION_STRING" "${APPLICATIONINSIGHTS_CONNECTION_STRING:-}"
+add_env_arg "OTEL_SERVICE_NAME" "$SERVICE_NAME"
 
 # Cross-namespace CRUD service URL for agent→CRUD communication (ADR-034)
 if is_agent_service; then
@@ -439,6 +443,7 @@ if is_truth_service; then
     truth-enrichment)
       add_env_arg "TRUTH_EVENT_HUB_NAME" "${TRUTH_EVENT_HUB_NAME:-enrichment-jobs}"
       add_env_arg "TRUTH_EVENT_HUB_CONSUMER_GROUP" "${TRUTH_EVENT_HUB_CONSUMER_GROUP:-enrichment-engine}"
+      add_env_arg "TRUTH_PRODUCT_BLOB_CONTAINER" "${TRUTH_PRODUCT_BLOB_CONTAINER:-products}"
       ;;
     truth-export)
       add_env_arg "TRUTH_EVENT_HUB_NAME" "${TRUTH_EVENT_HUB_NAME:-export-jobs}"

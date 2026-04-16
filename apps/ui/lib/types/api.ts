@@ -832,7 +832,7 @@ export interface AdminServiceActivityRow {
   event: string;
   entity: string;
   status: AgentTraceStatus;
-  latency_ms: number;
+  latency_ms: number | null;
 }
 
 export interface AdminServiceAppSurface {

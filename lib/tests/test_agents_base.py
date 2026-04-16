@@ -171,24 +171,16 @@ class TestBaseRetailAgent:
 
     @pytest.mark.asyncio
     async def test_invoke_model_with_routing(self, slm_target, llm_target):
-        """Test invoking model with SLM to LLM routing."""
+        """Test invoking model routes simple requests to SLM."""
 
-        # Mock invoker that returns upgrade for evaluation
-        async def routing_invoker(**kwargs):
-            messages = kwargs.get("messages", "")
-            if "Evaluate this request" in str(messages):
-                return {"response": "normal", "content": "normal"}
-            return {"response": "test response", "content": "result"}
-
-        slm = ModelTarget(name="slm", model="small", invoker=routing_invoker)
-        llm = ModelTarget(name="llm", model="large", invoker=routing_invoker)
-        deps = AgentDependencies(slm=slm, llm=llm)
+        deps = AgentDependencies(slm=slm_target, llm=llm_target)
         agent = SimpleTestAgent(config=deps)
 
         result = await agent.invoke_model(
             {"query": "simple query"}, [{"role": "user", "content": "test"}]
         )
         assert result is not None
+        assert result.get("_target") == "test-slm"
 
     @pytest.mark.asyncio
     async def test_foundry_governance_strips_system_prompt(self):
@@ -216,7 +208,7 @@ class TestBaseRetailAgent:
 
     @pytest.mark.asyncio
     async def test_foundry_governance_uses_slm_first_then_llm_by_complexity(self):
-        """Test Foundry governance preserves SLM-first and escalates by complexity threshold."""
+        """Test Foundry governance routes complex requests directly to LLM (single call)."""
         invocation_order = []
 
         async def slm_invoker(**kwargs):
@@ -245,7 +237,7 @@ class TestBaseRetailAgent:
             [{"role": "user", "content": "request"}],
         )
 
-        assert invocation_order == ["slm", "llm"]
+        assert invocation_order == ["llm"]
         assert result.get("_target") == "llm"
 
     @pytest.mark.asyncio
@@ -287,10 +279,12 @@ class TestBaseRetailAgent:
         deps = AgentDependencies(slm=slm_target, llm=None, service_name="trace-test")
         agent = SimpleTestAgent(config=deps)
 
-        import holiday_peak_lib.agents.base_agent as base_agent_mod
+        import holiday_peak_lib.agents.telemetry_mixin as telemetry_mixin_mod
 
         monkeypatch = pytest.MonkeyPatch()
-        monkeypatch.setattr(base_agent_mod, "get_foundry_tracer", lambda _service: _MockTracer())
+        monkeypatch.setattr(
+            telemetry_mixin_mod, "get_foundry_tracer", lambda _service: _MockTracer()
+        )
         try:
             await agent.invoke_model(
                 {"query": "test"},
@@ -351,3 +345,120 @@ class TestModelTarget:
         assert target.temperature == 0.2
         assert target.top_p == 0.9
         assert target.stream is False
+
+
+class TestSessionThreading:
+    """Test Foundry session threading through invoke_model."""
+
+    @pytest.mark.asyncio
+    async def test_session_id_forwarded_to_invoker(self):
+        """session_id from request dict is forwarded to the invoker kwargs."""
+        captured_kwargs = {}
+
+        async def invoker(**kwargs):
+            captured_kwargs.update(kwargs)
+            return {"response": "ok"}
+
+        slm = ModelTarget(name="slm", model="small", invoker=invoker)
+        deps = AgentDependencies(slm=slm, llm=None)
+        agent = SimpleTestAgent(config=deps)
+
+        await agent.invoke_model(
+            {"query": "hello", "session_id": "page-abc-123"},
+            [{"role": "user", "content": "hello"}],
+        )
+
+        assert captured_kwargs.get("session_id") == "page-abc-123"
+
+    @pytest.mark.asyncio
+    async def test_no_session_id_when_absent(self):
+        """No session_id is injected when absent from request."""
+        captured_kwargs = {}
+
+        async def invoker(**kwargs):
+            captured_kwargs.update(kwargs)
+            return {"response": "ok"}
+
+        slm = ModelTarget(name="slm", model="small", invoker=invoker)
+        deps = AgentDependencies(slm=slm, llm=None)
+        agent = SimpleTestAgent(config=deps)
+
+        await agent.invoke_model(
+            {"query": "hello"},
+            [{"role": "user", "content": "hello"}],
+        )
+
+        assert "session_id" not in captured_kwargs
+
+    @pytest.mark.asyncio
+    async def test_session_state_persisted_to_hot_memory(self):
+        """Updated session state is persisted to Redis after invoke."""
+        import json
+
+        async def invoker(**kwargs):
+            return {
+                "response": "ok",
+                "_foundry_session_state": {
+                    "type": "session",
+                    "session_id": "page-abc",
+                    "service_session_id": "foundry-thread-new",
+                    "state": {},
+                },
+            }
+
+        slm = ModelTarget(name="slm", model="small", invoker=invoker)
+        hot = AsyncMock()
+        hot.get = AsyncMock(return_value=None)
+        hot.set = AsyncMock()
+        deps = AgentDependencies(slm=slm, llm=None, hot_memory=hot)
+        agent = SimpleTestAgent(config=deps)
+
+        await agent.invoke_model(
+            {"query": "hello", "session_id": "page-abc"},
+            [{"role": "user", "content": "hello"}],
+        )
+
+        hot.set.assert_called_once()
+        call_args = hot.set.call_args
+        assert call_args[0][0] == "foundry_session:page-abc"
+        stored = json.loads(call_args[0][1])
+        assert stored["service_session_id"] == "foundry-thread-new"
+
+    @pytest.mark.asyncio
+    async def test_session_state_loaded_from_hot_memory(self):
+        """Cached session state is loaded from Redis and forwarded."""
+        import json
+
+        captured_kwargs = {}
+
+        async def invoker(**kwargs):
+            captured_kwargs.update(kwargs)
+            return {"response": "ok"}
+
+        cached_state = json.dumps(
+            {
+                "type": "session",
+                "session_id": "page-abc",
+                "service_session_id": "foundry-thread-existing",
+                "state": {},
+            }
+        )
+
+        slm = ModelTarget(name="slm", model="small", invoker=invoker)
+        hot = AsyncMock()
+        hot.get = AsyncMock(return_value=cached_state)
+        hot.set = AsyncMock()
+        deps = AgentDependencies(slm=slm, llm=None, hot_memory=hot)
+        agent = SimpleTestAgent(config=deps)
+
+        await agent.invoke_model(
+            {"query": "follow-up", "session_id": "page-abc"},
+            [{"role": "user", "content": "follow-up"}],
+        )
+
+        hot.get.assert_called_once_with("foundry_session:page-abc")
+        assert "_foundry_session_state" in captured_kwargs
+        assert (
+            captured_kwargs["_foundry_session_state"]["service_session_id"]
+            == "foundry-thread-existing"
+        )

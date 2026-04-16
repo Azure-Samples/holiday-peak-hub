@@ -28,4 +28,6 @@ export { DataTable } from './DataTable';
 export type { DataTableProps, DataTableColumn } from './DataTable';
 
 export { TaskList } from './TaskList';
+
+export { ChatWidget } from './ChatWidget';
 export type { TaskListProps, TaskItem } from './TaskList';

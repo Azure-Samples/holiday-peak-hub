@@ -6,6 +6,7 @@
 
 import agentApiClient from '../api/agentClient';
 import { resolveAgentApiClientBaseUrl } from '@/app/api/_shared/base-url-resolver';
+import { getCurrentPageSessionId } from '@/lib/hooks/usePageSession';
 import { productService } from './productService';
 import {
   mapAcpProductsToUi,
@@ -197,6 +198,149 @@ export const semanticSearchService = {
       degraded: false,
     };
   },
+
+  /**
+   * Streaming search via Server-Sent Events.
+   *
+   * Calls ``/invoke/stream`` and invokes callbacks as events arrive:
+   * 1. ``onResults`` — deterministic product results (emitted first, < 1s)
+   * 2. ``onToken``   — model answer text chunks (progressive)
+   * 3. ``onDone``    — final metadata when the stream completes
+   * 4. ``onError``   — on any failure (falls back to non-streaming ``search``)
+   *
+   * Returns an ``AbortController`` the caller can use to cancel the stream.
+   */
+  searchStream(
+    request: SemanticSearchRequest,
+    callbacks: StreamingSearchCallbacks,
+  ): AbortController {
+    const controller = new AbortController();
+
+    if (!AGENT_API_BASE_URL) {
+      // No agent URL — fall back to non-streaming immediately
+      this.search(request).then(
+        (response) => {
+          callbacks.onResults?.(response);
+          callbacks.onDone?.({});
+        },
+        (error) => callbacks.onError?.(error),
+      );
+      return controller;
+    }
+
+    const baseUrl = AGENT_API_BASE_URL.replace(/\/$/, '');
+    const streamUrl = `${baseUrl}/ecommerce-catalog-search/invoke/stream`;
+    const sessionId = getCurrentPageSessionId();
+    const body = { ...request, ...(sessionId ? { session_id: sessionId } : {}) };
+
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (sessionId) {
+      headers['x-holiday-peak-session-id'] = sessionId;
+    }
+    const token = typeof window !== 'undefined' ? sessionStorage.getItem('auth_token') : null;
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    fetch(streamUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok || !response.body) {
+          throw new Error(`Stream request failed: ${response.status}`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          let currentEvent = '';
+          for (const line of lines) {
+            if (line.startsWith('event: ')) {
+              currentEvent = line.slice(7).trim();
+            } else if (line.startsWith('data: ') && currentEvent) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                _dispatchStreamEvent(currentEvent, data, request, callbacks);
+              } catch {
+                // Malformed JSON line — skip
+              }
+              currentEvent = '';
+            }
+          }
+        }
+
+        callbacks.onDone?.({});
+      })
+      .catch((error) => {
+        if (error?.name === 'AbortError') return;
+        // Fallback to non-streaming search on stream failure
+        callbacks.onError?.(error);
+        this.search(request)
+          .then((response) => {
+            callbacks.onResults?.(response);
+            callbacks.onDone?.({});
+          })
+          .catch((fallbackError) => callbacks.onError?.(fallbackError));
+      });
+
+    return controller;
+  },
 };
+
+export interface StreamingSearchCallbacks {
+  /** Called when deterministic product results arrive (first event). */
+  onResults?: (response: SemanticSearchResponse) => void;
+  /** Called for each model answer text chunk. */
+  onToken?: (text: string) => void;
+  /** Called when the stream completes. */
+  onDone?: (metadata: Record<string, unknown>) => void;
+  /** Called on error (stream will auto-fallback to non-streaming). */
+  onError?: (error: unknown) => void;
+}
+
+function _dispatchStreamEvent(
+  eventType: string,
+  data: Record<string, unknown>,
+  request: SemanticSearchRequest,
+  callbacks: StreamingSearchCallbacks,
+): void {
+  switch (eventType) {
+    case 'results': {
+      const results = (data.results || data.items || []) as AcpProduct[];
+      const mode = data.mode === 'intelligent' ? 'intelligent' as const : 'keyword' as const;
+      callbacks.onResults?.({
+        items: mapAcpProductsToUi(results),
+        source: 'agent',
+        mode,
+        requested_mode: request.mode,
+        result_type: parseSearchResultType(data.result_type),
+        degraded: data.degraded === true,
+      });
+      break;
+    }
+    case 'token':
+      callbacks.onToken?.(String(data.text || ''));
+      break;
+    case 'done':
+      // done is handled by the reader loop completion
+      break;
+    case 'error':
+      callbacks.onError?.(new Error(String(data.message || data.error || 'Stream error')));
+      break;
+  }
+}
 
 export default semanticSearchService;

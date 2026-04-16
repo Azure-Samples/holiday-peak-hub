@@ -5,9 +5,10 @@ from __future__ import annotations
 import os
 import re
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Optional
+from typing import Any, Optional
 
 import httpx
+from holiday_peak_lib.adapters.acp_mapper import AcpCatalogMapper
 from holiday_peak_lib.adapters.base import BaseAdapter
 from holiday_peak_lib.adapters.inventory_adapter import InventoryConnector
 from holiday_peak_lib.adapters.mock_adapters import (
@@ -15,38 +16,6 @@ from holiday_peak_lib.adapters.mock_adapters import (
     MockProductAdapter,
 )
 from holiday_peak_lib.adapters.product_adapter import ProductConnector
-
-if TYPE_CHECKING:
-    from holiday_peak_lib.schemas.product import CatalogProduct
-
-try:
-    from holiday_peak_lib.adapters.acp_mapper import AcpCatalogMapper
-except ImportError:
-
-    class AcpCatalogMapper:
-        """Compatibility ACP mapper fallback for older holiday_peak_lib images."""
-
-        def to_acp_product(
-            self,
-            product: "CatalogProduct",
-            *,
-            availability: str,
-            currency: str = "usd",
-        ) -> dict[str, Any]:
-            price = float(product.price or 0.0)
-            return {
-                "item_id": product.sku,
-                "title": product.name,
-                "description": product.description or "",
-                "url": f"https://example.com/products/{product.sku}",
-                "image_url": product.image_url or "https://example.com/images/placeholder.png",
-                "brand": product.brand or "",
-                "price": f"{price:.2f} {currency}",
-                "availability": availability,
-                "protocol_version": "1.0",
-                "extended_attributes": dict(product.attributes or {}),
-            }
-
 
 SEARCH_MODE_KEYWORD = "keyword"
 SEARCH_MODE_INTELLIGENT = "intelligent"

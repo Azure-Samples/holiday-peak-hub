@@ -162,49 +162,36 @@ resource openai 'Microsoft.CognitiveServices/accounts@2025-12-01' = {
   }
 }
 
-resource gpt41 'Microsoft.CognitiveServices/accounts/deployments@2025-12-01' = {
+resource gpt5 'Microsoft.CognitiveServices/accounts/deployments@2025-12-01' = {
   parent: openai
-  name: 'gpt-4-1'
+  name: 'gpt-5'
   sku: {
-    name: 'Standard'
+    name: 'GlobalStandard'
+    capacity: 1000
   }
   properties: {
     model: {
       format: 'OpenAI'
-      name: 'gpt-4.1'
-      version: '2024-10-01'
+      name: 'gpt-5'
+      version: '2025-08-07'
     }
     raiPolicyName: 'Microsoft.Default'
   }
 }
 
-resource gpt41Mini 'Microsoft.CognitiveServices/accounts/deployments@2025-12-01' = {
+resource gpt5Nano 'Microsoft.CognitiveServices/accounts/deployments@2025-12-01' = {
   parent: openai
-  name: 'gpt-4-1-mini'
+  name: 'gpt-5-nano'
+  dependsOn: [gpt5]
   sku: {
-    name: 'Standard'
+    name: 'GlobalStandard'
+    capacity: 5000
   }
   properties: {
     model: {
       format: 'OpenAI'
-      name: 'gpt-4.1-mini'
-      version: '2024-10-01'
-    }
-    raiPolicyName: 'Microsoft.Default'
-  }
-}
-
-resource gpt41Nano 'Microsoft.CognitiveServices/accounts/deployments@2025-12-01' = {
-  parent: openai
-  name: 'gpt-4-1-nano'
-  sku: {
-    name: 'Standard'
-  }
-  properties: {
-    model: {
-      format: 'OpenAI'
-      name: 'gpt-4.1-nano'
-      version: '2024-10-01'
+      name: 'gpt-5-nano'
+      version: '2025-08-07'
     }
     raiPolicyName: 'Microsoft.Default'
   }

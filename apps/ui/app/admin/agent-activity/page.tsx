@@ -12,8 +12,23 @@ import {
   isTracingUnavailableError,
   useAgentMonitorDashboard,
 } from '@/lib/hooks/useAgentMonitor';
-import type { AgentMonitorTimeRange } from '@/lib/types/api';
+import type { AgentMonitorTimeRange, AgentTraceSummary } from '@/lib/types/api';
 import { useState } from 'react';
+
+const STATUS_STYLES: Record<AgentTraceSummary['status'], string> = {
+  ok: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
+  warning: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300',
+  error: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
+  unknown: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
+};
+
+function StatusBadge({ status }: { status: AgentTraceSummary['status'] }) {
+  return (
+    <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${STATUS_STYLES[status]}`}>
+      {status}
+    </span>
+  );
+}
 
 export default function AgentActivityPage() {
   const [timeRange, setTimeRange] = useState<AgentMonitorTimeRange>(DEFAULT_AGENT_MONITOR_RANGE);
@@ -125,8 +140,8 @@ export default function AgentActivityPage() {
                 ) : (
                   <div>
                     <div className="space-y-3 p-4 md:hidden">
-                      {data.trace_feed.map((trace) => (
-                        <article key={trace.trace_id} className="rounded-xl border border-[var(--hp-border)] bg-[var(--hp-surface)] p-3">
+                      {data.trace_feed.map((trace, index) => (
+                        <article key={`${trace.trace_id}-${index}`} className="rounded-xl border border-[var(--hp-border)] bg-[var(--hp-surface)] p-3">
                           <div className="flex items-start justify-between gap-3">
                             <Link
                               href={`/admin/agent-activity/${trace.trace_id}`}
@@ -134,9 +149,7 @@ export default function AgentActivityPage() {
                             >
                               {trace.trace_id}
                             </Link>
-                            <span className="rounded-full bg-[var(--hp-surface-strong)] px-2 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--hp-text)]">
-                              {trace.status}
-                            </span>
+                            <StatusBadge status={trace.status} />
                           </div>
                           <p className="mt-2 text-xs text-[var(--hp-text-muted)]">{trace.agent_name}</p>
                           <p className="mt-1 text-xs text-[var(--hp-text-muted)]">{Math.round(trace.duration_ms)} ms</p>
@@ -155,8 +168,8 @@ export default function AgentActivityPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {data.trace_feed.map((trace) => (
-                            <tr key={trace.trace_id} className="border-t border-gray-200 dark:border-gray-700">
+                          {data.trace_feed.map((trace, index) => (
+                            <tr key={`${trace.trace_id}-${index}`} className="border-t border-gray-200 dark:border-gray-700">
                               <td className="px-4 py-2">
                                 <Link
                                   href={`/admin/agent-activity/${trace.trace_id}`}
@@ -166,7 +179,7 @@ export default function AgentActivityPage() {
                                 </Link>
                               </td>
                               <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{trace.agent_name}</td>
-                              <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{trace.status}</td>
+                              <td className="px-4 py-2"><StatusBadge status={trace.status} /></td>
                               <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{Math.round(trace.duration_ms)} ms</td>
                             </tr>
                           ))}

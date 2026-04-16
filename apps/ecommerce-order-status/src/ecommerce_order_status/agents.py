@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
-from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
+from holiday_peak_lib.agents.registration_helpers import (
+    get_agent_adapters,
+    register_crud_tools,
+)
 
 from .adapters import OrderStatusAdapters, build_order_status_adapters
 
@@ -70,7 +72,7 @@ class OrderStatusAgent(BaseRetailAgent):
 
 def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
     """Expose MCP tools for order status workflows."""
-    adapters = getattr(agent, "adapters", build_order_status_adapters())
+    adapters = get_agent_adapters(agent, build_order_status_adapters)
 
     async def get_order_status(payload: dict[str, Any]) -> dict[str, Any]:
         order_id = payload.get("order_id")
@@ -120,14 +122,7 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
 
     mcp.add_tool("/order/status", get_order_status)
     mcp.add_tool("/order/events", get_order_events)
-    _register_crud_tools(mcp)
-
-
-def _register_crud_tools(mcp: FastAPIMCPServer) -> None:
-    crud_url = os.getenv("CRUD_SERVICE_URL")
-    if not crud_url:
-        return
-    BaseCRUDAdapter(crud_url).register_mcp_tools(mcp)
+    register_crud_tools(mcp)
 
 
 def _order_status_instructions(service_name: str) -> str:

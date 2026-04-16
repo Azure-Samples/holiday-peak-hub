@@ -10,7 +10,7 @@ from holiday_peak_lib.adapters import (
     BaseExternalAPIAdapter,
     BaseMCPAdapter,
 )
-from holiday_peak_lib.adapters.base import AdapterError, BaseAdapter, BaseConnector
+from holiday_peak_lib.adapters.base import AdapterError, AsyncCache, BaseAdapter, BaseConnector
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from pydantic import BaseModel
 
@@ -211,10 +211,9 @@ class TestBaseAdapter:
     @pytest.mark.asyncio
     async def test_cache_key_generation(self):
         """Test cache key generation."""
-        adapter = SampleAdapter()
-        key1 = adapter._cache_key({"a": 1, "b": 2})
-        key2 = adapter._cache_key({"b": 2, "a": 1})
-        key3 = adapter._cache_key({"a": 1, "c": 3})
+        key1 = AsyncCache.make_key({"a": 1, "b": 2})
+        key2 = AsyncCache.make_key({"b": 2, "a": 1})
+        key3 = AsyncCache.make_key({"a": 1, "c": 3})
 
         assert key1 == key2  # Order shouldn't matter
         assert key1 != key3  # Different content
@@ -234,9 +233,9 @@ class TestBaseAdapter:
             circuit_breaker_threshold=10,
             circuit_reset_seconds=60.0,
         )
-        assert adapter._max_calls == 5
-        assert adapter._per_seconds == 2.0
-        assert adapter._cache_ttl == 60.0
+        assert adapter._rate_limiter.max_calls == 5
+        assert adapter._rate_limiter.per_seconds == 2.0
+        assert adapter._cache.ttl == 60.0
         assert adapter._retries == 5
 
 

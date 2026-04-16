@@ -13,7 +13,10 @@ from holiday_peak_lib.agents.foundry import (
 from holiday_peak_lib.agents.memory import ColdMemory, HotMemory, WarmMemory
 from holiday_peak_lib.agents.orchestration.router import RoutingStrategy
 from holiday_peak_lib.agents.prompt_loader import load_service_prompt_instructions
-from holiday_peak_lib.app_factory_components.endpoints import register_standard_endpoints
+from holiday_peak_lib.app_factory_components.endpoints import (
+    EndpointContext,
+    register_standard_endpoints,
+)
 from holiday_peak_lib.app_factory_components.foundry_lifecycle import (
     FoundryLifecycleManager,
     FoundryReadinessSnapshot,
@@ -533,10 +536,7 @@ def build_service_app(
     def _foundry_capabilities() -> dict[str, Any]:
         return _current_foundry_readiness().to_payload()
 
-    endpoint_kwargs: dict[str, Any] = {"self_healing_kernel": healing_kernel}
-
-    register_standard_endpoints(
-        app,
+    endpoint_ctx = EndpointContext(
         service_name=service_name,
         registry=registry,
         router=router,
@@ -549,8 +549,10 @@ def build_service_app(
         requires_foundry_runtime_resolution=_requires_foundry_runtime_resolution,
         foundry_capabilities=_foundry_capabilities,
         ensure_agents_handler=ensure_agents,
-        **endpoint_kwargs,
+        self_healing_kernel=healing_kernel,
     )
+
+    register_standard_endpoints(app, ctx=endpoint_ctx)
 
     mcp.mount()
     return app

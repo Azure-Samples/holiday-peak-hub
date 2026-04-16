@@ -270,3 +270,109 @@ async def test_handle_orchestrates_dam_plus_text_for_missing_fields(
     assert len(response["proposed"]) == 2
     proposed_fields = {item["field_name"] for item in response["proposed"]}
     assert proposed_fields == {"color", "fit"}
+
+
+@pytest.mark.asyncio
+async def test_handle_publishes_to_search_enrichment_bridge(
+    agent_config_with_slm: AgentDependencies,
+) -> None:
+    """Handle() publishes to search-enrichment-jobs after enrichment completes."""
+    adapters = _build_mock_adapters(
+        {
+            "value": "red",
+            "confidence": 0.85,
+            "evidence": "color visible in product imagery",
+            "metadata": {
+                "source": "image_analysis",
+                "assets": ["https://cdn.example.com/c.jpg"],
+            },
+        }
+    )
+    adapters.products.get_product = AsyncMock(
+        return_value={
+            "id": "sku-20",
+            "name": "Cozy Blanket",
+            "category": "home_furniture",
+            "color": "",
+        }
+    )
+    adapters.products.get_schema = AsyncMock(
+        return_value={
+            "category_id": "home_furniture",
+            "fields": {"color": {"type": "string", "required": True}},
+        }
+    )
+
+    search_pub = AsyncMock()
+    search_pub.publish = AsyncMock()
+    adapters.search_enrichment_publisher = search_pub
+
+    with patch("truth_enrichment.agents.build_enrichment_adapters", return_value=adapters):
+        agent = TruthEnrichmentAgent(config=agent_config_with_slm)
+        agent.invoke_model = AsyncMock(
+            return_value={
+                "value": "red",
+                "confidence": 0.80,
+                "evidence": "description says warm red",
+                "metadata": {"source": "text_enrichment"},
+            }
+        )
+
+        response = await agent.handle({"entity_id": "sku-20"})
+
+    assert response["entity_id"] == "sku-20"
+    assert len(response["proposed"]) == 1
+
+    search_pub.publish.assert_awaited_once()
+    payload = search_pub.publish.await_args.args[0]
+    assert payload["event_type"] == "enrichment.completed"
+    assert payload["data"]["entity_id"] == "sku-20"
+    assert payload["data"]["proposed_count"] == 1
+    assert payload["data"]["source"] == "truth-enrichment"
+
+
+@pytest.mark.asyncio
+async def test_handle_skips_search_enrichment_when_publisher_is_none(
+    agent_config_with_slm: AgentDependencies,
+) -> None:
+    """Handle() gracefully skips bridge when search_enrichment_publisher is None."""
+    adapters = _build_mock_adapters(
+        {
+            "value": "oak",
+            "confidence": 0.90,
+            "evidence": "material visible",
+            "metadata": {"source": "image_analysis", "assets": []},
+        }
+    )
+    adapters.products.get_product = AsyncMock(
+        return_value={
+            "id": "sku-21",
+            "name": "Desk",
+            "category": "home_furniture",
+            "material": "",
+        }
+    )
+    adapters.products.get_schema = AsyncMock(
+        return_value={
+            "category_id": "home_furniture",
+            "fields": {"material": {"type": "string", "required": True}},
+        }
+    )
+    # Explicitly None (default from _build_mock_adapters)
+    adapters.search_enrichment_publisher = None
+
+    with patch("truth_enrichment.agents.build_enrichment_adapters", return_value=adapters):
+        agent = TruthEnrichmentAgent(config=agent_config_with_slm)
+        agent.invoke_model = AsyncMock(
+            return_value={
+                "value": "oak",
+                "confidence": 0.88,
+                "evidence": "oak material",
+                "metadata": {"source": "text_enrichment"},
+            }
+        )
+
+        response = await agent.handle({"entity_id": "sku-21"})
+
+    assert response["entity_id"] == "sku-21"
+    assert len(response["proposed"]) == 1

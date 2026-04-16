@@ -16,6 +16,7 @@ from holiday_peak_lib.adapters.pricing_adapter import PricingConnector
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.schemas.inventory import InventoryContext
 from holiday_peak_lib.schemas.pricing import PriceContext
+from holiday_peak_lib.utils.inventory_rules import StockStatus, classify_item_stock
 
 
 @dataclass
@@ -41,19 +42,19 @@ class CheckoutValidationAdapter:
         for item, price_ctx, inv_ctx in zip(items, pricing, inventory):
             sku = str(item.get("sku"))
             qty = int(item.get("quantity", 1))
-            if inv_ctx is None:
+            classification = classify_item_stock(sku, qty, inv_ctx)
+            if classification.status == StockStatus.MISSING:
                 issues.append({"sku": sku, "type": "inventory_missing"})
-            else:
-                if inv_ctx.item.available <= 0:
-                    issues.append({"sku": sku, "type": "out_of_stock"})
-                elif inv_ctx.item.available < qty:
-                    issues.append(
-                        {
-                            "sku": sku,
-                            "type": "insufficient_stock",
-                            "available": inv_ctx.item.available,
-                        }
-                    )
+            elif classification.status == StockStatus.OUT_OF_STOCK:
+                issues.append({"sku": sku, "type": "out_of_stock"})
+            elif classification.status == StockStatus.LOW_STOCK:
+                issues.append(
+                    {
+                        "sku": sku,
+                        "type": "insufficient_stock",
+                        "available": classification.available,
+                    }
+                )
             if price_ctx.active is None:
                 issues.append({"sku": sku, "type": "missing_price"})
         status = "ready" if not issues else "blocked"

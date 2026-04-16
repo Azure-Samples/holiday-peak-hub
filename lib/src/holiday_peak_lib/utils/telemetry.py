@@ -30,37 +30,19 @@ from .correlation import get_correlation_id
 
 logger = logging.getLogger(__name__)
 
-_OTEL_AVAILABLE = False  # pylint: disable=invalid-name
+from azure.ai.projects.telemetry import AIProjectInstrumentor
+from azure.monitor.opentelemetry import configure_azure_monitor
+from opentelemetry import metrics, trace
+
+# azure-ai-inference is a transitive dep (not declared in pyproject.toml);
+# keep optional so the lib doesn't break if the transitive disappears.
+_INFERENCE_TELEMETRY_AVAILABLE = False
 try:
-    from opentelemetry import metrics, trace  # type: ignore[import]
-
-    _OTEL_AVAILABLE = True
-except ImportError:  # pragma: no cover
-    pass
-
-_PROJECTS_TELEMETRY_AVAILABLE = False  # pylint: disable=invalid-name
-try:
-    from azure.ai.projects.telemetry import AIProjectInstrumentor  # type: ignore[import]
-
-    _PROJECTS_TELEMETRY_AVAILABLE = True
-except ImportError:  # pragma: no cover
-    AIProjectInstrumentor = None  # type: ignore[assignment]
-
-_INFERENCE_TELEMETRY_AVAILABLE = False  # pylint: disable=invalid-name
-try:
-    from azure.ai.inference.tracing import AIInferenceInstrumentor  # type: ignore[import]
+    from azure.ai.inference.tracing import AIInferenceInstrumentor
 
     _INFERENCE_TELEMETRY_AVAILABLE = True
 except ImportError:  # pragma: no cover
     AIInferenceInstrumentor = None  # type: ignore[assignment]
-
-_AZURE_MONITOR_AVAILABLE = False  # pylint: disable=invalid-name
-try:
-    from azure.monitor.opentelemetry import configure_azure_monitor  # type: ignore[import]
-
-    _AZURE_MONITOR_AVAILABLE = True
-except ImportError:  # pragma: no cover
-    configure_azure_monitor = None  # type: ignore[assignment]
 
 _FOUNDRY_INSTRUMENTATION_LOCK = Lock()
 _FOUNDRY_INSTRUMENTATION_STATE: dict[str, bool] = {
@@ -177,10 +159,8 @@ def _normalize_outcome_status(outcome: str) -> str:
 
 
 def _trace_id_from_otel() -> str | None:
-    if not _OTEL_AVAILABLE:
-        return None
     try:
-        current_span = trace.get_current_span()  # type: ignore[union-attr]
+        current_span = trace.get_current_span()
         span_context = current_span.get_span_context() if current_span else None
         if span_context is None:
             return None
@@ -277,11 +257,7 @@ class FoundryTracer:
         os.environ.setdefault("AZURE_SDK_TRACING_IMPLEMENTATION", "opentelemetry")
 
         with _FOUNDRY_INSTRUMENTATION_LOCK:
-            if (
-                self.connection_string
-                and _AZURE_MONITOR_AVAILABLE
-                and not _FOUNDRY_INSTRUMENTATION_STATE["azure_monitor"]
-            ):
+            if self.connection_string and not _FOUNDRY_INSTRUMENTATION_STATE["azure_monitor"]:
                 try:
                     configure_azure_monitor(connection_string=self.connection_string)
                     _FOUNDRY_INSTRUMENTATION_STATE["azure_monitor"] = True
@@ -292,7 +268,7 @@ class FoundryTracer:
                         exc_info=True,
                     )
 
-            if _PROJECTS_TELEMETRY_AVAILABLE and not _FOUNDRY_INSTRUMENTATION_STATE["ai_projects"]:
+            if not _FOUNDRY_INSTRUMENTATION_STATE["ai_projects"]:
                 try:
                     AIProjectInstrumentor().instrument()
                     _FOUNDRY_INSTRUMENTATION_STATE["ai_projects"] = True
@@ -486,9 +462,7 @@ def get_tracer(name: str) -> Any:
         A real :class:`opentelemetry.trace.Tracer` when the SDK is installed,
         otherwise a :class:`_NoopTracer` stub that emits log lines instead.
     """
-    if _OTEL_AVAILABLE:
-        return trace.get_tracer(name)  # type: ignore[union-attr]
-    return _NoopTracer(name)
+    return trace.get_tracer(name)
 
 
 def get_meter(name: str) -> Any:
@@ -501,9 +475,7 @@ def get_meter(name: str) -> Any:
         A real :class:`opentelemetry.metrics.Meter` when the SDK is installed,
         otherwise a :class:`_NoopMeter` stub that emits log lines instead.
     """
-    if _OTEL_AVAILABLE:
-        return metrics.get_meter(name)  # type: ignore[union-attr]
-    return _NoopMeter(name)
+    return metrics.get_meter(name)
 
 
 def record_metric(

@@ -8,6 +8,7 @@ from typing import Any
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
+from holiday_peak_lib.agents.registration_helpers import get_agent_adapters
 
 from .adapters import TruthExportAdapters, build_truth_export_adapters
 from .export_engine import ExportEngine
@@ -69,7 +70,7 @@ class TruthExportAgent(BaseRetailAgent):
 
 def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
     """Expose MCP tools for truth-export workflows."""
-    adapters = getattr(agent, "adapters", build_truth_export_adapters())
+    adapters = get_agent_adapters(agent, build_truth_export_adapters)
     engine = getattr(agent, "engine", ExportEngine())
 
     async def export_product(payload: dict[str, Any]) -> dict[str, Any]:

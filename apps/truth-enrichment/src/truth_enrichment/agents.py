@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-import os
 import uuid
 from typing import Any
 
-from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
+from holiday_peak_lib.agents.registration_helpers import (
+    get_agent_adapters,
+    register_crud_tools,
+)
 from holiday_peak_lib.evaluation import (
     confidence_calibration_bins,
     enrichment_precision_recall_f1,
@@ -37,6 +39,11 @@ class TruthEnrichmentAgent(BaseRetailAgent):
         attach_self_healing = getattr(self._adapters.hitl_publisher, "attach_self_healing", None)
         if callable(attach_self_healing):
             attach_self_healing(self.self_healing_kernel)
+        attach_search = getattr(
+            self._adapters.search_enrichment_publisher, "attach_self_healing", None
+        )
+        if callable(attach_search):
+            attach_search(self.self_healing_kernel)  # pylint: disable=not-callable
         self._adapters.dam.set_vision_invoker(self.invoke_model)
         self._adapters.dam.set_vision_prompt_builder(self._engine.build_vision_prompt)
 
@@ -115,6 +122,27 @@ class TruthEnrichmentAgent(BaseRetailAgent):
         _record_enrichment_evaluation(
             self, entity_id=str(entity_id), gaps=gaps, proposed=proposed_list
         )
+
+        # Bridge: trigger search enrichment for this entity
+        if self._adapters.search_enrichment_publisher is not None:
+            try:
+                await self._adapters.search_enrichment_publisher.publish(
+                    {
+                        "event_type": "enrichment.completed",
+                        "data": {
+                            "entity_id": str(entity_id),
+                            "proposed_count": len(proposed_list),
+                            "source": "truth-enrichment",
+                        },
+                    }
+                )
+            except Exception:  # noqa: BLE001
+                self._trace_decision(
+                    decision="search_enrichment_bridge",
+                    outcome="publish_failed",
+                    metadata={"entity_id": str(entity_id)},
+                )
+
         return {
             "service": self.service_name,
             "entity_id": entity_id,
@@ -227,20 +255,13 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
         attribute_id = payload.get("attribute_id")
         if not attribute_id:
             return {"error": "attribute_id is required"}
-        adapters: EnrichmentAdapters = getattr(agent, "adapters", build_enrichment_adapters())
+        adapters: EnrichmentAdapters = get_agent_adapters(agent, build_enrichment_adapters)
         result = await adapters.proposed.get(str(attribute_id))
         return {"attribute": result}
 
     mcp.add_tool("/enrich/product", ingest_product)
     mcp.add_tool("/enrich/status", get_enrichment_status)
-    _register_crud_tools(mcp)
-
-
-def _register_crud_tools(mcp: FastAPIMCPServer) -> None:
-    crud_url = os.getenv("CRUD_SERVICE_URL")
-    if not crud_url:
-        return
-    BaseCRUDAdapter(crud_url).register_mcp_tools(mcp)
+    register_crud_tools(mcp)
 
 
 def _detect_gaps(product: dict[str, Any], schema: dict[str, Any] | None) -> list[str]:

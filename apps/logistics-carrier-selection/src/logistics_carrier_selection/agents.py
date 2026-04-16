@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
-from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
+from holiday_peak_lib.agents.registration_helpers import (
+    get_agent_adapters,
+    mcp_context_tool,
+    register_crud_tools,
+)
 
 from .adapters import (
     CarrierSelectionAdapters,
@@ -64,14 +67,13 @@ class CarrierSelectionAgent(BaseRetailAgent):
 
 def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
     """Expose MCP tools for carrier selection workflows."""
-    adapters = getattr(agent, "adapters", build_carrier_selection_adapters())
+    adapters = get_agent_adapters(agent, build_carrier_selection_adapters)
 
-    async def get_logistics_context(payload: dict[str, Any]) -> dict[str, Any]:
-        tracking_id = payload.get("tracking_id")
-        if not tracking_id:
-            return {"error": "tracking_id is required"}
-        context = await adapters.logistics.build_logistics_context(str(tracking_id))
-        return {"logistics_context": context.model_dump() if context else None}
+    get_logistics_context = mcp_context_tool(
+        adapters.logistics.build_logistics_context,
+        id_param="tracking_id",
+        result_key="logistics_context",
+    )
 
     async def get_carrier_recommendation(payload: dict[str, Any]) -> dict[str, Any]:
         tracking_id = payload.get("tracking_id")
@@ -85,15 +87,8 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
 
     mcp.add_tool("/logistics/carrier/context", get_logistics_context)
     mcp.add_tool("/logistics/carrier/recommendation", get_carrier_recommendation)
-    _register_crud_tools(mcp)
+    register_crud_tools(mcp)
     register_external_api_tools(mcp)
-
-
-def _register_crud_tools(mcp: FastAPIMCPServer) -> None:
-    crud_url = os.getenv("CRUD_SERVICE_URL")
-    if not crud_url:
-        return
-    BaseCRUDAdapter(crud_url).register_mcp_tools(mcp)
 
 
 def _carrier_instructions() -> str:

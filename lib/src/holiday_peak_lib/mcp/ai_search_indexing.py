@@ -331,12 +331,9 @@ def build_ai_search_indexing_client_from_env(
 
     credential: AsyncTokenCredential | None = None
     if api_key is None:
-        try:
-            from azure.identity.aio import DefaultAzureCredential  # noqa: PLC0415
+        from azure.identity.aio import DefaultAzureCredential
 
-            credential = DefaultAzureCredential()
-        except ImportError:
-            credential = None
+        credential = DefaultAzureCredential()
 
     settings = AISearchIndexingSettings(
         endpoint=endpoint,

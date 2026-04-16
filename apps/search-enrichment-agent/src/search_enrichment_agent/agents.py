@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 
 import httpx
-from holiday_peak_lib.adapters import BaseCRUDAdapter
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
+from holiday_peak_lib.agents.registration_helpers import register_crud_tools
 from holiday_peak_lib.evaluation import confidence_calibration_bins, run_evaluation
 from holiday_peak_lib.mcp.ai_search_indexing import (
     AISearchIndexingClient,
@@ -50,22 +49,9 @@ class SearchEnrichmentOrchestrator:
                 "trigger": trigger,
             }
 
-        strategy = "simple"
-        simple_fields = self.engine.build_simple_fields(approved)
-        enriched_fields = simple_fields
-        degradation = False
-
-        if has_model_backend and self.engine.is_complex(approved):
-            model_fields = await self.adapters.foundry.enrich_complex_fields(
-                entity_id=entity_id,
-                approved_truth=approved,
-            )
-            if model_fields.get("_status") == "ok":
-                strategy = "complex"
-                enriched_fields = self.engine.build_complex_fields(approved, model_fields)
-            else:
-                strategy = "simple"
-                degradation = True
+        strategy, enriched_fields, degradation = await self._select_strategy(
+            entity_id, approved, has_model_backend
+        )
 
         validated_fields = self.engine.validate_fields(enriched_fields)
         enriched_product = SearchEnrichedProduct(
@@ -100,6 +86,26 @@ class SearchEnrichmentOrchestrator:
             "stored": stored,
             "indexing": indexing,
         }
+
+    async def _select_strategy(
+        self,
+        entity_id: str,
+        approved: dict[str, Any],
+        has_model_backend: bool,
+    ) -> tuple[str, dict[str, Any], bool]:
+        """Select enrichment strategy and return (strategy, fields, degraded)."""
+        simple_fields = self.engine.build_simple_fields(approved)
+
+        if has_model_backend and self.engine.is_complex(approved):
+            model_fields = await self.adapters.foundry.enrich_complex_fields(
+                entity_id=entity_id,
+                approved_truth=approved,
+            )
+            if model_fields.get("_status") == "ok":
+                return "complex", self.engine.build_complex_fields(approved, model_fields), False
+            return "simple", simple_fields, True
+
+        return "simple", simple_fields, False
 
     async def _run_indexing_after_upsert(
         self,
@@ -353,14 +359,7 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
         ),
     )
     _register_ai_search_tools(mcp)
-    _register_crud_tools(mcp)
-
-
-def _register_crud_tools(mcp: FastAPIMCPServer) -> None:
-    crud_url = os.getenv("CRUD_SERVICE_URL")
-    if not crud_url:
-        return
-    BaseCRUDAdapter(crud_url).register_mcp_tools(mcp)
+    register_crud_tools(mcp)
 
 
 def _register_ai_search_tools(mcp: FastAPIMCPServer) -> None:
