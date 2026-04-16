@@ -54,20 +54,27 @@ jobs:
       - name: Verify core imports
         run: |
           python -c "
-          import traceback, sys
+          import traceback, sys, os, importlib.metadata
+          # Show installed agent-framework packages
+          for dist in importlib.metadata.distributions():
+              if 'agent-framework' in dist.metadata['Name']:
+                  loc = dist._path.parent
+                  print(f'{dist.metadata[\"Name\"]}=={dist.metadata[\"Version\"]}  @ {loc}')
+          # Show the actual __init__.py content
+          af_init = os.path.join(sys.prefix, 'lib', 'python3.13', 'site-packages', 'agent_framework', '__init__.py')
+          if os.path.exists(af_init):
+              content = open(af_init).read()
+              print(f'--- {af_init} ({len(content)} bytes) ---')
+              print(content[:2000])
+              print('--- END ---')
+          else:
+              print(f'NOT FOUND: {af_init}')
+          # Try the import
           try:
               from agent_framework import BaseAgent
               print(f'OK: BaseAgent={BaseAgent}')
           except Exception:
               traceback.print_exc()
-              print('---')
-              # Show what is actually in the module
-              try:
-                  import agent_framework
-                  print(f'agent_framework.__file__={agent_framework.__file__}')
-                  print(f'dir={[x for x in dir(agent_framework) if not x.startswith(\"_\")]}')
-              except Exception:
-                  traceback.print_exc()
               sys.exit(1)
           "
       - name: Run lib tests with coverage
