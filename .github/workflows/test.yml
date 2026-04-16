@@ -57,7 +57,7 @@ jobs:
           uv pip install --system -e ./lib/src
           uv pip install --system --reinstall-package agent-framework-core agent-framework-core
       - name: Verify core imports
-        run: python -c "from agent_framework import BaseAgent; print(f'OK: {BaseAgent}')"
+        run: python -c "from agent_framework import BaseAgent; print('OK:', BaseAgent)"
       - name: Run lib tests with coverage
         working-directory: lib
         run: |
