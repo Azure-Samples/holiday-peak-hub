@@ -1,16 +1,33 @@
 name: deploy-ui-swa
 
 on:
+  push:
+    branches:
+      - '**'
+    paths:
+      - apps/ui/**
+      - lib/**
+      - azure.yaml
+      - .infra/**
+      - .github/workflows/deploy-ui-swa.yml
   workflow_dispatch:
     inputs:
       environment:
-        description: Target GitHub environment
+        description: Target Azure environment
         required: true
         default: dev
       projectName:
         description: Project prefix used by naming convention
         required: true
         default: holidaypeakhub405
+      sourceSha:
+        description: Optional source commit SHA to deploy for the UI build
+        required: false
+        default: ''
+      sourceRef:
+        description: Optional source ref to deploy for the UI build when sourceSha is empty
+        required: false
+        default: ''
       apiUrl:
         description: Optional API base URL override (must match APIM gateway URL for drift safety)
         required: false
@@ -21,19 +38,44 @@ permissions:
   contents: read
 
 concurrency:
-  group: deploy-ui-swa-${{ inputs.environment }}
+  group: deploy-ui-swa-${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
   cancel-in-progress: false
 
 jobs:
   deploy-ui:
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'branch' }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      DEPLOY_ENVIRONMENT: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
+      DEPLOY_PROJECT_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.projectName || 'holidaypeakhub405' }}
+      DEPLOY_API_URL_OVERRIDE: ${{ github.event_name == 'workflow_dispatch' && inputs.apiUrl || '' }}
+      DEPLOY_SOURCE_CHECKOUT_REF: ${{ inputs.sourceSha != '' && inputs.sourceSha || (inputs.sourceRef != '' && inputs.sourceRef || github.ref) }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ env.DEPLOY_SOURCE_CHECKOUT_REF }}
+
+      - name: Enforce environment policy
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TARGET_ENV="${DEPLOY_ENVIRONMENT}"
+          if [ "$TARGET_ENV" = "prod" ]; then
+            if [ "${{ github.event_name }}" = "push" ]; then
+              echo "Push-triggered UI deployments are restricted to dev." >&2
+              exit 1
+            fi
+
+            if [ "${GITHUB_REF}" != "refs/heads/main" ] && [[ "${GITHUB_REF}" != refs/tags/v* ]]; then
+              echo "Manual prod UI deployments must start from main or an approved release tag." >&2
+              exit 1
+            fi
+          fi
 
       - name: Azure login (OIDC)
         uses: azure/login@v2
@@ -53,10 +95,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          RESOURCE_GROUP="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+          RESOURCE_GROUP="${DEPLOY_PROJECT_NAME}-${DEPLOY_ENVIRONMENT}-rg"
 
           APIM_URL=$(az apim show \
-            --name "${{ inputs.projectName }}-${{ inputs.environment }}-apim" \
+            --name "${DEPLOY_PROJECT_NAME}-${DEPLOY_ENVIRONMENT}-apim" \
             --resource-group "$RESOURCE_GROUP" \
             --query "gatewayUrl" -o tsv)
 
@@ -64,14 +106,14 @@ jobs:
           APIM_URL="${APIM_URL%/}"
 
           if [ -z "$APIM_URL" ]; then
-            echo "Failed to resolve APIM gateway URL for environment '${{ inputs.environment }}'." >&2
+            echo "Failed to resolve APIM gateway URL for environment '${DEPLOY_ENVIRONMENT}'." >&2
             exit 1
           fi
 
           RESOLVED_API_URL="$APIM_URL"
 
-          if [ -n "${{ inputs.apiUrl }}" ]; then
-            OVERRIDE_API_URL="$(echo "${{ inputs.apiUrl }}" | xargs)"
+          if [ -n "${DEPLOY_API_URL_OVERRIDE}" ]; then
+            OVERRIDE_API_URL="$(echo "${DEPLOY_API_URL_OVERRIDE}" | xargs)"
             OVERRIDE_API_URL="${OVERRIDE_API_URL%/}"
 
             if [ "$OVERRIDE_API_URL" != "$APIM_URL" ]; then
@@ -128,8 +170,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          RESOURCE_GROUP="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
-          SWA_NAME="${{ inputs.projectName }}-ui-${{ inputs.environment }}"
+          RESOURCE_GROUP="${DEPLOY_PROJECT_NAME}-${DEPLOY_ENVIRONMENT}-rg"
+          SWA_NAME="${DEPLOY_PROJECT_NAME}-ui-${DEPLOY_ENVIRONMENT}"
 
           mapfile -t AZD_UI_SWAS < <(az resource list \
             --resource-group "$RESOURCE_GROUP" \
@@ -173,8 +215,8 @@ jobs:
           NEXT_PUBLIC_API_URL: ${{ steps.api.outputs.api_url }}
           NEXT_PUBLIC_CRUD_API_URL: ${{ steps.api.outputs.crud_api_url }}
           NEXT_PUBLIC_AGENT_API_URL: ${{ steps.api.outputs.agent_api_url }}
-          NEXT_PUBLIC_DEV_AUTH_MOCK: ${{ inputs.environment == 'dev' && 'true' || vars.NEXT_PUBLIC_DEV_AUTH_MOCK }}
-          NEXT_PUBLIC_DEV_AUTH_MOCK_ALLOW_PROD: ${{ inputs.environment == 'dev' && 'false' || vars.NEXT_PUBLIC_DEV_AUTH_MOCK_ALLOW_PROD }}
+          NEXT_PUBLIC_DEV_AUTH_MOCK: ${{ env.DEPLOY_ENVIRONMENT == 'dev' && 'true' || vars.NEXT_PUBLIC_DEV_AUTH_MOCK }}
+          NEXT_PUBLIC_DEV_AUTH_MOCK_ALLOW_PROD: ${{ env.DEPLOY_ENVIRONMENT == 'dev' && 'false' || vars.NEXT_PUBLIC_DEV_AUTH_MOCK_ALLOW_PROD }}
           NEXT_PUBLIC_ENTRA_CLIENT_ID: ${{ vars.NEXT_PUBLIC_ENTRA_CLIENT_ID }}
           NEXT_PUBLIC_ENTRA_TENANT_ID: ${{ vars.NEXT_PUBLIC_ENTRA_TENANT_ID }}
 
@@ -183,7 +225,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          RESOURCE_GROUP="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+          RESOURCE_GROUP="${DEPLOY_PROJECT_NAME}-${DEPLOY_ENVIRONMENT}-rg"
           SWA_NAME="${{ steps.swa.outputs.swa_name }}"
 
           SWA_HOSTNAME=$(az staticwebapp show \

@@ -57,6 +57,7 @@ jobs:
     uses: ./.github/workflows/deploy-azd.yml
     with:
       environment: prod
+      githubEnvironment: prod
       location: centralus
       projectName: holidaypeakhub405
       imageTag: ${{ github.ref_name }}

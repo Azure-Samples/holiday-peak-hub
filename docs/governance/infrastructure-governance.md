@@ -47,6 +47,11 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 
 - Entrypoint workflows should avoid duplicated job blocks for push/manual variants when the same reusable workflow call can be parameterized with event-aware expressions.
 - `deploy-azd-dev.yml` is maintained as a single reusable-workflow invocation path to reduce drift between trigger types.
+- Per-service wrappers should remain thin and delegate to the reusable deployment engine rather than duplicating Azure auth, build, and smoke-check logic.
+- The canonical naming pattern for service-scoped wrappers is `.github/workflows/deploy-azd-<service-name>.yml`, using the exact service key from `azure.yaml`.
+- Service-scoped wrappers are approved for branch-independent execution from any pushed branch when their scoped path filters match; manual runs may still pass `testedSourceSha` or `testedSourceRef` for explicit targeting.
+- Service-scoped wrappers are non-production by policy. Production rollouts must continue through the protected release path in `.github/workflows/deploy-azd-prod.yml`.
+- Shared `dev` auto-promotion remains governed separately through the protected environment flow, and GitHub Environment branch restrictions still apply where configured.
 
 ### Protected live validation boundary
 

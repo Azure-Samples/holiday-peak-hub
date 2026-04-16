@@ -57,6 +57,11 @@ jobs:
           for d in apps/*/src; do
             [ -f "$d/pyproject.toml" ] && uv pip install --system -e "$d" || echo "Skipping $d"
           done
+      - name: Fix agent-framework init overwrite
+        run: |
+          # App installs pull agent-framework[all] which includes sub-packages
+          # that overwrite agent_framework/__init__.py with an empty file.
+          uv pip install --system --reinstall-package agent-framework-core agent-framework-core
       - name: Lint
         run: |
           python -m isort --check-only lib apps
