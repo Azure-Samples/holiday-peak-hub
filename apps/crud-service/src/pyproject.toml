@@ -24,7 +24,7 @@ dependencies = [
     "redis>=7.4.0",
     # Authentication
     "python-jose[cryptography]>=3.3.0",
-    "python-multipart>=0.0.20",
+    "python-multipart>=0.0.26",
     # Payment
     "stripe>=11.1.0",
     # HTTP client
