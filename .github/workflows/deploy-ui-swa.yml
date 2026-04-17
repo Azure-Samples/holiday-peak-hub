@@ -3,7 +3,7 @@ name: deploy-ui-swa
 on:
   push:
     branches:
-      - '**'
+      - main
     paths:
       - apps/ui/**
       - lib/**

@@ -3,7 +3,7 @@ name: deploy-azd-product-management-consistency-validation (entrypoint)
 on:
   push:
     branches:
-      - '**'
+      - main
     paths:
       - apps/product-management-consistency-validation/**
       - lib/**

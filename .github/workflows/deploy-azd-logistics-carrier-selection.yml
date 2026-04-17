@@ -3,7 +3,7 @@ name: deploy-azd-logistics-carrier-selection (entrypoint)
 on:
   push:
     branches:
-      - '**'
+      - main
     paths:
       - apps/logistics-carrier-selection/**
       - lib/**

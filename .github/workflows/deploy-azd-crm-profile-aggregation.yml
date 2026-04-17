@@ -3,7 +3,7 @@ name: deploy-azd-crm-profile-aggregation (entrypoint)
 on:
   push:
     branches:
-      - '**'
+      - main
     paths:
       - apps/crm-profile-aggregation/**
       - lib/**

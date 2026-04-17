@@ -3,7 +3,7 @@ name: deploy-azd-product-management-acp-transformation (entrypoint)
 on:
   push:
     branches:
-      - '**'
+      - main
     paths:
       - apps/product-management-acp-transformation/**
       - lib/**

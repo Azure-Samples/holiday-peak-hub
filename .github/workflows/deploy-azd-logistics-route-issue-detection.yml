@@ -3,7 +3,7 @@ name: deploy-azd-logistics-route-issue-detection (entrypoint)
 on:
   push:
     branches:
-      - '**'
+      - main
     paths:
       - apps/logistics-route-issue-detection/**
       - lib/**

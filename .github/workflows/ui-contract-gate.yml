@@ -2,6 +2,8 @@ name: ui-contract-gate
 
 on:
   push:
+    branches:
+      - main
     paths:
       - apps/ui/**
       - .github/workflows/deploy-ui-swa.yml

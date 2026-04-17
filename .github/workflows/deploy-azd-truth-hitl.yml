@@ -3,7 +3,7 @@ name: deploy-azd-truth-hitl (entrypoint)
 on:
   push:
     branches:
-      - '**'
+      - main
     paths:
       - apps/truth-hitl/**
       - lib/**

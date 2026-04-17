@@ -3,7 +3,7 @@ name: deploy-azd-ecommerce-product-detail-enrichment (entrypoint)
 on:
   push:
     branches:
-      - '**'
+      - main
     paths:
       - apps/ecommerce-product-detail-enrichment/**
       - lib/**

@@ -3,7 +3,7 @@ name: deploy-azd-inventory-reservation-validation (entrypoint)
 on:
   push:
     branches:
-      - '**'
+      - main
     paths:
       - apps/inventory-reservation-validation/**
       - lib/**
