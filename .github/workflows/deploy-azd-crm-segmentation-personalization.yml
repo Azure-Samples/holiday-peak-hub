@@ -3,7 +3,7 @@ name: deploy-azd-crm-segmentation-personalization (entrypoint)
 on:
   push:
     branches:
-      - '**'
+      - main
     paths:
       - apps/crm-segmentation-personalization/**
       - lib/**

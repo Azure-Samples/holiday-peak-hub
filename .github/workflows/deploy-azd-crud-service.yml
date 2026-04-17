@@ -3,7 +3,7 @@ name: deploy-azd-crud-service (entrypoint)
 on:
   push:
     branches:
-      - '**'
+      - main
     paths:
       - apps/crud-service/**
       - lib/**

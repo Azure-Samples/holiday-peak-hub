@@ -3,7 +3,7 @@ name: deploy-azd-ecommerce-cart-intelligence (entrypoint)
 on:
   push:
     branches:
-      - '**'
+      - main
     paths:
       - apps/ecommerce-cart-intelligence/**
       - lib/**

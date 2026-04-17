@@ -3,7 +3,7 @@ name: deploy-azd-search-enrichment-agent (entrypoint)
 on:
   push:
     branches:
-      - '**'
+      - main
     paths:
       - apps/search-enrichment-agent/**
       - lib/**

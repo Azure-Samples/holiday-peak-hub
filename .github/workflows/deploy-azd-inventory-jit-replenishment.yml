@@ -3,7 +3,7 @@ name: deploy-azd-inventory-jit-replenishment (entrypoint)
 on:
   push:
     branches:
-      - '**'
+      - main
     paths:
       - apps/inventory-jit-replenishment/**
       - lib/**

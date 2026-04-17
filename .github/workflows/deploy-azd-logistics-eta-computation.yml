@@ -3,7 +3,7 @@ name: deploy-azd-logistics-eta-computation (entrypoint)
 on:
   push:
     branches:
-      - '**'
+      - main
     paths:
       - apps/logistics-eta-computation/**
       - lib/**

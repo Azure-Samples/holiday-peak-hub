@@ -3,7 +3,7 @@ name: deploy-azd-crm-campaign-intelligence (entrypoint)
 on:
   push:
     branches:
-      - '**'
+      - main
     paths:
       - apps/crm-campaign-intelligence/**
       - lib/**

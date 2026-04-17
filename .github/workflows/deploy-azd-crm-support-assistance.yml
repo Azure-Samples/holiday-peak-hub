@@ -3,7 +3,7 @@ name: deploy-azd-crm-support-assistance (entrypoint)
 on:
   push:
     branches:
-      - '**'
+      - main
     paths:
       - apps/crm-support-assistance/**
       - lib/**

@@ -3,7 +3,7 @@ name: deploy-azd-logistics-returns-support (entrypoint)
 on:
   push:
     branches:
-      - '**'
+      - main
     paths:
       - apps/logistics-returns-support/**
       - lib/**

@@ -3,7 +3,7 @@ name: deploy-azd-ecommerce-catalog-search (entrypoint)
 on:
   push:
     branches:
-      - '**'
+      - main
     paths:
       - apps/ecommerce-catalog-search/**
       - lib/**

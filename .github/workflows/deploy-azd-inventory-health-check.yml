@@ -3,7 +3,7 @@ name: deploy-azd-inventory-health-check (entrypoint)
 on:
   push:
     branches:
-      - '**'
+      - main
     paths:
       - apps/inventory-health-check/**
       - lib/**

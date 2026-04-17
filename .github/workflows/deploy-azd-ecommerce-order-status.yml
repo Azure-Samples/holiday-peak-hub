@@ -3,7 +3,7 @@ name: deploy-azd-ecommerce-order-status (entrypoint)
 on:
   push:
     branches:
-      - '**'
+      - main
     paths:
       - apps/ecommerce-order-status/**
       - lib/**

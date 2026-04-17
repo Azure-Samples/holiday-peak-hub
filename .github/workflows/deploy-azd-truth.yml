@@ -3,7 +3,7 @@ name: deploy-azd-truth-agents (scoped entrypoint)
 on:
   push:
     branches:
-      - '**'
+      - main
     paths:
       - apps/search-enrichment-agent/**
       - apps/truth-ingestion/**

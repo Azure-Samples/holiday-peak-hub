@@ -3,7 +3,7 @@ name: deploy-azd-ecommerce-checkout-support (entrypoint)
 on:
   push:
     branches:
-      - '**'
+      - main
     paths:
       - apps/ecommerce-checkout-support/**
       - lib/**

@@ -3,7 +3,7 @@ name: deploy-azd-truth-enrichment (entrypoint)
 on:
   push:
     branches:
-      - '**'
+      - main
     paths:
       - apps/truth-enrichment/**
       - lib/**
