@@ -1,0 +1,87 @@
+name: deploy-azd-logistics-carrier-selection (entrypoint)
+
+on:
+  push:
+    branches:
+      - '**'
+    paths:
+      - apps/logistics-carrier-selection/**
+      - lib/**
+      - azure.yaml
+      - .infra/**
+      - .kubernetes/**
+      - .github/workflows/deploy-azd.yml
+      - .github/workflows/deploy-azd-service.yml
+      - .github/workflows/deploy-azd-logistics-carrier-selection.yml
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target deployment environment
+        required: true
+        default: dev
+      location:
+        description: Azure location
+        required: true
+        default: centralus
+      projectName:
+        description: Project prefix used by naming convention
+        required: true
+        default: holidaypeakhub405
+      imageTag:
+        description: Image tag to deploy
+        required: true
+        default: latest
+      testedSourceSha:
+        description: Optional tested source commit SHA to deploy
+        required: false
+        default: ''
+      testedSourceRef:
+        description: Optional tested source ref to deploy when testedSourceSha is empty
+        required: false
+        default: ''
+      skipProvision:
+        description: Skip azd provision and reuse the current environment infrastructure
+        required: true
+        type: boolean
+        default: true
+      forceApimSync:
+        description: Force APIM sync and smoke checks even when no changed services are detected
+        required: true
+        type: boolean
+        default: true
+      autoAllowAcrRunnerIp:
+        description: Temporarily allow GitHub runner egress IP in ACR firewall during deploy
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-azd-${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}-logistics-carrier-selection
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    permissions:
+      id-token: write
+      contents: read
+      issues: write
+    uses: ./.github/workflows/deploy-azd-service.yml
+    with:
+      serviceName: logistics-carrier-selection
+      environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
+      location: ${{ github.event_name == 'workflow_dispatch' && inputs.location || 'centralus' }}
+      projectName: ${{ github.event_name == 'workflow_dispatch' && inputs.projectName || 'holidaypeakhub405' }}
+      imageTag: ${{ github.event_name == 'workflow_dispatch' && inputs.imageTag || github.sha }}
+      testedSourceSha: ${{ github.event_name == 'workflow_dispatch' && inputs.testedSourceSha || github.sha }}
+      testedSourceRef: ${{ github.event_name == 'workflow_dispatch' && inputs.testedSourceRef || github.ref }}
+      skipProvision: ${{ fromJSON(github.event_name == 'workflow_dispatch' && toJSON(inputs.skipProvision) || 'true') }}
+      forceApimSync: ${{ fromJSON(github.event_name == 'workflow_dispatch' && toJSON(inputs.forceApimSync) || 'true') }}
+      autoAllowAcrRunnerIp: ${{ fromJSON(github.event_name == 'workflow_dispatch' && toJSON(inputs.autoAllowAcrRunnerIp) || 'true') }}
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}

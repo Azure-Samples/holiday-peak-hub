@@ -1093,6 +1093,73 @@ class TestCatalogSearchAgent:
             mock_multi.assert_awaited_once()
             assert mock_search.await_count >= 2
 
+    @pytest.mark.asyncio
+    async def test_handle_inventory_lookup_error_returns_unknown_availability(
+        self, agent_dependencies, mock_catalog_product
+    ):
+        """Inventory dependency errors should degrade to unknown availability, not 500."""
+        with (
+            patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
+            patch("ecommerce_catalog_search.agents.search_catalog_skus_detailed") as mock_search,
+        ):
+            mock_search.return_value = AISearchSkuResult(skus=["SKU-001"])
+
+            mock_products = AsyncMock()
+            mock_products.get_product = AsyncMock(return_value=mock_catalog_product)
+            mock_products.get_related = AsyncMock(return_value=[])
+
+            mock_inventory = AsyncMock()
+            mock_inventory.get_item = AsyncMock(side_effect=RuntimeError("inventory unavailable"))
+
+            mock_build.return_value = CatalogAdapters(
+                products=mock_products,
+                inventory=mock_inventory,
+                mapping=AcpCatalogMapper(),
+            )
+
+            agent = CatalogSearchAgent(config=agent_dependencies)
+            result = await agent.handle({"query": "test product", "limit": 5, "mode": "keyword"})
+
+            assert len(result["results"]) == 1
+            assert result["results"][0]["item_id"] == "SKU-001"
+            assert result["results"][0]["availability"] == "unknown"
+            assert result["answer_source"] == "agent_fallback"
+
+    @pytest.mark.asyncio
+    async def test_handle_ai_search_product_lookup_error_returns_graceful_response(
+        self, agent_dependencies
+    ):
+        """AI-search SKU resolution errors should return deterministic empty results, not 500."""
+        with (
+            patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
+            patch("ecommerce_catalog_search.agents.search_catalog_skus_detailed") as mock_search,
+        ):
+            mock_search.return_value = AISearchSkuResult(skus=["SKU-001"])
+
+            mock_products = AsyncMock()
+            mock_products.search = AsyncMock(return_value=[])
+            mock_products.get_product = AsyncMock(side_effect=RuntimeError("product unavailable"))
+            mock_products.get_related = AsyncMock(return_value=[])
+
+            mock_inventory = AsyncMock()
+            mock_inventory.get_item = AsyncMock(return_value=None)
+
+            mock_build.return_value = CatalogAdapters(
+                products=mock_products,
+                inventory=mock_inventory,
+                mapping=AcpCatalogMapper(),
+            )
+
+            agent = CatalogSearchAgent(config=agent_dependencies)
+            result = await agent.handle({"query": "travel backpack", "limit": 5, "mode": "keyword"})
+
+            assert result["service"] == "test-catalog-search"
+            assert result["query"] == "travel backpack"
+            assert result["results"] == []
+            assert result["answer_source"] == "agent_fallback"
+            assert isinstance(result["summary"], str)
+            assert isinstance(result["recommendation"], str)
+
     def test_build_sub_queries_from_intent_entities(self, agent_dependencies):
         """Private sub-query builder should include deduped intent entities."""
         with patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build:

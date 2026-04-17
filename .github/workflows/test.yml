@@ -49,6 +49,15 @@ jobs:
               echo "Skipping $d (no pyproject.toml)"
             fi
           done
+      - name: Re-install lib and fix agent-framework
+        run: |
+          # App installs pull agent-framework[all] from git-pinned lib on main.
+          # Sub-packages overwrite agent_framework/__init__.py with an empty file.
+          # Force-reinstall core so the real __init__.py is restored.
+          uv pip install --system -e ./lib/src
+          uv pip install --system --reinstall-package agent-framework-core agent-framework-core
+      - name: Verify core imports
+        run: python -c "from agent_framework import BaseAgent; print('OK:', BaseAgent)"
       - name: Run lib tests with coverage
         working-directory: lib
         run: |

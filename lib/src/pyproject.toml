@@ -13,7 +13,6 @@ dependencies = [
     "uvicorn",
     "pydantic>=2",
     "pydantic-settings>=2",
-    "agent-framework>=1.0.1",
     "agent-framework-core>=1.0.1",
     "agent-framework-foundry>=1.0.1",
     "httpx",
