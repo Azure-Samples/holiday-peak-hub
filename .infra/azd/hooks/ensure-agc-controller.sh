@@ -37,17 +37,19 @@ resolve_env_value() {
   done
 }
 
-ensure_role_assignment() {
+require_role_assignment() {
   principal_id="$1"
   scope="$2"
   role_definition_id="$3"
+  role_name="$4"
 
   existing_count="$(az role assignment list --assignee-object-id "$principal_id" --scope "$scope" --query "[?roleDefinitionId=='$role_definition_id'] | length(@)" -o tsv 2>/dev/null || true)"
   if [ -n "$existing_count" ] && [ "$existing_count" != "0" ]; then
     return 0
   fi
 
-  az role assignment create --assignee-object-id "$principal_id" --assignee-principal-type ServicePrincipal --scope "$scope" --role "$role_definition_id" --only-show-errors >/dev/null
+  echo "Required AGC controller role assignment '$role_name' ($role_definition_id) is missing at scope '$scope'. Re-run shared infrastructure provisioning before installing the ALB controller." >&2
+  exit 1
 }
 
 AGC_SUPPORT_ENABLED="$(resolve_env_value "$AGC_SUPPORT_ENABLED" AGC_SUPPORT_ENABLED)"
@@ -105,9 +107,11 @@ echo "Installing AGC ALB controller support for cluster '$AKS_CLUSTER_NAME' in r
 SUBSCRIPTION_ID="$(az account show --query id -o tsv)"
 AKS_NODE_RESOURCE_GROUP_ID="/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$AKS_NODE_RESOURCE_GROUP"
 
-ensure_role_assignment "$AGC_CONTROLLER_IDENTITY_PRINCIPAL_ID" "$AKS_NODE_RESOURCE_GROUP_ID" "acdd72a7-3385-48ef-bd42-f606fba81ae7"
-ensure_role_assignment "$AGC_CONTROLLER_IDENTITY_PRINCIPAL_ID" "$AKS_NODE_RESOURCE_GROUP_ID" "fbc52c3f-28ad-4303-a892-8a056630b8f1"
-ensure_role_assignment "$AGC_CONTROLLER_IDENTITY_PRINCIPAL_ID" "$AGC_SUBNET_ID" "4d97b98b-1d4f-4787-a291-c67834d212e7"
+require_role_assignment "$AGC_CONTROLLER_IDENTITY_PRINCIPAL_ID" "$AKS_NODE_RESOURCE_GROUP_ID" "acdd72a7-3385-48ef-bd42-f606fba81ae7" "Reader"
+require_role_assignment "$AGC_CONTROLLER_IDENTITY_PRINCIPAL_ID" "$AKS_NODE_RESOURCE_GROUP_ID" "fbc52c3f-28ad-4303-a892-8a056630b8f1" "AppGw for Containers Configuration Manager"
+require_role_assignment "$AGC_CONTROLLER_IDENTITY_PRINCIPAL_ID" "$AGC_SUBNET_ID" "4d97b98b-1d4f-4787-a291-c67834d212e7" "Network Contributor"
+
+echo "Validated AGC controller RBAC prerequisites."
 
 az aks get-credentials --resource-group "$RESOURCE_GROUP" --name "$AKS_CLUSTER_NAME" --overwrite-existing --only-show-errors >/dev/null
 

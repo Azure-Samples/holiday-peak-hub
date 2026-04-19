@@ -78,7 +78,7 @@ azd deploy --all -e <environment>
 Release gate notes:
 
 - UI deployment is blocked unless backend deployment jobs are `success` or `skipped`.
-- AGC readiness is validated before APIM sync by checking the configured GatewayClass and direct CRUD `/health` reachability on the approved AGC frontend hostname.
+- AGC readiness is validated before APIM sync by checking the configured GatewayClass, the shared `ApplicationLoadBalancer` contract, Azure traffic-controller health, shared-Gateway `Accepted` and `Programmed` state with an assigned status address, shared-Gateway route attachment, and direct CRUD plus changed-agent health reachability on the approved AGC frontend hostname.
 - APIM gateway URL is propagated from `azd` outputs and checked against live APIM to catch config drift.
 - APIM smoke checks validate direct AGC CRUD health, APIM `GET /api/health`, `GET /api/products?limit=1`, `GET /api/categories`, CRUD CORS preflight, negative CRUD path behavior, and changed agent `GET /agents/<service>/health` before UI publish.
 - APIM sync consumes the approved AGC hostname contract from azd outputs and fails closed if the backend drifts to IP-based or cluster-local targets.
@@ -136,9 +136,9 @@ azd provision -e <environment>
 If `agcSupportEnabled` is enabled for the environment, the shared stack also provisions:
 - a delegated `agc` subnet sized for AGC association capacity,
 - workload identity federation for `azure-alb-system/alb-controller-sa`,
-- RBAC for AGC controller access to the AKS node resource group and delegated subnet.
+- deterministic RBAC for AGC controller access to the AKS node resource group and delegated subnet (`Reader`, `AppGw for Containers Configuration Manager`, and `Network Contributor`).
 
-During `azd provision`, the `postprovision` hook installs the ALB controller Helm chart and validates that GatewayClass `azure-alb-external` is present. No `ApplicationLoadBalancer` or workload route is created in this step.
+During `azd provision`, the `postprovision` hook validates those AGC controller RBAC prerequisites, installs the ALB controller Helm chart, and verifies that GatewayClass `azure-alb-external` is present. No `ApplicationLoadBalancer` or workload route is created in this step.
 
 > **Note**: The CI/CD pipeline's output recovery step uses `az network alb frontend list` to query AGC frontend hostnames. This requires the Azure CLI `alb` extension (`az extension add --name alb --only-show-errors`). The extension is GA and requires Azure CLI ≥ 2.67.
 

@@ -182,9 +182,9 @@ metadata:
 spec:
   parentRefs:
     - name: "holiday-peak-agc"
-      namespace: "holiday-peak-agents"
+      namespace: "holiday-peak-crud"
   hostnames:
-    - "e3g0avgfauc3e4cp.fz87.alb.azure.com"
+    - "esbcc8bcfyazbbdg.fz03.alb.azure.com"
   rules:
     - matches:
         - path:

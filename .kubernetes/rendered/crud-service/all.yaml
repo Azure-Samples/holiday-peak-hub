@@ -181,16 +181,18 @@ metadata:
   namespace: holiday-peak-crud
   labels:
     app: crud-service
+  annotations:
+    alb.networking.azure.io/alb-id: "/subscriptions/150e82e8-25db-4f1a-8e04-a2f6a77d26c4/resourceGroups/holidaypeakhub405-dev-rg_aks_holidaypeakhub405-dev-aks_nodes/providers/Microsoft.ServiceNetworking/trafficControllers/alb-d819fbfd"
 spec:
   gatewayClassName: "azure-alb-external"
   listeners:
     - name: "http"
       protocol: "HTTP"
       port: 80
-      hostname: "e3g0avgfauc3e4cp.fz87.alb.azure.com"
+      hostname: "esbcc8bcfyazbbdg.fz03.alb.azure.com"
       allowedRoutes:
         namespaces:
-          from: Same
+          from: All
 ---
 # Source: holiday-peak-service/templates/agc-routing.yaml
 apiVersion: gateway.networking.k8s.io/v1
@@ -205,7 +207,7 @@ spec:
     - name: "holiday-peak-agc"
       namespace: "holiday-peak-crud"
   hostnames:
-    - "e3g0avgfauc3e4cp.fz87.alb.azure.com"
+    - "esbcc8bcfyazbbdg.fz03.alb.azure.com"
   rules:
     - matches:
         - path:

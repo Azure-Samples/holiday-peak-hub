@@ -21,6 +21,10 @@ metadata:
   namespace: {{ $sharedNamespace }}
   labels:
     app: {{ .Values.serviceName }}
+  {{- if .Values.agc.sharedResources.albId }}
+  annotations:
+    alb.networking.azure.io/alb-id: {{ .Values.agc.sharedResources.albId | quote }}
+  {{- end }}
 spec:
   gatewayClassName: {{ .Values.agc.gatewayClassName | quote }}
   listeners:
@@ -33,7 +37,7 @@ spec:
       {{- end }}
       allowedRoutes:
         namespaces:
-          from: Same
+          from: {{ $.Values.agc.sharedResources.allowedRouteNamespaces | default "All" }}
     {{- end }}
 ---
 {{- end }}

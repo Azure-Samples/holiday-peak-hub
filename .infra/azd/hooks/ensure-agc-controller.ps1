@@ -36,11 +36,12 @@ function Resolve-EnvValue {
     return ''
 }
 
-function Ensure-RoleAssignment {
+function Require-RoleAssignment {
     param(
         [string]$PrincipalId,
         [string]$Scope,
-        [string]$RoleDefinitionId
+        [string]$RoleDefinitionId,
+        [string]$RoleName
     )
 
     $existing = az role assignment list --assignee-object-id $PrincipalId --scope $Scope --query "[?roleDefinitionId=='$RoleDefinitionId'] | length(@)" -o tsv 2>$null
@@ -48,7 +49,7 @@ function Ensure-RoleAssignment {
         return
     }
 
-    az role assignment create --assignee-object-id $PrincipalId --assignee-principal-type ServicePrincipal --scope $Scope --role $RoleDefinitionId --only-show-errors | Out-Null
+    throw "Required AGC controller role assignment '$RoleName' ($RoleDefinitionId) is missing at scope '$Scope'. Re-run shared infrastructure provisioning before installing the ALB controller."
 }
 
 $AgcSupportEnabled = Resolve-EnvValue -Keys @('AGC_SUPPORT_ENABLED') -CurrentValue $AgcSupportEnabled
@@ -99,9 +100,11 @@ Write-Host "Installing AGC ALB controller support for cluster '$AksClusterName' 
 $subscriptionId = az account show --query id -o tsv
 $aksNodeResourceGroupId = "/subscriptions/$subscriptionId/resourceGroups/$AksNodeResourceGroup"
 
-Ensure-RoleAssignment -PrincipalId $ControllerIdentityPrincipalId -Scope $aksNodeResourceGroupId -RoleDefinitionId 'acdd72a7-3385-48ef-bd42-f606fba81ae7'
-Ensure-RoleAssignment -PrincipalId $ControllerIdentityPrincipalId -Scope $aksNodeResourceGroupId -RoleDefinitionId 'fbc52c3f-28ad-4303-a892-8a056630b8f1'
-Ensure-RoleAssignment -PrincipalId $ControllerIdentityPrincipalId -Scope $AgcSubnetId -RoleDefinitionId '4d97b98b-1d4f-4787-a291-c67834d212e7'
+Require-RoleAssignment -PrincipalId $ControllerIdentityPrincipalId -Scope $aksNodeResourceGroupId -RoleDefinitionId 'acdd72a7-3385-48ef-bd42-f606fba81ae7' -RoleName 'Reader'
+Require-RoleAssignment -PrincipalId $ControllerIdentityPrincipalId -Scope $aksNodeResourceGroupId -RoleDefinitionId 'fbc52c3f-28ad-4303-a892-8a056630b8f1' -RoleName 'AppGw for Containers Configuration Manager'
+Require-RoleAssignment -PrincipalId $ControllerIdentityPrincipalId -Scope $AgcSubnetId -RoleDefinitionId '4d97b98b-1d4f-4787-a291-c67834d212e7' -RoleName 'Network Contributor'
+
+Write-Host 'Validated AGC controller RBAC prerequisites.'
 
 az aks get-credentials --resource-group $ResourceGroup --name $AksClusterName --overwrite-existing --only-show-errors | Out-Null
 

@@ -99,6 +99,9 @@ env:
   DEPLOY_SOURCE_SHA: ${{ inputs.sourceSha != '' && inputs.sourceSha || github.sha }}
   DEPLOY_SOURCE_REF: ${{ inputs.sourceRef != '' && inputs.sourceRef || github.ref }}
   DEPLOY_SOURCE_CHECKOUT_REF: ${{ inputs.sourceSha != '' && inputs.sourceSha || (inputs.sourceRef != '' && inputs.sourceRef || github.sha) }}
+  REPOSITORY_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+  FLUX_SOURCE_NAME: holiday-peak-gitops
+  FLUX_SOURCE_NAMESPACE: flux-system
 
 concurrency:
   group: deploy-azd-${{ inputs.environment }}
@@ -380,6 +383,7 @@ jobs:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      CHANGED_AGENT_SERVICES: ${{ needs.detect-changes.outputs.changed_agent_services_csv }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -1022,21 +1026,40 @@ jobs:
               [ -n "${V:-}" ] && { set_if_empty AGC_CONTROLLER_IDENTITY_CLIENT_ID "$V"; AGC_RECOVERED=$((AGC_RECOVERED + 1)); }
             fi
 
-            # Frontend hostname via ALB CLI (two-step: list ALBs, then list frontends)
+            # Frontend hostname via ALB CLI. Prefer the environment RG, then fall back
+            # to the AKS node RG where ALB controller-managed resources may live.
             if [ -z "${AGC_FRONTEND_HOSTNAME:-}" ]; then
-              ALB_NAME=$(az network alb list -g "$RG" \
-                --query "[0].name" -o tsv 2>/dev/null || true)
-              if [ -n "${ALB_NAME:-}" ]; then
-                V=$(az network alb frontend list -g "$RG" --alb-name "$ALB_NAME" \
+              AKS_CLUSTER_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-aks"
+              AKS_NODE_RESOURCE_GROUP=$(az aks show -g "$RG" -n "$AKS_CLUSTER_NAME" \
+                --query "nodeResourceGroup" -o tsv 2>/dev/null || true)
+              declare -a ALB_RESOURCE_GROUPS=("$RG")
+              if [ -n "${AKS_NODE_RESOURCE_GROUP:-}" ] && [ "$AKS_NODE_RESOURCE_GROUP" != "$RG" ]; then
+                ALB_RESOURCE_GROUPS+=("$AKS_NODE_RESOURCE_GROUP")
+              fi
+
+              ALB_FOUND=false
+              for ALB_RESOURCE_GROUP in "${ALB_RESOURCE_GROUPS[@]}"; do
+                ALB_NAME=$(az network alb list -g "$ALB_RESOURCE_GROUP" \
+                  --query "[0].name" -o tsv 2>/dev/null || true)
+                if [ -z "${ALB_NAME:-}" ]; then
+                  continue
+                fi
+
+                ALB_FOUND=true
+                V=$(az network alb frontend list -g "$ALB_RESOURCE_GROUP" --alb-name "$ALB_NAME" \
                   --query "[0].fqdn" -o tsv 2>/dev/null || true)
                 if [ -n "${V:-}" ]; then
                   set_if_empty AGC_FRONTEND_HOSTNAME "$V"
                   AGC_RECOVERED=$((AGC_RECOVERED + 1))
-                else
-                  echo "::notice::AGC_FRONTEND_HOSTNAME is empty — ALB controller may not have reconciled yet. Non-fatal; validate-agc-readiness will gate downstream jobs."
+                  echo "Recovered AGC_FRONTEND_HOSTNAME from ALB '$ALB_NAME' in resource group '$ALB_RESOURCE_GROUP'."
+                  break
                 fi
-              else
-                echo "::notice::No ALB resource found in $RG — AGC_FRONTEND_HOSTNAME cannot be recovered. Non-fatal; validate-agc-readiness will gate downstream jobs."
+
+                echo "::notice::AGC frontend on ALB '$ALB_NAME' in $ALB_RESOURCE_GROUP is not populated yet. Non-fatal; validate-agc-readiness will gate downstream jobs."
+              done
+
+              if [ -z "${AGC_FRONTEND_HOSTNAME:-}" ] && [ "$ALB_FOUND" = false ]; then
+                echo "::notice::No ALB resource found in $RG${AKS_NODE_RESOURCE_GROUP:+ or $AKS_NODE_RESOURCE_GROUP} — AGC_FRONTEND_HOSTNAME cannot be recovered. Non-fatal; validate-agc-readiness will gate downstream jobs."
               fi
             fi
 
@@ -1784,20 +1807,58 @@ jobs:
         run: |
           set -euo pipefail
 
+          AGC_GATEWAY_CLASS_VALUE="${{ needs.provision.outputs.AGC_GATEWAY_CLASS || 'azure-alb-external' }}"
+          AGC_SUBNET_ID_VALUE="${{ needs.provision.outputs.AGC_SUBNET_ID }}"
+          SHARED_GATEWAY_JSON="$(kubectl get gateway holiday-peak-agc -n holiday-peak-crud -o json 2>/dev/null || true)"
+
+          get_first_alb_association() {
+            local alb_name="$1"
+            local alb_namespace="$2"
+
+            if [ -z "$alb_name" ] || [ -z "$alb_namespace" ]; then
+              return 0
+            fi
+
+            kubectl get applicationloadbalancer "$alb_name" -n "$alb_namespace" -o json 2>/dev/null \
+              | jq -r '.spec.associations[]? | select(type == "string" and . != "")' \
+              | head -n 1 || true
+          }
+
+          if [ -z "$AGC_SUBNET_ID_VALUE" ]; then
+            AGC_SUBNET_ID_VALUE="$(get_first_alb_association "holiday-peak-agc" "holiday-peak-crud")"
+            if [ -n "$AGC_SUBNET_ID_VALUE" ]; then
+              echo "::notice::Recovered AGC render subnet from the live shared ApplicationLoadBalancer association."
+            fi
+          fi
+
+          if [ -z "$AGC_SUBNET_ID_VALUE" ] && [ -n "$SHARED_GATEWAY_JSON" ]; then
+            AGC_SHARED_ALB_NAME="$(printf '%s' "$SHARED_GATEWAY_JSON" | jq -r '.metadata.annotations["alb.networking.azure.io/alb-name"] // empty' || true)"
+            AGC_SHARED_ALB_NAMESPACE="$(printf '%s' "$SHARED_GATEWAY_JSON" | jq -r '.metadata.annotations["alb.networking.azure.io/alb-namespace"] // empty' || true)"
+            if [ -z "$AGC_SHARED_ALB_NAMESPACE" ]; then
+              AGC_SHARED_ALB_NAMESPACE="holiday-peak-crud"
+            fi
+            AGC_SUBNET_ID_VALUE="$(get_first_alb_association "$AGC_SHARED_ALB_NAME" "$AGC_SHARED_ALB_NAMESPACE")"
+            if [ -n "$AGC_SUBNET_ID_VALUE" ]; then
+              echo "::notice::Recovered AGC render subnet from the ApplicationLoadBalancer referenced by the live shared Gateway."
+            fi
+          fi
+
           echo "PUBLICATION_MODE=agc" >> "$GITHUB_ENV"
           echo "AGC_SUPPORT_ENABLED=${{ needs.provision.outputs.AGC_SUPPORT_ENABLED || 'false' }}" >> "$GITHUB_ENV"
-          echo "AGC_GATEWAY_CLASS=${{ needs.provision.outputs.AGC_GATEWAY_CLASS || 'azure-alb-external' }}" >> "$GITHUB_ENV"
-          echo "AGC_SUBNET_ID=${{ needs.provision.outputs.AGC_SUBNET_ID }}" >> "$GITHUB_ENV"
-          echo "AGC_HOSTNAME=${{ needs.provision.outputs.AGC_FRONTEND_HOSTNAME }}" >> "$GITHUB_ENV"
-          echo "AGC_FRONTEND_HOSTNAME=${{ needs.provision.outputs.AGC_FRONTEND_HOSTNAME }}" >> "$GITHUB_ENV"
+          echo "AGC_GATEWAY_CLASS=$AGC_GATEWAY_CLASS_VALUE" >> "$GITHUB_ENV"
+          echo "AGC_SUBNET_ID=$AGC_SUBNET_ID_VALUE" >> "$GITHUB_ENV"
+
+          if [ -z "$AGC_SUBNET_ID_VALUE" ]; then
+            echo "::notice::No live AGC subnet association was available during render publication-context resolution. Later AGC readiness validation remains authoritative."
+          fi
 
           kubectl get gatewayclass -o wide || true
           kubectl get ingressclass -o wide || true
 
-          if [ "${{ needs.provision.outputs.AGC_SUPPORT_ENABLED || 'false' }}" = "true" ] && kubectl get gatewayclass "${{ needs.provision.outputs.AGC_GATEWAY_CLASS || 'azure-alb-external' }}" >/dev/null 2>&1; then
-            echo "Using AGC gateway class: ${{ needs.provision.outputs.AGC_GATEWAY_CLASS || 'azure-alb-external' }}"
+          if [ "${{ needs.provision.outputs.AGC_SUPPORT_ENABLED || 'false' }}" = "true" ] && kubectl get gatewayclass "$AGC_GATEWAY_CLASS_VALUE" >/dev/null 2>&1; then
+            echo "Using AGC gateway class: $AGC_GATEWAY_CLASS_VALUE"
           else
-            echo "AGC gateway class '${{ needs.provision.outputs.AGC_GATEWAY_CLASS || 'azure-alb-external' }}' is not ready yet. APIM sync will be blocked later by the AGC readiness gate if this remains unresolved." >&2
+            echo "AGC gateway class '$AGC_GATEWAY_CLASS_VALUE' is not ready yet. APIM sync will be blocked later by the AGC readiness gate if this remains unresolved." >&2
           fi
           echo "Legacy ingress classes are ignored by default. Use PUBLICATION_MODE=legacy or dual with an explicit LEGACY_INGRESS_CLASS_NAME only for rollback."
 
@@ -2450,12 +2511,50 @@ jobs:
         run: |
           set -euo pipefail
 
+          AGC_GATEWAY_CLASS_VALUE="${{ needs.provision.outputs.AGC_GATEWAY_CLASS || 'azure-alb-external' }}"
+          AGC_SUBNET_ID_VALUE="${{ needs.provision.outputs.AGC_SUBNET_ID }}"
+          SHARED_GATEWAY_JSON="$(kubectl get gateway holiday-peak-agc -n holiday-peak-crud -o json 2>/dev/null || true)"
+
+          get_first_alb_association() {
+            local alb_name="$1"
+            local alb_namespace="$2"
+
+            if [ -z "$alb_name" ] || [ -z "$alb_namespace" ]; then
+              return 0
+            fi
+
+            kubectl get applicationloadbalancer "$alb_name" -n "$alb_namespace" -o json 2>/dev/null \
+              | jq -r '.spec.associations[]? | select(type == "string" and . != "")' \
+              | head -n 1 || true
+          }
+
+          if [ -z "$AGC_SUBNET_ID_VALUE" ]; then
+            AGC_SUBNET_ID_VALUE="$(get_first_alb_association "holiday-peak-agc" "holiday-peak-crud")"
+            if [ -n "$AGC_SUBNET_ID_VALUE" ]; then
+              echo "::notice::Recovered AGC render subnet from the live shared ApplicationLoadBalancer association."
+            fi
+          fi
+
+          if [ -z "$AGC_SUBNET_ID_VALUE" ] && [ -n "$SHARED_GATEWAY_JSON" ]; then
+            AGC_SHARED_ALB_NAME="$(printf '%s' "$SHARED_GATEWAY_JSON" | jq -r '.metadata.annotations["alb.networking.azure.io/alb-name"] // empty' || true)"
+            AGC_SHARED_ALB_NAMESPACE="$(printf '%s' "$SHARED_GATEWAY_JSON" | jq -r '.metadata.annotations["alb.networking.azure.io/alb-namespace"] // empty' || true)"
+            if [ -z "$AGC_SHARED_ALB_NAMESPACE" ]; then
+              AGC_SHARED_ALB_NAMESPACE="holiday-peak-crud"
+            fi
+            AGC_SUBNET_ID_VALUE="$(get_first_alb_association "$AGC_SHARED_ALB_NAME" "$AGC_SHARED_ALB_NAMESPACE")"
+            if [ -n "$AGC_SUBNET_ID_VALUE" ]; then
+              echo "::notice::Recovered AGC render subnet from the ApplicationLoadBalancer referenced by the live shared Gateway."
+            fi
+          fi
+
           echo "PUBLICATION_MODE=agc" >> "$GITHUB_ENV"
           echo "AGC_SUPPORT_ENABLED=${{ needs.provision.outputs.AGC_SUPPORT_ENABLED || 'false' }}" >> "$GITHUB_ENV"
-          echo "AGC_GATEWAY_CLASS=${{ needs.provision.outputs.AGC_GATEWAY_CLASS || 'azure-alb-external' }}" >> "$GITHUB_ENV"
-          echo "AGC_SUBNET_ID=${{ needs.provision.outputs.AGC_SUBNET_ID }}" >> "$GITHUB_ENV"
-          echo "AGC_HOSTNAME=${{ needs.provision.outputs.AGC_FRONTEND_HOSTNAME }}" >> "$GITHUB_ENV"
-          echo "AGC_FRONTEND_HOSTNAME=${{ needs.provision.outputs.AGC_FRONTEND_HOSTNAME }}" >> "$GITHUB_ENV"
+          echo "AGC_GATEWAY_CLASS=$AGC_GATEWAY_CLASS_VALUE" >> "$GITHUB_ENV"
+          echo "AGC_SUBNET_ID=$AGC_SUBNET_ID_VALUE" >> "$GITHUB_ENV"
+
+          if [ -z "$AGC_SUBNET_ID_VALUE" ]; then
+            echo "::notice::No live AGC subnet association was available during render publication-context resolution. Later AGC readiness validation remains authoritative."
+          fi
 
       - name: Download tested image reference
         uses: actions/download-artifact@v4
@@ -2528,9 +2627,31 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Resolve publication branch
+        id: publication-branch
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          SOURCE_REF="${DEPLOY_SOURCE_REF}"
+
+          if [[ "$SOURCE_REF" != refs/heads/* ]]; then
+            echo "::error::Rendered manifest publication requires a pushable branch ref, but DEPLOY_SOURCE_REF='$SOURCE_REF'."
+            exit 1
+          fi
+
+          BRANCH_NAME="${SOURCE_REF#refs/heads/}"
+          if [ -z "$BRANCH_NAME" ]; then
+            echo "::error::Rendered manifest publication could not resolve a branch name from DEPLOY_SOURCE_REF='$SOURCE_REF'."
+            exit 1
+          fi
+
+          echo "branch_ref=$SOURCE_REF" >> "$GITHUB_OUTPUT"
+          echo "branch_name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ steps.publication-branch.outputs.branch_ref }}
           fetch-depth: 1
           token: ${{ github.token }}
 
@@ -2564,7 +2685,7 @@ jobs:
             exit 0
           fi
           git commit -m "deploy: update rendered manifests [skip ci]"
-          git push
+          git push origin "HEAD:refs/heads/${{ steps.publication-branch.outputs.branch_name }}"
 
   wait-flux-reconciliation:
     runs-on: ubuntu-latest
@@ -2611,13 +2732,45 @@ jobs:
           set -euo pipefail
           echo "Triggering Flux kustomization reconciliation..."
 
+          DEFAULT_BRANCH="${REPOSITORY_DEFAULT_BRANCH}"
+          SOURCE_REF="${DEPLOY_SOURCE_REF}"
+          FLUX_SOURCE="${FLUX_SOURCE_NAME}"
+          FLUX_NAMESPACE="${FLUX_SOURCE_NAMESPACE}"
+
+          if [ -z "$DEFAULT_BRANCH" ]; then
+            echo "::error::Repository default branch is required for Flux reconciliation."
+            exit 1
+          fi
+
+          PREVIEW_BRANCH=""
+          if [ "${{ inputs.environment }}" != "prod" ] && [[ "$SOURCE_REF" == refs/heads/* ]]; then
+            CANDIDATE_BRANCH="${SOURCE_REF#refs/heads/}"
+            if [ -n "$CANDIDATE_BRANCH" ] && [ "$CANDIDATE_BRANCH" != "$DEFAULT_BRANCH" ]; then
+              PREVIEW_BRANCH="$CANDIDATE_BRANCH"
+            fi
+          fi
+
+          if [ -n "$PREVIEW_BRANCH" ]; then
+            echo "Switching Flux source '${FLUX_SOURCE}' to preview branch '${PREVIEW_BRANCH}'."
+            PATCH=$(printf '{"spec":{"ref":{"branch":"%s"}}}' "$PREVIEW_BRANCH")
+            kubectl patch gitrepository.source.toolkit.fluxcd.io "$FLUX_SOURCE" -n "$FLUX_NAMESPACE" --type=merge -p "$PATCH"
+
+            ACTIVE_BRANCH=$(kubectl get gitrepository.source.toolkit.fluxcd.io "$FLUX_SOURCE" -n "$FLUX_NAMESPACE" -o jsonpath='{.spec.ref.branch}')
+            if [ "$ACTIVE_BRANCH" != "$PREVIEW_BRANCH" ]; then
+              echo "::error::Flux source '${FLUX_SOURCE}' expected branch '${PREVIEW_BRANCH}' but found '${ACTIVE_BRANCH}'."
+              exit 1
+            fi
+          else
+            echo "Using Flux source '${FLUX_SOURCE}' on default branch '${DEFAULT_BRANCH}'."
+          fi
+
           # Install Flux CLI if not present
           if ! command -v flux &>/dev/null; then
             curl -s https://fluxcd.io/install.sh | bash 2>/dev/null || true
           fi
 
           # Trigger reconciliation for both kustomizations
-          flux reconcile source git flux-system -n flux-system --timeout=2m || true
+          flux reconcile source git "$FLUX_SOURCE" -n "$FLUX_NAMESPACE" --timeout=2m || true
           flux reconcile kustomization holiday-peak-gitops-holiday-peak-crud -n flux-system --timeout=5m || true
           flux reconcile kustomization holiday-peak-gitops-holiday-peak-agents -n flux-system --timeout=5m || true
 
@@ -2676,18 +2829,19 @@ jobs:
 
   validate-agc-readiness:
     runs-on: ubuntu-latest
-    if: ${{ always() && !cancelled() && !inputs.uiOnly && (inputs.forceApimSync || needs.detect-changes.outputs.changed_agent_services_csv != '' || needs.detect-changes.outputs.crud_changed == 'true' || needs.detect-changes.outputs.ui_changed == 'true') && (needs.deploy-crud.result == 'success' || needs.deploy-crud.result == 'skipped') && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') }}
+    if: ${{ always() && !cancelled() && !inputs.uiOnly && (inputs.forceApimSync || needs.detect-changes.outputs.changed_agent_services_csv != '' || needs.detect-changes.outputs.crud_changed == 'true' || needs.detect-changes.outputs.ui_changed == 'true') && (needs.deploy-crud.result == 'success' || needs.deploy-crud.result == 'skipped') && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') && (needs.wait-flux-reconciliation.result == 'success' || needs.wait-flux-reconciliation.result == 'skipped') }}
     needs:
       - provision
       - deploy-crud
       - deploy-agents
       - detect-changes
+      - wait-flux-reconciliation
     environment: ${{ inputs.githubEnvironment }}
     outputs:
-      approved_backend_hostnames: ${{ steps.resolve.outputs.approved_backend_hostnames }}
-      approved_backend_scheme: ${{ steps.resolve.outputs.approved_backend_scheme }}
-      agc_gateway_class: ${{ steps.resolve.outputs.agc_gateway_class }}
-      agc_frontend_url: ${{ steps.resolve.outputs.agc_frontend_url }}
+      approved_backend_hostnames: ${{ steps.finalize.outputs.approved_backend_hostnames }}
+      approved_backend_scheme: ${{ steps.finalize.outputs.approved_backend_scheme }}
+      agc_gateway_class: ${{ steps.finalize.outputs.agc_gateway_class }}
+      agc_frontend_url: ${{ steps.finalize.outputs.agc_frontend_url }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -2712,16 +2866,9 @@ jobs:
           set -euo pipefail
           AGC_ENABLED="${{ needs.provision.outputs.AGC_SUPPORT_ENABLED || 'false' }}"
           AGC_GATEWAY_CLASS_VALUE="${{ needs.provision.outputs.AGC_GATEWAY_CLASS || 'azure-alb-external' }}"
-          AGC_FRONTEND_HOST_VALUE="${{ needs.provision.outputs.AGC_FRONTEND_HOSTNAME }}"
-          AGC_FRONTEND_SCHEME_VALUE="http"
 
           if [ "$AGC_ENABLED" != "true" ]; then
             echo "AGC support is not enabled for environment '${{ inputs.environment }}'. APIM sync cannot proceed without the canonical AGC edge." >&2
-            exit 1
-          fi
-
-          if [ -z "$AGC_FRONTEND_HOST_VALUE" ]; then
-            echo "AGC_FRONTEND_HOSTNAME is empty. APIM sync cannot proceed without an approved AGC hostname." >&2
             exit 1
           fi
 
@@ -2730,19 +2877,7 @@ jobs:
             exit 1
           fi
 
-          case "$AGC_FRONTEND_SCHEME_VALUE" in
-            http|https)
-              ;;
-            *)
-              echo "Unsupported AGC frontend scheme '$AGC_FRONTEND_SCHEME_VALUE'." >&2
-              exit 1
-              ;;
-          esac
-
-          echo "approved_backend_hostnames=$AGC_FRONTEND_HOST_VALUE" >> "$GITHUB_OUTPUT"
-          echo "approved_backend_scheme=$AGC_FRONTEND_SCHEME_VALUE" >> "$GITHUB_OUTPUT"
           echo "agc_gateway_class=$AGC_GATEWAY_CLASS_VALUE" >> "$GITHUB_OUTPUT"
-          echo "agc_frontend_url=${AGC_FRONTEND_SCHEME_VALUE}://${AGC_FRONTEND_HOST_VALUE}" >> "$GITHUB_OUTPUT"
 
       - name: Install kubelogin
         run: |
@@ -2783,35 +2918,559 @@ jobs:
           nslookup "$AKS_FQDN" || true
           exit 1
 
-      - name: Validate AGC gateway class and direct CRUD health
+      - name: Ensure preview Flux reconciliation for AGC readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          DEFAULT_BRANCH="${REPOSITORY_DEFAULT_BRANCH}"
+          SOURCE_REF="${DEPLOY_SOURCE_REF}"
+          FLUX_SOURCE="${FLUX_SOURCE_NAME}"
+          FLUX_NAMESPACE="${FLUX_SOURCE_NAMESPACE}"
+
+          if [ -z "$DEFAULT_BRANCH" ]; then
+            echo "::error::Repository default branch is required for AGC readiness Flux reconciliation."
+            exit 1
+          fi
+
+          if [ "${{ inputs.environment }}" = "prod" ] || [ "${{ inputs.environment }}" = "production" ]; then
+            echo "Skipping preview Flux reconciliation for production environment '${{ inputs.environment }}'."
+            exit 0
+          fi
+
+          if [[ "$SOURCE_REF" != refs/heads/* ]]; then
+            echo "Skipping preview Flux reconciliation because DEPLOY_SOURCE_REF '$SOURCE_REF' is not a branch ref."
+            exit 0
+          fi
+
+          PREVIEW_BRANCH="${SOURCE_REF#refs/heads/}"
+          if [ -z "$PREVIEW_BRANCH" ] || [ "$PREVIEW_BRANCH" = "$DEFAULT_BRANCH" ]; then
+            echo "Skipping preview Flux reconciliation because source branch '${PREVIEW_BRANCH:-<empty>}' matches the default branch '${DEFAULT_BRANCH}'."
+            exit 0
+          fi
+
+          echo "Ensuring Flux source '${FLUX_SOURCE}' is pinned to preview branch '${PREVIEW_BRANCH}' before AGC readiness validation."
+          PATCH=$(printf '{"spec":{"ref":{"branch":"%s"}}}' "$PREVIEW_BRANCH")
+          kubectl patch gitrepository.source.toolkit.fluxcd.io "$FLUX_SOURCE" -n "$FLUX_NAMESPACE" --type=merge -p "$PATCH"
+
+          ACTIVE_BRANCH=$(kubectl get gitrepository.source.toolkit.fluxcd.io "$FLUX_SOURCE" -n "$FLUX_NAMESPACE" -o jsonpath='{.spec.ref.branch}')
+          if [ "$ACTIVE_BRANCH" != "$PREVIEW_BRANCH" ]; then
+            echo "::error::Flux source '${FLUX_SOURCE}' expected branch '${PREVIEW_BRANCH}' but found '${ACTIVE_BRANCH}'."
+            exit 1
+          fi
+
+          if ! command -v flux >/dev/null 2>&1; then
+            curl -s https://fluxcd.io/install.sh | bash
+            export PATH="$HOME/.local/bin:$PATH"
+          fi
+
+          if ! command -v flux >/dev/null 2>&1; then
+            echo "::error::Flux CLI is unavailable after installation attempt."
+            exit 1
+          fi
+
+          flux reconcile source git "$FLUX_SOURCE" -n "$FLUX_NAMESPACE" --timeout=2m
+
+          SOURCE_REVISION=$(kubectl get gitrepository.source.toolkit.fluxcd.io "$FLUX_SOURCE" -n "$FLUX_NAMESPACE" -o jsonpath='{.status.artifact.revision}')
+          if [ -z "$SOURCE_REVISION" ]; then
+            echo "::error::Flux source '${FLUX_SOURCE}' did not publish an artifact revision after preview reconcile."
+            exit 1
+          fi
+
+          if [[ "$SOURCE_REVISION" != "$PREVIEW_BRANCH@"* ]]; then
+            echo "::error::Flux source '${FLUX_SOURCE}' fetched unexpected revision '${SOURCE_REVISION}' while preview branch '${PREVIEW_BRANCH}' was required."
+            exit 1
+          fi
+
+          request_preview_reconcile() {
+            local kustomization_name="$1"
+            local request_stamp="$2"
+            local strict_mode="$3"
+
+            if kubectl annotate kustomization.kustomize.toolkit.fluxcd.io "$kustomization_name" \
+              -n flux-system \
+              reconcile.fluxcd.io/requestedAt="$request_stamp" \
+              --overwrite >/dev/null; then
+              echo "Requested Flux reconcile for kustomization '${kustomization_name}'."
+              return 0
+            fi
+
+            if [ "$strict_mode" = "strict" ]; then
+              echo "::error::Failed to request preview reconcile for Flux kustomization '${kustomization_name}'."
+              exit 1
+            fi
+
+            echo "::warning::Failed to request preview reconcile for advisory Flux kustomization '${kustomization_name}'."
+            return 1
+          }
+
+          get_preview_observation_window() {
+            local kustomization_name="$1"
+            local configured_timeout=""
+
+            configured_timeout=$(kubectl get kustomization.kustomize.toolkit.fluxcd.io "$kustomization_name" -n flux-system -o jsonpath='{.spec.timeout}' 2>/dev/null || true)
+            if [ -n "$configured_timeout" ]; then
+              echo "${configured_timeout}|spec.timeout"
+              return 0
+            fi
+
+            configured_timeout=$(kubectl get kustomization.kustomize.toolkit.fluxcd.io "$kustomization_name" -n flux-system -o jsonpath='{.spec.interval}' 2>/dev/null || true)
+            if [ -n "$configured_timeout" ]; then
+              echo "${configured_timeout}|spec.interval"
+              return 0
+            fi
+
+            echo "5m0s|workflow-fallback"
+          }
+
+          duration_to_seconds() {
+            local duration="$1"
+            local total=0
+            local remaining="$duration"
+
+            if [ -z "$remaining" ]; then
+              echo "::error::Flux preview observation duration is empty." >&2
+              return 1
+            fi
+
+            while [ -n "$remaining" ]; do
+              if [[ "$remaining" =~ ^([0-9]+)h(.*)$ ]]; then
+                total=$((total + ${BASH_REMATCH[1]} * 3600))
+                remaining="${BASH_REMATCH[2]}"
+                continue
+              fi
+
+              if [[ "$remaining" =~ ^([0-9]+)m(.*)$ ]]; then
+                total=$((total + ${BASH_REMATCH[1]} * 60))
+                remaining="${BASH_REMATCH[2]}"
+                continue
+              fi
+
+              if [[ "$remaining" =~ ^([0-9]+)s(.*)$ ]]; then
+                total=$((total + ${BASH_REMATCH[1]}))
+                remaining="${BASH_REMATCH[2]}"
+                continue
+              fi
+
+              echo "::error::Unsupported Flux preview observation duration '${duration}'." >&2
+              return 1
+            done
+
+            echo "$total"
+          }
+
+          wait_for_preview_revision() {
+            local kustomization_name="$1"
+            local strict_mode="$2"
+            local observation_window=""
+            local observation_timeout=""
+            local observation_timeout_source=""
+            local observation_timeout_seconds=0
+            local poll_interval_seconds=10
+            local deadline_seconds=0
+            local sleep_seconds=0
+            local last_attempted_revision=""
+            local last_applied_revision=""
+            local ready_status=""
+            local ready_message=""
+
+            observation_window=$(get_preview_observation_window "$kustomization_name")
+            observation_timeout="${observation_window%%|*}"
+            observation_timeout_source="${observation_window#*|}"
+            observation_timeout_seconds=$(duration_to_seconds "$observation_timeout")
+            deadline_seconds=$((SECONDS + observation_timeout_seconds))
+
+            echo "Observing Flux kustomization '${kustomization_name}' for preview revision '${SOURCE_REVISION}' for up to '${observation_timeout}' from ${observation_timeout_source}."
+            if [ "$observation_timeout_source" != "spec.timeout" ]; then
+              echo "::notice::Flux kustomization '${kustomization_name}' does not declare spec.timeout; preview observation window falls back to '${observation_timeout}' from ${observation_timeout_source}."
+            fi
+
+            while :; do
+              last_attempted_revision=$(kubectl get kustomization.kustomize.toolkit.fluxcd.io "$kustomization_name" -n flux-system -o jsonpath='{.status.lastAttemptedRevision}' 2>/dev/null || true)
+              last_applied_revision=$(kubectl get kustomization.kustomize.toolkit.fluxcd.io "$kustomization_name" -n flux-system -o jsonpath='{.status.lastAppliedRevision}' 2>/dev/null || true)
+              ready_status=$(kubectl get kustomization.kustomize.toolkit.fluxcd.io "$kustomization_name" -n flux-system -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)
+              ready_message=$(kubectl get kustomization.kustomize.toolkit.fluxcd.io "$kustomization_name" -n flux-system -o jsonpath='{.status.conditions[?(@.type=="Ready")].message}' 2>/dev/null || true)
+
+              if [ "$last_attempted_revision" = "$SOURCE_REVISION" ] || [ "$last_applied_revision" = "$SOURCE_REVISION" ]; then
+                if [ "$ready_status" = "True" ]; then
+                  echo "Flux kustomization '${kustomization_name}' recorded preview revision '${SOURCE_REVISION}' and is Ready."
+                else
+                  echo "::notice::Flux kustomization '${kustomization_name}' recorded preview revision '${SOURCE_REVISION}' but is not Ready. Later AGC validation remains authoritative. Ready='${ready_status:-<empty>}' message='${ready_message:-<empty>}'"
+                fi
+                return 0
+              fi
+
+              if [ "$SECONDS" -ge "$deadline_seconds" ]; then
+                break
+              fi
+
+              sleep_seconds=$((deadline_seconds - SECONDS))
+              if [ "$sleep_seconds" -gt "$poll_interval_seconds" ]; then
+                sleep_seconds="$poll_interval_seconds"
+              fi
+
+              sleep "$sleep_seconds"
+            done
+
+            if [ "$strict_mode" = "strict" ]; then
+              echo "::error::Flux kustomization '${kustomization_name}' did not record preview revision '${SOURCE_REVISION}' within observation window '${observation_timeout}' (${observation_timeout_source}). Last attempted='${last_attempted_revision:-<empty>}' last applied='${last_applied_revision:-<empty>}' Ready='${ready_status:-<empty>}' message='${ready_message:-<empty>}'"
+              exit 1
+            fi
+
+            echo "::warning::Flux kustomization '${kustomization_name}' did not record preview revision '${SOURCE_REVISION}' within observation window '${observation_timeout}' (${observation_timeout_source}). Last attempted='${last_attempted_revision:-<empty>}' last applied='${last_applied_revision:-<empty>}' Ready='${ready_status:-<empty>}' message='${ready_message:-<empty>}'"
+          }
+
+          REQUESTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)-${GITHUB_RUN_ID:-manual}"
+          request_preview_reconcile holiday-peak-gitops-holiday-peak-crud "$REQUESTED_AT" strict
+          request_preview_reconcile holiday-peak-gitops-holiday-peak-agents "$REQUESTED_AT" advisory || true
+
+          wait_for_preview_revision holiday-peak-gitops-holiday-peak-crud strict
+          wait_for_preview_revision holiday-peak-gitops-holiday-peak-agents advisory
+
+          echo "Preview Flux reconciliation completed for AGC readiness validation."
+
+      - name: Finalize AGC readiness target
+        id: finalize
         shell: bash
         run: |
           set -euo pipefail
           AGC_GATEWAY_CLASS="${{ steps.resolve.outputs.agc_gateway_class }}"
-          AGC_FRONTEND_URL="${{ steps.resolve.outputs.agc_frontend_url }}"
+          AGC_FRONTEND_HOST_VALUE="${{ needs.provision.outputs.AGC_FRONTEND_HOSTNAME }}"
+          AGC_FRONTEND_SCHEME_VALUE="http"
+          AKS_RESOURCE_GROUP="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+          AKS_CLUSTER_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-aks"
+
+          resolve_frontend_from_alb_resource_group() {
+            local alb_resource_group="$1"
+            local alb_name=""
+            local frontend_fqdn=""
+
+            alb_name=$(az network alb list -g "$alb_resource_group" --query "[0].name" -o tsv 2>/dev/null || true)
+            if [ -z "${alb_name:-}" ]; then
+              return 0
+            fi
+
+            frontend_fqdn=$(az network alb frontend list -g "$alb_resource_group" --alb-name "$alb_name" --query "[0].fqdn" -o tsv 2>/dev/null || true)
+            if [ -n "${frontend_fqdn:-}" ]; then
+              AGC_FRONTEND_HOST_VALUE="$frontend_fqdn"
+              echo "::notice::Resolved AGC frontend hostname from ALB '$alb_name' in resource group '$alb_resource_group'."
+            fi
+          }
+
+          if [ -z "$AGC_FRONTEND_HOST_VALUE" ]; then
+            resolve_frontend_from_alb_resource_group "$AKS_RESOURCE_GROUP"
+          fi
+
+          if [ -z "$AGC_FRONTEND_HOST_VALUE" ]; then
+            AKS_NODE_RESOURCE_GROUP=$(az aks show -g "$AKS_RESOURCE_GROUP" -n "$AKS_CLUSTER_NAME" --query nodeResourceGroup -o tsv 2>/dev/null || true)
+            if [ -n "${AKS_NODE_RESOURCE_GROUP:-}" ] && [ "$AKS_NODE_RESOURCE_GROUP" != "$AKS_RESOURCE_GROUP" ]; then
+              resolve_frontend_from_alb_resource_group "$AKS_NODE_RESOURCE_GROUP"
+            fi
+          fi
+
+          if [ -z "$AGC_FRONTEND_HOST_VALUE" ]; then
+            SHARED_GATEWAY_HOST=$(kubectl get gateway holiday-peak-agc -n holiday-peak-crud -o json 2>/dev/null \
+              | jq -r '.status.addresses[]? | select(.value != null and .value != "") | .value' \
+              | head -n 1 || true)
+            if [ -n "$SHARED_GATEWAY_HOST" ]; then
+              AGC_FRONTEND_HOST_VALUE="$SHARED_GATEWAY_HOST"
+              echo "::notice::Resolved AGC frontend hostname from the live shared Gateway status address."
+            fi
+          fi
+
+          if [ -z "$AGC_FRONTEND_HOST_VALUE" ]; then
+            GATEWAY_CLASS_HOST=$(kubectl get gateway -A -o json 2>/dev/null \
+              | jq -r --arg gateway_class "$AGC_GATEWAY_CLASS" '[.items[] | select(.spec.gatewayClassName == $gateway_class) | .status.addresses[]? | select(.value != null and .value != "") | .value] | unique | .[0] // empty' || true)
+            if [ -n "$GATEWAY_CLASS_HOST" ]; then
+              AGC_FRONTEND_HOST_VALUE="$GATEWAY_CLASS_HOST"
+              echo "::notice::Resolved AGC frontend hostname from a live Gateway status address with GatewayClass '$AGC_GATEWAY_CLASS'."
+            fi
+          fi
+
+          if [ -z "$AGC_FRONTEND_HOST_VALUE" ]; then
+            echo "AGC_FRONTEND_HOSTNAME is empty and no approved AGC frontend could be resolved from Azure frontends or Gateway status addresses. APIM sync cannot proceed without an approved AGC hostname." >&2
+            exit 1
+          fi
+
+          case "$AGC_FRONTEND_SCHEME_VALUE" in
+            http|https)
+              ;;
+            *)
+              echo "Unsupported AGC frontend scheme '$AGC_FRONTEND_SCHEME_VALUE'." >&2
+              exit 1
+              ;;
+          esac
+
+          echo "approved_backend_hostnames=$AGC_FRONTEND_HOST_VALUE" >> "$GITHUB_OUTPUT"
+          echo "approved_backend_scheme=$AGC_FRONTEND_SCHEME_VALUE" >> "$GITHUB_OUTPUT"
+          echo "agc_gateway_class=$AGC_GATEWAY_CLASS" >> "$GITHUB_OUTPUT"
+          echo "agc_frontend_url=${AGC_FRONTEND_SCHEME_VALUE}://${AGC_FRONTEND_HOST_VALUE}" >> "$GITHUB_OUTPUT"
+
+      - name: Validate AGC gateway class and direct CRUD health
+        shell: bash
+        run: |
+          set -euo pipefail
+          AGC_GATEWAY_CLASS="${{ steps.finalize.outputs.agc_gateway_class }}"
+          AGC_FRONTEND_URL="${{ steps.finalize.outputs.agc_frontend_url }}"
+          AKS_RESOURCE_GROUP="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+          AKS_CLUSTER_NAME="${{ inputs.projectName }}-${{ inputs.environment }}-aks"
 
           kubectl get gatewayclass "$AGC_GATEWAY_CLASS" >/dev/null 2>&1 || {
             echo "GatewayClass '$AGC_GATEWAY_CLASS' is not available in the cluster." >&2
             exit 1
           }
 
-          for attempt in $(seq 1 20); do
-            if ! STATUS_CODE=$(curl -sS -o /tmp/agc-health.json -w "%{http_code}" "${AGC_FRONTEND_URL%/}/health"); then
-              STATUS_CODE="000"
+          SHARED_ALB_NAME="holiday-peak-agc"
+          SHARED_ALB_NAMESPACE="holiday-peak-crud"
+          SHARED_GATEWAY_NAME="holiday-peak-agc"
+          SHARED_GATEWAY_NAMESPACE="holiday-peak-crud"
+
+          if ! SHARED_ALB_JSON=$(kubectl get applicationloadbalancer "$SHARED_ALB_NAME" -n "$SHARED_ALB_NAMESPACE" -o json 2>/dev/null); then
+            echo "::error::Live shared ApplicationLoadBalancer '$SHARED_ALB_NAME' in namespace '$SHARED_ALB_NAMESPACE' could not be retrieved for AGC readiness validation." >&2
+            exit 1
+          fi
+
+          ALB_ACCEPTED_STATUS=$(printf '%s' "$SHARED_ALB_JSON" | jq -r '[.status.conditions[]? | select(.type == "Accepted") | .status] | first // empty')
+          ALB_ACCEPTED_MESSAGE=$(printf '%s' "$SHARED_ALB_JSON" | jq -r '[.status.conditions[]? | select(.type == "Accepted") | .message] | first // empty')
+          ALB_DEPLOYMENT_STATUS=$(printf '%s' "$SHARED_ALB_JSON" | jq -r '[.status.conditions[]? | select(.type == "Deployment") | .status] | first // empty')
+          ALB_DEPLOYMENT_MESSAGE=$(printf '%s' "$SHARED_ALB_JSON" | jq -r '[.status.conditions[]? | select(.type == "Deployment") | .message] | first // empty')
+          ALB_ASSOCIATION_COUNT=$(printf '%s' "$SHARED_ALB_JSON" | jq -r '(.spec.associations // []) | length')
+          ALB_CONTRACT_EVIDENCE=$(printf "ApplicationLoadBalancer='%s/%s' Accepted='%s' acceptedMessage='%s' Deployment='%s' deploymentMessage='%s' associations='%s'" \
+            "$SHARED_ALB_NAMESPACE" \
+            "$SHARED_ALB_NAME" \
+            "${ALB_ACCEPTED_STATUS:-<empty>}" \
+            "${ALB_ACCEPTED_MESSAGE:-<empty>}" \
+            "${ALB_DEPLOYMENT_STATUS:-<empty>}" \
+            "${ALB_DEPLOYMENT_MESSAGE:-<empty>}" \
+            "${ALB_ASSOCIATION_COUNT:-0}")
+
+          echo "Live shared ApplicationLoadBalancer evidence: ${ALB_CONTRACT_EVIDENCE}"
+
+          if [ "$ALB_ACCEPTED_STATUS" != "True" ]; then
+            echo "::error::Live shared ApplicationLoadBalancer '$SHARED_ALB_NAME' in namespace '$SHARED_ALB_NAMESPACE' is not Accepted before Gateway validation. ${ALB_CONTRACT_EVIDENCE}" >&2
+            exit 1
+          fi
+
+          if [ "$ALB_DEPLOYMENT_STATUS" != "True" ]; then
+            echo "::error::Live shared ApplicationLoadBalancer '$SHARED_ALB_NAME' in namespace '$SHARED_ALB_NAMESPACE' is not fully deployed before Gateway validation. ${ALB_CONTRACT_EVIDENCE}" >&2
+            exit 1
+          fi
+
+          AKS_NODE_RESOURCE_GROUP=$(az aks show -g "$AKS_RESOURCE_GROUP" -n "$AKS_CLUSTER_NAME" --query nodeResourceGroup -o tsv)
+          if [ -z "$AKS_NODE_RESOURCE_GROUP" ]; then
+            echo "::error::AKS node resource group could not be resolved for cluster '$AKS_CLUSTER_NAME'." >&2
+            exit 1
+          fi
+
+          mapfile -t TRAFFIC_CONTROLLER_IDS < <(az resource list -g "$AKS_NODE_RESOURCE_GROUP" --resource-type Microsoft.ServiceNetworking/trafficControllers --query '[].id' -o tsv)
+          if [ "${#TRAFFIC_CONTROLLER_IDS[@]}" -eq 0 ]; then
+            echo "::error::No Azure Application Gateway for Containers trafficControllers were found in node resource group '$AKS_NODE_RESOURCE_GROUP'." >&2
+            exit 1
+          fi
+
+          HEALTHY_TRAFFIC_CONTROLLER_COUNT=0
+          TRAFFIC_CONTROLLER_EVIDENCE=""
+          for controller_id in "${TRAFFIC_CONTROLLER_IDS[@]}"; do
+            [ -z "$controller_id" ] && continue
+            controller_json=$(az resource show --ids "$controller_id" -o json)
+            controller_name=$(printf '%s' "$controller_json" | jq -r '.name // empty')
+            controller_state=$(printf '%s' "$controller_json" | jq -r '.properties.provisioningState // empty')
+            controller_frontends=$(printf '%s' "$controller_json" | jq -r '(.properties.frontends // []) | length')
+            controller_associations=$(printf '%s' "$controller_json" | jq -r '(.properties.associations // []) | length')
+
+            if [ -n "$TRAFFIC_CONTROLLER_EVIDENCE" ]; then
+              TRAFFIC_CONTROLLER_EVIDENCE="${TRAFFIC_CONTROLLER_EVIDENCE}; "
             fi
 
-            if [ "$STATUS_CODE" = "200" ]; then
-              echo "Validated direct AGC CRUD health via ${AGC_FRONTEND_URL%/}/health"
-              exit 0
-            fi
+            TRAFFIC_CONTROLLER_EVIDENCE="${TRAFFIC_CONTROLLER_EVIDENCE}${controller_name:-<unknown>}: provisioningState=${controller_state:-<empty>} frontends=${controller_frontends:-0} associations=${controller_associations:-0}"
 
-            echo "Attempt $attempt/20 failed for direct AGC health with HTTP $STATUS_CODE"
-            sleep 10
+            if [ "$controller_state" = "Succeeded" ] && [ "$controller_frontends" -gt 0 ] && [ "$controller_associations" -gt 0 ]; then
+              HEALTHY_TRAFFIC_CONTROLLER_COUNT=$((HEALTHY_TRAFFIC_CONTROLLER_COUNT + 1))
+            fi
           done
 
-          echo "AGC readiness validation failed for ${AGC_FRONTEND_URL%/}/health" >&2
-          cat /tmp/agc-health.json 2>/dev/null || true
-          exit 1
+          echo "Traffic controller evidence: ${TRAFFIC_CONTROLLER_EVIDENCE}"
+
+          if [ "$HEALTHY_TRAFFIC_CONTROLLER_COUNT" -eq 0 ]; then
+            echo "::error::No healthy Azure Application Gateway for Containers trafficController with populated frontends and associations was found before Gateway validation. ${TRAFFIC_CONTROLLER_EVIDENCE}" >&2
+            exit 1
+          fi
+
+          if ! SHARED_GATEWAY_JSON=$(kubectl get gateway "$SHARED_GATEWAY_NAME" -n "$SHARED_GATEWAY_NAMESPACE" -o json 2>/dev/null); then
+            echo "::error::Live shared Gateway '$SHARED_GATEWAY_NAME' in namespace '$SHARED_GATEWAY_NAMESPACE' could not be retrieved for AGC readiness validation." >&2
+            exit 1
+          fi
+
+          LIVE_GATEWAY_CLASS=$(printf '%s' "$SHARED_GATEWAY_JSON" | jq -r '.spec.gatewayClassName // empty')
+          AGC_SHARED_ALB_NAME=$(printf '%s' "$SHARED_GATEWAY_JSON" | jq -r '.metadata.annotations["alb.networking.azure.io/alb-name"] // empty')
+          AGC_SHARED_ALB_NAMESPACE=$(printf '%s' "$SHARED_GATEWAY_JSON" | jq -r '.metadata.annotations["alb.networking.azure.io/alb-namespace"] // empty')
+          GATEWAY_ACCEPTED_STATUS=$(printf '%s' "$SHARED_GATEWAY_JSON" | jq -r '[.status.conditions[]? | select(.type == "Accepted") | .status] | first // empty')
+          GATEWAY_ACCEPTED_MESSAGE=$(printf '%s' "$SHARED_GATEWAY_JSON" | jq -r '[.status.conditions[]? | select(.type == "Accepted") | .message] | first // empty')
+          GATEWAY_PROGRAMMED_STATUS=$(printf '%s' "$SHARED_GATEWAY_JSON" | jq -r '[.status.conditions[]? | select(.type == "Programmed") | .status] | first // empty')
+          GATEWAY_PROGRAMMED_MESSAGE=$(printf '%s' "$SHARED_GATEWAY_JSON" | jq -r '[.status.conditions[]? | select(.type == "Programmed") | .message] | first // empty')
+          GATEWAY_STATUS_ADDRESS=$(printf '%s' "$SHARED_GATEWAY_JSON" | jq -r '[.status.addresses[]? | select(.value != null and .value != "") | .value] | first // empty')
+          GATEWAY_CONTRACT_EVIDENCE=$(printf "GatewayClass='%s' alb.networking.azure.io/alb-name='%s' alb.networking.azure.io/alb-namespace='%s' Accepted='%s' acceptedMessage='%s' Programmed='%s' programmedMessage='%s' address='%s'" \
+            "${LIVE_GATEWAY_CLASS:-<empty>}" \
+            "${AGC_SHARED_ALB_NAME:-<empty>}" \
+            "${AGC_SHARED_ALB_NAMESPACE:-<empty>}" \
+            "${GATEWAY_ACCEPTED_STATUS:-<empty>}" \
+            "${GATEWAY_ACCEPTED_MESSAGE:-<empty>}" \
+            "${GATEWAY_PROGRAMMED_STATUS:-<empty>}" \
+            "${GATEWAY_PROGRAMMED_MESSAGE:-<empty>}" \
+            "${GATEWAY_STATUS_ADDRESS:-<empty>}")
+
+          echo "Live shared Gateway evidence: ${GATEWAY_CONTRACT_EVIDENCE}"
+
+          if [ -z "$AGC_SHARED_ALB_NAME" ] || [ -z "$AGC_SHARED_ALB_NAMESPACE" ]; then
+            echo "::error::Live shared Gateway '$SHARED_GATEWAY_NAME' in namespace '$SHARED_GATEWAY_NAMESPACE' is missing required AGC binding annotations before direct health validation. ${GATEWAY_CONTRACT_EVIDENCE}" >&2
+            exit 1
+          fi
+
+          if [ "$AGC_SHARED_ALB_NAME" != "$SHARED_ALB_NAME" ] || [ "$AGC_SHARED_ALB_NAMESPACE" != "$SHARED_ALB_NAMESPACE" ]; then
+            echo "::error::Live shared Gateway '$SHARED_GATEWAY_NAME' in namespace '$SHARED_GATEWAY_NAMESPACE' is bound to unexpected AGC resource '${AGC_SHARED_ALB_NAMESPACE:-<empty>}/${AGC_SHARED_ALB_NAME:-<empty>}' before direct health validation. ${GATEWAY_CONTRACT_EVIDENCE}" >&2
+            exit 1
+          fi
+
+          if [ "$GATEWAY_ACCEPTED_STATUS" != "True" ]; then
+            echo "::error::Live shared Gateway '$SHARED_GATEWAY_NAME' in namespace '$SHARED_GATEWAY_NAMESPACE' is not Accepted before direct health validation. ${GATEWAY_CONTRACT_EVIDENCE}" >&2
+            exit 1
+          fi
+
+          if [ "$GATEWAY_PROGRAMMED_STATUS" != "True" ]; then
+            echo "::error::Live shared Gateway '$SHARED_GATEWAY_NAME' in namespace '$SHARED_GATEWAY_NAMESPACE' is not Programmed before direct health validation. ${GATEWAY_CONTRACT_EVIDENCE}" >&2
+            exit 1
+          fi
+
+          if [ -z "$GATEWAY_STATUS_ADDRESS" ]; then
+            echo "::error::Live shared Gateway '$SHARED_GATEWAY_NAME' in namespace '$SHARED_GATEWAY_NAMESPACE' has no status address before direct health validation. ${GATEWAY_CONTRACT_EVIDENCE}" >&2
+            exit 1
+          fi
+
+          route_namespace_for_service() {
+            local service_name="$1"
+
+            if [ "$service_name" = "crud-service" ]; then
+              printf '%s' 'holiday-peak-crud'
+              return 0
+            fi
+
+            printf '%s' 'holiday-peak-agents'
+          }
+
+          route_name_for_service() {
+            local service_name="$1"
+            printf '%s-%s-agc' "$service_name" "$service_name"
+          }
+
+          direct_health_path_for_service() {
+            local service_name="$1"
+
+            if [ "$service_name" = "crud-service" ]; then
+              printf '%s' '/health'
+              return 0
+            fi
+
+            printf '/%s/health' "$service_name"
+          }
+
+          validate_route_parent_status() {
+            local service_name="$1"
+            local route_namespace="$2"
+            local route_name="$3"
+            local route_json=""
+            local route_parent_count=0
+            local route_accepted_status=""
+            local route_accepted_message=""
+            local route_resolved_refs_status=""
+            local route_resolved_refs_message=""
+            local route_evidence=""
+
+            if ! route_json=$(kubectl get httproute "$route_name" -n "$route_namespace" -o json 2>/dev/null); then
+              echo "::error::Expected HTTPRoute '$route_name' in namespace '$route_namespace' was not found before direct AGC health validation for service '$service_name'." >&2
+              exit 1
+            fi
+
+            route_parent_count=$(printf '%s' "$route_json" | jq -r --arg gateway_name "$SHARED_GATEWAY_NAME" --arg gateway_namespace "$SHARED_GATEWAY_NAMESPACE" '[.status.parents[]? | select((.parentRef.name // "") == $gateway_name and ((.parentRef.namespace // $gateway_namespace) == $gateway_namespace))] | length')
+            route_accepted_status=$(printf '%s' "$route_json" | jq -r --arg gateway_name "$SHARED_GATEWAY_NAME" --arg gateway_namespace "$SHARED_GATEWAY_NAMESPACE" '[.status.parents[]? | select((.parentRef.name // "") == $gateway_name and ((.parentRef.namespace // $gateway_namespace) == $gateway_namespace)) | .conditions[]? | select(.type == "Accepted") | .status] | first // empty')
+            route_accepted_message=$(printf '%s' "$route_json" | jq -r --arg gateway_name "$SHARED_GATEWAY_NAME" --arg gateway_namespace "$SHARED_GATEWAY_NAMESPACE" '[.status.parents[]? | select((.parentRef.name // "") == $gateway_name and ((.parentRef.namespace // $gateway_namespace) == $gateway_namespace)) | .conditions[]? | select(.type == "Accepted") | .message] | first // empty')
+            route_resolved_refs_status=$(printf '%s' "$route_json" | jq -r --arg gateway_name "$SHARED_GATEWAY_NAME" --arg gateway_namespace "$SHARED_GATEWAY_NAMESPACE" '[.status.parents[]? | select((.parentRef.name // "") == $gateway_name and ((.parentRef.namespace // $gateway_namespace) == $gateway_namespace)) | .conditions[]? | select(.type == "ResolvedRefs") | .status] | first // empty')
+            route_resolved_refs_message=$(printf '%s' "$route_json" | jq -r --arg gateway_name "$SHARED_GATEWAY_NAME" --arg gateway_namespace "$SHARED_GATEWAY_NAMESPACE" '[.status.parents[]? | select((.parentRef.name // "") == $gateway_name and ((.parentRef.namespace // $gateway_namespace) == $gateway_namespace)) | .conditions[]? | select(.type == "ResolvedRefs") | .message] | first // empty')
+            route_evidence=$(printf "HTTPRoute='%s/%s' parentCount='%s' Accepted='%s' acceptedMessage='%s' ResolvedRefs='%s' resolvedRefsMessage='%s'" \
+              "$route_namespace" \
+              "$route_name" \
+              "${route_parent_count:-0}" \
+              "${route_accepted_status:-<empty>}" \
+              "${route_accepted_message:-<empty>}" \
+              "${route_resolved_refs_status:-<empty>}" \
+              "${route_resolved_refs_message:-<empty>}")
+
+            echo "Route evidence: ${route_evidence}"
+
+            if [ "$route_parent_count" = "0" ]; then
+              echo "::error::HTTPRoute '$route_name' in namespace '$route_namespace' has no parent status attached to shared Gateway '$SHARED_GATEWAY_NAME'. ${route_evidence}" >&2
+              exit 1
+            fi
+
+            if [ "$route_accepted_status" != "True" ]; then
+              echo "::error::HTTPRoute '$route_name' in namespace '$route_namespace' is not Accepted for shared Gateway '$SHARED_GATEWAY_NAME'. ${route_evidence}" >&2
+              exit 1
+            fi
+
+            if [ -n "$route_resolved_refs_status" ] && [ "$route_resolved_refs_status" != "True" ]; then
+              echo "::error::HTTPRoute '$route_name' in namespace '$route_namespace' has unresolved backend references for shared Gateway '$SHARED_GATEWAY_NAME'. ${route_evidence}" >&2
+              exit 1
+            fi
+          }
+
+          probe_direct_agc_health() {
+            local path="$1"
+            local label="$2"
+            local response_file="/tmp/${label}.json"
+            local status_code=""
+
+            for attempt in $(seq 1 20); do
+              if ! status_code=$(curl -sS -o "$response_file" -w "%{http_code}" "${AGC_FRONTEND_URL%/}${path}"); then
+                status_code="000"
+              fi
+
+              if [ "$status_code" = "200" ]; then
+                echo "Validated ${label} via ${AGC_FRONTEND_URL%/}${path}"
+                return 0
+              fi
+
+              echo "Attempt $attempt/20 failed for ${label} with HTTP $status_code"
+              sleep 10
+            done
+
+            echo "AGC readiness validation failed for ${AGC_FRONTEND_URL%/}${path}" >&2
+            cat "$response_file" 2>/dev/null || true
+            exit 1
+          }
+
+          echo "Live shared Gateway contract passed. Validating route attachment before direct AGC health checks."
+
+          validate_route_parent_status "crud-service" "$(route_namespace_for_service crud-service)" "$(route_name_for_service crud-service)"
+
+          if [ -n "${CHANGED_AGENT_SERVICES:-}" ]; then
+            IFS=',' read -r -a agent_services <<< "${CHANGED_AGENT_SERVICES}"
+            for svc in "${agent_services[@]}"; do
+              [ -z "$svc" ] && continue
+              validate_route_parent_status "$svc" "$(route_namespace_for_service "$svc")" "$(route_name_for_service "$svc")"
+            done
+          else
+            echo "No changed agent services detected; skipping agent HTTPRoute attachment validation."
+          fi
+
+          probe_direct_agc_health "$(direct_health_path_for_service crud-service)" "direct-agc-crud-health"
+
+          if [ -n "${CHANGED_AGENT_SERVICES:-}" ]; then
+            for svc in "${agent_services[@]}"; do
+              [ -z "$svc" ] && continue
+              probe_direct_agc_health "$(direct_health_path_for_service "$svc")" "direct-agc-agent-health-${svc}"
+            done
+          else
+            echo "No changed agent services detected; skipping direct AGC agent health validation."
+          fi
 
   sync-apim:
     runs-on: ubuntu-latest
@@ -3413,4 +4072,114 @@ jobs:
               issue_number: 298,
               body,
             });
+
+  restore-flux-source-default-branch:
+    runs-on: ubuntu-latest
+    if: ${{ always() && !cancelled() && !inputs.uiOnly }}
+    needs:
+      - commit-rendered-manifests
+      - wait-flux-reconciliation
+      - validate-agc-readiness
+      - sync-apim
+      - sync-apic
+      - smoke-apim
+      - deploy-ui
+      - ensure-foundry-agents
+      - watchdog-apim-agc-swa-drift
+    environment: ${{ inputs.githubEnvironment }}
+    permissions:
+      id-token: write
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - name: Resolve Flux preview cleanup
+        id: preview
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          DEFAULT_BRANCH="${REPOSITORY_DEFAULT_BRANCH}"
+          SOURCE_REF="${DEPLOY_SOURCE_REF}"
+
+          if [ -z "$DEFAULT_BRANCH" ]; then
+            echo "::error::Repository default branch is required for Flux cleanup."
+            exit 1
+          fi
+
+          if [ "${{ inputs.environment }}" = "prod" ] || [[ "$SOURCE_REF" != refs/heads/* ]]; then
+            echo "preview_branch=" >> "$GITHUB_OUTPUT"
+            echo "No Flux preview cleanup required."
+            exit 0
+          fi
+
+          CANDIDATE_BRANCH="${SOURCE_REF#refs/heads/}"
+          if [ -z "$CANDIDATE_BRANCH" ] || [ "$CANDIDATE_BRANCH" = "$DEFAULT_BRANCH" ]; then
+            echo "preview_branch=" >> "$GITHUB_OUTPUT"
+            echo "No Flux preview cleanup required."
+            exit 0
+          fi
+
+          echo "preview_branch=$CANDIDATE_BRANCH" >> "$GITHUB_OUTPUT"
+          echo "default_branch=$DEFAULT_BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Azure login (OIDC)
+        if: ${{ steps.preview.outputs.preview_branch != '' }}
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install kubelogin
+        if: ${{ steps.preview.outputs.preview_branch != '' }}
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if az aks install-cli --kubelogin-version latest; then
+              exit 0
+            fi
+            echo "kubelogin install failed on attempt ${attempt}; retrying..."
+            sleep 15
+          done
+          echo "kubelogin install failed after retries"
+          exit 1
+
+      - name: Get AKS credentials
+        if: ${{ steps.preview.outputs.preview_branch != '' }}
+        run: |
+          az aks get-credentials \
+            --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
+            --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
+            --overwrite-existing
+          kubelogin convert-kubeconfig -l azurecli
+
+      - name: Restore Flux source to default branch
+        if: ${{ steps.preview.outputs.preview_branch != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          FLUX_SOURCE="${FLUX_SOURCE_NAME}"
+          FLUX_NAMESPACE="${FLUX_SOURCE_NAMESPACE}"
+          DEFAULT_BRANCH="${{ steps.preview.outputs.default_branch }}"
+          PREVIEW_BRANCH="${{ steps.preview.outputs.preview_branch }}"
+
+          echo "Restoring Flux source '${FLUX_SOURCE}' from preview branch '${PREVIEW_BRANCH}' to default branch '${DEFAULT_BRANCH}'."
+          PATCH=$(printf '{"spec":{"ref":{"branch":"%s"}}}' "$DEFAULT_BRANCH")
+          kubectl patch gitrepository.source.toolkit.fluxcd.io "$FLUX_SOURCE" -n "$FLUX_NAMESPACE" --type=merge -p "$PATCH"
+
+          ACTIVE_BRANCH=$(kubectl get gitrepository.source.toolkit.fluxcd.io "$FLUX_SOURCE" -n "$FLUX_NAMESPACE" -o jsonpath='{.spec.ref.branch}')
+          if [ "$ACTIVE_BRANCH" != "$DEFAULT_BRANCH" ]; then
+            echo "::error::Flux source '${FLUX_SOURCE}' expected branch '${DEFAULT_BRANCH}' but found '${ACTIVE_BRANCH}'."
+            exit 1
+          fi
+
+          if ! command -v flux &>/dev/null; then
+            curl -s https://fluxcd.io/install.sh | bash 2>/dev/null || true
+          fi
+
+          flux reconcile source git "$FLUX_SOURCE" -n "$FLUX_NAMESPACE" --timeout=2m || true
+          flux reconcile kustomization holiday-peak-gitops-holiday-peak-crud -n flux-system --timeout=5m || true
+          flux reconcile kustomization holiday-peak-gitops-holiday-peak-agents -n flux-system --timeout=5m || true
 

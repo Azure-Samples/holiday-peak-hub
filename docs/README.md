@@ -45,7 +45,10 @@ The Python CLI in `.infra/cli.py` is scaffolding-only (`generate-bicep`, `genera
 
 In addition to the shared environment entrypoints, the repository supports thin service-scoped GitHub workflow wrappers for agent-by-agent deployment operations. These wrappers forward to the reusable azd deployment engine and can target an explicit branch or commit SHA without first merging to `main`.
 
-Push-triggered service and UI wrapper runs now use a non-protected GitHub deployment context while still targeting the selected Azure environment. This keeps feature-branch validation unblocked without weakening the protected `dev` live-validation boundary or the protected production release path.
+Push-triggered service and UI wrapper runs now use GitHub Environment `branch` as the non-protected deployment context while still targeting the selected Azure environment. Azure federated credentials for these preview paths must trust the environment-scoped OIDC subject for `branch`, not only `ref:refs/heads/*` subjects. This keeps feature-branch validation unblocked without weakening the protected `dev` live-validation boundary or the protected production release path.
+
+When a non-prod wrapper run targets a non-default `refs/heads/*` source, the reusable workflow temporarily repoints `GitRepository/holiday-peak-gitops` in `flux-system` to that branch, verifies Flux fetched the preview revision, waits only for the AGC-relevant Flux kustomization to record that preview revision while honoring that live kustomization's configured Flux timeout window, evaluates AGC readiness against the live gateway, and then restores the repository default branch in an always-run cleanup job. This preview-preparation step is intentionally decoupled from unrelated CRUD workload readiness in the wider kustomization; the later AGC readiness gate remains strict.
+When that AGC readiness gate runs, it validates the live shared `ApplicationLoadBalancer/holiday-peak-agc`, confirms Azure traffic-controller health in the AKS node resource group, checks the CRUD-owned `Gateway/holiday-peak-agc` binding contract in `holiday-peak-crud`, verifies shared-Gateway parent attachment for CRUD plus changed-agent `HTTPRoute` resources, and only then enters the direct frontend health loop against the approved AGC hostname.
 
 Examples:
 
@@ -124,9 +127,11 @@ Core workflow note: `.github/workflows/deploy-azd.yml` is reusable-only and not 
 3. `deploy-crud` job: renders and applies the `crud-service` Helm manifest pinned to the tested image digest when CRUD/lib changes are detected.
 4. `deploy-foundry-models` and `deploy-agents` jobs: run after provision; `deploy-agents` deploys changed agent services from prebuilt digest-pinned manifests (and can proceed when `deploy-crud` is skipped for agent-only changes).
 5. `ensure-foundry-agents` job: re-renders changed agent manifests with the workflow's strict/auto-ensure contract, compares rendered env values against live AKS Deployments, then validates `POST /foundry/agents/ensure` plus `/ready` for each changed agent service.
-6. `sync-apim` and `smoke-apim` jobs: run when CRUD/agent changes are present or `forceApimSync=true`.
-7. `deploy-ui` job (when `deployStatic=true`): runs after APIM sync/smoke gates, resolves APIM URL with fail-fast validation, fetches the SWA deployment token from Azure, and deploys `apps/ui` via `Azure/static-web-apps-deploy@v1` (framework-aware build for dynamic Next.js routes).
-8. Demo data seeding is operator-driven and must be run locally (outside CI) when needed.
+6. `commit-rendered-manifests` job: republishes rendered GitOps manifests back to the tested branch when wrapper-driven AKS deployments change Flux-managed services.
+7. `wait-flux-reconciliation` and `validate-agc-readiness` jobs: branch-preview validation first reconciles Flux against the published preview branch, then confirms the preview source plus the AGC-relevant Flux kustomization have recorded the tested revision without coupling that preparation step to unrelated CRUD workload readiness, resolves the approved AGC hostname from azd outputs, the ALB frontend in the environment RG or AKS node RG, or the live shared Gateway status address after AKS credentials are available, validates the live shared `ApplicationLoadBalancer` contract plus Azure traffic-controller health, checks the live shared Gateway binding contract (`alb.networking.azure.io/alb-name`, `alb.networking.azure.io/alb-namespace`) plus `Accepted=True`, `Programmed=True`, and an assigned status address, requires shared-Gateway parent attachment for CRUD and changed-agent `HTTPRoute` resources, and only then probes direct AGC CRUD plus changed-agent health before APIM sync.
+8. `sync-apim` and `smoke-apim` jobs: run when CRUD/agent changes are present or `forceApimSync=true`.
+9. `deploy-ui` job (when `deployStatic=true`): runs after APIM sync/smoke gates, resolves APIM URL with fail-fast validation, fetches the SWA deployment token from Azure, and deploys `apps/ui` via `Azure/static-web-apps-deploy@v1` (framework-aware build for dynamic Next.js routes).
+10. Demo data seeding is operator-driven and must be run locally (outside CI) when needed.
 
 **Operational notes**:
 

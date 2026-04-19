@@ -37,6 +37,8 @@ agc:
     applicationLoadBalancerName: "holiday-peak-agc"
     gatewayName: "holiday-peak-agc"
     subnetId: ""
+    albId: ""
+    allowedRouteNamespaces: "All"
     listeners:
       - name: http
         protocol: HTTP
