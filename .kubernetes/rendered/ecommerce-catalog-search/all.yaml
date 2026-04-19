@@ -94,7 +94,7 @@ spec:
             - name: COSMOS_DATABASE
               value: "holiday-peak-db"
             - name: CRUD_SERVICE_URL
-              value: "https://holidaypeakhub405-dev-apim.azure-api.net"
+              value: "http://crud-service-crud-service.holiday-peak-crud.svc.cluster.local:80"
             - name: EMBEDDING_DEPLOYMENT_NAME
               value: "text-embedding-3-large"
             - name: EVENT_HUB_NAMESPACE
@@ -106,7 +106,9 @@ spec:
             - name: FOUNDRY_AUTO_ENSURE_ON_STARTUP
               value: "true"
             - name: FOUNDRY_STREAM
-              value: "false"
+              value: "true"
+            - name: AGENT_FOUNDRY_INVOKE_TIMEOUT_SECONDS
+              value: "60"
             - name: FOUNDRY_STRICT_ENFORCEMENT
               value: "false"
             - name: KEY_VAULT_URI
