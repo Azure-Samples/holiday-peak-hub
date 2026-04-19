@@ -104,7 +104,9 @@ spec:
             - name: FOUNDRY_AUTO_ENSURE_ON_STARTUP
               value: "true"
             - name: FOUNDRY_STREAM
-              value: "false"
+              value: "true"
+            - name: AGENT_FOUNDRY_INVOKE_TIMEOUT_SECONDS
+              value: "60"
             - name: FOUNDRY_STRICT_ENFORCEMENT
               value: "false"
             - name: KEY_VAULT_URI
