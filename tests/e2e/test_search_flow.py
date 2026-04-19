@@ -273,7 +273,9 @@ async def test_ai_search_unavailable_uses_fallback_path(
         ),
     ):
         agent = CatalogSearchAgent(config=agent_config_without_models)
-        result = await agent.handle({"query": "explorer headphones", "limit": 4})
+        # Use keyword mode to exercise the search_catalog_skus_detailed fallback
+        # path; intelligent mode bypasses it via direct keyword_search/multi_query_search.
+        result = await agent.handle({"query": "explorer headphones", "limit": 4, "mode": "keyword"})
 
     assert result["results"]
     assert result["results"][0]["item_id"] == "SKU-100"

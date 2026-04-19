@@ -3,6 +3,7 @@
 from unittest.mock import AsyncMock
 
 import pytest
+from ecommerce_catalog_search.ai_search import AISearchDocumentResult
 from holiday_peak_lib.schemas.inventory import InventoryContext, InventoryItem
 from holiday_peak_lib.schemas.product import CatalogProduct
 
@@ -19,6 +20,27 @@ def mock_catalog_product():
         brand="TestBrand",
         image_url="https://example.com/images/test.png",
     )
+
+
+@pytest.fixture
+def mock_keyword_search_result():
+    """AI Search document result matching the standard mock product."""
+    return [
+        AISearchDocumentResult(
+            sku="SKU-001",
+            score=1.0,
+            document={
+                "sku": "SKU-001",
+                "name": "Test Product",
+                "description": "A test product for searching",
+                "price": 99.99,
+                "category": "electronics",
+                "brand": "TestBrand",
+                "image_url": "https://example.com/images/test.png",
+            },
+            enriched_fields={},
+        )
+    ]
 
 
 @pytest.fixture

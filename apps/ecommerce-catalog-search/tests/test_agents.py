@@ -80,11 +80,22 @@ class TestCatalogSearchAgent:
     """Tests for CatalogSearchAgent."""
 
     @pytest.mark.asyncio
-    async def test_handle_search_query(self, agent_dependencies, mock_catalog_product):
+    async def test_handle_search_query(
+        self, agent_dependencies, mock_catalog_product, mock_keyword_search_result
+    ):
         """Test handling a search query."""
         mock_inventory_item = InventoryItem(sku="SKU-001", available=10, reserved=0)
 
-        with patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build:
+        with (
+            patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
+            patch("ecommerce_catalog_search.agents.search_catalog_skus_detailed") as mock_search,
+            patch("ecommerce_catalog_search.agents.multi_query_search") as mock_multi,
+            patch("ecommerce_catalog_search.agents.keyword_search") as mock_kw_search,
+        ):
+            mock_search.return_value = AISearchSkuResult(skus=["SKU-001"])
+            mock_multi.return_value = []
+            mock_kw_search.return_value = mock_keyword_search_result
+
             mock_products = AsyncMock()
             mock_products.get_product = AsyncMock(return_value=mock_catalog_product)
             mock_products.get_related = AsyncMock(return_value=[])
@@ -150,12 +161,17 @@ class TestCatalogSearchAgent:
 
     @pytest.mark.asyncio
     async def test_handle_defaults_requested_mode_to_intelligent_when_mode_missing(
-        self, agent_dependencies, mock_catalog_product
+        self, agent_dependencies, mock_catalog_product, mock_keyword_search_result
     ):
         """Missing mode should default requested/effective mode to intelligent."""
         mock_inventory_item = InventoryItem(sku="SKU-001", available=10, reserved=0)
 
-        with patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build:
+        with (
+            patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
+            patch("ecommerce_catalog_search.agents.keyword_search") as mock_kw_search,
+        ):
+            mock_kw_search.return_value = mock_keyword_search_result
+
             mock_products = AsyncMock()
             mock_products.get_product = AsyncMock(return_value=mock_catalog_product)
             mock_products.get_related = AsyncMock(return_value=[])
@@ -176,13 +192,25 @@ class TestCatalogSearchAgent:
             assert result["mode"] == "intelligent"
 
     @pytest.mark.asyncio
-    async def test_handle_model_timeout_returns_fallback_answer(
-        self, agent_dependencies, mock_catalog_product
+    @pytest.mark.asyncio
+    async def test_handle_model_timeout_returns_hard_error_in_intelligent_mode(
+        self, agent_dependencies, mock_catalog_product, mock_keyword_search_result
     ):
-        """When model synthesis times out, agent should still return actionable fallback answer."""
+        """Intelligent mode: model timeout in intent classification falls back
+        to deterministic intent, but pipeline completes because the NL model
+        answer step is skipped in strict mode."""
         mock_inventory_item = InventoryItem(sku="SKU-001", available=10, reserved=0)
 
-        with patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build:
+        with (
+            patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
+            patch("ecommerce_catalog_search.agents.search_catalog_skus_detailed") as mock_search,
+            patch("ecommerce_catalog_search.agents.multi_query_search") as mock_multi,
+            patch("ecommerce_catalog_search.agents.keyword_search") as mock_kw_search,
+        ):
+            mock_search.return_value = AISearchSkuResult(skus=["SKU-001"])
+            mock_multi.return_value = []
+            mock_kw_search.return_value = mock_keyword_search_result
+
             mock_products = AsyncMock()
             mock_products.get_product = AsyncMock(return_value=mock_catalog_product)
             mock_products.get_related = AsyncMock(return_value=[])
@@ -207,30 +235,73 @@ class TestCatalogSearchAgent:
                 }
             )
 
-            assert result["query"] == "rain jacket"
-            assert isinstance(result["results"], list)
-            assert result["answer_source"] == "agent_fallback"
-            assert result["result_type"] == "degraded_fallback"
-            assert result["degraded"] is True
-            assert result["degraded_reason"] == "model_timeout"
-            assert result["model_attempted"] is True
-            assert result["model_status"] == "timeout"
-            assert isinstance(result.get("degraded_message"), str)
-            assert "temporarily unavailable" in result["degraded_message"].lower()
-            assert isinstance(result.get("fallback_keywords"), list)
-            assert "rain" in result["fallback_keywords"]
-            assert isinstance(result.get("summary"), str)
-            assert isinstance(result.get("recommendation"), str)
-            assert agent.invoke_model.await_count >= 1
+            # Intent classification falls back to deterministic, NL model
+            # answer is skipped in strict mode, pipeline succeeds.
+            assert result["result_type"] == "deterministic"
+            assert result["degraded"] is False
+            assert len(result["results"]) > 0
 
     @pytest.mark.asyncio
-    async def test_handle_model_error_returns_degraded_fallback_answer(
+    async def test_handle_keyword_mode_returns_deterministic_without_model(
         self, agent_dependencies, mock_catalog_product
     ):
-        """Unexpected model failures should return explicit degraded metadata."""
+        """Keyword mode skips model answer and returns deterministic response."""
         mock_inventory_item = InventoryItem(sku="SKU-001", available=10, reserved=0)
 
-        with patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build:
+        with (
+            patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
+            patch("ecommerce_catalog_search.agents.search_catalog_skus_detailed") as mock_search,
+        ):
+            mock_search.return_value = AISearchSkuResult(skus=["SKU-001"])
+
+            mock_products = AsyncMock()
+            mock_products.get_product = AsyncMock(return_value=mock_catalog_product)
+            mock_products.get_related = AsyncMock(return_value=[])
+
+            mock_inventory = AsyncMock()
+            mock_inventory.get_item = AsyncMock(return_value=mock_inventory_item)
+
+            mock_build.return_value = CatalogAdapters(
+                products=mock_products,
+                inventory=mock_inventory,
+                mapping=AcpCatalogMapper(),
+            )
+
+            agent = CatalogSearchAgent(config=agent_dependencies)
+            agent.slm = object()
+            agent.invoke_model = AsyncMock(side_effect=asyncio.TimeoutError())
+
+            result = await agent.handle(
+                {
+                    "query": "rain jacket",
+                    "limit": 5,
+                    "mode": "keyword",
+                }
+            )
+
+            assert result["result_type"] == "deterministic"
+            assert result["degraded"] is False
+            assert result["model_attempted"] is False
+            agent.invoke_model.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_handle_model_error_returns_hard_error_in_intelligent_mode(
+        self, agent_dependencies, mock_catalog_product, mock_keyword_search_result
+    ):
+        """Intelligent mode: model error in intent falls back to deterministic
+        intent, NL model answer is skipped, pipeline completes."""
+        mock_inventory_item = InventoryItem(sku="SKU-001", available=10, reserved=0)
+
+        with (
+            patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
+            patch("ecommerce_catalog_search.agents.search_catalog_skus_detailed") as mock_search,
+            patch("ecommerce_catalog_search.agents.multi_query_search") as mock_multi,
+            patch("ecommerce_catalog_search.agents.keyword_search") as mock_kw_search,
+        ):
+            mock_search.return_value = AISearchSkuResult(skus=["SKU-001"])
+            mock_multi.return_value = []
+            mock_kw_search.return_value = mock_keyword_search_result
+
             mock_products = AsyncMock()
             mock_products.get_product = AsyncMock(return_value=mock_catalog_product)
             mock_products.get_related = AsyncMock(return_value=[])
@@ -256,24 +327,24 @@ class TestCatalogSearchAgent:
                 }
             )
 
-            assert result["answer_source"] == "agent_fallback"
-            assert result["result_type"] == "degraded_fallback"
-            assert result["degraded"] is True
-            assert result["degraded_reason"] == "model_error"
-            assert result["model_attempted"] is True
-            assert result["model_status"] == "error"
-            assert isinstance(result.get("fallback_keywords"), list)
-            assert "winter" in result["fallback_keywords"]
-            assert "travel" in result["fallback_keywords"]
+            # Intent classification falls back, NL model answer skipped
+            assert result["result_type"] == "deterministic"
+            assert result["degraded"] is False
+            assert len(result["results"]) > 0
 
     @pytest.mark.asyncio
     async def test_handle_without_model_returns_non_degraded_deterministic_response(
-        self, agent_dependencies, mock_catalog_product
+        self, agent_dependencies, mock_catalog_product, mock_keyword_search_result
     ):
         """Deterministic path should not be flagged as degraded when no model is configured."""
         mock_inventory_item = InventoryItem(sku="SKU-001", available=10, reserved=0)
 
-        with patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build:
+        with (
+            patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
+            patch("ecommerce_catalog_search.agents.keyword_search") as mock_kw_search,
+        ):
+            mock_kw_search.return_value = mock_keyword_search_result
+
             mock_products = AsyncMock()
             mock_products.get_product = AsyncMock(return_value=mock_catalog_product)
             mock_products.get_related = AsyncMock(return_value=[])
@@ -305,12 +376,22 @@ class TestCatalogSearchAgent:
 
     @pytest.mark.asyncio
     async def test_handle_model_success_returns_model_answer_metadata(
-        self, agent_dependencies, mock_catalog_product
+        self, agent_dependencies, mock_catalog_product, mock_keyword_search_result
     ):
-        """Successful model synthesis should remain classified as model answer."""
+        """Even when model could succeed, intelligent mode skips model answer
+        for speed — result is deterministic, not model_answer."""
         mock_inventory_item = InventoryItem(sku="SKU-001", available=10, reserved=0)
 
-        with patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build:
+        with (
+            patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
+            patch("ecommerce_catalog_search.agents.search_catalog_skus_detailed") as mock_search,
+            patch("ecommerce_catalog_search.agents.multi_query_search") as mock_multi,
+            patch("ecommerce_catalog_search.agents.keyword_search") as mock_kw_search,
+        ):
+            mock_search.return_value = AISearchSkuResult(skus=["SKU-001"])
+            mock_multi.return_value = []
+            mock_kw_search.return_value = mock_keyword_search_result
+
             mock_products = AsyncMock()
             mock_products.get_product = AsyncMock(return_value=mock_catalog_product)
             mock_products.get_related = AsyncMock(return_value=[])
@@ -342,11 +423,65 @@ class TestCatalogSearchAgent:
                 }
             )
 
-            assert result["answer_source"] == "agent_model"
-            assert result["result_type"] == "model_answer"
+            # Model answer skipped in strict mode — returns deterministic
+            assert result["answer_source"] == "agent_fallback"
+            assert result["result_type"] == "deterministic"
             assert result["degraded"] is False
-            assert result["model_attempted"] is True
-            assert result["model_status"] == "success"
+            assert result["model_attempted"] is False
+
+    @pytest.mark.asyncio
+    async def test_handle_intelligent_mode_skips_model_answer(
+        self, agent_dependencies, mock_catalog_product, mock_keyword_search_result
+    ):
+        """Intelligent (strict) mode skips the NL model answer step and
+        returns deterministic results directly for speed."""
+        mock_inventory_item = InventoryItem(sku="SKU-001", available=10, reserved=0)
+
+        with (
+            patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
+            patch("ecommerce_catalog_search.agents.search_catalog_skus_detailed") as mock_search,
+            patch("ecommerce_catalog_search.agents.multi_query_search") as mock_multi,
+            patch("ecommerce_catalog_search.agents.keyword_search") as mock_kw_search,
+        ):
+            mock_search.return_value = AISearchSkuResult(skus=["SKU-001"])
+            mock_multi.return_value = []
+            mock_kw_search.return_value = mock_keyword_search_result
+
+            mock_products = AsyncMock()
+            mock_products.get_product = AsyncMock(return_value=mock_catalog_product)
+            mock_products.get_related = AsyncMock(return_value=[])
+
+            mock_inventory = AsyncMock()
+            mock_inventory.get_item = AsyncMock(return_value=mock_inventory_item)
+
+            mock_build.return_value = CatalogAdapters(
+                products=mock_products,
+                inventory=mock_inventory,
+                mapping=AcpCatalogMapper(),
+            )
+
+            agent = CatalogSearchAgent(config=agent_dependencies)
+            agent.slm = object()
+            agent.invoke_model = AsyncMock(
+                return_value={
+                    "service": "test-catalog-search",
+                    "results": [],
+                    "mode": "intelligent",
+                }
+            )
+
+            result = await agent.handle(
+                {
+                    "query": "rain jacket",
+                    "limit": 5,
+                    "mode": "intelligent",
+                }
+            )
+
+            # Intelligent mode skips model answer for speed
+            assert result["answer_source"] == "agent_fallback"
+            assert result["result_type"] == "deterministic"
+            assert result["model_attempted"] is False
 
     @pytest.mark.asyncio
     async def test_handle_persists_search_history_to_memory_tiers(
@@ -410,12 +545,17 @@ class TestCatalogSearchAgent:
 
     @pytest.mark.asyncio
     async def test_handle_falls_back_session_id_to_user_ip(
-        self, agent_dependencies, mock_catalog_product
+        self, agent_dependencies, mock_catalog_product, mock_keyword_search_result
     ):
         """Effective session_id should fallback to user_ip when session/user are absent."""
         mock_inventory_item = InventoryItem(sku="SKU-001", available=10, reserved=0)
 
-        with patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build:
+        with (
+            patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
+            patch("ecommerce_catalog_search.agents.keyword_search") as mock_kw_search,
+        ):
+            mock_kw_search.return_value = mock_keyword_search_result
+
             mock_products = AsyncMock()
             mock_products.get_product = AsyncMock(return_value=mock_catalog_product)
             mock_products.get_related = AsyncMock(return_value=[])
@@ -439,7 +579,12 @@ class TestCatalogSearchAgent:
     @pytest.mark.asyncio
     async def test_handle_empty_query(self, agent_dependencies):
         """Test handling an empty search query."""
-        with patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build:
+        with (
+            patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
+            patch("ecommerce_catalog_search.agents.keyword_search") as mock_kw_search,
+        ):
+            mock_kw_search.return_value = []
+
             mock_products = AsyncMock()
             mock_products.get_product = AsyncMock(return_value=None)
             mock_products.get_related = AsyncMock(return_value=[])
@@ -462,11 +607,22 @@ class TestCatalogSearchAgent:
             assert result["results"] == []
 
     @pytest.mark.asyncio
-    async def test_handle_respects_limit(self, agent_dependencies, mock_catalog_products):
+    async def test_handle_respects_limit(
+        self, agent_dependencies, mock_catalog_products, mock_keyword_search_result
+    ):
         """Test that search respects limit parameter."""
         mock_inventory_item = InventoryItem(sku="SKU-001", available=10, reserved=0)
 
-        with patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build:
+        with (
+            patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
+            patch("ecommerce_catalog_search.agents.search_catalog_skus_detailed") as mock_search,
+            patch("ecommerce_catalog_search.agents.multi_query_search") as mock_multi,
+            patch("ecommerce_catalog_search.agents.keyword_search") as mock_kw_search,
+        ):
+            mock_search.return_value = AISearchSkuResult(skus=["SKU-001"])
+            mock_multi.return_value = []
+            mock_kw_search.return_value = mock_keyword_search_result
+
             mock_products = AsyncMock()
             mock_products.get_product = AsyncMock(return_value=mock_catalog_products[0])
             mock_products.get_related = AsyncMock(return_value=[])
@@ -646,11 +802,13 @@ class TestCatalogSearchAgent:
         with (
             patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
             patch("ecommerce_catalog_search.agents.search_catalog_skus_detailed") as mock_search,
+            patch("ecommerce_catalog_search.agents.multi_query_search") as mock_multi,
         ):
             mock_search.return_value = AISearchSkuResult(
                 skus=[],
                 fallback_reason="ai_search_transport_error",
             )
+            mock_multi.return_value = []
 
             mock_products = AsyncMock()
             mock_products.get_product = AsyncMock(return_value=mock_catalog_product)
@@ -670,7 +828,7 @@ class TestCatalogSearchAgent:
             caplog.set_level(logging.WARNING, logger="ecommerce_catalog_search.agents")
 
             agent = CatalogSearchAgent(config=agent_dependencies)
-            await agent.handle({"query": "fallback query", "limit": 3})
+            await agent.handle({"query": "fallback query", "limit": 3, "mode": "keyword"})
 
             assert any(
                 record.msg == "catalog_search_fallback_path"
@@ -691,11 +849,13 @@ class TestCatalogSearchAgent:
         with (
             patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
             patch("ecommerce_catalog_search.agents.search_catalog_skus_detailed") as mock_search,
+            patch("ecommerce_catalog_search.agents.keyword_search") as mock_kw_search,
         ):
             mock_search.return_value = AISearchSkuResult(
                 skus=[],
                 fallback_reason="ai_search_transport_error",
             )
+            mock_kw_search.return_value = []
 
             mock_products = AsyncMock()
             mock_products.search = AsyncMock(return_value=[mock_catalog_product])
@@ -721,17 +881,20 @@ class TestCatalogSearchAgent:
 
     @pytest.mark.asyncio
     async def test_handle_intelligent_mode_falls_back_on_low_confidence(
-        self, agent_dependencies, mock_catalog_product
+        self, agent_dependencies, mock_catalog_product, mock_keyword_search_result
     ):
-        """Intelligent mode should degrade to keyword path when confidence is low."""
+        """Intelligent mode runs both search paths even with low-confidence intent."""
         mock_inventory_item = InventoryItem(sku="SKU-001", available=10, reserved=0)
 
         with (
             patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
             patch("ecommerce_catalog_search.agents.search_catalog_skus_detailed") as mock_search,
             patch("ecommerce_catalog_search.agents.multi_query_search") as mock_multi,
+            patch("ecommerce_catalog_search.agents.keyword_search") as mock_kw_search,
         ):
             mock_search.return_value = AISearchSkuResult(skus=["SKU-001"])
+            mock_multi.return_value = []
+            mock_kw_search.return_value = mock_keyword_search_result
 
             mock_products = AsyncMock()
             mock_products.get_product = AsyncMock(return_value=mock_catalog_product)
@@ -767,13 +930,14 @@ class TestCatalogSearchAgent:
                     {"query": "show me travel accessories", "limit": 5, "mode": "intelligent"}
                 )
 
-            assert len(result["results"]) == 0
-            mock_multi.assert_not_awaited()
-            assert mock_search.await_count >= 1
+            # Low confidence still runs both keyword and hybrid in parallel
+            assert len(result["results"]) == 1
+            mock_multi.assert_awaited_once()
+            assert mock_kw_search.await_count >= 1
 
     @pytest.mark.asyncio
     async def test_handle_intelligent_mode_runs_multi_query_and_merges_enrichment(
-        self, agent_dependencies, mock_catalog_product
+        self, agent_dependencies, mock_catalog_product, mock_keyword_search_result
     ):
         """Intelligent mode should use multi-query retrieval and surface enriched fields."""
         mock_inventory_item = InventoryItem(sku="SKU-001", available=10, reserved=0)
@@ -782,8 +946,10 @@ class TestCatalogSearchAgent:
             patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
             patch("ecommerce_catalog_search.agents.search_catalog_skus_detailed") as mock_search,
             patch("ecommerce_catalog_search.agents.multi_query_search") as mock_multi,
+            patch("ecommerce_catalog_search.agents.keyword_search") as mock_kw_search,
         ):
             mock_search.return_value = AISearchSkuResult(skus=[])
+            mock_kw_search.return_value = mock_keyword_search_result
             mock_multi.return_value = [
                 AISearchDocumentResult(
                     sku="SKU-001",
@@ -1015,9 +1181,9 @@ class TestCatalogSearchAgent:
 
     @pytest.mark.asyncio
     async def test_handle_intelligent_mode_expands_keyword_cycle_when_semantic_empty(
-        self, agent_dependencies
+        self, agent_dependencies, mock_keyword_search_result
     ):
-        """Intelligent mode should run generic query expansion when semantic retrieval is empty."""
+        """Intelligent mode feeds intent sub-queries to multi_query_search for hybrid retrieval."""
         expanded_product = CatalogProduct(
             sku="SKU-EARBUD",
             name="Commuter Wireless Earbuds",
@@ -1030,13 +1196,20 @@ class TestCatalogSearchAgent:
             patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
             patch("ecommerce_catalog_search.agents.search_catalog_skus_detailed") as mock_search,
             patch("ecommerce_catalog_search.agents.multi_query_search") as mock_multi,
+            patch("ecommerce_catalog_search.agents.keyword_search") as mock_kw_search,
         ):
-
-            async def _search_side_effect(query: str, limit: int) -> AISearchSkuResult:
-                del limit
-                if "wireless earbuds" in query.lower():
-                    return AISearchSkuResult(skus=["SKU-EARBUD"])
-                return AISearchSkuResult(skus=[])
+            # Keyword search (original query) returns empty
+            mock_search.return_value = AISearchSkuResult(skus=[])
+            mock_kw_search.return_value = mock_keyword_search_result
+            # Hybrid search finds the product via intent-derived sub-queries
+            mock_multi.return_value = [
+                AISearchDocumentResult(
+                    sku="SKU-EARBUD",
+                    score=0.85,
+                    document={"sku": "SKU-EARBUD"},
+                    enriched_fields={},
+                )
+            ]
 
             async def _get_product_side_effect(sku: str) -> CatalogProduct | None:
                 if sku == "SKU-EARBUD":
@@ -1045,9 +1218,6 @@ class TestCatalogSearchAgent:
 
             async def _inventory_side_effect(sku: str) -> InventoryItem:
                 return InventoryItem(sku=sku, available=9, reserved=0)
-
-            mock_search.side_effect = _search_side_effect
-            mock_multi.return_value = []
 
             mock_products = AsyncMock()
             mock_products.search = AsyncMock(return_value=[])
@@ -1091,7 +1261,8 @@ class TestCatalogSearchAgent:
             ranked_ids = [item["item_id"] for item in result["results"]]
             assert ranked_ids[0] == "SKU-EARBUD"
             mock_multi.assert_awaited_once()
-            assert mock_search.await_count >= 2
+            # Keyword search called once for original query
+            assert mock_kw_search.await_count == 1
 
     @pytest.mark.asyncio
     async def test_handle_inventory_lookup_error_returns_unknown_availability(
