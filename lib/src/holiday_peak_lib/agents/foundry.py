@@ -1,8 +1,10 @@
 """Helpers for Azure AI Foundry (Microsoft Agent Framework) integration."""
 
 import asyncio
+import hashlib
 import inspect
 import json
+import logging
 import os
 from dataclasses import dataclass
 from time import perf_counter
@@ -33,6 +35,8 @@ _DEFAULT_FOUNDRY_INVOKE_TIMEOUT = float(os.getenv("AGENT_FOUNDRY_INVOKE_TIMEOUT_
 
 _FOUNDRY_RESOURCE_HOST_SUFFIX = ".cognitiveservices.azure.com"
 _FOUNDRY_PROJECT_PATH_PREFIX = "/api/projects/"
+
+_logger = logging.getLogger(__name__)
 
 
 class FoundryConfigurationError(ValueError):
@@ -368,6 +372,116 @@ async def _lookup_existing_agent(
     return None
 
 
+async def _get_latest_version_instructions(
+    agents_client: Any,
+    *,
+    agent_name: str,
+) -> str | None:
+    """Fetch the instructions from the latest version of an agent.
+
+    Returns ``None`` when versions cannot be retrieved.
+    """
+    try:
+        listed = await _call_first_available(
+            agents_client, ("list_versions",), agent_name=agent_name
+        )
+        if listed is None:
+            return None
+        if hasattr(listed, "__aiter__"):
+            async for version in listed:
+                defn = getattr(version, "definition", None)
+                return str(getattr(defn, "instructions", "") or "") if defn else ""
+            return None
+        if isinstance(listed, (list, tuple)) and listed:
+            defn = getattr(listed[0], "definition", None)
+            return str(getattr(defn, "instructions", "") or "") if defn else ""
+        return None
+    except (HttpResponseError, AttributeError, TypeError, RuntimeError) as exc:
+        _logger.warning("Failed to fetch versions for agent %r: %s", agent_name, exc)
+        return None
+
+
+def _instructions_hash(text: str) -> str:
+    """Return a short SHA-256 hex digest for logging."""
+    return hashlib.sha256(text.encode()).hexdigest()[:12]
+
+
+async def _check_instruction_drift(
+    agents_client: Any,
+    *,
+    config: FoundryAgentConfig,
+    found_result: dict[str, Any],
+    instructions: str | None,
+    model: str | None,
+) -> dict[str, Any] | None:
+    """Compare provided instructions with latest Foundry version; update if different.
+
+    Returns an updated result dict when a new version is created, or ``None``
+    when no drift is detected (caller should use the original *found_result*).
+    """
+    if not instructions or not instructions.strip():
+        return None
+
+    agent_name = found_result.get("agent_name") or config.agent_name
+    if not agent_name:
+        return None
+
+    remote_instructions = await _get_latest_version_instructions(
+        agents_client, agent_name=agent_name
+    )
+    if remote_instructions is None:
+        _logger.debug(
+            "Skipping drift check for %r — could not retrieve remote instructions",
+            agent_name,
+        )
+        return None
+
+    local_stripped = instructions.strip()
+    remote_stripped = remote_instructions.strip()
+    if local_stripped == remote_stripped:
+        _logger.debug(
+            "No instruction drift for agent %r (hash=%s, len=%d)",
+            agent_name,
+            _instructions_hash(local_stripped),
+            len(local_stripped),
+        )
+        return None
+
+    _logger.info(
+        "Instruction drift detected for agent %r: "
+        "remote_len=%d remote_hash=%s → local_len=%d local_hash=%s. "
+        "Creating new version.",
+        agent_name,
+        len(remote_stripped),
+        _instructions_hash(remote_stripped),
+        len(local_stripped),
+        _instructions_hash(local_stripped),
+    )
+
+    create_result = await _create_agent_version(
+        agents_client,
+        config=config,
+        resolved_agent_name=agent_name,
+        instructions=instructions,
+        model=model,
+    )
+
+    if create_result.get("created"):
+        return {
+            **create_result,
+            "status": "instructions_updated",
+            "agent_id": create_result.get("agent_id") or found_result.get("agent_id"),
+            "agent_name": create_result.get("agent_name") or agent_name,
+        }
+
+    _logger.warning(
+        "Drift detected for %r but version creation failed: %s",
+        agent_name,
+        create_result.get("status"),
+    )
+    return None
+
+
 async def _create_agent_version(
     agents_client: Any,
     *,
@@ -477,6 +591,16 @@ async def ensure_foundry_agent(
                 create_if_missing=create_if_missing,
             )
             if found is not None:
+                if found.get("status") in ("exists", "found_by_name"):
+                    drift_result = await _check_instruction_drift(
+                        agents_client,
+                        config=config,
+                        found_result=found,
+                        instructions=instructions,
+                        model=model,
+                    )
+                    if drift_result is not None:
+                        return drift_result
                 return found
 
             if not create_if_missing:
