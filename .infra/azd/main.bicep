@@ -25,7 +25,7 @@ param postgresAdminPassword string = ''
   'entra'
 ])
 @description('CRUD PostgreSQL auth mode. Set POSTGRES_AUTH_MODE=entra only when the environment is configured for Entra database authentication.')
-param POSTGRES_AUTH_MODE string = 'password'
+param POSTGRES_AUTH_MODE string = 'entra'
 @description('Optional email receiver for infrastructure alerts action group.')
 param alertNotificationEmail string = ''
 @secure()
