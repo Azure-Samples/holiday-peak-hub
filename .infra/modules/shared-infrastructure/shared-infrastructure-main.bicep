@@ -20,7 +20,7 @@ param postgresAdminPassword string = ''
   'entra'
 ])
 @description('CRUD PostgreSQL auth mode to apply to shared infrastructure and downstream outputs.')
-param postgresAuthMode string = 'password'
+param postgresAuthMode string = 'entra'
 @description('Optional email receiver for infrastructure alerts action group.')
 param alertNotificationEmail string = ''
 @secure()
