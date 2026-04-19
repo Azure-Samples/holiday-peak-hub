@@ -1,13 +1,14 @@
 # Project Status & Issue Prioritization
 
-> Generated: 2026-04-12 | Version: main (post PR #802) | Branch: `main`
+> Generated: 2026-04-19 | Version: main (post PR #859) | Branch: `main`
 
-## Current Main Snapshot (2026-04-12)
+## Current Main Snapshot (2026-04-19)
 
 ### Recently Merged (April 2026)
 
 | PR | Title | Impact |
 |----|-------|--------|
+| #859 | Consolidate catalog-search strict-4s pipeline | Strict 4s intelligent pipeline with GPT-5-nano `reasoning_effort="minimal"`, parallel search fan-out, direct product construction, 10/10 live integration tests |
 | #802 | Replace FoundryInvoker with FoundryAgentInvoker (MAF runtime) | Fixes silent tool-dropping; upgrades `agent-framework` to 1.0.1 GA |
 | #800 | Parallelize memory reads/writes, add memory tools | Concurrent hot/warm/cold I/O via `asyncio.gather` |
 | #798 | Add start-dev-environment script | MCAPSGov nightly shutdown recovery automation |
@@ -24,6 +25,9 @@
 
 ### What Changed (Since Last Snapshot)
 
+- **Catalog-search strict 4s pipeline (v6)**: Entire intelligent pipeline runs inside `asyncio.wait_for(timeout=4.0)`. Intent classification via GPT-5-nano with `reasoning_effort="minimal"` (1.5s budget). Parallel keyword + hybrid search fan-out. Direct product construction from AI Search documents (no CRUD round-trip). Fire-and-forget history writes. Deployed as `strict-4s-v6` on 2 AKS replicas.
+- **`reasoning_effort` parameter support in Foundry pipeline**: `FoundryAgentInvoker` now plumbs `reasoning_effort` through `_PreparedInvocation` → `_request_response_impl` → `run_kwargs["options"]`. Guards ensure the parameter is only sent when explicitly passed.
+- **Live integration test suite**: 11 tests (10 parametrized queries + summary report) validate the live APIM→AKS→AI Foundry→AI Search pipeline. 10/10 within budget, avg ~2.77s.
 - **FoundryAgentInvoker** replaces legacy `FoundryInvoker`: agent tools are now properly forwarded through the Microsoft Agent Framework `FoundryAgent` runtime instead of being silently dropped.
 - `agent-framework` upgraded from unpinned to `>=1.0.1` GA across all 27 Python service packages; resolves `ContextProvider` vs `BaseContextProvider` import incompatibility.
 - Memory tier operations parallelized with `asyncio.gather` for reduced latency; new memory tools (`get_memory`, `set_memory`, `search_memory`) and `gather_adapters` helper available.
@@ -36,12 +40,39 @@
 ### Validation
 
 - Full local test run: **1796 passed** (1136 lib + 660 app), 0 failures.
+- Catalog-search unit tests: **34 passed** (including 14 intelligent-mode tests), ~3.3s.
+- Live integration tests: **10/10 queries within 7s wall-clock budget**, avg ~2.77s.
 - CI gate: lint, test, CodeQL, pip-audit, contract-gate all passing on `main`.
 - 35 Architecture Decision Records (ADR-001 through ADR-035).
 
 ### Note
 
 - Historical sections below preserve earlier v1.1.0 and v2.0.0 planning/trackers for audit context and may include superseded planning entries.
+
+---
+
+## Runtime Hotfix Notes (2026-04-19)
+
+### Catalog Search Strict 4s Intelligent Pipeline (Issue #859)
+
+**Optimizations applied (v1→v6)**:
+
+1. **Skip model answer generation** in strict mode — pipeline returns deterministic response directly.
+2. **Fire-and-forget history writes** — `asyncio.create_task()` decouples memory persistence from the response path.
+3. **Bounded availability check** — 0.5s timeout with `["unknown"]` fallback per product.
+4. **Direct AI Search product construction** — builds `CatalogProduct` from search documents, eliminating CRUD round-trips.
+5. **Intent timeout** — 1.5s hard cap on GPT-5-nano classification; falls back to deterministic regex policy.
+6. **Keyword search for full docs** — `keyword_search` returns complete `AISearchDocumentResult` with all fields needed for product construction.
+7. **`reasoning_effort="minimal"`** — GPT-5 parameter that eliminates most reasoning tokens for fast intent classification.
+
+**Foundry pipeline changes (`lib/src/holiday_peak_lib/agents/foundry.py`)**:
+- `_PreparedInvocation` NamedTuple gains `reasoning_effort: str | None = None` field.
+- `_prepare_invocation()` extracts `reasoning_effort` from kwargs before discarding transport-only keys.
+- `_request_response_impl()` and `_stream_impl()` pass `run_kwargs["options"] = {"reasoning_effort": prep.reasoning_effort}` when not `None`.
+
+**Deployment**: `strict-4s-v6` image deployed to AKS (2 replicas, 0 restarts). APIM gateway endpoint validated.
+
+**Test results**: 34 unit tests passing, 10/10 live integration queries within budget (avg ~2.77s).
 
 ---
 

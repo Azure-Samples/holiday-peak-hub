@@ -511,6 +511,7 @@ class _PreparedInvocation(NamedTuple):
     tool_callables: list[Any] | None
     normalized: list[dict[str, str]]
     session: AgentSession | None
+    reasoning_effort: str | None = None
 
 
 class FoundryAgentInvoker:
@@ -551,6 +552,7 @@ class FoundryAgentInvoker:
         # Extract session data before discarding transport-only kwargs
         session_id = kwargs.pop("session_id", None)
         session_state = kwargs.pop("_foundry_session_state", None)
+        reasoning_effort = kwargs.pop("reasoning_effort", None)
         # Discard transport-only kwargs not consumed by MAF
         for _discard_key in (
             "model",
@@ -595,6 +597,7 @@ class FoundryAgentInvoker:
             tool_callables=tool_callables,
             normalized=normalized,
             session=session,
+            reasoning_effort=reasoning_effort,
         )
 
     async def __call__(self, **kwargs: Any) -> dict[str, Any] | AsyncGenerator[str, None]:
@@ -630,6 +633,8 @@ class FoundryAgentInvoker:
         }
         if prep.session is not None:
             run_kwargs["session"] = prep.session
+        if prep.reasoning_effort is not None:
+            run_kwargs["options"] = {"reasoning_effort": prep.reasoning_effort}
 
         try:
             response = await asyncio.wait_for(
@@ -745,6 +750,8 @@ class FoundryAgentInvoker:
         }
         if prep.session is not None:
             run_kwargs["session"] = prep.session
+        if prep.reasoning_effort is not None:
+            run_kwargs["options"] = {"reasoning_effort": prep.reasoning_effort}
 
         stream_response = agent.run(
             prep.maf_messages,

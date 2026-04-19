@@ -45,6 +45,7 @@ from .adapters import (
 from .ai_search import (
     AISearchDocumentResult,
     ai_search_required_runtime_enabled,
+    keyword_search,
     multi_query_search,
     search_catalog_skus_detailed,
 )
@@ -52,9 +53,21 @@ from .ai_search import (
 logger = logging.getLogger(__name__)
 
 
+def _safe_float(value: Any) -> float | None:
+    """Convert to float or return None."""
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 HOT_HISTORY_MAX_ENTRIES = 20
 HOT_HISTORY_TTL_SECONDS = 3600
 INTENT_CONFIDENCE_THRESHOLD = 0.55
+INTELLIGENT_INTENT_TIMEOUT_SECONDS = 1.5
+INTELLIGENT_PIPELINE_TIMEOUT_SECONDS = 4.0
 GENERIC_KEYWORD_LIMIT = 8
 QUERY_EXPANSION_QUERY_LIMIT = 4
 DEGRADED_MODEL_FALLBACK_MESSAGE = (
@@ -211,6 +224,7 @@ class CatalogSearchAgent(BaseRetailAgent):
                 self.invoke_model(
                     request={"query": query, "requires_multi_tool": True},
                     messages=messages,
+                    reasoning_effort="minimal",
                 ),
                 timeout=_resolve_timeout_seconds(
                     "CATALOG_INTENT_MODEL_TIMEOUT_SECONDS",
@@ -304,6 +318,7 @@ class CatalogSearchAgent(BaseRetailAgent):
         )
         filters = request.get("filters")
         filter_payload = filters if isinstance(filters, dict) else None
+        _strict = mode == "intelligent"
 
         self._trace_decision(
             decision="search_mode_selection",
@@ -314,99 +329,156 @@ class CatalogSearchAgent(BaseRetailAgent):
             },
         )
 
-        products, enrichment_by_sku, intent, baseline_products = await _search_products(
-            self,
-            self.adapters,
-            query=query,
-            limit=limit,
-            mode=mode,
-            filters=filter_payload,
-        )
-        availability = await _resolve_availability(self.adapters, products)
-        acp_products = [
-            merge_enriched_fields(
-                self.adapters.mapping.to_acp_product(product, availability=availability[idx]),
-                enrichment_by_sku.get(product.sku),
-            )
-            for idx, product in enumerate(products)
-        ]
-
-        _record_search_evaluation(
-            self,
-            query=str(query),
-            mode=mode,
-            products=products,
-            baseline_products=baseline_products,
-            intent=intent,
-            limit=limit,
-        )
-
-        history_record = _build_search_history_record(
-            query=str(query),
-            mode=mode,
-            search_stage=search_stage,
-            result_skus=[product.sku for product in products],
-            user_id=user_id,
-            user_ip=user_ip,
-            query_history=query_history,
-            baseline_candidate_skus=baseline_candidate_skus,
-        )
-        await _persist_search_history(self, namespace_context, history_record)
-
-        summary, recommendation = _build_catalog_fallback_answer(
-            query=str(query),
-            products=products,
-            intent=intent,
-        )
-
-        deterministic_response: dict[str, Any] = {
-            "service": self.service_name,
-            "query": query,
-            "mode": mode,
-            "requested_mode": requested_mode,
-            "search_stage": search_stage,
-            "session_id": namespace_context.session_id,
-            "results": acp_products,
-            "intent": intent.model_dump(mode="json") if intent is not None else None,
-            "summary": summary,
-            "recommendation": recommendation,
-            "answer_source": "agent_fallback",
-            "result_type": "deterministic",
-            "degraded": False,
-            "model_attempted": False,
-        }
-
-        if request.get("_stream"):
-            ctx = _StreamContext(
-                request=request,
+        async def _pipeline() -> dict[str, Any]:
+            products, enrichment_by_sku, intent, baseline_products = await _search_products(
+                self,
+                self.adapters,
+                query=query,
+                limit=limit,
                 mode=mode,
-                requested_mode=requested_mode,
-                search_stage=search_stage,
-                namespace_context=namespace_context,
-                deterministic_response=deterministic_response,
-                acp_products=acp_products,
-                query=str(query),
-                summary=summary,
-                recommendation=recommendation,
+                filters=filter_payload,
             )
-            return self._handle_stream(ctx)
+            # ── availability: tight timeout in strict mode ───────────
+            if _strict:
+                try:
+                    availability = await asyncio.wait_for(
+                        _resolve_availability(self.adapters, products),
+                        timeout=0.5,
+                    )
+                except (asyncio.TimeoutError, Exception):  # noqa: BLE001
+                    availability = ["unknown"] * len(products)
+            else:
+                availability = await _resolve_availability(self.adapters, products)
 
-        if mode != "keyword" and (self.slm is not None or self.llm is not None):
-            return await self._try_model_answer(
-                request=request,
-                deterministic_response=deterministic_response,
+            acp_products = [
+                merge_enriched_fields(
+                    self.adapters.mapping.to_acp_product(product, availability=availability[idx]),
+                    enrichment_by_sku.get(product.sku),
+                )
+                for idx, product in enumerate(products)
+            ]
+
+            _record_search_evaluation(
+                self,
                 query=str(query),
-                acp_products=acp_products,
-                summary=summary,
-                recommendation=recommendation,
                 mode=mode,
-                requested_mode=requested_mode,
+                products=products,
+                baseline_products=baseline_products,
+                intent=intent,
+                limit=limit,
+            )
+
+            history_record = _build_search_history_record(
+                query=str(query),
+                mode=mode,
                 search_stage=search_stage,
-                namespace_context=namespace_context,
+                result_skus=[product.sku for product in products],
+                user_id=user_id,
+                user_ip=user_ip,
+                query_history=query_history,
+                baseline_candidate_skus=baseline_candidate_skus,
+            )
+
+            # ── persist history: fire-and-forget in strict mode ──────
+            if _strict:
+                asyncio.create_task(
+                    _persist_search_history(self, namespace_context, history_record)
+                )
+            else:
+                await _persist_search_history(self, namespace_context, history_record)
+
+            summary, recommendation = _build_catalog_fallback_answer(
+                query=str(query),
+                products=products,
                 intent=intent,
             )
 
-        return deterministic_response
+            deterministic_response: dict[str, Any] = {
+                "service": self.service_name,
+                "query": query,
+                "mode": mode,
+                "requested_mode": requested_mode,
+                "search_stage": search_stage,
+                "session_id": namespace_context.session_id,
+                "results": acp_products,
+                "intent": intent.model_dump(mode="json") if intent is not None else None,
+                "summary": summary,
+                "recommendation": recommendation,
+                "answer_source": "agent_fallback",
+                "result_type": "deterministic",
+                "degraded": False,
+                "model_attempted": False,
+            }
+
+            if request.get("_stream"):
+                ctx = _StreamContext(
+                    request=request,
+                    mode=mode,
+                    requested_mode=requested_mode,
+                    search_stage=search_stage,
+                    namespace_context=namespace_context,
+                    deterministic_response=deterministic_response,
+                    acp_products=acp_products,
+                    query=str(query),
+                    summary=summary,
+                    recommendation=recommendation,
+                )
+                return self._handle_stream(ctx)
+
+            # ── skip model answer in strict/intelligent mode ─────────
+            # In intelligent mode, search results are the answer.
+            # The second SLM call for NL answer generation is skipped
+            # to stay within the 4s budget.
+            if not _strict and mode != "keyword" and (self.slm is not None or self.llm is not None):
+                return await self._try_model_answer(
+                    request=request,
+                    deterministic_response=deterministic_response,
+                    query=str(query),
+                    acp_products=acp_products,
+                    summary=summary,
+                    recommendation=recommendation,
+                    mode=mode,
+                    requested_mode=requested_mode,
+                    search_stage=search_stage,
+                    namespace_context=namespace_context,
+                    intent=intent,
+                    strict=_strict,
+                )
+
+            return deterministic_response
+
+        if _strict:
+            budget = _resolve_timeout_seconds(
+                "INTELLIGENT_PIPELINE_TIMEOUT_SECONDS",
+                INTELLIGENT_PIPELINE_TIMEOUT_SECONDS,
+            )
+            try:
+                return await asyncio.wait_for(_pipeline(), timeout=budget)
+            except asyncio.TimeoutError:
+                return _intelligent_hard_error(
+                    service_name=self.service_name,
+                    query=str(query),
+                    mode=mode,
+                    requested_mode=requested_mode,
+                    search_stage=search_stage,
+                    budget=budget,
+                )
+            except Exception:  # pylint: disable=broad-exception-caught
+                logger.warning(
+                    "intelligent_pipeline_error",
+                    extra={"query": str(query), "mode": mode},
+                    exc_info=True,
+                )
+                return _intelligent_hard_error(
+                    service_name=self.service_name,
+                    query=str(query),
+                    mode=mode,
+                    requested_mode=requested_mode,
+                    search_stage=search_stage,
+                    budget=budget,
+                )
+
+        return await _pipeline()
 
     async def _try_model_answer(
         self,
@@ -422,8 +494,13 @@ class CatalogSearchAgent(BaseRetailAgent):
         search_stage: str | None,
         namespace_context: NamespaceContext,
         intent: IntentClassification | None,
+        strict: bool = False,
     ) -> dict[str, Any]:
-        """Attempt model-enriched answer with graceful degradation to deterministic fallback."""
+        """Attempt model-enriched answer.
+
+        When *strict* is True (intelligent mode), timeouts and errors
+        propagate instead of returning a degraded fallback.
+        """
         deterministic_response["model_attempted"] = True
         messages = [
             {
@@ -445,7 +522,7 @@ class CatalogSearchAgent(BaseRetailAgent):
                 self.invoke_model(request=request, messages=messages),
                 timeout=_resolve_timeout_seconds(
                     "CATALOG_RESPONSE_MODEL_TIMEOUT_SECONDS",
-                    14.0,
+                    3.0,
                 ),
             )
             model_response["requested_mode"] = requested_mode
@@ -464,8 +541,11 @@ class CatalogSearchAgent(BaseRetailAgent):
                     "query_length": len(query),
                     "mode": mode,
                     "search_stage": search_stage,
+                    "strict": strict,
                 },
             )
+            if strict:
+                raise
             deterministic_response.update(
                 {
                     "result_type": "degraded_fallback",
@@ -483,9 +563,12 @@ class CatalogSearchAgent(BaseRetailAgent):
                     "query_length": len(query),
                     "mode": mode,
                     "search_stage": search_stage,
+                    "strict": strict,
                 },
                 exc_info=True,
             )
+            if strict:
+                raise
             deterministic_response.update(
                 {
                     "result_type": "degraded_fallback",
@@ -1107,6 +1190,35 @@ async def _search_products_keyword(
     return products[:limit]
 
 
+def _intelligent_hard_error(
+    *,
+    service_name: str | None,
+    query: str,
+    mode: str,
+    requested_mode: str,
+    search_stage: str | None,
+    budget: float,
+) -> dict[str, Any]:
+    """Return a hard-error response when the intelligent pipeline exceeds its budget."""
+    return {
+        "service": service_name,
+        "query": query,
+        "mode": mode,
+        "requested_mode": requested_mode,
+        "search_stage": search_stage,
+        "results": [],
+        "intent": None,
+        "summary": "",
+        "recommendation": "",
+        "error": "intelligent_pipeline_timeout",
+        "message": f"Intelligent pipeline did not complete within {budget:.1f}s.",
+        "answer_source": "none",
+        "result_type": "error",
+        "degraded": False,
+        "model_attempted": False,
+    }
+
+
 async def _search_products_intelligent(
     agent: CatalogSearchAgent | None,
     adapters: CatalogAdapters,
@@ -1120,56 +1232,168 @@ async def _search_products_intelligent(
     IntentClassification | None,
     list[CatalogProduct],
 ]:
-    baseline_products = await _search_products_keyword(adapters, query=query, limit=limit)
+    """Intent-first intelligent search — strict ≤4 s wall-clock.
+
+    1. Classify intent (SLM first, LLM upgrade if complex).
+    2. Build sub-queries from intent entities.
+    3. Fan-out keyword search (original query) + hybrid search (sub-queries) in parallel.
+    4. Merge SKUs, resolve products, rank by relevance.
+    """
+    import time as _time
+
+    _t0 = _time.perf_counter()
     fallback_intent = _deterministic_intent_policy(query)
 
     if agent is None:
-        return baseline_products, {}, fallback_intent, baseline_products
+        products = await _search_products_keyword(adapters, query=query, limit=limit)
+        return products, {}, fallback_intent, products
 
-    intent = await agent.classify_intent(query)
-    sub_queries = agent.build_sub_queries(query=query, intent=intent)
-
-    if not _should_run_semantic_pass(intent):
-        expanded_products = await _expand_products_with_sub_queries(
-            adapters=adapters,
-            query=query,
-            baseline_products=baseline_products,
-            sub_queries=sub_queries,
-            limit=limit,
-        )
-        return expanded_products, {}, intent, baseline_products
-
-    ranked_batches = [
-        await multi_query_search(sub_queries=sub_queries, filters=filters, top_k=limit)
-    ]
-    ranked = agent.merge_results(ranked_batches, limit)
-    intelligent_products, enrichment_by_sku = await _resolve_ranked_products(
-        adapters,
-        ranked,
-        limit,
+    # ── step 1: intent classification (SLM → LLM upgrade if complex) ─
+    intent_timeout = _resolve_timeout_seconds(
+        "CATALOG_INTENT_FAST_TIMEOUT_SECONDS",
+        INTELLIGENT_INTENT_TIMEOUT_SECONDS,
     )
-    if intelligent_products:
-        ranked_intelligent = _rank_products_by_query_relevance(
-            query=query,
-            products=intelligent_products,
-            limit=limit,
+    _t1 = _time.perf_counter()
+    intent_source = "slm"
+    try:
+        intent = await asyncio.wait_for(
+            agent.classify_intent(query),
+            timeout=intent_timeout,
         )
-        if _max_query_overlap(query, ranked_intelligent) > 0:
-            filtered_enrichment = {
-                sku: enrichment_by_sku[sku]
-                for sku in [product.sku for product in ranked_intelligent]
-                if sku in enrichment_by_sku
-            }
-            return ranked_intelligent, filtered_enrichment, intent, baseline_products
+    except (asyncio.TimeoutError, Exception):  # noqa: BLE001
+        intent_source = "fallback"
+        logger.warning(
+            "intelligent_intent_fast_timeout",
+            extra={"query_length": len(query), "timeout": intent_timeout},
+        )
+        intent = fallback_intent
+    _t_intent = _time.perf_counter()
+    logger.info(
+        "intelligent_stage_intent",
+        extra={
+            "query": query[:60],
+            "intent_ms": round((_t_intent - _t1) * 1000, 1),
+            "intent_source": intent_source,
+            "elapsed_ms": round((_t_intent - _t0) * 1000, 1),
+        },
+    )
 
-    expanded_products = await _expand_products_with_sub_queries(
-        adapters=adapters,
-        query=query,
-        baseline_products=baseline_products,
+    # ── step 2: build sub-queries from intent ────────────────────────
+    sub_queries = _build_sub_queries(query=query, intent=intent)
+
+    # ── step 3: parallel fan-out — keyword + hybrid ──────────────────
+    _t2 = _time.perf_counter()
+    keyword_task = keyword_search(query_text=query, filters=filters, top_k=limit)
+    hybrid_task = multi_query_search(
         sub_queries=sub_queries,
-        limit=limit,
+        filters=filters,
+        top_k=limit,
     )
-    return expanded_products, {}, intent, baseline_products
+
+    keyword_results, hybrid_results = await asyncio.gather(keyword_task, hybrid_task)
+    _t_search = _time.perf_counter()
+    logger.info(
+        "intelligent_stage_search",
+        extra={
+            "query": query[:60],
+            "search_ms": round((_t_search - _t2) * 1000, 1),
+            "keyword_skus": len(keyword_results),
+            "hybrid_skus": len(hybrid_results),
+            "sub_queries": len(sub_queries),
+            "elapsed_ms": round((_t_search - _t0) * 1000, 1),
+        },
+    )
+
+    # ── step 4: merge SKUs from both paths ───────────────────────────
+    keyword_skus: list[str] = [r.sku for r in keyword_results]
+    hybrid_skus: list[str] = [r.sku for r in hybrid_results]
+
+    enrichment_by_sku: dict[str, dict[str, Any]] = {
+        r.sku: r.enriched_fields for r in hybrid_results if r.enriched_fields
+    }
+
+    # ── build products from AI Search documents (no CRUD round-trip) ─
+    all_doc_results = keyword_results + hybrid_results
+    doc_by_sku: dict[str, Any] = {}
+    for r in all_doc_results:
+        if r.sku not in doc_by_sku:
+            doc_by_sku[r.sku] = r
+
+    seen_skus: set[str] = set()
+    ordered_skus: list[str] = []
+    for sku in keyword_skus + hybrid_skus:
+        if sku not in seen_skus:
+            seen_skus.add(sku)
+            ordered_skus.append(sku)
+
+    _t3 = _time.perf_counter()
+    products: list[CatalogProduct] = []
+    for sku in ordered_skus[: limit * 2]:
+        doc_result = doc_by_sku.get(sku)
+        if doc_result is not None:
+            doc = doc_result.document
+            products.append(
+                CatalogProduct(
+                    sku=sku,
+                    name=str(doc.get("name") or doc.get("title") or sku),
+                    description=doc.get("description") or doc.get("enriched_description"),
+                    brand=doc.get("brand"),
+                    category=doc.get("category"),
+                    price=_safe_float(doc.get("price")),
+                    currency=doc.get("currency"),
+                    image_url=doc.get("image_url"),
+                    rating=_safe_float(doc.get("rating")),
+                    tags=doc.get("tags") or [],
+                    attributes=doc.get("attributes") or {},
+                )
+            )
+        else:
+            # keyword-only SKU — try CRUD adapter
+            try:
+                resolved = await asyncio.wait_for(adapters.products.get_product(sku), timeout=0.5)
+                if isinstance(resolved, CatalogProduct):
+                    products.append(resolved)
+            except Exception:  # noqa: BLE001
+                pass
+    _t_resolve = _time.perf_counter()
+    logger.info(
+        "intelligent_stage_resolve",
+        extra={
+            "query": query[:60],
+            "resolve_ms": round((_t_resolve - _t3) * 1000, 1),
+            "resolve_count": len(ordered_skus[: limit * 2]),
+            "resolved_ok": len(products),
+            "elapsed_ms": round((_t_resolve - _t0) * 1000, 1),
+        },
+    )
+
+    # ── rank and trim ────────────────────────────────────────────────
+    ranked = _rank_products_by_query_relevance(query=query, products=products, limit=limit)
+    _t_rank = _time.perf_counter()
+    logger.info(
+        "intelligent_pipeline_timing",
+        extra={
+            "query": query[:60],
+            "intent_ms": round((_t_intent - _t1) * 1000, 1),
+            "intent_source": intent_source,
+            "search_ms": round((_t_search - _t2) * 1000, 1),
+            "resolve_ms": round((_t_resolve - _t3) * 1000, 1),
+            "rank_ms": round((_t_rank - _t_resolve) * 1000, 1),
+            "total_ms": round((_t_rank - _t0) * 1000, 1),
+            "keyword_skus": len(keyword_skus),
+            "hybrid_skus": len(hybrid_skus),
+            "sub_queries": len(sub_queries),
+            "resolved": len(products),
+        },
+    )
+
+    filtered_enrichment = {
+        p.sku: enrichment_by_sku[p.sku] for p in ranked if p.sku in enrichment_by_sku
+    }
+
+    baseline_products = [p for p in products if p.sku in set(keyword_skus)][:limit]
+
+    return ranked, filtered_enrichment, intent, baseline_products
 
 
 def _build_sub_queries(query: str, intent: IntentClassification) -> list[str]:
