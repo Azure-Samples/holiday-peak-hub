@@ -205,3 +205,42 @@ async def test_ensure_role_skips_wiring_when_id_remains_pending():
     assert result["status"] == "missing"
     assert cfg.runtime_agent_id is None
     assert agent.slm is None
+
+
+@pytest.mark.asyncio
+async def test_ensure_role_wires_model_target_on_instructions_updated():
+    """Lifecycle manager wires model target when drift detection updates instructions."""
+    agent = _Agent(config=AgentDependencies())
+    cfg = FoundryAgentConfig(
+        endpoint=TEST_PROJECT_ENDPOINT,
+        agent_id="pending",
+        deployment_name="gpt-5-nano",
+    )
+    ensure_fn = AsyncMock(
+        return_value={
+            "status": "instructions_updated",
+            "agent_id": "svc-fast:2",
+            "agent_name": "svc-fast",
+            "created": True,
+        }
+    )
+
+    manager = FoundryLifecycleManager(
+        service_name="svc",
+        agent=agent,
+        slm_config=cfg,
+        llm_config=None,
+        ensure_foundry_agent_fn=ensure_fn,
+        build_foundry_model_target_fn=lambda _: "target-fast-v2",
+    )
+
+    result = await manager.ensure_role(
+        selected_role="fast",
+        config=cfg,
+        instructions="Updated instructions",
+        create_if_missing=True,
+    )
+
+    assert result["status"] == "instructions_updated"
+    assert cfg.runtime_agent_id == "svc-fast:2"
+    assert agent.slm == "target-fast-v2"

@@ -12,7 +12,7 @@ DEFAULT_FOUNDRY_MODELS = {
     "rich": "gpt-5",
 }
 
-FOUNDRY_READY_STATUSES = frozenset({"exists", "found_by_name", "created"})
+FOUNDRY_READY_STATUSES = frozenset({"exists", "found_by_name", "created", "instructions_updated"})
 
 
 def _has_resolved_agent_id(agent_id: str | None) -> bool:

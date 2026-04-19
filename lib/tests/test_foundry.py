@@ -611,3 +611,144 @@ class TestEnsureFoundryAgent:
 
         assert result["status"] == "agents_service_unavailable"
         assert result["created"] is False
+
+
+@pytest.mark.asyncio
+class TestInstructionDriftDetection:
+    """Tests for instruction drift detection in ensure_foundry_agent."""
+
+    async def test_drift_detected_creates_new_version(self):
+        """When remote instructions differ from local, a new version is created."""
+        config = FoundryAgentConfig(
+            endpoint=TEST_PROJECT_ENDPOINT,
+            agent_id="pending",
+            agent_name="svc-fast",
+            deployment_name="gpt-5-nano",
+        )
+        old_version = MagicMock()
+        old_version.definition = MagicMock()
+        old_version.definition.instructions = "Old instructions"
+
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_agents = MagicMock()
+        mock_agents.create_version = AsyncMock(
+            return_value={"id": "svc-fast:2", "name": "svc-fast"}
+        )
+        mock_agents.list = AsyncMock(return_value=[{"id": "svc-fast:1", "name": "svc-fast"}])
+
+        async def _fake_list_versions(**kwargs):
+            return [old_version]
+
+        mock_agents.list_versions = _fake_list_versions
+        mock_client.agents = mock_agents
+
+        with patch("holiday_peak_lib.agents.foundry._ensure_client", return_value=mock_client):
+            result = await ensure_foundry_agent(
+                config,
+                agent_name="svc-fast",
+                instructions="New updated instructions",
+                create_if_missing=True,
+                model="gpt-5-nano",
+            )
+
+        assert result["status"] == "instructions_updated"
+        assert result["agent_id"] == "svc-fast:2"
+        mock_agents.create_version.assert_called_once()
+
+    async def test_no_drift_skips_version_creation(self):
+        """When remote and local instructions match, no new version is created."""
+        config = FoundryAgentConfig(
+            endpoint=TEST_PROJECT_ENDPOINT,
+            agent_id="pending",
+            agent_name="svc-fast",
+            deployment_name="gpt-5-nano",
+        )
+        matching_version = MagicMock()
+        matching_version.definition = MagicMock()
+        matching_version.definition.instructions = "Same instructions"
+
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_agents = MagicMock()
+        mock_agents.create_version = AsyncMock()
+        mock_agents.list = AsyncMock(return_value=[{"id": "svc-fast:1", "name": "svc-fast"}])
+
+        async def _fake_list_versions(**kwargs):
+            return [matching_version]
+
+        mock_agents.list_versions = _fake_list_versions
+        mock_client.agents = mock_agents
+
+        with patch("holiday_peak_lib.agents.foundry._ensure_client", return_value=mock_client):
+            result = await ensure_foundry_agent(
+                config,
+                agent_name="svc-fast",
+                instructions="Same instructions",
+                create_if_missing=True,
+                model="gpt-5-nano",
+            )
+
+        assert result["status"] == "found_by_name"
+        mock_agents.create_version.assert_not_called()
+
+    async def test_no_instructions_skips_drift_check(self):
+        """When no instructions are provided, drift check is skipped entirely."""
+        config = FoundryAgentConfig(
+            endpoint=TEST_PROJECT_ENDPOINT,
+            agent_id="pending",
+            agent_name="svc-fast",
+            deployment_name="gpt-5-nano",
+        )
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_agents = MagicMock()
+        mock_agents.create_version = AsyncMock()
+        mock_agents.list = AsyncMock(return_value=[{"id": "svc-fast:1", "name": "svc-fast"}])
+        mock_agents.list_versions = AsyncMock()
+        mock_client.agents = mock_agents
+
+        with patch("holiday_peak_lib.agents.foundry._ensure_client", return_value=mock_client):
+            result = await ensure_foundry_agent(
+                config,
+                agent_name="svc-fast",
+                create_if_missing=True,
+            )
+
+        assert result["status"] == "found_by_name"
+        mock_agents.list_versions.assert_not_called()
+        mock_agents.create_version.assert_not_called()
+
+    async def test_list_versions_failure_returns_original_result(self):
+        """When list_versions raises, the original found result is returned."""
+        config = FoundryAgentConfig(
+            endpoint=TEST_PROJECT_ENDPOINT,
+            agent_id="pending",
+            agent_name="svc-fast",
+            deployment_name="gpt-5-nano",
+        )
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_agents = MagicMock()
+        mock_agents.create_version = AsyncMock()
+        mock_agents.list = AsyncMock(return_value=[{"id": "svc-fast:1", "name": "svc-fast"}])
+        mock_agents.list_versions = AsyncMock(
+            side_effect=HttpResponseError(message="service unavailable")
+        )
+        mock_client.agents = mock_agents
+
+        with patch("holiday_peak_lib.agents.foundry._ensure_client", return_value=mock_client):
+            result = await ensure_foundry_agent(
+                config,
+                agent_name="svc-fast",
+                instructions="Updated instructions",
+                create_if_missing=True,
+                model="gpt-5-nano",
+            )
+
+        assert result["status"] == "found_by_name"
+        mock_agents.create_version.assert_not_called()
