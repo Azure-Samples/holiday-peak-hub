@@ -32,6 +32,7 @@
 - `agent-framework` upgraded from unpinned to `>=1.0.1` GA across all 27 Python service packages; resolves `ContextProvider` vs `BaseContextProvider` import incompatibility.
 - Memory tier operations parallelized with `asyncio.gather` for reduced latency; new memory tools (`get_memory`, `set_memory`, `search_memory`) and `gather_adapters` helper available.
 - AKS deployments now reconcile through Flux CD GitOps (ADR-033); kubectl-apply path removed.
+- **ADR-033 Phase 2 (in progress)**: migrating from rendered YAML to Flux HelmRelease CRDs for in-cluster Helm rendering. Pilot: `ecommerce-catalog-search` deployed via HelmRelease; remaining 25 services migrate incrementally. New HelmRelease manifests in `.kubernetes/releases/agents/`.
 - CRUD and agent services run in separate Kubernetes namespaces (ADR-034).
 - API Center governance and APIM MCP strategy implemented (ADR-035).
 - Self-healing runtime completed with incident lifecycle state machine, remediation policy, and audit trail.
