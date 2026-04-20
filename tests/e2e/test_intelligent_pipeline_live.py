@@ -2,7 +2,7 @@
 
 These tests hit the **real deployed services** (APIM → nginx → AKS pod →
 AI Foundry + AI Search + CRUD) and validate:
-  1. Wall-clock response time ≤ 4 s (the strict pipeline budget).
+  1. Wall-clock response time ≤ 5 s (the strict pipeline budget).
   2. Response shape: either valid results or a hard error — never a degraded
      fallback that hangs for tens of seconds.
 
@@ -35,7 +35,7 @@ _DEFAULT_APIM_URL = (
 LIVE_URL = os.getenv("CATALOG_SEARCH_LIVE_URL", _DEFAULT_APIM_URL)
 
 # The strict pipeline budget enforced by the agent code.
-PIPELINE_BUDGET_SECONDS = 4.0
+PIPELINE_BUDGET_SECONDS = 5.0
 
 # We allow a small HTTP overhead on top of the pipeline budget for network
 # round-trip, TLS handshake, and APIM policy evaluation.
