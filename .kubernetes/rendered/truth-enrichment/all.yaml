@@ -85,6 +85,8 @@ spec:
               value: "https://holidaypeakhub405devstor.blob.core.windows.net"
             - name: BLOB_CONTAINER
               value: "agent-memory"
+            - name: TRUTH_PRODUCT_BLOB_CONTAINER
+              value: "products"
             - name: CATALOG_SEARCH_REQUIRE_AI_SEARCH
               value: "true"
             - name: COSMOS_ACCOUNT_URI
@@ -104,7 +106,9 @@ spec:
             - name: FOUNDRY_AUTO_ENSURE_ON_STARTUP
               value: "true"
             - name: FOUNDRY_STREAM
-              value: "false"
+              value: "true"
+            - name: AGENT_FOUNDRY_INVOKE_TIMEOUT_SECONDS
+              value: "60"
             - name: FOUNDRY_STRICT_ENFORCEMENT
               value: "false"
             - name: KEY_VAULT_URI

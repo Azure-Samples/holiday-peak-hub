@@ -22,6 +22,9 @@ mono_crash.*
 [Dd]ebugPublic/
 [Rr]elease/
 [Rr]eleases/
+# Allow Kubernetes HelmRelease manifests (overrides [Rr]eleases/ above)
+!.kubernetes/releases/
+!.kubernetes/releases/**
 x64/
 x86/
 [Ww][Ii][Nn]32/

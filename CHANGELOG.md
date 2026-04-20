@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- ADR-033 Phase 2: migrated `ecommerce-catalog-search` from rendered YAML to Flux HelmRelease CRD for in-cluster Helm rendering. Eliminates `render-helm.sh` dependency for migrated services. Pilot validated with E2E test (200 OK, 5 results, correct image + env vars). New directory `.kubernetes/releases/agents/` holds HelmRelease manifests; remaining 25 services migrate incrementally.
+
 ### Fixed
 
 - Issue #801 / PR #802: replaced `FoundryInvoker` with `FoundryAgentInvoker` wrapping the Microsoft Agent Framework `FoundryAgent` runtime. Tools are now properly forwarded to the agent instead of being silently dropped. Upgraded `agent-framework` to `>=1.0.1` GA across all 27 service packages.

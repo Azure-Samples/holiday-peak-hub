@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Phase 2: Flux HelmRelease-based deployments (replaces rendered YAML).
+# Each file is a HelmRelease CRD that Flux Helm Controller reconciles in-cluster.
+# Migrated services are removed from .kubernetes/rendered/agents/kustomization.yaml.
+resources:
+  - ecommerce-catalog-search.yaml

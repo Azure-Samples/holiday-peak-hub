@@ -45,9 +45,11 @@ from .adapters import (
 from .ai_search import (
     AISearchDocumentResult,
     ai_search_required_runtime_enabled,
+    hybrid_search,
     keyword_search,
     multi_query_search,
     search_catalog_skus_detailed,
+    vector_search,
 )
 
 logger = logging.getLogger(__name__)
@@ -67,7 +69,7 @@ HOT_HISTORY_MAX_ENTRIES = 20
 HOT_HISTORY_TTL_SECONDS = 3600
 INTENT_CONFIDENCE_THRESHOLD = 0.55
 INTELLIGENT_INTENT_TIMEOUT_SECONDS = 1.5
-INTELLIGENT_PIPELINE_TIMEOUT_SECONDS = 4.0
+INTELLIGENT_PIPELINE_TIMEOUT_SECONDS = 5.0
 GENERIC_KEYWORD_LIMIT = 8
 QUERY_EXPANSION_QUERY_LIMIT = 4
 DEGRADED_MODEL_FALLBACK_MESSAGE = (
@@ -152,6 +154,108 @@ LEXICAL_CANONICAL_OVERRIDES: dict[str, str] = {
     "wears": "wear",
     "wore": "wear",
 }
+
+
+# ---------------------------------------------------------------------------
+# Agent-driven search tool infrastructure
+# ---------------------------------------------------------------------------
+
+_SEARCH_TOOL_INSTRUCTIONS = (
+    "You are a catalog search dispatcher. Given a user query, intent classification, "
+    "and sub-queries, call the available search tools to find relevant products.\n\n"
+    "Strategy:\n"
+    "- For simple keyword queries (product name, SKU, brand): call keyword_search.\n"
+    "- For natural-language queries: call BOTH keyword_search AND hybrid_search.\n"
+    "- For conceptual/similarity queries: call hybrid_search or vector_search.\n"
+    "- You may call multiple tools in parallel with different query_text values "
+    "derived from the sub_queries list.\n"
+    "- Always call at least one search tool.\n\n"
+    "After tool results arrive, respond with a short JSON:\n"
+    '{"tools_called": ["keyword_search", "hybrid_search"], "reasoning": "<1 sentence>"}'
+)
+
+
+class _SearchToolCollector:
+    """Side-channel that captures raw search results during tool execution.
+
+    Tool callables write into this collector so the pipeline retains access
+    to full ``AISearchDocumentResult`` objects while the model only sees
+    a lightweight JSON summary it can reason about.
+    """
+
+    __slots__ = ("keyword", "hybrid", "vector", "calls")
+
+    def __init__(self) -> None:
+        self.keyword: list[AISearchDocumentResult] = []
+        self.hybrid: list[AISearchDocumentResult] = []
+        self.vector: list[AISearchDocumentResult] = []
+        self.calls: list[str] = []
+
+
+def _summarize_search_results(results: list[AISearchDocumentResult]) -> list[dict[str, Any]]:
+    """Build a lightweight summary the model can consume without exceeding token limits."""
+    return [
+        {
+            "sku": r.sku,
+            "score": round(r.score, 4),
+            "name": str(r.document.get("name") or r.document.get("title") or r.sku),
+            "brand": r.document.get("brand") or "",
+            "category": r.document.get("category") or "",
+            "price": r.document.get("price"),
+        }
+        for r in results
+    ]
+
+
+def _build_search_tool_callables(
+    collector: _SearchToolCollector,
+    filters: dict[str, Any] | None,
+    top_k: int,
+) -> dict[str, Any]:
+    """Build tool callables that the Foundry agent can invoke during reasoning.
+
+    Each tool captures full results in *collector* (side-channel) and returns
+    a compact JSON string for the model.
+    """
+
+    async def keyword_search_tool(query_text: str, top_k: int = top_k) -> str:
+        """Search the product catalog using keyword/text matching. Best for specific product names, SKUs, or brands."""
+        results = await keyword_search(
+            query_text=query_text,
+            filters=filters,
+            top_k=top_k,
+        )
+        collector.keyword.extend(results)
+        collector.calls.append("keyword_search")
+        return json.dumps(_summarize_search_results(results))
+
+    async def hybrid_search_tool(query_text: str, top_k: int = top_k) -> str:
+        """Search the product catalog using combined keyword + semantic vector matching. Best for natural language queries and complex requirements."""
+        results = await hybrid_search(
+            query_text=query_text,
+            filters=filters,
+            top_k=top_k,
+        )
+        collector.hybrid.extend(results)
+        collector.calls.append("hybrid_search")
+        return json.dumps(_summarize_search_results(results))
+
+    async def vector_search_tool(query_text: str, top_k: int = top_k) -> str:
+        """Search the product catalog using pure semantic vector matching. Best for conceptual queries and finding similar products."""
+        results = await vector_search(
+            query_text=query_text,
+            filters=filters,
+            top_k=top_k,
+        )
+        collector.vector.extend(results)
+        collector.calls.append("vector_search")
+        return json.dumps(_summarize_search_results(results))
+
+    return {
+        "keyword_search": keyword_search_tool,
+        "hybrid_search": hybrid_search_tool,
+        "vector_search": vector_search_tool,
+    }
 
 
 class CatalogSearchAgent(BaseRetailAgent):
@@ -1232,12 +1336,13 @@ async def _search_products_intelligent(
     IntentClassification | None,
     list[CatalogProduct],
 ]:
-    """Intent-first intelligent search — strict ≤4 s wall-clock.
+    """Intent-first intelligent search — strict ≤5 s wall-clock.
 
     1. Classify intent (SLM first, LLM upgrade if complex).
     2. Build sub-queries from intent entities.
-    3. Fan-out keyword search (original query) + hybrid search (sub-queries) in parallel.
-    4. Merge SKUs, resolve products, rank by relevance.
+    3. Agent-driven tool-calling: Foundry model decides which search tools
+       to invoke (keyword, hybrid, vector) based on query + intent.
+    4. Merge SKUs from tool results, resolve products, rank by relevance.
     """
     import time as _time
 
@@ -1281,16 +1386,76 @@ async def _search_products_intelligent(
     # ── step 2: build sub-queries from intent ────────────────────────
     sub_queries = _build_sub_queries(query=query, intent=intent)
 
-    # ── step 3: parallel fan-out — keyword + hybrid ──────────────────
+    # ── step 3: agent-driven tool-calling search ─────────────────────
     _t2 = _time.perf_counter()
-    keyword_task = keyword_search(query_text=query, filters=filters, top_k=limit)
-    hybrid_task = multi_query_search(
-        sub_queries=sub_queries,
+    collector = _SearchToolCollector()
+    search_tools = _build_search_tool_callables(
+        collector,
         filters=filters,
         top_k=limit,
     )
 
-    keyword_results, hybrid_results = await asyncio.gather(keyword_task, hybrid_task)
+    has_model = agent.slm is not None or agent.llm is not None
+    if has_model:
+        search_messages = [
+            {
+                "role": "system",
+                "content": _SEARCH_TOOL_INSTRUCTIONS,
+            },
+            {
+                "role": "user",
+                "content": json.dumps(
+                    {
+                        "query": query,
+                        "intent": intent.model_dump(mode="json"),
+                        "sub_queries": sub_queries,
+                        "limit": limit,
+                    },
+                    default=str,
+                ),
+            },
+        ]
+        try:
+            await agent.invoke_model(
+                request={"query": query, "requires_multi_tool": True},
+                messages=search_messages,
+                tools=search_tools,
+                reasoning_effort="minimal",
+            )
+        except (asyncio.TimeoutError, Exception):  # noqa: BLE001
+            logger.warning(
+                "intelligent_tool_search_failed",
+                extra={
+                    "query_length": len(query),
+                    "tools_called_before_error": collector.calls,
+                },
+                exc_info=True,
+            )
+            # If the model errored but tools already ran, we still have
+            # results in the collector — continue with whatever we got.
+
+    # If the model called no tools (or no model is configured), execute
+    # the default parallel fan-out so the pipeline always produces results.
+    if not collector.calls:
+        logger.info(
+            "intelligent_tool_search_fallthrough",
+            extra={"query": query[:60], "has_model": has_model},
+        )
+        kw_results, hybrid_results = await asyncio.gather(
+            keyword_search(query_text=query, filters=filters, top_k=limit),
+            multi_query_search(
+                sub_queries=sub_queries,
+                filters=filters,
+                top_k=limit,
+            ),
+        )
+        collector.keyword.extend(kw_results)
+        collector.hybrid.extend(hybrid_results)
+        collector.calls.extend(["keyword_search", "hybrid_search"])
+
+    keyword_results = collector.keyword
+    hybrid_results = collector.hybrid + collector.vector
+
     _t_search = _time.perf_counter()
     logger.info(
         "intelligent_stage_search",
@@ -1300,6 +1465,7 @@ async def _search_products_intelligent(
             "keyword_skus": len(keyword_results),
             "hybrid_skus": len(hybrid_results),
             "sub_queries": len(sub_queries),
+            "tools_called": collector.calls,
             "elapsed_ms": round((_t_search - _t0) * 1000, 1),
         },
     )
@@ -1383,6 +1549,7 @@ async def _search_products_intelligent(
             "keyword_skus": len(keyword_skus),
             "hybrid_skus": len(hybrid_skus),
             "sub_queries": len(sub_queries),
+            "tools_called": collector.calls,
             "resolved": len(products),
         },
     )
