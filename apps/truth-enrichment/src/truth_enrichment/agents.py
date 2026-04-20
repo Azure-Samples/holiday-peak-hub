@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json as _json_mod
 import uuid
 from typing import Any
 
@@ -104,7 +105,10 @@ class TruthEnrichmentAgent(BaseRetailAgent):
                 "proposed": [],
             }
 
-        proposed_list = await self._enrich_gaps(entity_id, product, gaps, schema)
+        if self.slm or self.llm:
+            proposed_list = await self._enrich_gaps_agentic(str(entity_id), product, gaps, schema)
+        else:
+            proposed_list = await self._enrich_gaps(str(entity_id), product, gaps, schema)
         self._trace_decision(
             decision="enrichment_decision",
             outcome="enrich",
@@ -200,33 +204,7 @@ class TruthEnrichmentAgent(BaseRetailAgent):
         await self.adapters.audit.append(audit)
 
         if self.engine.needs_hitl(proposed):
-            current_value = None
-            original_data = proposed.get("original_data")
-            if isinstance(original_data, dict):
-                current_value = original_data.get(field_name)
-
-            await self.adapters.hitl_publisher.publish(
-                {
-                    "event_type": "attribute.proposed",
-                    "data": {
-                        "entity_id": entity_id,
-                        "attr_id": proposed["id"],
-                        "field_name": field_name,
-                        "proposed_value": proposed.get("proposed_value"),
-                        "confidence": proposed.get("confidence", 0.0),
-                        "current_value": current_value,
-                        "source": "ai",
-                        "proposed_at": proposed.get("created_at"),
-                        "product_title": str(product.get("title") or product.get("name") or ""),
-                        "category_label": str(product.get("category") or ""),
-                        "original_data": proposed.get("original_data"),
-                        "enriched_data": proposed.get("enriched_data"),
-                        "reasoning": proposed.get("reasoning"),
-                        "source_assets": proposed.get("source_assets"),
-                        "source_type": proposed.get("source_type"),
-                    },
-                }
-            )
+            await self._publish_hitl(entity_id, field_name, product, proposed)
 
         return proposed
 
@@ -243,6 +221,305 @@ class TruthEnrichmentAgent(BaseRetailAgent):
             proposed = await self.enrich_field(entity_id, field_name, product, field_def)
             results.append(proposed)
         return results
+
+    async def _enrich_gaps_agentic(
+        self,
+        entity_id: str,
+        product: dict[str, Any],
+        gaps: list[str],
+        schema: dict[str, Any] | None,
+    ) -> list[dict[str, Any]]:
+        """Let the model orchestrate which enrichment tools to call per gap."""
+        tools = self._build_enrichment_tools(gaps, schema)
+        messages = self._build_orchestration_messages(entity_id, product, gaps, schema)
+
+        try:
+            result = await self.invoke_model(
+                request={
+                    "entity_id": entity_id,
+                    "intent": "enrichment_orchestration",
+                    "requires_multi_tool": True,
+                },
+                messages=messages,
+                tools=tools,
+            )
+        except Exception:  # noqa: BLE001
+            return await self._enrich_gaps(entity_id, product, gaps, schema)
+
+        tool_calls = result.get("tool_calls", []) if isinstance(result, dict) else []
+        if not tool_calls:
+            return await self._enrich_gaps(entity_id, product, gaps, schema)
+
+        proposed_list: list[dict[str, Any]] = []
+        for tool_call in tool_calls:
+            tool_name = tool_call.get("name") or tool_call.get("function", {}).get("name", "")
+            tool_args = tool_call.get("arguments", {})
+            if isinstance(tool_args, str):
+                try:
+                    tool_args = _json_mod.loads(tool_args)
+                except (ValueError, TypeError):
+                    tool_args = {}
+
+            proposed = await self._execute_enrichment_tool(
+                tool_name, entity_id, product, gaps, schema, tool_args
+            )
+            if proposed is not None:
+                if isinstance(proposed, list):
+                    proposed_list.extend(proposed)
+                else:
+                    proposed_list.append(proposed)
+
+        addressed_fields = {
+            p["field_name"] for p in proposed_list if isinstance(p, dict) and "field_name" in p
+        }
+        remaining = [g for g in gaps if g not in addressed_fields]
+        for field_name in remaining:
+            field_def = _field_definition_for_name(schema, field_name)
+            proposed = await self.enrich_field(entity_id, field_name, product, field_def)
+            proposed_list.append(proposed)
+
+        return proposed_list
+
+    def _build_enrichment_tools(
+        self,
+        gaps: list[str],
+        schema: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        """Build tool definitions for the orchestration model."""
+        return {
+            "enrich_field_with_text": {
+                "description": (
+                    "Enrich a single product field using text-based AI analysis. "
+                    "Best for textual attributes like descriptions, materials, categories."
+                ),
+                "parameters": {
+                    "field_name": {
+                        "type": "string",
+                        "description": "The field to enrich",
+                    },
+                },
+            },
+            "enrich_field_with_vision": {
+                "description": (
+                    "Enrich a single product field using image/vision analysis. "
+                    "Best for visual attributes like color, pattern, style, shape."
+                ),
+                "parameters": {
+                    "field_name": {
+                        "type": "string",
+                        "description": "The field to enrich",
+                    },
+                },
+            },
+            "enrich_field_hybrid": {
+                "description": (
+                    "Enrich a single product field using both text and vision analysis, "
+                    "then merge the candidates. Best when both text context and images "
+                    "contain useful signals."
+                ),
+                "parameters": {
+                    "field_name": {
+                        "type": "string",
+                        "description": "The field to enrich",
+                    },
+                },
+            },
+            "enrich_all_gaps_sequential": {
+                "description": (
+                    "Enrich all remaining gaps using the default sequential pipeline. "
+                    "Use when you don't have a strong preference for individual "
+                    "field strategies."
+                ),
+                "parameters": {},
+            },
+        }
+
+    def _build_orchestration_messages(
+        self,
+        entity_id: str,
+        product: dict[str, Any],
+        gaps: list[str],
+        schema: dict[str, Any] | None,
+    ) -> list[dict[str, Any]]:
+        """Build the orchestration prompt messages for the model."""
+        return [
+            {
+                "role": "system",
+                "content": (
+                    "You are a product enrichment orchestrator. Given a product "
+                    "with missing fields, decide the best enrichment strategy for "
+                    "each gap. Use vision analysis for visual attributes (color, "
+                    "pattern, style), text analysis for textual attributes "
+                    "(description, material, category), and hybrid for fields "
+                    "where both sources help. Call enrich_all_gaps_sequential "
+                    "only if you have no specific preference."
+                ),
+            },
+            {
+                "role": "user",
+                "content": str(
+                    {
+                        "entity_id": entity_id,
+                        "product": product,
+                        "missing_fields": gaps,
+                        "schema": schema,
+                    }
+                ),
+            },
+        ]
+
+    async def _execute_enrichment_tool(
+        self,
+        tool_name: str,
+        entity_id: str,
+        product: dict[str, Any],
+        gaps: list[str],
+        schema: dict[str, Any] | None,
+        tool_args: dict[str, Any],
+    ) -> dict[str, Any] | list[dict[str, Any]] | None:
+        """Dispatch a single tool call from the orchestration model."""
+        field_name = tool_args.get("field_name")
+
+        if tool_name == "enrich_all_gaps_sequential":
+            return await self._enrich_gaps(entity_id, product, gaps, schema)
+
+        if not field_name or field_name not in gaps:
+            return None
+
+        field_def = _field_definition_for_name(schema, field_name)
+
+        if tool_name == "enrich_field_with_text":
+            return await self._enrich_field_text_only(entity_id, field_name, product, field_def)
+        if tool_name == "enrich_field_with_vision":
+            return await self._enrich_field_vision_only(entity_id, field_name, product, field_def)
+        if tool_name == "enrich_field_hybrid":
+            return await self.enrich_field(entity_id, field_name, product, field_def)
+
+        return None
+
+    async def _enrich_field_text_only(
+        self,
+        entity_id: str,
+        field_name: str,
+        product: dict[str, Any],
+        field_definition: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Enrich using only text-based model analysis."""
+        job_id = str(uuid.uuid4())
+        messages = self.engine.build_prompt(product, field_name, field_definition)
+
+        text_parsed: dict[str, Any] | None = None
+        if self.slm or self.llm:
+            text_raw = await self.invoke_model(
+                request={"entity_id": entity_id, "field_name": field_name},
+                messages=messages,
+            )
+            text_parsed = self.engine.parse_ai_response(text_raw)
+
+        parsed = self.engine.merge_enrichment_candidates(
+            field_name=field_name,
+            original_data={field_name: product.get(field_name)},
+            image_parsed=None,
+            text_parsed=text_parsed,
+        )
+        proposed = self.engine.build_proposed_attribute(
+            entity_id=entity_id,
+            field_name=field_name,
+            parsed=parsed,
+            model_id=_model_id(self),
+            job_id=job_id,
+        )
+
+        await self.adapters.proposed.upsert(proposed)
+        audit = self.engine.build_audit_event(
+            "enrichment_proposed", entity_id, field_name, proposed
+        )
+        await self.adapters.audit.append(audit)
+
+        if self.engine.needs_hitl(proposed):
+            await self._publish_hitl(entity_id, field_name, product, proposed)
+
+        return proposed
+
+    async def _enrich_field_vision_only(
+        self,
+        entity_id: str,
+        field_name: str,
+        product: dict[str, Any],
+        field_definition: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Enrich using only vision/image analysis."""
+        job_id = str(uuid.uuid4())
+
+        image_analysis = self.adapters.image_analysis or self.adapters.dam
+        image_raw = await image_analysis.analyze_attribute_from_images(
+            entity_id=entity_id,
+            field_name=field_name,
+            product=product,
+            field_definition=field_definition,
+        )
+        image_parsed = self.engine.parse_vision_response(image_raw)
+
+        parsed = self.engine.merge_enrichment_candidates(
+            field_name=field_name,
+            original_data={field_name: product.get(field_name)},
+            image_parsed=image_parsed,
+            text_parsed=None,
+        )
+        proposed = self.engine.build_proposed_attribute(
+            entity_id=entity_id,
+            field_name=field_name,
+            parsed=parsed,
+            model_id=_model_id(self),
+            job_id=job_id,
+        )
+
+        await self.adapters.proposed.upsert(proposed)
+        audit = self.engine.build_audit_event(
+            "enrichment_proposed", entity_id, field_name, proposed
+        )
+        await self.adapters.audit.append(audit)
+
+        if self.engine.needs_hitl(proposed):
+            await self._publish_hitl(entity_id, field_name, product, proposed)
+
+        return proposed
+
+    async def _publish_hitl(
+        self,
+        entity_id: str,
+        field_name: str,
+        product: dict[str, Any],
+        proposed: dict[str, Any],
+    ) -> None:
+        """Publish a proposed attribute to the HITL review queue."""
+        current_value = None
+        original_data = proposed.get("original_data")
+        if isinstance(original_data, dict):
+            current_value = original_data.get(field_name)
+
+        await self.adapters.hitl_publisher.publish(
+            {
+                "event_type": "attribute.proposed",
+                "data": {
+                    "entity_id": entity_id,
+                    "attr_id": proposed["id"],
+                    "field_name": field_name,
+                    "proposed_value": proposed.get("proposed_value"),
+                    "confidence": proposed.get("confidence", 0.0),
+                    "current_value": current_value,
+                    "source": "ai",
+                    "proposed_at": proposed.get("created_at"),
+                    "product_title": str(product.get("title") or product.get("name") or ""),
+                    "category_label": str(product.get("category") or ""),
+                    "original_data": proposed.get("original_data"),
+                    "enriched_data": proposed.get("enriched_data"),
+                    "reasoning": proposed.get("reasoning"),
+                    "source_assets": proposed.get("source_assets"),
+                    "source_type": proposed.get("source_type"),
+                },
+            }
+        )
 
 
 def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:

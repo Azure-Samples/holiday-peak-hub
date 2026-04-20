@@ -309,3 +309,73 @@ async def test_register_mcp_tools_adds_ai_search_indexing_paths_when_configured(
         register_mcp_tools(mcp, agent)
 
     register_tools.assert_called_once_with(mcp, client=fake_client)
+
+
+@pytest.mark.asyncio
+async def test_handle_uses_agentic_strategy_when_model_returns_tool_calls() -> None:
+    """Model-orchestrated enrichment uses tool calls to select strategy."""
+    agent_config = _build_agent_config_with_slm()
+    adapters = _mock_adapters()
+    adapters.foundry.orchestrate_enrichment = AsyncMock(
+        return_value={
+            "_status": "ok",
+            "_strategy": "agentic",
+            "tool_calls": [{"name": "generate_complex_fields"}],
+            "fields": {},
+        }
+    )
+    adapters.foundry.enrich_complex_fields = AsyncMock(
+        return_value={
+            "_status": "ok",
+            "use_cases": ["hiking", "outdoor travel"],
+            "search_keywords": ["trail", "hiking shoe"],
+            "enriched_description": "Model-generated description",
+        }
+    )
+
+    with patch(
+        "search_enrichment_agent.agents.build_search_enrichment_adapters", return_value=adapters
+    ):
+        agent = SearchEnrichmentAgent(config=agent_config)
+
+    result = await agent.handle({"entity_id": "SKU-1"})
+    assert result["status"] == "enriched"
+    assert result["strategy"] == "agentic"
+    adapters.foundry.orchestrate_enrichment.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_handle_degrades_gracefully_when_agentic_orchestration_fails() -> None:
+    """Falls back to simple strategy when the model orchestration raises."""
+    agent_config = _build_agent_config_with_slm()
+    adapters = _mock_adapters()
+    adapters.foundry.orchestrate_enrichment = AsyncMock(side_effect=RuntimeError("model error"))
+
+    with patch(
+        "search_enrichment_agent.agents.build_search_enrichment_adapters", return_value=adapters
+    ):
+        agent = SearchEnrichmentAgent(config=agent_config)
+
+    result = await agent.handle({"entity_id": "SKU-1"})
+    assert result["status"] == "enriched"
+    assert result["strategy"] == "simple"
+    assert result["graceful_degradation"] is True
+
+
+@pytest.mark.asyncio
+async def test_handle_uses_simple_strategy_when_no_model_backend() -> None:
+    """Without models, deterministic simple strategy is used."""
+    agent_config = _build_agent_config_without_models()
+    adapters = _mock_adapters()
+    adapters.foundry.orchestrate_enrichment = AsyncMock()
+
+    with patch(
+        "search_enrichment_agent.agents.build_search_enrichment_adapters", return_value=adapters
+    ):
+        agent = SearchEnrichmentAgent(config=agent_config)
+
+    result = await agent.handle({"entity_id": "SKU-1"})
+    assert result["status"] == "enriched"
+    assert result["strategy"] == "simple"
+    assert result["graceful_degradation"] is False
+    adapters.foundry.orchestrate_enrichment.assert_not_awaited()

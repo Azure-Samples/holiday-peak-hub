@@ -53,22 +53,53 @@ class SearchEnrichmentOrchestrator:
             entity_id, approved, has_model_backend
         )
 
+        # If agentic strategy returned tool_calls, execute them
+        if (
+            strategy == "agentic"
+            and isinstance(enriched_fields, dict)
+            and enriched_fields.get("tool_calls")
+        ):
+            executed_fields: dict[str, Any] = {}
+            for tool_call in enriched_fields["tool_calls"]:
+                tool_name = tool_call.get("name") or tool_call.get("function", {}).get("name")
+                if tool_name:
+                    tool_result = await self._execute_tool(tool_name, entity_id, approved)
+                    executed_fields.update(tool_result)
+            enriched_fields = (
+                executed_fields if executed_fields else self.engine.build_simple_fields(approved)
+            )
+
         validated_fields = self.engine.validate_fields(enriched_fields)
         enriched_product = SearchEnrichedProduct(
             sku=entity_id,
-            score=1.0 if strategy == "complex" else 0.75,
+            score=1.0 if strategy in ("complex", "agentic") else 0.75,
             sourceType=(
-                SourceType.AI_REASONING if strategy == "complex" else SourceType.PRODUCT_CONTEXT
+                SourceType.AI_REASONING
+                if strategy in ("complex", "agentic")
+                else SourceType.PRODUCT_CONTEXT
             ),
             sourceAssets=[],
             originalData=approved,
             enrichedData=validated_fields,
             intentClassification=None,
             reasoning=(
-                "Complex strategy using model-assisted enrichment"
-                if strategy == "complex"
-                else "Simple deterministic strategy from approved truth"
+                "Agentic model-orchestrated enrichment via function calling"
+                if strategy == "agentic"
+                else (
+                    "Complex strategy using model-assisted enrichment"
+                    if strategy == "complex"
+                    else "Simple deterministic strategy from approved truth"
+                )
             ),
+            # amplification dimensions
+            marketingBullets=validated_fields.get("marketing_bullets", []),
+            seoTitle=validated_fields.get("seo_title"),
+            targetAudience=validated_fields.get("target_audience", []),
+            seasonalRelevance=validated_fields.get("seasonal_relevance", []),
+            facetTags=validated_fields.get("facet_tags", []),
+            sustainabilitySignals=validated_fields.get("sustainability_signals", []),
+            careGuidance=validated_fields.get("care_guidance"),
+            completenessPct=validated_fields.get("completeness_pct"),
         )
 
         stored = await self.adapters.enriched_store.upsert(enriched_product)
@@ -96,16 +127,71 @@ class SearchEnrichmentOrchestrator:
         """Select enrichment strategy and return (strategy, fields, degraded)."""
         simple_fields = self.engine.build_simple_fields(approved)
 
-        if has_model_backend and self.engine.is_complex(approved):
-            model_fields = await self.adapters.foundry.enrich_complex_fields(
+        if not has_model_backend:
+            return "simple", simple_fields, False
+
+        # Agentic: let the model decide which tools to call
+        tools = self._build_enrichment_tools(entity_id, approved)
+        try:
+            result = await self.adapters.foundry.orchestrate_enrichment(
                 entity_id=entity_id,
                 approved_truth=approved,
+                tools=tools,
             )
-            if model_fields.get("_status") == "ok":
-                return "complex", self.engine.build_complex_fields(approved, model_fields), False
+            if result.get("_status") == "ok":
+                strategy = result.get("_strategy", "agentic")
+                fields = result.get("fields", simple_fields)
+                return strategy, fields, False
+            # Model invocation worked but returned fallback
+            return "simple", simple_fields, result.get("_status") == "fallback"
+        except Exception:
+            # Graceful degradation: if agentic path fails, use deterministic
             return "simple", simple_fields, True
 
-        return "simple", simple_fields, False
+    def _build_enrichment_tools(self, entity_id: str, approved: dict[str, Any]) -> dict[str, Any]:
+        """Build tool definitions for model-orchestrated enrichment."""
+        return {
+            "generate_simple_fields": {
+                "description": (
+                    "Generate deterministic enrichment fields from approved truth data. "
+                    "Use for products with short descriptions or few features."
+                ),
+                "parameters": {"entity_id": {"type": "string"}},
+            },
+            "generate_complex_fields": {
+                "description": (
+                    "Generate AI-assisted enrichment fields using deep reasoning. "
+                    "Use for products with rich descriptions, multiple features, "
+                    "or requiring semantic analysis."
+                ),
+                "parameters": {"entity_id": {"type": "string"}},
+            },
+            "generate_amplification_fields": {
+                "description": (
+                    "Generate marketing, SEO, audience, seasonal, and sustainability "
+                    "dimensions. Use when the product has enough context for targeted "
+                    "marketing copy."
+                ),
+                "parameters": {"entity_id": {"type": "string"}},
+            },
+        }
+
+    async def _execute_tool(
+        self, tool_name: str, entity_id: str, approved: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Execute a named enrichment tool and return its fields."""
+        if tool_name == "generate_simple_fields":
+            return self.engine.build_simple_fields(approved)
+        if tool_name == "generate_complex_fields":
+            model_fields = await self.adapters.foundry.enrich_complex_fields(
+                entity_id=entity_id, approved_truth=approved
+            )
+            if model_fields.get("_status") == "ok":
+                return self.engine.build_complex_fields(approved, model_fields)
+            return self.engine.build_simple_fields(approved)  # fallback
+        if tool_name == "generate_amplification_fields":
+            return self.engine.build_simple_fields(approved)
+        return {}
 
     async def _run_indexing_after_upsert(
         self,
@@ -392,6 +478,7 @@ def _record_search_enrichment_evaluation(
             ),
             "strategy_simple": 1.0 if strategy == "simple" else 0.0,
             "strategy_complex": 1.0 if strategy == "complex" else 0.0,
+            "strategy_agentic": 1.0 if strategy == "agentic" else 0.0,
         }
 
     run = run_evaluation(
