@@ -10,7 +10,7 @@ dependencies = [
     "fastapi>=0.135.3",
     "fastapi-mcp",
     "uvicorn>=0.44.0",
-    "pydantic>=2",
+    "pydantic>=2.13.2",
     "agent-framework>=1.0.1",
     "azure-ai-projects>=2.0.1",
     "azure-identity",
