@@ -133,6 +133,101 @@ class FoundryEnrichmentAdapter:
             },
         ]
 
+    async def orchestrate_enrichment(
+        self,
+        *,
+        entity_id: str,
+        approved_truth: dict[str, Any],
+        tools: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Invoke model with tool definitions for agentic enrichment orchestration."""
+        if self._invoker is None:
+            return {"_status": "fallback", "_reason": "foundry_not_configured"}
+
+        messages = self._build_orchestration_messages(
+            entity_id=entity_id, approved_truth=approved_truth
+        )
+        try:
+            raw = await self._invoker(
+                request={
+                    "entity_id": entity_id,
+                    "intent": "search_enrichment",
+                    "requires_multi_tool": True,
+                },
+                messages=messages,
+                tools=tools,
+            )
+        except (RuntimeError, ValueError, TypeError) as exc:
+            logger.warning(
+                "foundry_orchestration_unavailable entity_id=%s error=%s",
+                entity_id,
+                str(exc),
+            )
+            return {"_status": "fallback", "_reason": "foundry_unavailable"}
+
+        if not isinstance(raw, dict):
+            return {"_status": "fallback", "_reason": "invalid_foundry_payload"}
+
+        # Process tool calls from model response
+        tool_calls = raw.get("tool_calls", [])
+        if not tool_calls:
+            # Model returned direct content — treat as complex enrichment
+            return self._parse_direct_response(raw)
+
+        return {
+            "_status": "ok",
+            "_strategy": "agentic",
+            "tool_calls": tool_calls,
+            "fields": raw,
+        }
+
+    def _build_orchestration_messages(
+        self, *, entity_id: str, approved_truth: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        return [
+            {
+                "role": "system",
+                "content": (
+                    "You are a search enrichment orchestrator. Analyze the product data and decide "
+                    "which enrichment tools to call. Call generate_simple_fields for basic products, "
+                    "generate_complex_fields for products with rich descriptions needing semantic "
+                    "analysis, and generate_amplification_fields when marketing dimensions would "
+                    "improve discoverability. You may call multiple tools. Return the enrichment "
+                    "strategy decision."
+                ),
+            },
+            {
+                "role": "user",
+                "content": {
+                    "instruction": "Analyze this product and decide which enrichment strategy to use.",
+                    "entity_id": entity_id,
+                    "approved_truth": approved_truth,
+                },
+            },
+        ]
+
+    def _parse_direct_response(self, raw: dict[str, Any]) -> dict[str, Any]:
+        """Parse a direct (non-tool-calling) model response as complex enrichment."""
+        allowed_keys = {
+            "use_cases",
+            "complementary_products",
+            "substitute_products",
+            "search_keywords",
+            "enriched_description",
+            "marketing_bullets",
+            "seo_title",
+            "target_audience",
+            "seasonal_relevance",
+            "facet_tags",
+            "sustainability_signals",
+            "care_guidance",
+            "completeness_pct",
+        }
+        parsed = {key: raw.get(key) for key in allowed_keys if key in raw}
+        parsed["_status"] = "ok"
+        parsed["_strategy"] = "complex"
+        return parsed
+
 
 class SearchIndexingAdapter:
     """Trigger or push AI Search indexing after enrichment upsert."""

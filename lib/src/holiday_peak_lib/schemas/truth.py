@@ -315,6 +315,15 @@ class SearchEnrichedProduct(BaseModel):
     substitute_products: list[str] = Field(default_factory=list, alias="substituteProducts")
     search_keywords: list[str] = Field(default_factory=list, alias="searchKeywords")
     enriched_description: str | None = Field(None, alias="enrichedDescription")
+    # -- amplification dimensions (v1.1) --
+    marketing_bullets: list[str] = Field(default_factory=list, alias="marketingBullets")
+    seo_title: str | None = Field(None, alias="seoTitle")
+    target_audience: list[str] = Field(default_factory=list, alias="targetAudience")
+    seasonal_relevance: list[str] = Field(default_factory=list, alias="seasonalRelevance")
+    facet_tags: list[str] = Field(default_factory=list, alias="facetTags")
+    sustainability_signals: list[str] = Field(default_factory=list, alias="sustainabilitySignals")
+    care_guidance: str | None = Field(None, alias="careGuidance")
+    completeness_pct: float | None = Field(None, ge=0.0, le=1.0, alias="completenessPct")
     enriched_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         alias="enrichedAt",

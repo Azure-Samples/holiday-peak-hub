@@ -256,6 +256,7 @@ class FoundryLifecycleManager:
         create_if_missing: bool,
         name_override: str | None = None,
         model_override: str | None = None,
+        reasoning: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """Ensure a single Foundry role and wire model target when available."""
         target_name = name_override or config.agent_name or f"{self.service_name}-{selected_role}"
@@ -271,6 +272,7 @@ class FoundryLifecycleManager:
             instructions=instructions,
             create_if_missing=create_if_missing,
             model=config.deployment_name,
+            reasoning=reasoning,
         )
 
         ensured_id = ensure_result.get("agent_id")

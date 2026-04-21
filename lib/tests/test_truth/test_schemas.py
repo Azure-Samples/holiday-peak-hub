@@ -52,6 +52,13 @@ class TestCanonicalCategorySchemas:
             "jewelry_watches",
             "food_gourmet",
             "pet_supplies",
+            "automotive",
+            "garden_outdoor",
+            "office_supplies",
+            "health_wellness",
+            "baby_kids",
+            "home_appliances",
+            "musical_instruments",
         }
         assert expected == set(CANONICAL_CATEGORY_SCHEMAS.keys())
 
@@ -214,3 +221,91 @@ class TestResolveUcpSchema:
 
     def test_returns_none_for_empty_string(self):
         assert resolve_ucp_schema("") is None
+
+
+class TestExtendedCategorySchemas:
+    """Tests for the 7 v1.1.0 UCP category schemas."""
+
+    def test_automotive_has_required_attributes(self):
+        schema = CANONICAL_CATEGORY_SCHEMAS["automotive"]
+        required = schema.required_attribute_names
+        assert "brand" in required
+        assert "part_number" in required
+
+    def test_automotive_vehicle_compatibility_is_list(self):
+        schema = CANONICAL_CATEGORY_SCHEMAS["automotive"]
+        attr = next(a for a in schema.attributes if a.name == "vehicle_compatibility")
+        assert attr.data_type == "list"
+
+    def test_garden_outdoor_has_required_attributes(self):
+        schema = CANONICAL_CATEGORY_SCHEMAS["garden_outdoor"]
+        required = schema.required_attribute_names
+        assert "brand" in required
+        assert "material" in required
+
+    def test_office_supplies_has_eco_certified(self):
+        schema = CANONICAL_CATEGORY_SCHEMAS["office_supplies"]
+        names = [a.name for a in schema.attributes]
+        assert "eco_certified" in names
+
+    def test_health_wellness_has_active_ingredients(self):
+        schema = CANONICAL_CATEGORY_SCHEMAS["health_wellness"]
+        attr = next(a for a in schema.attributes if a.name == "active_ingredients")
+        assert attr.data_type == "list"
+
+    def test_baby_kids_has_safety_certification(self):
+        schema = CANONICAL_CATEGORY_SCHEMAS["baby_kids"]
+        required = schema.required_attribute_names
+        assert "safety_certification" in required
+
+    def test_home_appliances_has_energy_rating(self):
+        schema = CANONICAL_CATEGORY_SCHEMAS["home_appliances"]
+        names = [a.name for a in schema.attributes]
+        assert "energy_rating" in names
+
+    def test_musical_instruments_skill_level_allowed(self):
+        schema = CANONICAL_CATEGORY_SCHEMAS["musical_instruments"]
+        attr = next(a for a in schema.attributes if a.name == "skill_level")
+        assert "beginner" in attr.allowed_values
+        assert "professional" in attr.allowed_values
+
+    def test_all_extended_schemas_are_v1_1(self):
+        extended = [
+            "automotive",
+            "garden_outdoor",
+            "office_supplies",
+            "health_wellness",
+            "baby_kids",
+            "home_appliances",
+            "musical_instruments",
+        ]
+        for key in extended:
+            assert CANONICAL_CATEGORY_SCHEMAS[key].version == "1.1.0"
+
+
+class TestExtendedAliases:
+    """Tests for new category aliases."""
+
+    def test_alias_auto_to_automotive(self):
+        assert resolve_ucp_schema("auto") is CANONICAL_CATEGORY_SCHEMAS["automotive"]
+
+    def test_alias_garden_to_garden_outdoor(self):
+        assert resolve_ucp_schema("garden") is CANONICAL_CATEGORY_SCHEMAS["garden_outdoor"]
+
+    def test_alias_office_to_office_supplies(self):
+        assert resolve_ucp_schema("office") is CANONICAL_CATEGORY_SCHEMAS["office_supplies"]
+
+    def test_alias_health_to_health_wellness(self):
+        assert resolve_ucp_schema("health") is CANONICAL_CATEGORY_SCHEMAS["health_wellness"]
+
+    def test_alias_baby_to_baby_kids(self):
+        assert resolve_ucp_schema("baby") is CANONICAL_CATEGORY_SCHEMAS["baby_kids"]
+
+    def test_alias_appliances_to_home_appliances(self):
+        assert resolve_ucp_schema("appliances") is CANONICAL_CATEGORY_SCHEMAS["home_appliances"]
+
+    def test_alias_music_to_musical_instruments(self):
+        assert resolve_ucp_schema("music") is CANONICAL_CATEGORY_SCHEMAS["musical_instruments"]
+
+    def test_alias_cat_prefix_automotive(self):
+        assert resolve_ucp_schema("cat-automotive") is CANONICAL_CATEGORY_SCHEMAS["automotive"]

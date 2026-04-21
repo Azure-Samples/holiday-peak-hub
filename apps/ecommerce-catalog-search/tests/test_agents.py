@@ -6,7 +6,10 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from ecommerce_catalog_search.adapters import AcpCatalogMapper, CatalogAdapters
-from ecommerce_catalog_search.agents import CatalogSearchAgent
+from ecommerce_catalog_search.agents import (
+    CatalogSearchAgent,
+    _parse_intent_response,
+)
 from ecommerce_catalog_search.ai_search import AISearchDocumentResult, AISearchSkuResult
 from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.schemas.inventory import InventoryItem
@@ -1393,3 +1396,63 @@ class TestCatalogSearchAgent:
 
         assert [item.sku for item in merged][:2] == ["SKU-1", "SKU-2"]
         assert merged[0].enriched_fields["enriched_description"] == "Versatile headset."
+
+
+class TestParseIntentResponse:
+    """Tests for _parse_intent_response with invoker content contract."""
+
+    def test_content_key_json_string_extracts_intent(self):
+        """Invoker response with top-level 'content' JSON string is parsed."""
+        response = {
+            "content": '{"intent": "semantic_search", "confidence": 0.88, '
+            '"queryType": "complex", "entities": {"keywords": ["laptop"]}}',
+            "messages": [],
+            "stream": False,
+            "telemetry": {},
+            "_target": "ecommerce-catalog-search-fast",
+            "_model": "gpt-5-nano",
+        }
+        result = _parse_intent_response(response)
+
+        assert result is not None
+        assert result.intent == "semantic_search"
+        assert result.confidence == 0.88
+        assert result.query_type == "complex"
+        assert "laptop" in result.entities["keywords"]
+
+    def test_content_key_non_json_returns_none(self):
+        """Invoker response with non-JSON content text returns None."""
+        result = _parse_intent_response(
+            {"content": "not valid json", "messages": [], "stream": False}
+        )
+        assert result is None
+
+    def test_content_key_empty_string_falls_through(self):
+        """Empty content string falls through to response dict itself."""
+        result = _parse_intent_response({"content": "", "messages": [], "stream": False})
+        assert result is None
+
+    def test_direct_dict_response_still_works(self):
+        """Direct dict with intent/confidence keys is still parsed correctly."""
+        result = _parse_intent_response(
+            {"intent": "keyword_lookup", "confidence": 0.75, "entities": {}}
+        )
+        assert result is not None
+        assert result.intent == "keyword_lookup"
+        assert result.confidence == 0.75
+
+    def test_content_key_with_markdown_fences(self):
+        """Content wrapped in markdown code fences is still parsed."""
+        result = _parse_intent_response(
+            {
+                "content": '```json\n{"intent": "semantic_search", "confidence": 0.9}\n```',
+            }
+        )
+        assert result is not None
+        assert result.intent == "semantic_search"
+
+    def test_output_key_fallback(self):
+        """Falls back to 'output' key when 'content' is absent."""
+        result = _parse_intent_response({"output": '{"intent": "browse", "confidence": 0.6}'})
+        assert result is not None
+        assert result.intent == "browse"

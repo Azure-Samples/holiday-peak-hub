@@ -413,6 +413,7 @@ async def _check_instruction_drift(
     found_result: dict[str, Any],
     instructions: str | None,
     model: str | None,
+    reasoning: dict[str, str] | None = None,
 ) -> dict[str, Any] | None:
     """Compare provided instructions with latest Foundry version; update if different.
 
@@ -464,6 +465,7 @@ async def _check_instruction_drift(
         resolved_agent_name=agent_name,
         instructions=instructions,
         model=model,
+        reasoning=reasoning,
     )
 
     if create_result.get("created"):
@@ -489,6 +491,7 @@ async def _create_agent_version(
     resolved_agent_name: str | None,
     instructions: str | None,
     model: str | None,
+    reasoning: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Create a new Foundry agent version and return a result dict."""
     resolved_model = model or config.deployment_name
@@ -503,10 +506,13 @@ async def _create_agent_version(
         }
 
     try:
-        definition = PromptAgentDefinition(
-            model=resolved_model,
-            instructions=instructions or "You are a helpful retail assistant.",
-        )
+        definition_kwargs: dict[str, Any] = {
+            "model": resolved_model,
+            "instructions": instructions or "You are a helpful retail assistant.",
+        }
+        if reasoning:
+            definition_kwargs["reasoning"] = reasoning
+        definition = PromptAgentDefinition(**definition_kwargs)
         created = await _call_first_available(
             agents_client,
             ("create_version",),
@@ -553,6 +559,7 @@ async def ensure_foundry_agent(
     instructions: str | None = None,
     create_if_missing: bool = False,
     model: str | None = None,
+    reasoning: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Ensure a Foundry agent exists for the given config.
 
@@ -598,6 +605,7 @@ async def ensure_foundry_agent(
                         found_result=found,
                         instructions=instructions,
                         model=model,
+                        reasoning=reasoning,
                     )
                     if drift_result is not None:
                         return drift_result
@@ -617,6 +625,7 @@ async def ensure_foundry_agent(
                 resolved_agent_name=resolved_agent_name,
                 instructions=instructions,
                 model=model,
+                reasoning=reasoning,
             )
     finally:
         await _close_owned_credential(project_client)
@@ -757,8 +766,9 @@ class FoundryAgentInvoker:
         }
         if prep.session is not None:
             run_kwargs["session"] = prep.session
-        if prep.reasoning_effort is not None:
-            run_kwargs["options"] = {"reasoning_effort": prep.reasoning_effort}
+        # NOTE: reasoning_effort is an agent-DEFINITION parameter set at
+        # creation/version time via PromptAgentDefinition(reasoning=...).
+        # Runtime options.reasoning returns 400 for Foundry Agents.
 
         try:
             response = await asyncio.wait_for(
@@ -769,7 +779,13 @@ class FoundryAgentInvoker:
                 timeout=self._timeout,
             )
         except asyncio.TimeoutError:
+            _timeout_text = (
+                "The request could not be completed within"
+                " the allowed time. Please try a simpler"
+                " query or retry shortly."
+            )
             return {
+                "content": _timeout_text,
                 "messages": [
                     {
                         "type": "message",
@@ -777,11 +793,7 @@ class FoundryAgentInvoker:
                         "content": [
                             {
                                 "type": "output_text",
-                                "text": (
-                                    "The request could not be completed within"
-                                    " the allowed time. Please try a simpler"
-                                    " query or retry shortly."
-                                ),
+                                "text": _timeout_text,
                             }
                         ],
                     }
@@ -808,21 +820,45 @@ class FoundryAgentInvoker:
             updated_session_state = prep.session.to_dict()
 
         assistant_text = response.text if hasattr(response, "text") else str(response)
-        output_messages = []
-        if assistant_text:
-            output_messages.append(
-                {
-                    "type": "message",
-                    "role": "assistant",
-                    "content": [{"type": "output_text", "text": assistant_text}],
-                }
-            )
+
+        # Prefer MAF's own serialization for messages when available.
+        resp_messages = getattr(response, "messages", None)
+        if (
+            isinstance(resp_messages, list)
+            and resp_messages
+            and all(hasattr(m, "to_dict") for m in resp_messages)
+        ):
+            serialized_messages = [m.to_dict() for m in resp_messages]
+        else:
+            serialized_messages = []
+            if assistant_text:
+                serialized_messages.append(
+                    {
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [{"type": "output_text", "text": assistant_text}],
+                    }
+                )
 
         result: dict[str, Any] = {
-            "messages": output_messages,
+            "content": assistant_text,
+            "messages": serialized_messages,
             "stream": False,
             "telemetry": self._build_telemetry(started, prep.normalized, stream=False),
         }
+
+        response_id = getattr(response, "response_id", None)
+        if response_id is not None:
+            result["response_id"] = response_id
+
+        agent_id = getattr(response, "agent_id", None)
+        if agent_id is not None:
+            result["agent_id"] = agent_id
+
+        usage = getattr(response, "usage_details", None)
+        if usage is not None:
+            result["usage"] = usage.to_dict() if hasattr(usage, "to_dict") else usage
+
         if updated_session_state is not None:
             result["_foundry_session_state"] = updated_session_state
         return result
@@ -874,8 +910,9 @@ class FoundryAgentInvoker:
         }
         if prep.session is not None:
             run_kwargs["session"] = prep.session
-        if prep.reasoning_effort is not None:
-            run_kwargs["options"] = {"reasoning_effort": prep.reasoning_effort}
+        # NOTE: reasoning_effort is an agent-DEFINITION parameter set at
+        # creation/version time via PromptAgentDefinition(reasoning=...).
+        # Runtime options.reasoning returns 400 for Foundry Agents.
 
         stream_response = agent.run(
             prep.maf_messages,

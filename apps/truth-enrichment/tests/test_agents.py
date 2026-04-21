@@ -376,3 +376,142 @@ async def test_handle_skips_search_enrichment_when_publisher_is_none(
 
     assert response["entity_id"] == "sku-21"
     assert len(response["proposed"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_handle_uses_agentic_orchestration_with_tool_calls(
+    agent_config_with_slm: AgentDependencies,
+) -> None:
+    """When model is available, handle() uses agentic gap enrichment with tool calls."""
+    adapters = _build_mock_adapters(
+        {
+            "value": "red",
+            "confidence": 0.9,
+            "evidence": "from image",
+            "metadata": {"source": "image_analysis", "assets": []},
+        }
+    )
+    adapters.products.get_product = AsyncMock(
+        return_value={
+            "id": "sku-30",
+            "name": "Jacket",
+            "category": "outerwear",
+            "color": "",
+        }
+    )
+    adapters.products.get_schema = AsyncMock(
+        return_value={
+            "category_id": "outerwear",
+            "fields": {"color": {"type": "string", "required": True}},
+        }
+    )
+
+    with patch("truth_enrichment.agents.build_enrichment_adapters", return_value=adapters):
+        agent = TruthEnrichmentAgent(config=agent_config_with_slm)
+        agent.invoke_model = AsyncMock(
+            side_effect=[
+                # First call: orchestration — model returns tool calls
+                {
+                    "tool_calls": [
+                        {
+                            "name": "enrich_field_with_vision",
+                            "arguments": {"field_name": "color"},
+                        }
+                    ]
+                },
+            ]
+        )
+
+        response = await agent.handle({"entity_id": "sku-30"})
+
+    assert response["entity_id"] == "sku-30"
+    assert len(response["proposed"]) == 1
+    assert response["proposed"][0]["field_name"] == "color"
+
+
+@pytest.mark.asyncio
+async def test_handle_degrades_to_sequential_when_agentic_fails(
+    agent_config_with_slm: AgentDependencies,
+) -> None:
+    """Agentic path gracefully degrades to sequential on model failure."""
+    adapters = _build_mock_adapters(
+        {
+            "value": "oak",
+            "confidence": 0.8,
+            "evidence": "from image",
+            "metadata": {"source": "image_analysis", "assets": []},
+        }
+    )
+    adapters.products.get_product = AsyncMock(
+        return_value={
+            "id": "sku-31",
+            "name": "Desk",
+            "category": "furniture",
+            "material": "",
+        }
+    )
+    adapters.products.get_schema = AsyncMock(
+        return_value={
+            "category_id": "furniture",
+            "fields": {"material": {"type": "string", "required": True}},
+        }
+    )
+
+    call_count = 0
+
+    async def failing_then_working(*, request, messages, **kwargs):  # noqa: ANN001
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise RuntimeError("model unavailable")
+        return {
+            "value": "oak",
+            "confidence": 0.82,
+            "evidence": "text",
+            "metadata": {},
+        }
+
+    with patch("truth_enrichment.agents.build_enrichment_adapters", return_value=adapters):
+        agent = TruthEnrichmentAgent(config=agent_config_with_slm)
+        agent.invoke_model = AsyncMock(side_effect=failing_then_working)
+
+        response = await agent.handle({"entity_id": "sku-31"})
+
+    assert response["entity_id"] == "sku-31"
+    assert len(response["proposed"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_handle_uses_sequential_when_no_model_backend(
+    agent_config_without_models: AgentDependencies,
+) -> None:
+    """Without model backend, sequential enrichment path is used (no orchestration)."""
+    adapters = _build_mock_adapters(
+        {
+            "value": None,
+            "confidence": 0.0,
+            "evidence": "no signal",
+            "metadata": {"source": "image_analysis"},
+        }
+    )
+    adapters.products.get_product = AsyncMock(
+        return_value={
+            "id": "sku-32",
+            "name": "Table",
+            "category": "furniture",
+            "weight_kg": "",
+        }
+    )
+    adapters.products.get_schema = AsyncMock(
+        return_value={
+            "category_id": "furniture",
+            "fields": {"weight_kg": {"type": "number", "required": False}},
+        }
+    )
+
+    with patch("truth_enrichment.agents.build_enrichment_adapters", return_value=adapters):
+        agent = TruthEnrichmentAgent(config=agent_config_without_models)
+        response = await agent.handle({"entity_id": "sku-32"})
+
+    assert response["entity_id"] == "sku-32"
+    assert len(response["proposed"]) == 1
