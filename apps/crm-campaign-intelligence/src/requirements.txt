@@ -312,7 +312,7 @@ pyjwt==2.12.0
     # via
     #   mcp
     #   msal
-python-dotenv==1.2.1
+python-dotenv==1.2.2
     # via
     #   agent-framework-core
     #   holiday-peak-lib
