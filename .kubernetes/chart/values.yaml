@@ -152,3 +152,24 @@ deployment:
 container:
   command: []
   args: []
+
+# Preflight init containers.
+# `postgresAuth` probes the PostgreSQL admin password stored in Key Vault using
+# workload identity + az CLI + psql before the main container starts. Enable
+# only on services that actually connect to the Flexible Server (e.g.,
+# crud-service). Leave disabled on agent services that do not need it.
+preflight:
+  postgresAuth:
+    enabled: false
+    # Image that provides `az` and can install `psql` (apk add postgresql-client).
+    image: "mcr.microsoft.com/azure-cli:latest"
+    # Total wait budget (seconds) across exponential backoff retries.
+    maxWaitSeconds: 60
+    # Resource envelope for the init container (kept small on purpose).
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "64Mi"
+      limits:
+        cpu: "250m"
+        memory: "256Mi"

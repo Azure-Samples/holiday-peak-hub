@@ -358,6 +358,12 @@ add_env_arg "POSTGRES_DATABASE" "${POSTGRES_DATABASE:-}"
 add_env_arg "POSTGRES_PORT" "${POSTGRES_PORT:-}"
 add_env_arg "POSTGRES_SSL" "${POSTGRES_SSL:-}"
 
+# Init-container preflight: only crud-service connects to PostgreSQL.
+if [ "$SERVICE_NAME" = "crud-service" ]; then
+  HELM_ARGS="$HELM_ARGS --set preflight.postgresAuth.enabled=true"
+  add_env_arg "POSTGRES_PASSWORD_SECRET_NAME" "${POSTGRES_PASSWORD_SECRET_NAME:-postgres-admin-password}"
+fi
+
 # Messaging & Infrastructure
 if is_platform_jobs_service; then
   add_env_arg "PLATFORM_JOBS_EVENT_HUB_NAMESPACE" "${PLATFORM_JOBS_EVENT_HUB_NAMESPACE:-}"

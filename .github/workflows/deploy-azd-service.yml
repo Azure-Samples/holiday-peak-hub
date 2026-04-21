@@ -57,6 +57,16 @@ on:
         required: false
         type: boolean
         default: true
+      skipPromptGates:
+        description: Skip the prompt-sync CI gates (image prompt verification and Foundry instructions verification).
+        required: false
+        type: boolean
+        default: false
+      skipPostgresPreflight:
+        description: Skip the PostgreSQL password preflight probe in the CRUD deploy job. Use only when the greenfield/VNet isolation blocks probe or the reconciliation script has been run manually.
+        required: false
+        type: boolean
+        default: false
     secrets:
       AZURE_CLIENT_ID:
         required: true
@@ -113,6 +123,8 @@ jobs:
       forceApimSync: ${{ inputs.forceApimSync }}
       autoAllowAcrRunnerIp: ${{ inputs.autoAllowAcrRunnerIp }}
       skipApiSmokeChecks: false
+      skipPromptGates: ${{ inputs.skipPromptGates }}
+      skipPostgresPreflight: ${{ inputs.skipPostgresPreflight }}
     secrets:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
