@@ -240,7 +240,7 @@ class CatalogSearchAgent(BaseRetailAgent):
         try:
             response = await asyncio.wait_for(
                 self.invoke_model(
-                    request={"query": query, "requires_multi_tool": True},
+                    request={},
                     messages=messages,
                     reasoning_effort="minimal",
                 ),
