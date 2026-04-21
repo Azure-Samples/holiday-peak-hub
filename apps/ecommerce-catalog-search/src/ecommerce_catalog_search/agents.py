@@ -67,7 +67,7 @@ def _safe_float(value: Any) -> float | None:
 HOT_HISTORY_MAX_ENTRIES = 20
 HOT_HISTORY_TTL_SECONDS = 3600
 INTENT_CONFIDENCE_THRESHOLD = 0.55
-INTELLIGENT_INTENT_TIMEOUT_SECONDS = 1.5
+INTELLIGENT_INTENT_TIMEOUT_SECONDS = 3.0
 INTELLIGENT_PIPELINE_TIMEOUT_SECONDS = 5.0
 GENERIC_KEYWORD_LIMIT = 8
 QUERY_EXPANSION_QUERY_LIMIT = 4
@@ -427,6 +427,16 @@ class CatalogSearchAgent(BaseRetailAgent):
                 "degraded": False,
                 "model_attempted": False,
             }
+
+            # Mark model usage when intent was classified by the model
+            _intent_from_model = (
+                intent is not None
+                and intent.reasoning
+                and "deterministic fallback" not in intent.reasoning.lower()
+            )
+            if _intent_from_model:
+                deterministic_response["model_attempted"] = True
+                deterministic_response["answer_source"] = "agent_model_intent"
 
             if request.get("_stream"):
                 ctx = _StreamContext(
@@ -1252,11 +1262,12 @@ async def _search_products_intelligent(
 ]:
     """Intent-first intelligent search — strict ≤5 s wall-clock.
 
-    1. Classify intent (SLM first, LLM upgrade if complex) — 1.5 s timeout.
-    2. Build sub-queries from intent entities (deterministic, ~0 ms).
-    3. Deterministic parallel fan-out: keyword + multi-query hybrid search
-       using intent-derived sub-queries (~1-2 s).
-    4. Merge SKUs from search results, build products, rank by relevance.
+    1. Parallel: SLM intent classification (≤3 s) + keyword search (~1-2 s).
+    2. Build sub-queries from model intent entities (deterministic, ~0 ms).
+    3. Hybrid search using model-derived sub-queries (~1-2 s).
+    4. Merge SKUs from keyword + hybrid results, build products, rank.
+
+    Timeline: max(intent, keyword) + hybrid + resolve ≈ 3-4 s typical.
     """
     import time as _time
 
@@ -1267,25 +1278,36 @@ async def _search_products_intelligent(
         products = await _search_products_keyword(adapters, query=query, limit=limit)
         return products, {}, fallback_intent, products
 
-    # ── step 1: intent classification (SLM → LLM upgrade if complex) ─
+    # ── step 1: intent + keyword search in parallel ──────────────
+    # Keyword search starts immediately alongside SLM intent so its
+    # ~1-2 s latency is hidden behind the model call.
     intent_timeout = _resolve_timeout_seconds(
         "CATALOG_INTENT_FAST_TIMEOUT_SECONDS",
         INTELLIGENT_INTENT_TIMEOUT_SECONDS,
     )
+
+    async def _safe_classify() -> tuple[IntentClassification, str]:
+        try:
+            result = await asyncio.wait_for(
+                agent.classify_intent(query),
+                timeout=intent_timeout,
+            )
+            return result, "model"
+        except (asyncio.TimeoutError, Exception):  # noqa: BLE001
+            logger.warning(
+                "intelligent_intent_fast_timeout",
+                extra={"query_length": len(query), "timeout": intent_timeout},
+            )
+            return fallback_intent, "fallback"
+
     _t1 = _time.perf_counter()
-    intent_source = "slm"
-    try:
-        intent = await asyncio.wait_for(
-            agent.classify_intent(query),
-            timeout=intent_timeout,
-        )
-    except (asyncio.TimeoutError, Exception):  # noqa: BLE001
-        intent_source = "fallback"
-        logger.warning(
-            "intelligent_intent_fast_timeout",
-            extra={"query_length": len(query), "timeout": intent_timeout},
-        )
-        intent = fallback_intent
+    intent_task = asyncio.create_task(_safe_classify())
+    keyword_task = asyncio.create_task(
+        keyword_search(query_text=query, filters=filters, top_k=limit),
+    )
+
+    # Await intent first — its entities drive hybrid sub-queries
+    intent, intent_source = await intent_task
     _t_intent = _time.perf_counter()
     logger.info(
         "intelligent_stage_intent",
@@ -1297,27 +1319,26 @@ async def _search_products_intelligent(
         },
     )
 
-    # ── step 2: build sub-queries from intent ────────────────────────
+    # ── step 2: build sub-queries from (model) intent ────────────
     sub_queries = _build_sub_queries(query=query, intent=intent)
 
-    # ── step 3: deterministic parallel fan-out ──────────────────────
-    # Use intent-derived sub-queries for hybrid search while running a
-    # keyword search in parallel.  This avoids the 30-60 s Foundry
-    # tool-calling round-trip and keeps the pipeline within the 5 s
-    # wall-clock budget.
+    # ── step 3: hybrid search with model-derived sub-queries ─────
+    # keyword_task started in step 1 runs concurrently throughout.
     _t2 = _time.perf_counter()
-    collector = _SearchToolCollector()
-
-    kw_results, hybrid_results = await asyncio.gather(
-        keyword_search(query_text=query, filters=filters, top_k=limit),
+    hybrid_task = asyncio.create_task(
         multi_query_search(
             sub_queries=sub_queries,
             filters=filters,
             top_k=limit,
         ),
     )
+
+    kw_results = await keyword_task
+    hybrid_results_raw = await hybrid_task
+
+    collector = _SearchToolCollector()
     collector.keyword.extend(kw_results)
-    collector.hybrid.extend(hybrid_results)
+    collector.hybrid.extend(hybrid_results_raw)
     collector.calls.extend(["keyword_search", "hybrid_search"])
 
     keyword_results = collector.keyword
