@@ -1523,6 +1523,28 @@ async def _resolve_ranked_products(
     return products[:limit], enrichment_by_sku
 
 
+def _extract_foundry_text(response: dict[str, Any]) -> str | None:
+    """Extract assistant output text from a Foundry agent response structure."""
+    try:
+        messages = response.get("messages")
+        if not isinstance(messages, list):
+            return None
+        for message in messages:
+            if not isinstance(message, dict) or message.get("role") != "assistant":
+                continue
+            content = message.get("content")
+            if not isinstance(content, list):
+                continue
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "output_text":
+                    text = block.get("text")
+                    if isinstance(text, str) and text.strip():
+                        return text
+    except (TypeError, AttributeError):
+        pass
+    return None
+
+
 def _parse_intent_response(response: dict[str, Any]) -> IntentClassification | None:
     payload: Any = response
     if isinstance(response, dict):
@@ -1531,7 +1553,11 @@ def _parse_intent_response(response: dict[str, Any]) -> IntentClassification | N
                 payload = response
                 break
         else:
-            payload = response.get("content") or response.get("output") or response
+            foundry_text = _extract_foundry_text(response)
+            if foundry_text is not None:
+                payload = foundry_text
+            else:
+                payload = response.get("content") or response.get("output") or response
 
     if isinstance(payload, str):
         normalized = payload.strip()

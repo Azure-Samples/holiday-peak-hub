@@ -6,7 +6,11 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from ecommerce_catalog_search.adapters import AcpCatalogMapper, CatalogAdapters
-from ecommerce_catalog_search.agents import CatalogSearchAgent
+from ecommerce_catalog_search.agents import (
+    CatalogSearchAgent,
+    _extract_foundry_text,
+    _parse_intent_response,
+)
 from ecommerce_catalog_search.ai_search import AISearchDocumentResult, AISearchSkuResult
 from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.schemas.inventory import InventoryItem
@@ -1393,3 +1397,99 @@ class TestCatalogSearchAgent:
 
         assert [item.sku for item in merged][:2] == ["SKU-1", "SKU-2"]
         assert merged[0].enriched_fields["enriched_description"] == "Versatile headset."
+
+
+class TestParseIntentResponse:
+    """Tests for _parse_intent_response and Foundry message extraction."""
+
+    def test_foundry_response_format_extracts_intent(self):
+        """Foundry agent response with nested messages structure is parsed correctly."""
+        foundry_response = {
+            "messages": [
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": '{"intent": "semantic_search", "confidence": 0.88, '
+                            '"queryType": "complex", "entities": {"keywords": ["laptop"]}}',
+                        }
+                    ],
+                }
+            ],
+            "stream": False,
+            "telemetry": {},
+            "_target": "ecommerce-catalog-search-fast",
+            "_model": "gpt-5-nano",
+        }
+        result = _parse_intent_response(foundry_response)
+
+        assert result is not None
+        assert result.intent == "semantic_search"
+        assert result.confidence == 0.88
+        assert result.query_type == "complex"
+        assert "laptop" in result.entities["keywords"]
+
+    def test_foundry_response_empty_messages_returns_none(self):
+        """Foundry response with empty messages list falls through gracefully."""
+        result = _parse_intent_response({"messages": [], "stream": False})
+        assert result is None
+
+    def test_foundry_response_no_assistant_message_returns_none(self):
+        """Foundry response without an assistant role falls through."""
+        response = {
+            "messages": [
+                {
+                    "type": "message",
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": "hi"}],
+                }
+            ]
+        }
+        result = _parse_intent_response(response)
+        assert result is None
+
+    def test_foundry_response_malformed_content_returns_none(self):
+        """Foundry response with non-list content falls through."""
+        response = {
+            "messages": [{"type": "message", "role": "assistant", "content": "plain string"}]
+        }
+        result = _parse_intent_response(response)
+        assert result is None
+
+    def test_direct_dict_response_still_works(self):
+        """Direct dict with intent/confidence keys is still parsed correctly."""
+        result = _parse_intent_response(
+            {"intent": "keyword_lookup", "confidence": 0.75, "entities": {}}
+        )
+        assert result is not None
+        assert result.intent == "keyword_lookup"
+        assert result.confidence == 0.75
+
+    def test_string_content_response_still_works(self):
+        """Dict with 'content' key containing a JSON string is still parsed."""
+        result = _parse_intent_response(
+            {"content": '{"intent": "semantic_search", "confidence": 0.9}'}
+        )
+        assert result is not None
+        assert result.intent == "semantic_search"
+
+    def test_extract_foundry_text_returns_none_for_non_dict(self):
+        """_extract_foundry_text handles missing messages key."""
+        assert _extract_foundry_text({}) is None
+        assert _extract_foundry_text({"messages": "not a list"}) is None
+
+    def test_foundry_response_invalid_json_text_returns_none(self):
+        """Foundry response with non-JSON text in output_text returns None."""
+        response = {
+            "messages": [
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{"type": "output_text", "text": "not valid json"}],
+                }
+            ]
+        }
+        result = _parse_intent_response(response)
+        assert result is None
