@@ -453,6 +453,14 @@ def build_service_app(
                 or ("gpt-5-nano" if selected_role == "fast" else "gpt-5")
             )
 
+            reasoning_effort_env = f"FOUNDRY_REASONING_EFFORT_{selected_role.upper()}"
+            reasoning_effort_raw = os.getenv(reasoning_effort_env) or ""
+            reasoning_config: dict[str, str] | None = (
+                {"effort": reasoning_effort_raw.strip().lower()}
+                if reasoning_effort_raw.strip()
+                else None
+            )
+
             selected_instructions = instructions.get(selected_role) or fallback_instructions
 
             try:
@@ -463,6 +471,7 @@ def build_service_app(
                     create_if_missing=create_if_missing,
                     name_override=str(configured_name),
                     model_override=str(configured_model),
+                    reasoning=reasoning_config,
                 )
             except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
                 _apply_foundry_error_state(

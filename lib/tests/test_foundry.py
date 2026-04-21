@@ -418,6 +418,65 @@ class TestFoundryAgentInvokerSession:
 
 
 @pytest.mark.asyncio
+class TestFoundryAgentInvokerReasoningEffort:
+    """Tests for reasoning_effort option forwarding to MAF SDK."""
+
+    @patch("holiday_peak_lib.agents.foundry.FoundryAgent")
+    async def test_reasoning_effort_silently_ignored_at_runtime(self, mock_foundry_agent_cls):
+        """reasoning_effort is accepted but NOT forwarded at runtime.
+
+        Reasoning is an agent-DEFINITION parameter (PromptAgentDefinition),
+        not a runtime option. Runtime options.reasoning returns 400 for
+        Foundry Agents, so the kwarg is silently ignored.
+        """
+        mock_agent = AsyncMock()
+        mock_agent.run = AsyncMock(return_value=MagicMock(text="ok"))
+        mock_foundry_agent_cls.return_value = mock_agent
+
+        config = FoundryAgentConfig(
+            endpoint=TEST_PROJECT_ENDPOINT,
+            agent_id="test-agent",
+            agent_name="test-agent",
+            deployment_name="gpt-5-nano",
+            resolved_agent_id="test-agent",
+        )
+        invoker = FoundryAgentInvoker(config)
+
+        await invoker(
+            messages=[{"role": "user", "content": "classify this"}],
+            model="gpt-5-nano",
+            reasoning_effort="low",
+        )
+
+        call_kwargs = mock_agent.run.call_args.kwargs
+        assert "options" not in call_kwargs
+
+    @patch("holiday_peak_lib.agents.foundry.FoundryAgent")
+    async def test_no_options_when_reasoning_effort_not_provided(self, mock_foundry_agent_cls):
+        """No options key when reasoning_effort is omitted."""
+        mock_agent = AsyncMock()
+        mock_agent.run = AsyncMock(return_value=MagicMock(text="ok"))
+        mock_foundry_agent_cls.return_value = mock_agent
+
+        config = FoundryAgentConfig(
+            endpoint=TEST_PROJECT_ENDPOINT,
+            agent_id="test-agent",
+            agent_name="test-agent",
+            deployment_name="gpt-5-nano",
+            resolved_agent_id="test-agent",
+        )
+        invoker = FoundryAgentInvoker(config)
+
+        await invoker(
+            messages=[{"role": "user", "content": "hello"}],
+            model="gpt-5-nano",
+        )
+
+        call_kwargs = mock_agent.run.call_args.kwargs
+        assert "options" not in call_kwargs
+
+
+@pytest.mark.asyncio
 class TestEnsureFoundryAgent:
     """Tests for ensure_foundry_agent helper."""
 

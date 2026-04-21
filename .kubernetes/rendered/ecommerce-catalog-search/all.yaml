@@ -108,13 +108,15 @@ spec:
             - name: FOUNDRY_STREAM
               value: "true"
             - name: AGENT_FOUNDRY_INVOKE_TIMEOUT_SECONDS
-              value: "60"
+              value: "5"
             - name: FOUNDRY_STRICT_ENFORCEMENT
               value: "false"
+            - name: FOUNDRY_REASONING_EFFORT_FAST
+              value: "none"
             - name: KEY_VAULT_URI
               value: "https://holidaypeakhub405-dev-kv.vault.azure.net/"
             - name: MODEL_DEPLOYMENT_NAME_FAST
-              value: "gpt-5-nano"
+              value: "gpt-5.4-nano"
             - name: MODEL_DEPLOYMENT_NAME_RICH
               value: "gpt-5"
             - name: POSTGRES_AUTH_MODE

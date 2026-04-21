@@ -242,7 +242,6 @@ class CatalogSearchAgent(BaseRetailAgent):
                 self.invoke_model(
                     request={},
                     messages=messages,
-                    reasoning_effort="minimal",
                 ),
                 timeout=_resolve_timeout_seconds(
                     "CATALOG_INTENT_MODEL_TIMEOUT_SECONDS",
