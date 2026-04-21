@@ -769,7 +769,13 @@ class FoundryAgentInvoker:
                 timeout=self._timeout,
             )
         except asyncio.TimeoutError:
+            _timeout_text = (
+                "The request could not be completed within"
+                " the allowed time. Please try a simpler"
+                " query or retry shortly."
+            )
             return {
+                "content": _timeout_text,
                 "messages": [
                     {
                         "type": "message",
@@ -777,11 +783,7 @@ class FoundryAgentInvoker:
                         "content": [
                             {
                                 "type": "output_text",
-                                "text": (
-                                    "The request could not be completed within"
-                                    " the allowed time. Please try a simpler"
-                                    " query or retry shortly."
-                                ),
+                                "text": _timeout_text,
                             }
                         ],
                     }
@@ -808,21 +810,45 @@ class FoundryAgentInvoker:
             updated_session_state = prep.session.to_dict()
 
         assistant_text = response.text if hasattr(response, "text") else str(response)
-        output_messages = []
-        if assistant_text:
-            output_messages.append(
-                {
-                    "type": "message",
-                    "role": "assistant",
-                    "content": [{"type": "output_text", "text": assistant_text}],
-                }
-            )
+
+        # Prefer MAF's own serialization for messages when available.
+        resp_messages = getattr(response, "messages", None)
+        if (
+            isinstance(resp_messages, list)
+            and resp_messages
+            and all(hasattr(m, "to_dict") for m in resp_messages)
+        ):
+            serialized_messages = [m.to_dict() for m in resp_messages]
+        else:
+            serialized_messages = []
+            if assistant_text:
+                serialized_messages.append(
+                    {
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [{"type": "output_text", "text": assistant_text}],
+                    }
+                )
 
         result: dict[str, Any] = {
-            "messages": output_messages,
+            "content": assistant_text,
+            "messages": serialized_messages,
             "stream": False,
             "telemetry": self._build_telemetry(started, prep.normalized, stream=False),
         }
+
+        response_id = getattr(response, "response_id", None)
+        if response_id is not None:
+            result["response_id"] = response_id
+
+        agent_id = getattr(response, "agent_id", None)
+        if agent_id is not None:
+            result["agent_id"] = agent_id
+
+        usage = getattr(response, "usage_details", None)
+        if usage is not None:
+            result["usage"] = usage.to_dict() if hasattr(usage, "to_dict") else usage
+
         if updated_session_state is not None:
             result["_foundry_session_state"] = updated_session_state
         return result

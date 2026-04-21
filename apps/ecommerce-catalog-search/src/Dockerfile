@@ -13,7 +13,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN groupadd --gid ${APP_GID} appgroup && useradd --uid ${APP_UID} --gid ${APP_GID} --create-home --home-dir /home/appuser --shell /usr/sbin/nologin appuser \
     && mkdir -p /app && chown -R appuser:appgroup /app
 WORKDIR /app/src
-RUN apt-get update && apt-get install -y --no-install-recommends build-essential libpq-dev git curl \
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends build-essential libpq-dev git curl \
     && rm -rf /var/lib/apt/lists/*
 RUN python -m pip install --no-cache-dir --upgrade pip uv
 
@@ -55,7 +56,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN groupadd --gid ${APP_GID} appgroup && useradd --uid ${APP_UID} --gid ${APP_GID} --create-home --home-dir /home/appuser --shell /usr/sbin/nologin appuser \
     && mkdir -p /app && chown -R appuser:appgroup /app
 WORKDIR /app/src
-RUN apt-get update && apt-get install -y --no-install-recommends libpq5 \
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends libpq5 \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=prod-builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
 COPY --from=prod-builder --chown=appuser:appgroup /app/src /app/src
