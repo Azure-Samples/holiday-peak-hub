@@ -62,8 +62,12 @@ def repo_prompt_path(service_name: str) -> Path:
     return REPO_ROOT / "apps" / service_name / "src" / package / "prompts" / "instructions.md"
 
 
+def _normalize(text: str) -> str:
+    return text.replace("\r\n", "\n").replace("\r", "\n").rstrip() + "\n"
+
+
 def sha256_text(text: str) -> str:
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+    return hashlib.sha256(_normalize(text).encode("utf-8")).hexdigest()
 
 
 def compose_published_prompt(raw: str) -> str:
