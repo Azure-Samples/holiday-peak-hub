@@ -34,8 +34,11 @@ if (-not $ApicName) {
         Write-Host "Resolved API Center name: $ApicName"
     }
     else {
-        Write-Error 'No API Center found in resource group. Provision infrastructure first.'
-        exit 1
+        # Soft-fail: API Center is optional governance/discovery infrastructure.
+        # When it is not deployed (e.g. greenfield or non-prod dev environment),
+        # skipping this sync job must NOT block the deploy pipeline.
+        Write-Warning 'No API Center found in resource group. Skipping APIC sync (non-fatal).'
+        exit 0
     }
 }
 
@@ -46,8 +49,9 @@ if (-not $ApimName) {
         Write-Host "Resolved APIM name: $ApimName"
     }
     else {
-        Write-Error 'No API Management found in resource group. Provision infrastructure first.'
-        exit 1
+        # Soft-fail: without an APIM source there is nothing to import into APIC.
+        Write-Warning 'No API Management found in resource group. Skipping APIC sync (non-fatal).'
+        exit 0
     }
 }
 
