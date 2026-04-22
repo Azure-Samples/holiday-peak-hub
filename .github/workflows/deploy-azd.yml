@@ -81,6 +81,16 @@ on:
         required: false
         type: boolean
         default: false
+      skipPromptGates:
+        description: Skip the prompt-sync CI gates (image prompt verification and Foundry instructions verification). Use only for urgent deploys where the gates are known to be unrelated to the change.
+        required: false
+        type: boolean
+        default: false
+      skipPostgresPreflight:
+        description: Skip the PostgreSQL password preflight probe run before the CRUD rollout. When true, the gate is bypassed and a warning is logged.
+        required: false
+        type: boolean
+        default: false
     secrets:
       AZURE_CLIENT_ID:
         required: true
@@ -1575,6 +1585,20 @@ jobs:
           printf '%s\n' "$IMAGE_REF" > "$ARTIFACT_DIR/image-ref.txt"
           echo "image_ref=${IMAGE_REF}" >> "$GITHUB_OUTPUT"
 
+      - name: Verify prompt in built image
+        if: ${{ success() && !inputs.skipPromptGates }}
+        shell: bash
+        env:
+          SERVICE_NAME: ${{ matrix.service }}
+          IMAGE_REF: ${{ steps.image.outputs.image_ref }}
+        run: |
+          set -euo pipefail
+          echo "Verifying prompt sha256 match between repo and image for ${SERVICE_NAME}..."
+          docker pull "$IMAGE_REF" >/dev/null
+          python3 scripts/ci/verify_image_prompt.py \
+            --service "$SERVICE_NAME" \
+            --image-ref "$IMAGE_REF"
+
       - name: Upload tested image reference
         uses: actions/upload-artifact@v4
         with:
@@ -1913,6 +1937,71 @@ jobs:
           POSTGRES_AUTH_MODE: ${{ needs.provision.outputs.POSTGRES_AUTH_MODE }}
           POSTGRES_HOST: ${{ needs.provision.outputs.POSTGRES_HOST }}
           RESOURCE_GROUP_NAME: ${{ inputs.projectName }}-${{ inputs.environment }}-rg
+
+      - name: Preflight — PostgreSQL admin password probe
+        if: ${{ !inputs.skipPostgresPreflight }}
+        shell: bash
+        env:
+          POSTGRES_AUTH_MODE: ${{ needs.provision.outputs.POSTGRES_AUTH_MODE }}
+          POSTGRES_HOST: ${{ needs.provision.outputs.POSTGRES_HOST }}
+          POSTGRES_ADMIN_USER: ${{ needs.provision.outputs.POSTGRES_ADMIN_USER }}
+          KEY_VAULT_URI: ${{ needs.provision.outputs.KEY_VAULT_URI }}
+          RESOURCE_GROUP_NAME: ${{ inputs.projectName }}-${{ inputs.environment }}-rg
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          set -euo pipefail
+
+          # Skip gracefully when this is a greenfield deploy or an Entra-only
+          # server — the probe is only meaningful when a password-mode server
+          # and Key Vault secret exist.
+          if [ "${POSTGRES_AUTH_MODE:-}" != "password" ]; then
+            echo "::notice::POSTGRES_AUTH_MODE is '${POSTGRES_AUTH_MODE:-unset}'; skipping password preflight probe."
+            exit 0
+          fi
+          if [ -z "${POSTGRES_HOST:-}" ] || [ -z "${KEY_VAULT_URI:-}" ]; then
+            echo "::warning::POSTGRES_HOST or KEY_VAULT_URI not yet resolved in the azd environment — skipping preflight (greenfield deploy)."
+            exit 0
+          fi
+
+          SERVER_NAME="${POSTGRES_HOST%%.*}"
+          KV_NAME="$(printf '%s' "${KEY_VAULT_URI}" | sed -E 's#https?://([^.]+).*#\1#')"
+          ADMIN_USER="${POSTGRES_ADMIN_USER:-crud_admin}"
+
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update -qq >/dev/null
+            sudo apt-get install -y -qq postgresql-client >/dev/null
+          fi
+
+          chmod +x ./scripts/ops/reconcile-postgres-password.sh
+          set +e
+          ./scripts/ops/reconcile-postgres-password.sh \
+            --subscription-id "${AZURE_SUBSCRIPTION_ID}" \
+            --resource-group "${RESOURCE_GROUP_NAME}" \
+            --server-name "${SERVER_NAME}" \
+            --admin-user "${ADMIN_USER}" \
+            --key-vault-name "${KV_NAME}" \
+            --secret-name postgres-admin-password \
+            --mode probe
+          probe_rc=$?
+          set -e
+
+          case "$probe_rc" in
+            0)
+              echo "::notice::Postgres admin password probe succeeded."
+              ;;
+            2)
+              echo "::error::Postgres admin password probe FAILED with invalid_password." >&2
+              echo "::error::Key Vault secret 'postgres-admin-password' is out of sync with the Flexible Server admin password." >&2
+              echo "::error::Run: scripts/ops/reconcile-postgres-password.sh --mode rotate-from-keyvault --resource-group ${RESOURCE_GROUP_NAME} --server-name ${SERVER_NAME} --key-vault-name ${KV_NAME}" >&2
+              exit 1
+              ;;
+            3)
+              echo "::warning::Postgres admin password probe could not reach the server (network / VNet isolation). Skipping gate."
+              ;;
+            *)
+              echo "::warning::Postgres admin password probe returned rc=${probe_rc}; treating as non-blocking."
+              ;;
+          esac
 
       - name: Deploy CRUD service
         timeout-minutes: 25
@@ -2812,6 +2901,112 @@ jobs:
                 echo "No deployment found for ${svc} — may be first deploy."
               fi
             done
+          fi
+
+      - name: Checkout repo for prompt verification scripts
+        if: ${{ success() && !inputs.skipPromptGates && needs.detect-changes.outputs.changed_agent_services_csv != '' }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SOURCE_CHECKOUT_REF }}
+
+      - name: Download rendered agent manifests
+        if: ${{ success() && !inputs.skipPromptGates && needs.detect-changes.outputs.changed_agent_services_csv != '' }}
+        uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/rendered-manifests
+          pattern: rendered-manifest-*
+          merge-multiple: false
+
+      - name: Stage rendered manifests into workspace
+        if: ${{ success() && !inputs.skipPromptGates && needs.detect-changes.outputs.changed_agent_services_csv != '' }}
+        shell: bash
+        env:
+          CHANGED_AGENT_SERVICES_CSV: ${{ needs.detect-changes.outputs.changed_agent_services_csv }}
+        run: |
+          set -euo pipefail
+          IFS=',' read -ra SERVICES <<< "$CHANGED_AGENT_SERVICES_CSV"
+          for raw_svc in "${SERVICES[@]}"; do
+            svc=$(echo "$raw_svc" | xargs)
+            [ -z "$svc" ] && continue
+            src="${RUNNER_TEMP}/rendered-manifests/rendered-manifest-${svc}/all.yaml"
+            if [ -f "$src" ]; then
+              mkdir -p ".kubernetes/rendered/${svc}"
+              cp "$src" ".kubernetes/rendered/${svc}/all.yaml"
+              echo "Staged rendered manifest for ${svc}."
+            else
+              echo "::warning::rendered manifest artifact missing for ${svc}: ${src}"
+            fi
+          done
+
+      - name: Verify Foundry instructions match repo
+        if: ${{ success() && !inputs.skipPromptGates && needs.detect-changes.outputs.changed_agent_services_csv != '' }}
+        shell: bash
+        env:
+          CHANGED_AGENT_SERVICES_CSV: ${{ needs.detect-changes.outputs.changed_agent_services_csv }}
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet --disable-pip-version-check \
+            "azure-ai-projects>=1.0.0b6" "azure-identity>=1.17"
+
+          FAIL=0
+          IFS=',' read -ra SERVICES <<< "$CHANGED_AGENT_SERVICES_CSV"
+          for raw_svc in "${SERVICES[@]}"; do
+            svc=$(echo "$raw_svc" | xargs)
+            [ -z "$svc" ] && continue
+
+            pkg="${svc//-/_}"
+            repo_prompt="apps/${svc}/src/${pkg}/prompts/instructions.md"
+            if [ ! -f "$repo_prompt" ]; then
+              echo "[foundry-gate] ${svc}: no repo prompt at ${repo_prompt} — skipping."
+              continue
+            fi
+
+            rendered=".kubernetes/rendered/${svc}/all.yaml"
+            if [ ! -f "$rendered" ]; then
+              echo "::warning::[foundry-gate] ${svc}: rendered manifest not found at ${rendered}; skipping."
+              continue
+            fi
+
+            if ! grep -q "FOUNDRY_AGENT_NAME_" "$rendered"; then
+              echo "[foundry-gate] ${svc}: no FOUNDRY_AGENT_NAME_* envs in rendered manifest — non-Foundry service, skipping."
+              continue
+            fi
+
+            endpoint=$(awk '
+              $1=="-" && $2=="name:" && $3=="PROJECT_ENDPOINT" {found=1; next}
+              found && $1=="value:" {sub(/^[^:]*:[[:space:]]*/, ""); gsub(/"/,""); print; exit}
+            ' "$rendered" || true)
+            project_name=$(awk '
+              $1=="-" && $2=="name:" && $3=="PROJECT_NAME" {found=1; next}
+              found && $1=="value:" {sub(/^[^:]*:[[:space:]]*/, ""); gsub(/"/,""); print; exit}
+            ' "$rendered" || true)
+
+            if [ -z "$endpoint" ]; then
+              echo "::warning::[foundry-gate] ${svc}: PROJECT_ENDPOINT missing in rendered manifest; skipping."
+              continue
+            fi
+
+            for role in FAST RICH; do
+              agent_name=$(awk -v key="FOUNDRY_AGENT_NAME_${role}" '
+                $1=="-" && $2=="name:" && $3==key {found=1; next}
+                found && $1=="value:" {sub(/^[^:]*:[[:space:]]*/, ""); gsub(/"/,""); print; exit}
+              ' "$rendered" || true)
+              [ -z "$agent_name" ] && continue
+
+              echo "[foundry-gate] ${svc}: verifying agent ${agent_name} against repo prompt..."
+              args=(--service "$svc" --project-endpoint "$endpoint" --agent-name "$agent_name")
+              if [ -n "$project_name" ]; then
+                args+=(--project-name "$project_name")
+              fi
+              if ! python3 scripts/ci/verify_foundry_prompt.py "${args[@]}"; then
+                FAIL=1
+              fi
+            done
+          done
+
+          if [ "$FAIL" -ne 0 ]; then
+            echo "::error::Foundry prompt verification failed for one or more agents. See hints above."
+            exit 1
           fi
 
       - name: Verify Flux kustomization health

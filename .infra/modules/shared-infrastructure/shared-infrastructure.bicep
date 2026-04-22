@@ -146,7 +146,50 @@ module agcNsg 'br/public:avm/res/network/network-security-group:0.5.3' = if (agc
   params: {
     name: 'agc-nsg'
     location: location
-    securityRules: []
+    securityRules: [
+      {
+        name: 'AllowGatewayManagerInbound'
+        properties: {
+          description: 'Required by Application Gateway for Containers for control-plane management traffic (ports 65200-65535).'
+          protocol: 'Tcp'
+          sourcePortRange: '*'
+          destinationPortRange: '65200-65535'
+          sourceAddressPrefix: 'GatewayManager'
+          destinationAddressPrefix: '*'
+          access: 'Allow'
+          priority: 100
+          direction: 'Inbound'
+        }
+      }
+      {
+        name: 'AllowInternetInboundHttp'
+        properties: {
+          description: 'AGC listener on port 80 must accept inbound traffic from the Internet; without this, the default DenyAllInBound drops client TCP SYNs.'
+          protocol: 'Tcp'
+          sourcePortRange: '*'
+          destinationPortRange: '80'
+          sourceAddressPrefix: 'Internet'
+          destinationAddressPrefix: '*'
+          access: 'Allow'
+          priority: 110
+          direction: 'Inbound'
+        }
+      }
+      {
+        name: 'AllowInternetInboundHttps'
+        properties: {
+          description: 'AGC listener on port 443 must accept inbound traffic from the Internet.'
+          protocol: 'Tcp'
+          sourcePortRange: '*'
+          destinationPortRange: '443'
+          sourceAddressPrefix: 'Internet'
+          destinationAddressPrefix: '*'
+          access: 'Allow'
+          priority: 120
+          direction: 'Inbound'
+        }
+      }
+    ]
     tags: tags
   }
 }

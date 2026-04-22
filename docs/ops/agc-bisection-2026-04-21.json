@@ -1,0 +1,210 @@
+{
+  "schema": "holiday-peak-hub/agc-bisection/v1",
+  "generatedAt": "2026-04-21T23:05:00Z",
+  "cluster": "holidaypeakhub405-dev-aks",
+  "resourceGroup": "holidaypeakhub405-dev-rg",
+  "agcFqdn": "esbcc8bcfyazbbdg.fz03.alb.azure.com",
+  "agcVip": "4.252.129.79",
+  "apimFqdn": "holidaypeakhub405-dev-apim.azure-api.net",
+  "swaFqdn": "blue-meadow-00fcb8810.4.azurestaticapps.net",
+  "service": {
+    "namespace": "holiday-peak-agents",
+    "service": "ecommerce-catalog-search-ecommerce-catalog-search",
+    "pod": "ecommerce-catalog-search-ecommerce-catalog-search-698d6995h2295",
+    "containerPort": 8000
+  },
+  "gateway": {
+    "name": "holiday-peak-agc",
+    "namespace": "holiday-peak-crud",
+    "gatewayClassName": "azure-alb-external",
+    "albId": "/subscriptions/150e82e8-25db-4f1a-8e04-a2f6a77d26c4/resourceGroups/holidaypeakhub405-dev-rg_aks_holidaypeakhub405-dev-aks_nodes/providers/Microsoft.ServiceNetworking/trafficControllers/alb-d819fbfd",
+    "listeners": [
+      {
+        "name": "http",
+        "port": 80,
+        "protocol": "HTTP",
+        "hostname": "esbcc8bcfyazbbdg.fz03.alb.azure.com",
+        "attachedRoutes": 2,
+        "programmed": true,
+        "accepted": true,
+        "resolvedRefs": true
+      }
+    ],
+    "status": {
+      "accepted": true,
+      "programmed": true,
+      "address": "esbcc8bcfyazbbdg.fz03.alb.azure.com"
+    }
+  },
+  "httpRoute": {
+    "name": "ecommerce-catalog-search-ecommerce-catalog-search-agc",
+    "namespace": "holiday-peak-agents",
+    "hostnames": ["esbcc8bcfyazbbdg.fz03.alb.azure.com"],
+    "rule": {
+      "match": { "pathType": "PathPrefix", "value": "/ecommerce-catalog-search" },
+      "filter": { "type": "URLRewrite", "replacePrefixMatch": "/" },
+      "backend": { "name": "ecommerce-catalog-search-ecommerce-catalog-search", "port": 80 }
+    },
+    "conditions": {
+      "accepted": true,
+      "resolvedRefs": true,
+      "programmed": true
+    }
+  },
+  "associationSubnet": {
+    "name": "agc",
+    "addressPrefix": "10.0.12.0/24",
+    "delegation": "Microsoft.ServiceNetworking/trafficControllers",
+    "nsgName": "agc-nsg",
+    "customInboundRules": [],
+    "defaultInboundRules": [
+      { "name": "AllowVnetInBound", "priority": 65000, "src": "VirtualNetwork", "dst": "VirtualNetwork", "access": "Allow" },
+      { "name": "AllowAzureLoadBalancerInBound", "priority": 65001, "src": "AzureLoadBalancer", "dst": "*", "access": "Allow" },
+      { "name": "DenyAllInBound", "priority": 65500, "src": "*", "dst": "*", "access": "Deny" }
+    ]
+  },
+  "hops": [
+    {
+      "id": 1,
+      "label": "Pod-local loopback (health)",
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/health",
+      "executedFrom": "kubectl exec (catalog-search pod)",
+      "statusCode": 200,
+      "elapsedMs": 17,
+      "bodyPreview": "{\"status\":\"ok\",\"service\":\"ecommerce-catalog-search\",\"integrations_registered\":0}",
+      "result": "pass"
+    },
+    {
+      "id": 1,
+      "label": "Pod-local loopback (ready)",
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/ready",
+      "executedFrom": "kubectl exec (catalog-search pod)",
+      "statusCode": 200,
+      "elapsedMs": 354,
+      "bodyPreview": "{\"status\":\"ready\",\"service\":\"ecommerce-catalog-search\",\"foundry_ready\":true,\"foundry_required\":false,\"foundry\":{\"required\":false,\"strict_mode\":false,\"enforced\":...",
+      "result": "pass"
+    },
+    {
+      "id": 2,
+      "label": "In-cluster Service DNS",
+      "method": "GET",
+      "url": "http://ecommerce-catalog-search-ecommerce-catalog-search.holiday-peak-agents.svc.cluster.local/health",
+      "executedFrom": "kubectl run curl (holiday-peak-agents)",
+      "statusCode": 200,
+      "elapsedMs": 6,
+      "connectMs": 3,
+      "bodyPreview": "{\"status\":\"ok\",\"service\":\"ecommerce-catalog-search\",\"integrations_registered\":0}",
+      "result": "pass"
+    },
+    {
+      "id": 3,
+      "label": "Gateway + HTTPRoute status",
+      "executedFrom": "kubectl describe",
+      "conditions": {
+        "gatewayProgrammed": true,
+        "gatewayAccepted": true,
+        "listenerProgrammed": true,
+        "listenerAttachedRoutes": 2,
+        "routeAccepted": true,
+        "routeResolvedRefs": true,
+        "routeProgrammed": true
+      },
+      "result": "pass"
+    },
+    {
+      "id": 4,
+      "label": "AGC public FQDN HTTP (default Host)",
+      "method": "GET",
+      "url": "http://esbcc8bcfyazbbdg.fz03.alb.azure.com/ecommerce-catalog-search/health",
+      "executedFrom": "kubectl run curl (holiday-peak-agents, in-cluster egress)",
+      "statusCode": null,
+      "httpCode": "000",
+      "elapsedMs": 12003,
+      "connectMs": 0,
+      "error": "curl: (28) Connection timed out after 12002 milliseconds (TCP SYN never ACKed)",
+      "result": "fail",
+      "failBoundary": true
+    },
+    {
+      "id": 4,
+      "label": "AGC public FQDN HTTP (explicit Host header)",
+      "method": "GET",
+      "url": "http://esbcc8bcfyazbbdg.fz03.alb.azure.com/ecommerce-catalog-search/health",
+      "executedFrom": "kubectl run curl",
+      "headers": { "Host": "esbcc8bcfyazbbdg.fz03.alb.azure.com" },
+      "statusCode": null,
+      "httpCode": "000",
+      "elapsedMs": 12003,
+      "connectMs": 0,
+      "error": "curl: (28) Connection timed out",
+      "result": "fail"
+    },
+    {
+      "id": 4,
+      "label": "AGC public FQDN HTTP (crud sanity path)",
+      "method": "GET",
+      "url": "http://esbcc8bcfyazbbdg.fz03.alb.azure.com/api/health",
+      "executedFrom": "kubectl run curl",
+      "statusCode": null,
+      "httpCode": "000",
+      "elapsedMs": 10003,
+      "error": "curl: (28) Connection timed out",
+      "result": "fail"
+    },
+    {
+      "id": 5,
+      "label": "AGC public FQDN HTTPS",
+      "method": "GET",
+      "url": "https://esbcc8bcfyazbbdg.fz03.alb.azure.com/ecommerce-catalog-search/health",
+      "executedFrom": "kubectl run curl",
+      "statusCode": null,
+      "httpCode": "000",
+      "elapsedMs": 8002,
+      "connectMs": 0,
+      "error": "curl: (28) Connection timed out",
+      "result": "fail"
+    },
+    {
+      "id": 5,
+      "label": "AGC VIP TCP connect 80 (from local workstation)",
+      "method": "TCP",
+      "url": "tcp://4.252.129.79:80",
+      "executedFrom": "Test-NetConnection",
+      "result": "fail",
+      "details": {
+        "tcpTestSucceeded": false,
+        "pingReply": "DestinationHostUnreachable"
+      }
+    },
+    {
+      "id": 5,
+      "label": "AGC VIP TCP connect 443 (from local workstation)",
+      "method": "TCP",
+      "url": "tcp://4.252.129.79:443",
+      "executedFrom": "Test-NetConnection",
+      "result": "fail",
+      "details": {
+        "tcpTestSucceeded": false,
+        "pingReply": "DestinationHostUnreachable"
+      }
+    }
+  ],
+  "firstFailingHop": 4,
+  "faultBoundary": "agc-data-plane-ingress",
+  "rootCause": {
+    "summary": "NSG 'agc-nsg' attached to the AGC-delegated subnet (10.0.12.0/24) has no custom inbound rules; the default DenyAllInBound rule (priority 65500) drops all TCP SYN packets from the Internet to the AGC data-plane VIP on ports 80/443, so neither external clients nor in-cluster pods can reach esbcc8bcfyazbbdg.fz03.alb.azure.com.",
+    "repoSource": ".infra/modules/shared-infrastructure/shared-infrastructure.bicep (module agcNsg has securityRules: [])",
+    "liveResource": "/subscriptions/150e82e8-25db-4f1a-8e04-a2f6a77d26c4/resourceGroups/holidaypeakhub405-dev-rg/providers/Microsoft.Network/networkSecurityGroups/agc-nsg"
+  },
+  "remediation": {
+    "type": "repo-change",
+    "primaryPath": ".infra/modules/shared-infrastructure/shared-infrastructure.bicep",
+    "liveAzCliFallback": [
+      "az network nsg rule create -g holidaypeakhub405-dev-rg --nsg-name agc-nsg --name AllowGatewayManagerInbound --priority 100 --direction Inbound --access Allow --protocol Tcp --source-address-prefixes GatewayManager --source-port-ranges '*' --destination-address-prefixes '*' --destination-port-ranges 65200-65535",
+      "az network nsg rule create -g holidaypeakhub405-dev-rg --nsg-name agc-nsg --name AllowInternetInboundHttp --priority 110 --direction Inbound --access Allow --protocol Tcp --source-address-prefixes Internet --source-port-ranges '*' --destination-address-prefixes '*' --destination-port-ranges 80",
+      "az network nsg rule create -g holidaypeakhub405-dev-rg --nsg-name agc-nsg --name AllowInternetInboundHttps --priority 120 --direction Inbound --access Allow --protocol Tcp --source-address-prefixes Internet --source-port-ranges '*' --destination-address-prefixes '*' --destination-port-ranges 443"
+    ]
+  }
+}

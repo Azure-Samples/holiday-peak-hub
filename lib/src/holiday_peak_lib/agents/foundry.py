@@ -569,6 +569,41 @@ async def ensure_foundry_agent(
     3) Create new agent when ``create_if_missing`` is true
     """
 
+    # Pre-push guard (Track A3): refuse to create/update Foundry agent versions
+    # with fallback (placeholder) instructions. This prevents a runtime image
+    # that failed to load its structured prompt from overwriting a good
+    # Foundry agent version with generic fallback text.
+    from holiday_peak_lib.agents.prompt_loader import (
+        is_fallback_instructions,
+        prompt_instructions_sha256,
+    )
+
+    if instructions and is_fallback_instructions(instructions):
+        detail = (
+            "Refusing to push fallback placeholder instructions to Foundry. "
+            "The runtime image failed to load the structured prompt. "
+            "Check that apps/<service>/src/<package>/prompts/instructions.md is "
+            "packaged in the container image."
+        )
+        hint = (
+            "Set FOUNDRY_STRICT_ENFORCEMENT=true in the service to fail startup "
+            "instead of silently falling back, and verify the Dockerfile includes the prompts."
+        )
+        _logger.error(
+            "foundry_fallback_refused service_agent=%s instructions_hash=%s",
+            agent_name or config.agent_name,
+            prompt_instructions_sha256(instructions),
+        )
+        return {
+            "status": "fallback_instructions_refused",
+            "agent_id": None,
+            "agent_name": agent_name or config.agent_name,
+            "created": False,
+            "error_code": "fallback_instructions",
+            "detail": detail,
+            "hint": hint,
+        }
+
     project_client = _ensure_client(config)
     configured_agent_id = config.runtime_agent_id
     resolved_agent_name = (
