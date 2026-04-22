@@ -3415,41 +3415,17 @@ jobs:
             exit 1
           }
 
-          SHARED_ALB_NAME="holiday-peak-agc"
-          SHARED_ALB_NAMESPACE="holiday-peak-crud"
           SHARED_GATEWAY_NAME="holiday-peak-agc"
           SHARED_GATEWAY_NAMESPACE="holiday-peak-crud"
 
-          if ! SHARED_ALB_JSON=$(kubectl get applicationloadbalancer "$SHARED_ALB_NAME" -n "$SHARED_ALB_NAMESPACE" -o json 2>/dev/null); then
-            echo "::error::Live shared ApplicationLoadBalancer '$SHARED_ALB_NAME' in namespace '$SHARED_ALB_NAMESPACE' could not be retrieved for AGC readiness validation." >&2
-            exit 1
-          fi
-
-          ALB_ACCEPTED_STATUS=$(printf '%s' "$SHARED_ALB_JSON" | jq -r '[.status.conditions[]? | select(.type == "Accepted") | .status] | first // empty')
-          ALB_ACCEPTED_MESSAGE=$(printf '%s' "$SHARED_ALB_JSON" | jq -r '[.status.conditions[]? | select(.type == "Accepted") | .message] | first // empty')
-          ALB_DEPLOYMENT_STATUS=$(printf '%s' "$SHARED_ALB_JSON" | jq -r '[.status.conditions[]? | select(.type == "Deployment") | .status] | first // empty')
-          ALB_DEPLOYMENT_MESSAGE=$(printf '%s' "$SHARED_ALB_JSON" | jq -r '[.status.conditions[]? | select(.type == "Deployment") | .message] | first // empty')
-          ALB_ASSOCIATION_COUNT=$(printf '%s' "$SHARED_ALB_JSON" | jq -r '(.spec.associations // []) | length')
-          ALB_CONTRACT_EVIDENCE=$(printf "ApplicationLoadBalancer='%s/%s' Accepted='%s' acceptedMessage='%s' Deployment='%s' deploymentMessage='%s' associations='%s'" \
-            "$SHARED_ALB_NAMESPACE" \
-            "$SHARED_ALB_NAME" \
-            "${ALB_ACCEPTED_STATUS:-<empty>}" \
-            "${ALB_ACCEPTED_MESSAGE:-<empty>}" \
-            "${ALB_DEPLOYMENT_STATUS:-<empty>}" \
-            "${ALB_DEPLOYMENT_MESSAGE:-<empty>}" \
-            "${ALB_ASSOCIATION_COUNT:-0}")
-
-          echo "Live shared ApplicationLoadBalancer evidence: ${ALB_CONTRACT_EVIDENCE}"
-
-          if [ "$ALB_ACCEPTED_STATUS" != "True" ]; then
-            echo "::error::Live shared ApplicationLoadBalancer '$SHARED_ALB_NAME' in namespace '$SHARED_ALB_NAMESPACE' is not Accepted before Gateway validation. ${ALB_CONTRACT_EVIDENCE}" >&2
-            exit 1
-          fi
-
-          if [ "$ALB_DEPLOYMENT_STATUS" != "True" ]; then
-            echo "::error::Live shared ApplicationLoadBalancer '$SHARED_ALB_NAME' in namespace '$SHARED_ALB_NAMESPACE' is not fully deployed before Gateway validation. ${ALB_CONTRACT_EVIDENCE}" >&2
-            exit 1
-          fi
+          # Architecturally approved contract (ADR-033):
+          #   - Shared AGC uses an ARM-managed ApplicationLoadBalancer (trafficController)
+          #     provisioned by Bicep in the AKS node resource group.
+          #   - The shared Helm chart renders only the Gateway (+ HTTPRoutes) and binds
+          #     the Gateway to the ARM ALB via the `alb.networking.azure.io/alb-id`
+          #     annotation. The in-cluster `ApplicationLoadBalancer` CR / `alb-name` +
+          #     `alb-namespace` annotation mode is explicitly NOT used and must fail
+          #     validation if observed.
 
           AKS_NODE_RESOURCE_GROUP=$(az aks show -g "$AKS_RESOURCE_GROUP" -n "$AKS_CLUSTER_NAME" --query nodeResourceGroup -o tsv)
           if [ -z "$AKS_NODE_RESOURCE_GROUP" ]; then
@@ -3459,10 +3435,11 @@ jobs:
 
           mapfile -t TRAFFIC_CONTROLLER_IDS < <(az resource list -g "$AKS_NODE_RESOURCE_GROUP" --resource-type Microsoft.ServiceNetworking/trafficControllers --query '[].id' -o tsv)
           if [ "${#TRAFFIC_CONTROLLER_IDS[@]}" -eq 0 ]; then
-            echo "::error::No Azure Application Gateway for Containers trafficControllers were found in node resource group '$AKS_NODE_RESOURCE_GROUP'." >&2
+            echo "::error::No Azure Application Gateway for Containers trafficControllers were found in node resource group '$AKS_NODE_RESOURCE_GROUP'. Per ADR-033 the shared ALB must be ARM-provisioned by Bicep." >&2
             exit 1
           fi
 
+          declare -A TRAFFIC_CONTROLLER_HEALTH
           HEALTHY_TRAFFIC_CONTROLLER_COUNT=0
           TRAFFIC_CONTROLLER_EVIDENCE=""
           for controller_id in "${TRAFFIC_CONTROLLER_IDS[@]}"; do
@@ -3477,10 +3454,13 @@ jobs:
               TRAFFIC_CONTROLLER_EVIDENCE="${TRAFFIC_CONTROLLER_EVIDENCE}; "
             fi
 
-            TRAFFIC_CONTROLLER_EVIDENCE="${TRAFFIC_CONTROLLER_EVIDENCE}${controller_name:-<unknown>}: provisioningState=${controller_state:-<empty>} frontends=${controller_frontends:-0} associations=${controller_associations:-0}"
+            TRAFFIC_CONTROLLER_EVIDENCE="${TRAFFIC_CONTROLLER_EVIDENCE}${controller_name:-<unknown>}: id='${controller_id}' provisioningState=${controller_state:-<empty>} frontends=${controller_frontends:-0} associations=${controller_associations:-0}"
 
             if [ "$controller_state" = "Succeeded" ] && [ "$controller_frontends" -gt 0 ] && [ "$controller_associations" -gt 0 ]; then
+              TRAFFIC_CONTROLLER_HEALTH["$controller_id"]="healthy"
               HEALTHY_TRAFFIC_CONTROLLER_COUNT=$((HEALTHY_TRAFFIC_CONTROLLER_COUNT + 1))
+            else
+              TRAFFIC_CONTROLLER_HEALTH["$controller_id"]="unhealthy"
             fi
           done
 
@@ -3497,6 +3477,7 @@ jobs:
           fi
 
           LIVE_GATEWAY_CLASS=$(printf '%s' "$SHARED_GATEWAY_JSON" | jq -r '.spec.gatewayClassName // empty')
+          AGC_SHARED_ALB_ID=$(printf '%s' "$SHARED_GATEWAY_JSON" | jq -r '.metadata.annotations["alb.networking.azure.io/alb-id"] // empty')
           AGC_SHARED_ALB_NAME=$(printf '%s' "$SHARED_GATEWAY_JSON" | jq -r '.metadata.annotations["alb.networking.azure.io/alb-name"] // empty')
           AGC_SHARED_ALB_NAMESPACE=$(printf '%s' "$SHARED_GATEWAY_JSON" | jq -r '.metadata.annotations["alb.networking.azure.io/alb-namespace"] // empty')
           GATEWAY_ACCEPTED_STATUS=$(printf '%s' "$SHARED_GATEWAY_JSON" | jq -r '[.status.conditions[]? | select(.type == "Accepted") | .status] | first // empty')
@@ -3504,10 +3485,9 @@ jobs:
           GATEWAY_PROGRAMMED_STATUS=$(printf '%s' "$SHARED_GATEWAY_JSON" | jq -r '[.status.conditions[]? | select(.type == "Programmed") | .status] | first // empty')
           GATEWAY_PROGRAMMED_MESSAGE=$(printf '%s' "$SHARED_GATEWAY_JSON" | jq -r '[.status.conditions[]? | select(.type == "Programmed") | .message] | first // empty')
           GATEWAY_STATUS_ADDRESS=$(printf '%s' "$SHARED_GATEWAY_JSON" | jq -r '[.status.addresses[]? | select(.value != null and .value != "") | .value] | first // empty')
-          GATEWAY_CONTRACT_EVIDENCE=$(printf "GatewayClass='%s' alb.networking.azure.io/alb-name='%s' alb.networking.azure.io/alb-namespace='%s' Accepted='%s' acceptedMessage='%s' Programmed='%s' programmedMessage='%s' address='%s'" \
+          GATEWAY_CONTRACT_EVIDENCE=$(printf "GatewayClass='%s' alb.networking.azure.io/alb-id='%s' Accepted='%s' acceptedMessage='%s' Programmed='%s' programmedMessage='%s' address='%s'" \
             "${LIVE_GATEWAY_CLASS:-<empty>}" \
-            "${AGC_SHARED_ALB_NAME:-<empty>}" \
-            "${AGC_SHARED_ALB_NAMESPACE:-<empty>}" \
+            "${AGC_SHARED_ALB_ID:-<empty>}" \
             "${GATEWAY_ACCEPTED_STATUS:-<empty>}" \
             "${GATEWAY_ACCEPTED_MESSAGE:-<empty>}" \
             "${GATEWAY_PROGRAMMED_STATUS:-<empty>}" \
@@ -3516,13 +3496,39 @@ jobs:
 
           echo "Live shared Gateway evidence: ${GATEWAY_CONTRACT_EVIDENCE}"
 
-          if [ -z "$AGC_SHARED_ALB_NAME" ] || [ -z "$AGC_SHARED_ALB_NAMESPACE" ]; then
-            echo "::error::Live shared Gateway '$SHARED_GATEWAY_NAME' in namespace '$SHARED_GATEWAY_NAMESPACE' is missing required AGC binding annotations before direct health validation. ${GATEWAY_CONTRACT_EVIDENCE}" >&2
+          # ADR-033: reject the in-cluster ApplicationLoadBalancer CR binding mode.
+          if [ -n "$AGC_SHARED_ALB_NAME" ] || [ -n "$AGC_SHARED_ALB_NAMESPACE" ]; then
+            echo "::error::Live shared Gateway '$SHARED_GATEWAY_NAME' carries in-cluster ALB annotations (alb.networking.azure.io/alb-name='${AGC_SHARED_ALB_NAME:-<empty>}', alb.networking.azure.io/alb-namespace='${AGC_SHARED_ALB_NAMESPACE:-<empty>}'). Per ADR-033 the approved binding mode is ARM-managed ALB via 'alb.networking.azure.io/alb-id' only. ${GATEWAY_CONTRACT_EVIDENCE}" >&2
             exit 1
           fi
 
-          if [ "$AGC_SHARED_ALB_NAME" != "$SHARED_ALB_NAME" ] || [ "$AGC_SHARED_ALB_NAMESPACE" != "$SHARED_ALB_NAMESPACE" ]; then
-            echo "::error::Live shared Gateway '$SHARED_GATEWAY_NAME' in namespace '$SHARED_GATEWAY_NAMESPACE' is bound to unexpected AGC resource '${AGC_SHARED_ALB_NAMESPACE:-<empty>}/${AGC_SHARED_ALB_NAME:-<empty>}' before direct health validation. ${GATEWAY_CONTRACT_EVIDENCE}" >&2
+          if [ -z "$AGC_SHARED_ALB_ID" ]; then
+            echo "::error::Live shared Gateway '$SHARED_GATEWAY_NAME' in namespace '$SHARED_GATEWAY_NAMESPACE' is missing the required 'alb.networking.azure.io/alb-id' annotation. Per ADR-033 the Gateway must bind to a Bicep-provisioned trafficController ARM resource ID. ${GATEWAY_CONTRACT_EVIDENCE}" >&2
+            exit 1
+          fi
+
+          if [ "$LIVE_GATEWAY_CLASS" != "$AGC_GATEWAY_CLASS" ]; then
+            echo "::error::Live shared Gateway '$SHARED_GATEWAY_NAME' uses GatewayClass '${LIVE_GATEWAY_CLASS:-<empty>}' but the approved class is '$AGC_GATEWAY_CLASS'. ${GATEWAY_CONTRACT_EVIDENCE}" >&2
+            exit 1
+          fi
+
+          AGC_SHARED_ALB_ID_LC=$(printf '%s' "$AGC_SHARED_ALB_ID" | tr '[:upper:]' '[:lower:]')
+          MATCHED_CONTROLLER_ID=""
+          for controller_id in "${TRAFFIC_CONTROLLER_IDS[@]}"; do
+            [ -z "$controller_id" ] && continue
+            if [ "$(printf '%s' "$controller_id" | tr '[:upper:]' '[:lower:]')" = "$AGC_SHARED_ALB_ID_LC" ]; then
+              MATCHED_CONTROLLER_ID="$controller_id"
+              break
+            fi
+          done
+
+          if [ -z "$MATCHED_CONTROLLER_ID" ]; then
+            echo "::error::Gateway '$SHARED_GATEWAY_NAME' alb-id '$AGC_SHARED_ALB_ID' does not reference any Bicep-provisioned trafficController in node resource group '$AKS_NODE_RESOURCE_GROUP'. Discovered: ${TRAFFIC_CONTROLLER_EVIDENCE}" >&2
+            exit 1
+          fi
+
+          if [ "${TRAFFIC_CONTROLLER_HEALTH[$MATCHED_CONTROLLER_ID]:-}" != "healthy" ]; then
+            echo "::error::Gateway '$SHARED_GATEWAY_NAME' binds to trafficController '$MATCHED_CONTROLLER_ID' but that controller is not healthy. ${TRAFFIC_CONTROLLER_EVIDENCE}" >&2
             exit 1
           fi
 
