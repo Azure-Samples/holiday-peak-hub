@@ -41,8 +41,15 @@ def repo_prompt_path(service_name: str) -> Path:
     return REPO_ROOT / "apps" / service_name / "src" / package / "prompts" / "instructions.md"
 
 
+def _normalize(text: str) -> str:
+    """Normalize line endings and strip trailing whitespace so that cross-OS
+    checkouts (CRLF on Windows, LF on Linux) and editor trailing-newline
+    differences do not cause false-positive SHA divergences."""
+    return text.replace("\r\n", "\n").replace("\r", "\n").rstrip() + "\n"
+
+
 def sha256_text(text: str) -> str:
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+    return hashlib.sha256(_normalize(text).encode("utf-8")).hexdigest()
 
 
 def _docker_available() -> bool:
