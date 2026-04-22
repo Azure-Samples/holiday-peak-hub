@@ -57,7 +57,8 @@ jobs:
       issues: write
     uses: ./.github/workflows/deploy-azd.yml
     with:
-      environment: truth-agents
+      environment: dev
+      githubEnvironment: dev
       location: ${{ github.event_name == 'workflow_dispatch' && inputs.location || 'centralus' }}
       projectName: ${{ github.event_name == 'workflow_dispatch' && inputs.projectName || 'holidaypeakhub405' }}
       imageTag: ${{ github.event_name == 'workflow_dispatch' && inputs.imageTag || github.sha }}

@@ -11,14 +11,9 @@ on:
       - .infra/**
       - .kubernetes/**
       - .github/workflows/deploy-azd.yml
-      - .github/workflows/deploy-azd-service.yml
       - .github/workflows/deploy-azd-ecommerce-catalog-search.yml
   workflow_dispatch:
     inputs:
-      environment:
-        description: Target deployment environment
-        required: true
-        default: dev
       location:
         description: Azure location
         required: true
@@ -54,33 +49,51 @@ on:
         required: true
         type: boolean
         default: true
+      skipPromptGates:
+        description: Skip the prompt-sync CI gates (image prompt verification and Foundry instructions verification)
+        required: true
+        type: boolean
+        default: false
+      skipPostgresPreflight:
+        description: Skip the PostgreSQL password preflight probe (CRUD only; ignored for agent services)
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   id-token: write
-  contents: read
+  contents: write
 
 concurrency:
-  group: deploy-azd-${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}-ecommerce-catalog-search
+  group: deploy-azd-dev-ecommerce-catalog-search
   cancel-in-progress: false
 
 jobs:
   deploy:
     permissions:
       id-token: write
-      contents: read
+      contents: write
       issues: write
-    uses: ./.github/workflows/deploy-azd-service.yml
+    uses: ./.github/workflows/deploy-azd.yml
     with:
-      serviceName: ecommerce-catalog-search
-      environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
+      environment: dev
+      githubEnvironment: dev
       location: ${{ github.event_name == 'workflow_dispatch' && inputs.location || 'centralus' }}
       projectName: ${{ github.event_name == 'workflow_dispatch' && inputs.projectName || 'holidaypeakhub405' }}
       imageTag: ${{ github.event_name == 'workflow_dispatch' && inputs.imageTag || github.sha }}
-      testedSourceSha: ${{ github.event_name == 'workflow_dispatch' && inputs.testedSourceSha || github.sha }}
-      testedSourceRef: ${{ github.event_name == 'workflow_dispatch' && inputs.testedSourceRef || github.ref }}
+      sourceSha: ${{ github.event_name == 'workflow_dispatch' && inputs.testedSourceSha || github.sha }}
+      sourceRef: ${{ github.event_name == 'workflow_dispatch' && inputs.testedSourceRef || github.ref }}
+      deployStatic: false
+      uiOnly: false
+      apiBaseUrl: ''
+      deployChangedOnly: true
       skipProvision: ${{ fromJSON(github.event_name == 'workflow_dispatch' && toJSON(inputs.skipProvision) || 'true') }}
+      serviceFilter: ecommerce-catalog-search
       forceApimSync: ${{ fromJSON(github.event_name == 'workflow_dispatch' && toJSON(inputs.forceApimSync) || 'true') }}
       autoAllowAcrRunnerIp: ${{ fromJSON(github.event_name == 'workflow_dispatch' && toJSON(inputs.autoAllowAcrRunnerIp) || 'true') }}
+      skipApiSmokeChecks: false
+      skipPromptGates: ${{ fromJSON(github.event_name == 'workflow_dispatch' && toJSON(inputs.skipPromptGates) || 'false') }}
+      skipPostgresPreflight: ${{ fromJSON(github.event_name == 'workflow_dispatch' && toJSON(inputs.skipPostgresPreflight) || 'false') }}
     secrets:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
