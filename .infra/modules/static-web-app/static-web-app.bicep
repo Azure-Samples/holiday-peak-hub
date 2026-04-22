@@ -51,6 +51,11 @@ resource customDomain 'Microsoft.Web/staticSites/customDomains@2025-03-01' = if 
 }
 
 // App Settings
+// Runtime environment available to the Next.js server (including
+// `/app/agent-api/[...path]/route.ts` and `/app/api/[...path]/route.ts`
+// proxies). These complement the build-time vars injected by the UI
+// deploy workflow.
+var agentApiUrl = '${apimBaseUrl}/agents'
 resource appSettings 'Microsoft.Web/staticSites/config@2025-03-01' = {
   parent: staticWebApp
   name: 'appsettings'
@@ -58,6 +63,8 @@ resource appSettings 'Microsoft.Web/staticSites/config@2025-03-01' = {
     NEXT_PUBLIC_API_BASE_URL: apimBaseUrl
     NEXT_PUBLIC_API_URL: apimBaseUrl
     NEXT_PUBLIC_CRUD_API_URL: apimBaseUrl
+    NEXT_PUBLIC_AGENT_API_URL: agentApiUrl
+    AGENT_API_URL: agentApiUrl
     NEXT_PUBLIC_ENVIRONMENT: environment
   }
 }
