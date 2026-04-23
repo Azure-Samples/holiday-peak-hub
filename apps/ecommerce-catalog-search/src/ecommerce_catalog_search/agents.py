@@ -21,10 +21,7 @@ from holiday_peak_lib.agents.memory import (
     resolve_namespace_context,
 )
 from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
-from holiday_peak_lib.agents.registration_helpers import (
-    get_agent_adapters,
-    register_crud_tools,
-)
+from holiday_peak_lib.agents.registration_helpers import get_agent_adapters
 from holiday_peak_lib.evaluation import (
     intent_accuracy,
     mean_reciprocal_rank,
@@ -735,7 +732,6 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
     mcp.add_tool("/catalog/search", search_catalog)
     mcp.add_tool("/catalog/intent", classify_catalog_intent)
     mcp.add_tool("/catalog/product", get_product_details)
-    register_crud_tools(mcp)
 
 
 def _catalog_instructions(service_name: str) -> str:

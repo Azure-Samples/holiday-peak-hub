@@ -21,7 +21,6 @@ from ecommerce_catalog_search.ai_search import (
     multi_query_search,
     search_catalog_skus,
     search_catalog_skus_detailed,
-    seed_catalog_index_from_crud,
     vector_search,
 )
 
@@ -149,62 +148,6 @@ async def test_get_catalog_index_status_reports_empty_index(
         non_empty=False,
         reason="ai_search_index_empty",
     )
-
-
-@pytest.mark.asyncio
-async def test_seed_catalog_index_from_crud_succeeds_when_documents_indexed(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("AI_SEARCH_ENDPOINT", "https://example.search.windows.net")
-    monkeypatch.setenv("AI_SEARCH_INDEX", "catalog")
-
-    products = [
-        {
-            "sku": "SKU-100",
-            "name": "Running Jacket",
-            "description": "Breathable jacket",
-            "category": "apparel",
-            "brand": "Contoso",
-            "price": 89.99,
-        },
-        {
-            "sku": "SKU-200",
-            "name": "Trail Shoes",
-            "description": "All-terrain shoe",
-            "category": "footwear",
-            "brand": "Contoso",
-            "price": 129.99,
-        },
-    ]
-
-    with (
-        patch(
-            "ecommerce_catalog_search.ai_search._fetch_seed_products_from_crud",
-            new=AsyncMock(return_value=(products, None)),
-        ) as mock_fetch,
-        patch(
-            "ecommerce_catalog_search.ai_search.upsert_catalog_documents",
-            new=AsyncMock(return_value=True),
-        ) as mock_upsert,
-        patch(
-            "ecommerce_catalog_search.ai_search.get_catalog_index_status",
-            new=AsyncMock(
-                return_value=AISearchIndexStatus(
-                    configured=True,
-                    reachable=True,
-                    non_empty=True,
-                )
-            ),
-        ) as mock_status,
-    ):
-        result = await seed_catalog_index_from_crud(max_attempts=1, batch_size=10)
-
-    assert result.success is True
-    assert result.attempt_count == 1
-    assert result.seeded_documents == 2
-    mock_fetch.assert_awaited_once_with(10)
-    mock_upsert.assert_awaited_once()
-    mock_status.assert_awaited_once()
 
 
 @pytest.mark.asyncio

@@ -99,9 +99,13 @@ spec:
       PROJECT_NAME: "aipholidaris"
       MODEL_DEPLOYMENT_NAME_FAST: "gpt-5.4-nano"
       MODEL_DEPLOYMENT_NAME_RICH: "gpt-5"
+      # Foundry v2 prompt agents: id == name, so hardcode both so the runtime
+      # binds SLM/LLM targets deterministically without auto-ensure.
+      FOUNDRY_AGENT_ID_FAST: "ecommerce-catalog-search-fast"
+      FOUNDRY_AGENT_ID_RICH: "ecommerce-catalog-search-rich"
       FOUNDRY_AGENT_NAME_FAST: "ecommerce-catalog-search-fast"
       FOUNDRY_AGENT_NAME_RICH: "ecommerce-catalog-search-rich"
-      FOUNDRY_AUTO_ENSURE_ON_STARTUP: "true"
+      FOUNDRY_AUTO_ENSURE_ON_STARTUP: "false"
       FOUNDRY_STREAM: "true"
       FOUNDRY_STRICT_ENFORCEMENT: "false"
 
@@ -113,9 +117,6 @@ spec:
       BLOB_CONTAINER: "agent-memory"
       REDIS_HOST: "holidaypeakhub405-dev-redis.redis.cache.windows.net"
       REDIS_PASSWORD_SECRET_NAME: "redis-primary-key"
-
-      # --- CRUD Service ---
-      CRUD_SERVICE_URL: "http://crud-service-crud-service.holiday-peak-crud.svc.cluster.local:80"
 
       # --- PostgreSQL ---
       POSTGRES_AUTH_MODE: "entra"

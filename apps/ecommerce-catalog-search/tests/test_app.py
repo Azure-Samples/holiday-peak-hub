@@ -2,7 +2,7 @@ import importlib
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from ecommerce_catalog_search.ai_search import AISearchIndexStatus, AISearchSeedResult
+from ecommerce_catalog_search.ai_search import AISearchIndexStatus
 from fastapi.testclient import TestClient
 
 TEST_PROJECT_ENDPOINT = "https://test.services.ai.azure.com/api/projects/test-project"
@@ -102,47 +102,3 @@ def test_ready_returns_503_when_strict_mode_ai_search_not_ready(monkeypatch):
     assert detail["catalog_ai_search"]["strict_mode"] is True
     assert detail["catalog_ai_search"]["ready"] is False
     assert detail["catalog_ai_search"]["reason"] == "ai_search_not_configured"
-
-
-def test_startup_attempts_seed_when_index_empty(monkeypatch):
-    monkeypatch.setenv("CATALOG_SEARCH_SEED_MAX_ATTEMPTS", "1")
-    monkeypatch.setenv("CATALOG_SEARCH_SEED_BATCH_SIZE", "3")
-
-    status_sequence = [
-        AISearchIndexStatus(
-            configured=True,
-            reachable=True,
-            non_empty=False,
-            reason="ai_search_index_empty",
-        ),
-        AISearchIndexStatus(
-            configured=True,
-            reachable=True,
-            non_empty=True,
-            reason=None,
-        ),
-    ]
-
-    with (
-        patch(
-            "ecommerce_catalog_search.main.get_catalog_index_status",
-            new=AsyncMock(side_effect=status_sequence),
-        ) as mock_status,
-        patch(
-            "ecommerce_catalog_search.main.seed_catalog_index_from_crud",
-            new=AsyncMock(
-                return_value=AISearchSeedResult(
-                    attempted=True,
-                    success=True,
-                    attempt_count=1,
-                    seeded_documents=3,
-                    reason=None,
-                )
-            ),
-        ) as mock_seed,
-    ):
-        with TestClient(_create_app()):
-            pass
-
-    mock_seed.assert_awaited_once_with(max_attempts=1, batch_size=3)
-    assert mock_status.await_count == 2
