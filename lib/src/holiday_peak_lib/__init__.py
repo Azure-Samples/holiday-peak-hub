@@ -14,6 +14,7 @@ __all__ = [
     "events",
     "integrations",
     "mcp",
+    "messaging",
     "schemas",
     "self_healing",
     "utils",
