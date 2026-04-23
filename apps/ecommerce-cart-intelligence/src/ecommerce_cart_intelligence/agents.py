@@ -14,10 +14,7 @@ from holiday_peak_lib.agents.memory import (
     resolve_namespace_context,
 )
 from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
-from holiday_peak_lib.agents.registration_helpers import (
-    get_agent_adapters,
-    register_crud_tools,
-)
+from holiday_peak_lib.agents.registration_helpers import get_agent_adapters
 
 from .adapters import CartAdapters, build_cart_adapters
 
@@ -217,7 +214,6 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
     mcp.add_tool("/cart/context", get_cart_context)
     mcp.add_tool("/cart/abandonment-risk", estimate_abandonment_risk)
     mcp.add_tool("/cart/recommendations", recommend_actions)
-    register_crud_tools(mcp)
 
 
 def _coerce_cart_items(raw_items: Any) -> list[dict[str, object]]:

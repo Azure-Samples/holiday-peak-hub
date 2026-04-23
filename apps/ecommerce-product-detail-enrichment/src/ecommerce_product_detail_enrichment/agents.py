@@ -15,10 +15,7 @@ from holiday_peak_lib.agents.memory import (
     resolve_namespace_context,
 )
 from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
-from holiday_peak_lib.agents.registration_helpers import (
-    get_agent_adapters,
-    register_crud_tools,
-)
+from holiday_peak_lib.agents.registration_helpers import get_agent_adapters
 
 from .adapters import (
     EnrichmentAdapters,
@@ -165,7 +162,6 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
 
     mcp.add_tool("/product/detail", get_product_details)
     mcp.add_tool("/product/similar", get_similar_products)
-    register_crud_tools(mcp)
 
 
 def _enrichment_instructions(service_name: str) -> str:

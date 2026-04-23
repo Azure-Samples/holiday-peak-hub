@@ -8,10 +8,7 @@ from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
-from holiday_peak_lib.agents.registration_helpers import (
-    get_agent_adapters,
-    register_crud_tools,
-)
+from holiday_peak_lib.agents.registration_helpers import get_agent_adapters
 
 from .adapters import ProductConsistencyAdapters, build_consistency_adapters
 from .completeness_engine import CompletenessEngine
@@ -105,7 +102,6 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
         )
 
     mcp.add_tool("/product/completeness/evaluate", evaluate_product_completeness)
-    register_crud_tools(mcp)
 
 
 def _consistency_instructions() -> str:

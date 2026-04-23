@@ -10,10 +10,7 @@ from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
-from holiday_peak_lib.agents.registration_helpers import (
-    get_agent_adapters,
-    register_crud_tools,
-)
+from holiday_peak_lib.agents.registration_helpers import get_agent_adapters
 
 from .adapters import AssortmentAdapters, build_assortment_adapters
 
@@ -106,7 +103,6 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
 
     mcp.add_tool("/assortment/score", score_products)
     mcp.add_tool("/assortment/recommendations", recommend_assortment)
-    register_crud_tools(mcp)
 
 
 def _assortment_instructions() -> str:
