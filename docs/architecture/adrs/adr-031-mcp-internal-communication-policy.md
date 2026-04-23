@@ -60,6 +60,7 @@ Adopt a mandatory **MCP-first internal communication policy** for agent-to-agent
 3. Shared mutable schema ownership across bounded contexts without an owning contract.
 4. Hard-coded service internals (pod IPs, internal hostnames, storage keys) in application call paths.
 5. Runtime dependency on undocumented tool names or unversioned MCP payload fields.
+6. Agent service invoking CRUD REST endpoints directly — all agent-to-CRUD reads must use approved cross-namespace DNS paths (ADR-034); enrichment and decision flows are initiated by CRUD calling agents, not the reverse (ADR-036).
 
 ```mermaid
 %%{init: {'theme':'base', 'themeVariables': {
@@ -73,13 +74,15 @@ Adopt a mandatory **MCP-first internal communication policy** for agent-to-agent
 flowchart LR
     UI[Frontend] -->|REST| CRUD[CRUD Service]
     UI -->|REST| AGENTA[Agent Service A]
-    CRUD -->|REST (approved)| AGENTA
+    CRUD -->|REST approved| AGENTA
     AGENTA -->|MCP Tools| AGENTB[Agent Service B]
     AGENTA -->|Events| EH[(Event Hubs)]
     AGENTB -->|Events| EH
+    AGENTA -.->|cross-ns DNS<br/>reads only, ADR-034| CRUD
 
     AGENTA -. prohibited .-> DBB[(Service B DB)]
     AGENTA -. prohibited .-> PRIVB[Service B Private Endpoint]
+    AGENTA -. "prohibited: direct\nCRUD REST calls\n(ADR-036)" .-> CRUD_REST[CRUD REST API]
 ```
 
 ### Observability and Compliance Expectations
@@ -162,4 +165,6 @@ The following gates are required for service-team rollout approval.
 - [ADR-010](adr-010-rest-and-mcp-exposition.md)
 - [ADR-012](adr-012-adapter-boundaries.md)
 - [ADR-023](adr-023-enterprise-resilience-patterns.md)
+- [ADR-034](adr-034-namespace-isolation-strategy.md)
+- [ADR-036](adr-036-agent-isolation-policy.md)
 - [Architecture Overview](../architecture.md)

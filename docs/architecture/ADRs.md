@@ -41,6 +41,8 @@ This document indexes all architectural decisions for the Holiday Peak Hub accel
 | [ADR-033](adrs/adr-033-helm-deployment-strategy.md) | Helm Deployment Strategy with Flux CD GitOps | Accepted | 2026-04 |
 | [ADR-034](adrs/adr-034-namespace-isolation-strategy.md) | Namespace Isolation Strategy (CRUD vs Agent Namespaces) | Accepted | 2026-04 |
 | [ADR-035](adrs/adr-035-api-center-apim-mcp-strategy.md) | API Center + APIM MCP Strategy | Accepted | 2026-04 |
+| [ADR-036](adrs/adr-036-agent-isolation-policy.md) | Agent Isolation Policy | Accepted | 2026-04 |
+| [ADR-037](adrs/adr-037-async-communication-contract.md) | Async Communication Contract | Accepted | 2026-04 |
 
 ## How to Use ADRs
 
@@ -109,6 +111,8 @@ Each ADR follows a standard template:
 - MCP internal communication policy and rollout gates ([ADR-031](adrs/adr-031-mcp-internal-communication-policy.md))
 - Self-healing boundaries, risk tiers, and prohibited actions ([ADR-032](adrs/adr-032-self-healing-boundaries.md))
 - API Center + APIM MCP strategy for API governance ([ADR-035](adrs/adr-035-api-center-apim-mcp-strategy.md))
+- Agent isolation policy — agents must not call CRUD directly ([ADR-036](adrs/adr-036-agent-isolation-policy.md))
+- Async communication contract with Observer pattern primitives ([ADR-037](adrs/adr-037-async-communication-contract.md))
 
 ### Enterprise Integration
 - Enterprise resilience patterns (Circuit Breaker, Bulkhead, Rate Limiter) ([ADR-023](adrs/adr-023-enterprise-resilience-patterns.md))

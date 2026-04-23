@@ -70,10 +70,10 @@ Services deploy via azd with Helm predeploy hooks:
 4. **azd** applies the rendered manifests to the AKS cluster via `kubectl apply`
 
 ```bash
-# Deploy CRUD first (must exist before agents)
+# Deploy CRUD first (provisions transactional data layer and Event Hub connections)
 azd deploy --service crud-service -e dev
 
-# Deploy all agents in parallel
+# Deploy all agents in parallel (agents consume events asynchronously per ADR-036)
 azd deploy --all -e dev
 ```
 
@@ -135,7 +135,7 @@ az aks command invoke \
 The GitHub Actions workflow (`.github/workflows/deploy-azd.yml`) enforces ordered rollout:
 
 1. **provision** — `azd provision` for infrastructure
-2. **deploy-crud** — CRUD service first (other services depend on it)
+2. **deploy-crud** — CRUD service first (provisions the transactional data layer, Event Hub connections, and K8s services that agents reference via cross-namespace DNS per ADR-034; agents do not call CRUD REST endpoints directly per ADR-036)
 3. **deploy-agents** — 21 agent services in parallel matrix
 
 Authentication uses OIDC federation (no stored secrets for Azure credentials).
@@ -145,7 +145,7 @@ Authentication uses OIDC federation (no stored secrets for Azure credentials).
 **Positive**:
 - Workload isolation via node pool taints
 - Event-driven autoscaling with KEDA
-- Ordered deployment (CRUD → agents) prevents dependency failures
+- Ordered deployment (CRUD → agents) prevents dependency failures; agents are independently deployable and do not call CRUD REST endpoints directly (ADR-036)
 - azd provides repeatable, environment-scoped deployments
 - Private cluster support for production security
 
@@ -159,3 +159,5 @@ Authentication uses OIDC federation (no stored secrets for Azure credentials).
 
 - [ADR-002: Azure Services](adr-002-azure-services.md) — AKS and ACR selection
 - [ADR-021: azd-First Deployment](adr-021-azd-first-deployment.md) — CI/CD and deployment strategy
+- [ADR-034: Namespace Isolation](adr-034-namespace-isolation-strategy.md) — CRUD and agent namespace split
+- [ADR-036: Agent Isolation Policy](adr-036-agent-isolation-policy.md) — Agents must not call CRUD directly
