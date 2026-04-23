@@ -7,13 +7,11 @@ from unittest.mock import AsyncMock
 
 import pytest
 from fastapi import FastAPI
-from httpx import ASGITransport, AsyncClient
-
 from holiday_peak_lib.events.versioning import CURRENT_EVENT_SCHEMA_VERSION
 from holiday_peak_lib.messaging.async_contract import AgentAsyncContract, TopicDeclaration
 from holiday_peak_lib.messaging.contract_endpoint import build_contract_router
 from holiday_peak_lib.messaging.topic_subject import TopicSubject
-
+from httpx import ASGITransport, AsyncClient
 
 # ---------------------------------------------------------------------------
 # Fixtures

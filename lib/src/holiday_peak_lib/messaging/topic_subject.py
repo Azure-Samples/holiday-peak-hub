@@ -46,7 +46,7 @@ class TopicSubject:
         try:
             self.observers.remove(handler)
         except ValueError:
-            pass
+            return  # Handler not attached — idempotent detach
 
     async def notify(self, event_data: dict[str, Any]) -> None:
         """Fan out *event_data* to every attached observer."""

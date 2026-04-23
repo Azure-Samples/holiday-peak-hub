@@ -7,9 +7,11 @@ GET /async/contract for runtime discovery.
 
 from __future__ import annotations
 
+from holiday_peak_lib.events.versioning import (
+    CURRENT_EVENT_SCHEMA_VERSION,
+    SchemaCompatibilityPolicy,
+)
 from pydantic import BaseModel, Field
-
-from holiday_peak_lib.events.versioning import CURRENT_EVENT_SCHEMA_VERSION, SchemaCompatibilityPolicy
 
 
 class TopicDeclaration(BaseModel):
