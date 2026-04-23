@@ -1,0 +1,136 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: truth-enrichment
+  namespace: flux-system
+spec:
+  targetNamespace: holiday-peak-agents
+  releaseName: truth-enrichment
+  interval: 5m
+  timeout: 10m
+  chart:
+    spec:
+      chart: .kubernetes/chart
+      sourceRef:
+        kind: GitRepository
+        name: holiday-peak-gitops
+        namespace: flux-system
+      interval: 5m
+  # Upgrade strategy — force recreate on value changes for dev
+  upgrade:
+    remediation:
+      retries: 3
+  install:
+    createNamespace: false
+    remediation:
+      retries: 3
+  values:
+    serviceName: truth-enrichment
+
+    serviceAccount:
+      create: true
+      clientId: "e9c11fac-45b3-4057-8477-1d96703eaae4"
+
+    image:
+      repository: holidaypeakhub405devacr.azurecr.io/holiday-peak-hub/truth-enrichment-dev
+      tag: azd-deploy-1775350057
+
+    replicaCount: 2
+
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+
+    nodeSelector:
+      agentpool: agents
+
+    tolerations:
+      - key: workload
+        operator: Equal
+        value: agents
+        effect: NoSchedule
+
+    availability:
+      strategy:
+        type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 25%
+        maxSurge: 25%
+
+    pdb:
+      enabled: false
+
+    keda:
+      enabled: false
+
+    agc:
+      enabled: true
+      gatewayClassName: azure-alb-external
+      hostnames:
+        - "esbcc8bcfyazbbdg.fz03.alb.azure.com"
+      parentRefs:
+        - name: holiday-peak-agc
+          namespace: holiday-peak-crud
+      paths:
+        - path: /truth-enrichment
+          pathType: PathPrefix
+          rewriteTo: /
+
+    # --------------- Environment Variables ---------------
+    env:
+      # --- Identity ---
+      AZURE_CLIENT_ID: "e9c11fac-45b3-4057-8477-1d96703eaae4"
+      AZURE_TENANT_ID: "16b3c013-d300-468d-ac64-7eda0820b6d3"
+      KEY_VAULT_URI: "https://holidaypeakhub405-dev-kv.vault.azure.net/"
+
+      # --- AI Search ---
+      AI_SEARCH_AUTH_MODE: "managed_identity"
+      AI_SEARCH_ENDPOINT: "https://holidaypeakhub405devsearch.search.windows.net"
+      AI_SEARCH_INDEX: "catalog-products"
+      AI_SEARCH_INDEXER_NAME: "search-enriched-products-indexer"
+      AI_SEARCH_VECTOR_INDEX: "product_search_index"
+
+      # --- Foundry ---
+      PROJECT_ENDPOINT: "https://holidaypeakhub405devais.services.ai.azure.com/api/projects/aipholidaris"
+      PROJECT_NAME: "aipholidaris"
+      MODEL_DEPLOYMENT_NAME_FAST: "gpt-5-nano"
+      MODEL_DEPLOYMENT_NAME_RICH: "gpt-5"
+      FOUNDRY_AGENT_NAME_FAST: "truth-enrichment-fast"
+      FOUNDRY_AGENT_NAME_RICH: "truth-enrichment-rich"
+      FOUNDRY_AUTO_ENSURE_ON_STARTUP: "true"
+      FOUNDRY_STREAM: "true"
+      AGENT_FOUNDRY_INVOKE_TIMEOUT_SECONDS: "60"
+      FOUNDRY_STRICT_ENFORCEMENT: "false"
+
+      # --- Embeddings ---
+      EMBEDDING_DEPLOYMENT_NAME: "text-embedding-3-large"
+
+      # --- Data Layer ---
+      COSMOS_ACCOUNT_URI: "https://holidaypeakhub405-dev-cosmos.documents.azure.com:443/"
+      COSMOS_DATABASE: "holiday-peak-db"
+      COSMOS_CONTAINER: "agent-memory"
+      BLOB_ACCOUNT_URL: "https://holidaypeakhub405devstor.blob.core.windows.net"
+      BLOB_CONTAINER: "agent-memory"
+      TRUTH_PRODUCT_BLOB_CONTAINER: "products"
+      REDIS_HOST: "holidaypeakhub405-dev-redis.redis.cache.windows.net"
+      REDIS_PASSWORD_SECRET_NAME: "redis-primary-key"
+
+      # --- PostgreSQL ---
+      POSTGRES_AUTH_MODE: "entra"
+      POSTGRES_DATABASE: "holiday_peak_crud"
+      POSTGRES_HOST: "holidaypeakhub405-dev-postgres.postgres.database.azure.com"
+      POSTGRES_PORT: "5432"
+      POSTGRES_SSL: "true"
+      POSTGRES_USER: "holidaypeakhub405-dev-crud-identity"
+
+      # --- Event Hub ---
+      PLATFORM_JOBS_EVENT_HUB_NAMESPACE: "holidaypeakhub405-dev-jobs-eh"
+      TRUTH_EVENT_HUB_CONSUMER_GROUP: "enrichment-engine"
+      TRUTH_EVENT_HUB_NAME: "enrichment-jobs"
+
+      # --- Catalog-Search Specific ---
+      CATALOG_SEARCH_REQUIRE_AI_SEARCH: "true"

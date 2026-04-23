@@ -302,7 +302,7 @@ if ($isAgentService) {
   }
 }
 
-$resolvedPostgresAuthMode = if ($env:POSTGRES_AUTH_MODE) { $env:POSTGRES_AUTH_MODE } else { 'password' }
+$resolvedPostgresAuthMode = if ($env:POSTGRES_AUTH_MODE) { $env:POSTGRES_AUTH_MODE } else { 'entra' }
 $resolvedPostgresUser = $env:POSTGRES_USER
 $postgresAdminUser = $env:POSTGRES_ADMIN_USER
 
