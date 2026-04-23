@@ -1,29 +1,48 @@
-*
-!apps/
-apps/*
-!apps/crud-service/
-apps/crud-service/*
-!apps/crud-service/Dockerfile
-!apps/crud-service/README.md
-!apps/crud-service/src/
-apps/crud-service/src/*
-!apps/crud-service/src/pyproject.toml
-!apps/crud-service/src/crud_service/
-!apps/crud-service/src/crud_service/**
+# ── Repo-root Docker build context ──
+# All Python services (CRUD + agents) use repo root as build context
+# so the lib can be built from source via a multi-stage Dockerfile.
+# Exclude everything that is NOT needed inside any Docker build.
 
+# Version control and IDE
 .git/
 .azure/
 .githooks/
 .github/
-.mypy_cache/
-.pytest_cache/
-.ruff_cache/
-.tmp/
 .vscode/
-htmlcov/
-__pycache__/
+.tmp/
+
+# Documentation and static site
+docs/
+mkdocs/
+
+# Infrastructure and Kubernetes manifests (not needed at build time)
+.infra/
+.kubernetes/
+scripts/
+
+# Frontend (separate SWA build)
+apps/ui/
+
+# Test directories (each app's tests/ lives outside src/)
+**/tests/
+tests/
+
+# Python caches and build artifacts
 **/__pycache__/
 **/.venv/
-*.egg-info/
+**/*.egg-info/
+**/.mypy_cache/
+**/.pytest_cache/
+**/.ruff_cache/
+htmlcov/
 .coverage
 coverage-summary.json
+
+# Pre-built wheels (lib is now built in Docker multi-stage)
+**/*.whl
+
+# OS and editor files
+**/.DS_Store
+**/Thumbs.db
+*.swp
+*.swo
