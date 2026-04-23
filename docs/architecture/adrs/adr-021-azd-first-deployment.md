@@ -96,8 +96,9 @@ Zones, App Insights.
 azd deploy --service crud-service -e dev
 ```
 
-CRUD must be available before agents because agents call CRUD REST endpoints
-for transactional operations (products, orders, cart).
+CRUD must deploy before agents because it provisions the transactional data layer,
+Event Hub connections, and Kubernetes services that agents reference via cross-namespace
+DNS (ADR-034). Agents do not call CRUD REST endpoints directly (ADR-036).
 
 #### 3. Parallel Agent Deployment
 
@@ -178,7 +179,7 @@ Required repository secrets:
 ### Positive
 
 - **Single source of truth**: `azure.yaml` defines all 22 services and their deployment config
-- **Ordered rollout**: CRUD deploys first, agents follow — prevents dependency failures
+- **Ordered rollout**: CRUD deploys first, agents follow — prevents dependency failures; agents do not call CRUD directly (ADR-036)
 - **Environment scoping**: azd environments isolate dev/staging/prod config
 - **Local parity**: Same `azd deploy` command works locally and in CI
 - **Separation of concerns**: CLI stays lightweight (scaffolding only)

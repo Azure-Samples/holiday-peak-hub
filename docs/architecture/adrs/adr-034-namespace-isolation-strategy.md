@@ -1,10 +1,10 @@
 # ADR-034: Namespace Isolation Strategy
 
-**Status**: Proposed
+**Status**: Accepted
 **Date**: 2026-04-11
 **Deciders**: Architecture Team, Ricardo Cataldi
 **Tags**: infrastructure, kubernetes, aks, namespace, security, istio, flux, network-policy
-**References**: [ADR-031](adr-031-mcp-internal-communication-policy.md), [ADR-033](adr-033-helm-deployment-strategy.md), [ADR-009](adr-009-aks-deployment.md), [ADR-027](adr-027-apim-agc-edge.md), [ADR-028](adr-028-memory-namespace-isolation-contract.md)
+**References**: [ADR-031](adr-031-mcp-internal-communication-policy.md), [ADR-033](adr-033-helm-deployment-strategy.md), [ADR-009](adr-009-aks-deployment.md), [ADR-027](adr-027-apim-agc-edge.md), [ADR-028](adr-028-memory-namespace-isolation-contract.md), [ADR-036](adr-036-agent-isolation-policy.md)
 
 ## Context
 
@@ -148,6 +148,8 @@ All 26 agent services read `CRUD_SERVICE_URL` from environment variables. The mi
 | Before | After |
 |--------|-------|
 | `http://crud-service-crud-service.holiday-peak.svc.cluster.local:8000` | `http://crud-service-crud-service.holiday-peak-crud.svc.cluster.local:8000` |
+
+Per ADR-036, `CRUD_SERVICE_URL` is used exclusively for approved cross-namespace DNS routing of transactional reads. Agents are forbidden from using this URL for general CRUD API consumption (e.g., creating orders, updating products, or invoking CRUD business logic).
 
 This is set in Helm values per service and rendered into deployment manifests by `render-helm.sh`. The change is a values-only update — no application code changes required.
 
