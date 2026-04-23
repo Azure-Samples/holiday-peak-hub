@@ -1437,6 +1437,16 @@ jobs:
             exit 1
           fi
 
+      - name: Build lib wheel
+        shell: bash
+        run: |
+          set -euo pipefail
+          pip install --quiet uv
+          cd lib/src
+          uv build --wheel --out-dir "$GITHUB_WORKSPACE/.tmp/lib-dist"
+          echo "Built lib wheel:"
+          ls -la "$GITHUB_WORKSPACE/.tmp/lib-dist/"
+
       - name: Resolve Docker build inputs
         id: docker_inputs
         shell: bash
@@ -1555,6 +1565,10 @@ jobs:
           fi
 
           if [ -z "$EXISTING_DIGEST" ]; then
+            # Inject freshly-built lib wheel into Docker build context
+            CONTEXT_DIR="${{ steps.docker_inputs.outputs.context }}"
+            cp "$GITHUB_WORKSPACE/.tmp/lib-dist"/holiday_peak_lib-*.whl "$CONTEXT_DIR/" 2>/dev/null || true
+
             EXTRA_TAG_ARGS=()
             if [ -n "${{ inputs.imageTag }}" ] && [ "${{ inputs.imageTag }}" != "$SOURCE_SHA" ] && [ "${{ inputs.imageTag }}" != "latest" ]; then
               EXTRA_TAG_ARGS+=( -t "${IMAGE_REPOSITORY}:${{ inputs.imageTag }}" )

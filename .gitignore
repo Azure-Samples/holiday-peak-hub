@@ -437,6 +437,7 @@ FodyWeavers.xsd
 *.egg-info/
 __pycache__/
 *.pyc
+*.whl
 dist/
 .pytest_cache/
 htmlcov/

@@ -568,7 +568,8 @@ async function executeUpstreamWithRetry(params: {
 function buildTargetUrl(request: NextRequest, pathSegments: string[]): TargetResolution {
   const { baseUrl, sourceKey } = resolveCrudApiBaseUrl();
   const joinedPath = pathSegments.filter(Boolean).join('/');
-  const upstreamPath = `/api/${joinedPath}`;
+  const isAgentPath = joinedPath.startsWith('agents/');
+  const upstreamPath = isAgentPath ? `/${joinedPath}` : `/api/${joinedPath}`;
   const policyResult = validateProxyBaseUrlPolicy(baseUrl);
 
   if (!baseUrl || !policyResult.allowed) {
