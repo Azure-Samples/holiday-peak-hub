@@ -257,6 +257,8 @@ if ($workloadClientId) {
 $isAgentService = $ServiceName -ne "crud-service"
 $resolvedFoundryAgentNameFast = $env:FOUNDRY_AGENT_NAME_FAST
 $resolvedFoundryAgentNameRich = $env:FOUNDRY_AGENT_NAME_RICH
+$resolvedFoundryAgentIdFast = $env:FOUNDRY_AGENT_ID_FAST
+$resolvedFoundryAgentIdRich = $env:FOUNDRY_AGENT_ID_RICH
 $resolvedModelDeploymentFast = $env:MODEL_DEPLOYMENT_NAME_FAST
 $resolvedModelDeploymentRich = $env:MODEL_DEPLOYMENT_NAME_RICH
 
@@ -274,17 +276,28 @@ if ($isAgentService) {
     $resolvedModelDeploymentRich = "gpt-5"
   }
 
-  if (-not [string]::IsNullOrWhiteSpace($env:FOUNDRY_AGENT_ID_FAST) -and $env:FOUNDRY_AGENT_ID_FAST.EndsWith("-pending")) {
+  if (-not [string]::IsNullOrWhiteSpace($resolvedFoundryAgentIdFast) -and $resolvedFoundryAgentIdFast.EndsWith("-pending")) {
     throw "Invalid FOUNDRY_AGENT_ID_FAST for ${ServiceName}: placeholder ids are not deployable."
   }
-  if (-not [string]::IsNullOrWhiteSpace($env:FOUNDRY_AGENT_ID_RICH) -and $env:FOUNDRY_AGENT_ID_RICH.EndsWith("-pending")) {
+  if (-not [string]::IsNullOrWhiteSpace($resolvedFoundryAgentIdRich) -and $resolvedFoundryAgentIdRich.EndsWith("-pending")) {
     throw "Invalid FOUNDRY_AGENT_ID_RICH for ${ServiceName}: placeholder ids are not deployable."
   }
 
-  if ([string]::IsNullOrWhiteSpace($env:FOUNDRY_AGENT_ID_FAST) -and [string]::IsNullOrWhiteSpace($resolvedFoundryAgentNameFast)) {
+  # Foundry v2 ("prompt") agents use name as id. When FOUNDRY_AGENT_ID_* is not
+  # provided, default each service's runtime agent id to its resolved
+  # per-service name so the app binds SLM/LLM targets without relying on
+  # auto-ensure-on-startup. Explicit IDs from env still take precedence.
+  if ([string]::IsNullOrWhiteSpace($resolvedFoundryAgentIdFast)) {
+    $resolvedFoundryAgentIdFast = $resolvedFoundryAgentNameFast
+  }
+  if ([string]::IsNullOrWhiteSpace($resolvedFoundryAgentIdRich)) {
+    $resolvedFoundryAgentIdRich = $resolvedFoundryAgentNameRich
+  }
+
+  if ([string]::IsNullOrWhiteSpace($resolvedFoundryAgentIdFast) -and [string]::IsNullOrWhiteSpace($resolvedFoundryAgentNameFast)) {
     throw "Missing Foundry fast-role definition for $ServiceName (set FOUNDRY_AGENT_ID_FAST or FOUNDRY_AGENT_NAME_FAST)."
   }
-  if ([string]::IsNullOrWhiteSpace($env:FOUNDRY_AGENT_ID_RICH) -and [string]::IsNullOrWhiteSpace($resolvedFoundryAgentNameRich)) {
+  if ([string]::IsNullOrWhiteSpace($resolvedFoundryAgentIdRich) -and [string]::IsNullOrWhiteSpace($resolvedFoundryAgentNameRich)) {
     throw "Missing Foundry rich-role definition for $ServiceName (set FOUNDRY_AGENT_ID_RICH or FOUNDRY_AGENT_NAME_RICH)."
   }
 }
@@ -359,8 +372,8 @@ $envMappings = @{
   # Azure AI Foundry
   PROJECT_ENDPOINT = $env:PROJECT_ENDPOINT
   PROJECT_NAME = $env:PROJECT_NAME
-  FOUNDRY_AGENT_ID_FAST = $env:FOUNDRY_AGENT_ID_FAST
-  FOUNDRY_AGENT_ID_RICH = $env:FOUNDRY_AGENT_ID_RICH
+  FOUNDRY_AGENT_ID_FAST = $resolvedFoundryAgentIdFast
+  FOUNDRY_AGENT_ID_RICH = $resolvedFoundryAgentIdRich
   FOUNDRY_AGENT_NAME_FAST = $resolvedFoundryAgentNameFast
   FOUNDRY_AGENT_NAME_RICH = $resolvedFoundryAgentNameRich
   MODEL_DEPLOYMENT_NAME_FAST = $resolvedModelDeploymentFast
@@ -393,13 +406,13 @@ $envMappings = @{
   OTEL_SERVICE_NAME = $ServiceName
 }
 
-# Cross-namespace CRUD service URL for agent->CRUD communication (ADR-034)
-if ($ServiceName -ne "crud-service") {
-  $crudNs = if ($env:K8S_CRUD_NAMESPACE) { $env:K8S_CRUD_NAMESPACE }
-            elseif ($env:K8S_NAMESPACE) { $env:K8S_NAMESPACE }
-            else { "holiday-peak-crud" }
-  $defaultCrudUrl = "http://crud-service-crud-service.${crudNs}.svc.cluster.local:80"
-  $envMappings["CRUD_SERVICE_URL"] = if ($env:CRUD_SERVICE_URL) { $env:CRUD_SERVICE_URL } else { $defaultCrudUrl }
+# NOTE: Agents are isolated and must not call the CRUD service directly.
+# Synchronous inter-service communication is brokered through APIM (MCP tools);
+# asynchronous flows go through Event Hubs. CRUD_SERVICE_URL is therefore not
+# auto-injected into agent manifests. If a specific service explicitly opts in
+# by exporting CRUD_SERVICE_URL in its environment, it is honored verbatim.
+if ($ServiceName -ne "crud-service" -and -not [string]::IsNullOrWhiteSpace($env:CRUD_SERVICE_URL)) {
+  $envMappings["CRUD_SERVICE_URL"] = $env:CRUD_SERVICE_URL
 }
 
 $truthServiceEventHubMappings = @{
