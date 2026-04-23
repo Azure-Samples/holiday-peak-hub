@@ -9,7 +9,6 @@ import httpx
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
-from holiday_peak_lib.agents.registration_helpers import register_crud_tools
 from holiday_peak_lib.evaluation import confidence_calibration_bins, run_evaluation
 from holiday_peak_lib.mcp.ai_search_indexing import (
     AISearchIndexingClient,
@@ -445,7 +444,6 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
         ),
     )
     _register_ai_search_tools(mcp)
-    register_crud_tools(mcp)
 
 
 def _register_ai_search_tools(mcp: FastAPIMCPServer) -> None:

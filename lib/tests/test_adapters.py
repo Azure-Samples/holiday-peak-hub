@@ -6,7 +6,6 @@ import httpx
 import pytest
 from fastapi import FastAPI
 from holiday_peak_lib.adapters import (
-    BaseCRUDAdapter,
     BaseExternalAPIAdapter,
     BaseMCPAdapter,
 )
@@ -320,28 +319,6 @@ class TestMCPAdapters:
         paths = [route.path for route in mcp.router.routes]
 
         assert "/dummy/ping" in paths
-
-    @pytest.mark.asyncio
-    async def test_crud_adapter_tool_request(self):
-        """Verify CRUD adapter tools call the expected endpoint."""
-
-        async def handler(request: httpx.Request) -> httpx.Response:
-            if request.url.path == "/api/products/sku-1":
-                return httpx.Response(200, json={"sku": "sku-1"})
-            return httpx.Response(404, json={"error": "not_found"})
-
-        transport = httpx.MockTransport(handler)
-        adapter = BaseCRUDAdapter(
-            "http://crud-service",
-            transport=transport,
-        )
-        tools = dict(adapter.tools)
-        result = await tools["/crud/products/get"]({"product_id": "sku-1"})
-
-        assert result["sku"] == "sku-1"
-
-        missing = await tools["/crud/products/get"]({})
-        assert missing["error"] == "missing_field"
 
     @pytest.mark.asyncio
     async def test_external_api_adapter_auth_header(self):

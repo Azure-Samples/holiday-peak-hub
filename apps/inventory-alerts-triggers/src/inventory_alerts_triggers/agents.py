@@ -11,7 +11,6 @@ from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
 from holiday_peak_lib.agents.registration_helpers import (
     get_agent_adapters,
     mcp_context_tool,
-    register_crud_tools,
 )
 
 from .adapters import InventoryAlertsAdapters, build_inventory_alerts_adapters
@@ -85,7 +84,6 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
 
     mcp.add_tool("/inventory/alerts/context", get_inventory_context)
     mcp.add_tool("/inventory/alerts", get_alerts)
-    register_crud_tools(mcp)
 
 
 def _alerts_instructions() -> str:

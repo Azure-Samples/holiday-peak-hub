@@ -10,7 +10,6 @@ import pytest_asyncio
 from holiday_peak_lib.agents.registration_helpers import (
     get_agent_adapters,
     mcp_context_tool,
-    register_crud_tools,
 )
 
 
@@ -85,11 +84,3 @@ class TestMcpContextTool:
         await handler({"sku": 42})
 
         adapter_method.assert_awaited_once_with("42")
-
-
-class TestRegisterCrudTools:
-    def test_no_op_when_env_not_set(self) -> None:
-        mcp = MagicMock()
-        with patch.dict("os.environ", {}, clear=True):
-            register_crud_tools(mcp)
-        mcp.add_tool.assert_not_called()

@@ -1,28 +1,19 @@
-"""Shared MCP tool registration helpers used by all agent services."""
+"""Shared MCP tool registration helpers used by all agent services.
+
+The former ``register_crud_tools`` helper was removed as part of the agent
+isolation initiative (ADR-036). Agents are now strictly forbidden from calling
+the CRUD service directly; peer-to-peer agent communication happens over the
+Azure API Management MCP surface, and async flows happen through Event Hubs
+published/consumed via the ``holiday_peak_lib.messaging`` Observer helpers.
+"""
 
 from __future__ import annotations
 
-import os
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from holiday_peak_lib.adapters import BaseCRUDAdapter
-from holiday_peak_lib.mcp.server import FastAPIMCPServer
-
 if __name__ != "__main__":  # pragma: no cover – TYPE_CHECKING alternative
     from holiday_peak_lib.agents import BaseRetailAgent
-
-
-def register_crud_tools(mcp: FastAPIMCPServer) -> None:
-    """Register CRUD adapter MCP tools if ``CRUD_SERVICE_URL`` is set.
-
-    This replaces the identical ``_register_crud_tools()`` function that was
-    previously copy-pasted into every ``agents.py`` across all app services.
-    """
-    crud_url = os.getenv("CRUD_SERVICE_URL")
-    if not crud_url:
-        return
-    BaseCRUDAdapter(crud_url).register_mcp_tools(mcp)
 
 
 def get_agent_adapters(

@@ -11,7 +11,6 @@ from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
 from holiday_peak_lib.agents.registration_helpers import (
     get_agent_adapters,
     mcp_context_tool,
-    register_crud_tools,
 )
 
 from .adapters import RouteIssueAdapters, build_route_issue_adapters
@@ -83,7 +82,6 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
 
     mcp.add_tool("/logistics/route/context", get_logistics_context)
     mcp.add_tool("/logistics/route/issues", detect_issues)
-    register_crud_tools(mcp)
 
 
 def _route_instructions() -> str:
