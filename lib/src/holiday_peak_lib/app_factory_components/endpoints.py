@@ -3,6 +3,7 @@
 import asyncio
 import json
 import os
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -260,11 +261,52 @@ def register_standard_endpoints(
             "health": await registry.health(),
         }
 
+    _readiness_ensure_cooldown_seconds = float(os.getenv("READINESS_ENSURE_COOLDOWN_SECONDS", "30"))
+    _last_readiness_ensure_attempt: float = 0.0
+
     @app.get("/ready")
     async def ready() -> dict[str, Any]:
+        nonlocal _last_readiness_ensure_attempt
+
         capability_payload = foundry_capabilities()
         foundry_enforced = require_foundry_readiness or strict_foundry_mode
         foundry_ready = bool(capability_payload.get("ready", is_foundry_ready()))
+
+        if foundry_enforced and not foundry_ready:
+            auto_ensure = bool(capability_payload.get("auto_ensure_on_startup"))
+            now = time.monotonic()
+            cooldown_elapsed = (
+                now - _last_readiness_ensure_attempt
+            ) >= _readiness_ensure_cooldown_seconds
+
+            if auto_ensure and cooldown_elapsed:
+                _last_readiness_ensure_attempt = now
+                _log_info(
+                    "readiness_auto_ensure_start",
+                    extra={
+                        "service": service_name,
+                        "configured_roles": capability_payload.get("configured_roles"),
+                        "unresolved_roles": capability_payload.get("unresolved_roles"),
+                    },
+                )
+                try:
+                    ensure_result = await ensure_agents_handler(None)
+                    if isinstance(ensure_result, dict) and ensure_result.get("foundry_ready"):
+                        set_foundry_ready(True)
+                        capability_payload = foundry_capabilities()
+                        foundry_ready = bool(capability_payload.get("ready", is_foundry_ready()))
+                except (
+                    AttributeError,
+                    ImportError,
+                    RuntimeError,
+                    TypeError,
+                    ValueError,
+                ):
+                    _log_info(
+                        "readiness_auto_ensure_failed",
+                        extra={"service": service_name},
+                    )
+
         if foundry_enforced and not foundry_ready:
             raise HTTPException(
                 status_code=503,

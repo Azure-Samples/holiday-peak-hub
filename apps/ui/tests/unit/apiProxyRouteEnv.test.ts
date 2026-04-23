@@ -885,4 +885,67 @@ describe('/api proxy route env handling', () => {
       expect.objectContaining({ method: 'GET' }),
     );
   });
+
+  it('routes agent health paths without /api/ prefix to match APIM agent API path', async () => {
+    process.env.NEXT_PUBLIC_CRUD_API_URL = 'https://apim.example.azure-api.net';
+
+    (global.fetch as jest.Mock).mockResolvedValue({
+      body: null,
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers({ 'content-type': 'application/json' }),
+    });
+
+    const route = await import('../../app/api/[...path]/route');
+    await route.GET(makeRequest('http://localhost/api/agents/ecommerce-catalog-search/health'), {
+      params: Promise.resolve({ path: ['agents', 'ecommerce-catalog-search', 'health'] }),
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://apim.example.azure-api.net/agents/ecommerce-catalog-search/health',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  it('routes agent invoke paths without /api/ prefix', async () => {
+    process.env.NEXT_PUBLIC_CRUD_API_URL = 'https://apim.example.azure-api.net';
+
+    (global.fetch as jest.Mock).mockResolvedValue({
+      body: null,
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers({ 'content-type': 'application/json' }),
+    });
+
+    const route = await import('../../app/api/[...path]/route');
+    await route.GET(makeRequest('http://localhost/api/agents/truth-enrichment/invoke'), {
+      params: Promise.resolve({ path: ['agents', 'truth-enrichment', 'invoke'] }),
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://apim.example.azure-api.net/agents/truth-enrichment/invoke',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  it('keeps /api/ prefix for non-agent CRUD paths', async () => {
+    process.env.NEXT_PUBLIC_CRUD_API_URL = 'https://apim.example.azure-api.net';
+
+    (global.fetch as jest.Mock).mockResolvedValue({
+      body: null,
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers({ 'content-type': 'application/json' }),
+    });
+
+    const route = await import('../../app/api/[...path]/route');
+    await route.GET(makeRequest('http://localhost/api/orders'), {
+      params: Promise.resolve({ path: ['orders'] }),
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://apim.example.azure-api.net/api/orders',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
 });

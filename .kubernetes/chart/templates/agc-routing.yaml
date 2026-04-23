@@ -70,17 +70,18 @@ spec:
   rules:
     {{- if .Values.agc.paths }}
     {{- range .Values.agc.paths }}
+    {{- $rewrite := .rewriteTo | default .rewritePrefixMatch }}
     - matches:
         - path:
             type: {{ .pathType | default "PathPrefix" }}
             value: {{ .path | quote }}
-      {{- if .rewritePrefixMatch }}
+      {{- if $rewrite }}
       filters:
         - type: URLRewrite
           urlRewrite:
             path:
               type: ReplacePrefixMatch
-              replacePrefixMatch: {{ .rewritePrefixMatch | quote }}
+              replacePrefixMatch: {{ $rewrite | quote }}
       {{- end }}
       backendRefs:
         - name: {{ include "holiday-peak-service.fullname" $ }}

@@ -165,13 +165,15 @@ spec:
           args:
             {{- toYaml .Values.container.args | nindent 12 }}
           {{- end }}
-          {{- if .Values.env }}
           env:
+            {{- if and .Values.agc.enabled .Values.agc.paths (not (hasKey (.Values.env | default dict) "ROOT_PATH")) }}
+            - name: ROOT_PATH
+              value: {{ (index .Values.agc.paths 0).path | quote }}
+            {{- end }}
             {{- range $key, $value := .Values.env }}
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
-          {{- end }}
           ports:
             - containerPort: 8000
           {{- if .Values.probes.startup }}
@@ -272,13 +274,15 @@ spec:
       containers:
         - name: {{ .Values.serviceName }}
           image: "{{ $canaryImage }}"
-          {{- if .Values.env }}
           env:
+            {{- if and .Values.agc.enabled .Values.agc.paths (not (hasKey (.Values.env | default dict) "ROOT_PATH")) }}
+            - name: ROOT_PATH
+              value: {{ (index .Values.agc.paths 0).path | quote }}
+            {{- end }}
             {{- range $key, $value := .Values.env }}
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
-          {{- end }}
           ports:
             - containerPort: 8000
           {{- if .Values.probes.startup }}
