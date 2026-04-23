@@ -1,5 +1,7 @@
 """Tests for app_factory_components.endpoints."""
 
+from typing import Any
+
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from holiday_peak_lib.app_factory_components.endpoints import register_standard_endpoints
@@ -437,3 +439,182 @@ def test_self_healing_endpoints_capture_invoke_failures():
     reconcile_response = client.post("/self-healing/reconcile", json={})
     assert reconcile_response.status_code == 200
     assert "reconciled_incidents" in reconcile_response.json()
+
+
+def test_ready_auto_ensures_foundry_when_not_ready():
+    """Readiness probe triggers auto-ensure when Foundry is configured but not ready."""
+    app = FastAPI()
+    foundry_ready = False
+    ensure_calls = 0
+
+    def _is_ready() -> bool:
+        return foundry_ready
+
+    def _set_ready(value: bool) -> None:
+        nonlocal foundry_ready
+        foundry_ready = value
+
+    def _requires_runtime_resolution() -> bool:
+        return not foundry_ready
+
+    async def _ensure_handler(_payload: dict | None) -> dict:
+        nonlocal ensure_calls
+        ensure_calls += 1
+        return {
+            "service": "svc",
+            "strict_foundry_mode": False,
+            "foundry_ready": True,
+            "results": {"fast": {"status": "exists", "agent_id": "a1"}},
+        }
+
+    caps = {
+        "project_configured": True,
+        "ready": False,
+        "auto_ensure_on_startup": True,
+        "configured_roles": ["fast"],
+        "unresolved_roles": ["fast"],
+    }
+
+    def _caps() -> dict[str, Any]:
+        caps["ready"] = foundry_ready
+        caps["unresolved_roles"] = [] if foundry_ready else ["fast"]
+        return dict(caps)
+
+    register_standard_endpoints(
+        app,
+        service_name="svc",
+        registry=_Registry(),
+        router=_Router(),
+        tracer=_Tracer(),
+        logger=_Logger(),
+        strict_foundry_mode=False,
+        require_foundry_readiness=True,
+        is_foundry_ready=_is_ready,
+        set_foundry_ready=_set_ready,
+        requires_foundry_runtime_resolution=_requires_runtime_resolution,
+        foundry_capabilities=_caps,
+        ensure_agents_handler=_ensure_handler,
+    )
+
+    client = TestClient(app)
+    response = client.get("/ready")
+    assert response.status_code == 200
+    assert ensure_calls == 1
+
+
+def test_ready_auto_ensure_respects_cooldown(monkeypatch):
+    """Auto-ensure on readiness probe does not re-attempt within cooldown window."""
+    import holiday_peak_lib.app_factory_components.endpoints as ep_mod
+
+    app = FastAPI()
+    foundry_ready = False
+    ensure_calls = 0
+
+    def _is_ready() -> bool:
+        return foundry_ready
+
+    def _set_ready(value: bool) -> None:
+        nonlocal foundry_ready
+        foundry_ready = value
+
+    def _requires_runtime_resolution() -> bool:
+        return True
+
+    async def _ensure_handler(_payload: dict | None) -> dict:
+        nonlocal ensure_calls
+        ensure_calls += 1
+        # Ensure always fails — keeps foundry not ready.
+        return {
+            "service": "svc",
+            "strict_foundry_mode": False,
+            "foundry_ready": False,
+            "results": {"fast": {"status": "missing", "agent_id": None}},
+        }
+
+    caps = {
+        "project_configured": True,
+        "ready": False,
+        "auto_ensure_on_startup": True,
+        "configured_roles": ["fast"],
+        "unresolved_roles": ["fast"],
+    }
+
+    register_standard_endpoints(
+        app,
+        service_name="svc",
+        registry=_Registry(),
+        router=_Router(),
+        tracer=_Tracer(),
+        logger=_Logger(),
+        strict_foundry_mode=False,
+        require_foundry_readiness=True,
+        is_foundry_ready=_is_ready,
+        set_foundry_ready=_set_ready,
+        requires_foundry_runtime_resolution=_requires_runtime_resolution,
+        foundry_capabilities=lambda: dict(caps),
+        ensure_agents_handler=_ensure_handler,
+    )
+
+    client = TestClient(app)
+
+    # First call: triggers ensure (cooldown not yet started).
+    resp1 = client.get("/ready")
+    assert resp1.status_code == 503
+    assert ensure_calls == 1
+
+    # Second call within cooldown: should NOT trigger ensure again.
+    resp2 = client.get("/ready")
+    assert resp2.status_code == 503
+    assert ensure_calls == 1
+
+
+def test_ready_does_not_auto_ensure_without_auto_ensure_flag():
+    """Readiness probe does not attempt ensure when auto_ensure_on_startup is off."""
+    app = FastAPI()
+    foundry_ready = False
+    ensure_calls = 0
+
+    def _is_ready() -> bool:
+        return foundry_ready
+
+    def _set_ready(value: bool) -> None:
+        nonlocal foundry_ready
+        foundry_ready = value
+
+    def _requires_runtime_resolution() -> bool:
+        return True
+
+    async def _ensure_handler(_payload: dict | None) -> dict:
+        nonlocal ensure_calls
+        ensure_calls += 1
+        return {
+            "service": "svc",
+            "strict_foundry_mode": False,
+            "foundry_ready": True,
+            "results": {},
+        }
+
+    register_standard_endpoints(
+        app,
+        service_name="svc",
+        registry=_Registry(),
+        router=_Router(),
+        tracer=_Tracer(),
+        logger=_Logger(),
+        strict_foundry_mode=False,
+        require_foundry_readiness=True,
+        is_foundry_ready=_is_ready,
+        set_foundry_ready=_set_ready,
+        requires_foundry_runtime_resolution=_requires_runtime_resolution,
+        foundry_capabilities=lambda: {
+            "project_configured": True,
+            "ready": False,
+            "auto_ensure_on_startup": False,
+        },
+        ensure_agents_handler=_ensure_handler,
+    )
+
+    client = TestClient(app)
+    response = client.get("/ready")
+    assert response.status_code == 503
+    assert ensure_calls == 0

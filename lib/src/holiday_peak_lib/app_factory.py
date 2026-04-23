@@ -177,7 +177,8 @@ def build_service_app(
             Core telemetry remains enabled for local/fallback execution paths.
     """
     logger = configure_logging(app_name=service_name)
-    app = FastAPI(title=service_name)
+    root_path = os.getenv("ROOT_PATH", "")
+    app = FastAPI(title=service_name, root_path=root_path)
     registry = connector_registry or ConnectorRegistry()
     app.state.connector_registry = registry
     healing_kernel = self_healing_kernel or SelfHealingKernel.from_env(service_name)

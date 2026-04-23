@@ -179,3 +179,58 @@ Full environment cleanup (destructive, use only when intended):
 ```bash
 azd down -e "${AZD_ENV_NAME}" --purge --force
 ```
+
+---
+
+## Troubleshooting
+
+### 503 on `/ready` — AI Search strict mode
+
+When running in Kubernetes (detected via `KUBERNETES_SERVICE_HOST`), the service auto-enables **strict AI Search mode**. In strict mode, `/ready` returns 503 unless all three conditions pass:
+
+| Condition | What it checks | Common failure reason |
+|-----------|---------------|----------------------|
+| `configured` | AI Search env vars are set (`AI_SEARCH_ENDPOINT`, `AI_SEARCH_INDEX`, `AI_SEARCH_VECTOR_INDEX`) | Missing or empty env vars in ConfigMap/Secret |
+| `reachable` | AI Search endpoint responds to HTTP requests | DNS resolution failure, Private Endpoint not linked, NSG blocking traffic |
+| `index_non_empty` | At least 1 document exists in the configured index | `search-enrichment-agent` has not run, or indexer failed |
+
+**Diagnostic commands:**
+
+Verify env vars are injected into the pod:
+
+```bash
+kubectl exec -n <namespace> <pod> -- env | grep -E "AI_SEARCH_|CATALOG_SEARCH_"
+```
+
+Find the specific readiness failure reason:
+
+```bash
+kubectl logs -n <namespace> <pod> | grep catalog_ai_search
+```
+
+**Quick workaround** (disables strict mode — use only for triage, not production):
+
+```bash
+kubectl set env deployment/ecommerce-catalog-search -n <namespace> CATALOG_SEARCH_REQUIRE_AI_SEARCH=false
+```
+
+**Proper fix:**
+
+1. Ensure `AI_SEARCH_ENDPOINT`, `AI_SEARCH_INDEX`, `AI_SEARCH_VECTOR_INDEX`, and `AI_SEARCH_AUTH_MODE` are correctly set.
+2. Confirm the pod can reach the AI Search endpoint (check DNS, Private Endpoint, NSG rules).
+3. Verify the index has been populated by `search-enrichment-agent`. Check the indexer status in the Azure portal or with `az search indexer status`.
+
+### `foundry_runtime_targets_disabled` warnings
+
+This is a **warning**, not a 503 cause for this service. It means Foundry agent IDs (`FOUNDRY_AGENT_ID_FAST` / `FOUNDRY_AGENT_ID_RICH`) are missing or still pending resolution at startup.
+
+- The pod starts and serves search requests using fallback paths (keyword search, CRUD adapter).
+- Agent-powered invocations (intelligent mode synthesis) will fail until the Foundry IDs are resolved.
+- Set `FOUNDRY_AGENT_ID_FAST` and `FOUNDRY_AGENT_ID_RICH` (or their `_NAME_` variants) to restore full functionality.
+
+### `unknown-app` logger name
+
+Cosmetic only. Early framework log lines use `unknown-app` as the logger name before app-specific logging initializes.
+
+- Confirm `APP_NAME=ecommerce-catalog-search` is set in both the Dockerfile and the pod spec / ConfigMap.
+- This does not affect functionality or readiness.
