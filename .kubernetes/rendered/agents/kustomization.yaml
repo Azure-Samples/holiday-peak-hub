@@ -24,9 +24,9 @@ resources:
   - ../product-management-consistency-validation/all.yaml
   - ../product-management-normalization-classification/all.yaml
   - ../search-enrichment-agent/all.yaml
-  - ../truth-enrichment/all.yaml
+  # truth-enrichment: migrated to HelmRelease (Phase 2)
   - ../truth-export/all.yaml
-  - ../truth-hitl/all.yaml
+  # truth-hitl: migrated to HelmRelease (Phase 2)
   - ../truth-ingestion/all.yaml
 
   # Phase 2: Flux HelmRelease-based deployments (migrated from rendered YAML)

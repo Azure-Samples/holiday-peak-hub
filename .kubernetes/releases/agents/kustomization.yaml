@@ -6,3 +6,5 @@ kind: Kustomization
 # Migrated services are removed from .kubernetes/rendered/agents/kustomization.yaml.
 resources:
   - ecommerce-catalog-search.yaml
+  - truth-enrichment.yaml
+  - truth-hitl.yaml
