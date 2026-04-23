@@ -136,7 +136,7 @@ describe('useAgentMutation', () => {
 
   it('posts data through agentApiClient and returns response', async () => {
     const onSuccess = jest.fn();
-    const opts: AgentMutationOptions<{ query: string }, { id: string }> = {
+    const opts: AgentMutationOptions<{ id: string }> = {
       service: 'ecommerce-catalog-search',
       endpoint: '/search',
       onSuccess,

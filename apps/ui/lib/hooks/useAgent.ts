@@ -36,7 +36,7 @@ export interface AgentQueryOptions<TResponse> {
   select?: (data: TResponse) => TResponse;
 }
 
-export interface AgentMutationOptions<TRequest, TResponse> {
+export interface AgentMutationOptions<TResponse> {
   /** Agent service name */
   service: string;
   /** Endpoint path */
@@ -123,7 +123,7 @@ export function useAgentQuery<TResponse>(
 }
 
 export function useAgentMutation<TRequest, TResponse>(
-  options: AgentMutationOptions<TRequest, TResponse>,
+  options: AgentMutationOptions<TResponse>,
 ): UseMutationResult<TResponse, AgentError, TRequest> {
   const { service, endpoint, onSuccess, onError } = options;
   const url = buildUrl(service, endpoint);
