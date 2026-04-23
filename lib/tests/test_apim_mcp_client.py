@@ -9,7 +9,6 @@ import httpx
 import pytest
 from holiday_peak_lib.mcp.apim_client import (
     ApimMcpClient,
-    McpInvocationResult,
     McpToolDescriptor,
     create_apim_mcp_client,
 )
