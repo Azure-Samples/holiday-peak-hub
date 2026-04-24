@@ -164,3 +164,33 @@ spec:
             requests:
               cpu: 250m
               memory: 256Mi
+
+---
+# Source: holiday-peak-service/templates/agc-routing.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: crm-segmentation-personalization-crm-segmentation-personalization-agc
+  namespace: holiday-peak-agents
+  labels:
+    app: crm-segmentation-personalization
+spec:
+  parentRefs:
+    - name: "holiday-peak-agc"
+      namespace: "holiday-peak-crud"
+  hostnames:
+    - "esbcc8bcfyazbbdg.fz03.alb.azure.com"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: "/crm-segmentation-personalization"
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: "/"
+      backendRefs:
+        - name: crm-segmentation-personalization-crm-segmentation-personalization
+          port: 80

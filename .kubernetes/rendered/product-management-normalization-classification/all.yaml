@@ -164,3 +164,33 @@ spec:
             requests:
               cpu: 250m
               memory: 256Mi
+
+---
+# Source: holiday-peak-service/templates/agc-routing.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: product-management-normalization-classification-product-management-normalization-classification-agc
+  namespace: holiday-peak-agents
+  labels:
+    app: product-management-normalization-classification
+spec:
+  parentRefs:
+    - name: "holiday-peak-agc"
+      namespace: "holiday-peak-crud"
+  hostnames:
+    - "esbcc8bcfyazbbdg.fz03.alb.azure.com"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: "/product-management-normalization-classification"
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: "/"
+      backendRefs:
+        - name: product-management-normalization-classification-product-management-normalization-classification
+          port: 80

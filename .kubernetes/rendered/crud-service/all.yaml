@@ -164,18 +164,6 @@ spec:
               memory: 256Mi
 ---
 # Source: holiday-peak-service/templates/agc-routing.yaml
-apiVersion: alb.networking.azure.io/v1
-kind: ApplicationLoadBalancer
-metadata:
-  name: holiday-peak-agc
-  namespace: holiday-peak-crud
-  labels:
-    app: crud-service
-spec:
-  associations:
-    - "/subscriptions/150e82e8-25db-4f1a-8e04-a2f6a77d26c4/resourceGroups/holidaypeakhub405-dev-rg/providers/Microsoft.Network/virtualNetworks/holidaypeakhub405-dev-vnet/subnets/agc"
----
-# Source: holiday-peak-service/templates/agc-routing.yaml
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
