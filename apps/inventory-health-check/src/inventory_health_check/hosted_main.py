@@ -15,8 +15,6 @@ from agent_framework.foundry import FoundryChatClient
 from agent_framework_foundry_hosting import ResponsesHostServer
 from azure.identity import DefaultAzureCredential
 from dotenv import load_dotenv
-from inventory_health_check.adapters import build_inventory_health_adapters
-from inventory_health_check.agents import InventoryHealthAgent
 from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import Route
