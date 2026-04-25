@@ -85,6 +85,8 @@ spec:
               value: "https://holidaypeakhub405devstor.blob.core.windows.net"
             - name: BLOB_CONTAINER
               value: "agent-memory"
+            - name: CATALOG_INTENT_FAST_TIMEOUT_SECONDS
+              value: "3"
             - name: CATALOG_SEARCH_REQUIRE_AI_SEARCH
               value: "true"
             - name: COSMOS_ACCOUNT_URI
@@ -110,7 +112,7 @@ spec:
             - name: FOUNDRY_STRICT_ENFORCEMENT
               value: "false"
             - name: FOUNDRY_REASONING_EFFORT_FAST
-              value: "none"
+              value: "low"
             - name: KEY_VAULT_URI
               value: "https://holidaypeakhub405-dev-kv.vault.azure.net/"
             - name: MODEL_DEPLOYMENT_NAME_FAST
