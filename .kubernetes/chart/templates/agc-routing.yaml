@@ -23,10 +23,9 @@ metadata:
   namespace: {{ $sharedNamespace }}
   labels:
     app: {{ .Values.serviceName }}
-  {{- if .Values.agc.sharedResources.albId }}
   annotations:
-    alb.networking.azure.io/alb-id: {{ .Values.agc.sharedResources.albId | quote }}
-  {{- end }}
+    alb.networking.azure.io/alb-name: {{ $albName | quote }}
+    alb.networking.azure.io/alb-namespace: {{ $sharedNamespace | quote }}
 spec:
   gatewayClassName: {{ .Values.agc.gatewayClassName | quote }}
   listeners:

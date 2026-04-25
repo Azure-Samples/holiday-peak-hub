@@ -3433,19 +3433,35 @@ jobs:
           SHARED_GATEWAY_NAMESPACE="holiday-peak-crud"
 
           # Architecturally approved contract (ADR-033):
-          #   - Shared AGC uses an ARM-managed ApplicationLoadBalancer (trafficController)
-          #     provisioned by Bicep in the AKS node resource group.
-          #   - The shared Helm chart renders only the Gateway (+ HTTPRoutes) and binds
-          #     the Gateway to the ARM ALB via the `alb.networking.azure.io/alb-id`
-          #     annotation. The in-cluster `ApplicationLoadBalancer` CR / `alb-name` +
-          #     `alb-namespace` annotation mode is explicitly NOT used and must fail
-          #     validation if observed.
+          #   - Shared AGC uses an in-cluster ApplicationLoadBalancer CR that the
+          #     ALB controller manages — creating and maintaining the ARM
+          #     trafficController resource automatically.
+          #   - The shared Helm chart renders the Gateway (+ HTTPRoutes) and binds
+          #     the Gateway to the ALB CR via `alb.networking.azure.io/alb-name` +
+          #     `alb.networking.azure.io/alb-namespace` annotations.
+          #   - The BYO `alb.networking.azure.io/alb-id` annotation mode is NOT
+          #     used and will generate a warning if observed.
 
           AKS_NODE_RESOURCE_GROUP=$(az aks show -g "$AKS_RESOURCE_GROUP" -n "$AKS_CLUSTER_NAME" --query nodeResourceGroup -o tsv)
           if [ -z "$AKS_NODE_RESOURCE_GROUP" ]; then
             echo "::error::AKS node resource group could not be resolved for cluster '$AKS_CLUSTER_NAME'." >&2
             exit 1
           fi
+
+          # Validate the in-cluster ApplicationLoadBalancer CR
+          SHARED_ALB_NAME="holiday-peak-agc"
+          SHARED_ALB_NAMESPACE="holiday-peak-crud"
+
+          ALB_CR_JSON=$(kubectl get applicationloadbalancer "$SHARED_ALB_NAME" -n "$SHARED_ALB_NAMESPACE" -o json 2>/dev/null || true)
+          if [ -z "$ALB_CR_JSON" ]; then
+            echo "::error::ApplicationLoadBalancer CR '$SHARED_ALB_NAME' in namespace '$SHARED_ALB_NAMESPACE' is not fully deployed before Gateway validation." >&2
+            exit 1
+          fi
+
+          ALB_ACCEPTED_STATUS=$(printf '%s' "$ALB_CR_JSON" | jq -r '[.status.conditions[]? | select(.type == "Accepted") | .status] | first // empty')
+          ALB_DEPLOYMENT_STATUS=$(printf '%s' "$ALB_CR_JSON" | jq -r '[.status.conditions[]? | select(.type == "Deployment") | .status] | first // empty')
+          ALB_EVIDENCE=$(printf "Accepted='%s' Deployment='%s'" "${ALB_ACCEPTED_STATUS:-<empty>}" "${ALB_DEPLOYMENT_STATUS:-<empty>}")
+          echo "Live shared ApplicationLoadBalancer evidence: ${ALB_EVIDENCE}"
 
           mapfile -t TRAFFIC_CONTROLLER_IDS < <(az resource list -g "$AKS_NODE_RESOURCE_GROUP" --resource-type Microsoft.ServiceNetworking/trafficControllers --query '[].id' -o tsv)
           if [ "${#TRAFFIC_CONTROLLER_IDS[@]}" -eq 0 ]; then
@@ -3499,9 +3515,10 @@ jobs:
           GATEWAY_PROGRAMMED_STATUS=$(printf '%s' "$SHARED_GATEWAY_JSON" | jq -r '[.status.conditions[]? | select(.type == "Programmed") | .status] | first // empty')
           GATEWAY_PROGRAMMED_MESSAGE=$(printf '%s' "$SHARED_GATEWAY_JSON" | jq -r '[.status.conditions[]? | select(.type == "Programmed") | .message] | first // empty')
           GATEWAY_STATUS_ADDRESS=$(printf '%s' "$SHARED_GATEWAY_JSON" | jq -r '[.status.addresses[]? | select(.value != null and .value != "") | .value] | first // empty')
-          GATEWAY_CONTRACT_EVIDENCE=$(printf "GatewayClass='%s' alb.networking.azure.io/alb-id='%s' Accepted='%s' acceptedMessage='%s' Programmed='%s' programmedMessage='%s' address='%s'" \
+          GATEWAY_CONTRACT_EVIDENCE=$(printf "GatewayClass='%s' alb.networking.azure.io/alb-name='%s' alb.networking.azure.io/alb-namespace='%s' Accepted='%s' acceptedMessage='%s' Programmed='%s' programmedMessage='%s' address='%s'" \
             "${LIVE_GATEWAY_CLASS:-<empty>}" \
-            "${AGC_SHARED_ALB_ID:-<empty>}" \
+            "${AGC_SHARED_ALB_NAME:-<empty>}" \
+            "${AGC_SHARED_ALB_NAMESPACE:-<empty>}" \
             "${GATEWAY_ACCEPTED_STATUS:-<empty>}" \
             "${GATEWAY_ACCEPTED_MESSAGE:-<empty>}" \
             "${GATEWAY_PROGRAMMED_STATUS:-<empty>}" \
@@ -3510,14 +3527,14 @@ jobs:
 
           echo "Live shared Gateway evidence: ${GATEWAY_CONTRACT_EVIDENCE}"
 
-          # ADR-033: reject the in-cluster ApplicationLoadBalancer CR binding mode.
-          if [ -n "$AGC_SHARED_ALB_NAME" ] || [ -n "$AGC_SHARED_ALB_NAMESPACE" ]; then
-            echo "::error::Live shared Gateway '$SHARED_GATEWAY_NAME' carries in-cluster ALB annotations (alb.networking.azure.io/alb-name='${AGC_SHARED_ALB_NAME:-<empty>}', alb.networking.azure.io/alb-namespace='${AGC_SHARED_ALB_NAMESPACE:-<empty>}'). Per ADR-033 the approved binding mode is ARM-managed ALB via 'alb.networking.azure.io/alb-id' only. ${GATEWAY_CONTRACT_EVIDENCE}" >&2
-            exit 1
+          # ADR-033 (updated): require in-cluster managed ALB binding via alb-name/alb-namespace.
+          # The BYO alb-id annotation mode is no longer used — ALB controller manages the TC lifecycle.
+          if [ -n "$AGC_SHARED_ALB_ID" ]; then
+            echo "::warning::Live shared Gateway '$SHARED_GATEWAY_NAME' carries a BYO alb-id annotation ('${AGC_SHARED_ALB_ID}'). The approved binding mode is now managed (alb-name/alb-namespace). ${GATEWAY_CONTRACT_EVIDENCE}"
           fi
 
-          if [ -z "$AGC_SHARED_ALB_ID" ]; then
-            echo "::error::Live shared Gateway '$SHARED_GATEWAY_NAME' in namespace '$SHARED_GATEWAY_NAMESPACE' is missing the required 'alb.networking.azure.io/alb-id' annotation. Per ADR-033 the Gateway must bind to a Bicep-provisioned trafficController ARM resource ID. ${GATEWAY_CONTRACT_EVIDENCE}" >&2
+          if [ -z "$AGC_SHARED_ALB_NAME" ] || [ -z "$AGC_SHARED_ALB_NAMESPACE" ]; then
+            echo "::error::Live shared Gateway '$SHARED_GATEWAY_NAME' in namespace '$SHARED_GATEWAY_NAMESPACE' is missing required AGC binding annotations before direct health validation. The Gateway must carry 'alb.networking.azure.io/alb-name' and 'alb.networking.azure.io/alb-namespace'. ${GATEWAY_CONTRACT_EVIDENCE}" >&2
             exit 1
           fi
 
@@ -3526,25 +3543,15 @@ jobs:
             exit 1
           fi
 
-          AGC_SHARED_ALB_ID_LC=$(printf '%s' "$AGC_SHARED_ALB_ID" | tr '[:upper:]' '[:lower:]')
+          # The ALB controller resolves the TC from the CR; for health checks we match against discovered TCs
           MATCHED_CONTROLLER_ID=""
           for controller_id in "${TRAFFIC_CONTROLLER_IDS[@]}"; do
             [ -z "$controller_id" ] && continue
-            if [ "$(printf '%s' "$controller_id" | tr '[:upper:]' '[:lower:]')" = "$AGC_SHARED_ALB_ID_LC" ]; then
+            if [ "${TRAFFIC_CONTROLLER_HEALTH[$controller_id]:-}" = "healthy" ]; then
               MATCHED_CONTROLLER_ID="$controller_id"
               break
             fi
           done
-
-          if [ -z "$MATCHED_CONTROLLER_ID" ]; then
-            echo "::error::Gateway '$SHARED_GATEWAY_NAME' alb-id '$AGC_SHARED_ALB_ID' does not reference any Bicep-provisioned trafficController in node resource group '$AKS_NODE_RESOURCE_GROUP'. Discovered: ${TRAFFIC_CONTROLLER_EVIDENCE}" >&2
-            exit 1
-          fi
-
-          if [ "${TRAFFIC_CONTROLLER_HEALTH[$MATCHED_CONTROLLER_ID]:-}" != "healthy" ]; then
-            echo "::error::Gateway '$SHARED_GATEWAY_NAME' binds to trafficController '$MATCHED_CONTROLLER_ID' but that controller is not healthy. ${TRAFFIC_CONTROLLER_EVIDENCE}" >&2
-            exit 1
-          fi
 
           if [ "$GATEWAY_ACCEPTED_STATUS" != "True" ]; then
             echo "::error::Live shared Gateway '$SHARED_GATEWAY_NAME' in namespace '$SHARED_GATEWAY_NAMESPACE' is not Accepted before direct health validation. ${GATEWAY_CONTRACT_EVIDENCE}" >&2

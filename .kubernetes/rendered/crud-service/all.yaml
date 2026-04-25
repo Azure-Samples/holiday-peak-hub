@@ -172,7 +172,8 @@ metadata:
   labels:
     app: crud-service
   annotations:
-    alb.networking.azure.io/alb-id: "/subscriptions/150e82e8-25db-4f1a-8e04-a2f6a77d26c4/resourceGroups/holidaypeakhub405-dev-rg_aks_holidaypeakhub405-dev-aks_nodes/providers/Microsoft.ServiceNetworking/trafficControllers/alb-d819fbfd"
+    alb.networking.azure.io/alb-name: holiday-peak-agc
+    alb.networking.azure.io/alb-namespace: holiday-peak-crud
 spec:
   gatewayClassName: "azure-alb-external"
   listeners:
