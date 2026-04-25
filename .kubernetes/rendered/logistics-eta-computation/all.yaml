@@ -164,3 +164,33 @@ spec:
             requests:
               cpu: 250m
               memory: 256Mi
+
+---
+# Source: holiday-peak-service/templates/agc-routing.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: logistics-eta-computation-logistics-eta-computation-agc
+  namespace: holiday-peak-agents
+  labels:
+    app: logistics-eta-computation
+spec:
+  parentRefs:
+    - name: "holiday-peak-agc"
+      namespace: "holiday-peak-crud"
+  hostnames:
+    - "esbcc8bcfyazbbdg.fz03.alb.azure.com"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: "/logistics-eta-computation"
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: "/"
+      backendRefs:
+        - name: logistics-eta-computation-logistics-eta-computation
+          port: 80

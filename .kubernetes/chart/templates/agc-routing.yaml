@@ -3,6 +3,7 @@
 {{- $gatewayName := .Values.agc.sharedResources.gatewayName | default "holiday-peak-agc" }}
 {{- $albName := .Values.agc.sharedResources.applicationLoadBalancerName | default $gatewayName }}
 {{- if and .Values.agc.sharedResources.create .Values.agc.sharedResources.subnetId }}
+{{- if not .Values.agc.sharedResources.albId }}
 apiVersion: alb.networking.azure.io/v1
 kind: ApplicationLoadBalancer
 metadata:
@@ -14,6 +15,7 @@ spec:
   associations:
     - {{ .Values.agc.sharedResources.subnetId | quote }}
 ---
+{{- end }}
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
@@ -21,10 +23,9 @@ metadata:
   namespace: {{ $sharedNamespace }}
   labels:
     app: {{ .Values.serviceName }}
-  {{- if .Values.agc.sharedResources.albId }}
   annotations:
-    alb.networking.azure.io/alb-id: {{ .Values.agc.sharedResources.albId | quote }}
-  {{- end }}
+    alb.networking.azure.io/alb-name: {{ $albName | quote }}
+    alb.networking.azure.io/alb-namespace: {{ $sharedNamespace | quote }}
 spec:
   gatewayClassName: {{ .Values.agc.gatewayClassName | quote }}
   listeners:

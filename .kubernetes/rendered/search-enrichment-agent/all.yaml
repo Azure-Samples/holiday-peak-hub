@@ -168,3 +168,33 @@ spec:
             requests:
               cpu: 250m
               memory: 256Mi
+
+---
+# Source: holiday-peak-service/templates/agc-routing.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: search-enrichment-agent-search-enrichment-agent-agc
+  namespace: holiday-peak-agents
+  labels:
+    app: search-enrichment-agent
+spec:
+  parentRefs:
+    - name: "holiday-peak-agc"
+      namespace: "holiday-peak-crud"
+  hostnames:
+    - "esbcc8bcfyazbbdg.fz03.alb.azure.com"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: "/search-enrichment-agent"
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: "/"
+      backendRefs:
+        - name: search-enrichment-agent-search-enrichment-agent
+          port: 80
