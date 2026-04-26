@@ -1,5 +1,6 @@
 """Unit tests for JWT JWKS verification in auth dependencies."""
 
+import logging
 import time
 from unittest.mock import MagicMock
 
@@ -364,7 +365,8 @@ class TestGetCurrentUserOptional:
         creds.credentials = "fake.jwt.token"
         request = _build_request()
 
-        with caplog.at_level("ERROR"):
+        monkeypatch.setattr(logging.getLogger("crud_service"), "propagate", True)
+        with caplog.at_level("ERROR", logger="crud_service.auth.dependencies"):
             with pytest.raises(HTTPException) as exc_info:
                 await get_current_user_optional(request, creds)
 
