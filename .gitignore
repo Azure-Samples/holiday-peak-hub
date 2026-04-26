@@ -498,3 +498,6 @@ htmlcov/
 
 # MkDocs build output
 mkdocs/site/
+
+# Archive files
+*.zip

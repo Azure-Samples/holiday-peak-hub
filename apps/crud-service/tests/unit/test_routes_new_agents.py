@@ -1,5 +1,7 @@
 """Unit tests for newly wired CRUD routes (orders, users, cart, products)."""
 
+import logging
+
 import httpx
 import pytest
 from crud_service.auth import User, get_current_user, get_current_user_optional
@@ -465,7 +467,8 @@ class TestCartReservationValidation:
         monkeypatch.setattr(cart_routes, "agent_client", FakeAgent())
         monkeypatch.setattr(cart_routes, "event_publisher", FailingPublisher())
 
-        with caplog.at_level("WARNING"):
+        monkeypatch.setattr(logging.getLogger("crud_service"), "propagate", True)
+        with caplog.at_level("WARNING", logger="crud_service.routes.cart"):
             response = client.post("/api/cart/items", json={"product_id": "p1", "quantity": 1})
 
         assert response.status_code == 200

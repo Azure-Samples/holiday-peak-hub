@@ -37,6 +37,7 @@ from .adapters import (
     CatalogAdapters,
     build_catalog_adapters,
     merge_enriched_fields,
+    merge_scored_results,
     normalize_search_mode,
 )
 from .ai_search import (
@@ -72,6 +73,42 @@ DEGRADED_MODEL_FALLBACK_MESSAGE = (
     "Showing the best available catalog guidance while intelligent generation "
     "is temporarily unavailable."
 )
+
+# ---------------------------------------------------------------------------
+# Intent classification prompt — loaded from prompts/intent_classification.md
+# ---------------------------------------------------------------------------
+# Loaded once at module init; follows the same file-based prompt governance
+# pattern as instructions.md to allow updates without code deploys.
+_INTENT_CLASSIFICATION_PROMPT_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "..", "prompts", "intent_classification.md"
+)
+
+
+def _load_intent_classification_prompt() -> str:
+    """Load the intent classification prompt from the prompts directory."""
+    for candidate in (
+        _INTENT_CLASSIFICATION_PROMPT_PATH,
+        os.path.join(os.getcwd(), "prompts", "intent_classification.md"),
+        os.path.join(
+            os.getcwd(),
+            "apps",
+            "ecommerce-catalog-search",
+            "prompts",
+            "intent_classification.md",
+        ),
+    ):
+        resolved = os.path.normpath(candidate)
+        if os.path.isfile(resolved):
+            with open(resolved, encoding="utf-8") as fh:
+                return fh.read().strip()
+    logger.warning("intent_classification_prompt_not_found")
+    return (
+        "You are an ecommerce search intent classifier. "
+        "Given a user query, return JSON with keys: intent, confidence, entities, reasoning."
+    )
+
+
+_INTENT_CLASSIFICATION_SYSTEM_PROMPT: str = _load_intent_classification_prompt()
 
 
 class _StreamContext(NamedTuple):
@@ -215,48 +252,79 @@ class CatalogSearchAgent(BaseRetailAgent):
         return await self._classify_intent(query)
 
     async def _classify_intent(self, query: str) -> IntentClassification:
-        """Internal intent classification hook used by intelligent retrieval path."""
+        """Classify intent via the Foundry agent using invoke_model.
+
+        Sends the intent classification instructions as a user message so the
+        agent's own Foundry prompt stays in control.  Falls back to
+        deterministic policy on timeout or error.
+        """
         fallback_intent = _deterministic_intent_policy(query)
         if not query.strip():
             return fallback_intent
 
+        user_prompt = (
+            f"{_INTENT_CLASSIFICATION_SYSTEM_PROMPT}\n\n"
+            f"Classify this query:\n{json.dumps({'query': query})}"
+        )
         messages = [
-            {
-                "role": "system",
-                "content": (
-                    "Classify ecommerce search intent and return strict JSON with keys: "
-                    "intent (string), confidence (0..1), entities (object), reasoning (string)."
-                ),
-            },
-            {
-                "role": "user",
-                "content": {"query": query},
-            },
+            {"role": "user", "content": user_prompt},
         ]
+
+        intent_timeout = _resolve_timeout_seconds(
+            "CATALOG_INTENT_MODEL_TIMEOUT_SECONDS",
+            8.0,
+        )
+
+        logger.info(
+            "catalog_intent_invoke_start",
+            extra={
+                "query_length": len(query),
+                "has_slm": bool(self.slm),
+                "has_llm": bool(self.llm),
+                "timeout": intent_timeout,
+                "mode": "invoke_model",
+            },
+        )
 
         try:
             response = await asyncio.wait_for(
-                self.invoke_model(
-                    request={},
-                    messages=messages,
-                ),
-                timeout=_resolve_timeout_seconds(
-                    "CATALOG_INTENT_MODEL_TIMEOUT_SECONDS",
-                    8.0,
-                ),
+                self.invoke_model(request={}, messages=messages),
+                timeout=intent_timeout,
             )
+            raw_content = response.get("content") if isinstance(response, dict) else None
+            logger.info(
+                "catalog_intent_invoke_done",
+                extra={
+                    "mode": "invoke_model",
+                    "content_type": type(raw_content).__name__,
+                    "content_preview": str(raw_content)[:500] if raw_content else None,
+                },
+            )
+
             parsed = _parse_intent_response(response)
+            logger.info(
+                "catalog_intent_parse_result",
+                extra={
+                    "parsed_ok": parsed is not None,
+                    "parsed_intent": parsed.intent if parsed else None,
+                    "parsed_confidence": parsed.confidence if parsed else None,
+                },
+            )
             return _merge_intent_with_fallback(parsed, fallback_intent, query)
         except asyncio.TimeoutError:
             logger.warning(
                 "catalog_intent_classification_timeout",
-                extra={"query_length": len(query)},
+                extra={"query_length": len(query), "timeout": intent_timeout},
             )
             return fallback_intent
-        except Exception:  # pylint: disable=broad-exception-caught
+        except Exception as exc:  # pylint: disable=broad-exception-caught
             logger.warning(
                 "catalog_intent_classification_failed",
-                extra={"query_length": len(query)},
+                extra={
+                    "query_length": len(query),
+                    "error_type": type(exc).__name__,
+                    "error_detail": str(exc)[:500],
+                },
                 exc_info=True,
             )
             return fallback_intent
@@ -275,35 +343,7 @@ class CatalogSearchAgent(BaseRetailAgent):
         limit: int,
     ) -> list[AISearchDocumentResult]:
         """Merge ranked result batches by SKU and preserve strongest enrichment payloads."""
-        if limit <= 0:
-            return []
-
-        merged: dict[str, dict[str, Any]] = {}
-        for batch in results_list:
-            for rank, candidate in enumerate(batch, start=1):
-                entry = merged.setdefault(
-                    candidate.sku,
-                    {
-                        "candidate": candidate,
-                        "best_score": candidate.score,
-                        "hits": 0,
-                        "rank_bonus": 0.0,
-                    },
-                )
-                entry["hits"] += 1
-                entry["best_score"] = max(entry["best_score"], candidate.score)
-                entry["rank_bonus"] += max((limit - rank + 1) / max(limit, 1), 0.0)
-
-                merged_candidate: AISearchDocumentResult = entry["candidate"]
-                if len(candidate.enriched_fields) > len(merged_candidate.enriched_fields):
-                    entry["candidate"] = candidate
-
-        ranked = sorted(
-            merged.values(),
-            key=lambda item: (item["hits"], item["best_score"], item["rank_bonus"]),
-            reverse=True,
-        )
-        return [item["candidate"] for item in ranked[:limit]]
+        return merge_scored_results(results_list, limit)
 
     def merge_results(
         self,
@@ -1287,11 +1327,36 @@ async def _search_products_intelligent(
                 agent.classify_intent(query),
                 timeout=intent_timeout,
             )
-            return result, "model"
-        except (asyncio.TimeoutError, Exception):  # noqa: BLE001
+            is_deterministic = (
+                result.reasoning and "deterministic fallback" in result.reasoning.lower()
+            )
+            source = "fallback" if is_deterministic else "model"
+            logger.info(
+                "intelligent_intent_classified",
+                extra={
+                    "query": query[:60],
+                    "source": source,
+                    "intent": result.intent,
+                    "confidence": result.confidence,
+                },
+            )
+            return result, source
+        except asyncio.TimeoutError:
             logger.warning(
                 "intelligent_intent_fast_timeout",
                 extra={"query_length": len(query), "timeout": intent_timeout},
+            )
+            return fallback_intent, "fallback"
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "intelligent_intent_fast_error",
+                extra={
+                    "query_length": len(query),
+                    "timeout": intent_timeout,
+                    "error_type": type(exc).__name__,
+                    "error_detail": str(exc)[:300],
+                },
+                exc_info=True,
             )
             return fallback_intent, "fallback"
 
@@ -1353,7 +1418,7 @@ async def _search_products_intelligent(
         },
     )
 
-    # ── step 4: merge SKUs from both paths ───────────────────────────
+    # ── step 4: score-based merge of keyword + hybrid results ──────
     keyword_skus: list[str] = [r.sku for r in keyword_results]
     hybrid_skus: list[str] = [r.sku for r in hybrid_results]
 
@@ -1361,19 +1426,15 @@ async def _search_products_intelligent(
         r.sku: r.enriched_fields for r in hybrid_results if r.enriched_fields
     }
 
-    # ── build products from AI Search documents (no CRUD round-trip) ─
-    all_doc_results = keyword_results + hybrid_results
-    doc_by_sku: dict[str, Any] = {}
-    for r in all_doc_results:
-        if r.sku not in doc_by_sku:
-            doc_by_sku[r.sku] = r
+    top_k = max(len(keyword_results), len(hybrid_results), 1)
+    ranked_merged = merge_scored_results(
+        [keyword_results, hybrid_results],
+        limit=limit * 2,
+        rank_denominator=top_k,
+    )
 
-    seen_skus: set[str] = set()
-    ordered_skus: list[str] = []
-    for sku in keyword_skus + hybrid_skus:
-        if sku not in seen_skus:
-            seen_skus.add(sku)
-            ordered_skus.append(sku)
+    doc_by_sku: dict[str, Any] = {r.sku: r for r in ranked_merged}
+    ordered_skus: list[str] = [r.sku for r in ranked_merged]
 
     _t3 = _time.perf_counter()
     products: list[CatalogProduct] = []
@@ -1417,7 +1478,9 @@ async def _search_products_intelligent(
     )
 
     # ── rank and trim ────────────────────────────────────────────────
-    ranked = _rank_products_by_query_relevance(query=query, products=products, limit=limit)
+    # Products are already in AI Search score order from the merge step;
+    # no token-overlap re-ranking needed for the intelligent pipeline.
+    ranked = products[:limit]
     _t_rank = _time.perf_counter()
     logger.info(
         "intelligent_pipeline_timing",
