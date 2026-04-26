@@ -112,7 +112,7 @@ spec:
             - name: FOUNDRY_STRICT_ENFORCEMENT
               value: "false"
             - name: FOUNDRY_REASONING_EFFORT_FAST
-              value: "low"
+              value: "none"
             - name: KEY_VAULT_URI
               value: "https://holidaypeakhub405-dev-kv.vault.azure.net/"
             - name: MODEL_DEPLOYMENT_NAME_FAST

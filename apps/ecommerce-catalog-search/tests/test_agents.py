@@ -9,6 +9,7 @@ from ecommerce_catalog_search.adapters import AcpCatalogMapper, CatalogAdapters
 from ecommerce_catalog_search.agents import (
     CatalogSearchAgent,
     _parse_intent_response,
+    _search_products_intelligent,
 )
 from ecommerce_catalog_search.ai_search import AISearchDocumentResult, AISearchSkuResult
 from holiday_peak_lib.agents.base_agent import AgentDependencies
@@ -1205,10 +1206,12 @@ class TestCatalogSearchAgent:
             mock_search.return_value = AISearchSkuResult(skus=[])
             mock_kw_search.return_value = mock_keyword_search_result
             # Hybrid search finds the product via intent-derived sub-queries
+            # Score higher than keyword result (1.0) so hybrid-discovered
+            # product ranks first under score-based merge.
             mock_multi.return_value = [
                 AISearchDocumentResult(
                     sku="SKU-EARBUD",
-                    score=0.85,
+                    score=1.20,
                     document={"sku": "SKU-EARBUD"},
                     enriched_fields={},
                 )
@@ -1396,6 +1399,214 @@ class TestCatalogSearchAgent:
 
         assert [item.sku for item in merged][:2] == ["SKU-1", "SKU-2"]
         assert merged[0].enriched_fields["enriched_description"] == "Versatile headset."
+
+
+class TestIntelligentScoreBasedRanking:
+    """Tests for score-based merge and ranking in _search_products_intelligent."""
+
+    @pytest.mark.asyncio
+    async def test_higher_ai_search_scores_rank_first(
+        self, agent_dependencies, mock_catalog_product
+    ):
+        """Products with higher AI Search scores should appear before lower-scored ones."""
+        with (
+            patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
+            patch("ecommerce_catalog_search.agents.multi_query_search") as mock_multi,
+            patch("ecommerce_catalog_search.agents.keyword_search") as mock_kw_search,
+        ):
+            # Keyword returns low-score irrelevant product first
+            mock_kw_search.return_value = [
+                AISearchDocumentResult(
+                    sku="SKU-PUZZLE",
+                    score=0.30,
+                    document={"sku": "SKU-PUZZLE", "name": "Jigsaw Puzzle Winter Scene"},
+                    enriched_fields={},
+                ),
+            ]
+            # Hybrid returns high-score relevant product
+            mock_multi.return_value = [
+                AISearchDocumentResult(
+                    sku="SKU-JACKET",
+                    score=0.95,
+                    document={"sku": "SKU-JACKET", "name": "Warm Winter Puffer Jacket"},
+                    enriched_fields={},
+                ),
+            ]
+
+            mock_products = AsyncMock()
+            mock_products.get_product = AsyncMock(return_value=None)
+            mock_products.get_related = AsyncMock(return_value=[])
+            mock_inventory = AsyncMock()
+            mock_inventory.get_item = AsyncMock(
+                return_value=InventoryItem(sku="SKU-JACKET", available=5, reserved=0)
+            )
+
+            mock_build.return_value = CatalogAdapters(
+                products=mock_products,
+                inventory=mock_inventory,
+                mapping=AcpCatalogMapper(),
+            )
+
+            agent = CatalogSearchAgent(config=agent_dependencies)
+            with patch.object(
+                agent,
+                "classify_intent",
+                new=AsyncMock(
+                    return_value=IntentClassification(
+                        intent="semantic_search",
+                        confidence=0.9,
+                        entities={"keywords": ["winter", "jacket"]},
+                    )
+                ),
+            ):
+                result = await agent.handle(
+                    {"query": "warm winter jacket", "limit": 5, "mode": "intelligent"}
+                )
+
+            ranked_ids = [r["item_id"] for r in result["results"]]
+            # Jacket (score=0.95) must rank before puzzle (score=0.30)
+            assert ranked_ids.index("SKU-JACKET") < ranked_ids.index("SKU-PUZZLE")
+
+    @pytest.mark.asyncio
+    async def test_products_in_both_searches_get_boosted(
+        self, agent_dependencies, mock_catalog_product
+    ):
+        """A product appearing in both keyword and hybrid results should rank above one in only one."""
+        with (
+            patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
+            patch("ecommerce_catalog_search.agents.multi_query_search") as mock_multi,
+            patch("ecommerce_catalog_search.agents.keyword_search") as mock_kw_search,
+        ):
+            # SKU-BOTH appears in keyword AND hybrid (hits=2)
+            mock_kw_search.return_value = [
+                AISearchDocumentResult(
+                    sku="SKU-BOTH",
+                    score=0.70,
+                    document={"sku": "SKU-BOTH", "name": "Fleece Winter Jacket"},
+                    enriched_fields={},
+                ),
+                AISearchDocumentResult(
+                    sku="SKU-KW-ONLY",
+                    score=0.65,
+                    document={"sku": "SKU-KW-ONLY", "name": "Winter Hat"},
+                    enriched_fields={},
+                ),
+            ]
+            # SKU-BOTH also in hybrid; SKU-HYB-ONLY only in hybrid with higher single score
+            mock_multi.return_value = [
+                AISearchDocumentResult(
+                    sku="SKU-HYB-ONLY",
+                    score=0.80,
+                    document={"sku": "SKU-HYB-ONLY", "name": "Thermal Gloves"},
+                    enriched_fields={},
+                ),
+                AISearchDocumentResult(
+                    sku="SKU-BOTH",
+                    score=0.75,
+                    document={"sku": "SKU-BOTH", "name": "Fleece Winter Jacket"},
+                    enriched_fields={},
+                ),
+            ]
+
+            mock_products = AsyncMock()
+            mock_products.get_product = AsyncMock(return_value=None)
+            mock_products.get_related = AsyncMock(return_value=[])
+            mock_inventory = AsyncMock()
+            mock_inventory.get_item = AsyncMock(
+                return_value=InventoryItem(sku="SKU-BOTH", available=5, reserved=0)
+            )
+
+            mock_build.return_value = CatalogAdapters(
+                products=mock_products,
+                inventory=mock_inventory,
+                mapping=AcpCatalogMapper(),
+            )
+
+            agent = CatalogSearchAgent(config=agent_dependencies)
+            with patch.object(
+                agent,
+                "classify_intent",
+                new=AsyncMock(
+                    return_value=IntentClassification(
+                        intent="semantic_search",
+                        confidence=0.9,
+                        entities={"keywords": ["winter", "jacket"]},
+                    )
+                ),
+            ):
+                result = await agent.handle(
+                    {"query": "winter jacket", "limit": 5, "mode": "intelligent"}
+                )
+
+            ranked_ids = [r["item_id"] for r in result["results"]]
+            # SKU-BOTH (hits=2) must rank above single-hit products
+            assert ranked_ids[0] == "SKU-BOTH"
+
+    @pytest.mark.asyncio
+    async def test_score_merge_preserves_enrichment_from_best_variant(self, agent_dependencies):
+        """The merge should keep the result variant with the most enrichment data."""
+        with (
+            patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
+            patch("ecommerce_catalog_search.agents.multi_query_search") as mock_multi,
+            patch("ecommerce_catalog_search.agents.keyword_search") as mock_kw_search,
+        ):
+            # Keyword has no enrichment
+            mock_kw_search.return_value = [
+                AISearchDocumentResult(
+                    sku="SKU-001",
+                    score=0.60,
+                    document={"sku": "SKU-001", "name": "Product A"},
+                    enriched_fields={},
+                ),
+            ]
+            # Hybrid has enrichment
+            mock_multi.return_value = [
+                AISearchDocumentResult(
+                    sku="SKU-001",
+                    score=0.85,
+                    document={"sku": "SKU-001", "name": "Product A"},
+                    enriched_fields={
+                        "use_cases": ["outdoor"],
+                        "enriched_description": "Great for outdoor use.",
+                    },
+                ),
+            ]
+
+            mock_products = AsyncMock()
+            mock_products.get_product = AsyncMock(return_value=None)
+            mock_products.get_related = AsyncMock(return_value=[])
+            mock_inventory = AsyncMock()
+            mock_inventory.get_item = AsyncMock(
+                return_value=InventoryItem(sku="SKU-001", available=10, reserved=0)
+            )
+
+            mock_build.return_value = CatalogAdapters(
+                products=mock_products,
+                inventory=mock_inventory,
+                mapping=AcpCatalogMapper(),
+            )
+
+            agent = CatalogSearchAgent(config=agent_dependencies)
+            with patch.object(
+                agent,
+                "classify_intent",
+                new=AsyncMock(
+                    return_value=IntentClassification(
+                        intent="semantic_search",
+                        confidence=0.9,
+                        entities={"keywords": ["outdoor"]},
+                    )
+                ),
+            ):
+                result = await agent.handle(
+                    {"query": "outdoor gear", "limit": 5, "mode": "intelligent"}
+                )
+
+            first = result["results"][0]
+            assert first["item_id"] == "SKU-001"
+            # Enrichment from hybrid variant should be surfaced
+            assert first["use_cases"] == ["outdoor"]
+            assert first["extended_attributes"]["enriched_description"] == "Great for outdoor use."
 
 
 class TestParseIntentResponse:

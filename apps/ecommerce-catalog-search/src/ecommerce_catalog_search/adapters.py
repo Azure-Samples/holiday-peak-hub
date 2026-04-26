@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 
 from holiday_peak_lib.adapters.acp_mapper import AcpCatalogMapper
 from holiday_peak_lib.adapters.inventory_adapter import InventoryConnector
@@ -81,3 +81,50 @@ def build_catalog_adapters(
     inventory = inventory_connector or InventoryConnector(adapter=MockInventoryAdapter())
     mapping = AcpCatalogMapper()
     return CatalogAdapters(products=products, inventory=inventory, mapping=mapping)
+
+
+def merge_scored_results(
+    batches: list[list[Any]],
+    limit: int,
+    *,
+    rank_denominator: int | None = None,
+) -> list[Any]:
+    """Score-based merge of ranked AI Search result batches.
+
+    Each item must expose ``.sku``, ``.score``, and ``.enriched_fields``.
+    Items found in multiple batches are boosted.  The variant with the
+    richest enrichment payload is preserved.
+
+    ``rank_denominator`` controls the divisor for rank-bonus calculation.
+    Defaults to ``limit`` when *None*.
+    """
+    if limit <= 0:
+        return []
+
+    denom = rank_denominator if rank_denominator is not None else limit
+
+    merged: dict[str, dict[str, Any]] = {}
+    for batch in batches:
+        for rank, candidate in enumerate(batch, start=1):
+            entry = merged.setdefault(
+                candidate.sku,
+                {
+                    "candidate": candidate,
+                    "best_score": candidate.score,
+                    "hits": 0,
+                    "rank_bonus": 0.0,
+                },
+            )
+            entry["hits"] += 1
+            entry["best_score"] = max(entry["best_score"], candidate.score)
+            entry["rank_bonus"] += max((denom - rank + 1) / max(denom, 1), 0.0)
+
+            if len(candidate.enriched_fields) > len(entry["candidate"].enriched_fields):
+                entry["candidate"] = candidate
+
+    ranked = sorted(
+        merged.values(),
+        key=lambda item: (item["hits"], item["best_score"], item["rank_bonus"]),
+        reverse=True,
+    )
+    return [item["candidate"] for item in ranked[:limit]]

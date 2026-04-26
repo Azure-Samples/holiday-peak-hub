@@ -21,6 +21,8 @@ class _CorrelationIdFilter(logging.Filter):
 
 
 class _JsonLogFormatter(logging.Formatter):
+    _BUILTIN_ATTRS = frozenset(logging.LogRecord("", 0, "", 0, "", (), None).__dict__)
+
     def format(self, record: logging.LogRecord) -> str:
         event = {
             "timestamp": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
@@ -30,9 +32,17 @@ class _JsonLogFormatter(logging.Formatter):
             "correlation_id": getattr(record, "correlation_id", ""),
             "message": record.getMessage(),
         }
+        # Capture extra fields passed via logger.info("msg", extra={...})
+        extra = {
+            k: v
+            for k, v in record.__dict__.items()
+            if k not in self._BUILTIN_ATTRS and k not in event
+        }
+        if extra:
+            event["extra"] = extra
         if record.exc_info:
             event["exception"] = self.formatException(record.exc_info)
-        return json.dumps(event, ensure_ascii=False)
+        return json.dumps(event, ensure_ascii=False, default=str)
 
 
 def _ensure_tracemalloc() -> None:
@@ -76,6 +86,21 @@ def configure_logging(
     stream_handler.setFormatter(formatter)
     base_logger.addHandler(stream_handler)
     base_logger.propagate = False
+
+    # Also configure the app-package logger (e.g. ecommerce_catalog_search)
+    # so that app-level logging.getLogger(__name__) calls get structured JSON
+    # output instead of falling through to the root logger.
+    app_package = resolved_app.replace("-", "_")
+    app_logger = logging.getLogger(app_package)
+    if not app_logger.handlers:
+        app_handler = logging.StreamHandler()
+        app_handler.setLevel(logging.INFO)
+        app_handler.addFilter(_CorrelationIdFilter())
+        app_handler.setFormatter(formatter)
+        app_logger.addHandler(app_handler)
+        app_logger.setLevel(logging.INFO)
+        app_logger.propagate = False
+
     _ensure_tracemalloc()
     return logging.LoggerAdapter(base_logger, {"app_name": resolved_app})
 
