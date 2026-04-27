@@ -44,7 +44,7 @@ attrs==26.1.0
     #   referencing
 azure-ai-inference==1.0.0b9
     # via agent-framework-foundry
-azure-ai-projects==2.0.1
+azure-ai-projects==2.1.0
     # via
     #   agent-framework-foundry
     #   crm-support-assistance
