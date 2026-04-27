@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env sh
+#!/usr/bin/env sh
 
 set -eu
 
@@ -249,7 +249,7 @@ validate_approved_backend_health() {
   for attempt in $(seq 1 8); do
     status_code="$(curl -sS -o "$probe_body" -w '%{http_code}' --max-time 10 "$probe_url" || true)"
     if [ "$status_code" = "200" ] || [ "$status_code" = "404" ]; then
-      echo "Validated approved AGC backend host '$host' via $probe_url"
+      echo "Validated approved AGC backend host '$host' via $probe_url" >&2
       return 0
     fi
     sleep 5

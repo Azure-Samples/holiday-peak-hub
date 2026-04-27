@@ -39,3 +39,14 @@ class ProductEnrichmentTriggerResponse(BaseModel):
     trace_id: str | None = None
     trigger_source: str | None = None
     reason: str | None = None
+
+
+class BulkEnrichmentTriggerResponse(BaseModel):
+    """Response payload for bulk product enrichment trigger."""
+
+    status: str
+    queued_count: int
+    failed_count: int
+    queued_at: str
+    trace_id: str | None = None
+    trigger_source: str | None = None
