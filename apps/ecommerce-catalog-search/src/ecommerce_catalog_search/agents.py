@@ -65,8 +65,8 @@ def _safe_float(value: Any) -> float | None:
 HOT_HISTORY_MAX_ENTRIES = 20
 HOT_HISTORY_TTL_SECONDS = 3600
 INTENT_CONFIDENCE_THRESHOLD = 0.55
-INTELLIGENT_INTENT_TIMEOUT_SECONDS = 3.0
-INTELLIGENT_PIPELINE_TIMEOUT_SECONDS = 5.0
+INTELLIGENT_INTENT_TIMEOUT_SECONDS = 5.0
+INTELLIGENT_PIPELINE_TIMEOUT_SECONDS = 8.0
 GENERIC_KEYWORD_LIMIT = 8
 QUERY_EXPANSION_QUERY_LIMIT = 4
 DEGRADED_MODEL_FALLBACK_MESSAGE = (
@@ -473,6 +473,7 @@ class CatalogSearchAgent(BaseRetailAgent):
             if _intent_from_model:
                 deterministic_response["model_attempted"] = True
                 deterministic_response["answer_source"] = "agent_model_intent"
+                deterministic_response["result_type"] = "intelligent"
 
             if request.get("_stream"):
                 ctx = _StreamContext(
@@ -492,7 +493,7 @@ class CatalogSearchAgent(BaseRetailAgent):
             # ── skip model answer in strict/intelligent mode ─────────
             # In intelligent mode, search results are the answer.
             # The second SLM call for NL answer generation is skipped
-            # to stay within the 4s budget.
+            # to stay within the 8s budget.
             if not _strict and mode != "keyword" and (self.slm is not None or self.llm is not None):
                 return await self._try_model_answer(
                     request=request,
@@ -1295,14 +1296,14 @@ async def _search_products_intelligent(
     IntentClassification | None,
     list[CatalogProduct],
 ]:
-    """Intent-first intelligent search — strict ≤5 s wall-clock.
+    """Intent-first intelligent search — strict ≤8 s wall-clock.
 
-    1. Parallel: SLM intent classification (≤3 s) + keyword search (~1-2 s).
+    1. Parallel: SLM intent classification (≤5 s) + keyword search (~1-2 s).
     2. Build sub-queries from model intent entities (deterministic, ~0 ms).
     3. Hybrid search using model-derived sub-queries (~1-2 s).
     4. Merge SKUs from keyword + hybrid results, build products, rank.
 
-    Timeline: max(intent, keyword) + hybrid + resolve ≈ 3-4 s typical.
+    Timeline: max(intent, keyword) + hybrid + resolve ≈ 4-6 s typical.
     """
     import time as _time
 
