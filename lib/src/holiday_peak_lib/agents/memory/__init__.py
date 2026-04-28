@@ -16,6 +16,14 @@ from .namespace import (
     read_hot_with_compatibility,
     resolve_namespace_context,
 )
+from .session_manager import (
+    SessionDecision,
+    SessionSummary,
+    build_session_summary,
+    evaluate_session_continuity,
+    persist_full_session,
+    store_summary,
+)
 from .warm import WarmMemory
 
 __all__ = [
@@ -26,12 +34,18 @@ __all__ = [
     "MemoryClient",
     "MemoryRules",
     "NamespaceContext",
+    "SessionDecision",
+    "SessionSummary",
     "WarmMemory",
     "build_canonical_memory_key",
+    "build_session_summary",
     "cache_write",
+    "evaluate_session_continuity",
     "inject_session_id",
+    "persist_full_session",
     "read_hot_with_compatibility",
     "resolve_cache_key",
     "resolve_namespace_context",
+    "store_summary",
     "try_cache_read",
 ]

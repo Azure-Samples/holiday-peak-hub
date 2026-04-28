@@ -9,7 +9,6 @@ from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.agents.memory import (
     CacheConfig,
-    cache_write,
     inject_session_id,
     resolve_cache_key,
     try_cache_read,
@@ -73,7 +72,7 @@ class ProfileAggregationAgent(BaseRetailAgent):
             result = await self.invoke_model(
                 request=inject_session_id(request, self._cache_config), messages=messages
             )
-            await cache_write(self.hot_memory, cache_key, result, ttl_seconds=300)
+            self.background_cache_write(cache_key, result, ttl_seconds=300)
             return result
 
         result = {
@@ -82,7 +81,7 @@ class ProfileAggregationAgent(BaseRetailAgent):
             "profile_context": context.model_dump(),
             "profile_summary": summary,
         }
-        await cache_write(self.hot_memory, cache_key, result, ttl_seconds=300)
+        self.background_cache_write(cache_key, result, ttl_seconds=300)
         return result
 
 

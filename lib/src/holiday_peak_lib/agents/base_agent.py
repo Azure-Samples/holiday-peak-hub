@@ -121,6 +121,10 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
         super().__init__(*args, **kwargs)
         # store the configuration object directly
         self._config = config
+        # Background task set for fire-and-forget memory operations.
+        # Each agent is a stateful, long-lived object — tasks persist
+        # across requests and are garbage-collected on completion.
+        self._background_tasks: set[asyncio.Task[None]] = set()
 
     @property
     def config(self) -> AgentDependencies:
@@ -261,6 +265,35 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
 
     def attach_self_healing(self, self_healing_kernel: SelfHealingKernel) -> None:
         self.self_healing_kernel = self_healing_kernel
+
+    def _schedule_background(self, coro: Awaitable[None]) -> None:
+        """Schedule a fire-and-forget background task for memory operations.
+
+        The agent is a stateful long-lived object; background tasks run
+        independently of the request path so memory persistence never
+        impacts response latency.  Completed tasks are auto-removed via
+        a done callback.
+        """
+        task = asyncio.ensure_future(coro)
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+
+    def background_cache_write(
+        self, cache_key: str | None, value: Any, *, ttl_seconds: int = 300
+    ) -> None:
+        """Schedule a cache write as a background task (non-blocking).
+
+        Agents call this instead of ``await cache_write(...)`` to return
+        the response immediately while the Redis write completes in the
+        background.
+        """
+        if self.hot_memory is None or cache_key is None or value is None:
+            return
+
+        async def _write() -> None:
+            await self.hot_memory.set(key=cache_key, value=value, ttl_seconds=ttl_seconds)
+
+        self._schedule_background(_write())
 
     def memory_tool_definitions(self) -> dict[str, Callable[..., Any]]:
         """Return memory read/write as LLM-callable tool definitions.
@@ -431,22 +464,29 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
 
         payload_tools = kwargs.get("tools") or (self.tools if self.tools else None)
 
-        # Thread Foundry session for page-level conversation reuse.
-        # When a ``session_id`` is present in the request, we load the
-        # persisted session state from hot memory (Redis) and forward it
-        # through kwargs so the invoker can resume the Foundry thread.
-        session_id = request.get("session_id") if isinstance(request, dict) else None
-        if session_id and "session_id" not in kwargs:
-            kwargs["session_id"] = session_id
-            if self.hot_memory is not None and "_foundry_session_state" not in kwargs:
-                cached_state = await self.hot_memory.get(f"foundry_session:{session_id}")
-                if cached_state:
-                    try:
-                        import json as _json
+        # Smart session continuity: decide whether to continue an existing
+        # Foundry thread or start fresh based on Redis summary + keyword overlap.
+        # Sessions are stored in Cosmos (warm) with IDs matching Foundry's;
+        # Redis holds only a compact summary for fast decision-making.
+        from holiday_peak_lib.agents.memory.session_manager import (
+            evaluate_session_continuity,
+        )
 
-                        kwargs["_foundry_session_state"] = _json.loads(cached_state)
-                    except (TypeError, ValueError):
-                        pass
+        session_id = request.get("session_id") if isinstance(request, dict) else None
+        _session_entity_id = session_id  # Used for post-invocation persistence
+        _session_decision = None
+
+        if session_id and "session_id" not in kwargs:
+            _session_decision = await evaluate_session_continuity(
+                self.hot_memory,
+                self.warm_memory,
+                request,
+                service=self.service_name or "default",
+                entity_id=session_id,
+            )
+            kwargs["session_id"] = _session_decision.session_id
+            if _session_decision.foundry_session_state:
+                kwargs["_foundry_session_state"] = _session_decision.foundry_session_state
 
         messages = sanitize_messages_for_provider(
             messages,
@@ -492,22 +532,44 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
                 },
             }
 
-        # Persist updated Foundry session state to hot memory so
-        # subsequent requests in the same page-level thread can resume.
+        # Persist session: summary → Redis, full state → Cosmos (matching Foundry ID).
+        # Runs as a background task so memory I/O never adds latency to the response.
         if (
-            session_id
-            and self.hot_memory is not None
+            _session_decision is not None
             and isinstance(result, dict)
             and result.get("_foundry_session_state")
         ):
-            import json as _json
-
-            _session_ttl = 1800  # 30 min idle TTL per page thread
-            await self.hot_memory.set(
-                f"foundry_session:{session_id}",
-                _json.dumps(result["_foundry_session_state"]),
-                ttl_seconds=_session_ttl,
+            from holiday_peak_lib.agents.memory.session_manager import (
+                build_session_summary,
+                persist_full_session,
+                store_summary,
             )
+
+            _used_session_id = _session_decision.session_id
+            _messages_for_summary = messages if isinstance(messages, list) else []
+
+            summary = build_session_summary(
+                session_id=_used_session_id,
+                service=self.service_name or "default",
+                entity_id=_session_entity_id or "",
+                messages=_messages_for_summary,
+                result=result,
+                prior_summary=None,
+            )
+
+            async def _persist_session() -> None:
+                await store_summary(self.hot_memory, summary, ttl_seconds=1800)
+                await persist_full_session(
+                    self.warm_memory,
+                    session_id=_used_session_id,
+                    service=self.service_name or "default",
+                    entity_id=_session_entity_id or "",
+                    foundry_session_state=result["_foundry_session_state"],
+                    messages=_messages_for_summary,
+                    summary_text=summary.summary_text,
+                )
+
+            self._schedule_background(_persist_session())
 
         return result
 

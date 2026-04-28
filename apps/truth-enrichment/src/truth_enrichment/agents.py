@@ -11,7 +11,6 @@ from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.agents.memory import (
     CacheConfig,
-    cache_write,
     resolve_cache_key,
     try_cache_read,
 )
@@ -168,7 +167,7 @@ class TruthEnrichmentAgent(BaseRetailAgent):
             "entity_id": entity_id,
             "proposed": proposed_list,
         }
-        await cache_write(self.hot_memory, cache_key, result, ttl_seconds=300)
+        self.background_cache_write(cache_key, result, ttl_seconds=300)
         return result
 
     async def enrich_field(

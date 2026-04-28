@@ -36,7 +36,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from .namespace import (
-    NamespaceContext,
     build_canonical_memory_key,
     read_hot_with_compatibility,
     resolve_namespace_context,
