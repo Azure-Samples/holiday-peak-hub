@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable
 from unittest.mock import AsyncMock, MagicMock, Mock
@@ -366,3 +366,95 @@ def fixture_make_event() -> Callable[[dict[str, Any]], MagicMock]:
 @pytest.fixture(name="review_timestamp")
 def fixture_review_timestamp() -> datetime:
     return datetime(2026, 3, 19, tzinfo=timezone.utc)
+
+
+# ---------------------------------------------------------------------------
+# Search enrichment harness
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class SearchEnrichmentHarness:
+    """Test harness for search-enrichment-agent with in-memory AI Search mock."""
+
+    adapters: Any  # SearchEnrichmentAdapters
+    enriched_store: Any  # SearchEnrichmentStoreAdapter
+    indexed_documents: list[dict[str, Any]] = field(default_factory=list)
+    indexer_runs: list[str] = field(default_factory=list)
+
+
+@pytest.fixture(name="build_search_enrichment_harness")
+def fixture_build_search_enrichment_harness(
+    monkeypatch: pytest.MonkeyPatch,
+) -> Callable[..., SearchEnrichmentHarness]:
+    """Build a search enrichment test harness with captured AI Search documents."""
+    from search_enrichment_agent.adapters import (
+        ApprovedTruthAdapter,
+        SearchEnrichedStoreAdapter,
+        SearchEnrichmentAdapters,
+        SearchIndexingAdapter,
+    )
+
+    def _build(
+        *,
+        approved_truth: dict[str, dict[str, Any]],
+        push_immediate: bool = True,
+    ) -> SearchEnrichmentHarness:
+        indexed_documents: list[dict[str, Any]] = []
+        indexer_runs: list[str] = []
+
+        approved_adapter = ApprovedTruthAdapter(seeded_truth=approved_truth)
+        enriched_store = SearchEnrichedStoreAdapter()
+
+        # Build a mock AI Search client that captures index_documents calls
+        mock_client = AsyncMock()
+        mock_client.settings = MagicMock()
+        mock_client.settings.default_index_name = "product_search_index"
+        mock_client.settings.default_indexer_name = "product-search-indexer"
+
+        async def capture_index_documents(
+            index_name: str, documents: list[dict[str, Any]]
+        ) -> dict[str, Any]:
+            for doc in documents:
+                indexed_documents.append({"index": index_name, **doc})
+            return {
+                "status": "ok",
+                "operation": "index_documents",
+                "index_name": index_name,
+                "http_status": 200,
+                "result": {"value": [{"key": d.get("id", ""), "status": True} for d in documents]},
+            }
+
+        async def capture_trigger_indexer(indexer_name: str) -> dict[str, Any]:
+            indexer_runs.append(indexer_name)
+            return {
+                "status": "ok",
+                "operation": "trigger_indexer_run",
+                "indexer_name": indexer_name,
+                "http_status": 202,
+            }
+
+        mock_client.index_documents = AsyncMock(side_effect=capture_index_documents)
+        mock_client.trigger_indexer_run = AsyncMock(side_effect=capture_trigger_indexer)
+
+        search_indexing = SearchIndexingAdapter(mock_client)
+
+        if push_immediate:
+            monkeypatch.setenv("AI_SEARCH_PUSH_IMMEDIATE", "true")
+        else:
+            monkeypatch.delenv("AI_SEARCH_PUSH_IMMEDIATE", raising=False)
+
+        adapters = SearchEnrichmentAdapters(
+            approved_truth=approved_adapter,
+            enriched_store=enriched_store,
+            search_indexing=search_indexing,
+        )
+
+        return SearchEnrichmentHarness(
+            adapters=adapters,
+            enriched_store=enriched_store,
+            indexed_documents=indexed_documents,
+            indexer_runs=indexer_runs,
+        )
+
+    return _build

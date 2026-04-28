@@ -368,6 +368,7 @@ class TestSessionThreading:
             [{"role": "user", "content": "hello"}],
         )
 
+        # When no hot memory, session_id passes through unchanged
         assert captured_kwargs.get("session_id") == "page-abc-123"
 
     @pytest.mark.asyncio
@@ -392,12 +393,13 @@ class TestSessionThreading:
 
     @pytest.mark.asyncio
     async def test_session_state_persisted_to_hot_memory(self):
-        """Updated session state is persisted to Redis after invoke."""
+        """Updated session state is persisted as a summary to Redis."""
+        import asyncio
         import json
 
         async def invoker(**kwargs):
             return {
-                "response": "ok",
+                "content": "computed result",
                 "_foundry_session_state": {
                     "type": "session",
                     "session_id": "page-abc",
@@ -418,45 +420,66 @@ class TestSessionThreading:
             [{"role": "user", "content": "hello"}],
         )
 
+        # Allow background task to complete
+        await asyncio.sleep(0)
+
+        # Session summary stored in Redis via store_summary (background task)
         hot.set.assert_called_once()
-        call_args = hot.set.call_args
-        assert call_args[0][0] == "foundry_session:page-abc"
-        stored = json.loads(call_args[0][1])
-        assert stored["service_session_id"] == "foundry-thread-new"
+        call_kwargs = hot.set.call_args[1]
+        assert "session_summary:" in call_kwargs["key"]
+        stored = json.loads(call_kwargs["value"])
+        assert "page-abc" in stored["session_id"]
+        assert stored["service"] == "default"
 
     @pytest.mark.asyncio
     async def test_session_state_loaded_from_hot_memory(self):
-        """Cached session state is loaded from Redis and forwarded."""
+        """Cached session summary triggers continuation and loads Cosmos state."""
         import json
+        import time
 
         captured_kwargs = {}
 
         async def invoker(**kwargs):
             captured_kwargs.update(kwargs)
-            return {"response": "ok"}
+            return {"content": "ok"}
 
-        cached_state = json.dumps(
+        # Build a summary that matches the incoming request keywords
+        summary = json.dumps(
             {
-                "type": "session",
                 "session_id": "page-abc",
-                "service_session_id": "foundry-thread-existing",
-                "state": {},
+                "service": "default",
+                "entity_id": "page-abc",
+                "topic_keywords": ["follow", "shipping", "update"],
+                "message_count": 2,
+                "last_epoch": time.time(),
+                "summary_text": "prior response about shipping",
             }
         )
 
         slm = ModelTarget(name="slm", model="small", invoker=invoker)
         hot = AsyncMock()
-        hot.get = AsyncMock(return_value=cached_state)
+        hot.get = AsyncMock(return_value=summary)
         hot.set = AsyncMock()
-        deps = AgentDependencies(slm=slm, llm=None, hot_memory=hot)
+        warm = AsyncMock()
+        warm.read = AsyncMock(
+            return_value={
+                "foundry_session_state": {
+                    "type": "session",
+                    "session_id": "page-abc",
+                    "service_session_id": "foundry-thread-existing",
+                    "state": {},
+                },
+            }
+        )
+        deps = AgentDependencies(slm=slm, llm=None, hot_memory=hot, warm_memory=warm)
         agent = SimpleTestAgent(config=deps)
 
         await agent.invoke_model(
-            {"query": "follow-up", "session_id": "page-abc"},
-            [{"role": "user", "content": "follow-up"}],
+            {"query": "follow up on shipping update", "session_id": "page-abc"},
+            [{"role": "user", "content": "follow up on shipping update"}],
         )
 
-        hot.get.assert_called_once_with("foundry_session:page-abc")
+        # Session continued — Foundry state loaded from Cosmos
         assert "_foundry_session_state" in captured_kwargs
         assert (
             captured_kwargs["_foundry_session_state"]["service_session_id"]

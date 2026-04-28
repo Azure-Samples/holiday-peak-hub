@@ -1,0 +1,302 @@
+<mxfile host="app.diagrams.net" modified="2026-04-27T00:00:00.000Z" agent="draw.io" version="24.0.0" type="device">
+  <diagram id="holiday-peak-hub-commercial" name="Holiday Peak Hub - Azure Architecture">
+    <mxGraphModel dx="1800" dy="1200" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Title -->
+        <mxCell id="title" value="Holiday Peak Hub — Agentic Retail Intelligence Platform" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=22;fontStyle=1;fontColor=#1B3A5C;" vertex="1" parent="1">
+          <mxGeometry x="350" y="20" width="900" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" value="Powered by Microsoft Azure AI + Cloud-Native Services" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=13;fontStyle=2;fontColor=#5B7FA6;" vertex="1" parent="1">
+          <mxGeometry x="530" y="55" width="540" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- ============ USERS LAYER ============ -->
+        <mxCell id="users-group" value="Users &amp; Channels" style="swimlane;startSize=25;fillColor=#E8F4FD;strokeColor=#B3D4E8;fontStyle=1;fontSize=12;rounded=1;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="250" y="90" width="1100" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="user-customer" value="Online&#xa;Shoppers" style="aspect=fixed;html=1;points=[];align=center;image;fontSize=10;image=img/lib/azure2/identity/Users.svg;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;" vertex="1" parent="users-group">
+          <mxGeometry x="80" y="30" width="44" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="user-ops" value="Operations&#xa;Team" style="aspect=fixed;html=1;points=[];align=center;image;fontSize=10;image=img/lib/azure2/identity/Users.svg;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;" vertex="1" parent="users-group">
+          <mxGeometry x="310" y="30" width="44" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="user-marketing" value="Marketing&#xa;&amp; CRM" style="aspect=fixed;html=1;points=[];align=center;image;fontSize=10;image=img/lib/azure2/identity/Users.svg;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;" vertex="1" parent="users-group">
+          <mxGeometry x="540" y="30" width="44" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="user-product" value="Product&#xa;Managers" style="aspect=fixed;html=1;points=[];align=center;image;fontSize=10;image=img/lib/azure2/identity/Users.svg;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;" vertex="1" parent="users-group">
+          <mxGeometry x="770" y="30" width="44" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="user-partners" value="External&#xa;Partners" style="aspect=fixed;html=1;points=[];align=center;image;fontSize=10;image=img/lib/azure2/identity/Users.svg;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;" vertex="1" parent="users-group">
+          <mxGeometry x="990" y="30" width="44" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- ============ API GATEWAY LAYER ============ -->
+        <mxCell id="gateway-group" value="" style="swimlane;startSize=0;fillColor=#F0F7FF;strokeColor=#B3D4E8;rounded=1;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="350" y="210" width="900" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="apim-icon" value="" style="aspect=fixed;html=1;points=[];align=center;image;fontSize=12;image=img/lib/azure2/integration/API_Management_Services.svg;" vertex="1" parent="gateway-group">
+          <mxGeometry x="30" y="20" width="50" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="apim-label" value="&lt;b&gt;Azure API Management&lt;/b&gt;&lt;br&gt;Unified Gateway • Rate Limiting • OAuth 2.0 • Developer Portal" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=11;" vertex="1" parent="gateway-group">
+          <mxGeometry x="90" y="25" width="380" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="swa-icon" value="" style="aspect=fixed;html=1;points=[];align=center;image;fontSize=12;image=img/lib/azure2/containers/App_Services.svg;" vertex="1" parent="gateway-group">
+          <mxGeometry x="550" y="20" width="50" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="swa-label" value="&lt;b&gt;Next.js Frontend&lt;/b&gt;&lt;br&gt;Azure Static Web Apps • SSR • Real-time UI" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=11;" vertex="1" parent="gateway-group">
+          <mxGeometry x="610" y="25" width="270" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- ============ AI AGENTS PLATFORM (CENTER) ============ -->
+        <mxCell id="agents-platform" value="Agentic Intelligence Platform — 26 Specialized AI Retail Agents" style="swimlane;startSize=30;fillColor=#FFFFFF;strokeColor=#0078D4;strokeWidth=2;fontStyle=1;fontSize=13;fontColor=#0078D4;rounded=1;arcSize=6;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="100" y="320" width="1400" height="320" as="geometry" />
+        </mxCell>
+
+        <!-- AKS icon -->
+        <mxCell id="aks-icon" value="" style="aspect=fixed;html=1;points=[];align=center;image;fontSize=12;image=img/lib/azure2/containers/Kubernetes_Services.svg;" vertex="1" parent="agents-platform">
+          <mxGeometry x="10" y="40" width="40" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="aks-label" value="Azure Kubernetes Service" style="text;html=1;align=left;verticalAlign=middle;fontSize=9;fontColor=#555;" vertex="1" parent="agents-platform">
+          <mxGeometry x="5" y="78" width="150" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- E-commerce Domain -->
+        <mxCell id="ecommerce-box" value="&lt;b&gt;E-commerce&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;5 Agents&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1976D2;arcSize=12;verticalAlign=top;spacingTop=8;" vertex="1" parent="agents-platform">
+          <mxGeometry x="50" y="45" width="230" height="250" as="geometry" />
+        </mxCell>
+        <mxCell id="ec-catalog" value="🔍 Catalog Search" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#90CAF9;fontSize=10;" vertex="1" parent="agents-platform">
+          <mxGeometry x="65" y="85" width="200" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="ec-product" value="📦 Product Detail Enrichment" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#90CAF9;fontSize=10;" vertex="1" parent="agents-platform">
+          <mxGeometry x="65" y="120" width="200" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="ec-cart" value="🛒 Cart Intelligence" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#90CAF9;fontSize=10;" vertex="1" parent="agents-platform">
+          <mxGeometry x="65" y="155" width="200" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="ec-checkout" value="💳 Checkout Support" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#90CAF9;fontSize=10;" vertex="1" parent="agents-platform">
+          <mxGeometry x="65" y="190" width="200" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="ec-order" value="📋 Order Status" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#90CAF9;fontSize=10;" vertex="1" parent="agents-platform">
+          <mxGeometry x="65" y="225" width="200" height="28" as="geometry" />
+        </mxCell>
+
+        <!-- CRM Domain -->
+        <mxCell id="crm-box" value="&lt;b&gt;CRM &amp; Personalization&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;4 Agents&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F5E9;strokeColor=#388E3C;arcSize=12;verticalAlign=top;spacingTop=8;" vertex="1" parent="agents-platform">
+          <mxGeometry x="300" y="45" width="230" height="250" as="geometry" />
+        </mxCell>
+        <mxCell id="crm-profile" value="👤 Profile Aggregation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#A5D6A7;fontSize=10;" vertex="1" parent="agents-platform">
+          <mxGeometry x="315" y="85" width="200" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="crm-segment" value="🎯 Segmentation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#A5D6A7;fontSize=10;" vertex="1" parent="agents-platform">
+          <mxGeometry x="315" y="120" width="200" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="crm-campaign" value="📊 Campaign Intelligence" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#A5D6A7;fontSize=10;" vertex="1" parent="agents-platform">
+          <mxGeometry x="315" y="155" width="200" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="crm-support" value="🤝 Support Assistance" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#A5D6A7;fontSize=10;" vertex="1" parent="agents-platform">
+          <mxGeometry x="315" y="190" width="200" height="28" as="geometry" />
+        </mxCell>
+
+        <!-- Inventory Domain -->
+        <mxCell id="inventory-box" value="&lt;b&gt;Inventory Intelligence&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;4 Agents&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF3E0;strokeColor=#F57C00;arcSize=12;verticalAlign=top;spacingTop=8;" vertex="1" parent="agents-platform">
+          <mxGeometry x="550" y="45" width="230" height="250" as="geometry" />
+        </mxCell>
+        <mxCell id="inv-health" value="❤️ Health Check" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#FFCC80;fontSize=10;" vertex="1" parent="agents-platform">
+          <mxGeometry x="565" y="85" width="200" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="inv-jit" value="⚡ JIT Replenishment" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#FFCC80;fontSize=10;" vertex="1" parent="agents-platform">
+          <mxGeometry x="565" y="120" width="200" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="inv-reserve" value="🔒 Reservation Validation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#FFCC80;fontSize=10;" vertex="1" parent="agents-platform">
+          <mxGeometry x="565" y="155" width="200" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="inv-alerts" value="🚨 Alerts &amp; Triggers" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#FFCC80;fontSize=10;" vertex="1" parent="agents-platform">
+          <mxGeometry x="565" y="190" width="200" height="28" as="geometry" />
+        </mxCell>
+
+        <!-- Logistics Domain -->
+        <mxCell id="logistics-box" value="&lt;b&gt;Logistics &amp; Delivery&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;4 Agents&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3E5F5;strokeColor=#7B1FA2;arcSize=12;verticalAlign=top;spacingTop=8;" vertex="1" parent="agents-platform">
+          <mxGeometry x="800" y="45" width="230" height="250" as="geometry" />
+        </mxCell>
+        <mxCell id="log-eta" value="🕐 ETA Computation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1BEE7;strokeColor=#CE93D8;fontSize=10;" vertex="1" parent="agents-platform">
+          <mxGeometry x="815" y="85" width="200" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="log-carrier" value="🚚 Carrier Selection" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1BEE7;strokeColor=#CE93D8;fontSize=10;" vertex="1" parent="agents-platform">
+          <mxGeometry x="815" y="120" width="200" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="log-returns" value="↩️ Returns Support" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1BEE7;strokeColor=#CE93D8;fontSize=10;" vertex="1" parent="agents-platform">
+          <mxGeometry x="815" y="155" width="200" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="log-route" value="🗺️ Route Issue Detection" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1BEE7;strokeColor=#CE93D8;fontSize=10;" vertex="1" parent="agents-platform">
+          <mxGeometry x="815" y="190" width="200" height="28" as="geometry" />
+        </mxCell>
+
+        <!-- Product Management + Truth Layer Domain -->
+        <mxCell id="product-box" value="&lt;b&gt;Product Truth Layer&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot;&gt;9 Agents&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE4EC;strokeColor=#C62828;arcSize=12;verticalAlign=top;spacingTop=8;" vertex="1" parent="agents-platform">
+          <mxGeometry x="1050" y="45" width="330" height="250" as="geometry" />
+        </mxCell>
+        <mxCell id="pm-norm" value="🏷️ Normalization &amp; Classification" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#EF9A9A;fontSize=10;" vertex="1" parent="agents-platform">
+          <mxGeometry x="1065" y="85" width="145" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="pm-acp" value="🔄 ACP Transformation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#EF9A9A;fontSize=10;" vertex="1" parent="agents-platform">
+          <mxGeometry x="1220" y="85" width="145" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="pm-consist" value="✅ Consistency Validation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#EF9A9A;fontSize=10;" vertex="1" parent="agents-platform">
+          <mxGeometry x="1065" y="120" width="145" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="pm-assort" value="📈 Assortment Optimization" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#EF9A9A;fontSize=10;" vertex="1" parent="agents-platform">
+          <mxGeometry x="1220" y="120" width="145" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="truth-ingest" value="📥 Truth Ingestion" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#EF9A9A;fontSize=10;" vertex="1" parent="agents-platform">
+          <mxGeometry x="1065" y="160" width="145" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="truth-enrich" value="✨ Truth Enrichment" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#EF9A9A;fontSize=10;" vertex="1" parent="agents-platform">
+          <mxGeometry x="1220" y="160" width="145" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="truth-hitl" value="👁️ Human-in-the-Loop" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#EF9A9A;fontSize=10;" vertex="1" parent="agents-platform">
+          <mxGeometry x="1065" y="195" width="145" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="truth-export" value="📤 Truth Export" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#EF9A9A;fontSize=10;" vertex="1" parent="agents-platform">
+          <mxGeometry x="1220" y="195" width="145" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="search-enrich" value="🔎 Search Enrichment" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#EF9A9A;fontSize=10;" vertex="1" parent="agents-platform">
+          <mxGeometry x="1140" y="230" width="145" height="28" as="geometry" />
+        </mxCell>
+
+        <!-- ============ AZURE PLATFORM SERVICES ============ -->
+        <mxCell id="azure-platform" value="Azure Cloud Platform Services" style="swimlane;startSize=28;fillColor=#F5F5F5;strokeColor=#0078D4;strokeWidth=2;fontStyle=1;fontSize=13;fontColor=#0078D4;rounded=1;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="100" y="670" width="1400" height="200" as="geometry" />
+        </mxCell>
+
+        <!-- Microsoft Foundry -->
+        <mxCell id="foundry-icon" value="" style="aspect=fixed;html=1;points=[];align=center;image;fontSize=12;image=img/lib/azure2/ai_machine_learning/AI_Studio.svg;" vertex="1" parent="azure-platform">
+          <mxGeometry x="40" y="45" width="50" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="foundry-label" value="&lt;b&gt;Microsoft Foundry&lt;/b&gt;&lt;br&gt;GPT 5.4 • SLM Routing" style="text;html=1;align=center;verticalAlign=top;fontSize=9;fontColor=#333;" vertex="1" parent="azure-platform">
+          <mxGeometry x="15" y="100" width="100" height="35" as="geometry" />
+        </mxCell>
+
+        <!-- AI Search -->
+        <mxCell id="search-icon" value="" style="aspect=fixed;html=1;points=[];align=center;image;fontSize=12;image=img/lib/azure2/app_services/Search_Services.svg;" vertex="1" parent="azure-platform">
+          <mxGeometry x="175" y="45" width="50" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="search-label" value="&lt;b&gt;Azure AI Search&lt;/b&gt;&lt;br&gt;Vector + Hybrid" style="text;html=1;align=center;verticalAlign=top;fontSize=9;fontColor=#333;" vertex="1" parent="azure-platform">
+          <mxGeometry x="150" y="100" width="100" height="35" as="geometry" />
+        </mxCell>
+
+        <!-- Cosmos DB -->
+        <mxCell id="cosmos-icon" value="" style="aspect=fixed;html=1;points=[];align=center;image;fontSize=12;image=img/lib/azure2/databases/Azure_Cosmos_DB.svg;" vertex="1" parent="azure-platform">
+          <mxGeometry x="330" y="45" width="50" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="cosmos-label" value="&lt;b&gt;Azure Cosmos DB&lt;/b&gt;&lt;br&gt;Warm Memory Tier" style="text;html=1;align=center;verticalAlign=top;fontSize=9;fontColor=#333;" vertex="1" parent="azure-platform">
+          <mxGeometry x="305" y="100" width="100" height="35" as="geometry" />
+        </mxCell>
+
+        <!-- Redis -->
+        <mxCell id="redis-icon" value="" style="aspect=fixed;html=1;points=[];align=center;image;fontSize=12;image=img/lib/azure2/databases/Cache_Redis.svg;" vertex="1" parent="azure-platform">
+          <mxGeometry x="470" y="45" width="50" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="redis-label" value="&lt;b&gt;Azure Redis&lt;/b&gt;&lt;br&gt;Hot Memory &lt; 50ms" style="text;html=1;align=center;verticalAlign=top;fontSize=9;fontColor=#333;" vertex="1" parent="azure-platform">
+          <mxGeometry x="445" y="100" width="100" height="35" as="geometry" />
+        </mxCell>
+
+        <!-- Blob Storage -->
+        <mxCell id="blob-icon" value="" style="aspect=fixed;html=1;points=[];align=center;image;fontSize=12;image=img/lib/azure2/storage/Storage_Accounts.svg;" vertex="1" parent="azure-platform">
+          <mxGeometry x="610" y="45" width="50" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="blob-label" value="&lt;b&gt;Azure Blob Storage&lt;/b&gt;&lt;br&gt;Cold Memory Archive" style="text;html=1;align=center;verticalAlign=top;fontSize=9;fontColor=#333;" vertex="1" parent="azure-platform">
+          <mxGeometry x="580" y="100" width="110" height="35" as="geometry" />
+        </mxCell>
+
+        <!-- Event Hubs -->
+        <mxCell id="eventhub-icon" value="" style="aspect=fixed;html=1;points=[];align=center;image;fontSize=12;image=img/lib/azure2/analytics/Event_Hubs.svg;" vertex="1" parent="azure-platform">
+          <mxGeometry x="770" y="45" width="50" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="eventhub-label" value="&lt;b&gt;Azure Event Hubs&lt;/b&gt;&lt;br&gt;SAGA Choreography" style="text;html=1;align=center;verticalAlign=top;fontSize=9;fontColor=#333;" vertex="1" parent="azure-platform">
+          <mxGeometry x="742" y="100" width="110" height="35" as="geometry" />
+        </mxCell>
+
+        <!-- AKS -->
+        <mxCell id="aks-platform-icon" value="" style="aspect=fixed;html=1;points=[];align=center;image;fontSize=12;image=img/lib/azure2/containers/Kubernetes_Services.svg;" vertex="1" parent="azure-platform">
+          <mxGeometry x="930" y="45" width="50" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="aks-platform-label" value="&lt;b&gt;Azure Kubernetes&lt;/b&gt;&lt;br&gt;KEDA Auto-scaling" style="text;html=1;align=center;verticalAlign=top;fontSize=9;fontColor=#333;" vertex="1" parent="azure-platform">
+          <mxGeometry x="905" y="100" width="100" height="35" as="geometry" />
+        </mxCell>
+
+        <!-- Monitor -->
+        <mxCell id="monitor-icon" value="" style="aspect=fixed;html=1;points=[];align=center;image;fontSize=12;image=img/lib/azure2/management_governance/Monitor.svg;" vertex="1" parent="azure-platform">
+          <mxGeometry x="1075" y="45" width="50" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="monitor-label" value="&lt;b&gt;Azure Monitor&lt;/b&gt;&lt;br&gt;Logs, Metrics, Traces" style="text;html=1;align=center;verticalAlign=top;fontSize=9;fontColor=#333;" vertex="1" parent="azure-platform">
+          <mxGeometry x="1050" y="100" width="100" height="35" as="geometry" />
+        </mxCell>
+
+        <!-- APIM -->
+        <mxCell id="apim-platform-icon" value="" style="aspect=fixed;html=1;points=[];align=center;image;fontSize=12;image=img/lib/azure2/integration/API_Management_Services.svg;" vertex="1" parent="azure-platform">
+          <mxGeometry x="1225" y="45" width="50" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="apim-platform-label" value="&lt;b&gt;API Management&lt;/b&gt;&lt;br&gt;Gateway &amp; Governance" style="text;html=1;align=center;verticalAlign=top;fontSize=9;fontColor=#333;" vertex="1" parent="azure-platform">
+          <mxGeometry x="1195" y="100" width="110" height="35" as="geometry" />
+        </mxCell>
+
+        <!-- ============ VALUE PROPOSITIONS ============ -->
+        <mxCell id="value-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F5E9;strokeColor=#4CAF50;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="100" y="900" width="1400" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="value-text" value="&lt;b&gt;Business Value:&lt;/b&gt;  🎯 Real-time Personalization  •  📈 40% Higher Conversion  •  🚀 Sub-second AI Responses  •  🔒 Enterprise Security &amp; Compliance  •  🌍 Global Scale on Demand  •  💡 SLM-First Cost Optimization" style="text;html=1;align=center;verticalAlign=middle;fontSize=12;fontColor=#1B5E20;" vertex="1" parent="1">
+          <mxGeometry x="130" y="915" width="1340" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- ============ CONNECTIONS ============ -->
+        <!-- Users to Gateway -->
+        <mxCell id="conn-users-gw" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#0078D4;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="users-group" target="gateway-group">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Gateway to Agents Platform -->
+        <mxCell id="conn-gw-agents" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#0078D4;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="gateway-group" target="agents-platform">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="conn-gw-agents-label" value="REST + MCP" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;fontColor=#555;" vertex="1" connectable="0" parent="conn-gw-agents">
+          <mxGeometry x="-0.2" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Agents to Azure Platform -->
+        <mxCell id="conn-agents-azure" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#0078D4;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="agents-platform" target="azure-platform">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="conn-agents-azure-label" value="Three-Tier Memory • Event-Driven SAGA • AI Model Inference" style="edgeLabel;html=1;align=center;verticalAlign=middle;fontSize=9;fontColor=#555;" vertex="1" connectable="0" parent="conn-agents-azure">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Azure Platform to Value -->
+        <mxCell id="conn-azure-value" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#4CAF50;strokeWidth=1;dashed=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="azure-platform" target="value-box">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ============ SIDE ANNOTATIONS ============ -->
+        <mxCell id="mcp-badge" value="&lt;b&gt;MCP Protocol&lt;/b&gt;&lt;br&gt;Agent-to-Agent&lt;br&gt;Communication" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;size=15;fillColor=#FFF8E1;strokeColor=#FFC107;fontSize=9;fontColor=#333;" vertex="1" parent="1">
+          <mxGeometry x="20" y="440" width="110" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="slm-badge" value="&lt;b&gt;SLM-First&lt;/b&gt;&lt;br&gt;Routing&lt;br&gt;Pattern" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;size=15;fillColor=#FFF8E1;strokeColor=#FFC107;fontSize=9;fontColor=#333;" vertex="1" parent="1">
+          <mxGeometry x="20" y="530" width="110" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- Microsoft Azure logo -->
+        <mxCell id="ms-badge" value="Microsoft Azure" style="aspect=fixed;html=1;points=[];align=center;image;fontSize=10;image=img/lib/azure2/other/Azure_A.svg;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;fontStyle=1;fontColor=#0078D4;" vertex="1" parent="1">
+          <mxGeometry x="1510" y="685" width="50" height="50" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -209,3 +209,75 @@ def test_build_audit_event(engine):
     assert event["field_name"] == "color"
     assert event["proposed_attribute_id"] == "attr-1"
     assert "timestamp" in event
+
+
+# --- Tests for MAF response format normalization ---
+
+
+def test_parse_ai_response_foundry_envelope_with_simple_json(engine):
+    """MAF response envelope wrapping a direct JSON content string."""
+    raw = {
+        "content": '{"value": "Navy Blue", "confidence": 0.92, "evidence": "color in description"}',
+        "messages": [],
+        "stream": False,
+    }
+    parsed = engine.parse_ai_response(raw)
+    assert parsed["value"] == "Navy Blue"
+    assert parsed["confidence"] == pytest.approx(0.92)
+    assert parsed["evidence"] == "color in description"
+
+
+def test_parse_ai_response_foundry_envelope_with_proposed_value_key(engine):
+    """MAF response where the model uses proposed_value instead of value."""
+    raw = {
+        "content": '{"proposed_value": "Gore-Tex", "confidence": 0.88, "reasoning": "from description"}',
+        "messages": [],
+        "stream": False,
+    }
+    parsed = engine.parse_ai_response(raw)
+    assert parsed["value"] == "Gore-Tex"
+    assert parsed["confidence"] == pytest.approx(0.88)
+    assert parsed["evidence"] == "from description"
+
+
+def test_parse_ai_response_foundry_envelope_with_proposed_attributes_array(engine):
+    """MAF response where agent returns the array format from its instructions."""
+    raw = {
+        "content": (
+            '{"entity_id": "TEST-001", "proposed_attributes": '
+            '[{"field_name": "color", "proposed_value": "Navy Blue", '
+            '"confidence": 0.91, "reasoning": "navy blue in description", '
+            '"source_type": "text_enrichment"}], '
+            '"gap_analysis_summary": "1 of 1 gaps filled"}'
+        ),
+        "messages": [],
+        "stream": False,
+    }
+    parsed = engine.parse_ai_response(raw)
+    assert parsed["value"] == "Navy Blue"
+    assert parsed["confidence"] == pytest.approx(0.91)
+    assert parsed["evidence"] == "navy blue in description"
+
+
+def test_parse_ai_response_foundry_envelope_markdown_wrapped(engine):
+    """MAF response with markdown code fences around JSON."""
+    raw = {
+        "content": '```json\n{"value": "1.2", "confidence": 0.95, "evidence": "weighs 1.2kg"}\n```',
+        "messages": [],
+        "stream": False,
+    }
+    parsed = engine.parse_ai_response(raw)
+    assert parsed["value"] == "1.2"
+    assert parsed["confidence"] == pytest.approx(0.95)
+
+
+def test_parse_ai_response_foundry_envelope_with_preamble_text(engine):
+    """MAF response where model includes text before/after JSON."""
+    raw = {
+        "content": 'Based on the product description, here is my analysis:\n{"value": "Navy Blue", "confidence": 0.89, "evidence": "stated in description"}',
+        "messages": [],
+        "stream": False,
+    }
+    parsed = engine.parse_ai_response(raw)
+    assert parsed["value"] == "Navy Blue"
+    assert parsed["confidence"] == pytest.approx(0.89)

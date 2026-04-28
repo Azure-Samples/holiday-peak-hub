@@ -1,20 +1,82 @@
 # Truth Enrichment
 
+> Full pipeline documentation: [`docs/implementation/truth-layer-agents-guide.md`](../../docs/implementation/truth-layer-agents-guide.md)
+
 ## Purpose
-Generates proposed truth-layer attribute enrichments for products.
 
-## Responsibilities
-- Detect enrichable product attribute gaps.
-- Generate candidate attribute values.
-- Persist and expose enrichment job status.
+Detects missing product attributes by comparing ingested products against category-specific schemas, then proposes AI-generated values using text reasoning and vision analysis. Acts as the **second stage** of the Product Truth Layer pipeline.
 
-## Key endpoints or interfaces
-- `POST /invoke` for synchronous agent requests.
-- `POST /enrich/product/{entity_id}` to enrich a product.
-- `POST /enrich/field` to enrich a specific field.
-- `GET /enrich/status/{job_id}` to read enrichment status.
-- MCP interfaces under `/mcp/*` for agent-to-agent usage.
-- Event Hub subscription: `enrichment-jobs` / consumer group `enrichment-engine`.
+## Why This Agent Exists
+
+Products arrive from PIM with incomplete data — missing colors, materials, dimensions, care instructions. Manual data entry is expensive and slow. This agent automates attribute gap-fill using AI while maintaining a human review checkpoint for quality assurance.
+
+## How It Works
+
+1. Loads product from **Blob Storage** (`{entity_id}.json` in the `products` container)
+2. Loads category schema from **Blob Storage** (`_schemas/{category}.json`)
+3. **Gap detection** — Compares product attributes against `required_fields` in the schema
+4. **Enrichment** (two strategies):
+   - **Agentic** (default): LLM orchestrates tool calls to decide enrichment approach
+   - **Sequential fallback**: SLM enriches each field independently
+5. For each gap: builds prompt → calls AI model → scores confidence → persists proposal
+6. Publishes `attribute.proposed` to `hitl-jobs` Event Hub (resilient — failure is logged, not fatal)
+7. Publishes `enrichment.completed` to `search-enrichment-jobs`
+
+## Key Endpoints
+
+| Method | Path | Purpose |
+|--------|------|---------|---|
+| POST | `/invoke` | Full product enrichment (detect gaps + enrich all) |
+| POST | `/enrich/product/{entity_id}` | Enrich all gaps for a product |
+| POST | `/enrich/field` | Enrich a single specific field |
+| GET | `/enrich/status/{job_id}` | Job status check |
+
+**MCP Tools**: `/enrich/product`
+
+## Required Configuration
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `PROJECT_ENDPOINT` / `FOUNDRY_ENDPOINT` | Yes | Azure AI Foundry endpoint |
+| `FOUNDRY_AGENT_ID_FAST` | Yes | SLM agent ID (per-field enrichment) |
+| `MODEL_DEPLOYMENT_NAME_FAST` | Yes | SLM deployment (e.g., `gpt-4-1-nano`) |
+| `FOUNDRY_AGENT_ID_RICH` | Yes | LLM agent ID (agentic orchestration) |
+| `MODEL_DEPLOYMENT_NAME_RICH` | Yes | LLM deployment (e.g., `gpt-4-1`) |
+| `BLOB_ACCOUNT_URL` | Yes | Blob Storage URL for products |
+| `TRUTH_PRODUCT_BLOB_CONTAINER` | Yes | Container name (e.g., `products`) |
+| `PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV` | Yes | Event Hub namespace |
+| `COSMOS_ACCOUNT_URI`, `COSMOS_DATABASE` | Yes | Cosmos DB for proposed attributes |
+| `DAM_MAX_IMAGES` | Optional | Max images for vision analysis (default: 4) |
+| `REDIS_URL` | Optional | Hot cache |
+| `APPLICATIONINSIGHTS_CONNECTION_STRING` | Optional | Telemetry |
+
+## Data Requirements
+
+**Product in Blob** (`{entity_id}.json`):
+```json
+{
+  "entity_id": "TEST-LIVE-001",
+  "name": "Explorer Waterproof Jacket",
+  "category": "outerwear",
+  "attributes": { "color": null, "material": null }
+}
+```
+
+**Schema in Blob** (`_schemas/outerwear.json`):
+```json
+{
+  "category": "outerwear",
+  "required_fields": ["color", "material", "weight_kg"],
+  "field_definitions": {
+    "color": { "type": "string", "description": "Primary visible color" }
+  }
+}
+```
+
+## Event Production
+
+- `hitl-jobs`: `{ "event_type": "attribute.proposed", "entity_id": "...", "field_name": "color", "proposed_value": "Navy Blue" }`
+- `search-enrichment-jobs`: `{ "event_type": "enrichment.completed", "entity_id": "...", "proposed_count": 2 }`
 
 ## Run/Test commands
 ```bash
@@ -23,11 +85,6 @@ uv sync
 uv run uvicorn truth_enrichment.main:app --reload
 python -m pytest ../tests
 ```
-
-## Configuration notes
-- Uses Foundry model settings (`PROJECT_ENDPOINT` or `FOUNDRY_ENDPOINT`, fast/rich model identifiers).
-- Supports Redis/Cosmos/Blob memory configuration via shared memory settings.
-- Requires the platform-jobs Event Hubs namespace and consumer configuration for background jobs.
 
 ---
 

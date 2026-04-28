@@ -71,6 +71,7 @@ RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends libpq5 
     && rm -rf /var/lib/apt/lists/*
 COPY --from=prod-builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
 COPY --from=prod-builder --chown=appuser:appgroup /app/src /app/src
+COPY --chown=appuser:appgroup apps/inventory-alerts-triggers/prompts/ /app/apps/inventory-alerts-triggers/prompts/
 ENV WEB_CONCURRENCY=2
 USER appuser
 CMD ["sh", "-c", "python -m uvicorn inventory_alerts_triggers.main:app --host 0.0.0.0 --port 8000 --workers ${WEB_CONCURRENCY:-4}"]

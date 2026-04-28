@@ -12,6 +12,10 @@ Agent-driven retail accelerator for building and operating intelligent, cloud-na
 [![Tests](https://img.shields.io/badge/tests-1796%20passed-brightgreen)](docs/project-status.md)
 [![License](https://img.shields.io/github/license/Azure-Samples/holiday-peak-hub)](LICENSE)
 
+## Architecture
+
+![Holiday Peak Hub — Reference Architecture](docs/architecture/diagrams/holiday-peak-hub-architecture.png)
+
 ## Quick links
 
 - [Documentation hub](docs/README.md)

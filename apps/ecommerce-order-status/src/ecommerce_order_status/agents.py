@@ -7,6 +7,12 @@ from typing import Any
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
+from holiday_peak_lib.agents.memory import (
+    CacheConfig,
+    inject_session_id,
+    resolve_cache_key,
+    try_cache_read,
+)
 from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
 from holiday_peak_lib.agents.registration_helpers import get_agent_adapters
 
@@ -24,11 +30,25 @@ class OrderStatusAgent(BaseRetailAgent):
     def adapters(self) -> OrderStatusAdapters:
         return self._adapters
 
+    _cache_config = CacheConfig(
+        service="ecommerce-order-status",
+        entity_prefix="order",
+        ttl_seconds=120,
+        entity_key_field="order_id",
+        fallback_entity_fields=("tracking_id",),
+    )
+
     async def handle(self, request: dict[str, Any]) -> dict[str, Any]:
         order_id = request.get("order_id")
         tracking_id = request.get("tracking_id")
         if not tracking_id and not order_id:
             return {"error": "order_id or tracking_id is required"}
+
+        cache_key = resolve_cache_key(request, self._cache_config)
+        cached = await try_cache_read(self.hot_memory, cache_key, ttl_seconds=120)
+        if cached is not None:
+            return cached
+
         if not tracking_id:
             tracking_id = await self.adapters.resolver.resolve_tracking_id(str(order_id))
 
@@ -62,8 +82,13 @@ class OrderStatusAgent(BaseRetailAgent):
                     "content": response,
                 },
             ]
-            return await self.invoke_model(request=request, messages=messages)
+            result = await self.invoke_model(
+                request=inject_session_id(request, self._cache_config), messages=messages
+            )
+            self.background_cache_write(cache_key, result, ttl_seconds=120)
+            return result
 
+        self.background_cache_write(cache_key, response, ttl_seconds=120)
         return response
 
 

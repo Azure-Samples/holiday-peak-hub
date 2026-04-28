@@ -8,7 +8,7 @@ metadata:
   labels:
     app: ecommerce-catalog-search
   annotations:
-    azure.workload.identity/client-id: "036f4fd2-9093-4948-b0dd-beb5c87aa6dc"
+    azure.workload.identity/client-id: "0d6b0873-06b2-4b9b-a596-67851f30964d"
 ---
 # Source: holiday-peak-service/templates/service.yaml
 apiVersion: v1
@@ -63,12 +63,12 @@ spec:
           value: agents
       containers:
         - name: ecommerce-catalog-search
-          image: "holidaypeakhub405devacr.azurecr.io/holiday-peak-hub/ecommerce-catalog-search-dev:azd-deploy-1775345403"
+          image: "hph711pocpocacr.azurecr.io/holiday-peak-hub/ecommerce-catalog-search-711msft-poc:azd-deploy-1777330808"
           env:
             - name: AI_SEARCH_AUTH_MODE
               value: "managed_identity"
             - name: AI_SEARCH_ENDPOINT
-              value: "https://holidaypeakhub405devsearch.search.windows.net"
+              value: "https://hph711pocpocsearch.search.windows.net"
             - name: AI_SEARCH_INDEX
               value: "catalog-products"
             - name: AI_SEARCH_INDEXER_NAME
@@ -76,21 +76,15 @@ spec:
             - name: AI_SEARCH_VECTOR_INDEX
               value: "product_search_index"
             - name: APPLICATIONINSIGHTS_CONNECTION_STRING
-              value: "InstrumentationKey=d2fb45bc-e648-4da2-9345-d278636aede5;IngestionEndpoint=https://centralus-2.in.applicationinsights.azure.com/;LiveEndpoint=https://centralus.livediagnostics.monitor.azure.com/;ApplicationId=d8eb64c4-956d-46ab-a02e-d481deadaa0b"
+              value: "InstrumentationKey=d2d0301c-6bfd-455a-b02d-8b603ec2e6d3;IngestionEndpoint=https://eastus2-3.in.applicationinsights.azure.com/;LiveEndpoint=https://eastus2.livediagnostics.monitor.azure.com/;ApplicationId=1f417bca-37fe-4846-a244-a8b8e2753174"
             - name: AZURE_CLIENT_ID
-              value: "036f4fd2-9093-4948-b0dd-beb5c87aa6dc"
-            - name: AZURE_TENANT_ID
-              value: "16b3c013-d300-468d-ac64-7eda0820b6d3"
+              value: "0d6b0873-06b2-4b9b-a596-67851f30964d"
             - name: BLOB_ACCOUNT_URL
-              value: "https://holidaypeakhub405devstor.blob.core.windows.net"
+              value: "https://hph711pocpocstore.blob.core.windows.net"
             - name: BLOB_CONTAINER
               value: "agent-memory"
-            - name: CATALOG_INTENT_FAST_TIMEOUT_SECONDS
-              value: "3"
-            - name: CATALOG_SEARCH_REQUIRE_AI_SEARCH
-              value: "true"
             - name: COSMOS_ACCOUNT_URI
-              value: "https://holidaypeakhub405-dev-cosmos.documents.azure.com:443/"
+              value: "https://hph711poc-poc-cosmos.documents.azure.com:443/"
             - name: COSMOS_CONTAINER
               value: "agent-memory"
             - name: COSMOS_DATABASE
@@ -98,7 +92,11 @@ spec:
             - name: EMBEDDING_DEPLOYMENT_NAME
               value: "text-embedding-3-large"
             - name: EVENT_HUB_NAMESPACE
-              value: "holidaypeakhub405-dev-eventhub"
+              value: "hph711poc-poc-eventhub"
+            - name: FOUNDRY_AGENT_ID_FAST
+              value: "ecommerce-catalog-search-fast"
+            - name: FOUNDRY_AGENT_ID_RICH
+              value: "ecommerce-catalog-search-rich"
             - name: FOUNDRY_AGENT_NAME_FAST
               value: "ecommerce-catalog-search-fast"
             - name: FOUNDRY_AGENT_NAME_RICH
@@ -107,36 +105,30 @@ spec:
               value: "true"
             - name: FOUNDRY_STREAM
               value: "true"
-            - name: AGENT_FOUNDRY_INVOKE_TIMEOUT_SECONDS
-              value: "5"
             - name: FOUNDRY_STRICT_ENFORCEMENT
               value: "false"
-            - name: FOUNDRY_REASONING_EFFORT_FAST
-              value: "none"
             - name: KEY_VAULT_URI
-              value: "https://holidaypeakhub405-dev-kv.vault.azure.net/"
+              value: "https://hph711poc-poc-kv.vault.azure.net/"
             - name: MODEL_DEPLOYMENT_NAME_FAST
-              value: "gpt-5.4-nano"
+              value: "gpt-4-1-nano"
             - name: MODEL_DEPLOYMENT_NAME_RICH
-              value: "gpt-5"
+              value: "gpt-4-1"
+            - name: OTEL_SERVICE_NAME
+              value: "ecommerce-catalog-search"
             - name: POSTGRES_AUTH_MODE
               value: "entra"
             - name: POSTGRES_DATABASE
               value: "holiday_peak_crud"
             - name: POSTGRES_HOST
-              value: "holidaypeakhub405-dev-postgres.postgres.database.azure.com"
-            - name: POSTGRES_PORT
-              value: "5432"
-            - name: POSTGRES_SSL
-              value: "true"
+              value: "hph711poc-poc-postgres.postgres.database.azure.com"
             - name: POSTGRES_USER
-              value: "holidaypeakhub405-dev-crud-identity"
+              value: "hph711poc-poc-crud-identity"
             - name: PROJECT_ENDPOINT
-              value: "https://holidaypeakhub405devais.services.ai.azure.com/api/projects/aipholidaris"
+              value: "https://hph711pocpocais.services.ai.azure.com/api/projects/aiphph711bh7"
             - name: PROJECT_NAME
-              value: "aipholidaris"
+              value: "aiphph711bh7"
             - name: REDIS_HOST
-              value: "holidaypeakhub405-dev-redis.redis.cache.windows.net"
+              value: "hph711poc-poc-redis.redis.cache.windows.net"
             - name: REDIS_PASSWORD_SECRET_NAME
               value: "redis-primary-key"
             - name: SEARCH_ENRICHMENT_EVENT_HUB_CONSUMER_GROUP
@@ -169,37 +161,8 @@ spec:
             timeoutSeconds: 5
           resources:
             limits:
+              cpu: 1000m
+              memory: 1Gi
+            requests:
               cpu: 500m
               memory: 512Mi
-            requests:
-              cpu: 250m
-              memory: 256Mi
----
-# Source: holiday-peak-service/templates/agc-routing.yaml
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: ecommerce-catalog-search-ecommerce-catalog-search-agc
-  namespace: holiday-peak-agents
-  labels:
-    app: ecommerce-catalog-search
-spec:
-  parentRefs:
-    - name: "holiday-peak-agc"
-      namespace: "holiday-peak-crud"
-  hostnames:
-    - "esbcc8bcfyazbbdg.fz03.alb.azure.com"
-  rules:
-    - matches:
-        - path:
-            type: PathPrefix
-            value: "/ecommerce-catalog-search"
-      filters:
-        - type: URLRewrite
-          urlRewrite:
-            path:
-              type: ReplacePrefixMatch
-              replacePrefixMatch: "/"
-      backendRefs:
-        - name: ecommerce-catalog-search-ecommerce-catalog-search
-          port: 80

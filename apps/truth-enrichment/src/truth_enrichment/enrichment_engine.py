@@ -9,6 +9,43 @@ from typing import Any, Optional
 AUTO_APPROVE_THRESHOLD_DEFAULT = 0.95
 
 
+def _normalize_parsed_response(parsed: dict) -> dict:
+    """Normalize various AI response formats into {value, confidence, evidence}.
+
+    Handles:
+    - Direct: {"value": "X", "confidence": 0.9, "evidence": "..."}
+    - Agent-level: {"proposed_attributes": [{"proposed_value": "X", ...}], ...}
+    - Alternate keys: {"proposed_value": "X", ...}
+    """
+    # Already has "value" key — return as-is
+    if "value" in parsed:
+        return parsed
+
+    # Single-field agent response with "proposed_value"
+    if "proposed_value" in parsed:
+        return {
+            "value": parsed["proposed_value"],
+            "confidence": float(parsed.get("confidence", parsed.get("confidence_score", 0.7))),
+            "evidence": parsed.get("evidence", parsed.get("reasoning", "")),
+            "metadata": parsed.get("metadata", {}),
+        }
+
+    # Nested array format: {"proposed_attributes": [{...}]}
+    proposed_attrs = parsed.get("proposed_attributes")
+    if isinstance(proposed_attrs, list) and proposed_attrs:
+        first = proposed_attrs[0]
+        if isinstance(first, dict):
+            return {
+                "value": first.get("proposed_value", first.get("value")),
+                "confidence": float(first.get("confidence", first.get("confidence_score", 0.7))),
+                "evidence": first.get("evidence", first.get("reasoning", "")),
+                "metadata": first.get("metadata", {}),
+            }
+
+    # Fallback: return original dict (parse_ai_response will get None for "value")
+    return parsed
+
+
 class EnrichmentEngine:
     """Generate proposed attribute values using AI and score confidence."""
 
@@ -101,8 +138,17 @@ class EnrichmentEngine:
         ]
 
     def parse_ai_response(self, raw: Any) -> dict[str, Any]:
-        """Parse AI response into structured proposed attribute fields."""
+        """Parse AI response into structured proposed attribute fields.
+
+        Handles both direct JSON dicts and Foundry Agent response envelopes
+        where the model output is in the ``content`` key as a JSON string.
+        """
         if isinstance(raw, dict):
+            # Foundry Agent responses wrap model output in a "content" key.
+            # Extract and re-parse when the dict doesn't have a "value" key
+            # but does have "content".
+            if "value" not in raw and "content" in raw:
+                raw = self._extract_content(raw.get("content", ""))
             return {
                 "value": raw.get("value"),
                 "confidence": float(raw.get("confidence", 0.5)),
@@ -116,6 +162,45 @@ class EnrichmentEngine:
             "evidence": "unstructured response",
             "metadata": {},
         }
+
+    @staticmethod
+    def _extract_content(content: Any) -> dict[str, Any]:
+        """Parse model content text into a structured dict.
+
+        Handles multiple response formats from the AI model:
+        1. Simple: {"value": "X", "confidence": 0.9, "evidence": "..."}
+        2. Agent-level: {"proposed_attributes": [{"proposed_value": "X", ...}]}
+        3. Markdown-wrapped JSON
+        """
+        import json
+        import re
+
+        if isinstance(content, dict):
+            return _normalize_parsed_response(content)
+        if not isinstance(content, str):
+            return {}
+        text = content.strip()
+        # Strip markdown code fences if present
+        if text.startswith("```"):
+            text = re.sub(r"^```(?:json)?\s*", "", text)
+            text = re.sub(r"\s*```$", "", text)
+        # Try to extract JSON from text that might have preamble/postamble
+        json_match = re.search(r"\{[\s\S]*\}", text)
+        if json_match:
+            try:
+                parsed = json.loads(json_match.group())
+                if isinstance(parsed, dict):
+                    return _normalize_parsed_response(parsed)
+            except (json.JSONDecodeError, ValueError):
+                pass
+        # Full-text JSON parse fallback
+        try:
+            parsed = json.loads(text)
+            if isinstance(parsed, dict):
+                return _normalize_parsed_response(parsed)
+        except (json.JSONDecodeError, ValueError):
+            pass
+        return {}
 
     def parse_vision_response(self, response: Any) -> dict[str, Any]:
         """Parse a vision-model response payload into the enrichment shape."""

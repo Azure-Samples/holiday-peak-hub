@@ -1,17 +1,75 @@
 # Search Enrichment Agent
 
+> Full pipeline documentation: [`docs/implementation/truth-layer-agents-guide.md`](../../docs/implementation/truth-layer-agents-guide.md)
+
 ## Purpose
-Enriches search-oriented product data and processing outputs for discovery workflows.
 
-## Responsibilities
-- Process search enrichment tasks from asynchronous jobs.
-- Improve product search representation quality.
-- Provide enrichment outputs for downstream indexing and retrieval.
+Generates search-optimized content (keywords, facets, marketing copy, sustainability signals) for products and pushes them to Azure AI Search. Acts as the **discovery amplification stage** of the Product Truth Layer pipeline.
 
-## Key endpoints or interfaces
-- `POST /invoke` for synchronous service requests.
-- MCP interfaces under `/mcp/*` for agent-to-agent usage.
-- Event Hub subscription: `search-enrichment-jobs` / consumer group `search-enrichment-agent`.
+## Why This Agent Exists
+
+Raw product attributes are insufficient for high-quality search. Customers search using natural language, synonyms, and intent-based queries. This agent transforms structured product data into discovery-optimized content that powers semantic and keyword search.
+
+## How It Works
+
+1. Subscribes to `search-enrichment-jobs` Event Hub (consumer group: `search-enrichment-agent`)
+2. Receives triggers from truth-enrichment (`enrichment.completed`) or truth-hitl (`hitl.approved.search`)
+3. Loads approved product truth data
+4. Selects enrichment strategy:
+   - **Simple**: SLM for products with complete attributes
+   - **Complex**: LLM for multi-attribute reasoning
+   - **Agentic**: LLM with function calling for orchestrated enrichment
+5. Generates: keywords, use cases, marketing bullets, facet tags, SEO title, audience, seasonality
+6. Persists `SearchEnrichedProduct` to Cosmos DB
+7. Pushes to Azure AI Search (direct push or indexer trigger)
+
+## Key Endpoints
+
+| Method | Path | Purpose |
+|--------|------|---------|---|
+| POST | `/invoke` | Synchronous enrichment request |
+| GET | `/health`, `/ready` | Health probes |
+
+## Required Configuration
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `PROJECT_ENDPOINT` / `FOUNDRY_ENDPOINT` | Yes | Azure AI Foundry endpoint |
+| `FOUNDRY_AGENT_ID_FAST` | Yes | SLM agent ID (simple strategy) |
+| `MODEL_DEPLOYMENT_NAME_FAST` | Yes | SLM deployment |
+| `FOUNDRY_AGENT_ID_RICH` | Yes | LLM agent ID (complex/agentic) |
+| `MODEL_DEPLOYMENT_NAME_RICH` | Yes | LLM deployment |
+| `AI_SEARCH_ENDPOINT` | Yes | Azure AI Search endpoint |
+| `AI_SEARCH_ADMIN_KEY` / `AI_SEARCH_CREDENTIAL` | Yes | Search credentials |
+| `AI_SEARCH_INDEX_NAME` | Yes | Target index name |
+| `AI_SEARCH_INDEXER_NAME` | Optional | Indexer for pull-mode sync |
+| `AI_SEARCH_PUSH_IMMEDIATE` | Optional | Direct push (`true`) vs indexer (default) |
+| `PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV` | Yes | Event Hub namespace |
+| `COSMOS_ACCOUNT_URI`, `COSMOS_DATABASE`, `COSMOS_CONTAINER` | Yes | Enriched product storage |
+| `BLOB_ACCOUNT_URL`, `TRUTH_PRODUCT_BLOB_CONTAINER` | Optional | Approved truth source |
+| `REDIS_URL` | Optional | Hot cache |
+| `APPLICATIONINSIGHTS_CONNECTION_STRING` | Optional | Telemetry |
+
+## Data Requirements
+
+**Inbound** (from `search-enrichment-jobs` Event Hub):
+```json
+{ "event_type": "enrichment.completed", "data": { "entity_id": "TEST-LIVE-001" } }
+```
+
+**Output** — `SearchEnrichedProduct` in Cosmos DB + AI Search:
+```json
+{
+  "id": "TEST-LIVE-001",
+  "enrichedData": {
+    "search_keywords": ["waterproof jacket", "gore-tex", "navy"],
+    "use_cases": ["Winter hiking", "Urban commute"],
+    "facet_tags": ["color:navy", "material:gore-tex"],
+    "marketing_bullets": ["100% waterproof", "Breathable"],
+    "completeness_pct": 0.95
+  }
+}
+```
 
 ## Run/Test commands
 ```bash
@@ -20,11 +78,6 @@ uv sync
 uv run uvicorn search_enrichment_agent.main:app --reload
 python -m pytest ../tests
 ```
-
-## Configuration notes
-- Uses Foundry model settings (`PROJECT_ENDPOINT` or `FOUNDRY_ENDPOINT`, fast/rich model identifiers).
-- Supports Redis/Cosmos/Blob memory configuration via shared memory settings.
-- Requires the platform-jobs Event Hubs namespace and consumer configuration for background jobs.
 
 ---
 

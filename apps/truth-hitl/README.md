@@ -1,19 +1,80 @@
 # Truth HITL
 
+> Full pipeline documentation: [`docs/implementation/truth-layer-agents-guide.md`](../../docs/implementation/truth-layer-agents-guide.md)
+
 ## Purpose
-Provides human-in-the-loop review workflows for truth-layer proposed attributes.
 
-## Responsibilities
-- Expose pending review queue operations.
-- Process approve/reject/edit decisions.
-- Support batch review actions and queue metrics.
+Manages the human-in-the-loop review queue for AI-proposed product attributes. Acts as the **quality gate** between AI-generated proposals and canonical approved truth.
 
-## Key endpoints or interfaces
-- `POST /invoke` for synchronous agent requests.
-- `GET /review/queue`, `GET /review/stats`, and `GET /review/{entity_id}` for review retrieval.
-- `POST /review/{entity_id}/approve`, `POST /review/{entity_id}/reject`, `POST /review/{entity_id}/edit` for decisions.
-- `POST /review/approve/batch` and `POST /review/reject/batch` for bulk decisions.
-- Event Hub subscription: `hitl-jobs`.
+## Why This Agent Exists
+
+AI-generated product attributes cannot be trusted blindly — incorrect values damage catalog quality and customer trust. This agent ensures **human validation** before any AI-proposed value becomes truth, providing full audit trails and decision governance.
+
+## How It Works
+
+1. Subscribes to `hitl-jobs` Event Hub (consumer group: `hitl-service`)
+2. Receives enrichment proposals from truth-enrichment
+3. Queues proposals in the **ReviewManager** (pending review)
+4. Exposes review queue via REST endpoints for human reviewers
+5. On approval: publishes to `export-jobs` (PIM writeback) and `search-enrichment-jobs` (search re-indexing)
+6. On rejection: logs decision and removes from queue
+
+## Key Endpoints
+
+| Method | Path | Purpose |
+|--------|------|---------|---|
+| GET | `/review/queue` | List pending items (paginated, filterable) |
+| GET | `/review/stats` | Queue statistics (pending/approved/rejected) |
+| GET | `/review/{entity_id}` | Proposals for one product |
+| POST | `/review/{entity_id}/approve` | Approve proposal(s) |
+| POST | `/review/{entity_id}/reject` | Reject with reason |
+| POST | `/review/{entity_id}/edit` | Edit value and approve |
+| POST | `/review/approve/batch` | Batch approve |
+| POST | `/review/reject/batch` | Batch reject |
+| POST | `/invoke` | Agent entry (actions: `stats`, `queue`, `detail`, `audit`) |
+
+**MCP Tools**: `/hitl/queue`, `/hitl/stats`, `/hitl/audit`, `/review/get_proposal`
+
+## Required Configuration
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `PROJECT_ENDPOINT` / `FOUNDRY_ENDPOINT` | Yes | Azure AI Foundry endpoint |
+| `FOUNDRY_AGENT_ID_FAST` | Yes | SLM for confidence re-evaluation |
+| `MODEL_DEPLOYMENT_NAME_FAST` | Yes | SLM deployment |
+| `FOUNDRY_AGENT_ID_RICH` | Yes | LLM for disputed proposal reasoning |
+| `MODEL_DEPLOYMENT_NAME_RICH` | Yes | LLM deployment |
+| `PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV` | Yes | Event Hub namespace |
+| `COSMOS_ACCOUNT_URI`, `COSMOS_DATABASE` | Optional | Warm memory tier |
+| `REDIS_URL` | Optional | Hot cache |
+| `APPLICATIONINSIGHTS_CONNECTION_STRING` | Optional | Telemetry |
+
+## Data Requirements
+
+**Inbound** (from `hitl-jobs` Event Hub):
+```json
+{
+  "event_type": "attribute.proposed",
+  "entity_id": "TEST-LIVE-001",
+  "field_name": "color",
+  "proposed_value": "Navy Blue",
+  "confidence": 0.92
+}
+```
+
+**Review Decision** (POST body):
+```json
+{
+  "attr_ids": ["attr-uuid"],
+  "reason": "Correct per product photography",
+  "reviewed_by": "reviewer@company.com"
+}
+```
+
+## Event Production
+
+- `export-jobs`: `{ "event_type": "hitl.approved", "entity_id": "...", "approved_fields": ["color"] }`
+- `search-enrichment-jobs`: `{ "event_type": "hitl.approved.search", "entity_id": "...", "approved_fields": ["color"] }`
 
 ## Run/Test commands
 ```bash
@@ -22,11 +83,6 @@ uv sync
 uv run uvicorn truth_hitl.main:app --reload
 python -m pytest ../tests
 ```
-
-## Configuration notes
-- Uses Foundry model settings (`PROJECT_ENDPOINT` or `FOUNDRY_ENDPOINT`, fast/rich model identifiers).
-- Supports Redis/Cosmos/Blob memory configuration via shared memory settings.
-- Requires the platform-jobs Event Hubs namespace and consumer configuration for background jobs.
 
 ---
 

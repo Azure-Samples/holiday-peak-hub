@@ -226,3 +226,70 @@ def test_trigger_product_enrichment_returns_404_when_product_not_found(client):
     assert response.status_code == 404
     assert response.json()["detail"] == "Product not found"
     publish_product_updated.assert_not_awaited()
+
+
+def test_bulk_trigger_enrichment_returns_202_and_publishes_for_all_products(client):
+    """Bulk trigger should emit ProductUpdated for every product returned by query."""
+    products = [
+        {**_SAMPLE_PRODUCT, "id": "prod-1"},
+        {**_SAMPLE_PRODUCT, "id": "prod-2", "name": "Test Tablet"},
+    ]
+    with (
+        patch(
+            "crud_service.routes.products.product_repo.query",
+            new_callable=AsyncMock,
+            return_value=products,
+        ),
+        patch(
+            "crud_service.routes.products.event_publisher.publish_product_updated",
+            new_callable=AsyncMock,
+        ) as publish_product_updated,
+    ):
+        response = client.post(
+            "/api/products/trigger-enrichment/bulk",
+            json={"trace_id": "bulk-001", "trigger_source": "backfill"},
+        )
+
+    assert response.status_code == 202
+    payload = response.json()
+    assert payload["status"] == "queued"
+    assert payload["queued_count"] == 2
+    assert payload["failed_count"] == 0
+    assert payload["trace_id"] == "bulk-001"
+    assert payload["trigger_source"] == "backfill"
+    assert publish_product_updated.await_count == 2
+
+
+def test_bulk_trigger_enrichment_counts_publish_failures(client):
+    """Bulk trigger should count failures without aborting the entire batch."""
+    products = [
+        {**_SAMPLE_PRODUCT, "id": "prod-ok"},
+        {**_SAMPLE_PRODUCT, "id": "prod-fail"},
+    ]
+
+    call_count = 0
+
+    async def _selective_fail(payload, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if payload.get("id") == "prod-fail":
+            raise RuntimeError("event hub unavailable")
+
+    with (
+        patch(
+            "crud_service.routes.products.product_repo.query",
+            new_callable=AsyncMock,
+            return_value=products,
+        ),
+        patch(
+            "crud_service.routes.products.event_publisher.publish_product_updated",
+            side_effect=_selective_fail,
+        ),
+    ):
+        response = client.post("/api/products/trigger-enrichment/bulk")
+
+    assert response.status_code == 202
+    payload = response.json()
+    assert payload["queued_count"] == 1
+    assert payload["failed_count"] == 1
+    assert payload["trigger_source"] == "bulk_backfill"

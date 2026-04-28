@@ -254,8 +254,10 @@ class SearchIndexingAdapter:
         }
         if immediate_push:
             document = enriched.model_dump(mode="json", by_alias=True)
-            document.setdefault("id", entity_id)
-            document.setdefault("sku", entity_id)
+            if not document.get("id"):
+                document["id"] = entity_id
+            if not document.get("sku"):
+                document["sku"] = entity_id
             return await self._client.index_documents(
                 self._client.settings.default_index_name, [document]
             )

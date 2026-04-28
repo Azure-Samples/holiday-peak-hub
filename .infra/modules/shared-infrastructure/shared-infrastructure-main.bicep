@@ -12,6 +12,8 @@ param aksWebApplicationRoutingEnabled bool = false
 param agcSupportEnabled bool = environment == 'dev'
 @description('CIDR prefix for the delegated AGC subnet. Must provide at least 256 available IPs.')
 param agcSubnetAddressPrefix string = '10.0.12.0/24'
+@description('PostgreSQL deployment location override. Use when the primary location has offer restrictions.')
+param postgresLocation string = location
 @secure()
 @description('Optional PostgreSQL administrator password for CRUD database.')
 param postgresAdminPassword string = ''
@@ -55,6 +57,7 @@ module sharedInfra './shared-infrastructure.bicep' = {
     aksWebApplicationRoutingEnabled: aksWebApplicationRoutingEnabled
     agcSupportEnabled: agcSupportEnabled
     agcSubnetAddressPrefix: agcSubnetAddressPrefix
+    postgresLocation: postgresLocation
     postgresAdminPassword: postgresAdminPassword
     postgresAuthMode: postgresAuthMode
     alertNotificationEmail: alertNotificationEmail

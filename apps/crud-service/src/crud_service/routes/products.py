@@ -11,6 +11,7 @@ from crud_service.config.settings import get_settings
 from crud_service.integrations import get_agent_client, get_event_publisher
 from crud_service.repositories import ProductRepository
 from crud_service.schemas.api.products import (
+    BulkEnrichmentTriggerResponse,
     ProductEnrichmentTriggerRequest,
     ProductEnrichmentTriggerResponse,
     ProductResponse,
@@ -210,4 +211,54 @@ async def trigger_product_enrichment(
         trace_id=request.trace_id if request else None,
         trigger_source=request.trigger_source if request else None,
         reason=request.reason if request else None,
+    )
+
+
+@router.post(
+    "/products/trigger-enrichment/bulk",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=BulkEnrichmentTriggerResponse,
+)
+async def trigger_bulk_product_enrichment(
+    request: ProductEnrichmentTriggerRequest | None = None,
+    limit: int = Query(500, le=2000, description="Max products to enqueue"),
+):
+    """Emit ProductUpdated events for all products to backfill downstream indexes."""
+    products = await product_repo.query(
+        query="SELECT * FROM c OFFSET 0 LIMIT @limit",
+        parameters=[{"name": "@limit", "value": limit}],
+    )
+
+    queued_at = datetime.now(UTC).isoformat()
+    queued_count = 0
+    failed_count = 0
+
+    for product in products:
+        try:
+            event_payload = dict(product)
+            event_payload["timestamp"] = queued_at
+            event_payload["trigger_source"] = (
+                request.trigger_source if request and request.trigger_source else "bulk_backfill"
+            )
+            if request and request.trace_id is not None:
+                event_payload["trace_id"] = request.trace_id
+            await event_publisher.publish_product_updated(event_payload)
+            queued_count += 1
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.warning(
+                "Failed to publish ProductUpdated for product %s",
+                product.get("id", "unknown"),
+                exc_info=True,
+            )
+            failed_count += 1
+
+    return BulkEnrichmentTriggerResponse(
+        status="queued",
+        queued_count=queued_count,
+        failed_count=failed_count,
+        queued_at=queued_at,
+        trace_id=request.trace_id if request else None,
+        trigger_source=(
+            request.trigger_source if request and request.trigger_source else "bulk_backfill"
+        ),
     )

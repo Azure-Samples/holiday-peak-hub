@@ -16,6 +16,8 @@ param aksWebApplicationRoutingEnabled bool = false
 param agcSupportEnabled bool = environment == 'dev'
 @description('CIDR prefix for the delegated AGC subnet. Must provide at least 256 available IPs.')
 param agcSubnetAddressPrefix string = '10.0.12.0/24'
+@description('PostgreSQL deployment location override. Use when the primary location has offer restrictions for PostgreSQL Flexible Server.')
+param postgresLocation string = location
 @secure()
 @description('PostgreSQL administrator password for CRUD transactional database. Leave empty to auto-generate a random deployment password.')
 param postgresAdminPassword string = ''
@@ -598,7 +600,7 @@ module postgres 'br/public:avm/res/db-for-postgre-sql/flexible-server:0.15.2' = 
   name: 'postgres'
   params: {
     name: postgresServerName
-    location: location
+    location: postgresLocation
     availabilityZone: environment == 'prod' ? 1 : -1
     skuName: environment == 'prod' ? 'Standard_D4ds_v5' : 'Standard_B2s'
     tier: environment == 'prod' ? 'GeneralPurpose' : 'Burstable'

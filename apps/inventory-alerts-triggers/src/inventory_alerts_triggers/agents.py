@@ -7,6 +7,12 @@ from typing import Any
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
+from holiday_peak_lib.agents.memory import (
+    CacheConfig,
+    inject_session_id,
+    resolve_cache_key,
+    try_cache_read,
+)
 from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
 from holiday_peak_lib.agents.registration_helpers import (
     get_agent_adapters,
@@ -27,10 +33,22 @@ class InventoryAlertsAgent(BaseRetailAgent):
     def adapters(self) -> InventoryAlertsAdapters:
         return self._adapters
 
+    _cache_config = CacheConfig(
+        service="inventory-alerts-triggers",
+        entity_prefix="alert",
+        ttl_seconds=120,
+        entity_key_field="sku",
+    )
+
     async def handle(self, request: dict[str, Any]) -> dict[str, Any]:
         sku = request.get("sku")
         if not sku:
             return {"error": "sku is required"}
+
+        cache_key = resolve_cache_key(request, self._cache_config)
+        cached = await try_cache_read(self.hot_memory, cache_key, ttl_seconds=120)
+        if cached is not None:
+            return cached
         threshold = int(request.get("threshold", 5))
 
         context = await self.adapters.inventory.build_inventory_context(str(sku))
@@ -51,14 +69,20 @@ class InventoryAlertsAgent(BaseRetailAgent):
                     },
                 },
             ]
-            return await self.invoke_model(request=request, messages=messages)
+            result = await self.invoke_model(
+                request=inject_session_id(request, self._cache_config), messages=messages
+            )
+            self.background_cache_write(cache_key, result, ttl_seconds=120)
+            return result
 
-        return {
+        response = {
             "service": self.service_name,
             "sku": sku,
             "inventory_context": context.model_dump(),
             "alerts": alerts,
         }
+        self.background_cache_write(cache_key, response, ttl_seconds=120)
+        return response
 
 
 def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
