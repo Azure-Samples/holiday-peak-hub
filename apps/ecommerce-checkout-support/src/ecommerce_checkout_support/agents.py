@@ -8,6 +8,13 @@ from typing import Any
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
+from holiday_peak_lib.agents.memory import (
+    CacheConfig,
+    cache_write,
+    inject_session_id,
+    resolve_cache_key,
+    try_cache_read,
+)
 from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
 from holiday_peak_lib.agents.registration_helpers import get_agent_adapters
 
@@ -29,8 +36,22 @@ class CheckoutSupportAgent(BaseRetailAgent):
     def adapters(self) -> CheckoutAdapters:
         return self._adapters
 
+    _cache_config = CacheConfig(
+        service="ecommerce-checkout-support",
+        entity_prefix="checkout",
+        ttl_seconds=120,
+        entity_key_field="user_id",
+        fallback_entity_fields=("session_id", "sku"),
+    )
+
     async def handle(self, request: dict[str, Any]) -> dict[str, Any]:
         items = _coerce_items(request.get("items"))
+
+        cache_key = resolve_cache_key(request, self._cache_config)
+        cached = await try_cache_read(self.hot_memory, cache_key, ttl_seconds=120)
+        if cached is not None:
+            return cached
+
         price_tasks = [self.adapters.pricing.build_price_context(item["sku"]) for item in items]
         inventory_tasks = [
             self.adapters.inventory.build_inventory_context(item["sku"]) for item in items
@@ -63,11 +84,15 @@ class CheckoutSupportAgent(BaseRetailAgent):
                     },
                 },
             ]
-            return await self.invoke_model(request=request, messages=messages)
+            result = await self.invoke_model(
+                request=inject_session_id(request, self._cache_config), messages=messages
+            )
+            await cache_write(self.hot_memory, cache_key, result, ttl_seconds=120)
+            return result
 
         acp_checkout = _build_acp_checkout_payload(items)
 
-        return {
+        result = {
             "service": self.service_name,
             "items": items,
             "pricing": [ctx.model_dump() for ctx in pricing_contexts],
@@ -79,6 +104,8 @@ class CheckoutSupportAgent(BaseRetailAgent):
                 "checkout": acp_checkout,
             },
         }
+        await cache_write(self.hot_memory, cache_key, result, ttl_seconds=120)
+        return result
 
 
 def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:

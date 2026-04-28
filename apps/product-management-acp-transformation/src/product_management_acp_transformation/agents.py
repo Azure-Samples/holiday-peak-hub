@@ -7,6 +7,13 @@ from typing import Any
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
+from holiday_peak_lib.agents.memory import (
+    CacheConfig,
+    cache_write,
+    inject_session_id,
+    resolve_cache_key,
+    try_cache_read,
+)
 from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
 from holiday_peak_lib.agents.registration_helpers import get_agent_adapters
 
@@ -24,10 +31,22 @@ class ProductAcpTransformationAgent(BaseRetailAgent):
     def adapters(self) -> AcpTransformationAdapters:
         return self._adapters
 
+    _cache_config = CacheConfig(
+        service="product-management-acp-transformation",
+        entity_prefix="acp",
+        ttl_seconds=300,
+        entity_key_field="sku",
+    )
+
     async def handle(self, request: dict[str, Any]) -> dict[str, Any]:
         sku = request.get("sku")
         if not sku:
             return {"error": "sku is required"}
+
+        cache_key = resolve_cache_key(request, self._cache_config)
+        cached = await try_cache_read(self.hot_memory, cache_key, ttl_seconds=300)
+        if cached is not None:
+            return cached
         availability = request.get("availability", "in_stock")
         currency = request.get("currency", "usd")
 
@@ -51,14 +70,20 @@ class ProductAcpTransformationAgent(BaseRetailAgent):
                     },
                 },
             ]
-            return await self.invoke_model(request=request, messages=messages)
+            result = await self.invoke_model(
+                request=inject_session_id(request, self._cache_config), messages=messages
+            )
+            await cache_write(self.hot_memory, cache_key, result, ttl_seconds=300)
+            return result
 
-        return {
+        response = {
             "service": self.service_name,
             "sku": sku,
             "product": product.model_dump(),
             "acp_product": acp,
         }
+        await cache_write(self.hot_memory, cache_key, response, ttl_seconds=300)
+        return response
 
 
 def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:

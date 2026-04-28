@@ -9,6 +9,13 @@ import httpx
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
+from holiday_peak_lib.agents.memory import (
+    CacheConfig,
+    cache_write,
+    inject_session_id,
+    resolve_cache_key,
+    try_cache_read,
+)
 from holiday_peak_lib.evaluation import confidence_calibration_bins, run_evaluation
 from holiday_peak_lib.mcp.ai_search_indexing import (
     AISearchIndexingClient,
@@ -326,6 +333,14 @@ class SearchEnrichmentAgent(BaseRetailAgent):
     def engine(self) -> SearchEnrichmentEngine:
         return self._engine
 
+    _cache_config = CacheConfig(
+        service="search-enrichment-agent",
+        entity_prefix="search",
+        ttl_seconds=300,
+        entity_key_field="entity_id",
+        fallback_entity_fields=("product_id", "sku"),
+    )
+
     def _trace_api_liveness(
         self,
         *,
@@ -357,6 +372,12 @@ class SearchEnrichmentAgent(BaseRetailAgent):
             return {"error": "entity_id is required"}
 
         resolved_entity_id = str(entity_id)
+
+        cache_key = resolve_cache_key(request, self._cache_config)
+        cached = await try_cache_read(self.hot_memory, cache_key, ttl_seconds=300)
+        if cached is not None:
+            return cached
+
         try:
             result = await self._orchestrator.run(
                 entity_id=resolved_entity_id,
@@ -383,6 +404,7 @@ class SearchEnrichmentAgent(BaseRetailAgent):
                 },
             )
             _record_search_enrichment_evaluation(self, entity_id=resolved_entity_id, result=result)
+            await cache_write(self.hot_memory, cache_key, result, ttl_seconds=300)
             return result
         except Exception:
             self._trace_api_liveness(

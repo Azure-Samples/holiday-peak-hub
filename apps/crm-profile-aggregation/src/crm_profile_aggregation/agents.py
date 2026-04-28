@@ -7,6 +7,13 @@ from typing import Any
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
+from holiday_peak_lib.agents.memory import (
+    CacheConfig,
+    cache_write,
+    inject_session_id,
+    resolve_cache_key,
+    try_cache_read,
+)
 from holiday_peak_lib.agents.prompt_loader import load_prompt_instructions
 from holiday_peak_lib.agents.registration_helpers import get_agent_adapters
 
@@ -24,10 +31,22 @@ class ProfileAggregationAgent(BaseRetailAgent):
     def adapters(self) -> ProfileAdapters:
         return self._adapters
 
+    _cache_config = CacheConfig(
+        service="crm-profile-aggregation",
+        entity_prefix="profile",
+        ttl_seconds=300,
+        entity_key_field="contact_id",
+    )
+
     async def handle(self, request: dict[str, Any]) -> dict[str, Any]:
         contact_id = request.get("contact_id")
         if not contact_id:
             return {"error": "contact_id is required"}
+
+        cache_key = resolve_cache_key(request, self._cache_config)
+        cached = await try_cache_read(self.hot_memory, cache_key, ttl_seconds=300)
+        if cached is not None:
+            return cached
 
         interaction_limit = int(request.get("interaction_limit", 20))
         context = await self.adapters.crm.build_contact_context(
@@ -51,14 +70,20 @@ class ProfileAggregationAgent(BaseRetailAgent):
                     },
                 },
             ]
-            return await self.invoke_model(request=request, messages=messages)
+            result = await self.invoke_model(
+                request=inject_session_id(request, self._cache_config), messages=messages
+            )
+            await cache_write(self.hot_memory, cache_key, result, ttl_seconds=300)
+            return result
 
-        return {
+        result = {
             "service": self.service_name,
             "contact_id": contact_id,
             "profile_context": context.model_dump(),
             "profile_summary": summary,
         }
+        await cache_write(self.hot_memory, cache_key, result, ttl_seconds=300)
+        return result
 
 
 def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:

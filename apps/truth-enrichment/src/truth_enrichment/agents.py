@@ -9,6 +9,12 @@ from typing import Any
 from holiday_peak_lib.agents import BaseRetailAgent
 from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
+from holiday_peak_lib.agents.memory import (
+    CacheConfig,
+    cache_write,
+    resolve_cache_key,
+    try_cache_read,
+)
 from holiday_peak_lib.agents.registration_helpers import get_agent_adapters
 from holiday_peak_lib.evaluation import (
     confidence_calibration_bins,
@@ -53,6 +59,14 @@ class TruthEnrichmentAgent(BaseRetailAgent):
     def engine(self) -> EnrichmentEngine:
         return self._engine
 
+    _cache_config = CacheConfig(
+        service="truth-enrichment",
+        entity_prefix="enrichment",
+        ttl_seconds=300,
+        entity_key_field="entity_id",
+        fallback_entity_fields=("product_id", "sku"),
+    )
+
     async def handle(self, request: dict[str, Any]) -> dict[str, Any]:
         """Enrich a product's missing fields on demand."""
         entity_id = request.get("entity_id") or request.get("product_id") or request.get("sku")
@@ -84,6 +98,11 @@ class TruthEnrichmentAgent(BaseRetailAgent):
                 }
             )
             return {"error": "product not found", "entity_id": entity_id}
+
+        cache_key = resolve_cache_key(request, self._cache_config)
+        cached = await try_cache_read(self.hot_memory, cache_key, ttl_seconds=300)
+        if cached is not None:
+            return cached
 
         category = product.get("category", "")
         schema = await self.adapters.products.get_schema(category)
@@ -144,11 +163,13 @@ class TruthEnrichmentAgent(BaseRetailAgent):
                     metadata={"entity_id": str(entity_id)},
                 )
 
-        return {
+        result = {
             "service": self.service_name,
             "entity_id": entity_id,
             "proposed": proposed_list,
         }
+        await cache_write(self.hot_memory, cache_key, result, ttl_seconds=300)
+        return result
 
     async def enrich_field(
         self,
@@ -201,7 +222,14 @@ class TruthEnrichmentAgent(BaseRetailAgent):
         await self.adapters.audit.append(audit)
 
         if self.engine.needs_hitl(proposed):
-            await self._publish_hitl(entity_id, field_name, product, proposed)
+            try:
+                await self._publish_hitl(entity_id, field_name, product, proposed)
+            except Exception:  # noqa: BLE001
+                self._trace_decision(
+                    decision="hitl_publish",
+                    outcome="publish_failed",
+                    metadata={"entity_id": entity_id, "field_name": field_name},
+                )
 
         return proposed
 
