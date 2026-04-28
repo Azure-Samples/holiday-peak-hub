@@ -1,19 +1,86 @@
 # Truth Export
 
+> Full pipeline documentation: [`docs/implementation/truth-layer-agents-guide.md`](../../docs/implementation/truth-layer-agents-guide.md)
+
 ## Purpose
-Exports approved truth-layer product attributes to downstream protocols and systems.
 
-## Responsibilities
-- Export truth attributes as ACP/UCP payloads.
-- Support batch export and PIM writeback operations.
-- Track export job and protocol status.
+Transforms approved product truth into protocol-specific formats (UCP/ACP) and manages PIM writeback. Acts as the **export stage** of the Product Truth Layer pipeline.
 
-## Key endpoints or interfaces
-- `POST /invoke` for synchronous agent requests.
-- `POST /export/acp/{entity_id}` and `POST /export/ucp/{entity_id}` for protocol export.
-- `POST /export/bulk`, `POST /export/pim/{entity_id}`, and `POST /export/pim/batch` for batch/writeback.
-- `GET /export/status/{job_id}` and `GET /export/protocols` for status/capabilities.
-- Event Hub subscription: `export-jobs`.
+## Why This Agent Exists
+
+Once attributes are validated by HITL, they must flow back to the systems of record. Different downstream consumers require different formats (UCP for universal distribution, ACP for agent interoperability). This agent ensures **approved truth reaches source PIM systems** in their expected format.
+
+## How It Works
+
+1. Subscribes to `export-jobs` Event Hub (consumer group: `export-engine`)
+2. Receives approval events from truth-hitl
+3. Loads approved product truth from Cosmos DB
+4. Transforms to requested protocol format (UCP or ACP)
+5. Validates against protocol schema (required fields check)
+6. If `PIM_WRITEBACK_ENABLED=true`: pushes approved attributes back to source PIM via REST
+7. Persists export result and audit trail
+
+## Key Endpoints
+
+| Method | Path | Purpose |
+|--------|------|---------|---|
+| POST | `/export/acp/{entity_id}` | Export as ACP format |
+| POST | `/export/ucp/{entity_id}` | Export as UCP format |
+| POST | `/export/bulk` | Bulk export |
+| POST | `/export/pim/{entity_id}` | PIM writeback (single) |
+| POST | `/export/pim/batch` | PIM writeback (batch, max 100) |
+| GET | `/export/status/{job_id}` | Job status |
+| GET | `/export/protocols` | List supported protocols |
+| POST | `/invoke` | Agent entry point |
+
+**MCP Tools**: `/export/product`, `/export/status`, `/export/protocols`
+
+## Required Configuration
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `PROJECT_ENDPOINT` / `FOUNDRY_ENDPOINT` | Yes | Azure AI Foundry endpoint |
+| `FOUNDRY_AGENT_ID_FAST` | Yes | SLM for protocol validation |
+| `MODEL_DEPLOYMENT_NAME_FAST` | Yes | SLM deployment |
+| `FOUNDRY_AGENT_ID_RICH` | Yes | LLM for complex field mapping |
+| `MODEL_DEPLOYMENT_NAME_RICH` | Yes | LLM deployment |
+| `PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV` | Yes | Event Hub namespace |
+| `PIM_CONNECTOR_TYPE` | Yes | `akeneo`, `salsify`, or `generic` |
+| `PIM_BASE_URL` | Yes | PIM REST endpoint |
+| `PIM_AUTH_TYPE` | Yes | `bearer` or `basic` |
+| `PIM_AUTH_TOKEN` | Conditional | Bearer token |
+| `PIM_WRITEBACK_ENABLED` | Yes | Enable writeback (`true`/`false`) |
+| `PIM_WRITEBACK_DRY_RUN` | Optional | Validate without writing |
+| `PIM_WRITEBACK_FIELDS` | Optional | Allowlisted fields for writeback |
+| `PIM_RATE_LIMIT_RPS` | Optional | Rate limit (default: 10 req/s) |
+| `COSMOS_ACCOUNT_URI`, `COSMOS_DATABASE` | Optional | Truth store read |
+| `REDIS_URL` | Optional | Hot cache |
+| `APPLICATIONINSIGHTS_CONNECTION_STRING` | Optional | Telemetry |
+
+## Data Requirements
+
+**Inbound** (from `export-jobs` Event Hub):
+```json
+{
+  "event_type": "hitl.approved",
+  "entity_id": "TEST-LIVE-001",
+  "approved_fields": ["color", "material"],
+  "protocol": "pim"
+}
+```
+
+**UCP Export Output**:
+```json
+{
+  "entity_id": "TEST-LIVE-001",
+  "protocol": "ucp",
+  "status": "completed",
+  "exported_payload": {
+    "sku": "TEST-LIVE-001",
+    "attributes": { "color": "Navy Blue", "material": "Gore-Tex" }
+  }
+}
+```
 
 ## Run/Test commands
 ```bash
@@ -22,11 +89,6 @@ uv sync
 uv run uvicorn truth_export.main:app --reload
 python -m pytest ../tests
 ```
-
-## Configuration notes
-- Uses Foundry model settings (`PROJECT_ENDPOINT` or `FOUNDRY_ENDPOINT`, fast/rich model identifiers).
-- Supports Redis/Cosmos/Blob memory configuration via shared memory settings.
-- Requires the platform-jobs Event Hubs namespace and consumer configuration for background jobs.
 
 ---
 

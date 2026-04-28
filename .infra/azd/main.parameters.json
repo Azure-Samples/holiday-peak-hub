@@ -7,6 +7,7 @@
     "environment": { "value": "${environment}" },
     "resourceGroupName": { "value": "${resourceGroupName}" },
     "aksNodeCount": { "value": "${aksNodeCount}" },
-    "aksAvailabilityZones": { "value": "${aksAvailabilityZones}" }
+    "aksAvailabilityZones": { "value": "${aksAvailabilityZones}" },
+    "postgresLocation": { "value": "${POSTGRES_LOCATION}" }
   }
 }

@@ -1,19 +1,70 @@
 # Truth Ingestion
 
+> Full pipeline documentation: [`docs/implementation/truth-layer-agents-guide.md`](../../docs/implementation/truth-layer-agents-guide.md)
+
 ## Purpose
-Ingests source product payloads into truth-layer processing workflows.
 
-## Responsibilities
-- Ingest single and bulk product payloads.
-- Trigger and track sync jobs.
-- Process source webhooks into ingestion flows.
+Ingests raw product data from PIM (Product Information Management) and DAM (Digital Asset Management) sources into the canonical truth store. Acts as the **first stage** of the Product Truth Layer pipeline.
 
-## Key endpoints or interfaces
-- `POST /invoke` for synchronous agent requests.
-- `POST /ingest/product`, `POST /ingest/bulk`, and `POST /ingest/sync` for ingestion operations.
-- `GET /ingest/status/{job_id}` for job status.
-- `POST /ingest/webhook` for source webhook ingestion.
-- Event Hub subscription: `ingest-jobs`.
+## Why This Agent Exists
+
+Retail platforms integrate with dozens of PIM/DAM vendors, each with proprietary schemas. This agent creates a single normalized data format (`ProductStyle`/`ProductVariant`) that all downstream agents rely on without coupling to vendor-specific APIs.
+
+## How It Works
+
+1. Receives a product payload via REST endpoint or PIM webhook
+2. Applies field mapping (source → canonical schema) using deterministic rules; AI resolves ambiguous mappings
+3. Validates against the canonical schema
+4. Persists `ProductStyle` / `ProductVariant` to Cosmos DB (partition key: `entity_id`)
+5. Publishes `ingestion.completed` event to `ingest-jobs` Event Hub topic
+6. Downstream agents (truth-enrichment) subscribe and begin gap analysis
+
+## Key Endpoints
+
+| Method | Path | Purpose |
+|--------|------|---------|---|
+| POST | `/ingest/product` | Ingest single product |
+| POST | `/ingest/bulk` | Batch ingest (1-50 concurrent) |
+| POST | `/ingest/sync` | Full PIM paginated sync (background) |
+| GET | `/ingest/status/{job_id}` | Job status check |
+| POST | `/ingest/webhook` | PIM webhook receiver |
+| POST | `/invoke` | Agent entry (actions: `ingest_single`, `ingest_bulk`, `get_status`) |
+
+**MCP Tools** (agent-to-agent): `/ingest/product`, `/ingest/status`, `/ingest/sources`
+
+## Required Configuration
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `PROJECT_ENDPOINT` / `FOUNDRY_ENDPOINT` | Yes | Azure AI Foundry endpoint |
+| `FOUNDRY_AGENT_ID_FAST` | Yes | SLM agent ID |
+| `MODEL_DEPLOYMENT_NAME_FAST` | Yes | SLM deployment name |
+| `FOUNDRY_AGENT_ID_RICH` | Yes | LLM agent ID |
+| `MODEL_DEPLOYMENT_NAME_RICH` | Yes | LLM deployment name |
+| `COSMOS_ACCOUNT_URI` | Yes | Cosmos DB endpoint |
+| `COSMOS_DATABASE` | Yes | Database (default: `truth-store`) |
+| `COSMOS_CONTAINER` | Yes | Product container (default: `products`) |
+| `PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV` | Yes | Event Hub namespace FQDN |
+| `PIM_BASE_URL` | Yes | Source PIM REST endpoint |
+| `PIM_AUTH_TYPE` | Yes | `bearer`, `basic`, or `custom` |
+| `PIM_AUTH_TOKEN` | Conditional | Token when auth type is bearer |
+| `REDIS_URL` | Optional | Hot cache (degrades gracefully) |
+| `APPLICATIONINSIGHTS_CONNECTION_STRING` | Optional | Telemetry |
+
+## Data Requirements
+
+**Input** — Raw product from PIM:
+```json
+{
+  "product": { "id": "sku-123", "name": "Explorer Jacket", "category": "outerwear" },
+  "field_mapping": { "category": "product_type", "name": "title" }
+}
+```
+
+**Output** — Canonical product in Cosmos DB + event on `ingest-jobs`:
+```json
+{ "event_type": "ingestion.completed", "entity_id": "sku-123", "status": "success" }
+```
 
 ## Run/Test commands
 ```bash
@@ -22,11 +73,6 @@ uv sync
 uv run uvicorn truth_ingestion.main:app --reload
 python -m pytest ../tests
 ```
-
-## Configuration notes
-- Uses Foundry model settings (`PROJECT_ENDPOINT` or `FOUNDRY_ENDPOINT`, fast/rich model identifiers).
-- Supports Redis/Cosmos/Blob memory configuration via shared memory settings.
-- Requires the platform-jobs Event Hubs namespace and consumer configuration for background jobs.
 
 ---
 
