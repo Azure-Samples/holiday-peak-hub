@@ -6,12 +6,14 @@ import inspect
 import json
 import logging
 import os
+import re
 from dataclasses import dataclass
 from time import perf_counter
 from typing import Any, AsyncGenerator, NamedTuple
 from urllib.parse import quote, unquote, urlsplit, urlunsplit
 
 from agent_framework import AgentSession
+from agent_framework import ChatOptions as _ChatOptions
 from agent_framework import Message as MAFMessage
 from agent_framework_foundry import FoundryAgent
 from azure.ai.projects.aio import AIProjectClient
@@ -168,6 +170,7 @@ class FoundryAgentConfig:
     stream: bool = True
     credential: Any | None = None
     resolved_agent_id: str | None = None
+    max_output_tokens: int | None = None
 
     def __post_init__(self) -> None:
         self.apply_project_contract()
@@ -414,6 +417,8 @@ async def _check_instruction_drift(
     instructions: str | None,
     model: str | None,
     reasoning: dict[str, str] | None = None,
+    temperature: float | None = None,
+    top_p: float | None = None,
 ) -> dict[str, Any] | None:
     """Compare provided instructions with latest Foundry version; update if different.
 
@@ -466,6 +471,8 @@ async def _check_instruction_drift(
         instructions=instructions,
         model=model,
         reasoning=reasoning,
+        temperature=temperature,
+        top_p=top_p,
     )
 
     if create_result.get("created"):
@@ -492,6 +499,8 @@ async def _create_agent_version(
     instructions: str | None,
     model: str | None,
     reasoning: dict[str, str] | None = None,
+    temperature: float | None = None,
+    top_p: float | None = None,
 ) -> dict[str, Any]:
     """Create a new Foundry agent version and return a result dict."""
     resolved_model = model or config.deployment_name
@@ -505,6 +514,21 @@ async def _create_agent_version(
             "created": False,
         }
 
+    # Guard: auto-correct "none" for models that only support "minimal" as floor.
+    _MINIMAL_FLOOR_PREFIXES = ("gpt-5-nano", "gpt-5-mini", "gpt-5")
+    if (
+        reasoning
+        and reasoning.get("effort") == "none"
+        and resolved_model
+        and any(resolved_model.startswith(p) for p in _MINIMAL_FLOOR_PREFIXES)
+        and not resolved_model.startswith("gpt-5.1")
+    ):
+        _logger.warning(
+            'reasoning_effort="none" not supported by %s; auto-correcting to "minimal".',
+            resolved_model,
+        )
+        reasoning = {**reasoning, "effort": "minimal"}
+
     try:
         definition_kwargs: dict[str, Any] = {
             "model": resolved_model,
@@ -512,6 +536,10 @@ async def _create_agent_version(
         }
         if reasoning:
             definition_kwargs["reasoning"] = reasoning
+        if temperature is not None:
+            definition_kwargs["temperature"] = temperature
+        if top_p is not None:
+            definition_kwargs["top_p"] = top_p
         definition = PromptAgentDefinition(**definition_kwargs)
         created = await _call_first_available(
             agents_client,
@@ -560,6 +588,8 @@ async def ensure_foundry_agent(
     create_if_missing: bool = False,
     model: str | None = None,
     reasoning: dict[str, str] | None = None,
+    temperature: float | None = None,
+    top_p: float | None = None,
 ) -> dict[str, Any]:
     """Ensure a Foundry agent exists for the given config.
 
@@ -641,6 +671,8 @@ async def ensure_foundry_agent(
                         instructions=instructions,
                         model=model,
                         reasoning=reasoning,
+                        temperature=temperature,
+                        top_p=top_p,
                     )
                     if drift_result is not None:
                         return drift_result
@@ -661,6 +693,8 @@ async def ensure_foundry_agent(
                 instructions=instructions,
                 model=model,
                 reasoning=reasoning,
+                temperature=temperature,
+                top_p=top_p,
             )
     finally:
         await _close_owned_credential(project_client)
@@ -671,6 +705,71 @@ from holiday_peak_lib.agents.provider_policy import (  # noqa: E402
     normalize_messages as _normalize_messages,
 )
 
+_JSON_BLOCK_RE = re.compile(r"```(?:json)?\s*\n(.*?)\n```", re.DOTALL)
+
+
+def _extract_tool_calls_from_text(text: str) -> list[dict[str, Any]]:
+    """Extract tool_calls from model text that was prompted to return JSON.
+
+    Searches for a JSON object (with or without markdown fences) containing a
+    ``tool_calls`` array.  Each tool call should have ``name`` and optionally
+    ``arguments``.  Returns an empty list when parsing fails.
+    """
+    candidates: list[str] = []
+
+    # Try fenced code blocks first
+    for match in _JSON_BLOCK_RE.finditer(text):
+        candidates.append(match.group(1).strip())
+
+    # Also try the raw text as JSON (model may omit fences)
+    candidates.append(text.strip())
+
+    for candidate in candidates:
+        try:
+            parsed = json.loads(candidate)
+        except (json.JSONDecodeError, ValueError):
+            continue
+
+        tool_calls: list[dict[str, Any]] | None = None
+        if isinstance(parsed, dict):
+            tool_calls = parsed.get("tool_calls")
+        elif isinstance(parsed, list):
+            # Model returned a bare array of tool calls
+            tool_calls = parsed
+
+        if isinstance(tool_calls, list) and tool_calls:
+            normalized = []
+            for tc in tool_calls:
+                if not isinstance(tc, dict):
+                    continue
+                name = tc.get("name") or tc.get("function", {}).get("name", "")
+                args = tc.get("arguments", {})
+                if isinstance(args, str):
+                    try:
+                        args = json.loads(args)
+                    except (json.JSONDecodeError, ValueError):
+                        args = {}
+                if name:
+                    normalized.append({"name": name, "arguments": args})
+            if normalized:
+                return normalized
+
+    return []
+
+
+def _inject_tool_prompt(maf_messages: list[Any], tool_prompt: str) -> None:
+    """Append *tool_prompt* to the first system message (or insert a new one).
+
+    MAF ``Message.contents`` holds ``Content`` objects, not plain strings.
+    We stringify the existing content, concatenate, and rebuild the message.
+    """
+    if maf_messages and maf_messages[0].role == "system":
+        existing_parts = maf_messages[0].contents or []
+        existing_text = "".join(str(part) for part in existing_parts)
+        maf_messages[0] = MAFMessage(role="system", contents=[existing_text + tool_prompt])
+    else:
+        maf_messages.insert(0, MAFMessage(role="system", contents=[tool_prompt]))
+
 
 class _PreparedInvocation(NamedTuple):
     """Extracted payload shared by streaming and non-streaming paths."""
@@ -680,6 +779,7 @@ class _PreparedInvocation(NamedTuple):
     normalized: list[dict[str, str]]
     session: AgentSession | None
     reasoning_effort: str | None = None
+    schema_tools_injected: bool = False
 
 
 class FoundryAgentInvoker:
@@ -696,6 +796,7 @@ class FoundryAgentInvoker:
         self._agent: Any = None
         self._credential: Any = None
         self._timeout = timeout if timeout is not None else _DEFAULT_FOUNDRY_INVOKE_TIMEOUT
+        self._max_output_tokens = config.max_output_tokens
 
     def _ensure_agent(self) -> FoundryAgent:
         """Create or return the cached FoundryAgent instance."""
@@ -753,12 +854,47 @@ class FoundryAgentInvoker:
                 raw_content = json.dumps(raw_content, default=str)
             maf_messages.append(MAFMessage(role=msg.get("role", "user"), contents=[raw_content]))
 
-        # Normalize tool callables from dict, list, or tuple
+        # Normalize tool callables from dict, list, or tuple.
+        # MAF FunctionTool expects callable objects.  When callers pass
+        # dict-schema tool definitions (OpenAI-style JSON schemas describing
+        # available tools), they are NOT executable by MAF.  Instead of
+        # silently forwarding them (which causes them to be ignored), inject
+        # them into the system message so the model can reason about which
+        # tool to select and respond with structured JSON.
         tool_callables = None
+        schema_tools_injected = False
         if isinstance(tools_raw, dict) and tools_raw:
-            tool_callables = list(tools_raw.values())
+            first_val = next(iter(tools_raw.values()))
+            if callable(first_val):
+                # Genuine callable tools — forward to MAF FunctionInvocationLayer
+                tool_callables = list(tools_raw.values())
+            else:
+                # Dict-schema definitions — embed as context in system message
+                schema_tools_injected = True
+                schema_text = json.dumps(tools_raw, indent=2, default=str)
+                tool_prompt = (
+                    "\n\n## Available Tools\n"
+                    "Select one or more tools from the list below. "
+                    "Respond with a JSON object containing a `tool_calls` array. "
+                    "Each entry must have `name` (tool name) and `arguments` (dict of params).\n\n"
+                    f"```json\n{schema_text}\n```"
+                )
+                _inject_tool_prompt(maf_messages, tool_prompt)
         elif isinstance(tools_raw, (list, tuple)) and tools_raw:
-            tool_callables = list(tools_raw)
+            if callable(tools_raw[0]):
+                tool_callables = list(tools_raw)
+            else:
+                # List of dict-schema definitions
+                schema_tools_injected = True
+                schema_text = json.dumps(list(tools_raw), indent=2, default=str)
+                tool_prompt = (
+                    "\n\n## Available Tools\n"
+                    "Select one or more tools from the list below. "
+                    "Respond with a JSON object containing a `tool_calls` array. "
+                    "Each entry must have `name` (tool name) and `arguments` (dict of params).\n\n"
+                    f"```json\n{schema_text}\n```"
+                )
+                _inject_tool_prompt(maf_messages, tool_prompt)
 
         return _PreparedInvocation(
             maf_messages=maf_messages,
@@ -766,6 +902,7 @@ class FoundryAgentInvoker:
             normalized=normalized,
             session=session,
             reasoning_effort=reasoning_effort,
+            schema_tools_injected=schema_tools_injected,
         )
 
     async def __call__(self, **kwargs: Any) -> dict[str, Any] | AsyncGenerator[str, None]:
@@ -804,6 +941,9 @@ class FoundryAgentInvoker:
         # NOTE: reasoning_effort is an agent-DEFINITION parameter set at
         # creation/version time via PromptAgentDefinition(reasoning=...).
         # Runtime options.reasoning returns 400 for Foundry Agents.
+        # max_output_tokens IS a runtime parameter passed via ChatOptions.
+        if self._max_output_tokens is not None:
+            run_kwargs["options"] = _ChatOptions(max_output_tokens=self._max_output_tokens)
 
         try:
             response = await asyncio.wait_for(
@@ -896,6 +1036,15 @@ class FoundryAgentInvoker:
 
         if updated_session_state is not None:
             result["_foundry_session_state"] = updated_session_state
+
+        # When dict-schema tools were injected into the prompt, the model
+        # responds with a text-based JSON containing tool_calls.  Extract
+        # them so callers get the same interface as native function calling.
+        if prep.schema_tools_injected and assistant_text:
+            extracted = _extract_tool_calls_from_text(assistant_text)
+            if extracted:
+                result["tool_calls"] = extracted
+
         return result
 
     def _build_telemetry(
@@ -918,6 +1067,8 @@ class FoundryAgentInvoker:
             "api_version": "responses",
             "runtime": "maf",
         }
+        if self._max_output_tokens is not None:
+            telemetry["max_output_tokens"] = self._max_output_tokens
         if outcome != "success":
             telemetry["timeout_seconds"] = self._timeout
             telemetry["outcome"] = outcome
@@ -948,6 +1099,9 @@ class FoundryAgentInvoker:
         # NOTE: reasoning_effort is an agent-DEFINITION parameter set at
         # creation/version time via PromptAgentDefinition(reasoning=...).
         # Runtime options.reasoning returns 400 for Foundry Agents.
+        # max_output_tokens IS a runtime parameter passed via ChatOptions.
+        if self._max_output_tokens is not None:
+            run_kwargs["options"] = _ChatOptions(max_output_tokens=self._max_output_tokens)
 
         stream_response = agent.run(
             prep.maf_messages,

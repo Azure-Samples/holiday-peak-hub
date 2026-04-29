@@ -40,6 +40,8 @@ class EndpointContext:
     foundry_capabilities: Callable[[], dict[str, Any]]
     ensure_agents_handler: Callable[[dict | None], Awaitable[dict[str, Any]]]
     self_healing_kernel: SelfHealingKernel | None = field(default=None)
+    prompt_catalog_provider: Callable[[], list[dict[str, Any]]] | None = field(default=None)
+    mcp_tool_descriptions_provider: Callable[[], list[dict[str, Any]]] | None = field(default=None)
 
 
 def _sse_event(event_type: str, data: Any) -> str:
@@ -69,6 +71,8 @@ def register_standard_endpoints(
     foundry_capabilities: Callable[[], dict[str, Any]] | None = None,
     ensure_agents_handler: Callable[[dict | None], Awaitable[dict[str, Any]]] | None = None,
     self_healing_kernel: SelfHealingKernel | None = None,
+    prompt_catalog_provider: Callable[[], list[dict[str, Any]]] | None = None,
+    mcp_tool_descriptions_provider: Callable[[], list[dict[str, Any]]] | None = None,
 ) -> None:
     """Register common health, invoke, telemetry and Foundry endpoints.
 
@@ -94,6 +98,8 @@ def register_standard_endpoints(
         foundry_capabilities = ctx.foundry_capabilities
         ensure_agents_handler = ctx.ensure_agents_handler
         self_healing_kernel = ctx.self_healing_kernel
+        prompt_catalog_provider = ctx.prompt_catalog_provider
+        mcp_tool_descriptions_provider = ctx.mcp_tool_descriptions_provider
 
     def _log_info(message: str, extra: dict[str, Any] | None = None) -> None:
         _log_with_level("info", message, extra=extra)
@@ -620,12 +626,28 @@ def register_standard_endpoints(
     async def agent_metrics() -> dict[str, Any]:
         return tracer.get_metrics()
 
+    @app.get("/agent/prompts")
+    async def agent_prompts() -> dict[str, Any]:
+        prompts = prompt_catalog_provider() if callable(prompt_catalog_provider) else []
+        return {
+            "service": service_name,
+            "prompts": prompts,
+        }
+
     @app.get("/agent/evaluation/latest")
     async def agent_evaluation_latest() -> dict[str, Any]:
         latest = tracer.get_latest_evaluation()
         return {
             "service": service_name,
             "latest": latest,
+        }
+
+    @app.get("/mcp/tool_descriptions")
+    async def mcp_tool_descriptions() -> dict[str, Any]:
+        tools = mcp_tool_descriptions_provider() if callable(mcp_tool_descriptions_provider) else []
+        return {
+            "service": service_name,
+            "tools": tools,
         }
 
     @app.post("/foundry/agents/ensure")

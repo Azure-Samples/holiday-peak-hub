@@ -7,6 +7,7 @@ from azure.core.exceptions import HttpResponseError
 from holiday_peak_lib.agents.foundry import (
     FoundryAgentConfig,
     FoundryAgentInvoker,
+    _create_agent_version,
     _ensure_client,
     build_foundry_model_target,
     ensure_foundry_agent,
@@ -811,3 +812,449 @@ class TestInstructionDriftDetection:
 
         assert result["status"] == "found_by_name"
         mock_agents.create_version.assert_not_called()
+
+
+class TestExtractToolCallsFromText:
+    """Tests for _extract_tool_calls_from_text helper."""
+
+    def test_fenced_json_with_tool_calls(self):
+        from holiday_peak_lib.agents.foundry import _extract_tool_calls_from_text
+
+        text = (
+            "Here is my analysis:\n"
+            "```json\n"
+            '{"tool_calls": [{"name": "enrich_field_with_text", "arguments": {"field_name": "color"}}]}\n'
+            "```"
+        )
+        result = _extract_tool_calls_from_text(text)
+        assert len(result) == 1
+        assert result[0]["name"] == "enrich_field_with_text"
+        assert result[0]["arguments"] == {"field_name": "color"}
+
+    def test_bare_json_without_fences(self):
+        from holiday_peak_lib.agents.foundry import _extract_tool_calls_from_text
+
+        text = '{"tool_calls": [{"name": "generate_simple_fields", "arguments": {"entity_id": "abc"}}]}'
+        result = _extract_tool_calls_from_text(text)
+        assert len(result) == 1
+        assert result[0]["name"] == "generate_simple_fields"
+
+    def test_bare_array_of_tool_calls(self):
+        from holiday_peak_lib.agents.foundry import _extract_tool_calls_from_text
+
+        text = '[{"name": "enrich_field_with_vision", "arguments": {"field_name": "pattern"}}]'
+        result = _extract_tool_calls_from_text(text)
+        assert len(result) == 1
+        assert result[0]["name"] == "enrich_field_with_vision"
+
+    def test_multiple_tool_calls(self):
+        from holiday_peak_lib.agents.foundry import _extract_tool_calls_from_text
+
+        text = (
+            "```json\n"
+            '{"tool_calls": ['
+            '{"name": "enrich_field_with_text", "arguments": {"field_name": "material"}},'
+            '{"name": "enrich_field_with_vision", "arguments": {"field_name": "color"}}'
+            "]}\n"
+            "```"
+        )
+        result = _extract_tool_calls_from_text(text)
+        assert len(result) == 2
+        assert result[0]["name"] == "enrich_field_with_text"
+        assert result[1]["name"] == "enrich_field_with_vision"
+
+    def test_string_arguments_parsed(self):
+        from holiday_peak_lib.agents.foundry import _extract_tool_calls_from_text
+
+        text = '{"tool_calls": [{"name": "test_tool", "arguments": "{\\"key\\": \\"val\\"}"}]}'
+        result = _extract_tool_calls_from_text(text)
+        assert len(result) == 1
+        assert result[0]["arguments"] == {"key": "val"}
+
+    def test_no_json_returns_empty(self):
+        from holiday_peak_lib.agents.foundry import _extract_tool_calls_from_text
+
+        text = "I recommend using the text enrichment approach for all fields."
+        result = _extract_tool_calls_from_text(text)
+        assert result == []
+
+    def test_json_without_tool_calls_returns_empty(self):
+        from holiday_peak_lib.agents.foundry import _extract_tool_calls_from_text
+
+        text = '{"recommendation": "use text enrichment"}'
+        result = _extract_tool_calls_from_text(text)
+        assert result == []
+
+    def test_function_style_name_extraction(self):
+        from holiday_peak_lib.agents.foundry import _extract_tool_calls_from_text
+
+        text = '{"tool_calls": [{"function": {"name": "enrich_all_gaps_sequential"}, "arguments": {}}]}'
+        result = _extract_tool_calls_from_text(text)
+        assert len(result) == 1
+        assert result[0]["name"] == "enrich_all_gaps_sequential"
+
+
+@pytest.mark.asyncio
+class TestFoundryInvokerSchemaToolInjection:
+    """Tests for dict-schema tool injection into system messages."""
+
+    @patch("holiday_peak_lib.agents.foundry.FoundryAgent")
+    async def test_dict_schema_tools_injected_into_system_prompt(self, mock_foundry_cls):
+        """Dict-schema tools should be embedded in the system message, not as MAF tools."""
+        mock_agent = AsyncMock()
+        mock_response = MagicMock()
+        mock_response.text = '{"tool_calls": [{"name": "enrich_field_with_text", "arguments": {"field_name": "color"}}]}'
+        mock_response.messages = None
+        mock_response.session = None
+        mock_response.response_id = None
+        mock_response.agent_id = None
+        mock_response.usage_details = None
+        mock_agent.run = AsyncMock(return_value=mock_response)
+        mock_foundry_cls.return_value = mock_agent
+
+        config = FoundryAgentConfig(
+            endpoint=TEST_PROJECT_ENDPOINT,
+            agent_id="test-agent",
+            agent_name="test-agent",
+            deployment_name="gpt-5-nano",
+            resolved_agent_id="test-agent",
+        )
+        invoker = FoundryAgentInvoker(config)
+
+        schema_tools = {
+            "enrich_field_with_text": {
+                "description": "Enrich using text analysis",
+                "parameters": {"field_name": {"type": "string"}},
+            },
+        }
+
+        result = await invoker(
+            messages=[
+                {"role": "system", "content": "You are an orchestrator."},
+                {"role": "user", "content": "Enrich color field."},
+            ],
+            tools=schema_tools,
+        )
+
+        # Verify tools were NOT passed to agent.run
+        call_kwargs = mock_agent.run.call_args
+        assert call_kwargs.kwargs.get("tools") is None
+
+        # Verify tool_calls were extracted from model text
+        assert "tool_calls" in result
+        assert result["tool_calls"][0]["name"] == "enrich_field_with_text"
+
+    @patch("holiday_peak_lib.agents.foundry.FoundryAgent")
+    async def test_callable_tools_forwarded_to_maf(self, mock_foundry_cls):
+        """Genuine callable tools should be forwarded to MAF agent.run."""
+        mock_agent = AsyncMock()
+        mock_response = MagicMock()
+        mock_response.text = "Done"
+        mock_response.messages = None
+        mock_response.session = None
+        mock_response.response_id = None
+        mock_response.agent_id = None
+        mock_response.usage_details = None
+        mock_agent.run = AsyncMock(return_value=mock_response)
+        mock_foundry_cls.return_value = mock_agent
+
+        config = FoundryAgentConfig(
+            endpoint=TEST_PROJECT_ENDPOINT,
+            agent_id="test-agent",
+            agent_name="test-agent",
+            deployment_name="gpt-5-nano",
+            resolved_agent_id="test-agent",
+        )
+        invoker = FoundryAgentInvoker(config)
+
+        def my_tool(x: str) -> str:
+            return x.upper()
+
+        callable_tools = {"my_tool": my_tool}
+
+        await invoker(
+            messages=[{"role": "user", "content": "test"}],
+            tools=callable_tools,
+        )
+
+        # Verify callable tools WERE passed to agent.run
+        call_kwargs = mock_agent.run.call_args
+        assert call_kwargs.kwargs.get("tools") is not None
+        assert my_tool in call_kwargs.kwargs["tools"]
+
+
+@pytest.mark.asyncio
+class TestReasoningEffortValidation:
+    """Tests for reasoning_effort auto-correction in _create_agent_version."""
+
+    async def test_none_effort_auto_corrected_to_minimal_for_gpt5_nano(self):
+        """'none' is not supported by gpt-5-nano — should auto-correct to 'minimal'."""
+        config = FoundryAgentConfig(
+            endpoint=TEST_PROJECT_ENDPOINT,
+            agent_id="test-agent",
+            agent_name="test-agent",
+            deployment_name="gpt-5-nano",
+        )
+        mock_agents = MagicMock()
+        mock_agents.create_version = AsyncMock(
+            return_value={"id": "test-agent:2", "name": "test-agent"}
+        )
+
+        result = await _create_agent_version(
+            mock_agents,
+            config=config,
+            resolved_agent_name="test-agent",
+            instructions="Test",
+            model="gpt-5-nano",
+            reasoning={"effort": "none"},
+        )
+
+        assert result["created"] is True
+        # Verify the definition passed to create_version used "minimal" not "none"
+        call_kwargs = mock_agents.create_version.call_args
+        definition = call_kwargs.kwargs.get("definition") or call_kwargs[1].get("definition")
+        assert definition.reasoning == {"effort": "minimal"}
+
+    async def test_none_effort_auto_corrected_for_gpt5(self):
+        """'none' is not supported by gpt-5 — should auto-correct to 'minimal'."""
+        config = FoundryAgentConfig(
+            endpoint=TEST_PROJECT_ENDPOINT,
+            agent_id="test-agent",
+            agent_name="test-agent",
+            deployment_name="gpt-5",
+        )
+        mock_agents = MagicMock()
+        mock_agents.create_version = AsyncMock(
+            return_value={"id": "test-agent:2", "name": "test-agent"}
+        )
+
+        result = await _create_agent_version(
+            mock_agents,
+            config=config,
+            resolved_agent_name="test-agent",
+            instructions="Test",
+            model="gpt-5",
+            reasoning={"effort": "none"},
+        )
+
+        assert result["created"] is True
+        call_kwargs = mock_agents.create_version.call_args
+        definition = call_kwargs.kwargs.get("definition") or call_kwargs[1].get("definition")
+        assert definition.reasoning == {"effort": "minimal"}
+
+    async def test_none_effort_preserved_for_gpt51(self):
+        """'none' IS supported by gpt-5.1 — should be preserved."""
+        config = FoundryAgentConfig(
+            endpoint=TEST_PROJECT_ENDPOINT,
+            agent_id="test-agent",
+            agent_name="test-agent",
+            deployment_name="gpt-5.1",
+        )
+        mock_agents = MagicMock()
+        mock_agents.create_version = AsyncMock(
+            return_value={"id": "test-agent:2", "name": "test-agent"}
+        )
+
+        result = await _create_agent_version(
+            mock_agents,
+            config=config,
+            resolved_agent_name="test-agent",
+            instructions="Test",
+            model="gpt-5.1",
+            reasoning={"effort": "none"},
+        )
+
+        assert result["created"] is True
+        call_kwargs = mock_agents.create_version.call_args
+        definition = call_kwargs.kwargs.get("definition") or call_kwargs[1].get("definition")
+        assert definition.reasoning == {"effort": "none"}
+
+    async def test_minimal_effort_preserved_for_gpt5_nano(self):
+        """'minimal' is valid for gpt-5-nano — should pass through unchanged."""
+        config = FoundryAgentConfig(
+            endpoint=TEST_PROJECT_ENDPOINT,
+            agent_id="test-agent",
+            agent_name="test-agent",
+            deployment_name="gpt-5-nano",
+        )
+        mock_agents = MagicMock()
+        mock_agents.create_version = AsyncMock(
+            return_value={"id": "test-agent:2", "name": "test-agent"}
+        )
+
+        result = await _create_agent_version(
+            mock_agents,
+            config=config,
+            resolved_agent_name="test-agent",
+            instructions="Test",
+            model="gpt-5-nano",
+            reasoning={"effort": "minimal"},
+        )
+
+        assert result["created"] is True
+        call_kwargs = mock_agents.create_version.call_args
+        definition = call_kwargs.kwargs.get("definition") or call_kwargs[1].get("definition")
+        assert definition.reasoning == {"effort": "minimal"}
+
+
+class TestMaxOutputTokens:
+    """Tests for max_output_tokens via ChatOptions at runtime."""
+
+    @pytest.fixture()
+    def _mock_agent(self):
+        """Build a FoundryAgentInvoker whose internal agent.run is mocked."""
+        config = FoundryAgentConfig(
+            endpoint=TEST_PROJECT_ENDPOINT,
+            agent_id="test-agent",
+            agent_name="test-agent",
+            deployment_name="gpt-5-nano",
+            max_output_tokens=500,
+        )
+        invoker = FoundryAgentInvoker(config)
+        mock_response = MagicMock()
+        mock_response.text = "ok"
+        mock_response.messages = []
+        mock_response.response_id = None
+        mock_response.agent_id = None
+        mock_response.usage_details = None
+        mock_response.session = None
+        mock_agent = MagicMock()
+        mock_agent.run = AsyncMock(return_value=mock_response)
+        invoker._agent = mock_agent
+        return invoker, mock_agent
+
+    @pytest.mark.asyncio
+    async def test_max_output_tokens_passed_to_run(self, _mock_agent):
+        """When max_output_tokens is set, ChatOptions is passed to agent.run."""
+        invoker, mock_agent = _mock_agent
+        await invoker(messages=[{"role": "user", "content": "hello"}])
+        call_kwargs = mock_agent.run.call_args[1]
+        assert "options" in call_kwargs
+        assert call_kwargs["options"]["max_output_tokens"] == 500
+
+    @pytest.mark.asyncio
+    async def test_no_options_when_max_output_tokens_none(self):
+        """When max_output_tokens is None, no options are passed."""
+        config = FoundryAgentConfig(
+            endpoint=TEST_PROJECT_ENDPOINT,
+            agent_id="test-agent",
+            agent_name="test-agent",
+            deployment_name="gpt-5-nano",
+        )
+        invoker = FoundryAgentInvoker(config)
+        mock_response = MagicMock()
+        mock_response.text = "ok"
+        mock_response.messages = []
+        mock_response.response_id = None
+        mock_response.agent_id = None
+        mock_response.usage_details = None
+        mock_response.session = None
+        mock_agent = MagicMock()
+        mock_agent.run = AsyncMock(return_value=mock_response)
+        invoker._agent = mock_agent
+        await invoker(messages=[{"role": "user", "content": "hello"}])
+        call_kwargs = mock_agent.run.call_args[1]
+        assert "options" not in call_kwargs
+
+    @pytest.mark.asyncio
+    async def test_max_output_tokens_in_telemetry(self, _mock_agent):
+        """Telemetry dict should include max_output_tokens when set."""
+        invoker, _ = _mock_agent
+        result = await invoker(messages=[{"role": "user", "content": "hello"}])
+        assert result["telemetry"]["max_output_tokens"] == 500
+
+    def test_config_default_max_output_tokens_is_none(self):
+        """FoundryAgentConfig default max_output_tokens is None."""
+        config = FoundryAgentConfig(
+            endpoint=TEST_PROJECT_ENDPOINT,
+            agent_id="test-agent",
+        )
+        assert config.max_output_tokens is None
+
+
+class TestTemperatureAtDefinitionLevel:
+    """Tests for temperature passed to PromptAgentDefinition."""
+
+    @pytest.mark.asyncio
+    async def test_temperature_in_agent_definition(self):
+        """temperature should be set on the PromptAgentDefinition."""
+        config = FoundryAgentConfig(
+            endpoint=TEST_PROJECT_ENDPOINT,
+            agent_id="test-agent",
+            agent_name="test-agent",
+            deployment_name="gpt-5-nano",
+        )
+        mock_agents = MagicMock()
+        mock_agents.create_version = AsyncMock(
+            return_value={"id": "test-agent:1", "name": "test-agent"}
+        )
+
+        result = await _create_agent_version(
+            mock_agents,
+            config=config,
+            resolved_agent_name="test-agent",
+            instructions="Test",
+            model="gpt-5-nano",
+            temperature=0.0,
+        )
+
+        assert result["created"] is True
+        call_kwargs = mock_agents.create_version.call_args
+        definition = call_kwargs.kwargs.get("definition") or call_kwargs[1].get("definition")
+        assert definition.temperature == 0.0
+
+    @pytest.mark.asyncio
+    async def test_top_p_in_agent_definition(self):
+        """top_p should be set on the PromptAgentDefinition."""
+        config = FoundryAgentConfig(
+            endpoint=TEST_PROJECT_ENDPOINT,
+            agent_id="test-agent",
+            agent_name="test-agent",
+            deployment_name="gpt-5-nano",
+        )
+        mock_agents = MagicMock()
+        mock_agents.create_version = AsyncMock(
+            return_value={"id": "test-agent:1", "name": "test-agent"}
+        )
+
+        result = await _create_agent_version(
+            mock_agents,
+            config=config,
+            resolved_agent_name="test-agent",
+            instructions="Test",
+            model="gpt-5-nano",
+            top_p=0.5,
+        )
+
+        assert result["created"] is True
+        call_kwargs = mock_agents.create_version.call_args
+        definition = call_kwargs.kwargs.get("definition") or call_kwargs[1].get("definition")
+        assert definition.top_p == 0.5
+
+    @pytest.mark.asyncio
+    async def test_temperature_omitted_when_none(self):
+        """When temperature is None, it should not appear in the definition."""
+        config = FoundryAgentConfig(
+            endpoint=TEST_PROJECT_ENDPOINT,
+            agent_id="test-agent",
+            agent_name="test-agent",
+            deployment_name="gpt-5-nano",
+        )
+        mock_agents = MagicMock()
+        mock_agents.create_version = AsyncMock(
+            return_value={"id": "test-agent:1", "name": "test-agent"}
+        )
+
+        await _create_agent_version(
+            mock_agents,
+            config=config,
+            resolved_agent_name="test-agent",
+            instructions="Test",
+            model="gpt-5-nano",
+        )
+
+        call_kwargs = mock_agents.create_version.call_args
+        definition = call_kwargs.kwargs.get("definition") or call_kwargs[1].get("definition")
+        d = definition.as_dict()
+        assert "temperature" not in d
+        assert "top_p" not in d

@@ -63,8 +63,12 @@ class FastAPIMCPServer:
         )
         self.router.post(normalized_path)(validated_handler)
         self._tool_metadata[normalized_path] = {
+            "name": normalized_path.lstrip("/") or normalized_path,
+            "path": normalized_path,
             "input_schema_ref": self._resolve_schema_ref(input_schema_ref, input_model),
             "output_schema_ref": self._resolve_schema_ref(output_schema_ref, output_model),
+            "input_schema": input_model.model_json_schema() if input_model is not None else None,
+            "output_schema": output_model.model_json_schema() if output_model is not None else None,
             "metadata": dict(metadata or {}),
         }
 
