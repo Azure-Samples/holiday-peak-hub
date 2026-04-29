@@ -2,7 +2,7 @@
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
-  name: {{ include "holiday-peak-service.fullname" . }}-keda
+  name: {{ include "holiday-peak-service.suffixedname" (dict "root" . "suffix" "keda") }}
   namespace: {{ .Release.Namespace }}
 spec:
   scaleTargetRef:
