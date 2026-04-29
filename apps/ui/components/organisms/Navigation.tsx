@@ -87,7 +87,7 @@ export const Navigation: React.FC<NavigationProps> = ({
 }) => {
   const pathname = usePathname();
   const { isAuthenticated, loginAsMockRole, user } = useAuth();
-  const healthQuery = useAgentGlobalHealth();
+  const healthQuery = useAgentGlobalHealth({ enabled: pathname !== '/' });
   const globalHealth = healthQuery.data ?? 'unknown';
 
   const mobileMenuButtonRef = React.useRef<HTMLButtonElement>(null);

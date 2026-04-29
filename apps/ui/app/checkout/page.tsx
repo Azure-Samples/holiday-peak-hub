@@ -5,6 +5,7 @@ import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-
 import { loadStripe } from '@stripe/stripe-js';
 import { useRouter } from 'next/navigation';
 import { CheckoutLayout } from '@/components/templates/CheckoutLayout';
+import { CommerceAgentLayout } from '@/components/templates/CommerceAgentLayout';
 import { Card } from '@/components/molecules/Card';
 import { Button } from '@/components/atoms/Button';
 import { Input } from '@/components/atoms/Input';
@@ -17,6 +18,7 @@ import inventoryService from '@/lib/services/inventoryService';
 import { useCart } from '@/lib/hooks/useCart';
 import { useInventoryHealth, useReservationOutcomeQueries } from '@/lib/hooks/useInventory';
 import type { InventoryReservation } from '@/lib/types/api';
+import { useAgentRobotState } from '@/lib/hooks/useAgentRobotState';
 
 const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
   ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
@@ -544,13 +546,38 @@ export default function CheckoutPage() {
 
   return (
     <CheckoutLayout currentStep={currentStep}>
-      {globalStatusMessage ? (
-        <p className="sr-only" role="status" aria-live="polite">
-          {globalStatusMessage}
-        </p>
-      ) : null}
+      <CommerceAgentLayout
+        useMainLayout={false}
+        primary={{
+          agentSlug: 'ecommerce-checkout-support',
+          state: robotState,
+          position: 'bottom-right',
+          size: 'sm',
+          visible: true,
+          mode: 'lead',
+        }}
+        sideCast={[
+          {
+            agentSlug: 'logistics-eta-computation',
+            state: shippingData.address.trim().length > 0 ? 'using-tool' : 'idle',
+            position: 'bottom-left',
+            size: 'sm',
+            visible: currentStep > 1 || shippingData.address.trim().length > 0,
+            facing: 'right',
+            scenePeer: 'left',
+            className: 'hidden xl:block',
+            mode: 'observe',
+          },
+        ]}
+        telemetry="compact"
+      >
+        {globalStatusMessage ? (
+          <p className="sr-only" role="status" aria-live="polite">
+            {globalStatusMessage}
+          </p>
+        ) : null}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
           {currentStep === 1 ? (
             <Card className="p-6">
@@ -1102,7 +1129,8 @@ export default function CheckoutPage() {
             </section>
           </Card>
         </div>
-      </div>
+        </div>
+      </CommerceAgentLayout>
     </CheckoutLayout>
   );
 }

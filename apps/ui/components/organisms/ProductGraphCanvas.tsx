@@ -7,6 +7,7 @@ import { FiArrowRight, FiMessageSquare, FiSearch } from 'react-icons/fi';
 import { Button } from '@/components/atoms/Button';
 import type { Product } from '@/components/types';
 import agentApiClient from '@/lib/api/agentClient';
+import { recordAgentInvocationTelemetry } from '@/lib/hooks/useAgentInvocationTelemetry';
 import { formatAgentResponse } from '@/lib/utils/agentResponseCards';
 import { trackEcommerceEvent } from '@/lib/utils/telemetry';
 
@@ -211,6 +212,7 @@ export const ProductGraphCanvas: React.FC<ProductGraphCanvasProps> = ({
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [hoverTick, setHoverTick] = useState(0);
   const [themeVersion, setThemeVersion] = useState(0);
+  const [summariesEnabled, setSummariesEnabled] = useState(false);
 
   const gridColumns = useMemo(() => resolveGridColumns(products.length), [products.length]);
 
@@ -347,10 +349,35 @@ export const ProductGraphCanvas: React.FC<ProductGraphCanvasProps> = ({
   }, []);
 
   useEffect(() => {
+    if (summariesEnabled) {
+      return undefined;
+    }
+
+    const rootElement = rootRef.current;
+    if (!rootElement || typeof IntersectionObserver === 'undefined') {
+      setSummariesEnabled(true);
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setSummariesEnabled(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '240px 0px' },
+    );
+
+    observer.observe(rootElement);
+    return () => observer.disconnect();
+  }, [summariesEnabled]);
+
+  useEffect(() => {
     let cancelled = false;
 
     const loadSummaries = async () => {
-      if (products.length === 0) {
+      if (!summariesEnabled || products.length === 0) {
         return;
       }
 
@@ -365,6 +392,7 @@ export const ProductGraphCanvas: React.FC<ProductGraphCanvasProps> = ({
                 `Summarize this product in up to 16 words for a graph card. ` +
                 `Category: ${product.category}. Title: ${product.title}.`,
             });
+            recordAgentInvocationTelemetry('ecommerce-product-detail-enrichment', response.data);
             const view = formatAgentResponse(response.data);
             return [product.sku, view.text] as const;
           } catch {
@@ -390,7 +418,7 @@ export const ProductGraphCanvas: React.FC<ProductGraphCanvasProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [products]);
+  }, [products, summariesEnabled]);
 
   useEffect(() => {
     let cancelled = false;
@@ -422,7 +450,7 @@ export const ProductGraphCanvas: React.FC<ProductGraphCanvasProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [nodes]);
+  }, [nodes, products.length, summariesEnabled]);
 
   useEffect(() => {
     const canvas = canvasRef.current;

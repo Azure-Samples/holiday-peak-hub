@@ -6,6 +6,7 @@
 
 import agentApiClient from '../api/agentClient';
 import { resolveAgentApiClientBaseUrl } from '@/app/api/_shared/base-url-resolver';
+import { recordAgentInvocationTelemetry } from '@/lib/hooks/useAgentInvocationTelemetry';
 import { getCurrentPageSessionId } from '@/lib/hooks/usePageSession';
 import { productService } from './productService';
 import {
@@ -168,7 +169,7 @@ export const semanticSearchService = {
 
         const mode = payload.mode === 'intelligent' ? 'intelligent' : 'keyword';
         const fallbackKeywords = parseStringArray(payload.fallback_keywords);
-        recordSearchTelemetry(payload);
+        recordAgentInvocationTelemetry('ecommerce-catalog-search', payload);
         return {
           items: mapAcpProductsToUi(results),
           source: 'agent',
@@ -334,7 +335,7 @@ function _dispatchStreamEvent(
 ): void {
   switch (eventType) {
     case 'results': {
-      recordSearchTelemetry(data);
+      recordAgentInvocationTelemetry('ecommerce-catalog-search', data);
       const results = (data.results || data.items || []) as AcpProduct[];
       const mode = data.mode === 'intelligent' ? 'intelligent' as const : 'keyword' as const;
       callbacks.onResults?.({

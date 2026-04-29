@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { MainLayout } from '@/components/templates/MainLayout';
+import { CommerceAgentLayout } from '@/components/templates/CommerceAgentLayout';
 import { Card } from '@/components/molecules/Card';
 import { Button } from '@/components/atoms/Button';
 import { Badge } from '@/components/atoms/Badge';
@@ -96,7 +96,21 @@ export default function DashboardPage() {
   };
 
   return (
-    <MainLayout>
+    <CommerceAgentLayout
+      sideCast={[
+        {
+          agentSlug: 'inventory-health-check',
+          state: 'thinking',
+          thinkingMessage: 'All of your saved-for-later items are in stock.',
+          position: 'bottom-right',
+          size: 'sm',
+          visible: true,
+          className: 'hidden xl:block',
+          mode: 'hint',
+        },
+      ]}
+      telemetry="visible"
+    >
       <div className="max-w-7xl mx-auto px-4 md:px-8">
         {/* Header */}
         <div className="mb-8">
@@ -374,7 +388,7 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
-    </MainLayout>
+    </CommerceAgentLayout>
   );
 }
 

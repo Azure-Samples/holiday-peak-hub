@@ -1,31 +1,43 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { MainLayout } from '@/components/templates/MainLayout';
 import { Card } from '@/components/molecules/Card';
 import { Badge } from '@/components/atoms/Badge';
 import { Select } from '@/components/atoms/Select';
 import { Button } from '@/components/atoms/Button';
+import { ConfigPanel } from '@/components/admin/ConfigPanel';
+import { EvaluationTrendChart } from '@/components/admin/EvaluationTrendChart';
 import {
   useAdminServiceDashboard,
   DEFAULT_ADMIN_SERVICE_RANGE,
   ADMIN_SERVICE_RANGE_OPTIONS,
 } from '@/lib/hooks/useAdminServiceDashboard';
+import { useAgentEvaluations } from '@/lib/hooks/useAgentMonitor';
+import { useTruthConfig, useUpdateTruthConfig } from '@/lib/hooks/useTruthAdmin';
 import agentApiClient from '@/lib/api/agentClient';
 import type {
   AdminServiceAppSurface,
+  AdminServiceDashboard,
   AdminServiceDomain,
   AdminServiceFoundrySurface,
+  AdminServicePromptDocument,
+  AdminServiceResilienceStatus,
   AgentMonitorTimeRange,
   AdminServiceStatus,
+  AdminServiceToolDescription,
   AgentTraceStatus,
+  TenantConfig,
 } from '@/lib/types/api';
 import {
   FiClock, FiChevronDown, FiChevronRight,
   FiTool, FiCpu, FiMessageSquare, FiAlertCircle, FiCheckCircle, FiLoader,
   FiSend, FiZap, FiActivity, FiTerminal, FiCode,
-  FiArrowRight,
+  FiArrowRight, FiGrid, FiFileText, FiSettings, FiShield, FiUsers,
 } from 'react-icons/fi';
+import { AgentRobot } from '@/components/organisms/AgentRobot';
+import { AGENT_PROFILES } from '@/lib/agents/profiles';
+import type { AgentProfile } from '@/lib/agents/profiles';
 
 // ── Types ──
 
@@ -76,6 +88,14 @@ interface PayloadBuildContext {
 }
 
 type PayloadStrategy = (context: PayloadBuildContext) => Record<string, unknown>;
+
+type CockpitTabId = 'overview' | 'runs' | 'evaluations' | 'prompts' | 'tools' | 'resilience' | 'config';
+
+interface CockpitTabDefinition {
+  id: CockpitTabId;
+  label: string;
+  icon: typeof FiTool;
+}
 
 // ── Constants ──
 
@@ -194,6 +214,16 @@ const GENERIC_IDENTIFIER_TOKENS = new Set<string>([
 
 const SAFE_FOUNDRY_FALLBACK_URL = 'https://ai.azure.com';
 const ADMIN_AGENT_INVOKE_TIMEOUT_MS = 60_000;
+
+const COCKPIT_TABS: CockpitTabDefinition[] = [
+  { id: 'overview', label: 'Overview', icon: FiGrid },
+  { id: 'runs', label: 'Runs & Traces', icon: FiActivity },
+  { id: 'evaluations', label: 'Evaluations', icon: FiCpu },
+  { id: 'prompts', label: 'Prompts', icon: FiFileText },
+  { id: 'tools', label: 'Tools', icon: FiTool },
+  { id: 'resilience', label: 'Resilience', icon: FiShield },
+  { id: 'config', label: 'Config', icon: FiSettings },
+];
 
 function toTitleCase(value: string): string {
   return value
@@ -761,6 +791,8 @@ export function AdminServiceDashboardPage({ domain, service }: AdminServiceDashb
   const [runHistory, setRunHistory] = useState<AgentRunRecord[]>([]);
   const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
   const [showRawJson, setShowRawJson] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<CockpitTabId>('overview');
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   const agentSlug = useMemo(() => {
     if (data?.agent_service) return data.agent_service;
@@ -818,6 +850,51 @@ export function AdminServiceDashboardPage({ domain, service }: AdminServiceDashb
     positive: 'Ready',
     negative: 'Not ready',
   });
+  const agentProfile = useMemo(() => AGENT_PROFILES[agentSlug as keyof typeof AGENT_PROFILES], [agentSlug]);
+  const promptCatalog = data?.prompt_catalog ?? [];
+  const toolCatalog = data?.mcp_tools ?? [];
+  const resilienceStatus = data?.self_healing ?? {
+    service: agentSlug,
+    enabled: false,
+    detect_only: false,
+    allowlisted_actions: [],
+    incidents_total: 0,
+    incidents_open: 0,
+    incidents_closed: 0,
+    manifest: null,
+  } satisfies AdminServiceResilienceStatus;
+
+  const handleStagePrompt = useCallback((prompt: AdminServicePromptDocument) => {
+    const promptStem = prompt.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ');
+    setInvokeMessage(`Use ${promptStem} to summarize the live ${toTitleCase(service)} state and the next operator action.`);
+    setActiveTab('prompts');
+  }, [service]);
+
+  const handleTabKeyDown = useCallback((event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+    let nextIndex = index;
+
+    switch (event.key) {
+      case 'ArrowRight':
+        nextIndex = (index + 1) % COCKPIT_TABS.length;
+        break;
+      case 'ArrowLeft':
+        nextIndex = (index - 1 + COCKPIT_TABS.length) % COCKPIT_TABS.length;
+        break;
+      case 'Home':
+        nextIndex = 0;
+        break;
+      case 'End':
+        nextIndex = COCKPIT_TABS.length - 1;
+        break;
+      default:
+        return;
+    }
+
+    event.preventDefault();
+    const nextTab = COCKPIT_TABS[nextIndex];
+    setActiveTab(nextTab.id);
+    tabRefs.current[nextIndex]?.focus();
+  }, []);
 
   const handleInvokeAgent = useCallback(async () => {
     const inputText = invokeMessage.trim();
@@ -925,6 +1002,72 @@ export function AdminServiceDashboardPage({ domain, service }: AdminServiceDashb
     },
     [handleInvokeAgent],
   );
+
+  const activeTabPanel = data ? (() => {
+    switch (activeTab) {
+      case 'overview':
+        return (
+          <CockpitOverviewPanel
+            data={data}
+            agentSlug={agentSlug}
+            agentProfile={agentProfile}
+            appSurface={appSurface}
+            foundrySurface={foundrySurface}
+            appLivenessBadge={appLivenessBadge}
+            appReadinessBadge={appReadinessBadge}
+            foundryReadinessBadge={foundryReadinessBadge}
+            promptCatalog={promptCatalog}
+            toolCatalog={toolCatalog}
+            resilienceStatus={resilienceStatus}
+          />
+        );
+      case 'runs':
+        return (
+          <CockpitRunsPanel
+            activity={data.activity}
+            runHistory={runHistory}
+            expandedRunId={expandedRunId}
+            onExpandedRunIdChange={setExpandedRunId}
+            rawJsonRunId={showRawJson}
+            onRawJsonRunIdChange={setShowRawJson}
+          />
+        );
+      case 'evaluations':
+        return (
+          <CockpitEvaluationsPanel
+            timeRange={timeRange}
+            modelUsage={data.model_usage}
+          />
+        );
+      case 'prompts':
+        return (
+          <CockpitPromptsPanel
+            prompts={promptCatalog}
+            onStagePrompt={handleStagePrompt}
+          />
+        );
+      case 'tools':
+        return (
+          <CockpitToolsPanel
+            tools={toolCatalog}
+            agentSlug={agentSlug}
+            collaborators={agentProfile?.collaborates ?? []}
+          />
+        );
+      case 'resilience':
+        return (
+          <CockpitResiliencePanel
+            resilienceStatus={resilienceStatus}
+            appSurface={appSurface}
+            foundrySurface={foundrySurface}
+          />
+        );
+      case 'config':
+        return <CockpitConfigPanel domain={domain} service={service} />;
+      default:
+        return null;
+    }
+  })() : null;
 
   return (
     <MainLayout>
@@ -1054,237 +1197,6 @@ export function AdminServiceDashboardPage({ domain, service }: AdminServiceDashb
           </Card>
         </section>
 
-        {/* ── Run History ── */}
-        {runHistory.length > 0 && (
-          <section aria-label="Run history" className="space-y-4">
-            <div className="flex items-center gap-3">
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white tracking-tight">Run History</h2>
-              <span className="text-xs text-gray-400 bg-gray-100 dark:bg-gray-800 rounded-full px-2.5 py-0.5 tabular-nums">
-                {runHistory.length}
-              </span>
-            </div>
-
-            <div className="space-y-3">
-              {runHistory.map((run) => {
-                const isExpanded = expandedRunId === run.id;
-                const isJsonExpanded = showRawJson === run.id;
-                return (
-                  <Card
-                    key={run.id}
-                    variant={run.status === 'running' ? 'outlined' : 'default'}
-                    className={`p-0 overflow-hidden transition-all duration-300 ${run.status === 'running' ? 'ring-2 ring-blue-200 dark:ring-blue-800' : ''}`}
-                  >
-                    {/* Run header row */}
-                    <button
-                      type="button"
-                      onClick={() => setExpandedRunId(isExpanded ? null : run.id)}
-                      className="w-full px-5 py-4 flex items-center gap-3 text-left hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors"
-                    >
-                      <RunStatusIcon status={run.status} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{run.message}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-[10px] text-gray-400 tabular-nums">
-                            {new Date(run.startedAt).toLocaleTimeString()}
-                          </span>
-                          {run.durationMs != null && (
-                            <>
-                              <span className="text-gray-300 dark:text-gray-600">·</span>
-                              <span className="text-[10px] font-medium text-gray-500 tabular-nums">
-                                {run.durationMs < 1000 ? `${run.durationMs}ms` : `${(run.durationMs / 1000).toFixed(1)}s`}
-                              </span>
-                            </>
-                          )}
-                          {run.steps && run.steps.length > 0 && (
-                            <>
-                              <span className="text-gray-300 dark:text-gray-600">·</span>
-                              <span className="text-[10px] text-gray-400">
-                                {run.steps.length} step{run.steps.length !== 1 ? 's' : ''}
-                              </span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                      <div className="shrink-0 w-6 h-6 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-                        {isExpanded
-                          ? <FiChevronDown className="w-3.5 h-3.5 text-gray-500" />
-                          : <FiChevronRight className="w-3.5 h-3.5 text-gray-500" />}
-                      </div>
-                    </button>
-
-                    {/* Expanded trace detail */}
-                    {isExpanded && (
-                      <div className="border-t border-gray-100 dark:border-gray-800">
-                        {/* Steps timeline */}
-                        {run.steps && run.steps.length > 0 && (
-                          <div className="px-5 pt-5 pb-3">
-                            <div className="flex items-center gap-2 mb-4">
-                              <FiActivity className="w-3.5 h-3.5 text-gray-400" />
-                              <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Execution trace</p>
-                            </div>
-                            <div className="relative ml-3">
-                              {/* Vertical connector line */}
-                              <div className="absolute left-[11px] top-2 bottom-2 w-px bg-gradient-to-b from-gray-200 via-gray-200 to-transparent dark:from-gray-700 dark:via-gray-700" />
-
-                              {run.steps.map((step, idx) => {
-                                const cfg = STEP_CONFIG[step.type];
-                                const StepIcon = cfg.icon;
-                                return (
-                                  <div key={idx} className="relative pl-10 pb-5 last:pb-0">
-                                    {/* Node dot */}
-                                    <div
-                                      className="absolute left-0 top-0.5 w-[22px] h-[22px] rounded-lg flex items-center justify-center shadow-sm"
-                                      style={{ background: cfg.color }}
-                                    >
-                                      <StepIcon className="w-3 h-3 text-white" />
-                                    </div>
-
-                                    {/* Step content card */}
-                                    <div className={`rounded-xl border border-gray-100 dark:border-gray-800 ${cfg.bgLight} ${cfg.bgDark} p-3.5`}>
-                                      <div className="flex items-center gap-2 mb-1">
-                                        <span className="text-xs font-bold text-gray-900 dark:text-white">{step.name}</span>
-                                        <span className="text-[10px] text-gray-400 bg-white/60 dark:bg-gray-800/60 rounded-md px-1.5 py-0.5">
-                                          {step.type.replace('_', ' ')}
-                                        </span>
-                                        {step.durationMs != null && (
-                                          <span className="ml-auto text-[10px] font-medium text-gray-400 tabular-nums">
-                                            {step.durationMs < 1000 ? `${step.durationMs}ms` : `${(step.durationMs / 1000).toFixed(1)}s`}
-                                          </span>
-                                        )}
-                                      </div>
-                                      {step.input && (
-                                        <details className="mt-2 group/input">
-                                          <summary className="text-[10px] font-semibold text-gray-400 cursor-pointer select-none hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
-                                            Input
-                                          </summary>
-                                          <pre className="mt-1.5 text-[11px] text-gray-600 dark:text-gray-300 bg-white/70 dark:bg-gray-900/50 rounded-lg p-2.5 overflow-x-auto max-h-32 font-mono leading-relaxed">{step.input}</pre>
-                                        </details>
-                                      )}
-                                      {step.output && (
-                                        <details className="mt-2 group/output" open>
-                                          <summary className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 cursor-pointer select-none hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors">
-                                            Output
-                                          </summary>
-                                          <pre className="mt-1.5 text-[11px] text-emerald-700 dark:text-emerald-300 bg-white/70 dark:bg-gray-900/50 rounded-lg p-2.5 overflow-x-auto max-h-32 font-mono leading-relaxed">{step.output}</pre>
-                                        </details>
-                                      )}
-                                      {step.detail && (
-                                        <p className="mt-2 text-xs text-gray-600 dark:text-gray-300 leading-relaxed">{step.detail}</p>
-                                      )}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Triple evaluation */}
-                        {run.tripleEvaluation && (
-                          <div className="px-5 pb-4">
-                            <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-900/50 p-4">
-                              <div className="flex items-center gap-2 mb-3">
-                                <FiCheckCircle className="w-4 h-4 text-gray-500" />
-                                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Triple Evaluation</h3>
-                                <Badge
-                                  size="xs"
-                                  variant={
-                                    run.tripleEvaluation.legitimacy === 'high'
-                                      ? 'success'
-                                      : run.tripleEvaluation.legitimacy === 'medium'
-                                      ? 'warning'
-                                      : 'danger'
-                                  }
-                                  className="ml-auto"
-                                >
-                                  {run.tripleEvaluation.legitimacy} legitimacy
-                                </Badge>
-                              </div>
-
-                              <div className="space-y-3">
-                                <EvaluationBar label="Process" value={run.tripleEvaluation.process} />
-                                <EvaluationBar label="Output" value={run.tripleEvaluation.output} />
-                                <EvaluationBar label="Intent" value={run.tripleEvaluation.intent} />
-                              </div>
-
-                              <div className="mt-3 space-y-1">
-                                {run.tripleEvaluation.rationale.map((line, idx) => (
-                                  <p key={idx} className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
-                                    • {line}
-                                  </p>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Response preview (sanitized) */}
-                        {run.response && (
-                          <div className="px-5 pb-4">
-                            <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900/40 p-4">
-                              <div className="flex items-center gap-2 mb-3">
-                                <FiMessageSquare className="w-3.5 h-3.5 text-gray-400" />
-                                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Response Preview</h3>
-                              </div>
-                              <div className="space-y-1.5">
-                                {(run.responsePreview ?? []).map((line, idx) => (
-                                  <p key={idx} className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed break-words">
-                                    {line}
-                                  </p>
-                                ))}
-                              </div>
-                              <p className="mt-3 text-[10px] text-gray-400">Sensitive fields are redacted and long values are truncated for readability.</p>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Raw response toggle */}
-                        {run.response && (
-                          <div className="px-5 pb-4">
-                            <button
-                              type="button"
-                              onClick={() => setShowRawJson(isJsonExpanded ? null : run.id)}
-                              className="flex items-center gap-1.5 text-[11px] font-medium text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                            >
-                              <FiCode className="w-3 h-3" />
-                              {isJsonExpanded ? 'Hide raw response' : 'View raw response'}
-                            </button>
-                            {isJsonExpanded && (
-                              <pre className="mt-2 text-[11px] text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-800/80 rounded-xl p-4 overflow-x-auto max-h-64 font-mono leading-relaxed border border-gray-100 dark:border-gray-700">
-                                {JSON.stringify(run.response, null, 2)}
-                              </pre>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Error banner */}
-                        {run.error && (
-                          <div className="mx-5 mb-4 rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/20 px-4 py-3 flex items-start gap-2.5">
-                            <FiAlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-                            <p className="text-xs font-medium text-red-700 dark:text-red-400 leading-relaxed">{run.error}</p>
-                          </div>
-                        )}
-
-                        {/* Processing indicator */}
-                        {!run.steps?.length && !run.response && !run.error && run.status === 'running' && (
-                          <div className="px-5 pb-5 flex items-center gap-3">
-                            <div className="flex gap-1">
-                              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce [animation-delay:0ms]" />
-                              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce [animation-delay:150ms]" />
-                              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce [animation-delay:300ms]" />
-                            </div>
-                            <span className="text-xs text-gray-400">Agent is thinking…</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </Card>
-                );
-              })}
-            </div>
-          </section>
-        )}
-
         {/* ── Loading / Error ── */}
         {isLoading && (
           <div className="flex items-center justify-center py-12 gap-3">
@@ -1305,236 +1217,52 @@ export function AdminServiceDashboardPage({ domain, service }: AdminServiceDashb
           </Card>
         )}
 
-        {/* ── Status Metrics ── */}
         {data && (
           <>
-            <section aria-label="Ownership surfaces">
-              <div className="flex flex-wrap items-center gap-3 mb-4">
-                <h2 className="text-lg font-bold text-gray-900 dark:text-white tracking-tight">Ownership Surfaces</h2>
-                <p className="text-xs text-gray-500 dark:text-gray-400">App liveness/readiness and Foundry execution navigation</p>
+            <section aria-label="Cockpit tabs" className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-bold text-[var(--hp-text)] tracking-tight">Service cockpit</h2>
+                  <p className="text-xs text-[var(--hp-text-muted)]">Runs, evaluations, prompt assets, tools, and resilience controls in one operator surface.</p>
+                </div>
+                <Badge variant="glass" size="sm">{COCKPIT_TABS.length} views</Badge>
               </div>
 
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <Card variant="outlined" className="p-5 space-y-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <h3 className="text-sm font-bold text-gray-900 dark:text-white">App Surface</h3>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">AKS and service probes</p>
-                    </div>
-                    <Badge variant={STATUS_BADGE_VARIANT[appSurface.status]} size="xs">{appSurface.status}</Badge>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant={appLivenessBadge.variant} size="xs">Liveness: {appLivenessBadge.label}</Badge>
-                    <Badge variant={appReadinessBadge.variant} size="xs">Readiness: {appReadinessBadge.label}</Badge>
-                    <Badge variant="secondary" size="xs">Source: {formatReadinessSource(appSurface.source)}</Badge>
-                  </div>
-
-                  <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                    Last probe: {appSurface.checked_at ? new Date(appSurface.checked_at).toLocaleString() : 'Unavailable'}
-                  </p>
-
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    <a
-                      href={appSurface.links.health}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center justify-between rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              <div role="tablist" aria-label={`${toTitleCase(service)} cockpit views`} className="flex flex-wrap gap-2 rounded-2xl border border-[var(--hp-border)] bg-[var(--hp-surface)] p-2">
+                {COCKPIT_TABS.map((tab, index) => {
+                  const selected = activeTab === tab.id;
+                  const Icon = tab.icon;
+                  return (
+                    <button
+                      key={tab.id}
+                      id={`cockpit-tab-${tab.id}`}
+                      ref={(element) => { tabRefs.current[index] = element; }}
+                      type="button"
+                      role="tab"
+                      aria-selected={selected}
+                      aria-controls={`cockpit-panel-${tab.id}`}
+                      tabIndex={selected ? 0 : -1}
+                      onClick={() => setActiveTab(tab.id)}
+                      onKeyDown={(event) => handleTabKeyDown(event, index)}
+                      className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${selected ? 'bg-[var(--hp-text)] text-[var(--hp-bg)] shadow-[var(--hp-shadow-sm)]' : 'text-[var(--hp-text-muted)] hover:bg-[var(--hp-surface-strong)] hover:text-[var(--hp-text)]'}`}
                     >
-                      <span>Health endpoint</span>
-                      <FiArrowRight className="w-3.5 h-3.5" />
-                    </a>
-                    <a
-                      href={appSurface.links.ready}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center justify-between rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                    >
-                      <span>Ready endpoint</span>
-                      <FiArrowRight className="w-3.5 h-3.5" />
-                    </a>
-                  </div>
-                </Card>
-
-                <Card variant="outlined" className="p-5 space-y-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <h3 className="text-sm font-bold text-gray-900 dark:text-white">Foundry Surface</h3>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Agent execution visibility</p>
-                    </div>
-                    <Badge variant={STATUS_BADGE_VARIANT[foundrySurface.status]} size="xs">{foundrySurface.status}</Badge>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant={foundryReadinessBadge.variant} size="xs">Foundry: {foundryReadinessBadge.label}</Badge>
-                  </div>
-
-                  <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                    Last check: {foundrySurface.checked_at ? new Date(foundrySurface.checked_at).toLocaleString() : 'Unavailable'}
-                  </p>
-
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    <a
-                      href={foundrySurface.links.studio}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center justify-between rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                    >
-                      <span>Foundry Studio</span>
-                      <FiArrowRight className="w-3.5 h-3.5" />
-                    </a>
-                    <a
-                      href={foundrySurface.links.project}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center justify-between rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                    >
-                      <span>Project link</span>
-                      <FiArrowRight className="w-3.5 h-3.5" />
-                    </a>
-                    <a
-                      href={foundrySurface.links.traces}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center justify-between rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                    >
-                      <span>Traces</span>
-                      <FiArrowRight className="w-3.5 h-3.5" />
-                    </a>
-                    <a
-                      href={foundrySurface.links.evaluations}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center justify-between rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                    >
-                      <span>Evaluations</span>
-                      <FiArrowRight className="w-3.5 h-3.5" />
-                    </a>
-                  </div>
-                </Card>
+                      <Icon className="h-4 w-4" />
+                      <span>{tab.label}</span>
+                    </button>
+                  );
+                })}
               </div>
             </section>
 
-            <section aria-label="Status metrics">
-              <div className="flex items-center gap-3 mb-4">
-                <h2 className="text-lg font-bold text-gray-900 dark:text-white tracking-tight">Metrics</h2>
-              </div>
-
-              {data.status_cards.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/20 p-8 text-center">
-                  <FiActivity className="w-6 h-6 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
-                  <p className="text-sm text-gray-500 dark:text-gray-400">No status metrics available yet</p>
-                  <p className="text-xs text-gray-400 mt-1">Run the agent to start collecting data</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  {data.status_cards.map((card) => (
-                    <div
-                      key={card.label}
-                      className="group relative rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 p-5 hover:shadow-lg hover:border-gray-200 dark:hover:border-gray-700 transition-all duration-300"
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <p className="text-[10px] uppercase tracking-widest font-semibold text-gray-400">{card.label}</p>
-                        <Badge variant={STATUS_BADGE_VARIANT[card.status]} size="xs">{card.status}</Badge>
-                      </div>
-                      <p className="text-3xl font-bold text-gray-900 dark:text-white tabular-nums tracking-tight">{card.value}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            {/* ── Activity & Model Usage ── */}
-            <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              {/* Activity Table */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <FiMessageSquare className="w-4 h-4 text-gray-400" />
-                  <h2 className="text-lg font-bold text-gray-900 dark:text-white tracking-tight">Activity</h2>
-                </div>
-
-                <Card variant="outlined" className="p-0 overflow-hidden">
-                  {data.activity.length === 0 ? (
-                    <div className="p-8 text-center">
-                      <FiClock className="w-6 h-6 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
-                      <p className="text-sm text-gray-500 dark:text-gray-400">No activity for this time range</p>
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full text-sm">
-                        <thead>
-                          <tr className="border-b border-gray-100 dark:border-gray-800">
-                            <th className="px-4 py-3 text-left text-[10px] uppercase tracking-widest font-semibold text-gray-400">Timestamp</th>
-                            <th className="px-4 py-3 text-left text-[10px] uppercase tracking-widest font-semibold text-gray-400">Event</th>
-                            <th className="px-4 py-3 text-left text-[10px] uppercase tracking-widest font-semibold text-gray-400">Entity</th>
-                            <th className="px-4 py-3 text-left text-[10px] uppercase tracking-widest font-semibold text-gray-400">Status</th>
-                            <th className="px-4 py-3 text-left text-[10px] uppercase tracking-widest font-semibold text-gray-400">Latency</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {data.activity.map((row, index) => (
-                            <tr
-                              key={`${row.id}-${row.timestamp}-${index}`}
-                              className="border-t border-gray-50 dark:border-gray-800/50 hover:bg-gray-50/50 dark:hover:bg-gray-800/20 transition-colors"
-                            >
-                              <td className="px-4 py-2.5 text-xs text-gray-500 tabular-nums">{new Date(row.timestamp).toLocaleString()}</td>
-                              <td className="px-4 py-2.5 text-xs font-medium text-gray-700 dark:text-gray-300">{row.event}</td>
-                              <td className="px-4 py-2.5 text-xs text-gray-500 font-mono">{row.entity}</td>
-                              <td className="px-4 py-2.5">
-                                <Badge variant={ACTIVITY_STATUS_BADGE_VARIANT[row.status]} size="xs">{row.status}</Badge>
-                              </td>
-                              <td className="px-4 py-2.5 text-xs text-gray-500 tabular-nums">{row.latency_ms != null ? (row.latency_ms < 1 ? '< 1 ms' : `${Math.round(row.latency_ms)} ms`) : '—'}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </Card>
-              </div>
-
-              {/* Model Usage Table */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <FiCpu className="w-4 h-4 text-gray-400" />
-                  <h2 className="text-lg font-bold text-gray-900 dark:text-white tracking-tight">Model Usage</h2>
-                </div>
-
-                <Card variant="outlined" className="p-0 overflow-hidden">
-                  {data.model_usage.length === 0 ? (
-                    <div className="p-8 text-center">
-                      <FiCpu className="w-6 h-6 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
-                      <p className="text-sm text-gray-500 dark:text-gray-400">No model usage data available</p>
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full text-sm">
-                        <thead>
-                          <tr className="border-b border-gray-100 dark:border-gray-800">
-                            <th className="px-4 py-3 text-left text-[10px] uppercase tracking-widest font-semibold text-gray-400">Model</th>
-                            <th className="px-4 py-3 text-left text-[10px] uppercase tracking-widest font-semibold text-gray-400">Tier</th>
-                            <th className="px-4 py-3 text-left text-[10px] uppercase tracking-widest font-semibold text-gray-400">Requests</th>
-                            <th className="px-4 py-3 text-left text-[10px] uppercase tracking-widest font-semibold text-gray-400">Tokens</th>
-                            <th className="px-4 py-3 text-left text-[10px] uppercase tracking-widest font-semibold text-gray-400">Avg latency</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {data.model_usage.map((row) => (
-                            <tr key={`${row.model_tier}-${row.model_name}`} className="border-t border-gray-50 dark:border-gray-800/50 hover:bg-gray-50/50 dark:hover:bg-gray-800/20 transition-colors">
-                              <td className="px-4 py-2.5 text-xs font-medium text-gray-700 dark:text-gray-300 font-mono">{row.model_name}</td>
-                              <td className="px-4 py-2.5 text-xs text-gray-500">{row.model_tier}</td>
-                              <td className="px-4 py-2.5 text-xs text-gray-500 tabular-nums">{row.requests.toLocaleString()}</td>
-                              <td className="px-4 py-2.5 text-xs text-gray-500 tabular-nums">{row.total_tokens.toLocaleString()}</td>
-                              <td className="px-4 py-2.5 text-xs text-gray-500 tabular-nums">{Math.round(row.avg_latency_ms)} ms</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </Card>
-              </div>
-            </section>
+            <div
+              id={`cockpit-panel-${activeTab}`}
+              role="tabpanel"
+              aria-labelledby={`cockpit-tab-${activeTab}`}
+              tabIndex={0}
+              className="space-y-6"
+            >
+              {activeTabPanel}
+            </div>
           </>
         )}
       </div>
@@ -1543,6 +1271,816 @@ export function AdminServiceDashboardPage({ domain, service }: AdminServiceDashb
 }
 
 // ── Sub-components ──
+
+function countSchemaProperties(schema: Record<string, unknown> | null | undefined): number | null {
+  if (!schema) {
+    return null;
+  }
+
+  const properties = schema.properties;
+  if (!isRecord(properties)) {
+    return null;
+  }
+
+  return Object.keys(properties).length;
+}
+
+function renderJsonSnippet(value: unknown, maxLength = 1200): string {
+  try {
+    return truncateText(JSON.stringify(value, null, 2), maxLength);
+  } catch {
+    return '[Unserializable value]';
+  }
+}
+
+interface CockpitOverviewPanelProps {
+  data: AdminServiceDashboard;
+  agentSlug: string;
+  agentProfile?: AgentProfile;
+  appSurface: AdminServiceAppSurface;
+  foundrySurface: AdminServiceFoundrySurface;
+  appLivenessBadge: {
+    label: string;
+    variant: 'success' | 'danger' | 'secondary';
+  };
+  appReadinessBadge: {
+    label: string;
+    variant: 'success' | 'danger' | 'secondary';
+  };
+  foundryReadinessBadge: {
+    label: string;
+    variant: 'success' | 'danger' | 'secondary';
+  };
+  promptCatalog: AdminServicePromptDocument[];
+  toolCatalog: AdminServiceToolDescription[];
+  resilienceStatus: AdminServiceResilienceStatus;
+}
+
+function CockpitOverviewPanel({
+  data,
+  agentSlug,
+  agentProfile,
+  appSurface,
+  foundrySurface,
+  appLivenessBadge,
+  appReadinessBadge,
+  foundryReadinessBadge,
+  promptCatalog,
+  toolCatalog,
+  resilienceStatus,
+}: CockpitOverviewPanelProps) {
+  return (
+    <>
+      <section aria-label="Ownership surfaces">
+        <div className="flex flex-wrap items-center gap-3 mb-4">
+          <h2 className="text-lg font-bold text-[var(--hp-text)] tracking-tight">Ownership surfaces</h2>
+          <p className="text-xs text-[var(--hp-text-muted)]">App probes, Foundry visibility, and introspection inventory for this service.</p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.1fr_1.1fr_0.8fr]">
+          <Card variant="outlined" className="p-5 space-y-4">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <h3 className="text-sm font-bold text-[var(--hp-text)]">App surface</h3>
+                <p className="text-xs text-[var(--hp-text-muted)]">AKS and service probes</p>
+              </div>
+              <Badge variant={STATUS_BADGE_VARIANT[appSurface.status]} size="xs">{appSurface.status}</Badge>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant={appLivenessBadge.variant} size="xs">Liveness: {appLivenessBadge.label}</Badge>
+              <Badge variant={appReadinessBadge.variant} size="xs">Readiness: {appReadinessBadge.label}</Badge>
+              <Badge variant="secondary" size="xs">Source: {formatReadinessSource(appSurface.source)}</Badge>
+            </div>
+
+            <p className="text-[11px] text-[var(--hp-text-muted)]">
+              Last probe: {appSurface.checked_at ? new Date(appSurface.checked_at).toLocaleString() : 'Unavailable'}
+            </p>
+
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <a
+                href={appSurface.links.health}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-between rounded-xl border border-[var(--hp-border)] bg-[var(--hp-surface)] px-3 py-2 text-xs font-medium text-[var(--hp-text)] hover:bg-[var(--hp-surface-strong)] transition-colors"
+              >
+                <span>Health endpoint</span>
+                <FiArrowRight className="w-3.5 h-3.5" />
+              </a>
+              <a
+                href={appSurface.links.ready}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-between rounded-xl border border-[var(--hp-border)] bg-[var(--hp-surface)] px-3 py-2 text-xs font-medium text-[var(--hp-text)] hover:bg-[var(--hp-surface-strong)] transition-colors"
+              >
+                <span>Ready endpoint</span>
+                <FiArrowRight className="w-3.5 h-3.5" />
+              </a>
+            </div>
+          </Card>
+
+          <Card variant="outlined" className="p-5 space-y-4">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <h3 className="text-sm font-bold text-[var(--hp-text)]">Foundry surface</h3>
+                <p className="text-xs text-[var(--hp-text-muted)]">Agent execution visibility</p>
+              </div>
+              <Badge variant={STATUS_BADGE_VARIANT[foundrySurface.status]} size="xs">{foundrySurface.status}</Badge>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant={foundryReadinessBadge.variant} size="xs">Foundry: {foundryReadinessBadge.label}</Badge>
+              <Badge variant={resilienceStatus.enabled ? 'success' : 'secondary'} size="xs">
+                Self-healing: {resilienceStatus.enabled ? 'Enabled' : 'Off'}
+              </Badge>
+            </div>
+
+            <p className="text-[11px] text-[var(--hp-text-muted)]">
+              Last check: {foundrySurface.checked_at ? new Date(foundrySurface.checked_at).toLocaleString() : 'Unavailable'}
+            </p>
+
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <a href={foundrySurface.links.studio} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-between rounded-xl border border-[var(--hp-border)] bg-[var(--hp-surface)] px-3 py-2 text-xs font-medium text-[var(--hp-text)] hover:bg-[var(--hp-surface-strong)] transition-colors">
+                <span>Foundry Studio</span>
+                <FiArrowRight className="w-3.5 h-3.5" />
+              </a>
+              <a href={foundrySurface.links.project} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-between rounded-xl border border-[var(--hp-border)] bg-[var(--hp-surface)] px-3 py-2 text-xs font-medium text-[var(--hp-text)] hover:bg-[var(--hp-surface-strong)] transition-colors">
+                <span>Project link</span>
+                <FiArrowRight className="w-3.5 h-3.5" />
+              </a>
+              <a href={foundrySurface.links.traces} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-between rounded-xl border border-[var(--hp-border)] bg-[var(--hp-surface)] px-3 py-2 text-xs font-medium text-[var(--hp-text)] hover:bg-[var(--hp-surface-strong)] transition-colors">
+                <span>Traces</span>
+                <FiArrowRight className="w-3.5 h-3.5" />
+              </a>
+              <a href={foundrySurface.links.evaluations} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-between rounded-xl border border-[var(--hp-border)] bg-[var(--hp-surface)] px-3 py-2 text-xs font-medium text-[var(--hp-text)] hover:bg-[var(--hp-surface-strong)] transition-colors">
+                <span>Evaluations</span>
+                <FiArrowRight className="w-3.5 h-3.5" />
+              </a>
+            </div>
+          </Card>
+
+          <Card variant="glass" className="p-5 space-y-4">
+            <div className="flex items-center gap-3">
+              <AgentRobot agentSlug={agentSlug} size={88} sticky={false} skipEntrance />
+              <div>
+                <h3 className="text-sm font-bold text-[var(--hp-text)]">Agent brief</h3>
+                <p className="text-xs text-[var(--hp-text-muted)]">{agentProfile?.oneLiner ?? 'Operational summary unavailable.'}</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3 text-center text-sm">
+              <div className="rounded-2xl bg-[var(--hp-surface)] px-3 py-3">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--hp-text-muted)]">Prompts</p>
+                <p className="mt-1 text-2xl font-bold text-[var(--hp-text)]">{promptCatalog.length}</p>
+              </div>
+              <div className="rounded-2xl bg-[var(--hp-surface)] px-3 py-3">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--hp-text-muted)]">Tools</p>
+                <p className="mt-1 text-2xl font-bold text-[var(--hp-text)]">{toolCatalog.length}</p>
+              </div>
+              <div className="rounded-2xl bg-[var(--hp-surface)] px-3 py-3">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--hp-text-muted)]">Open incidents</p>
+                <p className="mt-1 text-2xl font-bold text-[var(--hp-text)]">{resilienceStatus.incidents_open}</p>
+              </div>
+            </div>
+
+            {agentProfile?.fitFor && (
+              <div className="space-y-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--hp-text-muted)]">Best fit</p>
+                <div className="flex flex-wrap gap-2">
+                  {agentProfile.fitFor.slice(0, 3).map((item) => (
+                    <Badge key={item} size="xs" variant="glass">{item}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </Card>
+        </div>
+      </section>
+
+      <section aria-label="Status metrics">
+        <div className="flex items-center gap-3 mb-4">
+          <h2 className="text-lg font-bold text-[var(--hp-text)] tracking-tight">Metrics</h2>
+          <p className="text-xs text-[var(--hp-text-muted)]">Current service-specific counters synthesized from traces, readiness, and evaluations.</p>
+        </div>
+
+        {data.status_cards.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-[var(--hp-border)] bg-[var(--hp-surface-strong)]/50 p-8 text-center">
+            <FiActivity className="w-6 h-6 text-[var(--hp-text-faint)] mx-auto mb-2" />
+            <p className="text-sm text-[var(--hp-text-muted)]">No status metrics available yet</p>
+            <p className="text-xs text-gray-400 mt-1">Run the agent to start collecting data</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {data.status_cards.map((card) => (
+              <div key={card.label} className="group relative rounded-2xl border border-[var(--hp-border-subtle)] bg-[var(--hp-surface)] p-5 hover:shadow-lg hover:border-[var(--hp-border)] transition-all duration-300">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-[10px] uppercase tracking-widest font-semibold text-gray-400">{card.label}</p>
+                  <Badge variant={STATUS_BADGE_VARIANT[card.status]} size="xs">{card.status}</Badge>
+                </div>
+                <p className="text-3xl font-bold text-[var(--hp-text)] tabular-nums tracking-tight">{card.value}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+    </>
+  );
+}
+
+interface CockpitRunsPanelProps {
+  activity: AdminServiceDashboard['activity'];
+  runHistory: AgentRunRecord[];
+  expandedRunId: string | null;
+  onExpandedRunIdChange: (runId: string | null) => void;
+  rawJsonRunId: string | null;
+  onRawJsonRunIdChange: (runId: string | null) => void;
+}
+
+function CockpitRunsPanel({
+  activity,
+  runHistory,
+  expandedRunId,
+  onExpandedRunIdChange,
+  rawJsonRunId,
+  onRawJsonRunIdChange,
+}: CockpitRunsPanelProps) {
+  return (
+    <section className="space-y-6" aria-label="Runs and traces">
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <h2 className="text-lg font-bold text-[var(--hp-text)] tracking-tight">Run history</h2>
+          <span className="text-xs text-gray-400 bg-[var(--hp-surface-strong)] rounded-full px-2.5 py-0.5 tabular-nums">
+            {runHistory.length}
+          </span>
+        </div>
+
+        {runHistory.length === 0 ? (
+          <Card variant="outlined" className="p-8 text-center">
+            <FiSend className="w-6 h-6 text-[var(--hp-text-faint)] mx-auto mb-2" />
+            <p className="text-sm text-[var(--hp-text-muted)]">No manual runs yet.</p>
+            <p className="text-xs text-gray-400 mt-1">Use the invoke composer above to record a local operator run.</p>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {runHistory.map((run) => {
+              const isExpanded = expandedRunId === run.id;
+              const isJsonExpanded = rawJsonRunId === run.id;
+              return (
+                <Card
+                  key={run.id}
+                  variant={run.status === 'running' ? 'outlined' : 'default'}
+                  className={`p-0 overflow-hidden transition-all duration-300 ${run.status === 'running' ? 'ring-2 ring-blue-300/40' : ''}`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => onExpandedRunIdChange(isExpanded ? null : run.id)}
+                    className="w-full px-5 py-4 flex items-center gap-3 text-left hover:bg-[var(--hp-surface-strong)]/50 transition-colors"
+                  >
+                    <RunStatusIcon status={run.status} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-[var(--hp-text)] truncate">{run.message}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[10px] text-gray-400 tabular-nums">{new Date(run.startedAt).toLocaleTimeString()}</span>
+                        {run.durationMs != null && (
+                          <>
+                            <span className="text-[var(--hp-text-faint)]">·</span>
+                            <span className="text-[10px] font-medium text-gray-500 tabular-nums">
+                              {run.durationMs < 1000 ? `${run.durationMs}ms` : `${(run.durationMs / 1000).toFixed(1)}s`}
+                            </span>
+                          </>
+                        )}
+                        {run.steps && run.steps.length > 0 && (
+                          <>
+                            <span className="text-[var(--hp-text-faint)]">·</span>
+                            <span className="text-[10px] text-gray-400">{run.steps.length} step{run.steps.length !== 1 ? 's' : ''}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <div className="shrink-0 w-6 h-6 rounded-lg bg-[var(--hp-surface-strong)] flex items-center justify-center">
+                      {isExpanded ? <FiChevronDown className="w-3.5 h-3.5 text-gray-500" /> : <FiChevronRight className="w-3.5 h-3.5 text-gray-500" />}
+                    </div>
+                  </button>
+
+                  {isExpanded && (
+                    <div className="border-t border-[var(--hp-border-subtle)]">
+                      {run.steps && run.steps.length > 0 && (
+                        <div className="px-5 pt-5 pb-3">
+                          <div className="flex items-center gap-2 mb-4">
+                            <FiActivity className="w-3.5 h-3.5 text-gray-400" />
+                            <p className="text-[11px] font-semibold text-[var(--hp-text-muted)] uppercase tracking-wider">Execution trace</p>
+                          </div>
+                          <div className="relative ml-3">
+                            <div className="absolute left-[11px] top-2 bottom-2 w-px bg-gradient-to-b from-[var(--hp-border)] via-[var(--hp-border)] to-transparent" />
+
+                            {run.steps.map((step, idx) => {
+                              const cfg = STEP_CONFIG[step.type];
+                              const StepIcon = cfg.icon;
+                              return (
+                                <div key={idx} className="relative pl-10 pb-5 last:pb-0">
+                                  <div className="absolute left-0 top-0.5 w-[22px] h-[22px] rounded-lg flex items-center justify-center shadow-sm" style={{ background: cfg.color }}>
+                                    <StepIcon className="w-3 h-3 text-white" />
+                                  </div>
+
+                                  <div className={`rounded-xl border border-[var(--hp-border-subtle)] ${cfg.bg} p-3.5`}>
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="text-xs font-bold text-[var(--hp-text)]">{step.name}</span>
+                                      <span className="text-[10px] text-gray-400 bg-[var(--hp-glass-bg)] rounded-md px-1.5 py-0.5">{step.type.replace('_', ' ')}</span>
+                                      {step.durationMs != null && (
+                                        <span className="ml-auto text-[10px] font-medium text-gray-400 tabular-nums">
+                                          {step.durationMs < 1000 ? `${step.durationMs}ms` : `${(step.durationMs / 1000).toFixed(1)}s`}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {step.input && (
+                                      <details className="mt-2 group/input">
+                                        <summary className="text-[10px] font-semibold text-gray-400 cursor-pointer select-none hover:text-[var(--hp-text-muted)] transition-colors">Input</summary>
+                                        <pre className="mt-1.5 text-[11px] text-[var(--hp-text-muted)] bg-[var(--hp-surface)] rounded-lg p-2.5 overflow-x-auto max-h-32 font-mono leading-relaxed">{step.input}</pre>
+                                      </details>
+                                    )}
+                                    {step.output && (
+                                      <details className="mt-2 group/output" open>
+                                        <summary className="text-[10px] font-semibold text-[var(--hp-success)] cursor-pointer select-none hover:text-[var(--hp-success)] transition-colors">Output</summary>
+                                        <pre className="mt-1.5 text-[11px] text-[var(--hp-success)] bg-[var(--hp-surface)] rounded-lg p-2.5 overflow-x-auto max-h-32 font-mono leading-relaxed">{step.output}</pre>
+                                      </details>
+                                    )}
+                                    {step.detail && <p className="mt-2 text-xs text-[var(--hp-text-muted)] leading-relaxed">{step.detail}</p>}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {run.tripleEvaluation && (
+                        <div className="px-5 pb-4">
+                          <div className="rounded-2xl border border-[var(--hp-border-subtle)] bg-[var(--hp-surface-strong)] p-4">
+                            <div className="flex items-center gap-2 mb-3">
+                              <FiCheckCircle className="w-4 h-4 text-gray-500" />
+                              <h3 className="text-sm font-semibold text-[var(--hp-text)]">Triple evaluation</h3>
+                              <Badge
+                                size="xs"
+                                variant={
+                                  run.tripleEvaluation.legitimacy === 'high'
+                                    ? 'success'
+                                    : run.tripleEvaluation.legitimacy === 'medium'
+                                      ? 'warning'
+                                      : 'danger'
+                                }
+                                className="ml-auto"
+                              >
+                                {run.tripleEvaluation.legitimacy} legitimacy
+                              </Badge>
+                            </div>
+
+                            <div className="space-y-3">
+                              <EvaluationBar label="Process" value={run.tripleEvaluation.process} />
+                              <EvaluationBar label="Output" value={run.tripleEvaluation.output} />
+                              <EvaluationBar label="Intent" value={run.tripleEvaluation.intent} />
+                            </div>
+
+                            <div className="mt-3 space-y-1">
+                              {run.tripleEvaluation.rationale.map((line, idx) => (
+                                <p key={idx} className="text-[11px] text-[var(--hp-text-muted)] leading-relaxed">• {line}</p>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {run.response && (
+                        <div className="px-5 pb-4">
+                          <div className="rounded-2xl border border-[var(--hp-border-subtle)] bg-[var(--hp-surface)]/40 p-4">
+                            <div className="flex items-center gap-2 mb-3">
+                              <FiMessageSquare className="w-3.5 h-3.5 text-gray-400" />
+                              <h3 className="text-sm font-semibold text-[var(--hp-text)]">Response preview</h3>
+                            </div>
+                            <div className="space-y-1.5">
+                              {(run.responsePreview ?? []).map((line, idx) => (
+                                <p key={idx} className="text-xs text-[var(--hp-text-muted)] leading-relaxed break-words">{line}</p>
+                              ))}
+                            </div>
+                            <p className="mt-3 text-[10px] text-gray-400">Sensitive fields are redacted and long values are truncated for readability.</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {run.response && (
+                        <div className="px-5 pb-4">
+                          <button
+                            type="button"
+                            onClick={() => onRawJsonRunIdChange(isJsonExpanded ? null : run.id)}
+                            className="flex items-center gap-1.5 text-[11px] font-medium text-gray-400 hover:text-[var(--hp-text-muted)] transition-colors"
+                          >
+                            <FiCode className="w-3 h-3" />
+                            {isJsonExpanded ? 'Hide raw response' : 'View raw response'}
+                          </button>
+                          {isJsonExpanded && (
+                            <pre className="mt-2 text-[11px] text-[var(--hp-text-muted)] bg-[var(--hp-surface-strong)] rounded-xl p-4 overflow-x-auto max-h-64 font-mono leading-relaxed border border-[var(--hp-border-subtle)]">
+                              {JSON.stringify(run.response, null, 2)}
+                            </pre>
+                          )}
+                        </div>
+                      )}
+
+                      {run.error && (
+                        <div className="mx-5 mb-4 rounded-xl border border-[var(--hp-error)]/20 bg-[var(--hp-error)]/10 px-4 py-3 flex items-start gap-2.5">
+                          <FiAlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                          <p className="text-xs font-medium text-[var(--hp-error)] leading-relaxed">{run.error}</p>
+                        </div>
+                      )}
+
+                      {!run.steps?.length && !run.response && !run.error && run.status === 'running' && (
+                        <div className="px-5 pb-5 flex items-center gap-3">
+                          <div className="flex gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce [animation-delay:0ms]" />
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce [animation-delay:150ms]" />
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce [animation-delay:300ms]" />
+                          </div>
+                          <span className="text-xs text-gray-400">Agent is thinking…</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <FiMessageSquare className="w-4 h-4 text-gray-400" />
+          <h2 className="text-lg font-bold text-[var(--hp-text)] tracking-tight">Activity feed</h2>
+        </div>
+
+        <Card variant="outlined" className="p-0 overflow-hidden">
+          {activity.length === 0 ? (
+            <div className="p-8 text-center">
+              <FiClock className="w-6 h-6 text-[var(--hp-text-faint)] mx-auto mb-2" />
+              <p className="text-sm text-[var(--hp-text-muted)]">No activity for this time range</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="border-b border-[var(--hp-border-subtle)]">
+                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-widest font-semibold text-gray-400">Timestamp</th>
+                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-widest font-semibold text-gray-400">Event</th>
+                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-widest font-semibold text-gray-400">Entity</th>
+                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-widest font-semibold text-gray-400">Status</th>
+                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-widest font-semibold text-gray-400">Latency</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activity.map((row, index) => (
+                    <tr key={`${row.id}-${row.timestamp}-${index}`} className="border-t border-[var(--hp-border-subtle)] hover:bg-[var(--hp-surface-strong)]/50 transition-colors">
+                      <td className="px-4 py-2.5 text-xs text-gray-500 tabular-nums">{new Date(row.timestamp).toLocaleString()}</td>
+                      <td className="px-4 py-2.5 text-xs font-medium text-[var(--hp-text)]">{row.event}</td>
+                      <td className="px-4 py-2.5 text-xs text-gray-500 font-mono">{row.entity}</td>
+                      <td className="px-4 py-2.5"><Badge variant={ACTIVITY_STATUS_BADGE_VARIANT[row.status]} size="xs">{row.status}</Badge></td>
+                      <td className="px-4 py-2.5 text-xs text-gray-500 tabular-nums">{row.latency_ms != null ? (row.latency_ms < 1 ? '< 1 ms' : `${Math.round(row.latency_ms)} ms`) : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      </div>
+    </section>
+  );
+}
+
+function CockpitEvaluationsPanel({
+  timeRange,
+  modelUsage,
+}: {
+  timeRange: AgentMonitorTimeRange;
+  modelUsage: AdminServiceDashboard['model_usage'];
+}) {
+  const { data, isLoading, isError } = useAgentEvaluations(timeRange);
+
+  return (
+    <section className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]" aria-label="Evaluations">
+      <Card variant="outlined" className="p-5 space-y-4">
+        <div className="flex items-center gap-2">
+          <FiCpu className="w-4 h-4 text-gray-400" />
+          <h2 className="text-lg font-bold text-[var(--hp-text)] tracking-tight">Evaluation trend</h2>
+        </div>
+
+        {isLoading && <p className="text-sm text-[var(--hp-text-muted)]">Loading evaluation trend…</p>}
+        {isError && <p className="text-sm text-[var(--hp-error)]">Unable to load evaluation trend data.</p>}
+
+        {data && (
+          <>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-2xl bg-[var(--hp-surface-strong)] px-3 py-3">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--hp-text-muted)]">Overall score</p>
+                <p className="mt-1 text-2xl font-bold text-[var(--hp-text)]">{data.summary.overall_score.toFixed(2)}</p>
+              </div>
+              <div className="rounded-2xl bg-[var(--hp-surface-strong)] px-3 py-3">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--hp-text-muted)]">Pass rate</p>
+                <p className="mt-1 text-2xl font-bold text-[var(--hp-text)]">{Math.round(data.summary.pass_rate * 100)}%</p>
+              </div>
+              <div className="rounded-2xl bg-[var(--hp-surface-strong)] px-3 py-3">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--hp-text-muted)]">Runs</p>
+                <p className="mt-1 text-2xl font-bold text-[var(--hp-text)]">{data.summary.total_runs}</p>
+              </div>
+            </div>
+            <EvaluationTrendChart trends={data.trends} />
+          </>
+        )}
+      </Card>
+
+      <Card variant="outlined" className="p-0 overflow-hidden">
+        <div className="px-5 py-4 border-b border-[var(--hp-border-subtle)] flex items-center gap-2">
+          <FiCpu className="w-4 h-4 text-gray-400" />
+          <h2 className="text-lg font-bold text-[var(--hp-text)] tracking-tight">Model usage</h2>
+        </div>
+
+        {modelUsage.length === 0 ? (
+          <div className="p-8 text-center">
+            <FiCpu className="w-6 h-6 text-[var(--hp-text-faint)] mx-auto mb-2" />
+            <p className="text-sm text-[var(--hp-text-muted)]">No model usage data available</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="border-b border-[var(--hp-border-subtle)]">
+                  <th className="px-4 py-3 text-left text-[10px] uppercase tracking-widest font-semibold text-gray-400">Model</th>
+                  <th className="px-4 py-3 text-left text-[10px] uppercase tracking-widest font-semibold text-gray-400">Tier</th>
+                  <th className="px-4 py-3 text-left text-[10px] uppercase tracking-widest font-semibold text-gray-400">Requests</th>
+                  <th className="px-4 py-3 text-left text-[10px] uppercase tracking-widest font-semibold text-gray-400">Tokens</th>
+                  <th className="px-4 py-3 text-left text-[10px] uppercase tracking-widest font-semibold text-gray-400">Avg latency</th>
+                </tr>
+              </thead>
+              <tbody>
+                {modelUsage.map((row) => (
+                  <tr key={`${row.model_tier}-${row.model_name}`} className="border-t border-[var(--hp-border-subtle)] hover:bg-[var(--hp-surface-strong)]/50 transition-colors">
+                    <td className="px-4 py-2.5 text-xs font-medium text-[var(--hp-text)] font-mono">{row.model_name}</td>
+                    <td className="px-4 py-2.5 text-xs text-gray-500">{row.model_tier}</td>
+                    <td className="px-4 py-2.5 text-xs text-gray-500 tabular-nums">{row.requests.toLocaleString()}</td>
+                    <td className="px-4 py-2.5 text-xs text-gray-500 tabular-nums">{row.total_tokens.toLocaleString()}</td>
+                    <td className="px-4 py-2.5 text-xs text-gray-500 tabular-nums">{Math.round(row.avg_latency_ms)} ms</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </section>
+  );
+}
+
+function CockpitPromptsPanel({
+  prompts,
+  onStagePrompt,
+}: {
+  prompts: AdminServicePromptDocument[];
+  onStagePrompt: (prompt: AdminServicePromptDocument) => void;
+}) {
+  return (
+    <section className="space-y-4" aria-label="Prompt catalog">
+      <div className="flex items-center gap-3">
+        <h2 className="text-lg font-bold text-[var(--hp-text)] tracking-tight">Prompt catalog</h2>
+        <Badge variant="glass" size="sm">{prompts.length} document{prompts.length === 1 ? '' : 's'}</Badge>
+      </div>
+
+      {prompts.length === 0 ? (
+        <Card variant="outlined" className="p-8 text-center">
+          <FiFileText className="w-6 h-6 text-[var(--hp-text-faint)] mx-auto mb-2" />
+          <p className="text-sm text-[var(--hp-text-muted)]">No prompt files were exposed by this service.</p>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {prompts.map((prompt, index) => (
+            <Card key={`${prompt.name}-${prompt.sha}`} variant={index === 0 ? 'glass' : 'outlined'} className="p-5 space-y-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-bold text-[var(--hp-text)]">{prompt.name}</h3>
+                  <p className="text-xs text-[var(--hp-text-muted)]">
+                    SHA {prompt.sha.slice(0, 12)} · {prompt.last_modified ? new Date(prompt.last_modified).toLocaleString() : 'timestamp unavailable'}
+                  </p>
+                </div>
+                <Button size="sm" variant="secondary" onClick={() => onStagePrompt(prompt)}>
+                  Stage sample run
+                </Button>
+              </div>
+              <pre className="max-h-80 overflow-auto rounded-2xl border border-[var(--hp-border-subtle)] bg-[var(--hp-surface)] p-4 text-[11px] leading-relaxed text-[var(--hp-text-muted)]">{truncateText(prompt.content, 2400)}</pre>
+            </Card>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function CockpitToolsPanel({
+  tools,
+  agentSlug,
+  collaborators,
+}: {
+  tools: AdminServiceToolDescription[];
+  agentSlug: string;
+  collaborators: string[];
+}) {
+  return (
+    <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]" aria-label="Tools and integrations">
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <h2 className="text-lg font-bold text-[var(--hp-text)] tracking-tight">MCP tools</h2>
+          <Badge variant="glass" size="sm">{tools.length} registered</Badge>
+        </div>
+
+        {tools.length === 0 ? (
+          <Card variant="outlined" className="p-8 text-center">
+            <FiTool className="w-6 h-6 text-[var(--hp-text-faint)] mx-auto mb-2" />
+            <p className="text-sm text-[var(--hp-text-muted)]">No MCP tools registered for this service.</p>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {tools.map((tool) => {
+              const inputCount = countSchemaProperties(tool.input_schema ?? null);
+              const outputCount = countSchemaProperties(tool.output_schema ?? null);
+              return (
+                <Card key={`${tool.path}-${tool.name}`} variant="outlined" className="p-5 space-y-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-bold text-[var(--hp-text)]">{tool.name}</h3>
+                      <p className="text-xs font-mono text-[var(--hp-text-muted)]">{tool.path}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge size="xs" variant="secondary">Input {inputCount ?? 'n/a'}</Badge>
+                      <Badge size="xs" variant="secondary">Output {outputCount ?? 'n/a'}</Badge>
+                    </div>
+                  </div>
+                  <p className="text-sm text-[var(--hp-text-muted)]">{tool.description}</p>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <details className="rounded-2xl border border-[var(--hp-border-subtle)] bg-[var(--hp-surface)] p-3">
+                      <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.2em] text-[var(--hp-text-muted)]">Input schema</summary>
+                      <pre className="mt-3 overflow-auto text-[11px] leading-relaxed text-[var(--hp-text-muted)]">{renderJsonSnippet(tool.input_schema ?? tool.input_schema_ref ?? { message: 'Unavailable' })}</pre>
+                    </details>
+                    <details className="rounded-2xl border border-[var(--hp-border-subtle)] bg-[var(--hp-surface)] p-3">
+                      <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.2em] text-[var(--hp-text-muted)]">Output schema</summary>
+                      <pre className="mt-3 overflow-auto text-[11px] leading-relaxed text-[var(--hp-text-muted)]">{renderJsonSnippet(tool.output_schema ?? tool.output_schema_ref ?? { message: 'Unavailable' })}</pre>
+                    </details>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <Card variant="glass" className="p-5 space-y-4">
+        <div className="flex items-center gap-2">
+          <FiUsers className="w-4 h-4 text-gray-400" />
+          <h2 className="text-lg font-bold text-[var(--hp-text)] tracking-tight">Integration notes</h2>
+        </div>
+        <p className="text-sm text-[var(--hp-text-muted)]">
+          {agentSlug} exchanges context through registered MCP tools and collaborates with adjacent agents in the retail workflow.
+        </p>
+        <div className="space-y-2">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--hp-text-muted)]">Collaborators</p>
+          <div className="flex flex-wrap gap-2">
+            {collaborators.length > 0 ? collaborators.map((name) => (
+              <Badge key={name} variant="glass" size="xs">{name}</Badge>
+            )) : <Badge variant="secondary" size="xs">No collaborators declared</Badge>}
+          </div>
+        </div>
+      </Card>
+    </section>
+  );
+}
+
+function CockpitResiliencePanel({
+  resilienceStatus,
+  appSurface,
+  foundrySurface,
+}: {
+  resilienceStatus: AdminServiceResilienceStatus;
+  appSurface: AdminServiceAppSurface;
+  foundrySurface: AdminServiceFoundrySurface;
+}) {
+  return (
+    <section className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]" aria-label="Resilience and self-healing">
+      <Card variant="glass" className="p-5 space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-bold text-[var(--hp-text)] tracking-tight">Self-healing status</h2>
+            <p className="text-sm text-[var(--hp-text-muted)]">Incident posture and repair policy for this service.</p>
+          </div>
+          <Badge variant={resilienceStatus.enabled ? 'success' : 'secondary'} size="sm">
+            {resilienceStatus.enabled ? 'Enabled' : 'Disabled'}
+          </Badge>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-2xl bg-[var(--hp-surface)] px-4 py-3">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--hp-text-muted)]">Mode</p>
+            <p className="mt-1 text-lg font-bold text-[var(--hp-text)]">{resilienceStatus.detect_only ? 'Detect only' : 'Repair'}</p>
+          </div>
+          <div className="rounded-2xl bg-[var(--hp-surface)] px-4 py-3">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--hp-text-muted)]">Open incidents</p>
+            <p className="mt-1 text-lg font-bold text-[var(--hp-text)]">{resilienceStatus.incidents_open}</p>
+          </div>
+          <div className="rounded-2xl bg-[var(--hp-surface)] px-4 py-3">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--hp-text-muted)]">Total incidents</p>
+            <p className="mt-1 text-lg font-bold text-[var(--hp-text)]">{resilienceStatus.incidents_total}</p>
+          </div>
+          <div className="rounded-2xl bg-[var(--hp-surface)] px-4 py-3">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--hp-text-muted)]">Closed incidents</p>
+            <p className="mt-1 text-lg font-bold text-[var(--hp-text)]">{resilienceStatus.incidents_closed}</p>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--hp-text-muted)]">Allowlisted actions</p>
+          <div className="flex flex-wrap gap-2">
+            {resilienceStatus.allowlisted_actions.length > 0 ? resilienceStatus.allowlisted_actions.map((action) => (
+              <Badge key={action} size="xs" variant="glass">{action}</Badge>
+            )) : <Badge size="xs" variant="secondary">No actions exposed</Badge>}
+          </div>
+        </div>
+      </Card>
+
+      <div className="space-y-4">
+        <Card variant="outlined" className="p-5 space-y-3">
+          <div className="flex items-center gap-2">
+            <FiShield className="w-4 h-4 text-gray-400" />
+            <h2 className="text-lg font-bold text-[var(--hp-text)] tracking-tight">Manifest snapshot</h2>
+          </div>
+          <pre className="max-h-80 overflow-auto rounded-2xl border border-[var(--hp-border-subtle)] bg-[var(--hp-surface)] p-4 text-[11px] leading-relaxed text-[var(--hp-text-muted)]">{renderJsonSnippet(resilienceStatus.manifest ?? { message: 'Manifest unavailable' })}</pre>
+        </Card>
+
+        <Card variant="outlined" className="p-5 space-y-3">
+          <div className="flex items-center gap-2">
+            <FiActivity className="w-4 h-4 text-gray-400" />
+            <h2 className="text-lg font-bold text-[var(--hp-text)] tracking-tight">Recovery surfaces</h2>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <a href={appSurface.links.ready} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-between rounded-xl border border-[var(--hp-border)] bg-[var(--hp-surface)] px-3 py-2 text-xs font-medium text-[var(--hp-text)] hover:bg-[var(--hp-surface-strong)] transition-colors">
+              <span>Ready probe</span>
+              <FiArrowRight className="w-3.5 h-3.5" />
+            </a>
+            <a href={appSurface.links.health} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-between rounded-xl border border-[var(--hp-border)] bg-[var(--hp-surface)] px-3 py-2 text-xs font-medium text-[var(--hp-text)] hover:bg-[var(--hp-surface-strong)] transition-colors">
+              <span>Health probe</span>
+              <FiArrowRight className="w-3.5 h-3.5" />
+            </a>
+            <a href={foundrySurface.links.traces} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-between rounded-xl border border-[var(--hp-border)] bg-[var(--hp-surface)] px-3 py-2 text-xs font-medium text-[var(--hp-text)] hover:bg-[var(--hp-surface-strong)] transition-colors">
+              <span>Trace explorer</span>
+              <FiArrowRight className="w-3.5 h-3.5" />
+            </a>
+            <a href={foundrySurface.links.evaluations} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-between rounded-xl border border-[var(--hp-border)] bg-[var(--hp-surface)] px-3 py-2 text-xs font-medium text-[var(--hp-text)] hover:bg-[var(--hp-surface-strong)] transition-colors">
+              <span>Evaluation center</span>
+              <FiArrowRight className="w-3.5 h-3.5" />
+            </a>
+          </div>
+        </Card>
+      </div>
+    </section>
+  );
+}
+
+function CockpitConfigPanel({ domain, service }: { domain: AdminServiceDomain; service: string }) {
+  const { data: config, isLoading, isError } = useTruthConfig();
+  const updateMutation = useUpdateTruthConfig();
+
+  const handleSave = useCallback((partial: Partial<TenantConfig>) => {
+    updateMutation.mutate(partial);
+  }, [updateMutation]);
+
+  return (
+    <section className="space-y-4" aria-label="Shared configuration">
+      <Card variant="glass" className="p-5">
+        <h2 className="text-lg font-bold text-[var(--hp-text)] tracking-tight">Shared tenant configuration</h2>
+        <p className="mt-2 text-sm text-[var(--hp-text-muted)]">
+          The {toTitleCase(service)} cockpit can stage and observe runs locally, but threshold and pipeline toggles remain shared across the truth layer for {domain} operators.
+        </p>
+      </Card>
+
+      {updateMutation.isSuccess && (
+        <Card className="p-4 border border-lime-500/30 bg-lime-500/10 text-lime-600">Configuration saved successfully.</Card>
+      )}
+
+      {updateMutation.isError && (
+        <Card className="p-4 border border-[var(--hp-error)]/20 bg-[var(--hp-error)]/10 text-[var(--hp-error)]">Failed to save configuration. Please try again.</Card>
+      )}
+
+      {isLoading && <Card className="p-6 text-[var(--hp-text-muted)]">Loading configuration…</Card>}
+      {isError && <Card className="p-6 border border-[var(--hp-error)]/20 text-[var(--hp-error)]">Failed to load configuration.</Card>}
+
+      {config && (
+        <ConfigPanel config={config} onSave={handleSave} isSaving={updateMutation.isPending} />
+      )}
+    </section>
+  );
+}
 
 function RunStatusIcon({ status }: { status: InvokeRunStatus }) {
   const base = 'w-8 h-8 rounded-xl flex items-center justify-center shrink-0';

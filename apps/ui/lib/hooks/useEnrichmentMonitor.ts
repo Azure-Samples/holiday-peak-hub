@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { enrichmentMonitorService } from '../services/enrichmentMonitorService';
 
-export function useEnrichmentMonitorDashboard() {
+export function useEnrichmentMonitorDashboard(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['admin', 'enrichment-monitor', 'dashboard'],
     queryFn: () => enrichmentMonitorService.getDashboard(),
+    enabled: options?.enabled ?? true,
     refetchInterval: 10_000,
   });
 }

@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { MainLayout } from '@/components/templates/MainLayout';
+import { CommerceAgentLayout } from '@/components/templates/CommerceAgentLayout';
 import { Badge } from '@/components/atoms/Badge';
 import { Button } from '@/components/atoms/Button';
 import { Modal } from '@/components/molecules/Modal';
@@ -18,7 +18,14 @@ import { UseCaseTags } from '@/components/enrichment/UseCaseTags';
 import { RelatedProductsRail } from '@/components/enrichment/RelatedProductsRail';
 import { useRelatedProducts } from '@/lib/hooks/useRelatedProducts';
 import agentApiClient from '@/lib/api/agentClient';
+import { recordAgentInvocationTelemetry } from '@/lib/hooks/useAgentInvocationTelemetry';
 import { trackEcommerceEvent } from '@/lib/utils/telemetry';
+import { useAgentRobotState } from '@/lib/hooks/useAgentRobotState';
+import { useProductRecommendations } from '@/lib/hooks/useProductRecommendations';
+import { MiniConstellation } from '@/components/organisms/MiniConstellation';
+import { useProductIQ } from '@/lib/hooks/useProductIQ';
+import { ProductIQBadge } from '@/components/molecules/ProductIQBadge';
+import { ProductIQRadar } from '@/components/molecules/ProductIQRadar';
 import { FiArrowRight, FiShoppingCart, FiTruck, FiShield, FiRotateCcw } from 'react-icons/fi';
 
 type FitVerdict = 'fits' | 'partial' | 'not_fit' | 'unknown';
@@ -272,6 +279,7 @@ export function ProductPageClient({ productId }: { productId: string }) {
         use_case: useCaseInput.trim(),
         message: `Evaluate if this product fits my use case: ${useCaseInput.trim()}`,
       });
+      recordAgentInvocationTelemetry('ecommerce-product-detail-enrichment', response.data);
 
       const remoteView = formatAgentResponse(response.data);
       const remoteAssessment = deriveFitAssessment(response.data, remoteView.text);
@@ -314,7 +322,30 @@ export function ProductPageClient({ productId }: { productId: string }) {
   };
 
   return (
-    <MainLayout>
+    <CommerceAgentLayout
+      primary={{
+        agentSlug: 'ecommerce-product-detail-enrichment',
+        state: robotState,
+        position: 'bottom-right',
+        size: 'sm',
+        visible: true,
+        mode: 'lead',
+      }}
+      sideCast={[
+        {
+          agentSlug: 'ecommerce-cart-intelligence',
+          state: recommendations.length > 0 ? 'using-tool' : 'idle',
+          position: 'bottom-left',
+          size: 'sm',
+          visible: recommendations.length > 0,
+          facing: 'right',
+          scenePeer: 'left',
+          className: 'hidden xl:block',
+          mode: 'observe',
+        },
+      ]}
+      telemetry="compact"
+    >
       {isLoading && (
         <div className="animate-pulse space-y-6 px-4 md:px-8 lg:px-12 max-w-7xl mx-auto">
           <div className="h-4 w-48 rounded bg-gray-200 dark:bg-gray-800" />
@@ -654,7 +685,8 @@ export function ProductPageClient({ productId }: { productId: string }) {
           </div>
         </div>
       )}
-    </MainLayout>
+
+    </CommerceAgentLayout>
   );
 }
 

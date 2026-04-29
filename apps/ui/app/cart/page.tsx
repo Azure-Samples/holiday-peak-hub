@@ -1,10 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { MainLayout } from '@/components/templates/MainLayout';
+import { CommerceAgentLayout } from '@/components/templates/CommerceAgentLayout';
 import { Card } from '@/components/molecules/Card';
 import { Button } from '@/components/atoms/Button';
 import { useCart, useClearCart, useRemoveFromCart } from '@/lib/hooks/useCart';
+import { useAgentRobotState } from '@/lib/hooks/useAgentRobotState';
 
 export default function CartPage() {
   const { data: cart, isLoading, isError } = useCart();
@@ -12,7 +13,30 @@ export default function CartPage() {
   const clearCart = useClearCart();
 
   return (
-    <MainLayout>
+    <CommerceAgentLayout
+      primary={{
+        agentSlug: 'ecommerce-cart-intelligence',
+        state: robotState,
+        position: 'bottom-right',
+        size: 'sm',
+        visible: true,
+        mode: 'lead',
+      }}
+      sideCast={[
+        {
+          agentSlug: 'inventory-reservation-validation',
+          state: cart?.items?.length ? 'using-tool' : 'idle',
+          position: 'bottom-left',
+          size: 'sm',
+          visible: Boolean(cart?.items?.length),
+          facing: 'right',
+          scenePeer: 'left',
+          className: 'hidden xl:block',
+          mode: 'observe',
+        },
+      ]}
+      telemetry="compact"
+    >
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -89,6 +113,6 @@ export default function CartPage() {
           </Link>
         </Card>
       </div>
-    </MainLayout>
+    </CommerceAgentLayout>
   );
 }

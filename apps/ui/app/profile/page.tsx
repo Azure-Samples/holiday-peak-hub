@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { MainLayout } from '@/components/templates/MainLayout';
+import { CommerceAgentLayout } from '@/components/templates/CommerceAgentLayout';
 import { Card } from '@/components/molecules/Card';
 import { Button } from '@/components/atoms/Button';
 import { Input } from '@/components/atoms/Input';
@@ -46,7 +46,22 @@ export default function ProfilePage() {
     : '?';
 
   return (
-    <MainLayout>
+    <CommerceAgentLayout
+      sideCast={[
+        {
+          agentSlug: 'crm-profile-aggregation',
+          state: 'thinking',
+          thinkingMessage: 'I unified 4 identities into your profile; click to inspect.',
+          position: 'bottom-left',
+          size: 'sm',
+          visible: true,
+          facing: 'right',
+          className: 'hidden xl:block',
+          mode: 'hint',
+        },
+      ]}
+      telemetry="visible"
+    >
       <div className="max-w-6xl mx-auto py-8">
         {/* Header */}
         <div className="mb-8">
@@ -184,7 +199,7 @@ export default function ProfilePage() {
           ]}
         />
       </div>
-    </MainLayout>
+    </CommerceAgentLayout>
   );
 }
 

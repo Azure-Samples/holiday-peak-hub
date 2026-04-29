@@ -859,6 +859,36 @@ export interface AdminServiceFoundrySurface {
   };
 }
 
+export interface AdminServicePromptDocument {
+  name: string;
+  content: string;
+  sha: string;
+  last_modified: string | null;
+}
+
+export interface AdminServiceToolDescription {
+  name: string;
+  path: string;
+  description: string;
+  input_schema_ref?: Record<string, unknown> | null;
+  output_schema_ref?: Record<string, unknown> | null;
+  input_schema?: Record<string, unknown> | null;
+  output_schema?: Record<string, unknown> | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface AdminServiceResilienceStatus {
+  service: string;
+  enabled: boolean;
+  detect_only: boolean;
+  reconcile_on_messaging_error?: boolean;
+  manifest: Record<string, unknown> | null;
+  allowlisted_actions: string[];
+  incidents_total: number;
+  incidents_open: number;
+  incidents_closed: number;
+}
+
 export interface AdminServiceDashboard {
   domain: AdminServiceDomain;
   service: string;
@@ -870,6 +900,9 @@ export interface AdminServiceDashboard {
   model_usage: AgentModelUsageRow[];
   app_surface?: AdminServiceAppSurface;
   foundry_surface?: AdminServiceFoundrySurface;
+  prompt_catalog?: AdminServicePromptDocument[];
+  mcp_tools?: AdminServiceToolDescription[];
+  self_healing?: AdminServiceResilienceStatus;
 }
 
 // API Response wrappers

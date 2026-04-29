@@ -207,6 +207,36 @@ type AdminServiceFoundrySurface = {
   };
 };
 
+type AdminServicePromptDocument = {
+  name: string;
+  content: string;
+  sha: string;
+  last_modified: string | null;
+};
+
+type AdminServiceToolDescription = {
+  name: string;
+  path: string;
+  description: string;
+  input_schema_ref?: Record<string, unknown> | null;
+  output_schema_ref?: Record<string, unknown> | null;
+  input_schema?: Record<string, unknown> | null;
+  output_schema?: Record<string, unknown> | null;
+  metadata?: Record<string, unknown>;
+};
+
+type AdminServiceResilienceStatus = {
+  service: string;
+  enabled: boolean;
+  detect_only: boolean;
+  reconcile_on_messaging_error?: boolean;
+  manifest: Record<string, unknown> | null;
+  allowlisted_actions: string[];
+  incidents_total: number;
+  incidents_open: number;
+  incidents_closed: number;
+};
+
 type AdminServiceFallbackPayload = {
   domain: AdminServiceDomain;
   service: string;
@@ -222,6 +252,9 @@ type AdminServiceFallbackPayload = {
   model_usage: AdminServiceModelUsageRow[];
   app_surface: AdminServiceAppSurface;
   foundry_surface: AdminServiceFoundrySurface;
+  prompt_catalog: AdminServicePromptDocument[];
+  mcp_tools: AdminServiceToolDescription[];
+  self_healing: AdminServiceResilienceStatus;
 };
 
 type ReadinessProbeResult = {
@@ -1691,6 +1724,18 @@ function buildEmptyAdminServicePayload(route: AdminServiceRouteMatch): AdminServ
     ],
     activity: [],
     model_usage: [],
+    prompt_catalog: [],
+    mcp_tools: [],
+    self_healing: {
+      service: route.agentService,
+      enabled: false,
+      detect_only: false,
+      manifest: null,
+      allowlisted_actions: [],
+      incidents_total: 0,
+      incidents_open: 0,
+      incidents_closed: 0,
+    },
     ...surfaces,
   };
 }
@@ -1812,7 +1857,15 @@ async function buildAdminServiceSecondaryPayload(params: {
     return buildEmptyAdminServicePayload(route);
   }
 
-  const [tracesPayload, metricsPayload, evaluationPayload, readiness] = await Promise.all([
+  const [
+    tracesPayload,
+    metricsPayload,
+    evaluationPayload,
+    readiness,
+    promptsPayload,
+    toolsPayload,
+    selfHealingPayload,
+  ] = await Promise.all([
     fetchJsonIfOk(`${baseUrl}/agents/${route.agentService}/agent/traces?limit=40`, requestHeaders),
     fetchJsonIfOk(`${baseUrl}/agents/${route.agentService}/agent/metrics`, requestHeaders),
     fetchJsonIfOk(`${baseUrl}/agents/${route.agentService}/agent/evaluation/latest`, requestHeaders),
@@ -1821,6 +1874,9 @@ async function buildAdminServiceSecondaryPayload(params: {
       baseUrl,
       requestHeaders,
     }),
+    fetchJsonIfOk(`${baseUrl}/agents/${route.agentService}/agent/prompts`, requestHeaders),
+    fetchJsonIfOk(`${baseUrl}/agents/${route.agentService}/mcp/tool_descriptions`, requestHeaders),
+    fetchJsonIfOk(`${baseUrl}/agents/${route.agentService}/self-healing/status`, requestHeaders),
   ]);
 
   const tracesRecord = toRecord(tracesPayload);
@@ -1830,6 +1886,47 @@ async function buildAdminServiceSecondaryPayload(params: {
   const metrics = toRecord(metricsPayload);
   const evaluationRecord = toRecord(evaluationPayload);
   const latestEvaluation = toRecord(evaluationRecord?.latest) || evaluationRecord;
+  const promptsRecord = toRecord(promptsPayload);
+  const toolsRecord = toRecord(toolsPayload);
+  const selfHealingRecord = toRecord(selfHealingPayload);
+
+  const promptCatalog: AdminServicePromptDocument[] = toArray(promptsRecord?.prompts)
+    .map((entry) => toRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null)
+    .map((entry) => ({
+      name: readString(entry, ['name']) || 'prompt.md',
+      content: readString(entry, ['content']) || '',
+      sha: readString(entry, ['sha']) || 'unavailable',
+      last_modified: readString(entry, ['last_modified', 'lastModified']),
+    }));
+
+  const mcpTools: AdminServiceToolDescription[] = toArray(toolsRecord?.tools)
+    .map((entry) => toRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null)
+    .map((entry) => ({
+      name: readString(entry, ['name']) || 'tool',
+      path: readString(entry, ['path']) || '/tool',
+      description: readString(entry, ['description']) || 'No description provided.',
+      input_schema_ref: toRecord(entry.input_schema_ref),
+      output_schema_ref: toRecord(entry.output_schema_ref),
+      input_schema: toRecord(entry.input_schema),
+      output_schema: toRecord(entry.output_schema),
+      metadata: toRecord(entry.metadata) || undefined,
+    }));
+
+  const selfHealing: AdminServiceResilienceStatus = {
+    service: readString(selfHealingRecord, ['service']) || route.agentService,
+    enabled: readBoolean(selfHealingRecord, ['enabled']) ?? false,
+    detect_only: readBoolean(selfHealingRecord, ['detect_only']) ?? false,
+    reconcile_on_messaging_error:
+      readBoolean(selfHealingRecord, ['reconcile_on_messaging_error']) ?? undefined,
+    manifest: toRecord(selfHealingRecord?.manifest),
+    allowlisted_actions: toArray(selfHealingRecord?.allowlisted_actions)
+      .filter((value): value is string => typeof value === 'string'),
+    incidents_total: readNumber(selfHealingRecord, ['incidents_total']) || 0,
+    incidents_open: readNumber(selfHealingRecord, ['incidents_open']) || 0,
+    incidents_closed: readNumber(selfHealingRecord, ['incidents_closed']) || 0,
+  };
 
   const generatedAt = new Date().toISOString();
   const activity = traces.map((entry, index) => {
@@ -1955,6 +2052,9 @@ async function buildAdminServiceSecondaryPayload(params: {
     status_cards: statusCards,
     activity: activity.slice(0, 40),
     model_usage: buildAdminServiceModelUsageRows(traces, metrics, latestEvaluation),
+    prompt_catalog: promptCatalog,
+    mcp_tools: mcpTools,
+    self_healing: selfHealing,
     ...surfaces,
   };
 }

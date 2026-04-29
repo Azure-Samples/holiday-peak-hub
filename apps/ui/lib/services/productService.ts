@@ -7,6 +7,7 @@
 import apiClient, { handleApiError } from '../api/client';
 import agentApiClient from '../api/agentClient';
 import API_ENDPOINTS from '../api/endpoints';
+import { recordAgentInvocationTelemetry } from '../hooks/useAgentInvocationTelemetry';
 import type {
   Product,
   ProductEnrichmentTriggerRequest,
@@ -112,6 +113,7 @@ export const productService = {
       const response = await agentApiClient.post('/ecommerce-product-detail-enrichment/invoke', {
         sku: id,
       });
+      recordAgentInvocationTelemetry('ecommerce-product-detail-enrichment', response.data);
       const payload = response.data || {};
       enrichment = (payload.enriched_product || payload) as AgentEnrichmentPayload;
     } catch {

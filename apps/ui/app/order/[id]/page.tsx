@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { MainLayout } from '@/components/templates/MainLayout';
+import { CommerceAgentLayout } from '@/components/templates/CommerceAgentLayout';
 import { Card } from '@/components/molecules/Card';
 import { Badge } from '@/components/atoms/Badge';
 import { Button } from '@/components/atoms/Button';
@@ -10,6 +10,26 @@ import { Input } from '@/components/atoms/Input';
 import { useOrder } from '@/lib/hooks/useOrders';
 import { useCreateReturn, useReturns } from '@/lib/hooks/useReturns';
 import type { Return } from '@/lib/types/api';
+
+function hasRouteIssueSignal(order: {
+  status?: string;
+  tracking?: unknown;
+  eta?: unknown;
+  carrier?: unknown;
+} | undefined): boolean {
+  if (!order) {
+    return false;
+  }
+
+  const candidateSignals = [
+    order.status,
+    typeof order.tracking === 'string' ? order.tracking : JSON.stringify(order.tracking ?? {}),
+    typeof order.eta === 'string' ? order.eta : JSON.stringify(order.eta ?? {}),
+    typeof order.carrier === 'string' ? order.carrier : JSON.stringify(order.carrier ?? {}),
+  ].join(' ').toLowerCase();
+
+  return /(delay|delayed|exception|issue|incident|alert|reroute|weather|late|held)/.test(candidateSignals);
+}
 
 const getReturnLifecycleMessage = (item: Return): string => {
   if (item.status === 'requested') {
@@ -60,6 +80,12 @@ export default function OrderTrackingPage() {
     () => returns.filter((item) => item.order_id === orderId),
     [returns, orderId],
   );
+  const hasReturnSignals = orderReturns.length > 0 || createReturnMutation.isSuccess;
+  const returnFlowActive = Boolean(returnReason.trim())
+    || createReturnMutation.isPending
+    || createReturnMutation.isSuccess
+    || createReturnMutation.isError;
+  const routeIssueDetected = hasRouteIssueSignal(order);
 
   const canCreateReturn = Boolean(order && returnReason.trim()) && !createReturnMutation.isPending;
 
@@ -80,7 +106,54 @@ export default function OrderTrackingPage() {
   };
 
   return (
-    <MainLayout>
+    <CommerceAgentLayout
+      primary={{
+        agentSlug: returnFlowActive ? 'logistics-returns-support' : 'logistics-eta-computation',
+        state: returnFlowActive
+          ? createReturnMutation.isPending
+            ? 'using-tool'
+            : returnReason.trim()
+              ? 'thinking'
+              : createReturnMutation.isSuccess
+                ? 'talking'
+                : 'idle'
+          : isLoading
+            ? 'thinking'
+            : order?.eta
+              ? 'using-tool'
+              : 'idle',
+        position: 'bottom-right',
+        size: 'sm',
+        visible: true,
+        mode: 'lead',
+      }}
+      sideCast={[
+        returnFlowActive
+          ? {
+              agentSlug: 'crm-support-assistance',
+              state: createReturnMutation.isPending || createReturnMutation.isSuccess ? 'talking' : 'thinking',
+              position: 'bottom-left',
+              size: 'sm',
+              visible: Boolean(order),
+              facing: 'right',
+              scenePeer: 'left',
+              className: 'hidden xl:block',
+              mode: 'observe' as const,
+            }
+          : {
+              agentSlug: 'logistics-route-issue-detection',
+              state: routeIssueDetected ? 'using-tool' : 'idle',
+              position: 'bottom-left',
+              size: 'sm',
+              visible: Boolean(order),
+              facing: 'right',
+              scenePeer: 'left',
+              className: 'hidden xl:block',
+              mode: 'observe' as const,
+            },
+      ]}
+      telemetry="compact"
+    >
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Order Details</h1>
@@ -160,8 +233,8 @@ export default function OrderTrackingPage() {
             </div>
 
             <Card className="p-6 space-y-3">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Create Return</h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
+              <h2 className="text-lg font-semibold text-[var(--hp-text)]">Start Return</h2>
+              <p className="text-sm text-[var(--hp-text-muted)]">
                 Lifecycle starts at requested and moves through approved → received → restocked → refunded. Review target is within 24 hours;
                 refund target is up to 2 business days after restock.
               </p>
@@ -174,7 +247,7 @@ export default function OrderTrackingPage() {
               />
               <div className="flex justify-end">
                 <Button onClick={onCreateReturn} disabled={!canCreateReturn} loading={createReturnMutation.isPending}>
-                  {createReturnMutation.isPending ? 'Creating return...' : 'Create Return'}
+                  {createReturnMutation.isPending ? 'Starting return...' : 'Start return'}
                 </Button>
               </div>
               {createReturnMutation.isPending && (
@@ -254,6 +327,7 @@ export default function OrderTrackingPage() {
           </>
         )}
       </div>
-    </MainLayout>
+
+    </CommerceAgentLayout>
   );
 }

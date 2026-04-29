@@ -6,14 +6,6 @@ import { getCurrentPageSessionId } from '@/lib/hooks/usePageSession';
 
 const AGENT_API_BASE_URL = resolveAgentApiClientBaseUrl().baseUrl || '';
 
-function recordStreamTelemetry(agentSlug: string, data: Record<string, unknown>): void {
-  try {
-    recordAgentInvocationTelemetry(agentSlug, data);
-  } catch {
-    // Streaming output should continue even if telemetry persistence fails.
-  }
-}
-
 export interface AgentInvokeStreamCallbacks {
   onResults?: (payload: Record<string, unknown>) => void;
   onToken?: (text: string) => void;
@@ -41,7 +33,7 @@ function dispatchStreamEvent(
 ): void {
   switch (eventType) {
     case 'results':
-      recordStreamTelemetry(agentSlug, data);
+      recordAgentInvocationTelemetry(agentSlug, data);
       callbacks.onResults?.(data);
       break;
     case 'token': {
@@ -52,7 +44,6 @@ function dispatchStreamEvent(
       break;
     }
     case 'done':
-      recordStreamTelemetry(agentSlug, data);
       callbacks.onDone?.(data);
       break;
     case 'error':
@@ -103,7 +94,6 @@ export function streamAgentInvocation(
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
-      let receivedDoneEvent = false;
 
       // eslint-disable-next-line no-constant-condition
       while (true) {
@@ -132,19 +122,12 @@ export function streamAgentInvocation(
 
             try {
               const data = JSON.parse(line.slice(6)) as Record<string, unknown>;
-              if (currentEvent === 'done') {
-                receivedDoneEvent = true;
-              }
               dispatchStreamEvent(agentSlug, currentEvent, data, callbacks);
             } catch {
               // Ignore malformed stream payloads.
             }
           }
         }
-      }
-
-      if (!receivedDoneEvent) {
-        callbacks.onDone?.({});
       }
     })
     .catch((error: unknown) => {

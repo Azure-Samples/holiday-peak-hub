@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { MainLayout } from '@/components/templates/MainLayout';
+import { CommerceAgentLayout } from '@/components/templates/CommerceAgentLayout';
 import { ShopLayout } from '@/components/templates/ShopLayout';
 import { HeroSlider } from '@/components/organisms/HeroSlider';
 import { useCategories } from '@/lib/hooks/useCategories';
@@ -222,7 +222,30 @@ export function CategoryPageClient({ slug }: { slug: string }) {
   }, [slug]);
 
   return (
-    <MainLayout>
+    <CommerceAgentLayout
+      primary={{
+        agentSlug: 'product-management-assortment-optimization',
+        state: isLoading ? 'thinking' : filteredAndSortedProducts.length > 0 ? 'using-tool' : 'idle',
+        position: 'bottom-right',
+        size: 'sm',
+        visible: true,
+        mode: 'lead',
+      }}
+      sideCast={[
+        {
+          agentSlug: 'crm-segmentation-personalization',
+          state: filteredAndSortedProducts.length > 0 ? 'using-tool' : 'idle',
+          position: 'bottom-left',
+          size: 'sm',
+          visible: filteredAndSortedProducts.length > 0,
+          facing: 'right',
+          scenePeer: 'left',
+          className: 'hidden xl:block',
+          mode: 'observe',
+        },
+      ]}
+      telemetry="compact"
+    >
       <section className="mb-6">
         <HeroSlider />
       </section>
@@ -294,6 +317,7 @@ export function CategoryPageClient({ slug }: { slug: string }) {
           />
         </div>
       )}
-    </MainLayout>
+
+    </CommerceAgentLayout>
   );
 }

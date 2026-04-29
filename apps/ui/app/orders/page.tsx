@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { MainLayout } from '@/components/templates/MainLayout';
+import { CommerceAgentLayout } from '@/components/templates/CommerceAgentLayout';
 import { Card } from '@/components/molecules/Card';
 import { Input } from '@/components/atoms/Input';
 import { Badge } from '@/components/atoms/Badge';
@@ -55,6 +55,7 @@ export default function OrdersPage() {
         order.status.toLowerCase().includes(q)
     );
   }, [orders, query]);
+  const hasReturnSignals = returns.length > 0 || feedback?.type === 'success';
 
   const onRequestReturn = async (order: Order) => {
     if (createReturnMutation.isPending) {
@@ -91,7 +92,30 @@ export default function OrdersPage() {
   };
 
   return (
-    <MainLayout>
+    <CommerceAgentLayout
+      primary={{
+        agentSlug: 'ecommerce-order-status',
+        state: isLoading ? 'thinking' : query.trim().length > 0 ? 'using-tool' : 'idle',
+        position: 'bottom-right',
+        size: 'sm',
+        visible: true,
+        mode: 'lead',
+      }}
+      sideCast={[
+        {
+          agentSlug: 'logistics-returns-support',
+          state: hasReturnSignals ? 'using-tool' : 'idle',
+          position: 'bottom-left',
+          size: 'sm',
+          visible: hasReturnSignals,
+          facing: 'right',
+          scenePeer: 'left',
+          className: 'hidden xl:block',
+          mode: 'observe',
+        },
+      ]}
+      telemetry="compact"
+    >
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Orders</h1>
@@ -189,6 +213,7 @@ export default function OrdersPage() {
           </Card>
         )}
       </div>
-    </MainLayout>
+
+    </CommerceAgentLayout>
   );
 }

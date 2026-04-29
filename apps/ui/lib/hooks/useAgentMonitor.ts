@@ -29,14 +29,6 @@ export function isTracingUnavailableError(error: unknown): boolean {
   return normalized.includes('tracing') || normalized.includes('monitor');
 }
 
-export function useAgentMonitorDashboard(timeRange: AgentMonitorTimeRange) {
-  return useQuery({
-    queryKey: ['admin', 'agent-activity', 'dashboard', timeRange],
-    queryFn: () => agentMonitorService.getDashboard(timeRange),
-    refetchInterval: 10_000,
-  });
-}
-
 export function useAgentHealth(timeRange: AgentMonitorTimeRange) {
   return useQuery({
     queryKey: ['admin', 'agent-activity', 'health-cards', timeRange],
@@ -45,10 +37,28 @@ export function useAgentHealth(timeRange: AgentMonitorTimeRange) {
   });
 }
 
-export function useRecentTraces(agentName: string | undefined, timeRange: AgentMonitorTimeRange, limit = 25) {
+export function useAgentMonitorDashboard(
+  timeRange: AgentMonitorTimeRange,
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: ['admin', 'agent-activity', 'dashboard', timeRange],
+    queryFn: () => agentMonitorService.getDashboard(timeRange),
+    enabled: options?.enabled ?? true,
+    refetchInterval: 10_000,
+  });
+}
+
+export function useRecentTraces(
+  agentName: string | undefined,
+  timeRange: AgentMonitorTimeRange,
+  limit = 25,
+  options?: { enabled?: boolean },
+) {
   return useQuery({
     queryKey: ['admin', 'agent-activity', 'recent-traces', agentName, limit, timeRange],
     queryFn: () => agentMonitorService.getRecentTraces(agentName, limit, timeRange),
+    enabled: options?.enabled ?? true,
     refetchInterval: 10_000,
   });
 }
@@ -61,18 +71,26 @@ export function useAgentTraceDetail(traceId: string, timeRange: AgentMonitorTime
   });
 }
 
-export function useAgentEvaluations(timeRange: AgentMonitorTimeRange) {
+export function useAgentEvaluations(
+  timeRange: AgentMonitorTimeRange,
+  options?: { enabled?: boolean },
+) {
   return useQuery({
     queryKey: ['admin', 'agent-activity', 'evaluations', timeRange],
     queryFn: () => agentMonitorService.getLatestEvaluations(timeRange),
+    enabled: options?.enabled ?? true,
     refetchInterval: 30_000,
   });
 }
 
-export function useModelUsageStats(timeRange: AgentMonitorTimeRange) {
+export function useModelUsageStats(
+  timeRange: AgentMonitorTimeRange,
+  options?: { enabled?: boolean },
+) {
   return useQuery({
     queryKey: ['admin', 'agent-activity', 'model-usage', timeRange],
     queryFn: () => agentMonitorService.getModelUsageStats(timeRange),
+    enabled: options?.enabled ?? true,
     refetchInterval: 30_000,
   });
 }
@@ -86,10 +104,11 @@ export function useEvaluationTrends(timeRange: AgentMonitorTimeRange) {
   });
 }
 
-export function useAgentGlobalHealth() {
+export function useAgentGlobalHealth(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['admin', 'agent-activity', 'global-health'],
     queryFn: () => agentMonitorService.getDashboard('15m'),
+    enabled: options?.enabled ?? true,
     refetchInterval: 30_000,
     select: (dashboard): AgentHealthStatus => {
       if (!dashboard.tracing_enabled || dashboard.health_cards.length === 0) {

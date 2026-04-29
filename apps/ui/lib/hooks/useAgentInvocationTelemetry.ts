@@ -9,7 +9,6 @@ export interface AgentInvocationTelemetry {
   modelTier?: string;
   totalTokens?: number;
   costUsd?: number;
-  costPer1kTokens?: number;
   latencyMs?: number;
   toolCalls?: number;
   updatedAt: number;
@@ -78,22 +77,6 @@ function formatCost(value: number): string {
   return `$${value.toFixed(4)}`;
 }
 
-function deriveEstimatedCostUsd(
-  totalTokens: number | undefined,
-  costUsd: number | undefined,
-  costPer1kTokens: number | undefined,
-): number | undefined {
-  if (costUsd !== undefined) {
-    return costUsd;
-  }
-
-  if (totalTokens === undefined || costPer1kTokens === undefined) {
-    return undefined;
-  }
-
-  return (totalTokens / 1000) * costPer1kTokens;
-}
-
 export function parseAgentInvocationTelemetry(payload: unknown): AgentInvocationTelemetry | null {
   if (!isRecord(payload)) {
     return null;
@@ -124,7 +107,6 @@ export function parseAgentInvocationTelemetry(payload: unknown): AgentInvocation
         ? (inputTokens ?? 0) + (outputTokens ?? 0)
         : undefined),
     costUsd: readNumber(telemetryRecord, ['cost_usd', 'cost']),
-    costPer1kTokens: readNumber(telemetryRecord, ['cost_per_1k_tokens', 'costPer1kTokens']),
     latencyMs: readNumber(telemetryRecord, ['latency_ms', 'duration_ms']),
     toolCalls: Array.isArray(telemetryRecord.tool_calls)
       ? telemetryRecord.tool_calls.length
@@ -136,18 +118,11 @@ export function parseAgentInvocationTelemetry(payload: unknown): AgentInvocation
     normalizedTelemetry.modelTier === undefined
     && normalizedTelemetry.totalTokens === undefined
     && normalizedTelemetry.costUsd === undefined
-    && normalizedTelemetry.costPer1kTokens === undefined
     && normalizedTelemetry.latencyMs === undefined
     && normalizedTelemetry.toolCalls === undefined
   ) {
     return null;
   }
-
-  normalizedTelemetry.costUsd = deriveEstimatedCostUsd(
-    normalizedTelemetry.totalTokens,
-    normalizedTelemetry.costUsd,
-    normalizedTelemetry.costPer1kTokens,
-  );
 
   return normalizedTelemetry;
 }
@@ -168,20 +143,14 @@ export function recordAgentInvocationTelemetry(
     return telemetry;
   }
 
-  if (typeof CustomEvent === 'function') {
-    try {
-      window.dispatchEvent(
-        new CustomEvent(UPDATE_EVENT, {
-          detail: {
-            agentSlug,
-            telemetry,
-          },
-        }),
-      );
-    } catch {
-      // Session persistence is the primary channel; event fan-out is best effort.
-    }
-  }
+  window.dispatchEvent(
+    new CustomEvent(UPDATE_EVENT, {
+      detail: {
+        agentSlug,
+        telemetry,
+      },
+    }),
+  );
 
   return telemetry;
 }
@@ -206,7 +175,6 @@ export function readAgentInvocationTelemetry(agentSlug: string): AgentInvocation
       modelTier: readString(parsed, ['modelTier']),
       totalTokens: readNumber(parsed, ['totalTokens']),
       costUsd: readNumber(parsed, ['costUsd']),
-      costPer1kTokens: readNumber(parsed, ['costPer1kTokens']),
       latencyMs: readNumber(parsed, ['latencyMs']),
       toolCalls: readNumber(parsed, ['toolCalls']),
       updatedAt: readNumber(parsed, ['updatedAt']) ?? Date.now(),
@@ -227,7 +195,7 @@ export function formatAgentInvocationTelemetry(
     tier: telemetry.modelTier ? telemetry.modelTier.toUpperCase() : undefined,
     tokens:
       telemetry.totalTokens !== undefined
-        ? `${formatCompactNumber(telemetry.totalTokens)} tokens`
+        ? `${formatCompactNumber(telemetry.totalTokens)} tok`
         : undefined,
     cost: telemetry.costUsd !== undefined ? formatCost(telemetry.costUsd) : undefined,
     latency:

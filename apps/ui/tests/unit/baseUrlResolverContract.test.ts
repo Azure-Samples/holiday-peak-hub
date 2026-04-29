@@ -45,7 +45,7 @@ describe('base URL resolver contract', () => {
   });
 
   describe('resolveAgentApiBaseUrl', () => {
-    it('uses only explicit agent URL env aliases in stable precedence order', () => {
+    it('uses explicit agent URL env aliases before derived CRUD aliases', () => {
       const resolved = resolveAgentApiBaseUrl({
         NEXT_PUBLIC_AGENT_API_URL: 'https://agents-public.example.net/',
         AGENT_API_URL: 'https://agents-server.example.net',
@@ -58,14 +58,14 @@ describe('base URL resolver contract', () => {
       });
     });
 
-    it('does not derive the agent base URL from CRUD aliases', () => {
+    it('derives the agent base URL from CRUD aliases when explicit agent env is absent', () => {
       const resolved = resolveAgentApiBaseUrl({
         NEXT_PUBLIC_API_BASE_URL: 'https://crud-base.example.net/api/',
       } as unknown as NodeJS.ProcessEnv);
 
       expect(resolved).toEqual({
-        baseUrl: null,
-        sourceKey: null,
+        baseUrl: 'https://crud-base.example.net/agents',
+        sourceKey: 'NEXT_PUBLIC_API_BASE_URL',
       });
     });
   });

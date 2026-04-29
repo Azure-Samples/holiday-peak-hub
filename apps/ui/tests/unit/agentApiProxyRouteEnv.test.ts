@@ -74,30 +74,33 @@ describe('/agent-api proxy route env handling', () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  it('does not derive agent proxy routing from CRUD env aliases', async () => {
-    process.env.NEXT_PUBLIC_CRUD_API_URL = 'https://crud.example.test';
+  it('derives agent proxy routing from CRUD env aliases when explicit agent env is absent', async () => {
+    process.env.NEXT_PUBLIC_CRUD_API_URL = 'https://holiday.example.azure-api.net';
     process.env.NEXT_PUBLIC_API_URL = 'https://crud-alias.example.test';
     process.env.NEXT_PUBLIC_API_BASE_URL = 'https://crud-base.example.test/api';
     process.env.CRUD_API_URL = 'https://crud-server.example.test';
+
+    (global.fetch as jest.Mock).mockResolvedValue({
+      body: null,
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers({
+        'content-type': 'application/json',
+      }),
+    });
 
     const route = await import('../../app/agent-api/[...path]/route');
     const response = await route.GET(makeRequest('http://localhost/agent-api/ecommerce-catalog-search/invoke'), {
       params: Promise.resolve({ path: ['ecommerce-catalog-search', 'invoke'] }),
     });
 
-    expect(response.status).toBe(502);
-    await expect(response.json()).resolves.toEqual(
+    expect(response.status).toBe(200);
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://holiday.example.azure-api.net/agents/ecommerce-catalog-search/invoke',
       expect.objectContaining({
-        error: 'Agent API proxy is not configured for backend routing.',
-        proxy: expect.objectContaining({
-          failureKind: 'config',
-          sourceKey: null,
-          baseUrl: null,
-          attemptedPath: '/agents/ecommerce-catalog-search/invoke',
-        }),
+        method: 'GET',
       }),
     );
-    expect(global.fetch).not.toHaveBeenCalled();
   });
 
   it('returns 502 with sanitized diagnostics when upstream agent fetch throws', async () => {
