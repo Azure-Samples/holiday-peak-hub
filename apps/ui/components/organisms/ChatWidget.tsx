@@ -291,7 +291,7 @@ export const ChatWidget: React.FC = () => {
         type="button"
         ref={launcherButtonRef}
         onClick={openWidget}
-        className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-full bg-[var(--hp-primary)] px-4 py-3 text-white shadow-lg transition-transform hover:scale-105 hover:bg-[var(--hp-primary-hover)] sm:bottom-6 sm:right-6"
+        className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-full bg-[var(--hp-primary)] px-4 py-3 text-white shadow-lg transition-transform hover:scale-105 hover:bg-[var(--hp-primary-hover)] max-[420px]:left-4 max-[420px]:right-4 max-[420px]:justify-center sm:bottom-6 sm:right-6"
         aria-label="Open product enrichment chat"
         aria-expanded={false}
         aria-controls={CHAT_WIDGET_PANEL_ID}
@@ -308,10 +308,10 @@ export const ChatWidget: React.FC = () => {
       role="dialog"
       aria-modal="false"
       aria-labelledby="agent-chat-widget-title"
-      className="fixed bottom-4 right-4 z-50 w-[calc(100%-2rem)] max-w-md sm:bottom-6 sm:right-6"
+      className="fixed inset-x-4 bottom-4 z-50 sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-[calc(100%-3rem)] sm:max-w-md"
       aria-label="Agent chat widget"
     >
-      <Card className="flex h-[70dvh] max-h-[540px] min-h-[440px] flex-col overflow-hidden border-[var(--hp-border)] shadow-2xl">
+      <Card className="flex h-[min(70dvh,540px)] min-h-[20rem] max-h-[calc(100dvh-6rem)] flex-col overflow-hidden border-[var(--hp-border)] shadow-2xl sm:max-h-[calc(100dvh-8rem)]">
         <div className="flex items-center justify-between bg-[var(--hp-primary)] p-4 text-white">
           <div className="flex items-center gap-2">
             <div className="h-2 w-2 animate-pulse rounded-full bg-green-300" />

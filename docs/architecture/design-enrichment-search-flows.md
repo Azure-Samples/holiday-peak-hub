@@ -28,11 +28,11 @@
 Both flows are **architecturally well-fitted** to the existing platform. The codebase already has:
 
 - **Truth Layer services** (`truth-enrichment`, `truth-hitl`, `truth-export`) with the exact Agent/Adapter/Schema pattern needed
-- **Enterprise connectors** with a `ConnectorRegistry` factory pattern (ADR-024) and generic DAM/PIM integrations (`lib/integrations/dam_generic.py`, `lib/integrations/pim_writeback.py`)
-- **Event Hub choreography** (ADR-007) with established subscription wiring in `main.py` via `create_eventhub_lifespan`
+- **Enterprise connectors** with a `ConnectorRegistry` factory pattern (ADR-003) and generic DAM/PIM integrations (`lib/integrations/dam_generic.py`, `lib/integrations/pim_writeback.py`)
+- **Event Hub choreography** (ADR-006) with established subscription wiring in `main.py` via `create_eventhub_lifespan`
 - **AI Search integration** in `ecommerce-catalog-search` with `search_catalog_skus_detailed()` and `upsert_catalog_document()`
-- **SLM-first routing** (ADR-013) via `AgentBuilder.with_foundry_models()`
-- **MCP tool exposition** (ADR-010) via `FastAPIMCPServer`
+- **SLM-first routing** (ADR-010) via `AgentBuilder.with_foundry_models()`
+- **MCP tool exposition** (ADR-004) via `FastAPIMCPServer`
 
 **Key finding**: Neither flow requires greenfield service creation. Both are achievable by **extending existing services** and adding targeted new components, consistent with the principle *"simplicity first — pick the simplest pattern that satisfies the quality attributes"*.
 
@@ -100,14 +100,14 @@ flowchart TB
 | Pattern | ADR | Flow 1 Compliance | Flow 2 Compliance |
 |---------|-----|--------------------|--------------------|
 | Adapter Pattern | ADR-003 | ✅ New `DAMImageAnalysisAdapter` extends `BaseAdapter` | ✅ New `SearchEnrichmentAdapter` extends `BaseAdapter` |
-| Builder Pattern | ADR-004 | ✅ Uses `AgentBuilder.with_foundry_models()` | ✅ Uses `AgentBuilder` for new search agent |
-| Saga Choreography | ADR-007 | ✅ Event Hub pub/sub chain: ingest → enrich → hitl → export | ✅ Event Hub: approval → search-enrich → index |
-| MCP Exposition | ADR-010 | ✅ New MCP tools on `truth-enrichment` | ✅ New MCP tools on `ecommerce-catalog-search` |
-| ACP Alignment | ADR-011 | N/A (internal enrichment) | ✅ Search results follow ACP product schema |
-| SLM-First Routing | ADR-013 | ✅ SLM for gap detection, LLM for image analysis | ✅ SLM for keyword/filter, LLM for semantic/multi-query |
-| Truth Layer | ADR-025 | ✅ Core flow extends enriched_data → HITL → approved_data | ✅ Reads from approved_data for search enrichment |
-| Connector Registry | ADR-024 | ✅ DAM connector registered in domain factory | ✅ N/A |
-| Resilience | ADR-023 | ✅ Circuit breaker on DAM/PIM calls via `BaseAdapter` | ✅ Fallback path already exists in `_search_products()` |
+| Builder Pattern | ADR-007 | ✅ Uses `AgentBuilder.with_foundry_models()` | ✅ Uses `AgentBuilder` for new search agent |
+| Saga Choreography | ADR-006 | ✅ Event Hub pub/sub chain: ingest → enrich → hitl → export | ✅ Event Hub: approval → search-enrich → index |
+| MCP Exposition | ADR-004 | ✅ New MCP tools on `truth-enrichment` | ✅ New MCP tools on `ecommerce-catalog-search` |
+| ACP Alignment | ADR-009 | N/A (internal enrichment) | ✅ Search results follow ACP product schema |
+| SLM-First Routing | ADR-010 | ✅ SLM for gap detection, LLM for image analysis | ✅ SLM for keyword/filter, LLM for semantic/multi-query |
+| Truth Layer | ADR-020 | ✅ Core flow extends enriched_data → HITL → approved_data | ✅ Reads from approved_data for search enrichment |
+| Connector Registry | ADR-003 | ✅ DAM connector registered in domain factory | ✅ N/A |
+| Resilience | ADR-019 | ✅ Circuit breaker on DAM/PIM calls via `BaseAdapter` | ✅ Fallback path already exists in `_search_products()` |
 
 ---
 
@@ -387,7 +387,7 @@ sequenceDiagram
     UI->>Agent: POST /search {query, mode: "auto"}
 
     rect rgb(255, 230, 230)
-        Note over Agent: Complexity Assessment (ADR-013)
+        Note over Agent: Complexity Assessment (ADR-010)
         Agent->>Agent: Assess query complexity
         Note over Agent: Multi-attribute intent → COMPLEX
     end
@@ -705,32 +705,32 @@ apps/ecommerce-catalog-search/src/ecommerce_catalog_search/
 
 ## 9. ADR Recommendations
 
-### ADR-029: DAM Image Analysis for Product Enrichment
+### Proposed: DAM Image Analysis for Product Enrichment
 
 **Status**: Proposed  
 **Decision**: Extend `truth-enrichment` with DAM image retrieval and Foundry GPT-4o vision analysis for attribute extraction. Image-derived attributes follow the same HITL review workflow as text-derived attributes.  
 **Key trade-off**: GPT-4o vision calls cost ~10x more than text-only enrichment. Mitigated by: (a) only processing products with missing visual attributes, (b) batch processing during off-peak hours, (c) caching extracted attributes per asset ID.  
 **Pattern**: Pipes and Filters (EIP) — DAM fetch → image analysis → confidence scoring → HITL routing.
 
-### ADR-030: Search Enrichment as Separate Bounded Context
+### Proposed: Search Enrichment as Separate Bounded Context
 
 **Status**: Proposed  
 **Decision**: Create `search-enrichment-agent` as a new service owning `search_enriched_products`, rather than embedding search enrichment in `truth-enrichment`.  
 **Key trade-off**: One more service to operate vs. clean bounded context separation. The search enrichment domain has different data output, different consumers, different throughput profile, and different failure modes.  
 **Pattern**: Database per Service (microservices.io) — `search-enrichment-agent` owns its Cosmos container.
 
-### ADR-031: Azure AI Search Indexer for Auto-Population
+### Proposed: Azure AI Search Indexer for Auto-Population
 
 **Status**: Proposed  
 **Decision**: Use Azure-managed AI Search indexer with Cosmos DB change feed data source and AI skills pipeline for vectorization, replacing manual `upsert_catalog_document()` calls.  
 **Key trade-off**: Less control over indexing timing vs. zero custom indexing code. Azure indexer supports configurable scheduling (every 5 min) and change detection. Skillset handles embedding generation.  
 **Pattern**: Event-Carried State Transfer (EIP) — Cosmos change feed is the event that triggers index update.
 
-### ADR-032: Dual-Path Search Routing
+### Proposed: Dual-Path Search Routing
 
 **Status**: Proposed  
 **Decision**: Extend `CatalogSearchAgent` with complexity assessment to route simple queries (SKU lookup, brand filter) through keyword/filter search, and complex queries (natural language intent) through agentic multi-query retrieval with Foundry validation.  
-**Key trade-off**: Complexity assessment adds ~50ms overhead. Mitigated by: simple heuristics run first (lexical signals from ADR-013), embedding-based assessment only on ambiguous cases.  
+**Key trade-off**: Complexity assessment adds ~50ms overhead. Mitigated by: simple heuristics run first (lexical signals from ADR-010), embedding-based assessment only on ambiguous cases.  
 **Pattern**: Content-Based Router (EIP) — route request to appropriate processing path based on assessed complexity.
 
 ---
@@ -743,7 +743,7 @@ apps/ecommerce-catalog-search/src/ecommerce_catalog_search/
 | AI Search indexer lag creates stale search results | Low | Medium | Configure 5-min indexer schedule; add manual trigger endpoint for urgent updates |
 | `search_enriched_products` RU cost from continuous indexer reads | Medium | Medium | Use Cosmos autoscale 400-4000 RU/s; monitor with Azure Monitor alerts |
 | Complementary/substitute product SKU references become stale | Low | Medium | Include `enriched_at` timestamp; re-enrich on product updates; TTL-based staleness detection |
-| Dual-path routing misclassifies complex queries as simple | Medium | Low | SLM-first with confidence-based escalation (ADR-013 pattern already addresses this) |
+| Dual-path routing misclassifies complex queries as simple | Medium | Low | SLM-first with confidence-based escalation (ADR-010 pattern already addresses this) |
 | DAM connector auth failures cascade to enrichment pipeline | High | Low | Circuit breaker on `DAMImageAnalysisAdapter` (`BaseAdapter` provides this); skip image analysis on DAM failure, continue text-only enrichment |
 
 ---

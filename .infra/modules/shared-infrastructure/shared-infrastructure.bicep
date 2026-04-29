@@ -87,7 +87,7 @@ var agcControllerIdentityName = '${projectName}${envSuffix}-agc-controller'
 var agcControllerNamespace = 'azure-alb-system'
 var agcControllerServiceAccount = 'alb-controller-sa'
 var agcGatewayClassName = 'azure-alb-external'
-// ADR-034: Namespace isolation — CRUD and agents in separate namespaces.
+// ADR-026: Namespace isolation — CRUD and agents in separate namespaces.
 var crudNamespace = 'holiday-peak-crud'
 var agentsNamespace = 'holiday-peak-agents'
 var agentsIdentityName = '${projectName}${envSuffix}-agents-identity'
@@ -1201,7 +1201,7 @@ resource agcControllerIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities
   tags: tags
 }
 
-// Flux CD GitOps extension — enables pull-based reconciliation for AKS deployments (ADR-033).
+// Flux CD GitOps extension — enables pull-based reconciliation for AKS deployments (ADR-017).
 resource fluxExtension 'Microsoft.KubernetesConfiguration/extensions@2023-05-01' = {
   name: 'flux'
   scope: aksClusterResource

@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { MainLayout } from '@/components/templates/MainLayout';
+import { CommerceAgentLayout } from '@/components/templates/CommerceAgentLayout';
 import { SearchInput } from '@/components/molecules/SearchInput';
 import { Alert } from '@/components/molecules/Alert';
 import { Button } from '@/components/atoms/Button';
@@ -146,6 +146,11 @@ export default function SearchPage() {
     network: 'Catalog search backend is temporarily unreachable.',
     upstream: 'Catalog search backend returned a temporary gateway error.',
   };
+  const robotState = isLoading || isFetching || isReranking
+    ? 'thinking'
+    : query
+      ? 'talking'
+      : 'idle';
 
   useEffect(() => {
     setQuery(initialQuery);
@@ -163,10 +168,35 @@ export default function SearchPage() {
   };
 
   return (
-    <MainLayout
-      navigationProps={{
-        onSearch: handleSearch,
+    <CommerceAgentLayout
+      mainLayoutProps={{
+        navigationProps: {
+          onSearch: handleSearch,
+        },
       }}
+      primary={{
+        agentSlug: 'ecommerce-catalog-search',
+        state: robotState,
+        position: 'bottom-left',
+        size: 'sm',
+        visible: resolvedMode === 'intelligent',
+        facing: 'right',
+        mode: 'lead',
+      }}
+      sideCast={[
+        {
+          agentSlug: 'search-enrichment-agent',
+          state: query ? 'using-tool' : 'idle',
+          position: 'bottom-right',
+          size: 'sm',
+          visible: resolvedMode === 'intelligent' && Boolean(query),
+          facing: 'left',
+          scenePeer: 'right',
+          className: 'hidden xl:block',
+          mode: 'observe',
+        },
+      ]}
+      telemetry="compact"
     >
       <div className="mb-8 space-y-4">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Search</h1>
@@ -177,10 +207,11 @@ export default function SearchPage() {
           <Button size="sm" onClick={() => handleSearch('laptop')}>
             Run agent-friendly query
           </Button>
-          <Link href="/search?agentChat=1" className="inline-flex">
-            <Button size="sm" variant="secondary">
-              Open popup comparison
-            </Button>
+          <Link
+            href="/search?agentChat=1"
+            className="inline-flex items-center justify-center rounded-xl border border-[var(--hp-border)] bg-[var(--hp-surface)] px-3 py-1.5 text-xs font-semibold text-[var(--hp-text)] transition-colors hover:bg-[var(--hp-surface-strong)]"
+          >
+            Open popup comparison
           </Link>
         </div>
         <Link
@@ -314,6 +345,7 @@ export default function SearchPage() {
           </div>
         </Alert>
       )}
-    </MainLayout>
+
+    </CommerceAgentLayout>
   );
 }

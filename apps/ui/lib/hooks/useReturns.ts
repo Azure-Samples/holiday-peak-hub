@@ -2,10 +2,15 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { returnsService } from '../services/returnsService';
 import type { CreateReturnRequest } from '../types/api';
 
-export function useReturns() {
+type QueryOptions = {
+  enabled?: boolean;
+};
+
+export function useReturns(options?: QueryOptions) {
   return useQuery({
     queryKey: ['returns'],
     queryFn: () => returnsService.list(),
+    enabled: options?.enabled ?? true,
   });
 }
 

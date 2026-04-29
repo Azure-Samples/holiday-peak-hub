@@ -9,10 +9,15 @@ import type {
   ReservationActionRequest,
 } from '../types/api';
 
-export function useInventoryHealth() {
+type QueryOptions = {
+  enabled?: boolean;
+};
+
+export function useInventoryHealth(options?: QueryOptions) {
   return useQuery({
     queryKey: ['inventory', 'health'],
     queryFn: () => inventoryService.getHealth(),
+    enabled: options?.enabled ?? true,
     staleTime: 30_000,
   });
 }

@@ -810,8 +810,8 @@ Several routes have `TODO` placeholders for future implementation:
 - **[Implementation Roadmap](../IMPLEMENTATION_ROADMAP.md)** - Deployment and next steps
 - **[Frontend Integration Guide](../../apps/ui/INTEGRATION.md)** - Frontend API setup
 - **[CRUD Service README](../../apps/crud-service/README.md)** - Service-specific documentation
-- **[ADR-019: Authentication & RBAC](./adrs/adr-019-authentication-rbac.md)** - Authentication decisions
-- **[ADR-007: Event-Driven Architecture](./adrs/adr-007-saga-choreography.md)** - Event Hubs integration
+- **[ADR-015: Authentication & RBAC](./adrs/adr-015-authentication-rbac.md)** - Authentication decisions
+- **[ADR-006: Event-Driven Architecture](./adrs/adr-006-saga-choreography.md)** - Event Hubs integration
 
 ---
 

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { MainLayout } from '@/components/templates/MainLayout';
+import { CommerceAgentLayout } from '@/components/templates/CommerceAgentLayout';
 import { Card } from '@/components/molecules/Card';
 import { Input } from '@/components/atoms/Input';
 import { Badge } from '@/components/atoms/Badge';
@@ -55,6 +55,7 @@ export default function OrdersPage() {
         order.status.toLowerCase().includes(q)
     );
   }, [orders, query]);
+  const hasReturnSignals = returns.length > 0 || feedback?.type === 'success';
 
   const onRequestReturn = async (order: Order) => {
     if (createReturnMutation.isPending) {
@@ -91,7 +92,31 @@ export default function OrdersPage() {
   };
 
   return (
-    <MainLayout>
+    <CommerceAgentLayout
+      primary={{
+        agentSlug: 'ecommerce-order-status',
+        state: isLoading ? 'thinking' : query.trim().length > 0 ? 'using-tool' : 'idle',
+        position: 'bottom-left',
+        size: 'sm',
+        visible: true,
+        facing: 'right',
+        mode: 'lead',
+      }}
+      sideCast={[
+        {
+          agentSlug: 'logistics-returns-support',
+          state: hasReturnSignals ? 'using-tool' : 'idle',
+          position: 'bottom-right',
+          size: 'sm',
+          visible: hasReturnSignals,
+          facing: 'left',
+          scenePeer: 'right',
+          className: 'hidden xl:block',
+          mode: 'observe',
+        },
+      ]}
+      telemetry="compact"
+    >
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Orders</h1>
@@ -118,14 +143,15 @@ export default function OrdersPage() {
         {!isLoading && !isError && (
           <Card className="overflow-x-auto">
             <table className="min-w-full text-sm">
+              <caption className="sr-only">Order history and return actions</caption>
               <thead className="bg-gray-100 dark:bg-gray-800 text-left">
                 <tr>
-                  <th className="px-4 py-3">Order</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Items</th>
-                  <th className="px-4 py-3">Total</th>
-                  <th className="px-4 py-3">Created</th>
-                  <th className="px-4 py-3">Return</th>
+                  <th scope="col" className="px-4 py-3">Order</th>
+                  <th scope="col" className="px-4 py-3">Status</th>
+                  <th scope="col" className="px-4 py-3">Items</th>
+                  <th scope="col" className="px-4 py-3">Total</th>
+                  <th scope="col" className="px-4 py-3">Created</th>
+                  <th scope="col" className="px-4 py-3">Return</th>
                 </tr>
               </thead>
               <tbody>
@@ -189,6 +215,7 @@ export default function OrdersPage() {
           </Card>
         )}
       </div>
-    </MainLayout>
+
+    </CommerceAgentLayout>
   );
 }

@@ -3,16 +3,60 @@
 @layer base {
   :root {
     color-scheme: light;
-    --hp-bg: #f8f6ef;
-    --hp-surface: #fffcf7;
-    --hp-surface-strong: #fff5df;
-    --hp-border: #eadfcc;
-    --hp-text: #1d1a16;
-    --hp-text-muted: #5e5649;
-    --hp-primary: #b33a24;
-    --hp-primary-hover: #932f1d;
-    --hp-accent: #0b6e66;
-    --hp-focus: #de7f1a;
+
+    /* ── Core palette ── */
+    --hp-bg: #fafaf9;
+    --hp-surface: #ffffff;
+    --hp-surface-strong: #f5f3ef;
+    --hp-surface-elevated: #ffffff;
+    --hp-border: #e8e5df;
+    --hp-border-subtle: #f0ede8;
+    --hp-text: #1a1a1a;
+    --hp-text-muted: #6b6b6b;
+    --hp-text-faint: #9ca3af;
+
+    /* ── Brand colours ── */
+    --hp-primary: #c73a2a;
+    --hp-primary-hover: #a82f22;
+    --hp-primary-soft: rgba(199, 58, 42, 0.08);
+    --hp-accent: #0d7a70;
+    --hp-accent-soft: rgba(13, 122, 112, 0.08);
+    --hp-focus: #e88a1a;
+    --hp-success: #16a34a;
+    --hp-warning: #f59e0b;
+    --hp-error: #dc2626;
+
+    /* ── Glass & glow ── */
+    --hp-glass-bg: rgba(255, 255, 255, 0.65);
+    --hp-glass-border: rgba(255, 255, 255, 0.5);
+    --hp-glass-blur: 20px;
+    --hp-glow-primary: rgba(199, 58, 42, 0.25);
+    --hp-glow-accent: rgba(13, 122, 112, 0.2);
+    --hp-stage-bg: radial-gradient(ellipse at top, #1a0f2e 0%, #0a0a0a 68%);
+    --hp-font-mono: "JetBrains Mono", "Fira Code", "IBM Plex Mono", monospace;
+
+    /* ── Shadows ── */
+    --hp-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03);
+    --hp-shadow-md: 0 4px 16px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.04);
+    --hp-shadow-lg: 0 12px 40px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.04);
+    --hp-shadow-xl: 0 24px 64px rgba(0,0,0,0.1), 0 8px 20px rgba(0,0,0,0.06);
+    --hp-shadow-glow: 0 0 40px var(--hp-glow-primary);
+
+    /* ── Motion ── */
+    --hp-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --hp-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --hp-ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+    --hp-duration-fast: 150ms;
+    --hp-duration-normal: 300ms;
+    --hp-duration-slow: 500ms;
+
+    /* ── Spacing rhythm ── */
+    --hp-space-section: clamp(3rem, 6vw, 6rem);
+    --hp-radius-sm: 0.5rem;
+    --hp-radius-md: 0.75rem;
+    --hp-radius-lg: 1rem;
+    --hp-radius-xl: 1.5rem;
+    --hp-radius-2xl: 2rem;
   }
 
   .dark {
@@ -25,8 +69,23 @@
     --hp-text-muted: #ceb99a;
     --hp-primary: #f17753;
     --hp-primary-hover: #fb936f;
+    --hp-primary-soft: rgba(241, 119, 83, 0.14);
     --hp-accent: #45b3a7;
+    --hp-accent-soft: rgba(69, 179, 167, 0.14);
     --hp-focus: #ffc061;
+
+    --hp-glass-bg: rgba(20, 20, 20, 0.7);
+    --hp-glass-border: rgba(255, 255, 255, 0.08);
+    --hp-glass-blur: 20px;
+    --hp-glow-primary: rgba(240, 120, 88, 0.2);
+    --hp-glow-accent: rgba(76, 201, 187, 0.15);
+    --hp-stage-bg: radial-gradient(ellipse at top, #1b1134 0%, #050505 68%);
+
+    --hp-shadow-sm: 0 1px 3px rgba(0,0,0,0.2);
+    --hp-shadow-md: 0 4px 16px rgba(0,0,0,0.3);
+    --hp-shadow-lg: 0 12px 40px rgba(0,0,0,0.35);
+    --hp-shadow-xl: 0 24px 64px rgba(0,0,0,0.45);
+    --hp-shadow-glow: 0 0 60px var(--hp-glow-primary);
   }
 
   * {
@@ -101,6 +160,25 @@
   .link {
     color: var(--hp-primary);
     @apply underline-offset-4 hover:underline;
+  }
+
+  .demo-stage {
+    background:
+      radial-gradient(circle at 16% 18%, color-mix(in srgb, var(--hp-primary) 14%, transparent) 0%, transparent 26%),
+      radial-gradient(circle at 82% 10%, color-mix(in srgb, var(--hp-accent) 16%, transparent) 0%, transparent 24%),
+      radial-gradient(circle at 50% 88%, rgba(255, 184, 108, 0.08) 0%, transparent 22%),
+      var(--hp-stage-bg);
+  }
+
+  .demo-panel {
+    background: linear-gradient(180deg, rgba(18, 18, 24, 0.78), rgba(8, 8, 12, 0.72));
+    backdrop-filter: blur(18px) saturate(1.2);
+    -webkit-backdrop-filter: blur(18px) saturate(1.2);
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.24);
+  }
+
+  .demo-telemetry {
+    font-family: var(--hp-font-mono);
   }
 }
 

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { MainLayout } from '@/components/templates/MainLayout';
+import { CommerceAgentLayout } from '@/components/templates/CommerceAgentLayout';
 import { Card } from '@/components/molecules/Card';
 import { Button } from '@/components/atoms/Button';
 import { Input } from '@/components/atoms/Input';
@@ -46,7 +46,22 @@ export default function ProfilePage() {
     : '?';
 
   return (
-    <MainLayout>
+    <CommerceAgentLayout
+      sideCast={[
+        {
+          agentSlug: 'crm-profile-aggregation',
+          state: 'thinking',
+          thinkingMessage: 'I unified 4 identities into your profile; click to inspect.',
+          position: 'bottom-left',
+          size: 'sm',
+          visible: true,
+          facing: 'right',
+          className: 'hidden xl:block',
+          mode: 'hint',
+        },
+      ]}
+      telemetry="visible"
+    >
       <div className="max-w-6xl mx-auto py-8">
         {/* Header */}
         <div className="mb-8">
@@ -86,7 +101,7 @@ export default function ProfilePage() {
                       <Button
                         variant="outline"
                         onClick={() => setIsEditing(true)}
-                        className="border-ocean-500 text-ocean-500 dark:border-ocean-300 dark:text-ocean-300"
+                        className="border-[var(--hp-primary)] text-[var(--hp-primary)] hover:bg-[var(--hp-primary-soft)]"
                       >
                         <FiEdit2 className="mr-2 w-4 h-4" />
                         Edit Profile
@@ -142,7 +157,7 @@ export default function ProfilePage() {
                         </Button>
                         <Button
                           type="submit"
-                          className="flex-1 bg-ocean-500 hover:bg-ocean-600 dark:bg-ocean-300 dark:hover:bg-ocean-400 text-white dark:text-gray-900"
+                          className="flex-1 bg-[var(--hp-primary)] text-white hover:bg-[var(--hp-primary-hover)]"
                           disabled={updateProfile.isPending}
                         >
                           {updateProfile.isPending ? 'Saving…' : 'Save Changes'}
@@ -155,28 +170,32 @@ export default function ProfilePage() {
             },
             {
               id: 'addresses',
-              label: 'Addresses',
+              label: 'Addresses (Soon)',
+              disabled: true,
               content: (
                 <UnsupportedTabState message="Addresses are not available in the current API contract." />
               ),
             },
             {
               id: 'payment',
-              label: 'Payment Methods',
+              label: 'Payment Methods (Soon)',
+              disabled: true,
               content: (
                 <UnsupportedTabState message="Payment methods are not available in the current API contract." />
               ),
             },
             {
               id: 'security',
-              label: 'Security',
+              label: 'Security (Soon)',
+              disabled: true,
               content: (
                 <UnsupportedTabState message="Security settings are not available in the current API contract." />
               ),
             },
             {
               id: 'preferences',
-              label: 'Preferences',
+              label: 'Preferences (Soon)',
+              disabled: true,
               content: (
                 <UnsupportedTabState message="Preferences are not available in the current API contract." />
               ),
@@ -184,7 +203,7 @@ export default function ProfilePage() {
           ]}
         />
       </div>
-    </MainLayout>
+    </CommerceAgentLayout>
   );
 }
 

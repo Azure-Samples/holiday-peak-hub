@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { MainLayout } from '@/components/templates/MainLayout';
+import { CommerceAgentLayout } from '@/components/templates/CommerceAgentLayout';
 import { Card } from '@/components/molecules/Card';
 import { ProductGrid } from '@/components/organisms/ProductGrid';
 import { useProducts } from '@/lib/hooks/useProducts';
@@ -12,7 +12,21 @@ export default function WishlistPage() {
   const items = mapApiProductsToUi(products);
 
   return (
-    <MainLayout>
+    <CommerceAgentLayout
+      sideCast={[
+        {
+          agentSlug: 'crm-segmentation-personalization',
+          state: 'thinking',
+          thinkingMessage: '3 of these go on sale this week.',
+          position: 'bottom-left',
+          size: 'sm',
+          visible: true,
+          className: 'hidden xl:block',
+          mode: 'hint',
+        },
+      ]}
+      telemetry="visible"
+    >
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Wishlist</h1>
@@ -28,6 +42,6 @@ export default function WishlistPage() {
 
         <ProductGrid products={items} loading={isLoading} showSort={false} />
       </div>
-    </MainLayout>
+    </CommerceAgentLayout>
   );
 }

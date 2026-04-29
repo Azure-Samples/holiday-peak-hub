@@ -13,7 +13,7 @@ The repository and live environment currently straddle historical AGIC/classic A
 - AGC as the only supported AKS ingress layer
 - AKS backends remaining `ClusterIP`
 
-ADR-027 is the accepted target-state decision for this migration. ADR-026 remains historical context only where its implementation details differ.
+ADR-021 is the accepted target-state decision for this migration. ADR-026 remains historical context only where its implementation details differ.
 
 This roadmap tracks the migration from the current broken nginx/public ingress path to AGC.
 
@@ -101,7 +101,6 @@ flowchart LR
 
 ## References
 
-- [ADR-027](../architecture/adrs/adr-027-apim-agc-edge.md)
-- [ADR-026](../architecture/adrs/adr-026-agic-traffic-management.md)
+- [ADR-021](../architecture/adrs/adr-021-apim-agc-edge.md)
 - [Infrastructure Governance](../governance/infrastructure-governance.md)
 - [Deployment Guide](../../.infra/DEPLOYMENT.md)

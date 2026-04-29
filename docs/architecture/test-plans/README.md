@@ -242,9 +242,8 @@ watch -n 5 'az monitor metrics list \
 ---
 
 ## Related Documentation
-- [ADR-008: Three-Tier Memory Architecture](../adrs/adr-008-memory-tiers.md)
-- [ADR-007: SAGA Choreography](../adrs/adr-007-saga-choreography.md)
-- [ADR-014: Memory Partitioning](../adrs/adr-014-memory-partitioning.md)
+- [ADR-007: Memory Architecture and Isolation Strategy](../adrs/adr-007-memory-tiers.md)
+- [ADR-006: SAGA Choreography](../adrs/adr-006-saga-choreography.md)
 - [Playbook: Cosmos High RU](../playbooks/playbook-cosmos-high-ru.md)
 - [Playbook: Blob Throttling](../playbooks/playbook-blob-throttling.md)
 

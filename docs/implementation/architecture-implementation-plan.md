@@ -1321,7 +1321,7 @@ async def get_product_enrichment(product_id: str) -> dict:
 #### 2.2.3 Create ADR for Fallback Strategies
 
 ```markdown
-# ADR-020: Agent Fallback Strategies
+# Agent Fallback Strategies (Proposal)
 
 **Status**: Accepted  
 **Date**: 2026-01-30
@@ -1384,7 +1384,7 @@ resource circuitBreakerAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
 - ✅ Retry logic with exponential backoff
 - ✅ Fallback strategies documented
 - ✅ Monitoring alerts configured
-- ✅ ADR-020 created
+- ✅ Fallback strategies proposal documented
 
 ---
 

@@ -29,5 +29,4 @@ Enterprise connector framework for integrating external retail systems with tena
 
 ## Related ADRs
 
-- [ADR-024: Connector Registry Pattern](../../adrs/adr-024-connector-registry-pattern.md)
-- [ADR-012: Adapter Boundaries](../../adrs/adr-012-adapter-boundaries.md)
+- [ADR-003: Adapter Pattern, Boundaries, and Connector Registry](../../adrs/adr-003-adapter-pattern.md)

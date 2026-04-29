@@ -19,8 +19,8 @@ This document tracks the implementation progress of the Holiday Peak Hub platfor
 - **Catalog-Search Optimization** (PR #796): Parallelized I/O, eliminated duplicate keyword search.
 - **Infrastructure Fixes** (PRs #794, #798): CRUD port correction, dev-environment recovery script.
 - **Flux CD GitOps** (PRs #785, #787, #792): Full Flux reconciliation; kubectl-apply removed.
-- **Namespace Isolation** (PR #788 / ADR-034): Separate CRUD and agent Kubernetes namespaces.
-- **API Center Governance** (PR #789 / ADR-035): APIM MCP strategy implementation.
+- **Namespace Isolation** (PR #788 / ADR-026): Separate CRUD and agent Kubernetes namespaces.
+- **API Center Governance** (PR #789 / ADR-010): APIM MCP strategy implementation.
 - **Self-Healing Runtime** (PR #771): Incident lifecycle state machine, remediation policy, audit trail.
 - **CRUD Auth Hardening** (PR #776): Entra ID rollout contracts improved.
 - **MkDocs Scaffold** (PR #793): Documentation site preparation in `mkdocs/`.
@@ -28,7 +28,7 @@ This document tracks the implementation progress of the Holiday Peak Hub platfor
 ### Validation Snapshot
 
 - Repository local validation: **1796 tests passed** (1136 lib + 660 app), 0 failures.
-- 35 ADRs (ADR-001 through ADR-035).
+- 35 ADRs (ADR-001 through ADR-027).
 
 ### Backlog Guidance
 - Legacy phase/task checklists below are retained for traceability; use `docs/roadmap/` and open GitHub issues as the canonical source for next execution priorities.

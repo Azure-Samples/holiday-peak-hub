@@ -257,6 +257,8 @@ class FoundryLifecycleManager:
         name_override: str | None = None,
         model_override: str | None = None,
         reasoning: dict[str, str] | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
     ) -> dict[str, Any]:
         """Ensure a single Foundry role and wire model target when available."""
         target_name = name_override or config.agent_name or f"{self.service_name}-{selected_role}"
@@ -273,6 +275,8 @@ class FoundryLifecycleManager:
             create_if_missing=create_if_missing,
             model=config.deployment_name,
             reasoning=reasoning,
+            temperature=temperature,
+            top_p=top_p,
         )
 
         ensured_id = ensure_result.get("agent_id")
@@ -294,14 +298,41 @@ class FoundryLifecycleManager:
 
     async def ensure_startup_roles(self, instructions: str) -> dict[str, dict[str, Any]]:
         """Ensure all configured roles during app startup."""
+        import os  # pylint: disable=import-outside-toplevel
+
+        _default_reasoning = {"fast": "minimal", "rich": "low"}
+        _default_temperature: dict[str, float] = {"fast": 0.0, "rich": 0.3}
+        _default_max_output: dict[str, int] = {"fast": 800, "rich": 2000}
+
         results: dict[str, dict[str, Any]] = {}
         for selected_role, config in self.role_to_config.items():
             if config is None:
                 continue
+            # Reasoning effort
+            reasoning_raw = (
+                os.getenv(f"FOUNDRY_REASONING_EFFORT_{selected_role.upper()}", "").strip().lower()
+            )
+            reasoning_value = reasoning_raw or _default_reasoning.get(selected_role, "low")
+            reasoning_config: dict[str, str] = {"effort": reasoning_value}
+
+            # Temperature
+            temp_raw = os.getenv(f"FOUNDRY_TEMPERATURE_{selected_role.upper()}", "").strip()
+            temperature = float(temp_raw) if temp_raw else _default_temperature.get(selected_role)
+
+            # max_output_tokens — store on config for FoundryAgentInvoker
+            max_out_raw = os.getenv(
+                f"FOUNDRY_MAX_OUTPUT_TOKENS_{selected_role.upper()}", ""
+            ).strip()
+            config.max_output_tokens = (
+                int(max_out_raw) if max_out_raw else _default_max_output.get(selected_role)
+            )
+
             results[selected_role] = await self.ensure_role(
                 selected_role=selected_role,
                 config=config,
                 instructions=instructions,
                 create_if_missing=True,
+                reasoning=reasoning_config,
+                temperature=temperature,
             )
         return results

@@ -4,9 +4,12 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import HomePage from '../../app/page';
 import { CategoryPageClient } from '../../app/category/CategoryPageClient';
 import { ProductPageClient } from '../../app/product/ProductPageClient';
+import { ScenarioDetailPage } from '../../app/scenarios/[id]/ScenarioDetailPage';
 import CheckoutPage from '../../app/checkout/page';
 import OrdersPage from '../../app/orders/page';
 import OrderTrackingPage from '../../app/order/[id]/page';
+import WishlistPage from '../../app/wishlist/page';
+import DealsPage from '../../app/deals/page';
 import ProfilePage from '../../app/profile/page';
 import DashboardPage from '../../app/dashboard/page';
 import AdminPortalPage from '../../app/admin/page';
@@ -486,6 +489,14 @@ jest.mock('../../lib/hooks/useTruth', () => ({
   useReviewAction: () => ({ mutate: jest.fn(), isPending: false }),
 }));
 
+jest.mock('../../lib/hooks/useEnrichmentMonitor', () => ({
+  useEnrichmentMonitorDashboard: () => ({
+    data: null,
+    isLoading: false,
+    isError: false,
+  }),
+}));
+
 jest.mock('../../lib/hooks/useAgentMonitor', () => ({
   useAgentMonitorDashboard: () => ({
     data: null,
@@ -504,9 +515,34 @@ jest.mock('../../lib/hooks/useAgentMonitor', () => ({
     isLoading: false,
     isError: false,
   }),
+  useAgentTraceDetail: () => ({
+    data: null,
+    isLoading: false,
+    isError: false,
+  }),
+  useAgentEvaluations: () => ({
+    data: null,
+    isLoading: false,
+    isError: false,
+  }),
+  useModelUsageStats: () => ({
+    data: [],
+    isLoading: false,
+    isError: false,
+  }),
   DEFAULT_AGENT_MONITOR_RANGE: '1h',
   AGENT_MONITOR_RANGE_OPTIONS: [{ value: '1h', label: 'Last 1 hour' }],
   isTracingUnavailableError: () => false,
+}));
+
+jest.mock('../../lib/hooks/useStreamingSearch', () => ({
+  useStreamingSearch: () => ({
+    results: null,
+    answerText: '',
+    isStreaming: false,
+    search: jest.fn(),
+    cancel: jest.fn(),
+  }),
 }));
 
 jest.mock('../../components/organisms/ProductGraphCanvas', () => ({
@@ -558,6 +594,11 @@ describe('Page rendering smoke tests', () => {
   it('renders categories page heading', () => {
     render(<CategoriesPage />);
     expect(screen.getByText('Categories')).toBeInTheDocument();
+  });
+
+  it('renders scenario detail page', () => {
+    render(<ScenarioDetailPage scenarioId="discovery" />);
+    expect(screen.getByRole('heading', { name: 'Product discovery and enrichment' })).toBeInTheDocument();
   });
 
   it('redirects new arrivals page to query category route', () => {
@@ -617,6 +658,18 @@ describe('Page rendering smoke tests', () => {
     expect(screen.queryByText('Add Payment Method')).not.toBeInTheDocument();
   });
 
+  it('renders wishlist page', () => {
+    render(<WishlistPage />);
+    expect(screen.getByText('Wishlist')).toBeInTheDocument();
+    expect(screen.getByText('Suggested products from the live catalog.')).toBeInTheDocument();
+  });
+
+  it('renders deals page', () => {
+    render(<DealsPage />);
+    expect(screen.getByText('Deals')).toBeInTheDocument();
+    expect(screen.getByText('Campaign-selected offers likely to convert right now.')).toBeInTheDocument();
+  });
+
   it('renders dashboard page', () => {
     render(<DashboardPage />);
     expect(screen.getByText('Dashboard')).toBeInTheDocument();
@@ -629,7 +682,8 @@ describe('Page rendering smoke tests', () => {
 
   it('renders admin portal page', () => {
     render(<AdminPortalPage />);
-    expect(screen.getByText('Admin Portal')).toBeInTheDocument();
+    expect(screen.getByText('One cockpit for the full retail agent fleet.')).toBeInTheDocument();
+    expect(screen.getByText('All 26 agents')).toBeInTheDocument();
   });
 
   it('renders admin schemas page', () => {

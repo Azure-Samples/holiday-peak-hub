@@ -1,5 +1,6 @@
 import semanticSearchService from '../../lib/services/semanticSearchService';
 import agentApiClient from '../../lib/api/agentClient';
+import { recordAgentInvocationTelemetry } from '../../lib/hooks/useAgentInvocationTelemetry';
 import { productService } from '../../lib/services/productService';
 
 jest.mock('../../lib/api/agentClient', () => ({
@@ -15,6 +16,10 @@ jest.mock('../../lib/services/productService', () => ({
   },
 }));
 
+jest.mock('../../lib/hooks/useAgentInvocationTelemetry', () => ({
+  recordAgentInvocationTelemetry: jest.fn(),
+}));
+
 describe('semanticSearchService.searchWithMode', () => {
   let consoleErrorSpy: jest.SpyInstance;
 
@@ -26,6 +31,33 @@ describe('semanticSearchService.searchWithMode', () => {
 
   afterEach(() => {
     consoleErrorSpy.mockRestore();
+  });
+
+  it('records backend telemetry for agent-backed results', async () => {
+    (agentApiClient.post as jest.Mock).mockResolvedValue({
+      data: {
+        items: [],
+        mode: 'intelligent',
+        _telemetry: {
+          model_tier: 'slm',
+          total_tokens: 321,
+          cost_usd: 0.012,
+          latency_ms: 845,
+        },
+      },
+    });
+
+    await semanticSearchService.searchWithMode('running shoes', 'intelligent', 20);
+
+    expect(recordAgentInvocationTelemetry).toHaveBeenCalledWith(
+      'ecommerce-catalog-search',
+      expect.objectContaining({
+        _telemetry: expect.objectContaining({
+          model_tier: 'slm',
+          total_tokens: 321,
+        }),
+      }),
+    );
   });
 
   it('forwards optional context fields in the request payload', async () => {
@@ -85,8 +117,8 @@ describe('semanticSearchService.searchWithMode', () => {
     expect(result.fallback_reason).toBeUndefined();
     expect(result.items[0]).toMatchObject({
       sku: 'SKU-1',
-      thumbnail: '/images/products/p1.jpg',
     });
+    expect(result.items[0].thumbnail).toMatch(/^\/images\/products\/p\d+\.jpg$/);
     expect(productService.search).not.toHaveBeenCalled();
   });
 

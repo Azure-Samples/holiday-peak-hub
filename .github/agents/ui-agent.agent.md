@@ -2,7 +2,7 @@
 name: UIDesigner
 description: "Builds inclusive interfaces with semantic HTML, WCAG 2.2 AA/AAA compliance, CSS Grid/Flexbox/Container Queries, fluid typography (clamp), logical properties for RTL, and Core Web Vitals optimization. Supports web (Tailwind), CLI (Ink), and desktop platforms."
 argument-hint: "Audit this dashboard component for WCAG 2.2 AA compliance, optimize LCP/CLS scores, and add responsive Container Query breakpoints"
-tools: ['execute', 'read', 'edit', 'search', 'web', 'agent', 'todo']
+tools: [execute/runNotebookCell, execute/getTerminalOutput, execute/killTerminal, execute/sendToTerminal, execute/runTask, execute/createAndRunTask, execute/runInTerminal, execute/runTests, execute/testFailure, read/getNotebookSummary, read/problems, read/readFile, read/viewImage, read/readNotebookCellOutput, read/terminalSelection, read/terminalLastCommand, read/getTaskOutput, agent/runSubagent, edit/createDirectory, edit/createFile, edit/createJupyterNotebook, edit/editFiles, edit/editNotebook, edit/rename, search/changes, search/codebase, search/fileSearch, search/listDirectory, search/textSearch, search/usages, web/fetch, web/githubRepo, azure-mcp/search, browser/openBrowserPage, browser/readPage, browser/screenshotPage, browser/navigatePage, browser/clickElement, browser/dragElement, browser/hoverElement, browser/typeInPage, browser/runPlaywrightCode, browser/handleDialog, todo]
 user-invocable: true
 disable-model-invocation: false
 ---

@@ -44,6 +44,11 @@ function normalizeCrudBaseUrl(candidate: string | undefined): string | null {
   return normalized.replace(/\/api$/i, '');
 }
 
+function deriveAgentBaseUrlFromCrudCandidate(candidate: string | undefined): string | undefined {
+  const normalized = normalizeCrudBaseUrl(candidate);
+  return normalized ? `${normalized}/agents` : undefined;
+}
+
 function isApimHostname(hostname: string): boolean {
   return hostname.toLowerCase().endsWith('.azure-api.net');
 }
@@ -161,6 +166,22 @@ const AGENT_BASE_URL_STRATEGIES: ResolutionStrategy[] = [
     key: 'AGENT_API_URL',
     resolve: (env) => env.AGENT_API_URL,
   },
+  {
+    key: 'NEXT_PUBLIC_CRUD_API_URL',
+    resolve: (env) => deriveAgentBaseUrlFromCrudCandidate(env.NEXT_PUBLIC_CRUD_API_URL),
+  },
+  {
+    key: 'NEXT_PUBLIC_API_URL',
+    resolve: (env) => deriveAgentBaseUrlFromCrudCandidate(env.NEXT_PUBLIC_API_URL),
+  },
+  {
+    key: 'NEXT_PUBLIC_API_BASE_URL',
+    resolve: (env) => deriveAgentBaseUrlFromCrudCandidate(env.NEXT_PUBLIC_API_BASE_URL),
+  },
+  {
+    key: 'CRUD_API_URL',
+    resolve: (env) => deriveAgentBaseUrlFromCrudCandidate(env.CRUD_API_URL),
+  },
 ];
 
 const AGENT_PROXY_ROUTE_BASE_URL = '/agent-api';
@@ -174,7 +195,7 @@ export function resolveAgentApiBaseUrl(env?: EnvMap): ResolutionResult {
 }
 
 function inferRuntimeKind(env: EnvMap = process.env): RuntimeKind {
-  if (env.NODE_ENV === 'test') {
+  if (env.NODE_ENV === 'test' || typeof env.JEST_WORKER_ID === 'string') {
     return 'test';
   }
 

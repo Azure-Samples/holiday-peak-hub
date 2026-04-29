@@ -12,7 +12,11 @@ from holiday_peak_lib.agents.foundry import (
 )
 from holiday_peak_lib.agents.memory import ColdMemory, HotMemory, WarmMemory
 from holiday_peak_lib.agents.orchestration.router import RoutingStrategy
-from holiday_peak_lib.agents.prompt_loader import load_service_prompt_instructions
+from holiday_peak_lib.agents.prompt_loader import (
+    load_service_prompt_catalog,
+    load_service_prompt_instructions,
+    prompt_instructions_sha256,
+)
 from holiday_peak_lib.app_factory_components.endpoints import (
     EndpointContext,
     register_standard_endpoints,
@@ -261,6 +265,43 @@ def build_service_app(
         _FALLBACK_INSTRUCTIONS_TEMPLATE.format(service_name=service_name)
     )
 
+    def _prompt_catalog_provider() -> list[dict[str, Any]]:
+        catalog = load_service_prompt_catalog(service_name)
+        if catalog:
+            return catalog
+
+        return [
+            {
+                "name": "instructions.md",
+                "content": default_instructions,
+                "sha": prompt_instructions_sha256(default_instructions),
+                "last_modified": None,
+            }
+        ]
+
+    def _mcp_tool_descriptions_provider() -> list[dict[str, Any]]:
+        descriptions: list[dict[str, Any]] = []
+        for path, details in sorted(mcp.tool_metadata.items()):
+            metadata = details.get("metadata")
+            metadata_record = metadata if isinstance(metadata, dict) else {}
+            descriptions.append(
+                {
+                    "name": str(details.get("name") or path.lstrip("/")),
+                    "path": path,
+                    "description": str(
+                        metadata_record.get("description")
+                        or metadata_record.get("summary")
+                        or "No description provided."
+                    ),
+                    "input_schema_ref": details.get("input_schema_ref"),
+                    "output_schema_ref": details.get("output_schema_ref"),
+                    "input_schema": details.get("input_schema"),
+                    "output_schema": details.get("output_schema"),
+                    "metadata": metadata_record,
+                }
+            )
+        return descriptions
+
     register_correlation_middleware(app)
 
     async def _ensure_foundry_agent_proxy(*args: Any, **kwargs: Any) -> dict[str, Any]:
@@ -456,11 +497,35 @@ def build_service_app(
 
             reasoning_effort_env = f"FOUNDRY_REASONING_EFFORT_{selected_role.upper()}"
             reasoning_effort_raw = os.getenv(reasoning_effort_env) or ""
-            reasoning_config: dict[str, str] | None = (
-                {"effort": reasoning_effort_raw.strip().lower()}
+            _default_reasoning = {"fast": "minimal", "rich": "low"}
+            reasoning_effort_value = (
+                reasoning_effort_raw.strip().lower()
                 if reasoning_effort_raw.strip()
-                else None
+                else _default_reasoning.get(selected_role, "low")
             )
+            reasoning_config: dict[str, str] = {"effort": reasoning_effort_value}
+
+            # Temperature at agent-definition level.  Lower temperature → more
+            # deterministic output → fewer speculative tokens → faster inference.
+            _default_temperature = {"fast": 0.0, "rich": 0.3}
+            temperature_env = f"FOUNDRY_TEMPERATURE_{selected_role.upper()}"
+            temperature_raw = os.getenv(temperature_env, "").strip()
+            temperature_value: float | None = (
+                float(temperature_raw)
+                if temperature_raw
+                else _default_temperature.get(selected_role)
+            )
+
+            # max_output_tokens at runtime (ChatOptions).  Caps output length to
+            # prevent runaway generation, the dominant latency driver for fast models.
+            _default_max_output = {"fast": 800, "rich": 2000}
+            max_output_env = f"FOUNDRY_MAX_OUTPUT_TOKENS_{selected_role.upper()}"
+            max_output_raw = os.getenv(max_output_env, "").strip()
+            max_output_value: int | None = (
+                int(max_output_raw) if max_output_raw else _default_max_output.get(selected_role)
+            )
+            # Store on config so FoundryAgentInvoker picks it up at build time.
+            config.max_output_tokens = max_output_value
 
             selected_instructions = instructions.get(selected_role) or fallback_instructions
 
@@ -473,6 +538,7 @@ def build_service_app(
                     name_override=str(configured_name),
                     model_override=str(configured_model),
                     reasoning=reasoning_config,
+                    temperature=temperature_value,
                 )
             except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
                 _apply_foundry_error_state(
@@ -560,6 +626,8 @@ def build_service_app(
         foundry_capabilities=_foundry_capabilities,
         ensure_agents_handler=ensure_agents,
         self_healing_kernel=healing_kernel,
+        prompt_catalog_provider=_prompt_catalog_provider,
+        mcp_tool_descriptions_provider=_mcp_tool_descriptions_provider,
     )
 
     register_standard_endpoints(app, ctx=endpoint_ctx)

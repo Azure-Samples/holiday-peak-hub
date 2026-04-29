@@ -527,8 +527,8 @@ Set up Azure Monitor alerts for:
 
 ## Related ADRs
 
-- [ADR-008: Memory Tiers](../../adrs/adr-008-memory-tiers.md) — Caching strategy
-- [ADR-006: Agent Framework](../../adrs/adr-006-agent-framework.md) — Enrichment orchestration
+- [ADR-007: Memory Tiers](../../adrs/adr-007-memory-tiers.md) — Caching strategy
+- [ADR-005: Agent Framework](../../adrs/adr-005-agent-framework.md) — Enrichment orchestration
 
 ---
 

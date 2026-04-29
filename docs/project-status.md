@@ -17,34 +17,43 @@
 | #794 | Fix CRUD_SERVICE_URL port 8000→80 | Resolves inter-service connectivity in AKS |
 | #793 | Scaffold MkDocs documentation site | Future docs-as-website in `mkdocs/` |
 | #792 | Flux Phase B — full GitOps reconciliation | Removes kubectl-apply fallback |
-| #789 | API Center governance + APIM MCP strategy | ADR-035 implementation |
-| #788 | Namespace isolation (ADR-034) | Separate CRUD and agent Kubernetes namespaces |
-| #785 | Flux CD migration (ADR-033) | Declarative manifest reconciliation |
+| #789 | API Center governance + APIM MCP strategy | ADR-027 implementation |
+| #788 | Namespace isolation (ADR-026) | Separate CRUD and agent Kubernetes namespaces |
+| #785 | Flux CD migration (ADR-017) | Declarative manifest reconciliation |
 | #776 | Harden CRUD Entra auth rollout | Improved authentication contracts |
 | #771 | Complete self-healing epic | Incident lifecycle, remediation policy, audit trail |
 
 ### What Changed (Since Last Snapshot)
 
+- **Executive demo homepage refactor (2026-04-28)**: `apps/ui/app/page.tsx` now routes to a single-page, scroll-driven executive demo where the robots are the primary narrative device. The homepage now stages the cold open, hero search, CRM boardroom, discovery duo, truth pipeline, catalog galaxy, cart/checkout, inventory, logistics, returns/support, platform telemetry, and scenario close as one continuous presentation surface. Supporting additions include route-local demo components, a reusable agent profile drawer, and additive `AgentRobot` scene props (`facing`, `pointAt`, `lookAt`, `toolOverride`, `scenePeer`).
+- **Commerce journey agent continuity (2026-04-28)**: The storefront drill-down routes now keep visible agent presence past the homepage. `AgentRobotOverlay` accepts semantic size presets and scene-staging props, and category, orders, order detail, cart, search, product, and checkout surfaces now stage primary and secondary agents along the buyer journey.
+- **Commerce stage contract + drawer/operator follow-through (2026-04-28)**: Shopping-flow routes now share `apps/ui/components/templates/CommerceAgentLayout.tsx` so the primary-stage robot, side-cast robot, and telemetry chip are declared uniformly. `AgentProfileDrawer` now renders input/output schemas, curated sample payloads, a live sample-run action, and an in-place trace explorer modal; scenario drill-down drawers also receive live monitor metrics instead of static placeholders.
+- **Drawer streaming + telemetry completion (2026-04-28)**: `AgentProfileDrawer` sample runs now stream over `/invoke/stream`, commerce telemetry chips now hydrate from persisted `_telemetry` across search, product enrichment, and product-graph summary invoke seams, and `/order/[id]` now keeps `logistics-route-issue-detection` as the default side cast until return flow activation swaps in returns + support.
+- **Frontend regression hardening (2026-04-28)**: Added focused drawer unit coverage plus Playwright specs for the executive demo narrative, light/dark visual regression, and admin cockpit readiness (`apps/ui/tests/e2e/demo-narrative.spec.ts`, `apps/ui/tests/e2e/dark-mode-regression.spec.ts`, `apps/ui/tests/e2e/cockpit-readiness.spec.ts`).
+- **Scenario drill-down briefs (2026-04-28)**: Added `/scenarios/[id]` route briefs for discovery, customer 360, truth, and checkout flows, backed by shared scenario metadata so the homepage close scene can jump into a dedicated brief before sending users to live product or operator surfaces.
 - **Catalog-search strict 4s pipeline (v6)**: Entire intelligent pipeline runs inside `asyncio.wait_for(timeout=4.0)`. Intent classification via GPT-5-nano with `reasoning_effort="minimal"` (1.5s budget). Parallel keyword + hybrid search fan-out. Direct product construction from AI Search documents (no CRUD round-trip). Fire-and-forget history writes. Deployed as `strict-4s-v6` on 2 AKS replicas.
 - **`reasoning_effort` parameter support in Foundry pipeline**: `FoundryAgentInvoker` now plumbs `reasoning_effort` through `_PreparedInvocation` → `_request_response_impl` → `run_kwargs["options"]`. Guards ensure the parameter is only sent when explicitly passed.
 - **Live integration test suite**: 11 tests (10 parametrized queries + summary report) validate the live APIM→AKS→AI Foundry→AI Search pipeline. 10/10 within budget, avg ~2.77s.
 - **FoundryAgentInvoker** replaces legacy `FoundryInvoker`: agent tools are now properly forwarded through the Microsoft Agent Framework `FoundryAgent` runtime instead of being silently dropped.
 - `agent-framework` upgraded from unpinned to `>=1.0.1` GA across all 27 Python service packages; resolves `ContextProvider` vs `BaseContextProvider` import incompatibility.
 - Memory tier operations parallelized with `asyncio.gather` for reduced latency; new memory tools (`get_memory`, `set_memory`, `search_memory`) and `gather_adapters` helper available.
-- AKS deployments now reconcile through Flux CD GitOps (ADR-033); kubectl-apply path removed.
-- **ADR-033 Phase 2 (in progress)**: migrating from rendered YAML to Flux HelmRelease CRDs for in-cluster Helm rendering. Pilot: `ecommerce-catalog-search` deployed via HelmRelease; remaining 25 services migrate incrementally. New HelmRelease manifests in `.kubernetes/releases/agents/`.
-- CRUD and agent services run in separate Kubernetes namespaces (ADR-034).
-- API Center governance and APIM MCP strategy implemented (ADR-035).
+- AKS deployments now reconcile through Flux CD GitOps (ADR-017); kubectl-apply path removed.
+- **ADR-017 Phase 2 (in progress)**: migrating from rendered YAML to Flux HelmRelease CRDs for in-cluster Helm rendering. Pilot: `ecommerce-catalog-search` deployed via HelmRelease; remaining 25 services migrate incrementally. New HelmRelease manifests in `.kubernetes/releases/agents/`.
+- CRUD and agent services run in separate Kubernetes namespaces (ADR-026).
+- API Center governance and APIM MCP strategy implemented (ADR-027).
 - Self-healing runtime completed with incident lifecycle state machine, remediation policy, and audit trail.
 - Catalog-search I/O parallelized; duplicate keyword search eliminated.
 
 ### Validation
 
+- UI route smoke validation: `yarn test --runInBand tests/unit/pagesRender.test.tsx` in `apps/ui` passes after the executive demo refactor and commerce continuity rollout.
+- Drawer/admin/page focused UI validation: `yarn test --runInBand --runTestsByPath tests/unit/AgentProfileDrawer.test.tsx tests/unit/AdminServiceDashboardPage.test.tsx tests/unit/pagesRender.test.tsx` passes after the drawer enrichment and commerce layout rollout.
+- Final telemetry seam validation: `yarn test --runInBand --runTestsByPath tests/unit/productService.test.ts tests/unit/ProductGraphCanvas.test.tsx` passes after wiring enrichment-backed product loads and graph-summary invocations into persisted telemetry.
 - Full local test run: **1796 passed** (1136 lib + 660 app), 0 failures.
 - Catalog-search unit tests: **34 passed** (including 14 intelligent-mode tests), ~3.3s.
 - Live integration tests: **10/10 queries within 7s wall-clock budget**, avg ~2.77s.
 - CI gate: lint, test, CodeQL, pip-audit, contract-gate all passing on `main`.
-- 35 Architecture Decision Records (ADR-001 through ADR-035).
+- 35 Architecture Decision Records (ADR-001 through ADR-027).
 
 ### Note
 

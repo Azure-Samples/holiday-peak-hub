@@ -60,5 +60,5 @@ The accelerator requires a language that supports:
 
 ## Related ADRs
 
-- [ADR-005: FastAPI + MCP](adr-005-fastapi-mcp.md) — Async framework choice
-- [ADR-006: Agent Framework](adr-006-agent-framework.md) — Python-first SDK
+- [ADR-004: FastAPI + MCP](adr-004-fastapi-mcp.md) — Async framework choice
+- [ADR-005: Agent Framework](adr-005-agent-framework.md) — Python-first SDK

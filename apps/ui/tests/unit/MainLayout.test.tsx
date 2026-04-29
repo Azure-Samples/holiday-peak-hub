@@ -44,4 +44,18 @@ describe('MainLayout', () => {
 
     expect(push).toHaveBeenCalledWith('/search?q=boots');
   });
+
+  it('routes empty searches to the search page', () => {
+    render(
+      <MainLayout>
+        <div>Content</div>
+      </MainLayout>
+    );
+
+    const input = screen.getByPlaceholderText('Search products...');
+    fireEvent.change(input, { target: { value: '   ' } });
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
+
+    expect(push).toHaveBeenCalledWith('/search');
+  });
 });

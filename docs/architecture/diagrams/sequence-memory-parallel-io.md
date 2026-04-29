@@ -89,4 +89,4 @@ Memory adapters are configured via environment variables:
 
 - [Memory Library Reference](../components/libs/memory.md)
 - [Components Overview](../components.md)
-- [ADR-008: Memory Tiers](../adrs/adr-008-memory-tiers.md)
+- [ADR-007: Memory Tiers](../adrs/adr-007-memory-tiers.md)

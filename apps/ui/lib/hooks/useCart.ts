@@ -6,13 +6,18 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { cartService } from '../services/cartService';
 import type { AddToCartRequest } from '../types/api';
 
+type QueryOptions = {
+  enabled?: boolean;
+};
+
 /**
  * Hook to fetch current cart
  */
-export function useCart() {
+export function useCart(options?: QueryOptions) {
   return useQuery({
     queryKey: ['cart'],
     queryFn: () => cartService.get(),
+    enabled: options?.enabled ?? true,
   });
 }
 

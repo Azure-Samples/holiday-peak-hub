@@ -5,7 +5,9 @@ from typing import Any
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from holiday_peak_lib.app_factory_components.endpoints import register_standard_endpoints
+from holiday_peak_lib.mcp.server import FastAPIMCPServer
 from holiday_peak_lib.self_healing import SelfHealingKernel, default_surface_manifest
+from pydantic import BaseModel
 
 
 class _Registry:
@@ -56,6 +58,14 @@ class _Tracer:
 
     def get_latest_evaluation(self) -> dict[str, str]:
         return {"status": "pass"}
+
+
+class _ToolInput(BaseModel):
+    query: str
+
+
+class _ToolOutput(BaseModel):
+    ok: bool
 
 
 class _Logger:
@@ -500,6 +510,80 @@ def test_ready_auto_ensures_foundry_when_not_ready():
     response = client.get("/ready")
     assert response.status_code == 200
     assert ensure_calls == 1
+
+
+def test_prompt_and_mcp_introspection_endpoints_return_registered_metadata():
+    app = FastAPI(title="svc")
+    mcp = FastAPIMCPServer(app)
+
+    def _tool_handler(payload: dict[str, Any]) -> dict[str, Any]:
+        return {"ok": bool(payload.get("query"))}
+
+    mcp.add_tool(
+        "/inventory_lookup",
+        _tool_handler,
+        input_model=_ToolInput,
+        output_model=_ToolOutput,
+        metadata={"description": "Look up live inventory evidence."},
+    )
+
+    prompt_catalog = [
+        {
+            "name": "instructions.md",
+            "content": "# Instructions\nKeep it grounded.",
+            "sha": "sha-123",
+            "last_modified": "2026-04-05T12:00:00+00:00",
+        }
+    ]
+
+    register_standard_endpoints(
+        app,
+        service_name="svc",
+        registry=_Registry(),
+        router=_Router(),
+        tracer=_Tracer(),
+        logger=_Logger(),
+        strict_foundry_mode=False,
+        require_foundry_readiness=False,
+        is_foundry_ready=lambda: True,
+        set_foundry_ready=lambda _value: None,
+        requires_foundry_runtime_resolution=lambda: False,
+        foundry_capabilities=lambda: {"project_configured": True},
+        ensure_agents_handler=lambda _payload: {"service": "svc", "foundry_ready": True},
+        prompt_catalog_provider=lambda: prompt_catalog,
+        mcp_tool_descriptions_provider=lambda: [
+            {
+                "name": details.get("name"),
+                "path": path,
+                "description": details.get("metadata", {}).get("description"),
+                "input_schema": details.get("input_schema"),
+                "output_schema": details.get("output_schema"),
+            }
+            for path, details in mcp.tool_metadata.items()
+        ],
+    )
+
+    client = TestClient(app)
+
+    prompts_response = client.get("/agent/prompts")
+    assert prompts_response.status_code == 200
+    prompts_payload = prompts_response.json()
+    assert prompts_payload["service"] == "svc"
+    assert prompts_payload["prompts"] == prompt_catalog
+
+    tools_response = client.get("/mcp/tool_descriptions")
+    assert tools_response.status_code == 200
+    tools_payload = tools_response.json()
+    assert tools_payload["service"] == "svc"
+    assert tools_payload["tools"] == [
+        {
+            "name": "inventory_lookup",
+            "path": "/inventory_lookup",
+            "description": "Look up live inventory evidence.",
+            "input_schema": _ToolInput.model_json_schema(),
+            "output_schema": _ToolOutput.model_json_schema(),
+        }
+    ]
 
 
 def test_ready_auto_ensure_respects_cooldown(monkeypatch):

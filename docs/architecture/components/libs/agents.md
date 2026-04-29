@@ -2,7 +2,7 @@
 
 **Path**: `lib/src/holiday_peak_lib/agents/`  
 **Pattern**: Builder Pattern (memory configuration)  
-**Related ADRs**: [ADR-006](../../adrs/adr-006-agent-framework.md), [ADR-010](../../adrs/adr-010-rest-and-mcp-exposition.md)
+**Related ADRs**: [ADR-005](../../adrs/adr-005-agent-framework.md), [ADR-004](../../adrs/adr-004-fastapi-mcp.md)
 
 ## Purpose
 
@@ -583,6 +583,6 @@ async def test_agent_foundry_call():
 
 ## Related ADRs
 
-- [ADR-006: Agent Framework](../../adrs/adr-006-agent-framework.md)
-- [ADR-010: REST + MCP Exposition](../../adrs/adr-010-rest-and-mcp-exposition.md)
-- [ADR-004: Builder Pattern](../../adrs/adr-004-builder-pattern-memory.md)
+- [ADR-005: Agent Framework](../../adrs/adr-005-agent-framework.md)
+- [ADR-004: FastAPI with Dual REST + MCP Exposition](../../adrs/adr-004-fastapi-mcp.md)
+- [ADR-007: Memory Architecture](../../adrs/adr-007-memory-tiers.md)

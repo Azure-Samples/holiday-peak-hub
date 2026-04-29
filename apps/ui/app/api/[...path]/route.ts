@@ -207,6 +207,36 @@ type AdminServiceFoundrySurface = {
   };
 };
 
+type AdminServicePromptDocument = {
+  name: string;
+  content: string;
+  sha: string;
+  last_modified: string | null;
+};
+
+type AdminServiceToolDescription = {
+  name: string;
+  path: string;
+  description: string;
+  input_schema_ref?: Record<string, unknown> | null;
+  output_schema_ref?: Record<string, unknown> | null;
+  input_schema?: Record<string, unknown> | null;
+  output_schema?: Record<string, unknown> | null;
+  metadata?: Record<string, unknown>;
+};
+
+type AdminServiceResilienceStatus = {
+  service: string;
+  enabled: boolean;
+  detect_only: boolean;
+  reconcile_on_messaging_error?: boolean;
+  manifest: Record<string, unknown> | null;
+  allowlisted_actions: string[];
+  incidents_total: number;
+  incidents_open: number;
+  incidents_closed: number;
+};
+
 type AdminServiceFallbackPayload = {
   domain: AdminServiceDomain;
   service: string;
@@ -222,6 +252,9 @@ type AdminServiceFallbackPayload = {
   model_usage: AdminServiceModelUsageRow[];
   app_surface: AdminServiceAppSurface;
   foundry_surface: AdminServiceFoundrySurface;
+  prompt_catalog: AdminServicePromptDocument[];
+  mcp_tools: AdminServiceToolDescription[];
+  self_healing: AdminServiceResilienceStatus;
 };
 
 type ReadinessProbeResult = {
@@ -257,12 +290,17 @@ type AdminLinkStrategy = {
 type EndpointFallbackStrategy = {
   name: string;
   method: 'GET' | 'HEAD';
-  path: '/api/categories' | '/api/products';
+  matches: (upstreamPath: string) => boolean;
   retry: {
     maxAttempts: number;
     retryableStatuses: readonly number[];
   };
-  buildPayload: (request: NextRequest) => unknown;
+  buildPayload: (params: {
+    request: NextRequest;
+    upstreamPath: string;
+    baseUrl: string | null;
+    requestHeaders: Headers;
+  }) => Promise<unknown> | unknown;
 };
 
 type UpstreamAttemptResult = {
@@ -324,7 +362,7 @@ const CATALOG_READ_FALLBACK_STRATEGIES: readonly EndpointFallbackStrategy[] = [
   {
     name: 'categories-read-empty',
     method: 'GET',
-    path: '/api/categories',
+    matches: (upstreamPath) => upstreamPath === '/api/categories',
     retry: {
       maxAttempts: 2,
       retryableStatuses: [500, 502, 503, 504] as const,
@@ -334,12 +372,101 @@ const CATALOG_READ_FALLBACK_STRATEGIES: readonly EndpointFallbackStrategy[] = [
   {
     name: 'products-read-empty',
     method: 'GET',
-    path: '/api/products',
+    matches: (upstreamPath) => upstreamPath === '/api/products',
     retry: {
       maxAttempts: 2,
       retryableStatuses: [500, 502, 503, 504] as const,
     },
     buildPayload: () => [],
+  },
+  {
+    name: 'cart-read-empty',
+    method: 'GET',
+    matches: (upstreamPath) => upstreamPath === '/api/cart',
+    retry: {
+      maxAttempts: 1,
+      retryableStatuses: [401, 500, 502, 503, 504] as const,
+    },
+    buildPayload: ({ requestHeaders }) => ({
+      user_id: requestHeaders.get('x-dev-auth-user-id') || 'mock-customer',
+      items: [],
+      total: 0,
+    }),
+  },
+  {
+    name: 'inventory-health-read-empty',
+    method: 'GET',
+    matches: (upstreamPath) => upstreamPath === '/api/inventory/health',
+    retry: {
+      maxAttempts: 1,
+      retryableStatuses: [401, 500, 502, 503, 504] as const,
+    },
+    buildPayload: () => ({
+      total_skus: 0,
+      healthy: 0,
+      low_stock: 0,
+      out_of_stock: 0,
+      items: [],
+    }),
+  },
+  {
+    name: 'product-detail-read-derived',
+    method: 'GET',
+    matches: (upstreamPath) => /^\/api\/products\/[^/]+$/.test(upstreamPath),
+    retry: {
+      maxAttempts: 1,
+      retryableStatuses: [500, 502, 503, 504] as const,
+    },
+    buildPayload: async ({ upstreamPath, baseUrl, requestHeaders }) => {
+      const productId = decodeURIComponent(upstreamPath.split('/').pop() || 'unknown-product');
+
+      if (!baseUrl) {
+        return {
+          id: productId,
+          name: productId,
+          description: '',
+          price: 0,
+          category_id: 'catalog',
+          in_stock: true,
+        };
+      }
+
+      const fallbackList = await getJsonIfOk(`${baseUrl}/api/products?limit=200`, requestHeaders);
+      const fallbackListRecord = toRecord(fallbackList);
+      const products = toArray(
+        Array.isArray(fallbackList)
+          ? fallbackList
+          : fallbackListRecord?.items ?? fallbackListRecord?.products,
+      )
+        .map((entry) => toRecord(entry))
+        .filter((entry): entry is Record<string, unknown> => entry !== null);
+
+      const matchingProduct = products.find((entry) => {
+        const candidateId = readString(entry, ['id', 'item_id', 'sku']);
+        return candidateId === productId;
+      });
+
+      if (matchingProduct) {
+        return {
+          id: readString(matchingProduct, ['id', 'item_id', 'sku']) || productId,
+          name: readString(matchingProduct, ['name', 'title']) || productId,
+          description: readString(matchingProduct, ['description', 'enriched_description']) || '',
+          price: readNumber(matchingProduct, ['price']) || 0,
+          category_id: readString(matchingProduct, ['category_id', 'category']) || 'catalog',
+          image_url: readString(matchingProduct, ['image_url', 'image']) || undefined,
+          in_stock: readBoolean(matchingProduct, ['in_stock']) ?? true,
+        };
+      }
+
+      return {
+        id: productId,
+        name: productId,
+        description: '',
+        price: 0,
+        category_id: 'catalog',
+        in_stock: true,
+      };
+    },
   },
 ];
 
@@ -471,7 +598,7 @@ const ADMIN_FOUNDRY_EVALUATIONS_LINK_STRATEGIES: readonly AdminLinkStrategy[] = 
 function resolveEndpointFallbackStrategy(method: string, upstreamPath: string): EndpointFallbackStrategy | null {
   return (
     CATALOG_READ_FALLBACK_STRATEGIES.find(
-      (strategy) => strategy.method === method && strategy.path === upstreamPath,
+      (strategy) => strategy.method === method && strategy.matches(upstreamPath),
     ) || null
   );
 }
@@ -1691,6 +1818,18 @@ function buildEmptyAdminServicePayload(route: AdminServiceRouteMatch): AdminServ
     ],
     activity: [],
     model_usage: [],
+    prompt_catalog: [],
+    mcp_tools: [],
+    self_healing: {
+      service: route.agentService,
+      enabled: false,
+      detect_only: false,
+      manifest: null,
+      allowlisted_actions: [],
+      incidents_total: 0,
+      incidents_open: 0,
+      incidents_closed: 0,
+    },
     ...surfaces,
   };
 }
@@ -1812,7 +1951,15 @@ async function buildAdminServiceSecondaryPayload(params: {
     return buildEmptyAdminServicePayload(route);
   }
 
-  const [tracesPayload, metricsPayload, evaluationPayload, readiness] = await Promise.all([
+  const [
+    tracesPayload,
+    metricsPayload,
+    evaluationPayload,
+    readiness,
+    promptsPayload,
+    toolsPayload,
+    selfHealingPayload,
+  ] = await Promise.all([
     fetchJsonIfOk(`${baseUrl}/agents/${route.agentService}/agent/traces?limit=40`, requestHeaders),
     fetchJsonIfOk(`${baseUrl}/agents/${route.agentService}/agent/metrics`, requestHeaders),
     fetchJsonIfOk(`${baseUrl}/agents/${route.agentService}/agent/evaluation/latest`, requestHeaders),
@@ -1821,6 +1968,9 @@ async function buildAdminServiceSecondaryPayload(params: {
       baseUrl,
       requestHeaders,
     }),
+    fetchJsonIfOk(`${baseUrl}/agents/${route.agentService}/agent/prompts`, requestHeaders),
+    fetchJsonIfOk(`${baseUrl}/agents/${route.agentService}/mcp/tool_descriptions`, requestHeaders),
+    fetchJsonIfOk(`${baseUrl}/agents/${route.agentService}/self-healing/status`, requestHeaders),
   ]);
 
   const tracesRecord = toRecord(tracesPayload);
@@ -1830,6 +1980,47 @@ async function buildAdminServiceSecondaryPayload(params: {
   const metrics = toRecord(metricsPayload);
   const evaluationRecord = toRecord(evaluationPayload);
   const latestEvaluation = toRecord(evaluationRecord?.latest) || evaluationRecord;
+  const promptsRecord = toRecord(promptsPayload);
+  const toolsRecord = toRecord(toolsPayload);
+  const selfHealingRecord = toRecord(selfHealingPayload);
+
+  const promptCatalog: AdminServicePromptDocument[] = toArray(promptsRecord?.prompts)
+    .map((entry) => toRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null)
+    .map((entry) => ({
+      name: readString(entry, ['name']) || 'prompt.md',
+      content: readString(entry, ['content']) || '',
+      sha: readString(entry, ['sha']) || 'unavailable',
+      last_modified: readString(entry, ['last_modified', 'lastModified']),
+    }));
+
+  const mcpTools: AdminServiceToolDescription[] = toArray(toolsRecord?.tools)
+    .map((entry) => toRecord(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null)
+    .map((entry) => ({
+      name: readString(entry, ['name']) || 'tool',
+      path: readString(entry, ['path']) || '/tool',
+      description: readString(entry, ['description']) || 'No description provided.',
+      input_schema_ref: toRecord(entry.input_schema_ref),
+      output_schema_ref: toRecord(entry.output_schema_ref),
+      input_schema: toRecord(entry.input_schema),
+      output_schema: toRecord(entry.output_schema),
+      metadata: toRecord(entry.metadata) || undefined,
+    }));
+
+  const selfHealing: AdminServiceResilienceStatus = {
+    service: readString(selfHealingRecord, ['service']) || route.agentService,
+    enabled: readBoolean(selfHealingRecord, ['enabled']) ?? false,
+    detect_only: readBoolean(selfHealingRecord, ['detect_only']) ?? false,
+    reconcile_on_messaging_error:
+      readBoolean(selfHealingRecord, ['reconcile_on_messaging_error']) ?? undefined,
+    manifest: toRecord(selfHealingRecord?.manifest),
+    allowlisted_actions: toArray(selfHealingRecord?.allowlisted_actions)
+      .filter((value): value is string => typeof value === 'string'),
+    incidents_total: readNumber(selfHealingRecord, ['incidents_total']) || 0,
+    incidents_open: readNumber(selfHealingRecord, ['incidents_open']) || 0,
+    incidents_closed: readNumber(selfHealingRecord, ['incidents_closed']) || 0,
+  };
 
   const generatedAt = new Date().toISOString();
   const activity = traces.map((entry, index) => {
@@ -1955,6 +2146,9 @@ async function buildAdminServiceSecondaryPayload(params: {
     status_cards: statusCards,
     activity: activity.slice(0, 40),
     model_usage: buildAdminServiceModelUsageRows(traces, metrics, latestEvaluation),
+    prompt_catalog: promptCatalog,
+    mcp_tools: mcpTools,
+    self_healing: selfHealing,
     ...surfaces,
   };
 }
@@ -2527,6 +2721,13 @@ async function proxyRequest(
 
   const body = method === 'GET' || method === 'HEAD' ? undefined : await request.arrayBuffer();
   const endpointFallbackStrategy = resolveEndpointFallbackStrategy(method, upstreamPath);
+  const buildEndpointFallbackPayload = async (): Promise<unknown> =>
+    endpointFallbackStrategy!.buildPayload({
+      request,
+      upstreamPath,
+      baseUrl,
+      requestHeaders,
+    });
 
   const upstreamResult = await executeUpstreamWithRetry({
     targetUrl,
@@ -2547,7 +2748,7 @@ async function proxyRequest(
     }
 
     if (endpointFallbackStrategy) {
-      return NextResponse.json(endpointFallbackStrategy.buildPayload(request), {
+      return NextResponse.json(await buildEndpointFallbackPayload(), {
         status: 200,
         headers: {
           'x-holiday-peak-proxy': 'next-app-api',
@@ -2746,7 +2947,20 @@ async function proxyRequest(
   }
 
   if (endpointFallbackStrategy && shouldRetryUpstreamResponse(upstream.status, endpointFallbackStrategy)) {
-    return NextResponse.json(endpointFallbackStrategy.buildPayload(request), {
+    return NextResponse.json(await buildEndpointFallbackPayload(), {
+      status: 200,
+      headers: {
+        'x-holiday-peak-proxy': 'next-app-api',
+        'x-holiday-peak-proxy-source': sourceKey ?? '',
+        'x-holiday-peak-proxy-failure-kind': 'upstream',
+        'x-holiday-peak-proxy-fallback': `${endpointFallbackStrategy.name}-upstream-${upstream.status}`,
+        'x-holiday-peak-proxy-fallback-upstream-status': String(upstream.status),
+      },
+    });
+  }
+
+  if (endpointFallbackStrategy && upstream.status === 401) {
+    return NextResponse.json(await buildEndpointFallbackPayload(), {
       status: 200,
       headers: {
         'x-holiday-peak-proxy': 'next-app-api',

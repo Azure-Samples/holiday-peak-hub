@@ -15,12 +15,12 @@
 
 | ADR | Expected Rule | Current State | Result | Notes |
 |---|---|---|---|---|
-| ADR-021 | `azd`-first deployment with ordered orchestration | `deploy-azd-dev.yml` and `deploy-azd-prod.yml` call reusable `deploy-azd.yml` | ✅ | Entrypoint model is aligned; reusable workflow is used as engine |
-| ADR-021 | OIDC-based Azure auth | `deploy-azd.yml` uses `azure/login@v2` and federated `azd auth login` | ✅ | No static Azure credential secret usage |
-| ADR-021 | CRUD-first then agent deployment | Reusable deploy pipeline contains staged jobs and changed-service detection | ✅ | Ordered deployment intent preserved |
-| ADR-022 | Branch naming `<prefix>/<issue>-<description>` | Branch `chore/999-deploy-pipeline-followup` | ✅ | Prefix and issue-id rule compliant |
-| ADR-023 | Circuit breaker + bulkhead + rate limiter for integrations | Patterns documented in architecture and implemented in framework utilities | ✅ | Playbooks include operational handling for failures and latency |
-| ADR-025 | Product Truth Layer with HITL and writeback | Truth services and docs present (`truth-ingestion`, `truth-hitl`, `truth-export`) | ✅ | Architecture docs updated to canonical service names |
+| ADR-017 | `azd`-first deployment with ordered orchestration | `deploy-azd-dev.yml` and `deploy-azd-prod.yml` call reusable `deploy-azd.yml` | ✅ | Entrypoint model is aligned; reusable workflow is used as engine |
+| ADR-017 | OIDC-based Azure auth | `deploy-azd.yml` uses `azure/login@v2` and federated `azd auth login` | ✅ | No static Azure credential secret usage |
+| ADR-017 | CRUD-first then agent deployment | Reusable deploy pipeline contains staged jobs and changed-service detection | ✅ | Ordered deployment intent preserved |
+| ADR-018 | Branch naming `<prefix>/<issue>-<description>` | Branch `chore/999-deploy-pipeline-followup` | ✅ | Prefix and issue-id rule compliant |
+| ADR-019 | Circuit breaker + bulkhead + rate limiter for integrations | Patterns documented in architecture and implemented in framework utilities | ✅ | Playbooks include operational handling for failures and latency |
+| ADR-020 | Product Truth Layer with HITL and writeback | Truth services and docs present (`truth-ingestion`, `truth-hitl`, `truth-export`) | ✅ | Architecture docs updated to canonical service names |
 
 ## Policy Conformance Findings
 

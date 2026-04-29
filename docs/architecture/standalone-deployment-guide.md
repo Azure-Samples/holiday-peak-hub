@@ -251,9 +251,9 @@ helm install catalog-search .kubernetes/chart/ \
 
 ---
 
-## Namespace Strategy (ADR-034)
+## Namespace Strategy (ADR-026)
 
-All agent services deploy to a single shared namespace per [ADR-034](../architecture/adrs/adr-034-namespace-isolation-strategy.md):
+All agent services deploy to a single shared namespace per [ADR-026](../architecture/adrs/adr-026-namespace-isolation-strategy.md):
 
 | Namespace | Services | Node Pool | Network Policy |
 |-----------|----------|-----------|----------------|
@@ -673,8 +673,8 @@ Invoke-RestMethod "$APIM_BASE/agents/truth-enrichment/health"
 
 - [Infrastructure README](../../.infra/README.md) — Full provisioning guide
 - [Deployment Guide](../../.infra/DEPLOYMENT.md) — Multi-service deployment
-- [ADR-033: Helm Deployment Strategy](adrs/adr-033-helm-deployment-strategy.md)
-- [ADR-034: Namespace Isolation Strategy](adrs/adr-034-namespace-isolation-strategy.md)
+- [ADR-017: Helm Deployment Strategy](adrs/adr-017-deployment-strategy.md)
+- [ADR-026: Namespace Isolation Strategy](adrs/adr-026-namespace-isolation-strategy.md)
 - [Flux GitOps Deployment Flow](diagrams/sequence-flux-gitops-deployment.md)
 - [Agentic Microservices Reference](../agentic-microservices-reference.md)
 | Value | Default | Description |
@@ -696,9 +696,9 @@ Invoke-RestMethod "$APIM_BASE/agents/truth-enrichment/health"
 
 ---
 
-## Namespace Strategy (ADR-034)
+## Namespace Strategy (ADR-026)
 
-In production, services are deployed to two namespaces per [ADR-034](../architecture/adrs/adr-034-namespace-isolation-strategy.md):
+In production, services are deployed to two namespaces per [ADR-026](../architecture/adrs/adr-026-namespace-isolation-strategy.md):
 
 | Namespace | Services | Node Pool |
 |-----------|----------|-----------|
@@ -727,5 +727,5 @@ Override the namespace with `--namespace <name>` in Helm commands.
 - [Infrastructure README](../../.infra/README.md) — Full infrastructure provisioning
 - [Deployment Guide](../../.infra/DEPLOYMENT.md) — Multi-service deployment
 - [Solution Architecture](solution-architecture-overview.md) — System diagrams
-- [ADR-033: Helm Deployment Strategy](adrs/adr-033-helm-deployment-strategy.md)
-- [ADR-034: Namespace Isolation](adrs/adr-034-namespace-isolation-strategy.md)
+- [ADR-017: Helm Deployment Strategy](adrs/adr-017-deployment-strategy.md)
+- [ADR-026: Namespace Isolation](adrs/adr-026-namespace-isolation-strategy.md)

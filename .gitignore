@@ -198,7 +198,7 @@ DocProject/Help/html
 # Click-Once directory
 publish/
 
-# Flux reconciles rendered manifests from Git (ADR-033).
+# Flux reconciles rendered manifests from Git (ADR-017).
 # Only kustomization.yaml is tracked; per-service all.yaml files are committed
 # by the CI deploy workflow after render-helm.sh generates them.
 # .kubernetes/rendered/  — no longer ignored

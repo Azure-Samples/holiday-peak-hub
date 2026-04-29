@@ -1,7 +1,7 @@
 # Self-Healing RBAC Matrix and Security Controls
 
 > Part of the Autonomous Agent Surface Self-Healing epic (#657).
-> Governing ADR: [ADR-032](../architecture/adrs/adr-032-self-healing-boundaries.md)
+> Governing ADR: [ADR-025](../architecture/adrs/adr-025-self-healing-boundaries.md)
 
 ## RBAC Matrix for Remediation Identities
 

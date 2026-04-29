@@ -77,38 +77,30 @@ nav:
           - ADR-001 Python 3.13: architecture/adrs/adr-001-python-3.13.md
           - ADR-002 Azure Services: architecture/adrs/adr-002-azure-services.md
           - ADR-003 Adapter Pattern: architecture/adrs/adr-003-adapter-pattern.md
-          - ADR-004 Builder Pattern Memory: architecture/adrs/adr-004-builder-pattern-memory.md
-          - ADR-005 FastAPI MCP: architecture/adrs/adr-005-fastapi-mcp.md
-          - ADR-006 Agent Framework: architecture/adrs/adr-006-agent-framework.md
-          - ADR-007 Saga Choreography: architecture/adrs/adr-007-saga-choreography.md
-          - ADR-008 Memory Tiers: architecture/adrs/adr-008-memory-tiers.md
-          - ADR-009 AKS Deployment: architecture/adrs/adr-009-aks-deployment.md
-          - ADR-010 REST & MCP Exposition: architecture/adrs/adr-010-rest-and-mcp-exposition.md
-          - ADR-011 ACP Catalog Search: architecture/adrs/adr-011-acp-catalog-search.md
-          - ADR-012 Adapter Boundaries: architecture/adrs/adr-012-adapter-boundaries.md
-          - ADR-013 Model Routing: architecture/adrs/adr-013-model-routing.md
-          - ADR-014 Memory Partitioning: architecture/adrs/adr-014-memory-partitioning.md
-          - ADR-015 Next.js App Router: architecture/adrs/adr-015-nextjs-app-router.md
-          - ADR-016 Atomic Design System: architecture/adrs/adr-016-atomic-design-system.md
-          - ADR-017 AG-UI Protocol: architecture/adrs/adr-017-ag-ui-protocol.md
-          - ADR-018 ACP Frontend: architecture/adrs/adr-018-acp-frontend.md
-          - ADR-019 Authentication RBAC: architecture/adrs/adr-019-authentication-rbac.md
-          - ADR-020 API Client Architecture: architecture/adrs/adr-020-api-client-architecture.md
-          - ADR-021 azd-First Deployment: architecture/adrs/adr-021-azd-first-deployment.md
-          - ADR-022 Branch Naming: architecture/adrs/adr-022-branch-naming-convention.md
-          - ADR-023 Enterprise Resilience: architecture/adrs/adr-023-enterprise-resilience-patterns.md
-          - ADR-024 Connector Registry: architecture/adrs/adr-024-connector-registry-pattern.md
-          - ADR-025 Product Truth Layer: architecture/adrs/adr-025-product-truth-layer.md
-          - ADR-026 AGIC Traffic: architecture/adrs/adr-026-agic-traffic-management.md
-          - ADR-027 APIM AGC Edge: architecture/adrs/adr-027-apim-agc-edge.md
-          - ADR-028 Memory Namespace Isolation: architecture/adrs/adr-028-memory-namespace-isolation-contract.md
-          - ADR-029 DAM Image Analysis: architecture/adrs/adr-029-dam-image-analysis-enrichment-pipeline-boundary.md
-          - ADR-030 Search Enrichment: architecture/adrs/adr-030-search-enrichment-bounded-context.md
-          - ADR-031 MCP Communication: architecture/adrs/adr-031-mcp-internal-communication-policy.md
-          - ADR-032 Self-Healing: architecture/adrs/adr-032-self-healing-boundaries.md
-          - ADR-033 Helm/Flux Deployment: architecture/adrs/adr-033-helm-deployment-strategy.md
-          - ADR-034 Namespace Isolation: architecture/adrs/adr-034-namespace-isolation-strategy.md
-          - ADR-035 API Center & APIM MCP: architecture/adrs/adr-035-api-center-apim-mcp-strategy.md
+          - ADR-004 FastAPI MCP: architecture/adrs/adr-004-fastapi-mcp.md
+          - ADR-005 Agent Framework: architecture/adrs/adr-005-agent-framework.md
+          - ADR-006 Saga Choreography: architecture/adrs/adr-006-saga-choreography.md
+          - ADR-007 Memory Tiers: architecture/adrs/adr-007-memory-tiers.md
+          - ADR-008 AKS Deployment: architecture/adrs/adr-008-aks-deployment.md
+          - ADR-009 ACP Catalog Search: architecture/adrs/adr-009-acp-catalog-search.md
+          - ADR-010 Model Routing: architecture/adrs/adr-010-model-routing.md
+          - ADR-011 Next.js App Router: architecture/adrs/adr-011-nextjs-app-router.md
+          - ADR-012 Atomic Design System: architecture/adrs/adr-012-atomic-design-system.md
+          - ADR-013 AG-UI Protocol: architecture/adrs/adr-013-ag-ui-protocol.md
+          - ADR-014 ACP Frontend: architecture/adrs/adr-014-acp-frontend.md
+          - ADR-015 Authentication RBAC: architecture/adrs/adr-015-authentication-rbac.md
+          - ADR-016 API Client Architecture: architecture/adrs/adr-016-api-client-architecture.md
+          - ADR-017 Deployment Strategy: architecture/adrs/adr-017-deployment-strategy.md
+          - ADR-018 Branch Naming: architecture/adrs/adr-018-branch-naming-convention.md
+          - ADR-019 Enterprise Resilience: architecture/adrs/adr-019-enterprise-resilience-patterns.md
+          - ADR-020 Product Truth Layer: architecture/adrs/adr-020-product-truth-layer.md
+          - ADR-021 APIM AGC Edge: architecture/adrs/adr-021-apim-agc-edge.md
+          - ADR-022 DAM Image Analysis: architecture/adrs/adr-022-dam-image-analysis-enrichment-pipeline-boundary.md
+          - ADR-023 Search Enrichment: architecture/adrs/adr-023-search-enrichment-bounded-context.md
+          - ADR-024 Agent Communication: architecture/adrs/adr-024-agent-communication-policy.md
+          - ADR-025 Self-Healing: architecture/adrs/adr-025-self-healing-boundaries.md
+          - ADR-026 Namespace Isolation: architecture/adrs/adr-026-namespace-isolation-strategy.md
+          - ADR-027 API Center & APIM MCP: architecture/adrs/adr-027-api-center-apim-mcp-strategy.md
       - Components:
           - Overview: architecture/components/apps/README.md
           - CRUD Service: architecture/components/apps/crud-service.md

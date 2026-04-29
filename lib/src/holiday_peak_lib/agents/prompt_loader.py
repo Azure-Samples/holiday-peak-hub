@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+from datetime import UTC, datetime
 from importlib.resources import files as _resource_files
 from pathlib import Path
 
@@ -176,6 +177,41 @@ def load_service_prompt_instructions(service_name: str) -> str | None:
     return None
 
 
+def load_service_prompt_catalog(service_name: str) -> list[dict[str, str | None]]:
+    """Return prompt markdown files for a service when the repository layout is available."""
+    for root in _candidate_repo_roots():
+        prompts_dir = root / "apps" / service_name / "prompts"
+        if not prompts_dir.is_dir():
+            continue
+
+        catalog: list[dict[str, str | None]] = []
+        for prompt_path in sorted(prompts_dir.glob("*.md")):
+            content = _read_utf8(prompt_path)
+            if content is None:
+                continue
+
+            resolved_content = (
+                _merge_with_hardening(content) if prompt_path.name == "instructions.md" else content
+            )
+            last_modified = datetime.fromtimestamp(
+                prompt_path.stat().st_mtime,
+                tz=UTC,
+            ).isoformat()
+            catalog.append(
+                {
+                    "name": prompt_path.name,
+                    "content": resolved_content,
+                    "sha": prompt_instructions_sha256(resolved_content),
+                    "last_modified": last_modified,
+                }
+            )
+
+        if catalog:
+            return catalog
+
+    return []
+
+
 def _candidate_repo_roots() -> list[Path]:
     current = Path.cwd().resolve()
     roots = [current, *current.parents]
@@ -216,6 +252,7 @@ __all__ = [
     "LAST_LOAD_WAS_FALLBACK",
     "PromptInstructionsNotFoundError",
     "is_fallback_instructions",
+    "load_service_prompt_catalog",
     "load_prompt_instructions",
     "load_service_prompt_instructions",
     "prompt_instructions_sha256",

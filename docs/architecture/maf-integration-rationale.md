@@ -215,6 +215,6 @@ This enables 1136 lib tests + 660 app tests to run without Azure credentials in 
 
 ## Related ADRs
 
-- [ADR-013: Model Routing](adrs/adr-013-model-routing.md)
-- [ADR-008: Memory Tiers](adrs/adr-008-memory-tiers.md)
-- [ADR-008: Circuit Breaker Pattern](adrs/adr-023-enterprise-resilience-patterns.md)
+- [ADR-010: Model Routing](adrs/adr-010-model-routing.md)
+- [ADR-007: Memory Tiers](adrs/adr-007-memory-tiers.md)
+- [ADR-019: Circuit Breaker Pattern](adrs/adr-019-enterprise-resilience-patterns.md)

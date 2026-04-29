@@ -65,10 +65,10 @@ For detailed environment policies, see [Infrastructure Governance](infrastructur
 
 ## ADR References
 
-- ADR-015 Next.js App Router
-- ADR-016 Atomic Design System
-- ADR-017 AG-UI Protocol
-- ADR-018 ACP Frontend
-- ADR-019 Authentication and RBAC
-- ADR-020 API Client Architecture
-- ADR-021 azd-first deployment
+- ADR-011 Next.js App Router
+- ADR-012 Atomic Design System
+- ADR-013 AG-UI Protocol
+- ADR-014 ACP Frontend
+- ADR-015 Authentication and RBAC
+- ADR-016 API Client Architecture
+- ADR-017 azd-first deployment

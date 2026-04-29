@@ -109,7 +109,6 @@ Requirements:
 
 ## Related ADRs
 
-- [ADR-008: Three-Tier Memory](adr-008-memory-tiers.md) — Redis + Cosmos + Blob rationale
-- [ADR-009: AKS Deployment](adr-009-aks-deployment.md) — Kubernetes choice and node pool strategy
-- [ADR-014: Memory Partitioning](adr-014-memory-partitioning.md) — Data placement rules
-- [ADR-021: azd-First Deployment](adr-021-azd-first-deployment.md) — Provisioning and CI/CD strategy
+- [ADR-007: Memory Architecture](adr-007-memory-tiers.md) — Redis + Cosmos + Blob rationale, partitioning, and namespace isolation
+- [ADR-008: AKS Deployment](adr-008-aks-deployment.md) — Kubernetes choice and node pool strategy
+- [ADR-017: azd-First Deployment](adr-017-deployment-strategy.md) — Provisioning and CI/CD strategy

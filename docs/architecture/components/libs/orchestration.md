@@ -1,7 +1,7 @@
 # Orchestration Component
 
 **Path**: `lib/src/holiday_peak_lib/orchestration/`  
-**Design Pattern**: SAGA Choreography (ADR-007)  
+**Design Pattern**: SAGA Choreography (ADR-006)  
 **Purpose**: Event-driven service coordination for distributed transactions without central orchestrator
 
 ## Overview
@@ -797,7 +797,7 @@ async def test_payment_service_failure_compensation():
 
 ## Related ADRs
 
-- [ADR-007: SAGA Choreography](../../adrs/adr-007-saga-choreography.md) — Pattern rationale
+- [ADR-006: SAGA Choreography](../../adrs/adr-006-saga-choreography.md) — Pattern rationale
 - [ADR-002: Azure Services](../../adrs/adr-002-azure-services.md) — Event Hubs selection
 
 ---

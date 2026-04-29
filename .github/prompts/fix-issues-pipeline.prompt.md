@@ -54,7 +54,7 @@ Investigate and resolve the described issue through a fully tracked GitHub workf
 ## Phase 3: Branch & Implementation
 
 1. **Create Branch** — From the default branch (`main`), create:
-   - `bug/<issue-number>-<short-description>` (per ADR-022 branch naming convention)
+   - `bug/<issue-number>-<short-description>` (per ADR-018 branch naming convention)
 
 2. **Implement Fix** — Delegate to the appropriate specialist agents via `#runSubagent`:
 

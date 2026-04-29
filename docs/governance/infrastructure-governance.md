@@ -22,7 +22,7 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 
 ### Core policy
 
-- **azd-first deployment is mandatory** (ADR-021). The only approved exception is the manual dev emergency redeploy path in `deploy-azd-dev.yml` with `skipProvision=true`, which reuses already-provisioned infrastructure and skips only `azd provision`.
+- **azd-first deployment is mandatory** (ADR-017). The only approved exception is the manual dev emergency redeploy path in `deploy-azd-dev.yml` with `skipProvision=true`, which reuses already-provisioned infrastructure and skips only `azd provision`.
 - Reusable workflow `deploy-azd.yml` is not the primary operator entrypoint; use env-specific entrypoint workflows.
 - OIDC Azure login is required in CI/CD; no static cloud credentials committed to repository.
 - Provisioning must fail fast when `projectName` is not `holidaypeakhub405` or when `resourceGroupName`/`AZURE_RESOURCE_GROUP` are not `holidaypeakhub405-<environment>-rg`; this is enforced through azd `preprovision` hooks.
@@ -78,7 +78,7 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 
 ## Runtime Deployment Controls
 
-- Canonical AKS edge posture is **APIM -> AGC -> AKS** as defined by ADR-027; AGC is the only supported ingress target state for APIM-published AKS workloads.
+- Canonical AKS edge posture is **APIM -> AGC -> AKS** as defined by ADR-021; AGC is the only supported ingress target state for APIM-published AKS workloads.
 - APIM is the only supported public API facade for AKS-hosted services.
 - APIM backends for AKS workloads must target approved AGC hostnames or listeners only.
 - APIM backends must not target pod IPs, node IPs, `ClusterIP` addresses, or `*.svc.cluster.local` names.
@@ -152,9 +152,9 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 ## ADR References
 
 - ADR-002 Azure service stack
-- ADR-009 AKS deployment pattern
-- ADR-021 azd-first deployment
-- ADR-022 branch naming convention
-- ADR-023 enterprise resilience patterns
-- ADR-026 historical AGIC traffic-management record
-- ADR-027 canonical APIM -> AGC -> AKS edge
+- ADR-008 AKS deployment pattern
+- ADR-017 azd-first deployment
+- ADR-018 branch naming convention
+- ADR-019 enterprise resilience patterns
+- ADR-021 historical AGIC traffic-management record
+- ADR-021 canonical APIM -> AGC -> AKS edge

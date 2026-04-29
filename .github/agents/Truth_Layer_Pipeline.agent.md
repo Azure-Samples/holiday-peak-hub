@@ -77,12 +77,12 @@ class TruthIngestionAgent(BaseRetailAgent):
         ...
 ```
 
-### SLM-First Routing (ADR-013)
+### SLM-First Routing (ADR-010)
 - All agents use SLM first (fast model, e.g., `gpt-5-nano`)
 - Automatic escalation to LLM when complexity requires it
 - Configure via `FoundryAgentConfig` with `FOUNDRY_AGENT_ID_FAST` / `FOUNDRY_AGENT_ID_RICH`
 
-### MCP Tool Exposition (ADR-010)
+### MCP Tool Exposition (ADR-004)
 - Register domain MCP tools via `FastAPIMCPServer.add_tool(path, handler)`
 - MCP tools return structured dicts for agent-to-agent communication
 - Tools are mounted at `/mcp` prefix
@@ -157,7 +157,7 @@ Add 6 route modules to `apps/crud-service/src/crud_service/routes/`:
 3. **Every enrichment must include**: confidence score, source model ID, evidence references
 4. **Immutable audit trail** — every state change produces an `AuditEvent`
 5. **All services follow `build_service_app()`** pattern with FoundryAgentConfig for SLM/LLM
-6. Agents expose both **REST endpoints AND MCP tools** (ADR-010)
+6. Agents expose both **REST endpoints AND MCP tools** (ADR-004)
 7. **Tests required**: unit tests in each `tests/` directory, integration tests for cross-service flows
 8. Follow **PEP 8** strictly; use `pyproject.toml` with `uv`
 9. Each new app needs a `Dockerfile`, `pyproject.toml`, and proper package structure

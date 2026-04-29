@@ -32,16 +32,16 @@ Applies to all Python services and shared framework packages under:
 
 - Follow PEP 8 and project lint rules (`line-length=100`).
 - Keep agents lightweight; domain/business logic belongs in adapters.
-- Enforce adapter boundaries (ADR-003, ADR-012).
-- Keep dual exposition clear: REST for app/front-end and MCP for agent-to-agent (ADR-010).
-- Use SLM-first routing with optional LLM upgrade for complex requests (ADR-013).
+- Enforce adapter boundaries (ADR-003).
+- Keep dual exposition clear: REST for app/front-end and MCP for agent-to-agent (ADR-004).
+- Use SLM-first routing with optional LLM upgrade for complex requests (ADR-010).
 - Canonical retail and connector event envelopes must carry top-level `schema_version` in `major.minor` format.
 - Missing canonical envelope versions must be interpreted as implicit `1.0` during migration windows.
 - Same-major schema evolution must remain additive-only with unknown fields tolerated; breaking changes require a major bump and contract-gate updates.
 
 ### Data and memory
 
-- Use three-tier memory strategy where applicable (Redis hot, Cosmos warm, Blob cold) (ADR-008, ADR-014).
+- Use three-tier memory strategy where applicable (Redis hot, Cosmos warm, Blob cold) (ADR-007).
 - Keep Cosmos queries partition-aware and resilient to throttling (`429` backoff).
 - Do not bypass configured identity and secret patterns.
 
@@ -78,12 +78,12 @@ For environment-specific deployment rules, see [Infrastructure Governance](infra
 ## ADR References
 
 - ADR-003 Adapter Pattern
-- ADR-005 FastAPI + MCP
-- ADR-007 SAGA Choreography
-- ADR-008 Three-Tier Memory
-- ADR-010 REST + MCP Exposition
-- ADR-012 Adapter Boundaries
-- ADR-013 SLM-First Routing
-- ADR-014 Memory Partitioning
-- ADR-021 azd-first deployment
-- ADR-023 enterprise resilience patterns
+- ADR-004 FastAPI + MCP
+- ADR-006 SAGA Choreography
+- ADR-007 Three-Tier Memory
+- ADR-004 REST + MCP Exposition
+- ADR-003 Adapter Boundaries
+- ADR-010 SLM-First Routing
+- ADR-007 Memory Partitioning
+- ADR-017 azd-first deployment
+- ADR-019 enterprise resilience patterns

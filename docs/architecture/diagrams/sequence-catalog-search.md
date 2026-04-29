@@ -201,6 +201,6 @@ with tracer.span(name="catalog_search") as span:
 ```
 
 ## Related Documentation
-- [ADR-013: SLM-First Model Routing](../adrs/adr-013-model-routing.md)
-- [ADR-011: ACP Alignment for Catalog Search](../adrs/adr-011-acp-catalog-search.md)
+- [ADR-010: SLM-First Model Routing](../adrs/adr-010-model-routing.md)
+- [ADR-009: ACP Alignment for Catalog Search](../adrs/adr-009-acp-catalog-search.md)
 - [E-commerce Catalog Search Component](../components/apps/ecommerce-catalog-search.md)

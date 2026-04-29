@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { MainLayout } from '@/components/templates/MainLayout';
+import { CommerceAgentLayout } from '@/components/templates/CommerceAgentLayout';
 import { Card } from '@/components/molecules/Card';
 import { Button } from '@/components/atoms/Button';
 import { Badge } from '@/components/atoms/Badge';
@@ -87,16 +87,30 @@ export default function DashboardPage() {
 
   const getStatusBadge = (status: string) => {
     const configs: Record<string, { label: string; className: string }> = {
-      delivered: { label: 'Delivered', className: 'bg-lime-100 text-lime-700 dark:bg-lime-900 dark:text-lime-300' },
-      in_transit: { label: 'In Transit', className: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900 dark:text-cyan-300' },
-      processing: { label: 'Processing', className: 'bg-ocean-100 text-ocean-700 dark:bg-ocean-900 dark:text-ocean-300' },
+      delivered: { label: 'Delivered', className: 'bg-[var(--hp-accent-soft)] text-[var(--hp-accent)]' },
+      in_transit: { label: 'In Transit', className: 'bg-[color:color-mix(in_srgb,var(--hp-focus)_18%,transparent)] text-[var(--hp-focus)]' },
+      processing: { label: 'Processing', className: 'bg-[var(--hp-primary-soft)] text-[var(--hp-primary)]' },
     };
     const config = configs[status] ?? { label: status, className: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300' };
     return <Badge className={config.className}>{config.label}</Badge>;
   };
 
   return (
-    <MainLayout>
+    <CommerceAgentLayout
+      sideCast={[
+        {
+          agentSlug: 'inventory-health-check',
+          state: 'thinking',
+          thinkingMessage: 'All of your saved-for-later items are in stock.',
+          position: 'bottom-left',
+          size: 'sm',
+          visible: true,
+          className: 'hidden xl:block',
+          mode: 'hint',
+        },
+      ]}
+      telemetry="visible"
+    >
       <div className="max-w-7xl mx-auto px-4 md:px-8">
         {/* Header */}
         <div className="mb-8">
@@ -124,10 +138,11 @@ export default function DashboardPage() {
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                   Recent Orders
                 </h2>
-                <Link href="/orders">
-                  <Button variant="outline" size="sm">
-                    View All <FiArrowRight className="ml-2 w-4 h-4" />
-                  </Button>
+                <Link
+                  href="/orders"
+                  className="inline-flex items-center justify-center rounded-xl border border-[var(--hp-border)] px-3 py-1.5 text-xs font-semibold text-[var(--hp-text)] transition-colors hover:bg-[var(--hp-surface-strong)]"
+                >
+                  View All <FiArrowRight className="ml-2 w-4 h-4" />
                 </Link>
               </div>
 
@@ -146,7 +161,7 @@ export default function DashboardPage() {
                       <div>
                         <Link
                           href={`/order/${order.id}`}
-                          className="font-semibold text-ocean-500 dark:text-ocean-300 hover:underline"
+                          className="font-semibold text-[var(--hp-primary)] hover:text-[var(--hp-primary-hover)] hover:underline"
                         >
                           {order.id}
                         </Link>
@@ -301,38 +316,18 @@ export default function DashboardPage() {
                 Quick Actions
               </h3>
               <div className="space-y-3">
-                <Link href="/orders">
-                  <Button variant="outline" className="w-full justify-start">
-                    <FiPackage className="mr-2" />
-                    View All Orders
-                  </Button>
-                </Link>
-                <Link href="/profile">
-                  <Button variant="outline" className="w-full justify-start">
-                    <FiUser className="mr-2" />
-                    Edit Profile
-                  </Button>
-                </Link>
-                <Link href="/wishlist">
-                  <Button variant="outline" className="w-full justify-start">
-                    <FiHeart className="mr-2" />
-                    My Wishlist
-                  </Button>
-                </Link>
-                <Link href="/categories">
-                  <Button variant="outline" className="w-full justify-start">
-                    <FiMapPin className="mr-2" />
-                    Browse Categories
-                  </Button>
-                </Link>
+                <DashboardActionLink href="/orders" icon={<FiPackage className="mr-2" />}>View All Orders</DashboardActionLink>
+                <DashboardActionLink href="/profile" icon={<FiUser className="mr-2" />}>Edit Profile</DashboardActionLink>
+                <DashboardActionLink href="/wishlist" icon={<FiHeart className="mr-2" />}>My Wishlist</DashboardActionLink>
+                <DashboardActionLink href="/categories" icon={<FiMapPin className="mr-2" />}>Browse Categories</DashboardActionLink>
               </div>
             </Card>
 
             {/* Rewards */}
-            <Card className="p-6 bg-gradient-to-br from-ocean-50 to-cyan-50 dark:from-ocean-950 dark:to-cyan-950 border-ocean-200 dark:border-ocean-800">
+            <Card className="p-6 border-[var(--hp-border)] bg-[var(--hp-surface-strong)]">
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 bg-ocean-500 dark:bg-ocean-300 rounded-full flex items-center justify-center">
-                  <FiShoppingBag className="w-6 h-6 text-white dark:text-gray-900" />
+                <div className="w-12 h-12 bg-[var(--hp-primary)] rounded-full flex items-center justify-center">
+                  <FiShoppingBag className="w-6 h-6 text-white" />
                 </div>
                 <div>
                   <h3
@@ -352,7 +347,7 @@ export default function DashboardPage() {
               >
                 Rewards data is not available in the current API contract.
               </p>
-              <Button variant="outline" size="sm" className="w-full border-ocean-500 text-ocean-500 dark:border-ocean-300 dark:text-ocean-300">
+              <Button variant="outline" size="sm" className="w-full border-[var(--hp-primary)] text-[var(--hp-primary)] hover:bg-[var(--hp-primary-soft)]">
                 Learn More
               </Button>
             </Card>
@@ -363,18 +358,31 @@ export default function DashboardPage() {
                 Need Help?
               </h3>
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                Our customer support team is here to assist you 24/7
+                Open the product search assistant to compare live retrieval results.
               </p>
-              <Link href="/search?agentChat=1">
-                <Button className="w-full bg-ocean-500 hover:bg-ocean-600 dark:bg-ocean-300 dark:hover:bg-ocean-400 text-white dark:text-gray-900">
-                  Contact Support
-                </Button>
+              <Link
+                href="/search?agentChat=1"
+                className="inline-flex w-full items-center justify-center rounded-xl bg-[var(--hp-primary)] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[var(--hp-primary-hover)]"
+              >
+                Open Product Agent
               </Link>
             </Card>
           </div>
         </div>
       </div>
-    </MainLayout>
+    </CommerceAgentLayout>
+  );
+}
+
+function DashboardActionLink({ href, icon, children }: { href: string; icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className="inline-flex w-full items-center justify-start rounded-xl border border-[var(--hp-border)] px-4 py-2 text-sm font-semibold text-[var(--hp-text)] transition-colors hover:bg-[var(--hp-surface-strong)]"
+    >
+      {icon}
+      {children}
+    </Link>
   );
 }
 
