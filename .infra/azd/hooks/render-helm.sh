@@ -4,7 +4,7 @@ set -eu
 SERVICE_NAME="$1"
 
 # Namespace routing: CRUD goes to holiday-peak-crud, agents to holiday-peak-agents.
-# ADR-034: Namespace Isolation Strategy
+# ADR-026: Namespace Isolation Strategy
 if [ "$SERVICE_NAME" = "crud-service" ]; then
   NAMESPACE="${K8S_CRUD_NAMESPACE:-${K8S_NAMESPACE:-holiday-peak-crud}}"
 else
@@ -424,7 +424,7 @@ add_env_arg "WEB_CONCURRENCY" "${WEB_CONCURRENCY:-2}"
 add_env_arg "APPLICATIONINSIGHTS_CONNECTION_STRING" "${APPLICATIONINSIGHTS_CONNECTION_STRING:-}"
 add_env_arg "OTEL_SERVICE_NAME" "$SERVICE_NAME"
 
-# Cross-namespace CRUD service URL for agent→CRUD communication (ADR-034)
+# Cross-namespace CRUD service URL for agent→CRUD communication (ADR-026)
 if is_agent_service; then
   CRUD_NS="${K8S_CRUD_NAMESPACE:-${K8S_NAMESPACE:-holiday-peak-crud}}"
   add_env_arg "CRUD_SERVICE_URL" "${CRUD_SERVICE_URL:-http://crud-service-crud-service.${CRUD_NS}.svc.cluster.local:80}"

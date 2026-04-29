@@ -440,7 +440,7 @@ jobs:
           azd env set KEDA_ENABLED true -e "${{ inputs.environment }}"
           # PostgreSQL auth: use password for dev until Entra AD admin is configured
           # in Bicep (administrators param on AVM PostgreSQL module). Enabling
-          # activeDirectoryAuth without an admin has no effect — see ADR-033 follow-up.
+          # activeDirectoryAuth without an admin has no effect — see ADR-017 follow-up.
           azd env set POSTGRES_AUTH_MODE password -e "${{ inputs.environment }}"
 
       - name: Install kubelogin
@@ -2025,7 +2025,7 @@ jobs:
           export AZURE_CLIENT_ID="${WORKLOAD_AZURE_CLIENT_ID}"
           CRUD_IMAGE_REF=$(tr -d '\r\n' < "${RUNNER_TEMP}/tested-image/crud-service/image-ref.txt")
 
-          # Phase B (ADR-033): Render only — Flux reconciles from Git
+          # Phase B (ADR-017): Render only — Flux reconciles from Git
           export SERVICE_CRUD_SERVICE_IMAGE_NAME="$CRUD_IMAGE_REF"
           bash .infra/azd/hooks/render-helm.sh crud-service
           echo "Rendered CRUD manifest for Flux reconciliation (image: ${CRUD_IMAGE_REF})."
@@ -2675,7 +2675,7 @@ jobs:
           SERVICE_IMAGE_VAR_NAME="SERVICE_$(printf '%s' "$SERVICE_NAME" | tr '[:lower:]-' '[:upper:]_')_IMAGE_NAME"
           export "${SERVICE_IMAGE_VAR_NAME}=${IMAGE_REF}"
 
-          # Phase B (ADR-033): Render only — Flux reconciles from Git
+          # Phase B (ADR-017): Render only — Flux reconciles from Git
           bash .infra/azd/hooks/render-helm.sh "$SERVICE_NAME"
           echo "Rendered ${SERVICE_NAME} manifest for Flux reconciliation (image: ${IMAGE_REF})."
         env:
@@ -3432,7 +3432,7 @@ jobs:
           SHARED_GATEWAY_NAME="holiday-peak-agc"
           SHARED_GATEWAY_NAMESPACE="holiday-peak-crud"
 
-          # Architecturally approved contract (ADR-033):
+          # Architecturally approved contract (ADR-021):
           #   - Shared AGC uses an in-cluster ApplicationLoadBalancer CR that the
           #     ALB controller manages — creating and maintaining the ARM
           #     trafficController resource automatically.
@@ -3465,7 +3465,7 @@ jobs:
 
           mapfile -t TRAFFIC_CONTROLLER_IDS < <(az resource list -g "$AKS_NODE_RESOURCE_GROUP" --resource-type Microsoft.ServiceNetworking/trafficControllers --query '[].id' -o tsv)
           if [ "${#TRAFFIC_CONTROLLER_IDS[@]}" -eq 0 ]; then
-            echo "::error::No Azure Application Gateway for Containers trafficControllers were found in node resource group '$AKS_NODE_RESOURCE_GROUP'. Per ADR-033 the shared ALB must be ARM-provisioned by Bicep." >&2
+            echo "::error::No Azure Application Gateway for Containers trafficControllers were found in node resource group '$AKS_NODE_RESOURCE_GROUP'. Per ADR-021 the shared ALB must be ARM-provisioned by Bicep." >&2
             exit 1
           fi
 
@@ -3527,7 +3527,7 @@ jobs:
 
           echo "Live shared Gateway evidence: ${GATEWAY_CONTRACT_EVIDENCE}"
 
-          # ADR-033 (updated): require in-cluster managed ALB binding via alb-name/alb-namespace.
+          # ADR-021 (updated): require in-cluster managed ALB binding via alb-name/alb-namespace.
           # The BYO alb-id annotation mode is no longer used — ALB controller manages the TC lifecycle.
           if [ -n "$AGC_SHARED_ALB_ID" ]; then
             echo "::warning::Live shared Gateway '$SHARED_GATEWAY_NAME' carries a BYO alb-id annotation ('${AGC_SHARED_ALB_ID}'). The approved binding mode is now managed (alb-name/alb-namespace). ${GATEWAY_CONTRACT_EVIDENCE}"

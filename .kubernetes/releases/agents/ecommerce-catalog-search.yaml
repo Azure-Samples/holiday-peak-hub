@@ -139,7 +139,7 @@ spec:
       CATALOG_INTENT_FAST_TIMEOUT_SECONDS: "3"
 
       # --- Reasoning (agent-definition level, not runtime) ---
-      FOUNDRY_REASONING_EFFORT_FAST: "none"
+      FOUNDRY_REASONING_EFFORT_FAST: "minimal"
 
       # --- Monitoring ---
       APPLICATIONINSIGHTS_CONNECTION_STRING: "InstrumentationKey=d2fb45bc-e648-4da2-9345-d278636aede5;IngestionEndpoint=https://centralus-2.in.applicationinsights.azure.com/;LiveEndpoint=https://centralus.livediagnostics.monitor.azure.com/;ApplicationId=d8eb64c4-956d-46ab-a02e-d481deadaa0b"
