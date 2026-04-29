@@ -52,7 +52,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
     const trimmed = query.trim();
     if (trimmed) {
       router.push(`/search?q=${encodeURIComponent(trimmed)}`);
+      return;
     }
+
+    router.push('/search');
   };
   const hasExternalMobileMenuController =
     typeof navigationProps?.mobileMenuOpen === 'boolean'

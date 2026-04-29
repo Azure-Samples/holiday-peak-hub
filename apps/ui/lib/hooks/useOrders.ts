@@ -6,13 +6,18 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { orderService } from '../services/orderService';
 import type { CreateOrderRequest } from '../types/api';
 
+type QueryOptions = {
+  enabled?: boolean;
+};
+
 /**
  * Hook to fetch user's orders
  */
-export function useOrders() {
+export function useOrders(options?: QueryOptions) {
   return useQuery({
     queryKey: ['orders'],
     queryFn: () => orderService.list(),
+    enabled: options?.enabled ?? true,
   });
 }
 

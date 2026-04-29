@@ -1,6 +1,6 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
-async function stabilizePage(page: Parameters<typeof test>[0]['page']) {
+async function stabilizePage(page: Page) {
   await page.addStyleTag({
     content: `
       *, *::before, *::after {

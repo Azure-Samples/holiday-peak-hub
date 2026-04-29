@@ -31,6 +31,15 @@ type AgentEnrichmentPayload = {
   related?: Array<Record<string, unknown>>;
 };
 
+function isFallbackProductStub(product: Product, requestedId: string): boolean {
+  return (
+    product.id === requestedId
+    && product.name === requestedId
+    && product.price === 0
+    && (!product.description || product.description.trim().length === 0)
+  );
+}
+
 export const productService = {
   mapAcpToProduct(product: AcpProduct): Product {
     const { amount } = parsePriceString(product.price);
@@ -93,7 +102,14 @@ export const productService = {
   async get(id: string): Promise<Product> {
     try {
       const response = await apiClient.get<Product>(API_ENDPOINTS.products.get(id));
-      return response.data;
+      const product = response.data;
+
+      if (!isFallbackProductStub(product, id)) {
+        return product;
+      }
+
+      const listFallback = await this.list({ limit: 200 });
+      return listFallback.find((entry) => entry.id === id) || product;
     } catch (error) {
       throw handleApiError(error);
     }
@@ -109,15 +125,17 @@ export const productService = {
       baseProduct = null;
     }
 
-    try {
-      const response = await agentApiClient.post('/ecommerce-product-detail-enrichment/invoke', {
-        sku: id,
-      });
-      recordAgentInvocationTelemetry('ecommerce-product-detail-enrichment', response.data);
-      const payload = response.data || {};
-      enrichment = (payload.enriched_product || payload) as AgentEnrichmentPayload;
-    } catch {
-      enrichment = null;
+    if (!baseProduct) {
+      try {
+        const response = await agentApiClient.post('/ecommerce-product-detail-enrichment/invoke', {
+          sku: id,
+        });
+        recordAgentInvocationTelemetry('ecommerce-product-detail-enrichment', response.data);
+        const payload = response.data || {};
+        enrichment = (payload.enriched_product || payload) as AgentEnrichmentPayload;
+      } catch {
+        enrichment = null;
+      }
     }
 
     if (!baseProduct && !enrichment) {

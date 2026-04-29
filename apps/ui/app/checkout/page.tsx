@@ -18,7 +18,6 @@ import inventoryService from '@/lib/services/inventoryService';
 import { useCart } from '@/lib/hooks/useCart';
 import { useInventoryHealth, useReservationOutcomeQueries } from '@/lib/hooks/useInventory';
 import type { InventoryReservation } from '@/lib/types/api';
-import { useAgentRobotState } from '@/lib/hooks/useAgentRobotState';
 
 const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
   ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
@@ -180,7 +179,7 @@ function StripePaymentForm({ onSuccess, onBack, isFinalizing }: StripePaymentFor
           size="lg"
           disabled={!stripe || isPaymentActionPending}
           aria-busy={isPaymentActionPending}
-          className="flex-1 bg-ocean-500 hover:bg-ocean-600 dark:bg-ocean-300 dark:hover:bg-ocean-400 text-white dark:text-gray-900"
+          className="flex-1 bg-[var(--hp-primary)] text-white hover:bg-[var(--hp-primary-hover)]"
         >
           {isPaymentActionPending ? 'Processing…' : 'Pay & Place Order'}
         </Button>
@@ -425,6 +424,11 @@ export default function CheckoutPage() {
         : isCartLoading
           ? 'Loading cart details.'
           : null;
+  const robotState = isPreparingCheckout || isFinalizingPayment
+    ? 'using-tool'
+    : currentStep > 1 || Boolean(clientSecret)
+      ? 'talking'
+      : 'thinking';
 
   const handleShippingSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -551,20 +555,21 @@ export default function CheckoutPage() {
         primary={{
           agentSlug: 'ecommerce-checkout-support',
           state: robotState,
-          position: 'bottom-right',
+          position: 'bottom-left',
           size: 'sm',
           visible: true,
+          facing: 'right',
           mode: 'lead',
         }}
         sideCast={[
           {
             agentSlug: 'logistics-eta-computation',
             state: shippingData.address.trim().length > 0 ? 'using-tool' : 'idle',
-            position: 'bottom-left',
+            position: 'bottom-right',
             size: 'sm',
             visible: currentStep > 1 || shippingData.address.trim().length > 0,
-            facing: 'right',
-            scenePeer: 'left',
+            facing: 'left',
+            scenePeer: 'right',
             className: 'hidden xl:block',
             mode: 'observe',
           },
@@ -582,7 +587,7 @@ export default function CheckoutPage() {
           {currentStep === 1 ? (
             <Card className="p-6">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 bg-ocean-500 dark:bg-ocean-300 rounded-full flex items-center justify-center text-white dark:text-gray-900 font-bold">
+                <div className="w-10 h-10 bg-[var(--hp-primary)] rounded-full flex items-center justify-center text-white font-bold">
                   1
                 </div>
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -870,7 +875,7 @@ export default function CheckoutPage() {
                   size="lg"
                   disabled={isPreparingCheckout || isCartLoading || isCartError}
                   aria-busy={isPreparingCheckout}
-                  className="w-full bg-ocean-500 hover:bg-ocean-600 dark:bg-ocean-300 dark:hover:bg-ocean-400 text-white dark:text-gray-900"
+                  className="w-full bg-[var(--hp-primary)] text-white hover:bg-[var(--hp-primary-hover)]"
                 >
                   {isPreparingCheckout ? 'Preparing checkout…' : 'Continue to Payment'}
                 </Button>
@@ -882,7 +887,7 @@ export default function CheckoutPage() {
             <>
               <Card className="p-6">
                 <div className="flex items-center gap-3 mb-6">
-                  <FiTruck className="w-6 h-6 text-ocean-500 dark:text-ocean-300" />
+                  <FiTruck className="w-6 h-6 text-[var(--hp-primary)]" />
                   <h3 className="text-xl font-bold text-gray-900 dark:text-white">
                     Shipping Method
                   </h3>
@@ -919,7 +924,7 @@ export default function CheckoutPage() {
 
               <Card className="p-6">
                 <div className="flex items-center gap-3 mb-6">
-                  <div className="w-10 h-10 bg-ocean-500 dark:bg-ocean-300 rounded-full flex items-center justify-center text-white dark:text-gray-900 font-bold">
+                  <div className="w-10 h-10 bg-[var(--hp-primary)] rounded-full flex items-center justify-center text-white font-bold">
                     2
                   </div>
                   <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -986,7 +991,7 @@ export default function CheckoutPage() {
                     <p className="text-sm text-gray-600 dark:text-gray-400">
                       Qty: {item.quantity}
                     </p>
-                    <p className="text-sm font-semibold text-ocean-500 dark:text-ocean-300">
+                    <p className="text-sm font-semibold text-[var(--hp-primary)]">
                       ${(item.price * item.quantity).toFixed(2)}
                     </p>
                   </div>
@@ -1017,8 +1022,8 @@ export default function CheckoutPage() {
               </div>
             </div>
 
-            <div className="mt-6 p-4 bg-lime-50 dark:bg-lime-950 rounded-lg border border-lime-200 dark:border-lime-800">
-              <div className="flex items-center gap-2 text-lime-700 dark:text-lime-300">
+            <div className="mt-6 rounded-lg border border-[var(--hp-accent)]/25 bg-[var(--hp-accent-soft)] p-4">
+              <div className="flex items-center gap-2 text-[var(--hp-accent)]">
                 <FiGift className="w-5 h-5" />
                 <span className="text-sm font-semibold">Free gift with orders over $200!</span>
               </div>
@@ -1161,9 +1166,9 @@ function ShippingOption({ id, title, description, price, selected, onSelect, bad
       aria-pressed={selected}
       className={`p-4 border-2 rounded-lg cursor-pointer transition-colors ${
         selected
-          ? 'border-ocean-500 bg-ocean-50 dark:border-ocean-300 dark:bg-ocean-950'
+          ? 'border-[var(--hp-primary)] bg-[var(--hp-primary-soft)]'
           : 'border-gray-200 dark:border-gray-700'
-      } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ocean-500 dark:focus:ring-ocean-300`}
+      } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--hp-focus)]`}
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -1172,13 +1177,13 @@ function ShippingOption({ id, title, description, price, selected, onSelect, bad
             <div className="flex items-center gap-2">
               <span className="font-semibold text-gray-900 dark:text-white">{title}</span>
               {badge && (
-                <Badge className="bg-cyan-500 text-white text-xs">{badge}</Badge>
+                <Badge className="bg-[var(--hp-accent)] text-white text-xs">{badge}</Badge>
               )}
             </div>
             <p className="text-sm text-gray-600 dark:text-gray-400">{description}</p>
           </div>
         </div>
-        <span className="font-bold text-ocean-500 dark:text-ocean-300">
+        <span className="font-bold text-[var(--hp-primary)]">
           ${price.toFixed(2)}
         </span>
       </div>

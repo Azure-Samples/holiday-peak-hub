@@ -193,7 +193,7 @@ export const semanticSearchService = {
         console.error('Semantic search failed:', error);
         // Fall back to CRUD search
       }
-    } else if (requestedMode === 'intelligent') {
+    } else if (request.mode === 'intelligent') {
       fallbackReason = 'agent_unavailable';
     }
 

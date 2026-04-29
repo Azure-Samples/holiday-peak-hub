@@ -99,9 +99,13 @@ export const SCENARIO_OPTIONS = [
 
 export type ScenarioId = (typeof SCENARIO_OPTIONS)[number]['id'];
 
-export const SCENARIO_BY_ID = Object.fromEntries(
-  SCENARIO_OPTIONS.map((scenario) => [scenario.id, scenario]),
-) as Record<ScenarioId, ScenarioConfig>;
+export const SCENARIO_BY_ID: Record<ScenarioId, ScenarioConfig> = SCENARIO_OPTIONS.reduce(
+  (accumulator, scenario) => {
+    accumulator[scenario.id] = scenario;
+    return accumulator;
+  },
+  {} as Record<ScenarioId, ScenarioConfig>,
+);
 
 export function isScenarioId(value: string): value is ScenarioId {
   return value in SCENARIO_BY_ID;

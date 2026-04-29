@@ -69,7 +69,9 @@
     --hp-text-muted: #ceb99a;
     --hp-primary: #f17753;
     --hp-primary-hover: #fb936f;
+    --hp-primary-soft: rgba(241, 119, 83, 0.14);
     --hp-accent: #45b3a7;
+    --hp-accent-soft: rgba(69, 179, 167, 0.14);
     --hp-focus: #ffc061;
 
     --hp-glass-bg: rgba(20, 20, 20, 0.7);

@@ -44,6 +44,7 @@ function dispatchStreamEvent(
       break;
     }
     case 'done':
+      recordAgentInvocationTelemetry(agentSlug, data);
       callbacks.onDone?.(data);
       break;
     case 'error':

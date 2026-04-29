@@ -9,6 +9,7 @@ import { Badge } from '@/components/atoms/Badge';
 import { Button } from '@/components/atoms/Button';
 import { Modal } from '@/components/molecules/Modal';
 import { cn } from '@/components/utils';
+import { useAddToCart } from '@/lib/hooks/useCart';
 import { useProduct } from '@/lib/hooks/useProducts';
 import { useCategories } from '@/lib/hooks/useCategories';
 import { mapApiProductToUiProduct } from '@/lib/utils/productMappers';
@@ -20,12 +21,6 @@ import { useRelatedProducts } from '@/lib/hooks/useRelatedProducts';
 import agentApiClient from '@/lib/api/agentClient';
 import { recordAgentInvocationTelemetry } from '@/lib/hooks/useAgentInvocationTelemetry';
 import { trackEcommerceEvent } from '@/lib/utils/telemetry';
-import { useAgentRobotState } from '@/lib/hooks/useAgentRobotState';
-import { useProductRecommendations } from '@/lib/hooks/useProductRecommendations';
-import { MiniConstellation } from '@/components/organisms/MiniConstellation';
-import { useProductIQ } from '@/lib/hooks/useProductIQ';
-import { ProductIQBadge } from '@/components/molecules/ProductIQBadge';
-import { ProductIQRadar } from '@/components/molecules/ProductIQRadar';
 import { FiArrowRight, FiShoppingCart, FiTruck, FiShield, FiRotateCcw } from 'react-icons/fi';
 
 type FitVerdict = 'fits' | 'partial' | 'not_fit' | 'unknown';
@@ -197,6 +192,7 @@ const verdictBadgeClass = (verdict: FitVerdict): string => {
 
 export function ProductPageClient({ productId }: { productId: string }) {
   const router = useRouter();
+  const addToCart = useAddToCart();
   const { data: product, isLoading, isError } = useProduct(productId);
   const { data: categories = [] } = useCategories();
 
@@ -208,6 +204,14 @@ export function ProductPageClient({ productId }: { productId: string }) {
   const [fitResponseView, setFitResponseView] = useState<AgentMessageView | null>(null);
   const [fitAssessment, setFitAssessment] = useState<FitAssessment | null>(null);
   const uiProduct = useMemo(() => (product ? mapApiProductToUiProduct(product) : null), [product]);
+  const hasAgentEnrichment = Boolean(
+    product?.enriched_description
+    || product?.features?.length
+    || product?.use_cases?.length
+    || product?.related?.length
+    || product?.complementary_products?.length
+    || product?.substitute_products?.length,
+  );
   const relatedProductIds = useMemo(() => {
     if (!uiProduct) {
       return [];
@@ -218,6 +222,7 @@ export function ProductPageClient({ productId }: { productId: string }) {
     );
   }, [uiProduct]);
   const { data: relatedProductMap = {} } = useRelatedProducts(relatedProductIds);
+  const recommendations = useMemo(() => relatedProductIds.slice(0, 4), [relatedProductIds]);
 
   useEffect(() => {
     if (!product?.category_id) {
@@ -253,6 +258,14 @@ export function ProductPageClient({ productId }: { productId: string }) {
     });
   }, [product]);
 
+  const robotState = fitLoading
+    ? 'thinking'
+    : fitResponseView
+      ? 'talking'
+      : isLoading
+        ? 'thinking'
+        : 'idle';
+
   const handleAddToCartClick = () => {
     if (!product) {
       return;
@@ -262,6 +275,11 @@ export function ProductPageClient({ productId }: { productId: string }) {
       sku: product.id,
       source: 'product_page',
       in_stock: product.in_stock,
+    });
+
+    addToCart.mutate({
+      product_id: product.id,
+      quantity: 1,
     });
   };
 
@@ -326,21 +344,22 @@ export function ProductPageClient({ productId }: { productId: string }) {
       primary={{
         agentSlug: 'ecommerce-product-detail-enrichment',
         state: robotState,
-        position: 'bottom-right',
+        position: 'bottom-left',
         size: 'sm',
         visible: true,
+        facing: 'right',
         mode: 'lead',
       }}
       sideCast={[
         {
           agentSlug: 'ecommerce-cart-intelligence',
           state: recommendations.length > 0 ? 'using-tool' : 'idle',
-          position: 'bottom-left',
+          position: 'bottom-right',
           size: 'sm',
           visible: recommendations.length > 0,
-          facing: 'right',
-          scenePeer: 'left',
-          className: 'hidden xl:block',
+          facing: 'left',
+          scenePeer: 'right',
+          className: 'hidden xl:block xl:bottom-28',
           mode: 'observe',
         },
       ]}
@@ -480,7 +499,7 @@ export function ProductPageClient({ productId }: { productId: string }) {
                   {/* Status Badges */}
                   <div className="mb-4 flex flex-wrap items-center gap-2">
                     <Badge size="sm" className="bg-gray-900 dark:bg-white text-white dark:text-gray-900 border-none text-[10px] px-2.5 py-1">
-                      Agent Enriched
+                      {hasAgentEnrichment ? 'Agent Enriched' : 'Catalog fallback'}
                     </Badge>
                     {product.in_stock ? (
                       <Badge size="sm" className="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 text-[10px] px-2.5 py-1">
@@ -525,10 +544,11 @@ export function ProductPageClient({ productId }: { productId: string }) {
                       size="md"
                       className="rounded-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-100 shadow-sm"
                       onClick={handleAddToCartClick}
-                      disabled={!product.in_stock}
+                      loading={addToCart.isPending}
+                      disabled={!product.in_stock || addToCart.isPending}
                       iconLeft={<FiShoppingCart className="h-4 w-4" />}
                     >
-                      Add to cart
+                      {addToCart.isPending ? 'Adding…' : 'Add to cart'}
                     </Button>
 
                     <Button
@@ -541,6 +561,18 @@ export function ProductPageClient({ productId }: { productId: string }) {
                       <FiArrowRight className="ml-1.5 h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
                     </Button>
                   </div>
+
+                  {addToCart.isSuccess ? (
+                    <p className="mb-6 text-sm text-emerald-600 dark:text-emerald-400" role="status" aria-live="polite">
+                      Added to cart.
+                    </p>
+                  ) : null}
+
+                  {addToCart.isError ? (
+                    <p className="mb-6 text-sm text-red-600 dark:text-red-400" role="alert" aria-live="assertive">
+                      We couldn&apos;t add this item to the cart right now.
+                    </p>
+                  ) : null}
 
                   {/* Use cases & Related */}
                   <div className="space-y-5">

@@ -1582,7 +1582,7 @@ function CockpitRunsPanel({
                                     <StepIcon className="w-3 h-3 text-white" />
                                   </div>
 
-                                  <div className={`rounded-xl border border-[var(--hp-border-subtle)] ${cfg.bg} p-3.5`}>
+                                  <div className={`rounded-xl border border-[var(--hp-border-subtle)] ${cfg.bgLight} ${cfg.bgDark} p-3.5`}>
                                     <div className="flex items-center gap-2 mb-1">
                                       <span className="text-xs font-bold text-[var(--hp-text)]">{step.name}</span>
                                       <span className="text-[10px] text-gray-400 bg-[var(--hp-glass-bg)] rounded-md px-1.5 py-0.5">{step.type.replace('_', ' ')}</span>

@@ -5,32 +5,33 @@ import { CommerceAgentLayout } from '@/components/templates/CommerceAgentLayout'
 import { Card } from '@/components/molecules/Card';
 import { Button } from '@/components/atoms/Button';
 import { useCart, useClearCart, useRemoveFromCart } from '@/lib/hooks/useCart';
-import { useAgentRobotState } from '@/lib/hooks/useAgentRobotState';
 
 export default function CartPage() {
   const { data: cart, isLoading, isError } = useCart();
   const removeFromCart = useRemoveFromCart();
   const clearCart = useClearCart();
+  const robotState = isLoading ? 'thinking' : cart?.items?.length ? 'talking' : 'idle';
 
   return (
     <CommerceAgentLayout
       primary={{
         agentSlug: 'ecommerce-cart-intelligence',
         state: robotState,
-        position: 'bottom-right',
+        position: 'bottom-left',
         size: 'sm',
         visible: true,
+        facing: 'right',
         mode: 'lead',
       }}
       sideCast={[
         {
           agentSlug: 'inventory-reservation-validation',
           state: cart?.items?.length ? 'using-tool' : 'idle',
-          position: 'bottom-left',
+          position: 'bottom-right',
           size: 'sm',
           visible: Boolean(cart?.items?.length),
-          facing: 'right',
-          scenePeer: 'left',
+          facing: 'left',
+          scenePeer: 'right',
           className: 'hidden xl:block',
           mode: 'observe',
         },
@@ -61,20 +62,21 @@ export default function CartPage() {
         {!isLoading && !isError && (
           <Card className="overflow-x-auto">
             <table className="min-w-full text-sm">
+              <caption className="sr-only">Cart line items</caption>
               <thead className="bg-gray-100 dark:bg-gray-800 text-left">
                 <tr>
-                  <th className="px-4 py-3">Product</th>
-                  <th className="px-4 py-3">Quantity</th>
-                  <th className="px-4 py-3">Unit Price</th>
-                  <th className="px-4 py-3">Line Total</th>
-                  <th className="px-4 py-3">Actions</th>
+                  <th scope="col" className="px-4 py-3">Product</th>
+                  <th scope="col" className="px-4 py-3">Quantity</th>
+                  <th scope="col" className="px-4 py-3">Unit Price</th>
+                  <th scope="col" className="px-4 py-3">Line Total</th>
+                  <th scope="col" className="px-4 py-3">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {cart?.items?.map((item) => (
                   <tr key={item.product_id} className="border-t border-gray-200 dark:border-gray-700">
                     <td className="px-4 py-3">
-                      <Link className="text-ocean-500 dark:text-ocean-300 hover:underline" href={`/product/${encodeURIComponent(item.product_id)}`}>
+                      <Link className="text-[var(--hp-primary)] hover:text-[var(--hp-primary-hover)] hover:underline" href={`/product/${encodeURIComponent(item.product_id)}`}>
                         {item.product_id}
                       </Link>
                     </td>
@@ -106,10 +108,11 @@ export default function CartPage() {
             <p className="text-sm text-gray-600 dark:text-gray-400">Total</p>
             <p className="text-2xl font-bold text-gray-900 dark:text-white">${(cart?.total || 0).toFixed(2)}</p>
           </div>
-          <Link href="/checkout">
-            <Button className="bg-ocean-500 hover:bg-ocean-600 dark:bg-ocean-300 dark:hover:bg-ocean-400 text-white dark:text-gray-900">
-              Proceed to checkout
-            </Button>
+          <Link
+            href="/checkout"
+            className="inline-flex items-center justify-center rounded-xl bg-[var(--hp-primary)] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[var(--hp-primary-hover)]"
+          >
+            Proceed to checkout
           </Link>
         </Card>
       </div>

@@ -58,11 +58,12 @@ describe('/api proxy route env handling', () => {
     jest.restoreAllMocks();
   });
 
-  function makeRequest(url: string): NextRequest {
+  function makeRequest(url: string, headers?: HeadersInit): NextRequest {
     return {
       method: 'GET',
       headers: new Headers({
         host: 'localhost',
+        ...headers,
       }),
       nextUrl: new URL(url),
       arrayBuffer: jest.fn(async () => new ArrayBuffer(0)),
@@ -375,6 +376,124 @@ describe('/api proxy route env handling', () => {
     expect(response.headers.get('x-holiday-peak-proxy-fallback')).toBe('products-read-empty-upstream-500');
     expect(response.headers.get('x-holiday-peak-proxy-fallback-upstream-status')).toBe('500');
     await expect(response.json()).resolves.toEqual([]);
+  });
+
+  it('returns empty cart fallback when /api/cart upstream responds with 401', async () => {
+    process.env.NEXT_PUBLIC_CRUD_API_URL = 'https://apim.example.azure-api.net';
+    (global.fetch as jest.Mock).mockResolvedValue({
+      body: null,
+      status: 401,
+      statusText: 'Unauthorized',
+      headers: new Headers({
+        'content-type': 'application/json',
+      }),
+      json: jest.fn(async () => ({ error: 'Unauthorized' })),
+      text: jest.fn(async () => ''),
+    });
+
+    const route = await import('../../app/api/[...path]/route');
+    const response = await route.GET(
+      makeRequest('http://localhost/api/cart', {
+        'x-dev-auth-user-id': 'mock-customer',
+      }),
+      {
+        params: Promise.resolve({ path: ['cart'] }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('x-holiday-peak-proxy-fallback')).toBe('cart-read-empty-upstream-401');
+    await expect(response.json()).resolves.toEqual({
+      user_id: 'mock-customer',
+      items: [],
+      total: 0,
+    });
+  });
+
+  it('returns empty inventory health fallback when /api/inventory/health upstream responds with 500', async () => {
+    process.env.NEXT_PUBLIC_CRUD_API_URL = 'https://apim.example.azure-api.net';
+    (global.fetch as jest.Mock).mockResolvedValue({
+      body: null,
+      status: 500,
+      statusText: 'Internal Server Error',
+      headers: new Headers({
+        'content-type': 'application/json',
+      }),
+      json: jest.fn(async () => ({ error: 'Internal server error' })),
+      text: jest.fn(async () => ''),
+    });
+
+    const route = await import('../../app/api/[...path]/route');
+    const response = await route.GET(makeRequest('http://localhost/api/inventory/health'), {
+      params: Promise.resolve({ path: ['inventory', 'health'] }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('x-holiday-peak-proxy-fallback')).toBe('inventory-health-read-empty-upstream-500');
+    await expect(response.json()).resolves.toEqual({
+      total_skus: 0,
+      healthy: 0,
+      low_stock: 0,
+      out_of_stock: 0,
+      items: [],
+    });
+  });
+
+  it('derives product detail fallback from the catalog list when /api/products/:id upstream responds with 500', async () => {
+    process.env.NEXT_PUBLIC_CRUD_API_URL = 'https://apim.example.azure-api.net';
+    (global.fetch as jest.Mock).mockImplementation(async (url: string) => {
+      if (url === 'https://apim.example.azure-api.net/api/products/prd-electronics-006') {
+        return {
+          body: null,
+          status: 500,
+          statusText: 'Internal Server Error',
+          headers: new Headers({
+            'content-type': 'application/json',
+          }),
+          json: jest.fn(async () => ({ error: 'Internal server error' })),
+          text: jest.fn(async () => ''),
+        };
+      }
+
+      if (url === 'https://apim.example.azure-api.net/api/products?limit=200') {
+        return {
+          body: null,
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers({
+            'content-type': 'application/json',
+          }),
+          json: jest.fn(async () => ([
+            {
+              id: 'prd-electronics-006',
+              name: 'Smart Fitness Tracker',
+              description: 'Fitness tracker description',
+              price: 129.99,
+              category_id: 'electronics',
+              in_stock: true,
+            },
+          ])),
+        };
+      }
+
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const route = await import('../../app/api/[...path]/route');
+    const response = await route.GET(makeRequest('http://localhost/api/products/prd-electronics-006'), {
+      params: Promise.resolve({ path: ['products', 'prd-electronics-006'] }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('x-holiday-peak-proxy-fallback')).toBe('product-detail-read-derived-upstream-500');
+    await expect(response.json()).resolves.toEqual(
+      expect.objectContaining({
+        id: 'prd-electronics-006',
+        name: 'Smart Fitness Tracker',
+        price: 129.99,
+      }),
+    );
   });
 
   it('returns fallback payload when /api/categories upstream responds with 502', async () => {

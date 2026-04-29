@@ -70,6 +70,10 @@ export function ScenarioDetailPage({ scenarioId }: { scenarioId: ScenarioId }) {
       latencyLabel: `${Math.round(healthCard.latency_ms)} ms`,
       throughputLabel: `${Math.round(healthCard.throughput_rpm)} rpm`,
       errorRateLabel: `${Math.round(healthCard.error_rate * 100)}% error rate`,
+      costLabel: 'Awaiting model usage',
+      tierMixLabel: 'Awaiting model mix',
+      evaluationLabel: 'Awaiting evaluation data',
+      kpiValues: {},
     };
   }, [monitorDashboard, selectedAgentSlug]);
 

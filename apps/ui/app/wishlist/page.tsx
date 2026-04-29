@@ -18,7 +18,7 @@ export default function WishlistPage() {
           agentSlug: 'crm-segmentation-personalization',
           state: 'thinking',
           thinkingMessage: '3 of these go on sale this week.',
-          position: 'bottom-right',
+          position: 'bottom-left',
           size: 'sm',
           visible: true,
           className: 'hidden xl:block',

@@ -35,8 +35,11 @@ export default function RootLayout({
   children: ReactNode
 }) {
   return (
-    <html lang="pt-br" suppressHydrationWarning>
-      <body className="font-sans text-sm antialiased disable-scrollbars bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
+    <html lang="en-US" suppressHydrationWarning className="h-full">
+      <head>
+        <meta name="color-scheme" content="light dark" />
+      </head>
+      <body className="min-h-full font-sans text-sm antialiased disable-scrollbars bg-[var(--hp-bg)] text-[var(--hp-text)] transition-colors duration-200">
         <Providers>
           {children}
         </Providers>

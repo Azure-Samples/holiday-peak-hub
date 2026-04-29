@@ -36,7 +36,51 @@ const STATE_LABELS: Record<NonNullable<CommerceAgentSlot['state']>, string> = {
   thinking: 'Thinking',
   talking: 'Narrating',
   'using-tool': 'Using tool',
+  entering: 'Entering',
+  waving: 'Waving',
 };
+const TELEMETRY_FRESHNESS_WINDOW_MS = 15_000;
+const SIDE_CAST_STACK_CLASSES = [
+  'hidden xl:block xl:bottom-24 2xl:bottom-28',
+  'hidden 2xl:block 2xl:bottom-48',
+  'hidden 2xl:block 2xl:bottom-72',
+] as const;
+
+export function resolveCommerceAgentSlot(
+  slot: CommerceAgentSlot,
+  role: 'primary' | 'side-cast',
+  index = 0,
+): CommerceAgentSlot {
+  if (slot.position === 'inline') {
+    return slot;
+  }
+
+  if (role === 'primary') {
+    const resolvedPosition = slot.position ?? 'bottom-left';
+
+    return {
+      ...slot,
+      position: resolvedPosition,
+      facing: slot.facing ?? (resolvedPosition === 'bottom-left' ? 'right' : 'left'),
+      className: cn('max-[420px]:scale-95', slot.className),
+    };
+  }
+
+  const resolvedPosition = slot.position ?? 'bottom-right';
+
+  return {
+    ...slot,
+    position: resolvedPosition,
+    facing: slot.facing ?? (resolvedPosition === 'bottom-right' ? 'left' : 'right'),
+    scenePeer: slot.scenePeer ?? (resolvedPosition === 'bottom-right' ? 'right' : 'left'),
+    className: cn(
+      resolvedPosition === 'bottom-right'
+        ? (SIDE_CAST_STACK_CLASSES[index] ?? SIDE_CAST_STACK_CLASSES[SIDE_CAST_STACK_CLASSES.length - 1])
+        : 'hidden xl:block',
+      slot.className,
+    ),
+  };
+}
 
 export function CommerceAgentLayout({
   children,
@@ -49,7 +93,10 @@ export function CommerceAgentLayout({
   const telemetrySlot = primary ?? sideCast[0];
   const telemetryProfile = telemetrySlot ? AGENT_PROFILES[telemetrySlot.agentSlug as keyof typeof AGENT_PROFILES] : null;
   const storedTelemetry = useAgentInvocationTelemetry(telemetrySlot?.agentSlug);
-  const storedFormattedTelemetry = formatAgentInvocationTelemetry(storedTelemetry);
+  const storedFormattedTelemetry =
+    storedTelemetry && Date.now() - storedTelemetry.updatedAt <= TELEMETRY_FRESHNESS_WINDOW_MS
+      ? formatAgentInvocationTelemetry(storedTelemetry)
+      : undefined;
   const resolvedTelemetry = storedFormattedTelemetry
     ? { ...storedFormattedTelemetry, ...(telemetrySlot?.telemetry ?? {}) }
     : telemetrySlot?.telemetry;
@@ -59,22 +106,33 @@ export function CommerceAgentLayout({
     || resolvedTelemetry?.cost
     || resolvedTelemetry?.latency,
   );
-  const primaryMode = primary?.mode ?? 'lead';
-  const sideCastCount = sideCast.filter((slot) => slot.visible !== false).length;
+  const resolvedPrimary = primary ? resolveCommerceAgentSlot(primary, 'primary') : undefined;
+  const resolvedSideCast = sideCast.map((slot, index) => resolveCommerceAgentSlot(slot, 'side-cast', index));
+  const telemetryMode = telemetrySlot?.mode ?? primary?.mode ?? 'lead';
+  const sideCastCount = resolvedSideCast.filter((slot) => slot.visible !== false).length;
+  const showTelemetryPanel = Boolean(
+    telemetry !== 'hidden'
+    && telemetrySlot
+    && telemetryProfile
+    && !(telemetryMode === 'hint' && !hasResolvedTelemetry),
+  );
+  const contentSpacingClass = showTelemetryPanel
+    ? 'pt-28 sm:pt-0 xl:pr-[20rem]'
+    : undefined;
 
   const content = (
     <>
-      {telemetry !== 'hidden' && telemetrySlot && telemetryProfile && (
+      {showTelemetryPanel && telemetryProfile && (
         <div
           className={cn(
-            'fixed right-5 top-20 z-40 max-w-[280px] rounded-[1.5rem] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.14),transparent_45%),rgba(8,12,24,0.88)] shadow-[0_25px_80px_rgba(15,23,42,0.35)] backdrop-blur-xl',
+            'fixed left-4 right-4 top-20 z-40 rounded-[1.5rem] border border-[color:color-mix(in_srgb,var(--hp-border)_88%,transparent)] bg-[radial-gradient(circle_at_top,color-mix(in_srgb,var(--hp-accent)_14%,transparent),transparent_48%),color-mix(in_srgb,var(--hp-surface)_84%,transparent)] text-[var(--hp-text)] shadow-[var(--hp-shadow-lg)] backdrop-blur-xl sm:left-auto sm:right-5 sm:max-w-[280px]',
             telemetry === 'compact' ? 'px-4 py-3' : 'px-5 py-4',
           )}
         >
           <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[var(--hp-text-faint)]">
-            {primaryMode === 'hint' ? 'Agent hint' : 'Agent telemetry'}
+            {telemetryMode === 'hint' ? 'Agent hint' : 'Agent telemetry'}
           </p>
-          <p className="mt-2 text-sm font-semibold text-white">{telemetryProfile.displayName}</p>
+          <p className="mt-2 text-sm font-semibold text-[var(--hp-text)]">{telemetryProfile.displayName}</p>
           <div className="mt-2 flex flex-wrap gap-2 text-xs text-[var(--hp-text-muted)]">
             <span>{STATE_LABELS[telemetrySlot.state ?? 'idle']}</span>
             <span>{telemetryProfile.domainLabel}</span>
@@ -103,10 +161,10 @@ export function CommerceAgentLayout({
         </div>
       )}
 
-      {children}
+      <div className={contentSpacingClass}>{children}</div>
 
-      {primary && <AgentRobotOverlay {...primary} />}
-      {sideCast.map((slot) => (
+      {resolvedPrimary && <AgentRobotOverlay {...resolvedPrimary} />}
+      {resolvedSideCast.map((slot) => (
         <AgentRobotOverlay key={`${slot.agentSlug}-${slot.position ?? 'overlay'}`} {...slot} />
       ))}
     </>
@@ -125,9 +183,9 @@ function TelemetryInlineItem({ value }: { value: string }) {
 
 function MetricPill({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-full border border-white/10 bg-white/5 px-3 py-2">
+    <div className="rounded-full border border-[var(--hp-border)] bg-[color:color-mix(in_srgb,var(--hp-surface-strong)_92%,transparent)] px-3 py-2">
       <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--hp-text-faint)]">{label}</p>
-      <p className="mt-1 text-sm text-white">{value}</p>
+      <p className="mt-1 text-sm text-[var(--hp-text)]">{value}</p>
     </div>
   );
 }

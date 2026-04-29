@@ -159,10 +159,12 @@ const TRACE_EXPLORER_HREF_BY_SLUG: Record<AgentProfileSlug, string> = {
   'truth-export': '/admin/workflows',
 };
 
-const DOMAIN_PRESETS: Record<
-  AgentProfileDomain,
-  Omit<AgentProfile, 'slug' | 'displayName' | 'oneLiner' | 'collaborates'>
-> = {
+type DomainPreset = Pick<
+  AgentProfile,
+  'domain' | 'domainLabel' | 'fitFor' | 'retailProblem' | 'productivityGain' | 'kpisToTrack' | 'accentColor'
+>;
+
+const DOMAIN_PRESETS: Record<AgentProfileDomain, DomainPreset> = {
   crm: {
     domain: 'crm',
     domainLabel: 'CRM Concierge Desk',

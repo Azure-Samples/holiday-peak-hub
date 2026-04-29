@@ -290,12 +290,17 @@ type AdminLinkStrategy = {
 type EndpointFallbackStrategy = {
   name: string;
   method: 'GET' | 'HEAD';
-  path: '/api/categories' | '/api/products';
+  matches: (upstreamPath: string) => boolean;
   retry: {
     maxAttempts: number;
     retryableStatuses: readonly number[];
   };
-  buildPayload: (request: NextRequest) => unknown;
+  buildPayload: (params: {
+    request: NextRequest;
+    upstreamPath: string;
+    baseUrl: string | null;
+    requestHeaders: Headers;
+  }) => Promise<unknown> | unknown;
 };
 
 type UpstreamAttemptResult = {
@@ -357,7 +362,7 @@ const CATALOG_READ_FALLBACK_STRATEGIES: readonly EndpointFallbackStrategy[] = [
   {
     name: 'categories-read-empty',
     method: 'GET',
-    path: '/api/categories',
+    matches: (upstreamPath) => upstreamPath === '/api/categories',
     retry: {
       maxAttempts: 2,
       retryableStatuses: [500, 502, 503, 504] as const,
@@ -367,12 +372,101 @@ const CATALOG_READ_FALLBACK_STRATEGIES: readonly EndpointFallbackStrategy[] = [
   {
     name: 'products-read-empty',
     method: 'GET',
-    path: '/api/products',
+    matches: (upstreamPath) => upstreamPath === '/api/products',
     retry: {
       maxAttempts: 2,
       retryableStatuses: [500, 502, 503, 504] as const,
     },
     buildPayload: () => [],
+  },
+  {
+    name: 'cart-read-empty',
+    method: 'GET',
+    matches: (upstreamPath) => upstreamPath === '/api/cart',
+    retry: {
+      maxAttempts: 1,
+      retryableStatuses: [401, 500, 502, 503, 504] as const,
+    },
+    buildPayload: ({ requestHeaders }) => ({
+      user_id: requestHeaders.get('x-dev-auth-user-id') || 'mock-customer',
+      items: [],
+      total: 0,
+    }),
+  },
+  {
+    name: 'inventory-health-read-empty',
+    method: 'GET',
+    matches: (upstreamPath) => upstreamPath === '/api/inventory/health',
+    retry: {
+      maxAttempts: 1,
+      retryableStatuses: [401, 500, 502, 503, 504] as const,
+    },
+    buildPayload: () => ({
+      total_skus: 0,
+      healthy: 0,
+      low_stock: 0,
+      out_of_stock: 0,
+      items: [],
+    }),
+  },
+  {
+    name: 'product-detail-read-derived',
+    method: 'GET',
+    matches: (upstreamPath) => /^\/api\/products\/[^/]+$/.test(upstreamPath),
+    retry: {
+      maxAttempts: 1,
+      retryableStatuses: [500, 502, 503, 504] as const,
+    },
+    buildPayload: async ({ upstreamPath, baseUrl, requestHeaders }) => {
+      const productId = decodeURIComponent(upstreamPath.split('/').pop() || 'unknown-product');
+
+      if (!baseUrl) {
+        return {
+          id: productId,
+          name: productId,
+          description: '',
+          price: 0,
+          category_id: 'catalog',
+          in_stock: true,
+        };
+      }
+
+      const fallbackList = await getJsonIfOk(`${baseUrl}/api/products?limit=200`, requestHeaders);
+      const fallbackListRecord = toRecord(fallbackList);
+      const products = toArray(
+        Array.isArray(fallbackList)
+          ? fallbackList
+          : fallbackListRecord?.items ?? fallbackListRecord?.products,
+      )
+        .map((entry) => toRecord(entry))
+        .filter((entry): entry is Record<string, unknown> => entry !== null);
+
+      const matchingProduct = products.find((entry) => {
+        const candidateId = readString(entry, ['id', 'item_id', 'sku']);
+        return candidateId === productId;
+      });
+
+      if (matchingProduct) {
+        return {
+          id: readString(matchingProduct, ['id', 'item_id', 'sku']) || productId,
+          name: readString(matchingProduct, ['name', 'title']) || productId,
+          description: readString(matchingProduct, ['description', 'enriched_description']) || '',
+          price: readNumber(matchingProduct, ['price']) || 0,
+          category_id: readString(matchingProduct, ['category_id', 'category']) || 'catalog',
+          image_url: readString(matchingProduct, ['image_url', 'image']) || undefined,
+          in_stock: readBoolean(matchingProduct, ['in_stock']) ?? true,
+        };
+      }
+
+      return {
+        id: productId,
+        name: productId,
+        description: '',
+        price: 0,
+        category_id: 'catalog',
+        in_stock: true,
+      };
+    },
   },
 ];
 
@@ -504,7 +598,7 @@ const ADMIN_FOUNDRY_EVALUATIONS_LINK_STRATEGIES: readonly AdminLinkStrategy[] = 
 function resolveEndpointFallbackStrategy(method: string, upstreamPath: string): EndpointFallbackStrategy | null {
   return (
     CATALOG_READ_FALLBACK_STRATEGIES.find(
-      (strategy) => strategy.method === method && strategy.path === upstreamPath,
+      (strategy) => strategy.method === method && strategy.matches(upstreamPath),
     ) || null
   );
 }
@@ -2627,6 +2721,13 @@ async function proxyRequest(
 
   const body = method === 'GET' || method === 'HEAD' ? undefined : await request.arrayBuffer();
   const endpointFallbackStrategy = resolveEndpointFallbackStrategy(method, upstreamPath);
+  const buildEndpointFallbackPayload = async (): Promise<unknown> =>
+    endpointFallbackStrategy!.buildPayload({
+      request,
+      upstreamPath,
+      baseUrl,
+      requestHeaders,
+    });
 
   const upstreamResult = await executeUpstreamWithRetry({
     targetUrl,
@@ -2647,7 +2748,7 @@ async function proxyRequest(
     }
 
     if (endpointFallbackStrategy) {
-      return NextResponse.json(endpointFallbackStrategy.buildPayload(request), {
+      return NextResponse.json(await buildEndpointFallbackPayload(), {
         status: 200,
         headers: {
           'x-holiday-peak-proxy': 'next-app-api',
@@ -2846,7 +2947,20 @@ async function proxyRequest(
   }
 
   if (endpointFallbackStrategy && shouldRetryUpstreamResponse(upstream.status, endpointFallbackStrategy)) {
-    return NextResponse.json(endpointFallbackStrategy.buildPayload(request), {
+    return NextResponse.json(await buildEndpointFallbackPayload(), {
+      status: 200,
+      headers: {
+        'x-holiday-peak-proxy': 'next-app-api',
+        'x-holiday-peak-proxy-source': sourceKey ?? '',
+        'x-holiday-peak-proxy-failure-kind': 'upstream',
+        'x-holiday-peak-proxy-fallback': `${endpointFallbackStrategy.name}-upstream-${upstream.status}`,
+        'x-holiday-peak-proxy-fallback-upstream-status': String(upstream.status),
+      },
+    });
+  }
+
+  if (endpointFallbackStrategy && upstream.status === 401) {
+    return NextResponse.json(await buildEndpointFallbackPayload(), {
       status: 200,
       headers: {
         'x-holiday-peak-proxy': 'next-app-api',

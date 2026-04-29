@@ -1,6 +1,6 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
-async function loginAsAdmin(page: Parameters<typeof test>[0]['page']) {
+async function loginAsAdmin(page: Page) {
   await page.goto('/auth/login?redirect=/admin');
   await page.getByRole('button', { name: /Sign in as Admin/i }).click();
   await expect(page).toHaveURL(/\/admin$/);

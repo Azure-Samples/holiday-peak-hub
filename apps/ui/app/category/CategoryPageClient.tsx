@@ -226,20 +226,21 @@ export function CategoryPageClient({ slug }: { slug: string }) {
       primary={{
         agentSlug: 'product-management-assortment-optimization',
         state: isLoading ? 'thinking' : filteredAndSortedProducts.length > 0 ? 'using-tool' : 'idle',
-        position: 'bottom-right',
+        position: 'bottom-left',
         size: 'sm',
         visible: true,
+        facing: 'right',
         mode: 'lead',
       }}
       sideCast={[
         {
           agentSlug: 'crm-segmentation-personalization',
           state: filteredAndSortedProducts.length > 0 ? 'using-tool' : 'idle',
-          position: 'bottom-left',
+          position: 'bottom-right',
           size: 'sm',
           visible: filteredAndSortedProducts.length > 0,
-          facing: 'right',
-          scenePeer: 'left',
+          facing: 'left',
+          scenePeer: 'right',
           className: 'hidden xl:block',
           mode: 'observe',
         },

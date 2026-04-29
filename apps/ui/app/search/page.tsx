@@ -19,7 +19,6 @@ import {
 import { useIntelligentSearch } from '@/lib/hooks/useIntelligentSearch';
 import { useRelatedProducts } from '@/lib/hooks/useRelatedProducts';
 import { useAuth } from '@/contexts/AuthContext';
-import { useAgentRobotState } from '@/lib/hooks/useAgentRobotState';
 
 type ProxyErrorShape = {
   status?: number;
@@ -147,6 +146,11 @@ export default function SearchPage() {
     network: 'Catalog search backend is temporarily unreachable.',
     upstream: 'Catalog search backend returned a temporary gateway error.',
   };
+  const robotState = isLoading || isFetching || isReranking
+    ? 'thinking'
+    : query
+      ? 'talking'
+      : 'idle';
 
   useEffect(() => {
     setQuery(initialQuery);
@@ -173,20 +177,21 @@ export default function SearchPage() {
       primary={{
         agentSlug: 'ecommerce-catalog-search',
         state: robotState,
-        position: 'bottom-right',
+        position: 'bottom-left',
         size: 'sm',
         visible: resolvedMode === 'intelligent',
+        facing: 'right',
         mode: 'lead',
       }}
       sideCast={[
         {
           agentSlug: 'search-enrichment-agent',
           state: query ? 'using-tool' : 'idle',
-          position: 'bottom-left',
+          position: 'bottom-right',
           size: 'sm',
           visible: resolvedMode === 'intelligent' && Boolean(query),
-          facing: 'right',
-          scenePeer: 'left',
+          facing: 'left',
+          scenePeer: 'right',
           className: 'hidden xl:block',
           mode: 'observe',
         },
@@ -202,10 +207,11 @@ export default function SearchPage() {
           <Button size="sm" onClick={() => handleSearch('laptop')}>
             Run agent-friendly query
           </Button>
-          <Link href="/search?agentChat=1" className="inline-flex">
-            <Button size="sm" variant="secondary">
-              Open popup comparison
-            </Button>
+          <Link
+            href="/search?agentChat=1"
+            className="inline-flex items-center justify-center rounded-xl border border-[var(--hp-border)] bg-[var(--hp-surface)] px-3 py-1.5 text-xs font-semibold text-[var(--hp-text)] transition-colors hover:bg-[var(--hp-surface-strong)]"
+          >
+            Open popup comparison
           </Link>
         </div>
         <Link

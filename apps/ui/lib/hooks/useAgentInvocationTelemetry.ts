@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { getCurrentPageSessionId, usePageSession } from '@/lib/hooks/usePageSession';
 
 const STORAGE_PREFIX = 'hp.agent.last_invocation';
 const UPDATE_EVENT = 'hp:agent-telemetry';
@@ -11,6 +12,7 @@ export interface AgentInvocationTelemetry {
   costUsd?: number;
   latencyMs?: number;
   toolCalls?: number;
+  sessionId?: string;
   updatedAt: number;
 }
 
@@ -137,22 +139,27 @@ export function recordAgentInvocationTelemetry(
     return telemetry;
   }
 
+  const scopedTelemetry: AgentInvocationTelemetry = {
+    ...telemetry,
+    sessionId: getCurrentPageSessionId() ?? undefined,
+  };
+
   try {
-    window.sessionStorage.setItem(getStorageKey(agentSlug), JSON.stringify(telemetry));
+    window.sessionStorage.setItem(getStorageKey(agentSlug), JSON.stringify(scopedTelemetry));
   } catch {
-    return telemetry;
+    return scopedTelemetry;
   }
 
   window.dispatchEvent(
     new CustomEvent(UPDATE_EVENT, {
       detail: {
         agentSlug,
-        telemetry,
+        telemetry: scopedTelemetry,
       },
     }),
   );
 
-  return telemetry;
+  return scopedTelemetry;
 }
 
 export function readAgentInvocationTelemetry(agentSlug: string): AgentInvocationTelemetry | null {
@@ -177,6 +184,7 @@ export function readAgentInvocationTelemetry(agentSlug: string): AgentInvocation
       costUsd: readNumber(parsed, ['costUsd']),
       latencyMs: readNumber(parsed, ['latencyMs']),
       toolCalls: readNumber(parsed, ['toolCalls']),
+      sessionId: readString(parsed, ['sessionId']),
       updatedAt: readNumber(parsed, ['updatedAt']) ?? Date.now(),
     };
   } catch {
@@ -206,6 +214,7 @@ export function formatAgentInvocationTelemetry(
 }
 
 export function useAgentInvocationTelemetry(agentSlug?: string): AgentInvocationTelemetry | null {
+  const { sessionId } = usePageSession();
   const [telemetry, setTelemetry] = useState<AgentInvocationTelemetry | null>(() => (
     agentSlug ? readAgentInvocationTelemetry(agentSlug) : null
   ));
@@ -216,11 +225,17 @@ export function useAgentInvocationTelemetry(agentSlug?: string): AgentInvocation
       return undefined;
     }
 
-    setTelemetry(readAgentInvocationTelemetry(agentSlug));
+    const initialTelemetry = readAgentInvocationTelemetry(agentSlug);
+    setTelemetry(initialTelemetry?.sessionId === sessionId ? initialTelemetry : null);
 
     const handleUpdate = (event: Event) => {
       const detail = (event as CustomEvent<{ agentSlug?: string; telemetry?: AgentInvocationTelemetry | null }>).detail;
       if (!detail || detail.agentSlug !== agentSlug) {
+        return;
+      }
+
+      if (detail.telemetry?.sessionId !== sessionId) {
+        setTelemetry(null);
         return;
       }
 
@@ -232,7 +247,8 @@ export function useAgentInvocationTelemetry(agentSlug?: string): AgentInvocation
         return;
       }
 
-      setTelemetry(readAgentInvocationTelemetry(agentSlug));
+      const nextTelemetry = readAgentInvocationTelemetry(agentSlug);
+      setTelemetry(nextTelemetry?.sessionId === sessionId ? nextTelemetry : null);
     };
 
     window.addEventListener(UPDATE_EVENT, handleUpdate as EventListener);
@@ -242,7 +258,7 @@ export function useAgentInvocationTelemetry(agentSlug?: string): AgentInvocation
       window.removeEventListener(UPDATE_EVENT, handleUpdate as EventListener);
       window.removeEventListener('storage', handleStorage);
     };
-  }, [agentSlug]);
+  }, [agentSlug, sessionId]);
 
   return telemetry;
 }

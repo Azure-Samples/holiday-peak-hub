@@ -122,9 +122,10 @@ export default function OrderTrackingPage() {
             : order?.eta
               ? 'using-tool'
               : 'idle',
-        position: 'bottom-right',
+        position: 'bottom-left',
         size: 'sm',
         visible: true,
+        facing: 'right',
         mode: 'lead',
       }}
       sideCast={[
@@ -132,22 +133,22 @@ export default function OrderTrackingPage() {
           ? {
               agentSlug: 'crm-support-assistance',
               state: createReturnMutation.isPending || createReturnMutation.isSuccess ? 'talking' : 'thinking',
-              position: 'bottom-left',
+              position: 'bottom-right',
               size: 'sm',
               visible: Boolean(order),
-              facing: 'right',
-              scenePeer: 'left',
+              facing: 'left',
+              scenePeer: 'right',
               className: 'hidden xl:block',
               mode: 'observe' as const,
             }
           : {
               agentSlug: 'logistics-route-issue-detection',
               state: routeIssueDetected ? 'using-tool' : 'idle',
-              position: 'bottom-left',
+              position: 'bottom-right',
               size: 'sm',
               visible: Boolean(order),
-              facing: 'right',
-              scenePeer: 'left',
+              facing: 'left',
+              scenePeer: 'right',
               className: 'hidden xl:block',
               mode: 'observe' as const,
             },
@@ -186,12 +187,13 @@ export default function OrderTrackingPage() {
 
             <Card className="overflow-x-auto">
               <table className="min-w-full text-sm">
+                <caption className="sr-only">Products included in this order</caption>
                 <thead className="bg-gray-100 dark:bg-gray-800 text-left">
                   <tr>
-                    <th className="px-4 py-3">Product</th>
-                    <th className="px-4 py-3">Qty</th>
-                    <th className="px-4 py-3">Unit Price</th>
-                    <th className="px-4 py-3">Line Total</th>
+                    <th scope="col" className="px-4 py-3">Product</th>
+                    <th scope="col" className="px-4 py-3">Qty</th>
+                    <th scope="col" className="px-4 py-3">Unit Price</th>
+                    <th scope="col" className="px-4 py-3">Line Total</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -286,16 +288,17 @@ export default function OrderTrackingPage() {
                 </div>
               ) : (
                 <table className="min-w-full text-sm">
+                  <caption className="sr-only">Returns associated with this order</caption>
                   <thead className="bg-gray-100 dark:bg-gray-800 text-left">
                     <tr>
-                      <th className="px-4 py-3">Return</th>
-                      <th className="px-4 py-3">Status</th>
-                      <th className="px-4 py-3">Refund</th>
-                      <th className="px-4 py-3">Requested</th>
-                      <th className="px-4 py-3">Approved</th>
-                      <th className="px-4 py-3">Received</th>
-                      <th className="px-4 py-3">Restocked</th>
-                      <th className="px-4 py-3">Refunded</th>
+                      <th scope="col" className="px-4 py-3">Return</th>
+                      <th scope="col" className="px-4 py-3">Status</th>
+                      <th scope="col" className="px-4 py-3">Refund</th>
+                      <th scope="col" className="px-4 py-3">Requested</th>
+                      <th scope="col" className="px-4 py-3">Approved</th>
+                      <th scope="col" className="px-4 py-3">Received</th>
+                      <th scope="col" className="px-4 py-3">Restocked</th>
+                      <th scope="col" className="px-4 py-3">Refunded</th>
                     </tr>
                   </thead>
                   <tbody>

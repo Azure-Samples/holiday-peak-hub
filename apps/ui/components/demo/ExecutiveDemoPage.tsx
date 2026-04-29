@@ -13,9 +13,11 @@ import { AgentRobot } from '@/components/organisms/AgentRobot';
 import { RobotScatterIntro } from '@/components/organisms/RobotScatterIntro';
 import { MainLayout } from '@/components/templates/MainLayout';
 import type { Product as UiProduct } from '@/components/types';
+import { useAuth } from '@/contexts/AuthContext';
 import { AGENT_PROFILES, AGENT_PROFILE_LIST, type AgentProfile, type AgentProfileSlug } from '@/lib/agents/profiles';
 import agentApiClient from '@/lib/api/agentClient';
 import { SCENARIO_OPTIONS } from '@/lib/demo/scenarios';
+import { formatAgentInvocationTelemetry, useAgentInvocationTelemetry } from '@/lib/hooks/useAgentInvocationTelemetry';
 import { DEFAULT_AGENT_MONITOR_RANGE, useAgentEvaluations, useAgentMonitorDashboard, useAgentTraceDetail, useModelUsageStats, useRecentTraces } from '@/lib/hooks/useAgentMonitor';
 import { useCategories } from '@/lib/hooks/useCategories';
 import { useCart } from '@/lib/hooks/useCart';
@@ -27,7 +29,7 @@ import { useProducts } from '@/lib/hooks/useProducts';
 import { useReturns } from '@/lib/hooks/useReturns';
 import { useStreamingSearch } from '@/lib/hooks/useStreamingSearch';
 import { useTruthAnalyticsSummary } from '@/lib/hooks/useTruthAdmin';
-import type { AgentHealthCardMetric, AgentHealthStatus, AgentModelUsageRow, AgentTraceStatus } from '@/lib/types/api';
+import type { AgentHealthCardMetric, AgentModelUsageRow } from '@/lib/types/api';
 import { formatAgentResponse } from '@/lib/utils/agentResponseCards';
 import { mapApiProductsToUi } from '@/lib/utils/productMappers';
 
@@ -48,39 +50,39 @@ type CustomerPerspective = {
 const CUSTOMER_360_REQUESTS = [
   {
     slug: 'crm-profile-aggregation',
-    heading: 'Identity spine',
+    heading: 'Profile snapshot',
     prompt:
       'Build a concise retail customer identity summary for customer exec-demo-2048 with loyalty, channel, and purchase highlights.',
-    fallback: 'Merged loyalty, purchase, and contact history into a single customer spine for the last 90 days.',
+    fallback: 'Pulled together recent purchases, channel preferences, and loyalty activity into one shopper profile.',
   },
   {
     slug: 'crm-segmentation-personalization',
-    heading: 'Segment signal',
+    heading: 'Shopping preferences',
     prompt:
       'Classify customer exec-demo-2048 into a retail segment and recommend the next best personalized experience.',
-    fallback: 'Placed the customer into a high-intent holiday gifting cohort with premium upsell potential.',
+    fallback: 'Detected a high-intent gift shopper who responds best to premium bundles and fast-shipping recommendations.',
   },
   {
     slug: 'crm-campaign-intelligence',
-    heading: 'Campaign plan',
+    heading: 'Next best offer',
     prompt:
       'Draft a short campaign brief for customer exec-demo-2048 that references recent behavior and retention risk.',
-    fallback: 'Recommended a recovery journey pairing shipping assurance with a limited-time accessory bundle.',
+    fallback: 'Suggested a follow-up offer that pairs shipping reassurance with a limited-time accessory bundle.',
   },
   {
     slug: 'crm-support-assistance',
-    heading: 'Support risk',
+    heading: 'Support context',
     prompt:
       'Summarize support risk and likely escalations for customer exec-demo-2048 in one or two retail operations sentences.',
-    fallback: 'Flagged a delivery-delay sensitivity and proposed a proactive support play before the shopper contacts support.',
+    fallback: 'Flagged delivery sensitivity and prepared proactive help before the shopper needs to ask for support.',
   },
 ] as const;
 
 const FALLBACK_TELEMETRY: TelemetrySnapshot = {
-  tier: 'SLM/LLM mix pending',
-  tokens: 'Telemetry pending',
-  cost: '$0.00',
-  latency: 'Pending',
+  tier: 'Model mix pending',
+  tokens: 'Tokens pending',
+  cost: 'Cost pending',
+  latency: 'Latency pending',
 };
 
 const ProductGraphCanvas = dynamic(
@@ -130,6 +132,38 @@ function formatLatencyMs(value: number | null | undefined): string {
     return `${(value / 1000).toFixed(2)} s`;
   }
   return `${Math.round(value)} ms`;
+}
+
+function formatTelemetryTokens(value: number | null | undefined): string {
+  if (typeof value !== 'number' || Number.isNaN(value) || value <= 0) {
+    return 'Tokens pending';
+  }
+
+  return `${Math.round(value).toLocaleString()} tokens`;
+}
+
+function formatTelemetryCost(value: number | null | undefined): string {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return 'Cost pending';
+  }
+
+  if (value >= 1) {
+    return `$${value.toFixed(2)}`;
+  }
+
+  if (value >= 0.01) {
+    return `$${value.toFixed(3)}`;
+  }
+
+  return `$${value.toFixed(4)}`;
+}
+
+function formatTelemetryLatency(value: number | null | undefined): string {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return 'Latency pending';
+  }
+
+  return formatLatencyMs(value);
 }
 
 function formatTierMix(rows: AgentModelUsageRow[]): string {
@@ -252,23 +286,10 @@ function extractTelemetrySnapshot(payload: unknown): TelemetrySnapshot {
 
   return {
     tier: tier.toUpperCase(),
-    tokens: totalTokens ? `${Math.round(totalTokens).toLocaleString()} tokens` : 'Telemetry pending',
-    cost: formatCurrency(cost),
-    latency: formatLatencyMs(latency),
+    tokens: formatTelemetryTokens(totalTokens),
+    cost: formatTelemetryCost(cost),
+    latency: formatTelemetryLatency(latency),
   };
-}
-
-function statusClass(status: AgentHealthStatus | AgentTraceStatus): string {
-  if (status === 'healthy' || status === 'ok') {
-    return 'text-emerald-300';
-  }
-  if (status === 'degraded' || status === 'warning') {
-    return 'text-amber-200';
-  }
-  if (status === 'down' || status === 'error') {
-    return 'text-rose-300';
-  }
-  return 'text-[var(--hp-text-faint)]';
 }
 
 function heroRobotState(query: string, isStreaming: boolean, answerText: string):
@@ -486,12 +507,13 @@ export function ExecutiveDemoPage() {
     return () => observer.disconnect();
   }, [platformTelemetryEnabled]);
 
+  const { isAuthenticated } = useAuth();
   const { data: categories = [] } = useCategories();
-  const { data: cart } = useCart();
+  const { data: cart } = useCart({ enabled: isAuthenticated });
   const { data: products = [] } = useProducts({ limit: 24 });
-  const { data: inventoryHealth } = useInventoryHealth();
-  const { data: orders = [] } = useOrders();
-  const { data: returnsFeed = [] } = useReturns();
+  const { data: inventoryHealth } = useInventoryHealth({ enabled: isAuthenticated });
+  const { data: orders = [] } = useOrders({ enabled: isAuthenticated });
+  const { data: returnsFeed = [] } = useReturns({ enabled: isAuthenticated });
   const { data: truthSummary } = useTruthAnalyticsSummary();
   const { data: enrichmentDashboard } = useEnrichmentMonitorDashboard({
     enabled: platformTelemetryEnabled,
@@ -511,9 +533,8 @@ export function ExecutiveDemoPage() {
     enabled: platformTelemetryEnabled,
   });
   const { results, answerText, isStreaming, search, cancel } = useStreamingSearch();
-  const { similarities } = useProductSimilarity(products);
-
   const uiProducts = useMemo(() => mapApiProductsToUi(products), [products]);
+  const { similarities } = useProductSimilarity(uiProducts);
   const displayedProducts = useMemo(
     () => sampleProducts(uiProducts, results?.items ?? []),
     [results?.items, uiProducts],
@@ -551,7 +572,10 @@ export function ExecutiveDemoPage() {
   const activeReturn = returnsFeed[0] ?? null;
   const searchEnrichmentProfile = AGENT_PROFILES['search-enrichment-agent'];
 
-  const healthCards = monitorDashboard?.health_cards ?? [];
+  const healthCards = useMemo(
+    () => monitorDashboard?.health_cards ?? [],
+    [monitorDashboard?.health_cards],
+  );
   const traceFeed = monitorDashboard?.trace_feed ?? [];
   const overallEvalScore = evaluations?.summary?.overall_score ?? null;
   const truthCompleteness = truthSummary ? truthSummary.overall_completeness * 100 : null;
@@ -560,6 +584,21 @@ export function ExecutiveDemoPage() {
   const railLatency = aggregateLatency(modelUsage) ?? heroHealth?.latency_ms ?? null;
   const railCostPerCall = aggregateCostPerCall(modelUsage);
   const tierMixLabel = formatTierMix(modelUsage);
+  const catalogQualityLabel = truthCompleteness !== null && truthCompleteness > 0
+    ? formatPercent(truthCompleteness, 1)
+    : 'Awaiting truth signals';
+  const heroInvocationTelemetry = useAgentInvocationTelemetry(heroProfile.slug);
+  const formattedHeroInvocationTelemetry = useMemo(
+    () => formatAgentInvocationTelemetry(heroInvocationTelemetry),
+    [heroInvocationTelemetry],
+  );
+  const modelUsageTotalTokens = useMemo(
+    () => modelUsage.reduce((sum, row) => sum + row.total_tokens, 0),
+    [modelUsage],
+  );
+  const resolvedTotalProducts = truthSummary && truthSummary.total_products > 0
+    ? truthSummary.total_products
+    : uiProducts.length;
 
   const profileMetrics = useMemo(() => {
     return Object.fromEntries(
@@ -644,16 +683,43 @@ export function ExecutiveDemoPage() {
   }, []);
 
   const heroTelemetry: TelemetrySnapshot = useMemo(() => {
-    const costLabel = formatCurrency(railCostPerCall, 4);
+    const hasLiveInvocationTelemetry = Boolean(
+      formattedHeroInvocationTelemetry?.tier
+      || formattedHeroInvocationTelemetry?.tokens
+      || formattedHeroInvocationTelemetry?.cost
+      || formattedHeroInvocationTelemetry?.latency,
+    );
+
+    if (results?.source === 'crud' || (!hasLiveInvocationTelemetry && displayedProducts.length > 0)) {
+      return {
+        tier: 'Catalog fallback',
+        tokens: 'No model call',
+        cost: 'No model cost',
+        latency: formatTelemetryLatency(heroHealth?.latency_ms ?? railLatency),
+      };
+    }
+
     return {
-      tier: tierMixLabel,
-      tokens: modelUsage.length > 0
-        ? `${modelUsage.reduce((sum, row) => sum + row.total_tokens, 0).toLocaleString()} tokens / window`
-        : 'Awaiting usage telemetry',
-      cost: costLabel,
-      latency: formatLatencyMs(heroHealth?.latency_ms ?? railLatency),
+      tier: formattedHeroInvocationTelemetry?.tier ?? (modelUsage.length > 0 ? tierMixLabel : FALLBACK_TELEMETRY.tier),
+      tokens: formattedHeroInvocationTelemetry?.tokens
+        ?? (modelUsageTotalTokens > 0 ? `${modelUsageTotalTokens.toLocaleString()} tokens / recent window` : FALLBACK_TELEMETRY.tokens),
+      cost: formattedHeroInvocationTelemetry?.cost ?? formatTelemetryCost(railCostPerCall),
+      latency: formattedHeroInvocationTelemetry?.latency ?? formatTelemetryLatency(heroHealth?.latency_ms ?? railLatency),
     };
-  }, [heroHealth?.latency_ms, modelUsage, railCostPerCall, railLatency, tierMixLabel]);
+  }, [
+    displayedProducts.length,
+    formattedHeroInvocationTelemetry?.cost,
+    formattedHeroInvocationTelemetry?.latency,
+    formattedHeroInvocationTelemetry?.tier,
+    formattedHeroInvocationTelemetry?.tokens,
+    heroHealth?.latency_ms,
+    modelUsage.length,
+    modelUsageTotalTokens,
+    railCostPerCall,
+    railLatency,
+    results?.source,
+    tierMixLabel,
+  ]);
 
   const selectedScenario =
     SCENARIO_OPTIONS.find((scenario) => scenario.id === selectedScenarioId) ?? SCENARIO_OPTIONS[0];
@@ -666,9 +732,9 @@ export function ExecutiveDemoPage() {
         <SceneSection
           id="hero"
           accent={heroProfile.accentColor}
-          eyebrow="Executive demo"
-          title="26 agents. One retail platform. A live story instead of a slide deck."
-          description="The homepage now behaves like a guided stage. Agents are the protagonists, telemetry is visible by default, and each scene anchors to a retail outcome instead of generic ecommerce chrome."
+          eyebrow="Shop with AI"
+          title="Find the right product faster, with answers grounded in real catalog data."
+          description="Ask about gifts, travel gear, product details, or delivery timing. The assistant finds real products first, then explains the match in plain language."
         >
           <div className="grid gap-6 @4xl/scene:grid-cols-[minmax(18rem,0.8fr)_minmax(0,1.2fr)] @4xl/scene:items-center">
             <div className="relative flex min-h-[22rem] items-center justify-center rounded-[2rem] border border-white/10 bg-black/20 px-4 py-6">
@@ -710,35 +776,32 @@ export function ExecutiveDemoPage() {
             <div className="space-y-6">
               <div className="flex flex-wrap gap-3">
                 <StatPill label="Search p95" value={heroTelemetry.latency} />
-                <StatPill
-                  label="Catalog quality"
-                  value={truthCompleteness !== null ? formatPercent(truthCompleteness, 1) : 'Awaiting truth signals'}
-                />
+                <StatPill label="Catalog quality" value={catalogQualityLabel} />
                 <StatPill label="Cost / call" value={heroTelemetry.cost} />
               </div>
 
               <div className="demo-panel rounded-[2rem] border border-white/10 p-5">
-                <label htmlFor="executive-demo-search" className="text-sm font-medium text-white">
-                  Ask the live catalog search agent
+                <label htmlFor="homepage-search" className="text-sm font-medium text-white">
+                  Ask for a product, gift idea, or delivery answer
                 </label>
                 <input
-                  id="executive-demo-search"
+                  id="homepage-search"
                   ref={heroInputRef}
                   type="search"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   className="input mt-3 h-14 w-full rounded-2xl border-white/10 bg-black/20 px-4 text-base text-white placeholder:text-[var(--hp-text-faint)]"
-                  placeholder="Type anything a retail exec would ask on stage…"
+                  placeholder="Try: premium carry-on bags for a two-day trip"
                 />
                 <div aria-live="polite" className="mt-4 rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
                   <div className="demo-telemetry flex flex-wrap gap-3 text-xs text-[var(--hp-text-muted)]">
-                    <span>{heroTelemetry.tier}</span>
-                    <span>{heroTelemetry.tokens}</span>
-                    <span>{heroTelemetry.cost}</span>
-                    <span>{heroTelemetry.latency}</span>
+                    <span>Model: {heroTelemetry.tier}</span>
+                    <span>Tokens: {heroTelemetry.tokens}</span>
+                    <span>Cost: {heroTelemetry.cost}</span>
+                    <span>Latency: {heroTelemetry.latency}</span>
                   </div>
                   <p className="mt-4 text-sm leading-7 text-[var(--hp-text-muted)]">
-                    {answerText || 'Results stream here as products arrive first and the answer is stitched together token-by-token.'}
+                    {answerText || 'Products land first, then the assistant fills in the details while the answer streams in.'}
                   </p>
                   <div className="mt-5 grid gap-3 md:grid-cols-3">
                     {displayedProducts.map((product) => (
@@ -748,6 +811,7 @@ export function ExecutiveDemoPage() {
                             src={product.thumbnail}
                             alt={product.title}
                             fill
+                            sizes="(min-width: 1280px) 16rem, (min-width: 768px) 28vw, 90vw"
                             className="object-cover"
                             unoptimized={product.thumbnail.startsWith('/') ? undefined : true}
                           />
@@ -770,7 +834,7 @@ export function ExecutiveDemoPage() {
                     href="/admin/agent-activity"
                     className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:border-white/20 hover:bg-white/10"
                   >
-                    Open trace desk
+                    View live activity
                   </Link>
                 </div>
               </div>
@@ -781,9 +845,9 @@ export function ExecutiveDemoPage() {
         <SceneSection
           id="customer-360"
           accent={AGENT_PROFILES['crm-profile-aggregation'].accentColor}
-          eyebrow="Customer 360"
-          title="Four CRM agents assemble one customer brief while you watch the handoff."
-          description="This scene is the boardroom shot from the plan. The same customer signal fans out into identity, segment, campaign, and support perspectives, then collapses back into a single executive-ready view."
+          eyebrow="Personalised help"
+          title="Recommendations, offers, and support stay aligned around the same shopper context."
+          description="Profile, preference, offer, and support signals work together so the experience feels personal instead of generic."
         >
           <div className="grid gap-5 @4xl/scene:grid-cols-[minmax(0,1.1fr)_minmax(18rem,0.9fr)]">
             <div className="grid gap-4 md:grid-cols-2">
@@ -814,9 +878,9 @@ export function ExecutiveDemoPage() {
                           {response?.summary ?? entry.fallback}
                         </p>
                         <div className="demo-telemetry mt-4 flex flex-wrap gap-3 text-xs text-[var(--hp-text-faint)]">
-                          <span>{response?.telemetry.tier ?? FALLBACK_TELEMETRY.tier}</span>
-                          <span>{response?.telemetry.tokens ?? FALLBACK_TELEMETRY.tokens}</span>
-                          <span>{response?.telemetry.cost ?? FALLBACK_TELEMETRY.cost}</span>
+                          <span>Model: {response?.telemetry.tier ?? FALLBACK_TELEMETRY.tier}</span>
+                          <span>Tokens: {response?.telemetry.tokens ?? FALLBACK_TELEMETRY.tokens}</span>
+                          <span>Cost: {response?.telemetry.cost ?? FALLBACK_TELEMETRY.cost}</span>
                         </div>
                       </div>
                     </div>
@@ -830,12 +894,12 @@ export function ExecutiveDemoPage() {
                 <DemoKicker>Live outcome</DemoKicker>
                 <h3 className="mt-4 text-2xl font-semibold text-white">4 agents · 1.4 s · $0.003</h3>
                 <p className="mt-4 text-sm leading-7 text-[var(--hp-text-muted)]">
-                  The CRM ensemble is modeled as parallel specialists rather than a single black box. That makes the value legible: one identity spine, one segment recommendation, one campaign idea, and one support-risk summary.
+                  Four specialist agents build one shopper snapshot: who this customer is, what they prefer, which offer fits best, and when support should step in early.
                 </p>
               </div>
               <div className="space-y-4">
                 <div className="rounded-[1.5rem] border border-white/10 bg-black/15 p-4">
-                  <p className="text-sm font-medium text-white">Unified customer chip</p>
+                  <p className="text-sm font-medium text-white">Shopper profile snapshot</p>
                   <p className="mt-2 text-sm leading-7 text-[var(--hp-text-muted)]">
                     High-value repeat customer with delivery sensitivity, premium accessory affinity, and a short window for recovery messaging.
                   </p>
@@ -846,7 +910,7 @@ export function ExecutiveDemoPage() {
                   disabled={customer360Loading}
                   className="btn-primary inline-flex w-full items-center justify-center rounded-full px-5 py-3 text-sm font-semibold disabled:cursor-wait disabled:opacity-80"
                 >
-                  {customer360Loading ? 'Assembling live brief…' : 'Run the live composition'}
+                  {customer360Loading ? 'Refreshing shopper context…' : 'Refresh shopper context'}
                 </button>
               </div>
             </aside>
@@ -858,7 +922,7 @@ export function ExecutiveDemoPage() {
           accent={searchEnrichmentProfile.accentColor}
           eyebrow="Discovery duo"
           title="Search finds the answer. Enrichment turns it into a reason to buy."
-          description="This is the two-robot handoff from the plan: the storefront host grounds the retrieval, then the enrichment agent turns that result into persuasive, usable context without losing product truth."
+          description="The search assistant finds a grounded match first, then the enrichment assistant adds the details that help you compare with confidence."
         >
           <div className="grid gap-6 @4xl/scene:grid-cols-[minmax(18rem,0.8fr)_minmax(0,1.2fr)] @4xl/scene:items-center">
             <div className="grid gap-4 sm:grid-cols-2">
@@ -892,6 +956,7 @@ export function ExecutiveDemoPage() {
                         src={highlightedProduct.thumbnail}
                         alt={highlightedProduct.title}
                         fill
+                        sizes="(min-width: 1280px) 18rem, (min-width: 768px) 32vw, 90vw"
                         className="object-cover"
                         unoptimized={highlightedProduct.thumbnail.startsWith('/') ? undefined : true}
                       />
@@ -908,15 +973,15 @@ export function ExecutiveDemoPage() {
 
                 <div className="space-y-4">
                   <div className="demo-telemetry flex flex-wrap gap-3 text-xs text-[var(--hp-text-faint)]">
-                    <span>{heroTelemetry.tier}</span>
-                    <span>{heroTelemetry.latency}</span>
-                    <span>{heroTelemetry.cost}</span>
-                    <span>{profileMetrics['search-enrichment-agent'].evaluationLabel}</span>
+                      <span>Model: {heroTelemetry.tier}</span>
+                      <span>Latency: {heroTelemetry.latency}</span>
+                      <span>Cost: {heroTelemetry.cost}</span>
+                      <span>Eval: {profileMetrics['search-enrichment-agent'].evaluationLabel}</span>
                   </div>
                   <p className="text-sm leading-7 text-[var(--hp-text-muted)]">
                     {highlightedProduct?.enrichedDescription ||
                       answerText ||
-                      'The paired scene shows grounded retrieval first, then rich explanation, so executives can see why the answer is trustworthy and useful.'}
+                        'Grounded retrieval comes first, then the assistant adds the context that helps you compare options quickly and confidently.'}
                   </p>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <article className="rounded-[1.4rem] border border-white/10 bg-black/15 p-4">
@@ -1024,7 +1089,7 @@ export function ExecutiveDemoPage() {
                     </ul>
                   </div>
                   <PipelineFlowDiagram
-                    ingested={truthSummary?.total_products ?? 0}
+                    ingested={resolvedTotalProducts}
                     enriched={truthSummary?.enrichment_jobs_processed ?? 0}
                     autoApproved={truthSummary?.auto_approved ?? 0}
                     sentToHitl={truthSummary?.sent_to_hitl ?? 0}
@@ -1040,8 +1105,8 @@ export function ExecutiveDemoPage() {
           id="galaxy"
           accent={AGENT_PROFILES['ecommerce-product-detail-enrichment'].accentColor}
           eyebrow="Catalog galaxy"
-          title="The catalog becomes a knowledge graph instead of a static grid."
-          description="This full-bleed scene reframes the graph as a selling surface: clusters, similarity edges, and a robot guide that narrates where the value sits in the assortment."
+          title="Browse nearby alternatives without losing your place in the catalog."
+          description="Related products stay connected by category, brand, and shared intent so it is easier to compare neighbouring options at a glance."
         >
           <div className="grid gap-6 @4xl/scene:grid-cols-[minmax(0,1.18fr)_minmax(18rem,0.82fr)] @4xl/scene:items-center">
             <div className="demo-panel overflow-hidden rounded-[2rem] border border-white/10 p-2">
@@ -1072,7 +1137,7 @@ export function ExecutiveDemoPage() {
                   </article>
                 </div>
                 <p className="mt-4 text-sm leading-7 text-[var(--hp-text-muted)]">
-                  Same catalog, different framing: instead of rows of product tiles, executives see how search, similarity, and product IQ link together. That makes the demo feel like an AI platform, not a storefront template.
+                  Instead of a flat wall of tiles, the catalog stays connected so you can jump to similar products, compare adjacent options, and keep exploring without restarting the search.
                 </p>
                 <div className="mt-4 flex flex-wrap gap-3">
                   <StatPill label="Categories" value={`${categories.length}`} />
@@ -1346,8 +1411,8 @@ export function ExecutiveDemoPage() {
           id="platform"
           accent="#38bdf8"
           eyebrow="Under the hood"
-          title="Every call is traced, every cost is attributed, and every scene can be explained in production terms."
-          description="This is the operator view folded back into the executive narrative. We are not claiming intelligence without showing the runtime evidence behind it."
+          title="Behind every answer, the speed, cost, and trace details stay visible."
+          description="The experience stays trustworthy because latency, runtime traces, and model usage remain visible instead of disappearing behind the UI."
         >
           <div ref={platformTelemetryRef} className="space-y-6">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -1385,7 +1450,7 @@ export function ExecutiveDemoPage() {
                   <div>
                     <h3 className="text-xl font-semibold text-white">Trace waterfall</h3>
                     <p className="mt-1 text-sm text-[var(--hp-text-muted)]">
-                      Latest live trace rendered as timing evidence rather than hidden infrastructure detail.
+                      Latest live trace rendered as timing evidence instead of hidden infrastructure detail.
                     </p>
                   </div>
                   <RobotLaunchButton
@@ -1413,7 +1478,7 @@ export function ExecutiveDemoPage() {
                 <div className="demo-panel rounded-[2rem] border border-white/10 p-5">
                   <h3 className="text-xl font-semibold text-white">Model usage and cost split</h3>
                   <p className="mt-1 text-sm text-[var(--hp-text-muted)]">
-                    The executive pitch is stronger when you can explain the quality and cost posture in the same frame.
+                    When the answer looks right, the quality and cost story should be visible in the same place.
                   </p>
                   <div className="mt-5">
                     <ModelUsageTable rows={modelUsage} />
@@ -1506,7 +1571,7 @@ export function ExecutiveDemoPage() {
               <span>
                 Total products
                 <strong className="ml-2 text-white">
-                  {(truthSummary?.total_products ?? uiProducts.length).toLocaleString()}
+                  {resolvedTotalProducts.toLocaleString()}
                 </strong>
               </span>
               <span>
@@ -1515,7 +1580,7 @@ export function ExecutiveDemoPage() {
               </span>
               <span>
                 Cost / call
-                <strong className="ml-2 text-white">{formatCurrency(railCostPerCall, 4)}</strong>
+                <strong className="ml-2 text-white">{formatTelemetryCost(railCostPerCall)}</strong>
               </span>
               <span>
                 Eval score

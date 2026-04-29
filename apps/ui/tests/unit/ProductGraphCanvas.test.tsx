@@ -69,7 +69,7 @@ describe('ProductGraphCanvas', () => {
       configurable: true,
       value: originalGetContext,
     });
-    delete (globalThis as typeof globalThis & { IntersectionObserver?: unknown }).IntersectionObserver;
+    Reflect.deleteProperty(globalThis, 'IntersectionObserver');
   });
 
   beforeEach(() => {

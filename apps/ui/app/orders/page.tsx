@@ -96,20 +96,21 @@ export default function OrdersPage() {
       primary={{
         agentSlug: 'ecommerce-order-status',
         state: isLoading ? 'thinking' : query.trim().length > 0 ? 'using-tool' : 'idle',
-        position: 'bottom-right',
+        position: 'bottom-left',
         size: 'sm',
         visible: true,
+        facing: 'right',
         mode: 'lead',
       }}
       sideCast={[
         {
           agentSlug: 'logistics-returns-support',
           state: hasReturnSignals ? 'using-tool' : 'idle',
-          position: 'bottom-left',
+          position: 'bottom-right',
           size: 'sm',
           visible: hasReturnSignals,
-          facing: 'right',
-          scenePeer: 'left',
+          facing: 'left',
+          scenePeer: 'right',
           className: 'hidden xl:block',
           mode: 'observe',
         },
@@ -142,14 +143,15 @@ export default function OrdersPage() {
         {!isLoading && !isError && (
           <Card className="overflow-x-auto">
             <table className="min-w-full text-sm">
+              <caption className="sr-only">Order history and return actions</caption>
               <thead className="bg-gray-100 dark:bg-gray-800 text-left">
                 <tr>
-                  <th className="px-4 py-3">Order</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Items</th>
-                  <th className="px-4 py-3">Total</th>
-                  <th className="px-4 py-3">Created</th>
-                  <th className="px-4 py-3">Return</th>
+                  <th scope="col" className="px-4 py-3">Order</th>
+                  <th scope="col" className="px-4 py-3">Status</th>
+                  <th scope="col" className="px-4 py-3">Items</th>
+                  <th scope="col" className="px-4 py-3">Total</th>
+                  <th scope="col" className="px-4 py-3">Created</th>
+                  <th scope="col" className="px-4 py-3">Return</th>
                 </tr>
               </thead>
               <tbody>

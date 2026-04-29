@@ -17,8 +17,8 @@ export default function DealsPage() {
         {
           agentSlug: 'crm-campaign-intelligence',
           state: 'thinking',
-          thinkingMessage: 'Showing campaigns most likely to convert your cohort.',
-          position: 'bottom-right',
+          thinkingMessage: 'Highlighting discounted catalog items surfaced from the current feed.',
+          position: 'bottom-left',
           size: 'sm',
           visible: true,
           className: 'hidden xl:block',
@@ -30,7 +30,7 @@ export default function DealsPage() {
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-[var(--hp-text)]">Deals</h1>
-          <p className="text-[var(--hp-text-muted)] mt-1">Campaign-selected offers likely to convert right now.</p>
+          <p className="text-[var(--hp-text-muted)] mt-1">Discounted catalog products surfaced from the live feed.</p>
         </div>
 
         <Card className="p-4 text-sm text-[var(--hp-text-muted)]">

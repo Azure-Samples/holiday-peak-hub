@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { FiArrowRight, FiMessageSquare, FiSearch } from 'react-icons/fi';
 import { Button } from '@/components/atoms/Button';
 import type { Product } from '@/components/types';
+import type { ProductSimilarityEdge } from '@/lib/hooks/useProductSimilarity';
 import agentApiClient from '@/lib/api/agentClient';
 import { recordAgentInvocationTelemetry } from '@/lib/hooks/useAgentInvocationTelemetry';
 import { formatAgentResponse } from '@/lib/utils/agentResponseCards';
@@ -29,6 +30,7 @@ type ProductNode = {
 
 export interface ProductGraphCanvasProps {
   products: Product[];
+  similarities?: ProductSimilarityEdge[];
   title?: string;
   ariaLabel?: string;
   height?: number;
@@ -185,12 +187,13 @@ const toNodes = (
   });
 };
 
-export const ProductGraphCanvas: React.FC<ProductGraphCanvasProps> = ({
-  products,
-  title = 'Product Graph Surface',
-  ariaLabel = 'Draggable product graph',
-  height,
-}) => {
+export const ProductGraphCanvas: React.FC<ProductGraphCanvasProps> = (props) => {
+  const {
+    products,
+    title = 'Related products map',
+    ariaLabel = 'Interactive related products map',
+    height,
+  } = props;
   const router = useRouter();
   const rootRef = useRef<HTMLElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -840,7 +843,7 @@ export const ProductGraphCanvas: React.FC<ProductGraphCanvasProps> = ({
         onPointerLeave={onPointerLeave}
         onWheel={onWheel}
       >
-        Draggable product graph grid that extends beyond the page. Drag or wheel to pan in all directions and click cards to open products.
+        Interactive related products map. Drag or wheel to explore similar items and click a card to open the product.
       </canvas>
 
       <div
@@ -853,10 +856,10 @@ export const ProductGraphCanvas: React.FC<ProductGraphCanvasProps> = ({
       >
         <p className="text-xs font-semibold uppercase tracking-wide text-[var(--hp-text-muted)]">{title}</p>
         <p className="text-xs text-[var(--hp-text-muted)]">
-          Drag or wheel across a 3x oversized product graph inspired by the reference container drag surface.
+          Drag across the map to explore nearby alternatives and open any product card for more detail.
         </p>
         {summariesLoading ? (
-          <p className="mt-1 text-[11px] font-medium text-[var(--hp-primary)]">Refreshing agent summaries...</p>
+          <p className="mt-1 text-[11px] font-medium text-[var(--hp-primary)]">Refreshing product notes...</p>
         ) : null}
       </div>
 
@@ -875,7 +878,7 @@ export const ProductGraphCanvas: React.FC<ProductGraphCanvasProps> = ({
             size="sm"
             className="rounded-full border border-[var(--hp-accent)] bg-[var(--hp-accent)] text-white hover:brightness-110"
           >
-            <FiMessageSquare className="mr-1 h-4 w-4" /> Agent Popup
+            <FiMessageSquare className="mr-1 h-4 w-4" /> Ask AI assistant
           </Button>
         </Link>
       </div>
