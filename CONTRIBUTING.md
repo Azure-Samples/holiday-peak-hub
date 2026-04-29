@@ -143,7 +143,7 @@ mkdocs serve -f mkdocs/mkdocs.yml
 ## Infra contributions
 - Bicep modules live under `.infra/modules`; entrypoints under `.infra/azd/`. Deploy with `azd up` after `az login`, or use `python -m .infra.cli deploy <service> --resource-group <rg> --location <region>`.
 - Helm chart scaffolding is in `.kubernetes/chart`. Prefer values-driven configuration; avoid hardcoding secrets.
-- **HelmRelease pattern (Phase 2, ADR-033)**: New services use Flux HelmRelease CRDs in `.kubernetes/releases/agents/`. Each file is a self-contained HelmRelease referencing the shared chart with inline values. To migrate a service: create `<service>.yaml` in releases, remove from rendered kustomization, add to releases kustomization.
+- **HelmRelease pattern (Phase 2, ADR-017)**: New services use Flux HelmRelease CRDs in `.kubernetes/releases/agents/`. Each file is a self-contained HelmRelease referencing the shared chart with inline values. To migrate a service: create `<service>.yaml` in releases, remove from rendered kustomization, add to releases kustomization.
 - **Legacy rendered pattern**: Services not yet migrated use predeploy hooks (`.infra/azd/hooks/render-helm.*`) to render YAML under `.kubernetes/rendered/<service>/`. These are being phased out.
 
 ## Pull requests

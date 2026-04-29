@@ -106,5 +106,5 @@ These controls reduce the chance that frontend `/api/products` or `/api/categori
 
 ## References
 
-- [ADR-021](../architecture/adrs/adr-021-azd-first-deployment.md) — azd-first deployment
+- [ADR-017](../architecture/adrs/adr-017-deployment-strategy.md) — azd-first deployment
 - [CRUD Service Docs](../architecture/crud-service-implementation.md)

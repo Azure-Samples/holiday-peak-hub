@@ -97,7 +97,7 @@ Use this mapping to know the current vs. former names—so you can correctly int
 
 ## Git Branch Naming Convention
 
-- Follow the branch naming convention defined in [ADR-022](../docs/architecture/adrs/adr-022-branch-naming-convention.md).
+- Follow the branch naming convention defined in [ADR-018](../docs/architecture/adrs/adr-018-branch-naming-convention.md).
 - **Branch prefixes**: `feature/`, `issue/`, `bug/`, `hotfix/`, `docs/`, `chore/`.
 - **Format**: `<prefix>/<issue-id>-<short-description>` (e.g., `feature/42-cart-intelligence`).
 - Always use **lowercase** with **hyphens** as word separators.

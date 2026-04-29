@@ -79,6 +79,6 @@ sequenceDiagram
 
 ## Related
 
-- [ADR-013: Model Routing](../adrs/adr-013-model-routing.md)
+- [ADR-010: Model Routing](../adrs/adr-010-model-routing.md)
 - [Agent Library Reference](../components/libs/agents.md)
 - [Components Overview](../components.md)

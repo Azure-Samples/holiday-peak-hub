@@ -1,4 +1,4 @@
-# ADR-032: Self-Healing Boundaries, Risk Tiers, and Prohibited Actions
+# ADR-025: Self-Healing Boundaries, Risk Tiers, and Prohibited Actions
 
 | Field        | Value                              |
 |--------------|------------------------------------|
@@ -121,8 +121,8 @@ DETECTED → CLASSIFIED → REMEDIATING → VERIFIED → CLOSED
 - `holiday_peak_lib.self_healing.kernel` — runtime implementation
 - `holiday_peak_lib.self_healing.models` — incident domain models
 - `holiday_peak_lib.self_healing.manifest` — surface contract loader
-- [ADR-023](adr-023-enterprise-resilience-patterns.md) — Enterprise resilience patterns
-- [ADR-027](adr-027-apim-agc-edge.md) — APIM + AGC edge architecture
+- [ADR-019](adr-019-enterprise-resilience-patterns.md) — Enterprise resilience patterns
+- [ADR-021](adr-021-apim-agc-edge.md) — APIM + AGC edge architecture
 - [Self-Healing RBAC Matrix](../../governance/self-healing-rbac-matrix.md) — RBAC roles and security controls
 - [Self-Healing Rollout Runbook](../../governance/self-healing-rollout-runbook.md) — Rollout milestones and operator procedures
 - Epic #657 — Autonomous Agent Surface Self-Healing

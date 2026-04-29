@@ -1,4 +1,4 @@
-# ADR-019: Authentication and Role-Based Access Control
+# ADR-015: Authentication and Role-Based Access Control
 
 **Status**: Accepted  
 **Date**: 2026-01-30  
@@ -655,7 +655,7 @@ logger.info('auth.logout', { userId, sessionDuration });
 - [Next.js Authentication](https://nextjs.org/docs/authentication)
 - [JWT Best Practices](https://tools.ietf.org/html/rfc8725)
 - [OWASP Authentication Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html)
-- [ADR-015: Next.js App Router](adr-015-nextjs-app-router.md)
+- [ADR-011: Next.js App Router](adr-011-nextjs-app-router.md)
 
 ## Revision History
 

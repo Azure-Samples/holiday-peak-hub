@@ -1,4 +1,4 @@
-# ADR-011: ACP Alignment for Ecommerce Catalog Search
+# ADR-009: ACP Alignment for Ecommerce Catalog Search
 
 **Status**: Accepted  
 **Date**: 2026-01  
@@ -49,5 +49,5 @@ Adopt **Agentic Commerce Protocol (ACP)** field mapping for catalog search respo
 - **Cons**: Less semantic alignment for agent ecosystems
 
 ## Related ADRs
-- [ADR-010: REST + MCP Exposition](adr-010-rest-and-mcp-exposition.md)
+- [ADR-004: FastAPI with Dual REST + MCP](adr-004-fastapi-mcp.md)
 - [ADR-003: Adapter Pattern](adr-003-adapter-pattern.md)

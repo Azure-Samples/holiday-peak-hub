@@ -1,16 +1,16 @@
-# ADR-035: API Center Governance and APIM MCP Server Strategy
+# ADR-027: API Center Governance and APIM MCP Server Strategy
 
 **Status**: Accepted
 **Date**: 2026-04-11
 **Deciders**: Architecture Team, Ricardo Cataldi
 **Tags**: api-governance, api-center, apim, mcp, api-discovery
-**References**: [ADR-027](adr-027-apim-agc-edge.md), [ADR-031](adr-031-mcp-internal-communication-policy.md), [ADR-034](adr-034-namespace-isolation-strategy.md), [ADR-036](adr-036-agent-isolation-policy.md)
+**References**: [ADR-021](adr-021-apim-agc-edge.md), [ADR-024](adr-024-agent-communication-policy.md), [ADR-026](adr-026-namespace-isolation-strategy.md)
 
 ## Context
 
 The holiday-peak-hub platform exposes 29 APIs through Azure API Management (APIM): 26 agent APIs, 1 CRUD API, 1 Azure OpenAI gateway, and 1 echo-api. Each agent API already registers a `POST /mcp/{tool}` operation for MCP tool invocation through APIM (managed by `sync-apim-agents.ps1`).
 
-Two governance gaps remain after namespace isolation (ADR-034):
+Two governance gaps remain after namespace isolation (ADR-026):
 
 1. **API Discovery and Catalog** — No centralized API registry exists. Consumers (frontend, agents, external) must know exact APIM paths. There is no metadata layer for domain classification, lifecycle status, or compliance tracking.
 
@@ -61,9 +61,9 @@ Per-agent `POST /mcp/{tool}` operations are already registered in APIM and funct
 
 APIM serves a dual role in the platform's communication architecture:
 
-1. **Public facade** — Frontend → CRUD and Frontend → Agent REST calls are routed through APIM for authentication, rate limiting, and observability (ADR-027).
-2. **Internal MCP gateway** — CRUD → Agent enrichment/decision-assist calls use APIM-routed MCP tool invocations, maintaining governance and telemetry (ADR-031).
-3. **Agents do NOT use APIM for CRUD reads** — Agent → CRUD transactional reads use cross-namespace Kubernetes DNS (ADR-034 Option A). Agents are forbidden from invoking CRUD REST endpoints directly for general API consumption (ADR-036).
+1. **Public facade** — Frontend → CRUD and Frontend → Agent REST calls are routed through APIM for authentication, rate limiting, and observability (ADR-021).
+2. **Internal MCP gateway** — CRUD → Agent enrichment/decision-assist calls use APIM-routed MCP tool invocations, maintaining governance and telemetry (ADR-024).
+3. **Agents do NOT use APIM for CRUD reads** — Agent → CRUD transactional reads use cross-namespace Kubernetes DNS (ADR-026 Option A). Agents are forbidden from invoking CRUD REST endpoints directly for general API consumption (ADR-024).
 
 ## Consequences
 

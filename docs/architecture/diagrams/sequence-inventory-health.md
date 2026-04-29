@@ -341,7 +341,7 @@ alerts:
 ```
 
 ## Related Documentation
-- [ADR-012: Adapter Boundaries](../adrs/adr-012-adapter-boundaries.md)
-- [ADR-007: SAGA Choreography with Event Hubs](../adrs/adr-007-saga-choreography.md)
+- [ADR-003: Adapter Pattern, Boundaries, and Connector Registry](../adrs/adr-003-adapter-pattern.md)
+- [ADR-006: SAGA Choreography with Event Hubs](../adrs/adr-006-saga-choreography.md)
 - [Inventory Health Check Component](../components/apps/inventory-health-check.md)
 - [Playbook: Adapter Failure](../playbooks/playbook-adapter-failure.md)

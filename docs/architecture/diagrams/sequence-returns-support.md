@@ -436,7 +436,7 @@ with tracer.span(name="process_return") as span:
 ```
 
 ## Related Documentation
-- [ADR-013: SLM-First Model Routing](../adrs/adr-013-model-routing.md)
-- [ADR-007: SAGA Choreography with Event Hubs](../adrs/adr-007-saga-choreography.md)
+- [ADR-010: SLM-First Model Routing](../adrs/adr-010-model-routing.md)
+- [ADR-006: SAGA Choreography with Event Hubs](../adrs/adr-006-saga-choreography.md)
 - [Logistics Returns Support Component](../components/apps/logistics-returns-support.md)
 - [Playbook: Tool Call Failures](../playbooks/playbook-tool-call-failures.md)

@@ -1,6 +1,6 @@
 # Sequence Diagram: Flux CD GitOps Deployment
 
-This diagram illustrates the GitOps deployment pipeline using Flux CD as implemented in ADR-033.
+This diagram illustrates the GitOps deployment pipeline using Flux CD as implemented in ADR-017.
 
 ## Deployment Patterns
 
@@ -156,9 +156,9 @@ sequenceDiagram
     end
 ```
 
-## Namespace Isolation (ADR-034)
+## Namespace Isolation (ADR-026)
 
-Services are deployed to two isolated namespaces per ADR-034:
+Services are deployed to two isolated namespaces per ADR-026:
 
 | Namespace | Services | Network Policy |
 |-----------|----------|----------------|
@@ -167,6 +167,6 @@ Services are deployed to two isolated namespaces per ADR-034:
 
 ## Related
 
-- [ADR-033: Helm Deployment Strategy](../adrs/adr-033-helm-deployment-strategy.md)
-- [ADR-034: Namespace Isolation](../adrs/adr-034-namespace-isolation-strategy.md)
+- [ADR-017: Helm Deployment Strategy](../adrs/adr-017-deployment-strategy.md)
+- [ADR-026: Namespace Isolation](../adrs/adr-026-namespace-isolation-strategy.md)
 - [Infrastructure README](../../../.infra/README.md)

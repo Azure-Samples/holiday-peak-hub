@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- ADR-033 Phase 2: migrated `ecommerce-catalog-search` from rendered YAML to Flux HelmRelease CRD for in-cluster Helm rendering. Eliminates `render-helm.sh` dependency for migrated services. Pilot validated with E2E test (200 OK, 5 results, correct image + env vars). New directory `.kubernetes/releases/agents/` holds HelmRelease manifests; remaining 25 services migrate incrementally.
+- ADR-017 Phase 2: migrated `ecommerce-catalog-search` from rendered YAML to Flux HelmRelease CRD for in-cluster Helm rendering. Eliminates `render-helm.sh` dependency for migrated services. Pilot validated with E2E test (200 OK, 5 results, correct image + env vars). New directory `.kubernetes/releases/agents/` holds HelmRelease manifests; remaining 25 services migrate incrementally.
 
 ### Fixed
 
@@ -29,11 +29,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - PR #792: Flux Phase B — removed kubectl-apply deployment path in favor of full Flux CD GitOps reconciliation for AKS manifests.
 
-- PR #789: added API Center governance, sync pipeline, and APIM MCP strategy (ADR-035).
+- PR #789: added API Center governance, sync pipeline, and APIM MCP strategy (ADR-027).
 
-- PR #788: namespace isolation — split CRUD and agent services into separate Kubernetes namespaces (ADR-034).
+- PR #788: namespace isolation — split CRUD and agent services into separate Kubernetes namespaces (ADR-026).
 
-- PR #785: migrated AKS deployments to Flux CD GitOps for declarative manifest reconciliation (ADR-033).
+- PR #785: migrated AKS deployments to Flux CD GitOps for declarative manifest reconciliation (ADR-017).
 
 - PR #776: hardened CRUD Entra ID authentication rollout contracts.
 
@@ -49,9 +49,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - PR #787: seed rendered Kubernetes manifests for Flux reconciliation under `.infra/k8s/`.
 
-- ADR-033: Helm Deployment Strategy (Flux CD GitOps).
-- ADR-034: Namespace Isolation Strategy (CRUD vs agent namespaces).
-- ADR-035: API Center + APIM MCP Strategy.
+- ADR-017: Deployment Strategy (azd Provisioning + Flux CD GitOps).
+- ADR-026: Namespace Isolation Strategy (CRUD vs agent namespaces).
+- ADR-027: API Center + APIM MCP Strategy.
 
 - Issue #248: completed branch/artifact hygiene for remediation flow by pruning temporary local branches and cleanup artifacts so local working clones retain only `main` for stabilization operations.
 

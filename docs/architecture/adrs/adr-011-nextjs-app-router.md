@@ -1,4 +1,4 @@
-# ADR-015: Next.js 15 with App Router for Frontend Framework
+# ADR-011: Next.js 15 with App Router for Frontend Framework
 
 **Status**: Accepted  
 **Date**: 2026-01-30  
@@ -307,8 +307,8 @@ export function middleware(request: NextRequest) {
 - [Next.js 15 Documentation](https://nextjs.org/docs)
 - [App Router Migration Guide](https://nextjs.org/docs/app/building-your-application/upgrading/app-router-migration)
 - [React 19 Release Notes](https://react.dev/blog/2024/12/05/react-19)
-- [ADR-016: Atomic Design System](adr-016-atomic-design-system.md)
-- [ADR-017: AG-UI Protocol Integration](adr-017-ag-ui-protocol.md)
+- [ADR-012: Atomic Design System](adr-012-atomic-design-system.md)
+- [ADR-013: AG-UI Protocol Integration](adr-013-ag-ui-protocol.md)
 
 ## Revision History
 

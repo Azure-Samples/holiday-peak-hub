@@ -1,4 +1,4 @@
-# ADR-027: APIM + Application Gateway for Containers as Canonical AKS Edge
+# ADR-021: APIM + Application Gateway for Containers as Canonical AKS Edge
 
 ## Status
 Accepted
@@ -10,7 +10,7 @@ Accepted
 
 The current ingress posture has drifted across three different models:
 
-1. Historical **AGIC + classic Application Gateway** assumptions captured in [ADR-026](adr-026-agic-traffic-management.md)
+1. Historical **AGIC + classic Application Gateway** assumptions (formerly ADR-026, now superseded)
 2. AKS **Web App Routing / managed nginx** defaults still present in deployment hooks and Helm rendering
 3. APIM synchronization logic that still resolves backend ingress endpoints dynamically during deployment
 
@@ -88,7 +88,7 @@ flowchart LR
 
 ### Neutral
 
-1. Existing App Gateway-first intent from [ADR-026](adr-026-agic-traffic-management.md) remains valid, but the implementation standard changes from AGIC/classic App Gateway to AGC.
+1. The original App Gateway-first intent (formerly ADR-026) remains valid, but the implementation standard changes from AGIC/classic App Gateway to AGC.
 2. Gateway API adoption can be phased after ingress stabilization instead of being bundled into the first cutover.
 
 ## Alternatives Considered
@@ -104,7 +104,7 @@ flowchart LR
 
 ## Supersession
 
-This ADR supersedes the **implementation details** of [ADR-026](adr-026-agic-traffic-management.md) while preserving its core intent of unified ingress and `ClusterIP` service exposure.
+This ADR supersedes the **implementation details** of the former ADR-026 (AGIC Traffic Management) while preserving its core intent of unified ingress and `ClusterIP` service exposure.
 
 ## Operational Recovery
 
@@ -130,7 +130,6 @@ will succeed.
 
 ## References
 
-- [ADR-009](adr-009-aks-deployment.md)
-- [ADR-026](adr-026-agic-traffic-management.md)
+- [ADR-008](adr-008-aks-deployment.md)
 - [Infrastructure Governance](../../governance/infrastructure-governance.md)
 - [Deployment Guide](../../../.infra/DEPLOYMENT.md)

@@ -1,21 +1,21 @@
-# ADR-034: Namespace Isolation Strategy
+# ADR-026: Namespace Isolation Strategy
 
 **Status**: Accepted
 **Date**: 2026-04-11
 **Deciders**: Architecture Team, Ricardo Cataldi
 **Tags**: infrastructure, kubernetes, aks, namespace, security, istio, flux, network-policy
-**References**: [ADR-031](adr-031-mcp-internal-communication-policy.md), [ADR-033](adr-033-helm-deployment-strategy.md), [ADR-009](adr-009-aks-deployment.md), [ADR-027](adr-027-apim-agc-edge.md), [ADR-028](adr-028-memory-namespace-isolation-contract.md), [ADR-036](adr-036-agent-isolation-policy.md)
+**References**: [ADR-024](adr-024-agent-communication-policy.md), [ADR-017](adr-017-deployment-strategy.md), [ADR-008](adr-008-aks-deployment.md), [ADR-021](adr-021-apim-agc-edge.md), [ADR-007](adr-007-memory-tiers.md)
 
 ## Context
 
-The holiday-peak-hub platform deploys 27 production services to AKS: 1 CRUD service (transactional system of record) and 26 agent services (including 4 truth-layer services). All services currently run in a single `holiday-peak` Kubernetes namespace, despite node-level isolation already being enforced via dedicated node pools (`aks-crud`, `aks-agents`, `aks-system`) with taints (ADR-009).
+The holiday-peak-hub platform deploys 27 production services to AKS: 1 CRUD service (transactional system of record) and 26 agent services (including 4 truth-layer services). All services currently run in a single `holiday-peak` Kubernetes namespace, despite node-level isolation already being enforced via dedicated node pools (`aks-crud`, `aks-agents`, `aks-system`) with taints (ADR-008).
 
 A single shared namespace presents the following problems:
 
 1. **Blast radius** — A misconfigured RBAC binding, resource quota, or network policy in one workload class affects all 27 services. A runaway agent pod can consume the namespace's resource quota, starving the CRUD service (the transactional system of record).
 2. **Observability noise** — Logs, metrics, and traces for 27 services share label selectors, making per-concern dashboards noisy and alert routing less precise.
 3. **Security posture** — Kubernetes RBAC permissions, Secrets, ConfigMaps, and ServiceAccount tokens are namespace-scoped. A single namespace means every service's ServiceAccount can enumerate every other service's Secrets by default.
-4. **Deployment independence** — With Flux CD (ADR-033), a single Kustomization reconciling all 27 services means a rendering error in one agent blocks deployment of the CRUD service and vice versa.
+4. **Deployment independence** — With Flux CD (ADR-017), a single Kustomization reconciling all 27 services means a rendering error in one agent blocks deployment of the CRUD service and vice versa.
 5. **Istio policy granularity** — Istio `AuthorizationPolicy` and `PeerAuthentication` resources are namespace-scoped. A single namespace makes it impossible to enforce distinct mTLS modes or access policies for the two workload classes without per-service policy explosion.
 
 Architecture frameworks applied:
@@ -38,7 +38,7 @@ Split the existing `holiday-peak` namespace into exactly **two namespaces**:
 
 Three or more namespaces (e.g., separating truth-layer or per-domain) were evaluated and rejected:
 
-- **Truth services** share the same scaling characteristics, node pool, memory patterns (ADR-028), and MCP communication topology as other agents. Separating them adds cross-namespace complexity without measurable security or operational benefit.
+- **Truth services** share the same scaling characteristics, node pool, memory patterns (ADR-007), and MCP communication topology as other agents. Separating them adds cross-namespace complexity without measurable security or operational benefit.
 - **Per-domain namespaces** (CRM, eCommerce, inventory, logistics, product-management) would create 6+ namespaces for 26 services, multiplying Flux Kustomizations, Istio policies, AGC routing rules, and RBAC bindings. The incremental isolation is not justified at current scale.
 
 The two-namespace split maximizes the ratio of isolation benefit to operational cost by targeting the single most meaningful workload boundary: transactional vs. intelligence.
@@ -125,21 +125,21 @@ http://crud-service-crud-service.holiday-peak-crud.svc.cluster.local:8000
 | Blast radius | Cluster-local, no public path | Uses public APIM facade for internal traffic |
 | Symmetry | Asymmetric with CRUD→Agent | Symmetric but architecturally wasteful |
 
-**Decision**: Option A. Agent→CRUD is a hot path (product lookups, order reads, cart validation) invoked by every agent enrichment cycle. Adding 15-30 ms per call across 26 services with multiple CRUD calls each would degrade the platform's primary value proposition — low-latency intelligent retail experiences. APIM exists as the **public facade** (ADR-027); using it for intra-cluster traffic violates separation of concerns.
+**Decision**: Option A. Agent→CRUD is a hot path (product lookups, order reads, cart validation) invoked by every agent enrichment cycle. Adding 15-30 ms per call across 26 services with multiple CRUD calls each would degrade the platform's primary value proposition — low-latency intelligent retail experiences. APIM exists as the **public facade** (ADR-021); using it for intra-cluster traffic violates separation of concerns.
 
 **Mitigation for asymmetry**: CRUD→Agent calls already go through APIM because CRUD is the entry point for external requests and agent calls are policy-gated intelligence lookups. Agent→CRUD calls are internal data-plane reads that benefit from locality. The asymmetry is intentional and architecturally sound.
 
 #### CRUD → Agent: Via APIM (No Change)
 
-Per ADR-027 and ADR-031, CRUD calls agent REST endpoints through APIM for enrichment/decision assist flows. This path is unchanged by the namespace split.
+Per ADR-021 and ADR-024, CRUD calls agent REST endpoints through APIM for enrichment/decision assist flows. This path is unchanged by the namespace split.
 
 #### Agent → Agent: MCP via APIM (No Change)
 
-Per ADR-031, agent-to-agent communication uses MCP tools routed through APIM. All 26 agent services are registered as MCP Servers in APIM. This path is namespace-agnostic and unchanged.
+Per ADR-024, agent-to-agent communication uses MCP tools routed through APIM. All 26 agent services are registered as MCP Servers in APIM. This path is namespace-agnostic and unchanged.
 
 #### External Traffic: APIM → AGC → ClusterIP (Updated)
 
-Per ADR-027, external traffic flows through APIM → AGC → AKS. AGC HTTPRoute resources will now target services in their respective namespaces. The AGC Gateway resource must reference both namespaces.
+Per ADR-021, external traffic flows through APIM → AGC → AKS. AGC HTTPRoute resources will now target services in their respective namespaces. The AGC Gateway resource must reference both namespaces.
 
 ### `CRUD_SERVICE_URL` Environment Variable Migration
 
@@ -149,7 +149,7 @@ All 26 agent services read `CRUD_SERVICE_URL` from environment variables. The mi
 |--------|-------|
 | `http://crud-service-crud-service.holiday-peak.svc.cluster.local:8000` | `http://crud-service-crud-service.holiday-peak-crud.svc.cluster.local:8000` |
 
-Per ADR-036, `CRUD_SERVICE_URL` is used exclusively for approved cross-namespace DNS routing of transactional reads. Agents are forbidden from using this URL for general CRUD API consumption (e.g., creating orders, updating products, or invoking CRUD business logic).
+Per ADR-024, `CRUD_SERVICE_URL` is used exclusively for approved cross-namespace DNS routing of transactional reads. Agents are forbidden from using this URL for general CRUD API consumption (e.g., creating orders, updating products, or invoking CRUD business logic).
 
 This is set in Helm values per service and rendered into deployment manifests by `render-helm.sh`. The change is a values-only update — no application code changes required.
 
@@ -213,7 +213,7 @@ spec:
             ports: ["8000"]
 ```
 
-Agent-to-agent communication within `holiday-peak-agents` is unrestricted (same-namespace, governed by ADR-031 MCP policy). A default-deny policy for agent services blocks external namespaces except `istio-system`:
+Agent-to-agent communication within `holiday-peak-agents` is unrestricted (same-namespace, governed by ADR-024 MCP policy). A default-deny policy for agent services blocks external namespaces except `istio-system`:
 
 ```yaml
 apiVersion: security.istio.io/v1
@@ -315,7 +315,7 @@ spec:
           port: 8000
 ```
 
-### Flux CD Multi-Kustomization (ADR-033 Extension)
+### Flux CD Multi-Kustomization (ADR-017 Extension)
 
 Split the single Flux `Kustomization` into two independent reconciliation units, one per namespace. This ensures a rendering error in one namespace does not block deployment of the other.
 
@@ -363,7 +363,7 @@ spec:
       namespace: holiday-peak-agents
 ```
 
-The `dependsOn` ensures CRUD is healthy before agents reconcile, matching the existing deployment ordering requirement (ADR-009: "Deploy CRUD first").
+The `dependsOn` ensures CRUD is healthy before agents reconcile, matching the existing deployment ordering requirement (ADR-008: "Deploy CRUD first").
 
 ### Helm Chart Changes
 
@@ -385,7 +385,7 @@ helm template "$RELEASE_NAME" .kubernetes/chart/ \
 
 ### APIM MCP Server Registration
 
-All 26 agent services must be registered as MCP Servers in APIM. The APIM backend URLs will target AGC hostnames that route to `holiday-peak-agents` namespace services. The CRUD service backend URL targets `holiday-peak-crud`. This is a configuration extension of ADR-027, not a new pattern.
+All 26 agent services must be registered as MCP Servers in APIM. The APIM backend URLs will target AGC hostnames that route to `holiday-peak-agents` namespace services. The CRUD service backend URL targets `holiday-peak-crud`. This is a configuration extension of ADR-021, not a new pattern.
 
 ### AGC Gateway Multi-Namespace Reference
 
@@ -476,7 +476,7 @@ The old namespace and its resources remain untouched until Phase 3 explicit dele
 ### Positive
 
 1. **Blast radius reduction** — CRUD and agent workloads have independent resource quotas, RBAC bindings, and failure domains. A runaway agent cannot starve the transactional system.
-2. **Deployment independence** — Separate Flux Kustomizations allow CRUD and agents to deploy, fail, and roll back independently (ADR-033 extension).
+2. **Deployment independence** — Separate Flux Kustomizations allow CRUD and agents to deploy, fail, and roll back independently (ADR-017 extension).
 3. **Security posture** — Namespace-scoped Secrets, ConfigMaps, and ServiceAccounts are no longer shared. NetworkPolicies and Istio AuthorizationPolicies enforce explicit allow-lists.
 4. **Observability clarity** — Per-namespace metrics, logs, and traces reduce noise and enable namespace-scoped alerting and dashboards.
 5. **Istio policy precision** — mTLS mode and authorization can evolve independently per namespace (e.g., STRICT for CRUD, PERMISSIVE for agents during rollout).
@@ -492,9 +492,9 @@ The old namespace and its resources remain untouched until Phase 3 explicit dele
 ### Neutral
 
 1. **External PaaS services unaffected** — Redis, Cosmos DB, Blob Storage, Azure AI Foundry are namespace-agnostic; no changes required.
-2. **Memory namespace contract (ADR-028) unaffected** — The `<service>:<tenantId>:<sessionId>` key contract operates at application level, not Kubernetes namespace level.
-3. **MCP communication policy (ADR-031) unaffected** — Agent-to-agent MCP routing through APIM is namespace-transparent.
-4. **Node pool assignment unchanged** — Taints and tolerations already segregate compute (ADR-009). Namespace split aligns the logical boundary with the existing physical boundary.
+2. **Memory namespace contract (ADR-007) unaffected** — The `<service>:<tenantId>:<sessionId>` key contract operates at application level, not Kubernetes namespace level.
+3. **MCP communication policy (ADR-024) unaffected** — Agent-to-agent MCP routing through APIM is namespace-transparent.
+4. **Node pool assignment unchanged** — Taints and tolerations already segregate compute (ADR-008). Namespace split aligns the logical boundary with the existing physical boundary.
 
 ## Alternatives Considered
 
@@ -514,4 +514,4 @@ Split into `holiday-peak-crud`, `holiday-peak-crm`, `holiday-peak-ecommerce`, `h
 
 Use APIM for all service-to-service communication including agent→CRUD.
 
-**Rejected**: Adds 15-30 ms latency per agent→CRUD call on a hot path. Introduces APIM as a single point of failure for intra-cluster data reads. Consumes APIM request units for internal traffic. Violates the architectural principle that APIM is the **public facade** (ADR-027), not an internal service bus.
+**Rejected**: Adds 15-30 ms latency per agent→CRUD call on a hot path. Introduces APIM as a single point of failure for intra-cluster data reads. Consumes APIM request units for internal traffic. Violates the architectural principle that APIM is the **public facade** (ADR-021), not an internal service bus.

@@ -11,7 +11,7 @@
 
 This assessment identifies **28 risks** across 7 categories for the two capabilities under development. Of these, **5 are Critical** (score ≥ 16), **9 are High** (score 10–15), **10 are Medium** (score 5–9), and **4 are Low** (score ≤ 4). The top risks concentrate in **data quality propagation**, **model hallucination**, and **regulatory compliance**. The enrichment→search pipeline coupling creates a unique amplification vector: a single bad enrichment can poison both the truth layer and the search index simultaneously.
 
-**Key finding**: The existing architecture (ADR-025 truth layer, ADR-023 resilience patterns, ADR-024 connector registry) provides strong structural mitigation for operational risks, but **data quality and regulatory risks** require new controls not yet present in the codebase.
+**Key finding**: The existing architecture (ADR-020 truth layer, ADR-019 resilience patterns, ADR-003 connector registry) provides strong structural mitigation for operational risks, but **data quality and regulatory risks** require new controls not yet present in the codebase.
 
 $$\text{Portfolio Risk Score} = \sum_{i=1}^{28} P_i \times I_i = 256 \quad \text{(max theoretical: 700)}$$
 
@@ -186,7 +186,7 @@ These two risks form a **compound threat**: hallucination (T-01) creates the dat
 
 | Mitigation | Description | Cost Est. | Residual Risk |
 |------------|-------------|-----------|---------------|
-| **M9: Circuit breaker tuning** | ADR-023 circuit breakers are implemented. Tune thresholds per connector based on observed error rates. Add bulkhead isolation per PIM vendor. | Low (config) | Score: 6 (L:2, I:3) |
+| **M9: Circuit breaker tuning** | ADR-019 circuit breakers are implemented. Tune thresholds per connector based on observed error rates. Add bulkhead isolation per PIM vendor. | Low (config) | Score: 6 (L:2, I:3) |
 | **M10: Stale-data fallback** | When PIM connector fails, use last-known-good data from Cosmos DB truth store (`source_data` layer) with a `data_freshness: stale` flag. | Low (1 sprint) | Score: 4 (L:2, I:2) |
 
 ### T-05: Cosmos DB RU Throttling (High — Score 12)
@@ -195,7 +195,7 @@ These two risks form a **compound threat**: hallucination (T-01) creates the dat
 |------------|-------------|-----------|---------------|
 | **M11: Autoscale RU provisioning** | Switch from fixed to autoscale throughput on truth store containers. Set max RU ceiling with cost alerts. | Low (infra config) | Score: 6 (L:2, I:3) |
 | **M12: Write batching** | Batch enrichment writes using transactional batch operations within the same partition key (SKU + tenant). Reduces per-write RU cost. | Medium (1 sprint) | Score: 4 (L:1, I:4) |
-| **M13: Hot partition monitoring** | Implement partition key distribution monitoring per ADR-014. Alert on partitions exceeding 20% of total RU consumption. | Low (monitoring) | Score: 4 (L:1, I:4) |
+| **M13: Hot partition monitoring** | Implement partition key distribution monitoring per ADR-007. Alert on partitions exceeding 20% of total RU consumption. | Low (monitoring) | Score: 4 (L:1, I:4) |
 
 ### T-06: SLM/LLM Routing Misclassification (High — Score 12)
 
@@ -293,7 +293,7 @@ gantt
 
 1. **Deploy Phase 0 risk controls before any capability goes to production**. Mitigations M4, M1, M22, M23, and M11 are low-cost, high-impact and should gate the Enrichment MVP.
 
-2. **Enforce approved-data-only indexing (M24) from day one**. Never allow the search index to read directly from `enriched_data`. The truth layer's three-tier architecture (ADR-025) already supports this — it must be enforced at the indexer level.
+2. **Enforce approved-data-only indexing (M24) from day one**. Never allow the search index to read directly from `enriched_data`. The truth layer's three-tier architecture (ADR-020) already supports this — it must be enforced at the indexer level.
 
 3. **Decouple enrichment from search (M18)** to prevent cascading failures. Use Cosmos DB change feed for index population rather than synchronous event-driven triggers.
 

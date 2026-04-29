@@ -212,6 +212,6 @@ class DigitalAsset(BaseModel):
 ## References
 
 - [Agentic Commerce Protocol (ACP)](https://github.com/agentic-commerce-protocol/agentic-commerce-protocol)
-- [ADR-011](../architecture/adrs/adr-011-acp-catalog-search.md) — ACP Catalog Search
-- [ADR-012](../architecture/adrs/adr-012-adapter-boundaries.md) — Adapter Boundaries
+- [ADR-009](../architecture/adrs/adr-009-acp-catalog-search.md) — ACP Catalog Search
+- [ADR-003](../architecture/adrs/adr-003-adapter-pattern.md) — Adapter Pattern and Boundaries
 - [Components: Product Management](../architecture/components.md#product-management-domain)

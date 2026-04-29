@@ -1,4 +1,4 @@
-# ADR-020: API Client Architecture
+# ADR-016: API Client Architecture
 
 **Status**: Accepted  
 **Date**: 2026-01-30  
@@ -719,7 +719,7 @@ describe('EcommerceCartClient', () => {
 - [TanStack Query Documentation](https://tanstack.com/query/latest)
 - [Axios Documentation](https://axios-http.com/)
 - [Zod Documentation](https://zod.dev/)
-- [ADR-015: Next.js App Router](adr-015-nextjs-app-router.md)
+- [ADR-011: Next.js App Router](adr-011-nextjs-app-router.md)
 
 ## Revision History
 

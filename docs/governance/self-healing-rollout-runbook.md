@@ -1,7 +1,7 @@
 # Self-Healing Rollout Plan and Operator Runbook
 
 > Part of the Autonomous Agent Surface Self-Healing epic (#657).
-> Governing ADR: [ADR-032](../architecture/adrs/adr-032-self-healing-boundaries.md)
+> Governing ADR: [ADR-025](../architecture/adrs/adr-025-self-healing-boundaries.md)
 > RBAC: [Self-Healing RBAC Matrix](self-healing-rbac-matrix.md)
 
 ## Feature Flags

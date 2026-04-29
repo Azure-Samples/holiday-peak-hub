@@ -117,7 +117,7 @@ quadrantChart
 
 | Moat Type | Strength | Rationale |
 |---|---|---|
-| **Architectural** | 🟢 Strong | Event-driven choreography (ADR-007) + multi-agent MCP communication is hard to replicate. Competitors would need to redesign from monolith to agent-based. |
+| **Architectural** | 🟢 Strong | Event-driven choreography (ADR-006) + multi-agent MCP communication is hard to replicate. Competitors would need to redesign from monolith to agent-based. |
 | **Data Network Effects** | 🟡 Emerging | Three-tier memory (Hot/Warm/Cold) accumulates shopper context over time, but network effects require production scale to materialize. |
 | **Switching Cost** | 🟡 Moderate | Azure-native deep integration (Cosmos DB, AI Search, Event Hubs) creates lock-in for users already on Azure. Portable OSS code mitigates this partially. |
 | **Cost** | 🟢 Strong | BYOM + OSS = no license fees. Total infra cost significally lower than $90K–$400K incumbent bundle. |

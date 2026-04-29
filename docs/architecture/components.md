@@ -227,12 +227,12 @@ Issue #28 alignment (dashboard/profile):
 
 ### Related ADRs
 
-- [ADR-015](adrs/adr-015-nextjs-app-router.md) - Next.js 15 with App Router
-- [ADR-016](adrs/adr-016-atomic-design-system.md) - Atomic Design System
-- [ADR-017](adrs/adr-017-ag-ui-protocol.md) - AG-UI Protocol Integration
-- [ADR-018](adrs/adr-018-acp-frontend.md) - ACP Frontend Integration
-- [ADR-019](adrs/adr-019-authentication-rbac.md) - Authentication & RBAC
-- [ADR-020](adrs/adr-020-api-client-architecture.md) - API Client Architecture
+- [ADR-011](adrs/adr-011-nextjs-app-router.md) - Next.js 15 with App Router
+- [ADR-012](adrs/adr-012-atomic-design-system.md) - Atomic Design System
+- [ADR-013](adrs/adr-013-ag-ui-protocol.md) - AG-UI Protocol Integration
+- [ADR-014](adrs/adr-014-acp-frontend.md) - ACP Frontend Integration
+- [ADR-015](adrs/adr-015-authentication-rbac.md) - Authentication & RBAC
+- [ADR-016](adrs/adr-016-api-client-architecture.md) - API Client Architecture
 
 ## Operational Playbooks
 

@@ -250,6 +250,5 @@ class ConnectorRegistry:
 ## References
 
 - [Retail Capabilities Blueprint](../../improvements.md)
-- [ADR-003: Adapter Pattern](../architecture/adrs/adr-003-adapter-pattern.md)
-- [ADR-012: Adapter Boundaries](../architecture/adrs/adr-012-adapter-boundaries.md)
+- [ADR-003: Adapter Pattern, Boundaries, and Connector Registry](../architecture/adrs/adr-003-adapter-pattern.md)
 - [BaseAdapter Implementation](../../lib/src/holiday_peak_lib/adapters/base.py)

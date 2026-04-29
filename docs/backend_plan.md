@@ -79,10 +79,10 @@ graph TB
 
 **From ADRs**:
 - **ADR-002**: Azure-native services (Cosmos DB, Event Hubs, AKS, Redis)
-- **ADR-007**: SAGA choreography with Event Hubs for service coordination
-- **ADR-009**: AKS deployment with KEDA autoscaling
-- **ADR-019**: JWT-based authentication with RBAC (anonymous, customer, staff, admin)
-- **ADR-020**: Layered API client with TanStack Query
+- **ADR-006**: SAGA choreography with Event Hubs for service coordination
+- **ADR-008**: AKS deployment with KEDA autoscaling
+- **ADR-015**: JWT-based authentication with RBAC (anonymous, customer, staff, admin)
+- **ADR-016**: Layered API client with TanStack Query
 
 **New Principles**:
 - **Separation of Concerns**: CRUD operations separate from AI agent logic
@@ -1093,7 +1093,7 @@ GET /api/admin/audit-logs?start_date={date}&end_date={date}&actor={user_id}&acti
 
 ### API Architecture
 
-**ADR-020 Compliance**: Layered API client with REST + Agent invocation
+**ADR-016 Compliance**: Layered API client with REST + Agent invocation
 
 ```mermaid
 graph TB
@@ -1384,7 +1384,7 @@ GET    /api/admin/audit-logs?start_date={date}&end_date={date}&actor={id}
 
 ## Authentication & Authorization
 
-### JWT Token Strategy (ADR-019)
+### JWT Token Strategy (ADR-015)
 
 **Access Token**:
 - **Lifetime**: 15 minutes
@@ -1701,7 +1701,7 @@ async def invoke_agent(
 
 ## Event Choreography
 
-### Event Hub Configuration (ADR-007)
+### Event Hub Configuration (ADR-006)
 
 **Event Hub Namespace**: `holiday-peak-hub-events`
 
@@ -2219,19 +2219,19 @@ class EcommerceUser(HttpUser):
 | | Axios | 1.x | HTTP client |
 | | Zod | 3.x | Schema validation |
 | **Backend** | Python | 3.13 | Primary language (ADR-001) |
-| | FastAPI | 0.115.x | API framework (ADR-005) |
+| | FastAPI | 0.115.x | API framework (ADR-004) |
 | | Pydantic | 2.x | Data validation |
 | | Azure SDK | Latest | Azure service clients |
 | | Uvicorn | 0.32.x | ASGI server |
 | **Database** | Cosmos DB | - | NoSQL database (ADR-002) |
-| | Redis | 7.x | Hot memory tier (ADR-008) |
-| | Blob Storage | - | Cold memory tier (ADR-008) |
-| **Messaging** | Event Hubs | - | Event choreography (ADR-007) |
-| **Infrastructure** | AKS | 1.28+ | Kubernetes orchestration (ADR-009) |
-| | KEDA | 2.x | Event-driven autoscaling (ADR-009) |
-| | Helm | 3.x | Package management (ADR-009) |
+| | Redis | 7.x | Hot memory tier (ADR-007) |
+| | Blob Storage | - | Cold memory tier (ADR-007) |
+| **Messaging** | Event Hubs | - | Event choreography (ADR-006) |
+| **Infrastructure** | AKS | 1.28+ | Kubernetes orchestration (ADR-008) |
+| | KEDA | 2.x | Event-driven autoscaling (ADR-008) |
+| | Helm | 3.x | Package management (ADR-017) |
 | | Bicep | Latest | Infrastructure as Code (ADR-002) |
-| **Authentication** | JWT | - | Token-based auth (ADR-019) |
+| **Authentication** | JWT | - | Token-based auth (ADR-015) |
 | | bcrypt | - | Password hashing |
 | **Monitoring** | Azure Monitor | - | Observability |
 | | Application Insights | - | APM |

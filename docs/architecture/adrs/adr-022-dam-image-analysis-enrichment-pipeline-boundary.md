@@ -1,4 +1,4 @@
-# ADR-029: DAM Image Analysis as an Enrichment Pipeline within Truth Boundaries
+# ADR-022: DAM Image Analysis as an Enrichment Pipeline within Truth Boundaries
 
 ## Status
 Accepted
@@ -103,12 +103,11 @@ To be considered implemented against this ADR:
 ## Related ADRs
 
 - [ADR-003](adr-003-adapter-pattern.md) — Adapter Pattern for Retail Integrations
-- [ADR-007](adr-007-saga-choreography.md) — SAGA Choreography with Event Hubs
-- [ADR-010](adr-010-rest-and-mcp-exposition.md) — Dual Exposition: REST + MCP Servers
-- [ADR-011](adr-011-acp-catalog-search.md) — ACP Alignment for Ecommerce Catalog Search
-- [ADR-013](adr-013-model-routing.md) — SLM-First Model Routing Strategy
-- [ADR-024](adr-024-connector-registry-pattern.md) — Connector Registry Pattern
-- [ADR-025](adr-025-product-truth-layer.md) — Product Truth Layer Architecture
+- [ADR-006](adr-006-saga-choreography.md) — SAGA Choreography with Event Hubs
+- [ADR-004](adr-004-fastapi-mcp.md) — FastAPI with Dual REST + MCP Exposition
+- [ADR-009](adr-009-acp-catalog-search.md) — ACP Alignment for Ecommerce Catalog Search
+- [ADR-010](adr-010-model-routing.md) — SLM-First Model Routing Strategy
+- [ADR-020](adr-020-product-truth-layer.md) — Product Truth Layer Architecture
 
 ## References
 

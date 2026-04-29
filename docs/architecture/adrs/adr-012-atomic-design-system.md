@@ -1,4 +1,4 @@
-# ADR-016: Atomic Design System for Component Library
+# ADR-012: Atomic Design System for Component Library
 
 **Status**: Accepted  
 **Date**: 2026-01-30  
@@ -262,7 +262,7 @@ Each component includes:
 - [Atomic Design Methodology](https://atomicdesign.bradfrost.com/)
 - [Component Documentation](../../../apps/ui/components/ATOMIC_README.md)
 - [Migration Reports](../../implementation/ui-ux-modernization-review.md)
-- [ADR-015: Next.js App Router](adr-015-nextjs-app-router.md)
+- [ADR-011: Next.js App Router](adr-011-nextjs-app-router.md)
 
 ## Revision History
 

@@ -1,4 +1,4 @@
-# ADR-030: Search Enrichment as an Isolated Bounded Context
+# ADR-023: Search Enrichment as an Isolated Bounded Context
 
 ## Status
 Accepted
@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 
-ADR-025 established the Product Truth Layer as the governed system of record for enriched product data, including human-in-the-loop controls and PIM writeback.
+ADR-020 established the Product Truth Layer as the governed system of record for enriched product data, including human-in-the-loop controls and PIM writeback.
 
 Search enrichment workloads have different optimization goals than truth workflows:
 
@@ -81,7 +81,7 @@ flowchart LR
 
 ### Positive
 
-1. Preserves governance integrity of ADR-025 truth workflows by preventing search-specific behavior from modifying truth lifecycle concerns.
+1. Preserves governance integrity of ADR-020 truth workflows by preventing search-specific behavior from modifying truth lifecycle concerns.
 2. Improves team autonomy with explicit domain boundaries and ownership.
 3. Reduces blast radius by isolating search indexing incidents from truth publishing pipelines.
 
@@ -112,7 +112,6 @@ flowchart LR
 
 ## References
 
-- [ADR-025](adr-025-product-truth-layer.md)
-- [ADR-007](adr-007-saga-choreography.md)
-- [ADR-012](adr-012-adapter-boundaries.md)
-- [ADR-024](adr-024-connector-registry-pattern.md)
+- [ADR-020](adr-020-product-truth-layer.md)
+- [ADR-006](adr-006-saga-choreography.md)
+- [ADR-003](adr-003-adapter-pattern.md)

@@ -1,4 +1,4 @@
-# ADR-009: AKS with Helm, KEDA, and Canary Deployments
+# ADR-008: AKS with Helm, KEDA, and Canary Deployments
 
 **Status**: Accepted  
 **Date**: 2024-12  
@@ -23,7 +23,7 @@ Need container orchestration with:
 
 - **Implemented**: AKS remains the deployment target, with Helm-based rendering, azd deployment orchestration, and KEDA templates present in `.kubernetes/chart`.
 - **Implemented in part**: Ordered rollout and environment-scoped deployment workflows are active in GitHub Actions.
-- **Superseded in ingress details**: North-south ingress assumptions from this ADR are now governed by [ADR-027](adr-027-apim-agc-edge.md), which sets APIM -> AGC -> AKS as canonical.
+- **Superseded in ingress details**: North-south ingress assumptions from this ADR are now governed by [ADR-021](adr-021-apim-agc-edge.md), which sets APIM -> AGC -> AKS as canonical.
 - **Deferred/diverged**: Service-mesh-level canary traffic control is not a universal runtime baseline across all services.
 
 ### Components
@@ -73,7 +73,7 @@ Services deploy via azd with Helm predeploy hooks:
 # Deploy CRUD first (provisions transactional data layer and Event Hub connections)
 azd deploy --service crud-service -e dev
 
-# Deploy all agents in parallel (agents consume events asynchronously per ADR-036)
+# Deploy all agents in parallel (agents consume events asynchronously per ADR-024)
 azd deploy --all -e dev
 ```
 
@@ -135,7 +135,7 @@ az aks command invoke \
 The GitHub Actions workflow (`.github/workflows/deploy-azd.yml`) enforces ordered rollout:
 
 1. **provision** — `azd provision` for infrastructure
-2. **deploy-crud** — CRUD service first (provisions the transactional data layer, Event Hub connections, and K8s services that agents reference via cross-namespace DNS per ADR-034; agents do not call CRUD REST endpoints directly per ADR-036)
+2. **deploy-crud** — CRUD service first (provisions the transactional data layer, Event Hub connections, and K8s services that agents reference via cross-namespace DNS per ADR-026; agents do not call CRUD REST endpoints directly per ADR-024)
 3. **deploy-agents** — 21 agent services in parallel matrix
 
 Authentication uses OIDC federation (no stored secrets for Azure credentials).
@@ -145,7 +145,7 @@ Authentication uses OIDC federation (no stored secrets for Azure credentials).
 **Positive**:
 - Workload isolation via node pool taints
 - Event-driven autoscaling with KEDA
-- Ordered deployment (CRUD → agents) prevents dependency failures; agents are independently deployable and do not call CRUD REST endpoints directly (ADR-036)
+- Ordered deployment (CRUD → agents) prevents dependency failures; agents are independently deployable and do not call CRUD REST endpoints directly (ADR-024)
 - azd provides repeatable, environment-scoped deployments
 - Private cluster support for production security
 
@@ -158,6 +158,6 @@ Authentication uses OIDC federation (no stored secrets for Azure credentials).
 ## Related ADRs
 
 - [ADR-002: Azure Services](adr-002-azure-services.md) — AKS and ACR selection
-- [ADR-021: azd-First Deployment](adr-021-azd-first-deployment.md) — CI/CD and deployment strategy
-- [ADR-034: Namespace Isolation](adr-034-namespace-isolation-strategy.md) — CRUD and agent namespace split
-- [ADR-036: Agent Isolation Policy](adr-036-agent-isolation-policy.md) — Agents must not call CRUD directly
+- [ADR-017: azd-First Deployment](adr-017-deployment-strategy.md) — CI/CD and deployment strategy
+- [ADR-026: Namespace Isolation](adr-026-namespace-isolation-strategy.md) — CRUD and agent namespace split
+- [ADR-024: Agent Communication Policy](adr-024-agent-communication-policy.md) — Agents must not call CRUD directly

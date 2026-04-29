@@ -288,9 +288,9 @@ Check the issue's task list against PR changes:
 
 ### Step 4: Architecture Sign-off
 Coordinate with Architecture_Patterns agent:
-- Event schemas follow ADR-005 patterns
+- Event schemas follow ADR-006 patterns
 - Webhook → Event Hub → Consumer flow matches the documented architecture
-- Idempotency pattern aligns with ADR-007 (Saga/Choreography at-least-once delivery)
+- Idempotency pattern aligns with ADR-006 (Saga/Choreography at-least-once delivery)
 - No AI content generation without source data (guardrails ADR)
 
 ### Step 5: Merge
@@ -336,17 +336,17 @@ holiday-peak-hub/
 | ADR | Title | Impact on PR Review |
 |-----|-------|---------------------|
 | ADR-003 | Adapter Pattern | All integrations via adapters, never direct API calls |
-| ADR-005 | FastAPI + MCP | Dual exposition pattern |
-| ADR-007 | Saga/Choreography | Event-driven patterns, at-least-once delivery |
-| ADR-008 | Memory Tiers | Redis/Cosmos/Blob usage |
-| ADR-010 | REST + MCP Exposition | Endpoint conventions |
-| ADR-012 | Adapter Boundaries | Domain-driven, composition over inheritance |
-| ADR-013 | Model Routing | SLM-first, upgrade to LLM |
-| ADR-014 | Memory Partitioning | Partition key strategy |
-| ADR-021 | azd-first Deployment | Deployment workflow conventions |
-| ADR-022 | Branch Naming | Branch prefix + issue ID |
-| ADR-024 | Connector Registry | Connector discovery + health patterns |
-| ADR-025 | Product Truth Layer | Truth layer data flow |
+| ADR-004 | FastAPI + MCP | Dual exposition pattern |
+| ADR-006 | Saga/Choreography | Event-driven patterns, at-least-once delivery |
+| ADR-007 | Memory Tiers | Redis/Cosmos/Blob usage |
+| ADR-004 | REST + MCP Exposition | Endpoint conventions |
+| ADR-003 | Adapter Boundaries | Domain-driven, composition over inheritance |
+| ADR-010 | Model Routing | SLM-first, upgrade to LLM |
+| ADR-007 | Memory Partitioning | Partition key strategy |
+| ADR-017 | azd-first Deployment | Deployment workflow conventions |
+| ADR-018 | Branch Naming | Branch prefix + issue ID |
+| ADR-003 | Connector Registry | Connector discovery + health patterns |
+| ADR-020 | Product Truth Layer | Truth layer data flow |
 
 ### CI/CD Pipeline Dependencies
 ```
@@ -385,7 +385,7 @@ manual trigger
 
 ## Branch Naming Convention
 
-Follow ADR-022: `<prefix>/<issue-id>-<short-description>`
+Follow ADR-018: `<prefix>/<issue-id>-<short-description>`
 - `feature/` — new capabilities
 - `bug/` — defect fixes
 - `hotfix/` — urgent production fixes

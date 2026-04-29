@@ -214,7 +214,7 @@ Read the [lib README](../lib/README.md) to understand the micro-framework, then 
 
 ### For DevOps Engineers
 
-Start with the [Infrastructure README](../.infra/README.md) and [Deployment Guide](../.infra/DEPLOYMENT.md). Review [ADR-033](architecture/adrs/adr-033-helm-charts-flux-cd-gitops.md) (Flux CD) and [ADR-034](architecture/adrs/adr-034-namespace-isolation-strategy.md) (Namespace Isolation) for the GitOps model.
+Start with the [Infrastructure README](../.infra/README.md) and [Deployment Guide](../.infra/DEPLOYMENT.md). Review [ADR-017](architecture/adrs/adr-017-deployment-strategy.md) (Flux CD) and [ADR-026](architecture/adrs/adr-026-namespace-isolation-strategy.md) (Namespace Isolation) for the GitOps model.
 
 ### For AI/ML Engineers
 
@@ -266,7 +266,7 @@ The `EnrichmentGuardrail` enforces that AI-generated content is always grounded 
 
 ### 5. GitOps with Namespace Isolation
 
-Flux CD reconciles rendered Helm manifests from a manifests branch. Each domain gets its own Kubernetes namespace with RBAC boundaries and network policies (ADR-033, ADR-034).
+Flux CD reconciles rendered Helm manifests from a manifests branch. Each domain gets its own Kubernetes namespace with RBAC boundaries and network policies (ADR-017, ADR-026).
 
 ### 6. Self-Healing Runtime
 

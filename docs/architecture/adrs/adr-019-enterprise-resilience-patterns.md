@@ -1,4 +1,4 @@
-# ADR-023: Enterprise Resilience Patterns
+# ADR-019: Enterprise Resilience Patterns
 
 **Status**: Accepted  
 **Date**: 2026-03  
@@ -224,5 +224,5 @@ await telemetry.emit(ResilienceEvent(
 - [Circuit Breaker Pattern](https://docs.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker)
 - [Bulkhead Pattern](https://docs.microsoft.com/en-us/azure/architecture/patterns/bulkhead)
 - [Rate Limiting Pattern](https://docs.microsoft.com/en-us/azure/architecture/patterns/rate-limiting-pattern)
-- ADR-012: Adapter Boundaries (composition rules for resilience)
+- ADR-003: Adapter Pattern and Boundaries (composition rules for resilience)
 - ADR-013: Protocol Resilience (AG-UI/ACP retry semantics)

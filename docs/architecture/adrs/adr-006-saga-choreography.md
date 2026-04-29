@@ -1,4 +1,4 @@
-# ADR-007: SAGA Choreography with Event Hubs
+# ADR-006: SAGA Choreography with Event Hubs
 
 **Status**: Accepted  
 **Date**: 2024-12

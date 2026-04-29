@@ -1,9 +1,10 @@
-# ADR-021: azd-First Deployment with GitHub Actions CI/CD
+# ADR-017: Deployment Strategy - azd Provisioning + Flux CD GitOps
 
-**Status**: Accepted  
+**Status**: Accepted (Revised)  
 **Date**: 2026-02  
+**Updated**: 2026-04-28 — Consolidated Flux CD deployment decision into unified deployment ADR. Infrastructure provisioning via `azd provision`; application deployment via Flux CD.  
 **Deciders**: Architecture Team, Ricardo Cataldi  
-**Tags**: infrastructure, deployment, ci-cd, azd
+**Tags**: infrastructure, deployment, ci-cd, azd, helm, aks, gitops, flux, helmrelease
 
 ## Context
 
@@ -98,7 +99,7 @@ azd deploy --service crud-service -e dev
 
 CRUD must deploy before agents because it provisions the transactional data layer,
 Event Hub connections, and Kubernetes services that agents reference via cross-namespace
-DNS (ADR-034). Agents do not call CRUD REST endpoints directly (ADR-036).
+DNS (ADR-026). Agents do not call CRUD REST endpoints directly (ADR-024).
 
 #### 3. Parallel Agent Deployment
 
@@ -179,7 +180,7 @@ Required repository secrets:
 ### Positive
 
 - **Single source of truth**: `azure.yaml` defines all 22 services and their deployment config
-- **Ordered rollout**: CRUD deploys first, agents follow — prevents dependency failures; agents do not call CRUD directly (ADR-036)
+- **Ordered rollout**: CRUD deploys first, agents follow — prevents dependency failures; agents do not call CRUD directly (ADR-024)
 - **Environment scoping**: azd environments isolate dev/staging/prod config
 - **Local parity**: Same `azd deploy` command works locally and in CI
 - **Separation of concerns**: CLI stays lightweight (scaffolding only)
@@ -234,7 +235,7 @@ Use Azure DevOps instead of GitHub Actions.
 ## Related ADRs
 
 - [ADR-002: Azure Services](adr-002-azure-services.md) — Service stack selection
-- [ADR-009: AKS Deployment](adr-009-aks-deployment.md) — AKS, Helm, and KEDA details
+- [ADR-008: AKS Deployment](adr-008-aks-deployment.md) — AKS, Helm, and KEDA details
 
 ## Operational Recovery
 
@@ -275,3 +276,95 @@ Mitigations:
 - 2 AI Search → Cosmos roles remain standalone due to circular dependency (AI Search principal from AI Foundry)
 - All ARM-API role assignments specify `principalType: 'ServicePrincipal'` to prevent AAD graph race conditions
 - `guid()` seeds must remain stable across deployments — verify with `az deployment sub what-if` before changing
+
+---
+
+## Part 2: Flux CD GitOps for AKS Deployment
+
+### Context
+
+The platform deploys 27+ services to AKS using `helm template` + `kubectl apply` via azd (Part 1). This approach lacks release management, drift detection, atomic deploys, and Portal visibility. CNCF GitOps Principles and Azure WAF Operational Excellence recommend pull-based reconciliation for production Kubernetes at this scale.
+
+### Decision
+
+Adopt Flux CD via the AKS GitOps extension (`microsoft.flux`) as the deployment mechanism for all AKS services. Retain `azd provision` for infrastructure. CI pipeline builds images, updates values, and commits to Git. Flux reconciles.
+
+#### Phase 1 (Completed): Rendered YAML + Flux Kustomize
+
+- `render-helm.sh` generates per-service static YAML from Helm chart
+- CI commits rendered manifests to `.kubernetes/rendered/`
+- Flux Kustomize Controller reconciles rendered manifests to cluster
+- **Limitation**: 560-line render-helm.sh duplicates Helm values logic; rendered YAML in app repo creates dual source-of-truth; merge conflicts; no branch deployment path; no native rollback
+
+#### Phase 2 (In Progress): Flux HelmRelease — In-Cluster Rendering
+
+Migrate from CI-rendered YAML to Flux HelmRelease CRDs that render Helm charts in-cluster. This eliminates the render-commit-reconcile cycle and enables native Helm release management.
+
+##### Architecture
+
+```
+Phase 1: CI renders Helm → commits YAML to .kubernetes/rendered/ → Flux Kustomize applies
+Phase 2: CI pushes image to ACR → Flux HelmRelease renders in-cluster from chart → applies
+```
+
+##### Implementation
+
+- **HelmRelease CRDs** per service at `.kubernetes/releases/agents/`
+- **Chart source**: Shared Helm chart at `.kubernetes/chart/` via existing GitRepository (`holiday-peak-gitops`)
+- **Values inline**: Each HelmRelease contains all service configuration (env vars, resources, probes, node selectors) — no ConfigMap indirection
+- **Namespace model**: HelmReleases live in `flux-system` (required by `--no-cross-namespace-refs=true` on Helm Controller), deploy resources to `holiday-peak-agents` or `holiday-peak-crud` via `spec.targetNamespace`
+- **Release naming**: Explicit `spec.releaseName` matching the service name to preserve resource naming conventions
+- **Migration path**: Incremental — each service migrates by removing its `all.yaml` reference from the rendered kustomization and adding a HelmRelease file to `.kubernetes/releases/agents/`
+- **Integration**: The existing Kustomization (`holiday-peak-gitops-holiday-peak-agents`) already has patches to inject `sourceRef` into HelmRelease resources — Phase 2 was designed into the infrastructure from the start
+
+##### Directory Structure
+
+```
+.kubernetes/
+├── chart/                              # Shared Helm chart (unchanged)
+│   ├── Chart.yaml
+│   ├── values.yaml
+│   └── templates/
+├── releases/
+│   └── agents/
+│       ├── kustomization.yaml          # Lists all agent HelmRelease files
+│       └── ecommerce-catalog-search.yaml  # Pilot HelmRelease
+└── rendered/
+    └── agents/
+        └── kustomization.yaml          # References both rendered YAML and ../../releases/agents
+```
+
+##### Migration Sequence (per service)
+
+1. Create `<service>.yaml` HelmRelease in `.kubernetes/releases/agents/`
+2. Remove `../<service>/all.yaml` reference from `.kubernetes/rendered/agents/kustomization.yaml`
+3. Add service to `.kubernetes/releases/agents/kustomization.yaml`
+4. Commit to Git → Flux Kustomize Controller applies HelmRelease → Helm Controller renders chart
+5. Verify deployment, service, and routing
+
+##### Pilot Validation (2026-04-20)
+
+- `ecommerce-catalog-search` successfully migrated to HelmRelease
+- Helm Controller installed chart `holiday-peak-service@0.1.0`
+- All resource names preserved (Deployment, Service, ServiceAccount, HTTPRoute)
+- E2E test: 200 OK, 5 results, correct image and env vars deployed
+- Timeout env vars (`INTELLIGENT_PIPELINE_TIMEOUT_SECONDS=120`, etc.) confirmed
+
+#### Phase 2b (Future): Image Automation
+
+- Flux `ImageRepository` + `ImagePolicy` + `ImageUpdateAutomation` for ACR tag updates
+- Eliminates CI committing image tags; Flux watches ACR directly
+- Branch deployment support via HelmRelease targeting different sourceRef
+
+#### Why Flux over Argo CD
+
+- Native AKS portal integration (`az k8s-extension`)
+- Azure Policy compliance definitions for `Microsoft.KubernetesConfiguration`
+- Lower resource footprint (~200 Mi vs ~1 Gi)
+- Microsoft-supported as part of AKS
+
+### Consequences (Flux CD)
+
+**Positive**: Drift detection, self-healing, atomic deploys, release history via Git, Portal visibility, reduced CI cost, 5-15 min disaster recovery RTO. Phase 2 adds: native Helm rollback, in-cluster rendering (no render-helm.sh dependency), cleaner Git history (no rendered YAML commits), self-documenting HelmRelease values.
+
+**Negative**: Learning curve for Flux CRDs, dual-management during migration, ~200 Mi in-cluster memory, `azd deploy` decoupled from app deployment. Phase 2 adds: HelmRelease must live in `flux-system` namespace (cross-namespace ref restriction).

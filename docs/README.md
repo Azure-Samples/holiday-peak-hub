@@ -11,13 +11,13 @@
 - Catalog-search I/O parallelized and duplicate keyword search eliminated (PR #796).
 - CRUD_SERVICE_URL port corrected from 8000 to 80 for all agent deployments in AKS (PR #794).
 - Flux CD Phase B complete (PR #792): kubectl-apply removed, full GitOps reconciliation via Flux.
-- API Center governance, sync pipeline, and APIM MCP strategy added (PR #789 / ADR-035).
-- Namespace isolation (PR #788 / ADR-034): CRUD and agent services now run in separate Kubernetes namespaces.
-- AKS deployments migrated to Flux CD GitOps (PR #785 / ADR-033).
+- API Center governance, sync pipeline, and APIM MCP strategy added (PR #789 / ADR-027).
+- Namespace isolation (PR #788 / ADR-026): CRUD and agent services now run in separate Kubernetes namespaces.
+- AKS deployments migrated to Flux CD GitOps (PR #785 / ADR-017).
 - Self-healing epic complete (PR #771): incident lifecycle kernel, remediation policy, and audit trail across all agent surfaces.
 - CRUD Entra ID auth rollout contracts hardened (PR #776).
 - Validation status: **1796 tests passed** (1136 lib + 660 app), 0 failures.
-- 35 Architecture Decision Records (ADR-001 through ADR-035).
+- 35 Architecture Decision Records (ADR-001 through ADR-027).
 
 ## Overview
 
@@ -348,7 +348,7 @@ az acr update -n <acrName> --public-network-enabled false
 
 ### Architecture Documentation
 
-**Frontend Architecture**: The production-ready frontend (13 pages, 52 components) is fully documented in the [Components Documentation](architecture/components.md) and governed by 6 frontend-specific ADRs ([ADR-015](architecture/adrs/adr-015-nextjs-app-router.md) through [ADR-020](architecture/adrs/adr-020-api-client-architecture.md)).
+**Frontend Architecture**: The production-ready frontend (13 pages, 52 components) is fully documented in the [Components Documentation](architecture/components.md) and governed by 6 frontend-specific ADRs ([ADR-011](architecture/adrs/adr-011-nextjs-app-router.md) through [ADR-016](architecture/adrs/adr-016-api-client-architecture.md)).
 
 ### Core Documentation
 
@@ -469,34 +469,30 @@ az acr update -n <acrName> --public-network-enabled false
 
 ### Language & Tooling
 - ✅ [ADR-001: Python 3.13 as Primary Language](architecture/adrs/adr-001-python-3.13.md)
-- ✅ [ADR-005: FastAPI + MCP for API Exposition](architecture/adrs/adr-005-fastapi-mcp.md)
-- ✅ [ADR-015: Next.js 15 with App Router for Frontend](architecture/adrs/adr-015-nextjs-app-router.md)
+- ✅ [ADR-004: FastAPI + MCP for API Exposition](architecture/adrs/adr-004-fastapi-mcp.md)
+- ✅ [ADR-011: Next.js 15 with App Router for Frontend](architecture/adrs/adr-011-nextjs-app-router.md)
 
 ### Frontend Architecture
-- ✅ [ADR-016: Atomic Design System for Component Library](architecture/adrs/adr-016-atomic-design-system.md)
-- ✅ [ADR-017: AG-UI Protocol Integration](architecture/adrs/adr-017-ag-ui-protocol.md)
-- ✅ [ADR-018: Agentic Commerce Protocol (ACP) Frontend](architecture/adrs/adr-018-acp-frontend.md)
-- ✅ [ADR-019: Authentication and RBAC](architecture/adrs/adr-019-authentication-rbac.md)
-- ✅ [ADR-020: API Client Architecture](architecture/adrs/adr-020-api-client-architecture.md)
+- ✅ [ADR-012: Atomic Design System for Component Library](architecture/adrs/adr-012-atomic-design-system.md)
+- ✅ [ADR-013: AG-UI Protocol Integration](architecture/adrs/adr-013-ag-ui-protocol.md)
+- ✅ [ADR-014: Agentic Commerce Protocol (ACP) Frontend](architecture/adrs/adr-014-acp-frontend.md)
+- ✅ [ADR-015: Authentication and RBAC](architecture/adrs/adr-015-authentication-rbac.md)
+- ✅ [ADR-016: API Client Architecture](architecture/adrs/adr-016-api-client-architecture.md)
 
 ### Backend Architecture
 - ✅ [ADR-002: Azure Service Stack Selection](architecture/adrs/adr-002-azure-services.md)
 - ✅ [ADR-003: Adapter Pattern for Retail Integrations](architecture/adrs/adr-003-adapter-pattern.md)
-- ✅ [ADR-006: Microsoft Agent Framework + Foundry](architecture/adrs/adr-006-agent-framework.md)
-- ✅ [ADR-007: SAGA Choreography with Event Hubs](architecture/adrs/adr-007-saga-choreography.md)
+- ✅ [ADR-005: Microsoft Agent Framework + Foundry](architecture/adrs/adr-005-agent-framework.md)
+- ✅ [ADR-006: SAGA Choreography with Event Hubs](architecture/adrs/adr-006-saga-choreography.md)
 
 ### Memory & State
-- ✅ [ADR-004: Builder Pattern for Agent Memory](architecture/adrs/adr-004-builder-pattern-memory.md)
-- ✅ [ADR-008: Three-Tier Memory Architecture](architecture/adrs/adr-008-memory-tiers.md)
-- ✅ [ADR-014: Memory Partitioning and Data Placement](architecture/adrs/adr-014-memory-partitioning.md)
+- ✅ [ADR-007: Memory Architecture and Isolation Strategy](architecture/adrs/adr-007-memory-tiers.md)
 
 ### Infrastructure
-- ✅ [ADR-009: AKS with Helm, KEDA, and Canary Deployments](architecture/adrs/adr-009-aks-deployment.md)
-- ✅ [ADR-010: Dual Exposition: REST + MCP Servers](architecture/adrs/adr-010-rest-and-mcp-exposition.md)
+- ✅ [ADR-008: AKS with Helm, KEDA, and Canary Deployments](architecture/adrs/adr-008-aks-deployment.md)
 
 ### Agent & AI
-- ✅ [ADR-012: Adapter Boundaries and Composition](architecture/adrs/adr-012-adapter-boundaries.md)
-- ✅ [ADR-013: SLM-First Model Routing Strategy](architecture/adrs/adr-013-model-routing.md)
+- ✅ [ADR-010: SLM-First Model Routing Strategy](architecture/adrs/adr-010-model-routing.md)
 
 **[View all 20 ADRs](architecture/ADRs.md)**
 

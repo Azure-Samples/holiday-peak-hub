@@ -1,4 +1,4 @@
-# ADR-018: Agentic Commerce Protocol (ACP) Frontend Integration
+# ADR-014: Agentic Commerce Protocol (ACP) Frontend Integration
 
 **Status**: Accepted  
 **Date**: 2026-01-30  
@@ -540,8 +540,8 @@ describe('ACPTransformer', () => {
 
 - [Agentic Commerce Protocol Specification](https://github.com/agentic-commerce-protocol/agentic-commerce-protocol)
 - [ACP Schema Documentation](https://github.com/agentic-commerce-protocol/agentic-commerce-protocol/tree/main/schemas)
-- [ADR-011: ACP Catalog Search](adr-011-acp-catalog-search.md)
-- [ADR-017: AG-UI Protocol](adr-017-ag-ui-protocol.md)
+- [ADR-009: ACP Catalog Search](adr-009-acp-catalog-search.md)
+- [ADR-013: AG-UI Protocol](adr-013-ag-ui-protocol.md)
 
 ## Revision History
 

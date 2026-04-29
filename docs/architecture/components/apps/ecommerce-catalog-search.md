@@ -466,4 +466,4 @@ Set up Azure Monitor alerts for:
 ## Related ADRs
 
 - [ADR-002: Azure Services](../../adrs/adr-002-azure-services.md) — AI Search rationale
-- [ADR-006: Agent Framework](../../adrs/adr-006-agent-framework.md) — Agent orchestration
+- [ADR-005: Agent Framework](../../adrs/adr-005-agent-framework.md) — Agent orchestration

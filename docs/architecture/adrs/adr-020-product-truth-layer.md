@@ -1,4 +1,4 @@
-# ADR-025: Product Truth Layer Architecture
+# ADR-020: Product Truth Layer Architecture
 
 **Status**: Accepted  
 **Date**: 2026-03  
@@ -378,6 +378,6 @@ TRUTH_CONTAINER_CONFIG = {
 
 - [Human-in-the-Loop ML](https://docs.microsoft.com/en-us/azure/machine-learning/concept-human-in-the-loop)
 - [Event Sourcing Pattern](https://docs.microsoft.com/en-us/azure/architecture/patterns/event-sourcing)
-- ADR-008: Memory Tiers (Cosmos DB for warm storage)
-- ADR-017: AG-UI Protocol (staff UI integration)
-- ADR-024: Connector Registry (PIM connector resolution)
+- ADR-007: Memory Architecture (Cosmos DB for warm storage)
+- ADR-013: AG-UI Protocol (staff UI integration)
+- ADR-003: Adapter Pattern and Connector Registry (PIM connector resolution)

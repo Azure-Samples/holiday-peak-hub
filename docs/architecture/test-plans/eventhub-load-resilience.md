@@ -799,7 +799,7 @@ event.partition_key = f"{warehouse_id}:{timestamp % 10}"  # More distribution
 ---
 
 ## Related Documentation
-- [ADR-007: SAGA Choreography with Event Hubs](../adrs/adr-007-saga-choreography.md)
+- [ADR-006: SAGA Choreography with Event Hubs](../adrs/adr-006-saga-choreography.md)
 - [Sequence: Returns Support](../diagrams/sequence-returns-support.md)
 - [Sequence: Inventory Health](../diagrams/sequence-inventory-health.md)
 - [Azure Event Hubs Best Practices](https://learn.microsoft.com/azure/event-hubs/event-hubs-resource-manager-namespace-event-hub)

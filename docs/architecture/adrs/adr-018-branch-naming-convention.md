@@ -1,4 +1,4 @@
-# ADR-022: Git Branch Naming Convention
+# ADR-018: Git Branch Naming Convention
 
 **Status**: Accepted  
 **Date**: 2026-03  
@@ -138,4 +138,4 @@ reviewed code reaches deployment.
 
 - [Git/GitHub branching standards & conventions (digitaljhelms)](https://gist.github.com/digitaljhelms/4287848)
 - [A successful Git branching model (nvie)](https://nvie.com/posts/a-successful-git-branching-model/)
-- [ADR-021: azd-First Deployment](adr-021-azd-first-deployment.md)
+- [ADR-017: azd-First Deployment](adr-017-deployment-strategy.md)

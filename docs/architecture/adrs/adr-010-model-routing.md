@@ -1,4 +1,4 @@
-# ADR-013: SLM-First Model Routing Strategy
+# ADR-010: SLM-First Model Routing Strategy
 
 **Status**: Accepted  
 **Date**: 2026-01  
@@ -259,8 +259,8 @@ metrics.record("model_routing", {
 | Cost per 1K requests | < $0.50 | TBD |
 
 ## Related ADRs
-- [ADR-006: Microsoft Agent Framework + Foundry](adr-006-agent-framework.md)
-- [ADR-012: Adapter Boundaries and Composition](adr-012-adapter-boundaries.md)
+- [ADR-005: Microsoft Agent Framework + Foundry](adr-005-agent-framework.md)
+- [ADR-003: Adapter Pattern and Boundaries](adr-003-adapter-pattern.md)
 
 ## References
 - [Azure AI Foundry Model Catalog](https://learn.microsoft.com/azure/ai-services/openai/concepts/models)

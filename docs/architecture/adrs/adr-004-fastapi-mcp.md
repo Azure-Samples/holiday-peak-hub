@@ -1,8 +1,9 @@
-# ADR-005: FastAPI + MCP for API Exposition
+# ADR-004: FastAPI with Dual REST + MCP Exposition
 
-**Status**: Accepted  
+**Status**: Accepted (Revised 2026-04-28 — consolidated dual REST + MCP exposition decision)  
 **Date**: 2024-12  
-**Deciders**: Architecture Team, Ricardo Cataldi
+**Deciders**: Architecture Team, Ricardo Cataldi  
+**Supersedes**: prior separate decision on Dual Exposition (REST + MCP Servers), now absorbed into this ADR
 
 ## Context
 
@@ -10,21 +11,41 @@ Apps must expose two types of APIs:
 1. **REST endpoints**: For traditional clients (web/mobile apps, other services)
 2. **MCP servers**: For agent-to-agent tool calling and Foundry integration
 
+Apps must also support two client types:
+1. **Traditional Clients**: Web/mobile apps, external services (require REST)
+2. **Agent Clients**: Foundry agents, internal agent-to-agent calls (benefit from MCP)
+
 Requirements:
 - High throughput (10k+ req/s per service)
 - Async I/O for parallel adapter calls
 - OpenAPI docs auto-generation
 - Native Python SDK support
+- Both REST and MCP from every agent app
 
 ## Decision
 
-**Use FastAPI for REST and fastapi-mcp for MCP server exposition.**
+**Use FastAPI for REST and fastapi-mcp for MCP server exposition. Expose both REST endpoints and MCP tool servers from every agent app.**
 
 ## Implementation Status (2026-03-18)
 
 - **Implemented**: FastAPI is the service framework in active apps, and agent services register MCP tools via `FastAPIMCPServer` in `holiday_peak_lib`.
 - **Partially diverged**: The original wording implies uniform dual exposition; in practice, MCP is concentrated in agent services while some services (for example, CRUD) remain REST-only.
-- **No supersession**: This ADR remains active for service exposition mechanics; ingress and edge policy changes are tracked separately in [ADR-027](adr-027-apim-agc-edge.md).
+- **No supersession**: This ADR remains active for service exposition mechanics; ingress and edge policy changes are tracked separately in [ADR-021](adr-021-apim-agc-edge.md).
+
+### Dual Exposition Rationale
+- **REST for Humans**: Human-readable JSON, browser DevTools, Postman testing
+- **MCP for Agents**: Automatic tool discovery, streaming support, Foundry native
+- **No Duplication**: FastAPI-MCP wraps same business logic for both
+
+### When to Use Which Protocol
+
+| Client Type | Protocol | Use Case |
+|-------------|----------|----------|
+| Web UI | REST | Product detail page |
+| Mobile App | REST | Cart updates |
+| Agent (Foundry) | MCP | Multi-step reasoning |
+| Agent-to-Agent | MCP | Inter-service tool calls |
+| External Partner | REST | API integration |
 
 ### Structure
 ```python
@@ -46,6 +67,25 @@ async def check_inventory(sku: str) -> dict:
     return await inventory_adapter.fetch(sku)
 ```
 
+### Dual Exposition Pattern (Single Logic, Two Surfaces)
+
+```python
+# Core logic
+async def check_inventory(sku: str) -> InventoryStatus:
+    return await inventory_adapter.fetch(sku)
+
+# REST endpoint
+@app.get("/inventory/{sku}")
+async def rest_check_inventory(sku: str):
+    return await check_inventory(sku)
+
+# MCP tool
+@mcp.tool()
+async def mcp_check_inventory(sku: str) -> dict:
+    result = await check_inventory(sku)
+    return result.model_dump()
+```
+
 ## Consequences
 
 ### Positive
@@ -54,11 +94,17 @@ async def check_inventory(sku: str) -> dict:
 - **Type Safety**: Pydantic models enforce request/response contracts
 - **Auto Docs**: OpenAPI/Swagger generated automatically
 - **MCP Support**: fastapi-mcp provides zero-overhead MCP wrapping
+- **Flexibility**: Support both traditional and agentic workflows
+- **Future-proof**: MCP adoption without breaking REST clients
+- **Testing**: REST clients easier to test manually
 
 ### Negative
 - **Framework Lock-in**: Replacing FastAPI requires rewriting routes
 - **Learning Curve**: Teams unfamiliar with async/await need training
 - **Middleware Complexity**: Custom middleware for auth/logging requires care
+- **Dual maintenance**: Keep REST and MCP schemas in sync
+- **Confusion**: Teams must choose right protocol
+- **Docs**: Maintain OpenAPI + MCP schema
 
 ## Alternatives Considered
 
@@ -141,4 +187,10 @@ apps/<service>/src/
 ## Related ADRs
 
 - [ADR-001: Python 3.13](adr-001-python-3.13.md) — Async language support
-- [ADR-010: REST + MCP Exposition](adr-010-rest-and-mcp-exposition.md) — Dual API strategy
+- [ADR-005: Agent Framework](adr-005-agent-framework.md) — Agent consumption of dual APIs
+
+## Migration Notes
+
+This ADR consolidates the former Dual Exposition (REST + MCP Servers) decision.
+- Sections "Dual Exposition Rationale", "When to Use Which Protocol", and "Dual Exposition Pattern" were absorbed from that decision.
+- The prior dual-exposition ADR is now superseded and redirects here.

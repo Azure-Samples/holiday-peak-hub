@@ -1,4 +1,4 @@
-# ADR-017: AG-UI Protocol Integration
+# ADR-013: AG-UI Protocol Integration
 
 **Status**: Accepted  
 **Date**: 2026-01-30  
@@ -398,8 +398,8 @@ logger.info('agent.action', {
 
 - [AG-UI Protocol Documentation](https://docs.ag-ui.com/)
 - [AG-UI Generative UI Specs](https://docs.ag-ui.com/concepts/generative-ui-specs)
-- [ADR-018: ACP Frontend Integration](adr-018-acp-frontend.md)
-- [ADR-015: Next.js App Router](adr-015-nextjs-app-router.md)
+- [ADR-014: ACP Frontend Integration](adr-014-acp-frontend.md)
+- [ADR-011: Next.js App Router](adr-011-nextjs-app-router.md)
 
 ## Revision History
 

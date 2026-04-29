@@ -14,10 +14,10 @@ Every PR closure MUST involve the Architecture_Patterns agent. This is non-negot
 1. **Before approving any PR**, invoke or defer to the `Architecture_Patterns` agent to validate:
    - Adherence to ADRs (Architecture Decision Records) in `docs/architecture/adrs/`
    - Correct use of `BaseAdapter`, `BaseRetailAgent`, `AgentBuilder` patterns
-   - Event-driven patterns follow ADR-005 and ADR-007 (Saga/Choreography)
-   - Connector patterns follow ADR-024 (Connector Registry)
-   - Memory tier usage follows ADR-008 and ADR-014
-   - MCP tool exposition follows ADR-010
+   - Event-driven patterns follow ADR-006 (Saga/Choreography)
+   - Connector patterns follow ADR-003 (Connector Registry)
+   - Memory tier usage follows ADR-007
+   - MCP tool exposition follows ADR-004
    - Data enrichment guardrails are enforced (no AI-generated content without source data)
 
 2. **Architecture_Patterns agent must confirm**:
@@ -149,4 +149,4 @@ If `apps/crud-service/` changes:
 Default: **Squash and merge** (preferred for feature branches).
 
 ### Branch Naming Convention
-Follows ADR-022 pattern. Branches are ephemeral — delete after merge.
+Follows ADR-018 pattern. Branches are ephemeral — delete after merge.

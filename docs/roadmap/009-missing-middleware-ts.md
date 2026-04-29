@@ -37,5 +37,5 @@ No additional code changes are required for issue #33 closure-readiness; documen
 
 ## References
 
-- [ADR-019](../architecture/adrs/adr-019-authentication-rbac.md) — Authentication & RBAC
+- [ADR-015](../architecture/adrs/adr-015-authentication-rbac.md) — Authentication & RBAC
 - [Next.js Middleware docs](https://nextjs.org/docs/app/building-your-application/routing/middleware)

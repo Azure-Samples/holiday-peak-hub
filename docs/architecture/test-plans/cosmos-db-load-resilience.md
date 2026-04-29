@@ -690,7 +690,6 @@ items = container.query_items(
 ---
 
 ## Related Documentation
-- [ADR-014: Memory Partitioning](../adrs/adr-014-memory-partitioning.md)
-- [ADR-008: Three-Tier Memory Architecture](../adrs/adr-008-memory-tiers.md)
+- [ADR-007: Memory Architecture and Isolation Strategy](../adrs/adr-007-memory-tiers.md)
 - [Playbook: Cosmos High RU](../playbooks/playbook-cosmos-high-ru.md)
 - [Azure Cosmos DB Best Practices](https://learn.microsoft.com/azure/cosmos-db/nosql/best-practice-dotnet)
