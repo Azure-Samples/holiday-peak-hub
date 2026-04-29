@@ -28,7 +28,27 @@ export interface AcpProduct {
   availability?: string;
 }
 
-const PLACEHOLDER_IMAGE = '/images/products/p1.jpg';
+const PLACEHOLDER_IMAGES = [
+  '/images/products/p1.jpg',
+  '/images/products/p2.jpg',
+  '/images/products/p3.jpg',
+  '/images/products/p4.jpg',
+  '/images/products/p5.jpg',
+];
+
+function getPlaceholderImage(productId?: string): string {
+  if (!productId) {
+    return PLACEHOLDER_IMAGES[0];
+  }
+
+  let hash = 0;
+  for (let index = 0; index < productId.length; index += 1) {
+    hash = ((hash << 5) - hash + productId.charCodeAt(index)) | 0;
+  }
+
+  return PLACEHOLDER_IMAGES[Math.abs(hash) % PLACEHOLDER_IMAGES.length];
+}
+
 const INVALID_IMAGE_HOSTS = new Set([
   'example.com',
   'www.example.com',
@@ -36,14 +56,18 @@ const INVALID_IMAGE_HOSTS = new Set([
   'placeholder.com',
 ]);
 
-export const sanitizeProductImageUrl = (rawUrl?: string): string => {
+const INVALID_IMAGE_HOST_SUFFIXES = ['unsplash.com'];
+
+export const sanitizeProductImageUrl = (rawUrl?: string, productId?: string): string => {
+  const placeholder = getPlaceholderImage(productId);
+
   if (!rawUrl) {
-    return PLACEHOLDER_IMAGE;
+    return placeholder;
   }
 
   const candidate = rawUrl.trim();
   if (!candidate) {
-    return PLACEHOLDER_IMAGE;
+    return placeholder;
   }
 
   if (candidate.startsWith('/')) {
@@ -53,16 +77,20 @@ export const sanitizeProductImageUrl = (rawUrl?: string): string => {
   if (candidate.startsWith('http://') || candidate.startsWith('https://')) {
     try {
       const parsed = new URL(candidate);
-      if (INVALID_IMAGE_HOSTS.has(parsed.hostname.toLowerCase())) {
-        return PLACEHOLDER_IMAGE;
+      const hostname = parsed.hostname.toLowerCase();
+      const hasBlockedSuffix = INVALID_IMAGE_HOST_SUFFIXES.some(
+        (suffix) => hostname === suffix || hostname.endsWith(`.${suffix}`),
+      );
+      if (INVALID_IMAGE_HOSTS.has(hostname) || hasBlockedSuffix) {
+        return placeholder;
       }
       return candidate;
     } catch {
-      return PLACEHOLDER_IMAGE;
+      return placeholder;
     }
   }
 
-  return PLACEHOLDER_IMAGE;
+  return placeholder;
 };
 
 export const parsePriceString = (
@@ -83,11 +111,12 @@ export const parsePriceString = (
 
 export const mapApiProductToUiProduct = (product: ApiProduct): UiProduct => {
   const mediaImage = product.media?.find((media) => Boolean(media.url))?.url;
-  const thumbnail = sanitizeProductImageUrl(product.image_url || mediaImage);
+  const thumbnail = sanitizeProductImageUrl(product.image_url || mediaImage, product.id);
+  const placeholder = getPlaceholderImage(product.id);
   const mappedImages =
     product.media
-      ?.map((media) => sanitizeProductImageUrl(String(media.url)))
-      .filter((url) => url !== PLACEHOLDER_IMAGE) || [];
+      ?.map((media) => sanitizeProductImageUrl(String(media.url), product.id))
+      .filter((url) => url !== placeholder) || [];
   return {
     sku: product.id,
     title: product.name,
@@ -111,7 +140,7 @@ export const mapApiProductToUiProduct = (product: ApiProduct): UiProduct => {
 
 export const mapAcpProductToUiProduct = (product: AcpProduct): UiProduct => {
   const { amount, currency } = parsePriceString(product.price);
-  const thumbnail = sanitizeProductImageUrl(product.image_url || product.image);
+  const thumbnail = sanitizeProductImageUrl(product.image_url || product.image, product.item_id);
   const availability = (product.availability || '').toLowerCase();
   return {
     sku: product.item_id,

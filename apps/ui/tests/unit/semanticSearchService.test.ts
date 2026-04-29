@@ -85,8 +85,8 @@ describe('semanticSearchService.searchWithMode', () => {
     expect(result.fallback_reason).toBeUndefined();
     expect(result.items[0]).toMatchObject({
       sku: 'SKU-1',
-      thumbnail: '/images/products/p1.jpg',
     });
+    expect(result.items[0].thumbnail).toMatch(/^\/images\/products\/p\d+\.jpg$/);
     expect(productService.search).not.toHaveBeenCalled();
   });
 

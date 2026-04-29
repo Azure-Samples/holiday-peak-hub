@@ -174,7 +174,7 @@ export function resolveAgentApiBaseUrl(env?: EnvMap): ResolutionResult {
 }
 
 function inferRuntimeKind(env: EnvMap = process.env): RuntimeKind {
-  if (env.NODE_ENV === 'test') {
+  if (env.NODE_ENV === 'test' || typeof env.JEST_WORKER_ID === 'string') {
     return 'test';
   }
 

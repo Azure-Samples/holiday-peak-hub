@@ -18,6 +18,14 @@ import type { Product as UiProduct } from '../../components/types';
 const AGENT_API_BASE_URL = resolveAgentApiClientBaseUrl().baseUrl || '';
 const MOCK_TITLE_PATTERN = /\bmock\b/i;
 
+function recordSearchTelemetry(payload: unknown): void {
+  try {
+    recordAgentInvocationTelemetry('ecommerce-catalog-search', payload);
+  } catch {
+    // Telemetry is best-effort and must not break shopper-visible search results.
+  }
+}
+
 export type SearchResultType = 'deterministic' | 'model_answer' | 'degraded_fallback';
 export type SearchDegradedReason = 'model_timeout' | 'model_error';
 
@@ -146,7 +154,7 @@ export const semanticSearchService = {
       };
     }
 
-    if (AGENT_API_BASE_URL) {
+    if (requestedMode === 'intelligent' || AGENT_API_BASE_URL) {
       try {
         const response = await agentApiClient.post('/ecommerce-catalog-search/invoke', request);
         const payload = response.data || {};
@@ -160,6 +168,7 @@ export const semanticSearchService = {
 
         const mode = payload.mode === 'intelligent' ? 'intelligent' : 'keyword';
         const fallbackKeywords = parseStringArray(payload.fallback_keywords);
+        recordSearchTelemetry(payload);
         return {
           items: mapAcpProductsToUi(results),
           source: 'agent',
@@ -256,6 +265,7 @@ export const semanticSearchService = {
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
+        let receivedDoneEvent = false;
 
         // eslint-disable-next-line no-constant-condition
         while (true) {
@@ -273,6 +283,9 @@ export const semanticSearchService = {
             } else if (line.startsWith('data: ') && currentEvent) {
               try {
                 const data = JSON.parse(line.slice(6));
+                if (currentEvent === 'done') {
+                  receivedDoneEvent = true;
+                }
                 _dispatchStreamEvent(currentEvent, data, request, callbacks);
               } catch {
                 // Malformed JSON line — skip
@@ -282,7 +295,9 @@ export const semanticSearchService = {
           }
         }
 
-        callbacks.onDone?.({});
+        if (!receivedDoneEvent) {
+          callbacks.onDone?.({});
+        }
       })
       .catch((error) => {
         if (error?.name === 'AbortError') return;
@@ -319,6 +334,7 @@ function _dispatchStreamEvent(
 ): void {
   switch (eventType) {
     case 'results': {
+      recordSearchTelemetry(data);
       const results = (data.results || data.items || []) as AcpProduct[];
       const mode = data.mode === 'intelligent' ? 'intelligent' as const : 'keyword' as const;
       callbacks.onResults?.({
@@ -335,7 +351,8 @@ function _dispatchStreamEvent(
       callbacks.onToken?.(String(data.text || ''));
       break;
     case 'done':
-      // done is handled by the reader loop completion
+      recordSearchTelemetry(data);
+      callbacks.onDone?.(data);
       break;
     case 'error':
       callbacks.onError?.(new Error(String(data.message || data.error || 'Stream error')));
