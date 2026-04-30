@@ -38,9 +38,9 @@ describe('Navigation', () => {
   beforeEach(() => {
     usePathnameMock.mockReturnValue('/');
     useAuthMock.mockReturnValue({
-      isAuthenticated: false,
+      isAuthenticated: true,
       loginAsMockRole: jest.fn(),
-      user: null,
+      user: { roles: ['staff'] },
     });
     useAgentGlobalHealthMock.mockReturnValue({
       data: 'healthy',
@@ -64,7 +64,7 @@ describe('Navigation', () => {
       expect(within(mobileMenu).getByRole('link', { name: link.label })).toBeInTheDocument();
     }
 
-    expect(within(mobileMenu).getByRole('link', { name: 'Pipeline status' })).toBeInTheDocument();
+    expect(within(mobileMenu).getByRole('link', { name: 'Pipeline healthy' })).toBeInTheDocument();
     expect(within(mobileMenu).getByRole('link', { name: 'Open Agent Popup' })).toBeInTheDocument();
   });
 

@@ -10,6 +10,7 @@ const mockUseReservationOutcomeQueries = jest.fn();
 
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ push }),
+  usePathname: () => '/checkout',
 }));
 
 jest.mock('../../lib/hooks/useCart', () => ({
