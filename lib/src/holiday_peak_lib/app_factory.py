@@ -251,6 +251,14 @@ def build_service_app(
 
     tracer = get_foundry_tracer(service_name)
 
+    # Suppress azure-ai-projects SDK internal telemetry instrumentor when
+    # no real OpenTelemetry exporter is configured. The SDK crashes with
+    # AttributeError on NonRecordingSpan.attributes (GH-946).
+    if not os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING") and not os.getenv(
+        "AZURE_TRACING_ENABLED"
+    ):
+        os.environ.setdefault("AZURE_TRACING_ENABLED", "false")
+
     configured_foundry_roles = tuple(
         role for role, config in (("fast", slm_config), ("rich", llm_config)) if config is not None
     )

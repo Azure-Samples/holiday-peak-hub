@@ -953,3 +953,78 @@ class TestAppFactoryIntegration:
         client = TestClient(app)
         response = client.post("/invoke", json={"test": "data"})
         assert response.json()["custom"] is True
+
+
+class TestAzureTracingGuard:
+    """Tests for the AZURE_TRACING_ENABLED env-var guard (GH-946)."""
+
+    def test_guard_sets_env_when_no_appinsights_and_no_tracing_var(
+        self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
+    ):
+        """When neither APPLICATIONINSIGHTS_CONNECTION_STRING nor AZURE_TRACING_ENABLED is set,
+        build_service_app should set AZURE_TRACING_ENABLED=false to prevent SDK crash."""
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
+        monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-fast-123")
+        monkeypatch.setenv("MODEL_DEPLOYMENT_NAME_FAST", "gpt-4o-mini")
+        monkeypatch.delenv("APPLICATIONINSIGHTS_CONNECTION_STRING", raising=False)
+        monkeypatch.delenv("AZURE_TRACING_ENABLED", raising=False)
+
+        import os
+
+        build_service_app(
+            service_name="guard-test",
+            agent_class=SampleServiceAgent,
+            hot_memory=mock_hot_memory,
+            warm_memory=mock_warm_memory,
+            cold_memory=mock_cold_memory,
+        )
+
+        assert os.environ.get("AZURE_TRACING_ENABLED") == "false"
+
+    def test_guard_does_not_override_explicit_tracing_enabled(
+        self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
+    ):
+        """When AZURE_TRACING_ENABLED is already set, the guard must not override it."""
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
+        monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-fast-123")
+        monkeypatch.setenv("MODEL_DEPLOYMENT_NAME_FAST", "gpt-4o-mini")
+        monkeypatch.delenv("APPLICATIONINSIGHTS_CONNECTION_STRING", raising=False)
+        monkeypatch.setenv("AZURE_TRACING_ENABLED", "true")
+
+        import os
+
+        build_service_app(
+            service_name="guard-test-no-override",
+            agent_class=SampleServiceAgent,
+            hot_memory=mock_hot_memory,
+            warm_memory=mock_warm_memory,
+            cold_memory=mock_cold_memory,
+        )
+
+        assert os.environ.get("AZURE_TRACING_ENABLED") == "true"
+
+    def test_guard_does_not_activate_when_appinsights_configured(
+        self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
+    ):
+        """When APPLICATIONINSIGHTS_CONNECTION_STRING is set, the guard should not fire."""
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
+        monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-fast-123")
+        monkeypatch.setenv("MODEL_DEPLOYMENT_NAME_FAST", "gpt-4o-mini")
+        monkeypatch.setenv(
+            "APPLICATIONINSIGHTS_CONNECTION_STRING",
+            "InstrumentationKey=00000000-0000-0000-0000-000000000000",
+        )
+        monkeypatch.delenv("AZURE_TRACING_ENABLED", raising=False)
+
+        import os
+
+        build_service_app(
+            service_name="guard-test-appinsights",
+            agent_class=SampleServiceAgent,
+            hot_memory=mock_hot_memory,
+            warm_memory=mock_warm_memory,
+            cold_memory=mock_cold_memory,
+        )
+
+        # Guard should NOT set the variable when AppInsights is present
+        assert os.environ.get("AZURE_TRACING_ENABLED") is None
