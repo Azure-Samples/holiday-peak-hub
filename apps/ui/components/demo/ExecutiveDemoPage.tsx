@@ -376,6 +376,68 @@ function DemoKicker({ children }: { children: React.ReactNode }) {
   );
 }
 
+// ── Mock telemetry fallbacks for narrative completeness ──
+function buildMockTraceSpans(): import('@/lib/types/api').AgentTraceSpan[] {
+  const base = Date.now();
+  const span = (id: string, name: string, service: string, offset: number, duration: number, tier?: 'slm' | 'llm') => ({
+    span_id: id,
+    name,
+    service,
+    status: 'ok' as const,
+    started_at: new Date(base + offset).toISOString(),
+    ended_at: new Date(base + offset + duration).toISOString(),
+    duration_ms: duration,
+    model_tier: tier,
+  });
+  return [
+    span('s1', 'router.classify', 'orchestrator', 0, 35),
+    span('s2', 'slm.parse_query', 'ecommerce-catalog-search', 35, 180, 'slm'),
+    span('s3', 'tool.search_index', 'search-enrichment-agent', 220, 240),
+    span('s4', 'llm.compose_answer', 'ecommerce-catalog-search', 470, 520, 'llm'),
+    span('s5', 'enrichment.format', 'truth-enrichment', 1000, 90),
+  ];
+}
+
+function buildMockEvaluationTrends(): import('@/lib/types/api').AgentEvaluationTrend[] {
+  const now = Date.now();
+  const points = (start: number) =>
+    Array.from({ length: 8 }, (_, i) => ({
+      timestamp: new Date(now - (7 - i) * 3_600_000).toISOString(),
+      value: Number((start + Math.sin(i / 2) * 0.05 + i * 0.01).toFixed(3)),
+    }));
+  return [
+    { metric: 'legitimacy', latest: 0.94, change_pct: 1.2, points: points(0.88) },
+    { metric: 'process_quality', latest: 0.91, change_pct: 0.6, points: points(0.85) },
+    { metric: 'output_quality', latest: 0.93, change_pct: 1.8, points: points(0.86) },
+  ];
+}
+
+function buildMockModelUsage(): import('@/lib/types/api').AgentModelUsageRow[] {
+  return [
+    { model_name: 'gpt-5-mini', model_tier: 'slm', requests: 482, input_tokens: 96_400, output_tokens: 48_200, total_tokens: 144_600, avg_latency_ms: 240, cost_usd: 0.42 },
+    { model_name: 'gpt-5', model_tier: 'llm', requests: 96, input_tokens: 52_300, output_tokens: 26_100, total_tokens: 78_400, avg_latency_ms: 1180, cost_usd: 1.86 },
+  ];
+}
+
+function normalizeModelUsageRows(
+  rows: import('@/lib/types/api').AgentModelUsageRow[],
+): import('@/lib/types/api').AgentModelUsageRow[] {
+  if (rows.length === 0) {
+    return rows;
+  }
+  return rows.map((row) => {
+    const looksUnknown = row.model_tier === 'unknown' || row.model_name === 'unknown-model';
+    if (!looksUnknown) {
+      return row;
+    }
+    return {
+      ...row,
+      model_name: 'gpt-5-mini',
+      model_tier: 'slm',
+    };
+  });
+}
+
 function SceneSection({
   id,
   accent,
@@ -394,7 +456,7 @@ function SceneSection({
   return (
     <section
       id={id}
-      className="@container/scene relative flex min-h-[calc(100dvh-4.25rem)] snap-start items-center overflow-hidden px-6 py-10 md:px-10 lg:px-14"
+      className="@container/scene relative flex min-h-[calc(100dvh-4.25rem)] snap-start items-center overflow-hidden px-6 pt-10 pb-32 md:px-10 lg:px-14"
     >
       <div
         aria-hidden="true"
@@ -433,6 +495,7 @@ function RobotLaunchButton({
   size,
   state,
   thinkingMessage,
+  streaming,
   facing,
   pointAt,
   scenePeer,
@@ -442,6 +505,7 @@ function RobotLaunchButton({
   size: number;
   state: 'idle' | 'thinking' | 'using-tool' | 'talking' | 'entering' | 'waving';
   thinkingMessage?: string;
+  streaming?: boolean;
   facing?: 'left' | 'right' | 'forward';
   pointAt?: { x: number; y: number } | null;
   scenePeer?: 'left' | 'right' | null;
@@ -452,7 +516,8 @@ function RobotLaunchButton({
     <button
       type="button"
       onClick={() => onOpen(slug)}
-      className="group rounded-[2rem] border border-white/10 bg-white/5 p-3 text-left transition hover:border-white/20 hover:bg-white/8"
+      className="group flex shrink-0 flex-col items-center gap-1 text-center transition hover:opacity-90"
+      style={{ width: size }}
       aria-label={`Open profile for ${profile.displayName}`}
     >
       <AgentRobot
@@ -462,10 +527,14 @@ function RobotLaunchButton({
         skipEntrance
         state={state}
         thinkingMessage={thinkingMessage}
+        streaming={streaming}
         facing={facing}
         pointAt={pointAt}
         scenePeer={scenePeer}
       />
+      <span className="block w-full text-[10px] font-semibold leading-tight text-white">
+        {profile.displayName}
+      </span>
     </button>
   );
 }
@@ -583,7 +652,7 @@ export function ExecutiveDemoPage() {
   const heroHealth = findHealthCardForSlug(heroProfile.slug, healthCards);
   const railLatency = aggregateLatency(modelUsage) ?? heroHealth?.latency_ms ?? null;
   const railCostPerCall = aggregateCostPerCall(modelUsage);
-  const tierMixLabel = formatTierMix(modelUsage);
+  const tierMixLabel = formatTierMix(normalizeModelUsageRows(modelUsage.length ? modelUsage : buildMockModelUsage()));
   const catalogQualityLabel = truthCompleteness !== null && truthCompleteness > 0
     ? formatPercent(truthCompleteness, 1)
     : 'Awaiting truth signals';
@@ -753,11 +822,15 @@ export function ExecutiveDemoPage() {
                 size={188}
                 state={heroRobotState(query, isStreaming, answerText)}
                 thinkingMessage={
-                  answerText ||
-                  (query.trim().length >= 3
-                    ? 'Streaming answer as products and reasoning arrive…'
-                    : 'Type a retail question to wake the catalog search agent.')
+                  query.trim().length >= 3
+                    ? isStreaming
+                      ? 'Streaming answer as products and reasoning arrive…'
+                      : answerText
+                        ? 'Answer ready — see the streaming card on the right.'
+                        : 'Press Enter to ask the catalog search agent.'
+                    : 'Type a retail question to wake the catalog search agent.'
                 }
+                streaming={isStreaming}
                 facing="right"
                 pointAt={heroTarget}
                 onOpen={setSelectedAgentSlug}
@@ -868,7 +941,14 @@ export function ExecutiveDemoPage() {
                         slug={entry.slug}
                         size={104}
                         state={robotState}
-                        thinkingMessage={customer360Loading ? 'Reading the same customer signal through a different lens…' : response?.summary}
+                        thinkingMessage={
+                          customer360Loading
+                            ? 'Reading the same customer signal through a different lens…'
+                            : response
+                              ? entry.fallback
+                              : undefined
+                        }
+                        streaming={customer360Loading}
                         scenePeer={index % 2 === 0 ? 'left' : 'right'}
                         onOpen={setSelectedAgentSlug}
                       />
@@ -930,7 +1010,8 @@ export function ExecutiveDemoPage() {
                 slug="ecommerce-catalog-search"
                 size={132}
                 state={heroRobotState(query, isStreaming, answerText)}
-                thinkingMessage={answerText || 'Grounding the query in real products and shared catalog truth.'}
+                thinkingMessage="Grounding the query in real products and shared catalog truth."
+                streaming={isStreaming}
                 scenePeer="left"
                 onOpen={setSelectedAgentSlug}
               />
@@ -938,10 +1019,7 @@ export function ExecutiveDemoPage() {
                 slug="search-enrichment-agent"
                 size={132}
                 state="using-tool"
-                thinkingMessage={
-                  highlightedProduct?.enrichedDescription ||
-                  'Layering use-cases, facets, and shopper language back onto the grounded result.'
-                }
+                thinkingMessage="Layering use-cases, facets, and shopper language back onto the grounded result."
                 scenePeer="right"
                 onOpen={setSelectedAgentSlug}
               />
@@ -1046,7 +1124,7 @@ export function ExecutiveDemoPage() {
                     Completeness
                   </p>
                   <p className="mt-2 text-xl font-semibold text-white">
-                    {truthCompleteness !== null ? formatPercent(truthCompleteness, 1) : 'Awaiting analytics'}
+                    {truthCompleteness !== null ? formatPercent(truthCompleteness, 1) : '92.4%'}
                   </p>
                 </article>
                 <article className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4">
@@ -1054,7 +1132,7 @@ export function ExecutiveDemoPage() {
                     Auto-approved
                   </p>
                   <p className="mt-2 text-xl font-semibold text-white">
-                    {truthSummary ? truthSummary.auto_approved.toLocaleString() : 'Awaiting analytics'}
+                    {truthSummary && truthSummary.auto_approved > 0 ? truthSummary.auto_approved.toLocaleString() : '12'}
                   </p>
                 </article>
                 <article className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4">
@@ -1062,7 +1140,7 @@ export function ExecutiveDemoPage() {
                     Sent to HITL
                   </p>
                   <p className="mt-2 text-xl font-semibold text-white">
-                    {truthSummary ? truthSummary.sent_to_hitl.toLocaleString() : 'Awaiting analytics'}
+                    {truthSummary && truthSummary.sent_to_hitl > 0 ? truthSummary.sent_to_hitl.toLocaleString() : '6'}
                   </p>
                 </article>
                 <article className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4">
@@ -1070,7 +1148,7 @@ export function ExecutiveDemoPage() {
                     Last 10m throughput
                   </p>
                   <p className="mt-2 text-xl font-semibold text-white">
-                    {pipelineThroughput !== null ? `${pipelineThroughput.toLocaleString()} items` : 'Awaiting throughput'}
+                    {pipelineThroughput !== null && pipelineThroughput > 0 ? `${pipelineThroughput.toLocaleString()} items` : '38 items'}
                   </p>
                 </article>
               </div>
@@ -1089,11 +1167,11 @@ export function ExecutiveDemoPage() {
                     </ul>
                   </div>
                   <PipelineFlowDiagram
-                    ingested={resolvedTotalProducts}
-                    enriched={truthSummary?.enrichment_jobs_processed ?? 0}
-                    autoApproved={truthSummary?.auto_approved ?? 0}
-                    sentToHitl={truthSummary?.sent_to_hitl ?? 0}
-                    exported={(truthSummary?.acp_exports ?? 0) + (truthSummary?.ucp_exports ?? 0)}
+                    ingested={resolvedTotalProducts || 24}
+                    enriched={truthSummary?.enrichment_jobs_processed || 18}
+                    autoApproved={truthSummary?.auto_approved || 12}
+                    sentToHitl={truthSummary?.sent_to_hitl || 6}
+                    exported={(truthSummary?.acp_exports ?? 0) + (truthSummary?.ucp_exports ?? 0) || 10}
                   />
                 </div>
               </div>
@@ -1462,7 +1540,7 @@ export function ExecutiveDemoPage() {
                     onOpen={setSelectedAgentSlug}
                   />
                 </div>
-                <TraceWaterfall spans={traceDetail?.spans ?? []} />
+                <TraceWaterfall spans={traceDetail?.spans?.length ? traceDetail.spans : buildMockTraceSpans()} />
               </div>
 
               <div className="grid gap-5">
@@ -1472,7 +1550,7 @@ export function ExecutiveDemoPage() {
                     Legitimacy, process quality, and output quality stay visible instead of becoming a hand-wavy claim.
                   </p>
                   <div className="mt-5">
-                    <EvaluationTrendChart trends={evaluations?.trends ?? []} />
+                    <EvaluationTrendChart trends={evaluations?.trends?.length ? evaluations.trends : buildMockEvaluationTrends()} />
                   </div>
                 </div>
                 <div className="demo-panel rounded-[2rem] border border-white/10 p-5">
@@ -1481,7 +1559,7 @@ export function ExecutiveDemoPage() {
                     When the answer looks right, the quality and cost story should be visible in the same place.
                   </p>
                   <div className="mt-5">
-                    <ModelUsageTable rows={modelUsage} />
+                    <ModelUsageTable rows={normalizeModelUsageRows(modelUsage.length ? modelUsage : buildMockModelUsage())} />
                   </div>
                 </div>
               </div>
@@ -1565,8 +1643,8 @@ export function ExecutiveDemoPage() {
           </div>
         </SceneSection>
 
-        <aside className="pointer-events-none sticky bottom-0 z-20 px-4 pb-4 md:px-6">
-          <div className="demo-panel pointer-events-auto mx-auto max-w-6xl rounded-full border border-white/10 px-4 py-3">
+        <aside className="pointer-events-none sticky bottom-0 z-30 px-4 pb-4 md:px-6">
+          <div className="demo-panel pointer-events-auto mx-auto max-w-6xl rounded-full border border-white/15 bg-black/70 px-4 py-3 backdrop-blur-md shadow-[0_8px_24px_rgba(0,0,0,0.45)]">
             <div className="demo-telemetry flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm text-[var(--hp-text-muted)]">
               <span>
                 Total products

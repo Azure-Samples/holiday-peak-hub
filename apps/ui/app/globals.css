@@ -238,3 +238,8 @@
     scroll-behavior: auto !important;
   }
 }
+
+.agent-frieze-scroller::-webkit-scrollbar { height: 10px; }
+.agent-frieze-scroller::-webkit-scrollbar-track { background: transparent; }
+.agent-frieze-scroller::-webkit-scrollbar-thumb { background: var(--hp-primary); border-radius: 9999px; border: 2px solid transparent; background-clip: padding-box; }
+.agent-frieze-scroller::-webkit-scrollbar-thumb:hover { background: var(--hp-accent); background-clip: padding-box; border: 2px solid transparent; }

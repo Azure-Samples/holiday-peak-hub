@@ -12,6 +12,8 @@ export interface AgentRobotProps {
   agentSlug: string;
   state?: RobotState;
   thinkingMessage?: string;
+  /** When true, render an inline streaming-dots indicator inside the bubble. */
+  streaming?: boolean;
   size?: number;
   className?: string;
   sticky?: boolean;
@@ -398,6 +400,7 @@ export const AgentRobot: React.FC<AgentRobotProps> = ({
   agentSlug,
   state: externalState = 'idle',
   thinkingMessage,
+  streaming = false,
   size = 160,
   className,
   sticky = true,
@@ -505,7 +508,7 @@ export const AgentRobot: React.FC<AgentRobotProps> = ({
   return (
     <div
       className={cn(
-        'select-none',
+        'relative select-none',
         sticky && 'robot-sticky',
         isEntering && 'robot-entrance',
         className,
@@ -513,15 +516,15 @@ export const AgentRobot: React.FC<AgentRobotProps> = ({
       style={{ width: size, height: size * 1.15 }}
       aria-hidden="true"
     >
-      {/* Thinking bubble */}
+      {/* Thinking bubble — anchored above the robot's head */}
       {showBubble && thinkingMessage && (
         <div
-          className="robot-bubble absolute z-10"
-          style={{ bottom: `${size * 1.0}px`, left: '50%', transform: 'translateX(-50%)' }}
+          className="robot-bubble pointer-events-none absolute left-1/2 z-30 -translate-x-1/2"
+          style={{ bottom: `calc(100% + 8px)` }}
         >
           <ThinkingBubble
             content={thinkingMessage}
-            isStreaming={state === 'talking' || isThinking}
+            isStreaming={streaming}
             maxWidth={Math.max(200, size * 1.8)}
           />
         </div>

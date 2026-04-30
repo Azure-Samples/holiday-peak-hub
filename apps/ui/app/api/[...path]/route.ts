@@ -309,19 +309,32 @@ type UpstreamAttemptResult = {
 };
 
 const DEFAULT_AGENT_ACTIVITY_SERVICES = [
+  'crm-campaign-intelligence',
+  'crm-profile-aggregation',
+  'crm-segmentation-personalization',
+  'crm-support-assistance',
   'ecommerce-catalog-search',
-  'search-enrichment-agent',
-  'truth-enrichment',
-  'ecommerce-product-detail-enrichment',
   'ecommerce-cart-intelligence',
   'ecommerce-checkout-support',
   'ecommerce-order-status',
+  'ecommerce-product-detail-enrichment',
+  'inventory-alerts-triggers',
   'inventory-health-check',
   'inventory-jit-replenishment',
   'inventory-reservation-validation',
+  'logistics-carrier-selection',
   'logistics-eta-computation',
-  'logistics-route-issue-detection',
   'logistics-returns-support',
+  'logistics-route-issue-detection',
+  'product-management-acp-transformation',
+  'product-management-assortment-optimization',
+  'product-management-consistency-validation',
+  'product-management-normalization-classification',
+  'search-enrichment-agent',
+  'truth-ingestion',
+  'truth-enrichment',
+  'truth-hitl',
+  'truth-export',
 ] as const;
 
 const ADMIN_SERVICE_AGENT_MAP: Record<string, string> = {
@@ -1501,6 +1514,17 @@ async function collectAgentSourceData(baseUrl: string, requestHeaders: Headers):
           metrics: toRecord(metricsPayload),
           latestEvaluation,
           readiness,
+        });
+      } else {
+        // Always surface a placeholder source so every configured agent
+        // appears in the dashboard (as `unknown`) instead of disappearing
+        // when no telemetry has been emitted yet.
+        sources.push({
+          service,
+          traces: [],
+          metrics: null,
+          latestEvaluation: null,
+          readiness: null,
         });
       }
     }),
