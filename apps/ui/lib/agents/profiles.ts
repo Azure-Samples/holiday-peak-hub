@@ -7,6 +7,8 @@ export type AgentProfileDomain =
   | 'search'
   | 'truth-layer';
 
+export type AgentPrimaryMode = 'sync' | 'async';
+
 export type AgentProfileSlug = (typeof ALL_AGENT_SLUGS)[number];
 
 export interface AgentProductivityGain {
@@ -40,6 +42,7 @@ export interface AgentProfile {
   displayName: string;
   domain: AgentProfileDomain;
   domainLabel: string;
+  primaryMode: AgentPrimaryMode;
   oneLiner: string;
   fitFor: string[];
   retailProblem: string;
@@ -157,6 +160,40 @@ const TRACE_EXPLORER_HREF_BY_SLUG: Record<AgentProfileSlug, string> = {
   'truth-enrichment': '/admin/truth-analytics',
   'truth-hitl': '/staff/review',
   'truth-export': '/admin/workflows',
+};
+
+/**
+ * Agent primary mode classification per ADR-024 Part 4.
+ * Sync agents serve real-time user-facing requests; async agents process
+ * background event-driven workloads.
+ */
+const PRIMARY_MODE_BY_SLUG: Record<AgentProfileSlug, AgentPrimaryMode> = {
+  'crm-campaign-intelligence': 'async',
+  'crm-profile-aggregation': 'sync',
+  'crm-segmentation-personalization': 'async',
+  'crm-support-assistance': 'sync',
+  'ecommerce-catalog-search': 'sync',
+  'ecommerce-cart-intelligence': 'sync',
+  'ecommerce-checkout-support': 'sync',
+  'ecommerce-order-status': 'sync',
+  'ecommerce-product-detail-enrichment': 'sync',
+  'inventory-health-check': 'async',
+  'inventory-alerts-triggers': 'async',
+  'inventory-jit-replenishment': 'async',
+  'inventory-reservation-validation': 'sync',
+  'logistics-carrier-selection': 'sync',
+  'logistics-eta-computation': 'sync',
+  'logistics-returns-support': 'sync',
+  'logistics-route-issue-detection': 'async',
+  'product-management-acp-transformation': 'async',
+  'product-management-assortment-optimization': 'async',
+  'product-management-consistency-validation': 'async',
+  'product-management-normalization-classification': 'async',
+  'search-enrichment-agent': 'async',
+  'truth-ingestion': 'async',
+  'truth-enrichment': 'async',
+  'truth-hitl': 'async',
+  'truth-export': 'async',
 };
 
 type DomainPreset = Pick<
@@ -922,6 +959,7 @@ function buildProfile(slug: (typeof ALL_AGENT_SLUGS)[number]): AgentProfile {
     slug,
     domain,
     domainLabel: preset.domainLabel,
+    primaryMode: PRIMARY_MODE_BY_SLUG[slug],
     displayName: override?.displayName ?? prettifySlug(slug),
     oneLiner:
       override?.oneLiner ??
