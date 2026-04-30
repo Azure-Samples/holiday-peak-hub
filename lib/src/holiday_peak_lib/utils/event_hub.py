@@ -795,7 +795,17 @@ def create_eventhub_lifespan(
 
             async def _handler(partition_context, event):  # noqa: ANN001
                 if handler is not None:
-                    await handler(partition_context, event)
+                    try:
+                        await handler(partition_context, event)
+                    except Exception as exc:
+                        logger.error(
+                            "eventhub_handler_failed eventhub=%s service=%s error=%s",
+                            eventhub_name,
+                            service_name,
+                            exc,
+                            exc_info=True,
+                        )
+                        raise
                     return
                 payload = json.loads(event.body_as_str())
                 _safe_log(

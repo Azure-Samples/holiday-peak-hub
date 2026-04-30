@@ -73,6 +73,9 @@ def configure_logging(
     if conn:
         from azure.monitor.opentelemetry import configure_azure_monitor
 
+        # Ensure OTEL_SERVICE_NAME is set so App Insights identifies the emitting service.
+        os.environ.setdefault("OTEL_SERVICE_NAME", resolved_app)
+
         try:
             configure_azure_monitor(connection_string=conn)
             base_logger.info("Azure Monitor logging enabled via configure_azure_monitor.")
