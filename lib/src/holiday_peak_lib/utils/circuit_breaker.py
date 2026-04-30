@@ -142,10 +142,19 @@ class CircuitBreaker:
                 if self._state != CircuitState.CLOSED:
                     await self._transition(CircuitState.CLOSED)
             return result
-        except Exception:
+        except Exception as exc:
             async with self._lock:
                 self._failure_count += 1
                 self._last_failure_time = time.monotonic()
+                logger.warning(
+                    "circuit_breaker_failure name=%s state=%s failure_count=%d "
+                    "threshold=%d error=%s",
+                    self.name,
+                    self._state.value,
+                    self._failure_count,
+                    self.failure_threshold,
+                    exc,
+                )
                 if self._state == CircuitState.HALF_OPEN or (
                     self._state == CircuitState.CLOSED
                     and self._failure_count >= self.failure_threshold

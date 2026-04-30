@@ -18,6 +18,7 @@ keeping connector implementations lean and testable.
 """
 
 import asyncio
+import logging
 import random
 import time
 from abc import ABC, abstractmethod
@@ -28,6 +29,8 @@ from holiday_peak_lib.utils.circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerOpenError,
 )
+
+logger = logging.getLogger(__name__)
 from pydantic import BaseModel, ValidationError
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
@@ -176,7 +179,19 @@ class BaseAdapter(ABC):
 
     # Public methods (resilient wrappers)
     async def connect(self, **kwargs: Any) -> None:
-        await self._connect_impl(**kwargs)
+        adapter_name = type(self).__name__
+        logger.info("adapter_connect_start adapter=%s", adapter_name)
+        try:
+            await self._connect_impl(**kwargs)
+            logger.info("adapter_connect_success adapter=%s", adapter_name)
+        except Exception as exc:
+            logger.error(
+                "adapter_connect_failed adapter=%s error=%s",
+                adapter_name,
+                exc,
+                exc_info=True,
+            )
+            raise
 
     async def fetch(self, query: dict[str, Any]) -> Iterable[dict[str, Any]]:
         key = self._cache_key(query)
@@ -228,6 +243,7 @@ class BaseAdapter(ABC):
     async def _call_with_resilience(self, func):
         await self._rate_limiter.acquire()
 
+        adapter_name = type(self).__name__
         last_error: Exception | None = None
         for attempt in range(1, self._retries + 2):
             try:
@@ -238,14 +254,31 @@ class BaseAdapter(ABC):
                 result = await self._circuit_breaker.call(_timed_call)
                 return result
             except CircuitBreakerOpenError as exc:
+                logger.error(
+                    "adapter_circuit_breaker_open adapter=%s",
+                    adapter_name,
+                )
                 raise AdapterError("Circuit breaker open") from exc
             except Exception as exc:  # noqa: BLE001
                 last_error = exc
                 if attempt > self._retries:
                     break
+                logger.warning(
+                    "adapter_retry adapter=%s attempt=%d/%d error=%s",
+                    adapter_name,
+                    attempt,
+                    self._retries,
+                    exc,
+                )
                 delay = min(self._max_delay, self._base_delay * (2 ** (attempt - 1)))
                 delay *= 1 + random.random() * 0.25
                 await asyncio.sleep(delay)
+        logger.error(
+            "adapter_operation_failed adapter=%s retries_exhausted=%d error=%s",
+            adapter_name,
+            self._retries,
+            last_error,
+        )
         raise AdapterError("Operation failed after retries") from last_error
 
     def resilience_status(self) -> dict[str, Any]:

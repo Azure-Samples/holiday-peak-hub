@@ -1,11 +1,14 @@
 """Base agent abstraction with model selection and SDK integration points."""
 
 import asyncio
+import logging
 import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from time import perf_counter
 from typing import Any, AsyncGenerator, Awaitable, Callable
+
+logger = logging.getLogger(__name__)
 
 from agent_framework import BaseAgent
 from holiday_peak_lib.agents.complexity import assess_complexity
@@ -380,10 +383,22 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
         except asyncio.TimeoutError:
             outcome = "timeout"
             error_text = "Model invocation timed out"
+            logger.error(
+                "agent_model_invocation_timeout service=%s model=%s",
+                getattr(self, "service_name", "unknown"),
+                target.model,
+            )
             raise
         except Exception as exc:
             outcome = "error"
             error_text = str(exc)
+            logger.error(
+                "agent_model_invocation_failed service=%s model=%s error=%s",
+                getattr(self, "service_name", "unknown"),
+                target.model,
+                exc,
+                exc_info=True,
+            )
             raise
         finally:
             elapsed_ms = (perf_counter() - started) * 1000
@@ -641,3 +656,38 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
     @abstractmethod
     async def handle(self, request: dict[str, Any]) -> dict[str, Any]:
         """Handle an incoming request."""
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        """Auto-wrap concrete handle() implementations with entry/exit logging."""
+        super().__init_subclass__(**kwargs)
+        original_handle = cls.__dict__.get("handle")
+        if original_handle is None:
+            return
+
+        async def _logged_handle(self: Any, request: dict[str, Any]) -> dict[str, Any]:
+            svc = getattr(self, "service_name", cls.__name__)
+            logger.info("agent_handle_entry service=%s", svc)
+            started = perf_counter()
+            try:
+                result = await original_handle(self, request)
+                elapsed = (perf_counter() - started) * 1000
+                logger.info(
+                    "agent_handle_success service=%s elapsed_ms=%.1f",
+                    svc,
+                    elapsed,
+                )
+                return result
+            except Exception as exc:
+                elapsed = (perf_counter() - started) * 1000
+                logger.error(
+                    "agent_handle_failed service=%s elapsed_ms=%.1f error=%s",
+                    svc,
+                    elapsed,
+                    exc,
+                    exc_info=True,
+                )
+                raise
+
+        _logged_handle.__name__ = "handle"
+        _logged_handle.__qualname__ = f"{cls.__qualname__}.handle"
+        cls.handle = _logged_handle  # type: ignore[method-assign]

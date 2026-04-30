@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from inspect import isawaitable
 from typing import Any, Awaitable, Callable
 
 from fastapi import APIRouter, FastAPI, HTTPException
 from holiday_peak_lib.self_healing import FailureSignal, SurfaceType
+
+logger = logging.getLogger(__name__)
 from pydantic import BaseModel, ValidationError
 
 ToolHandler = Callable[[dict[str, Any]], Awaitable[dict[str, Any]] | dict[str, Any]]
@@ -126,11 +129,21 @@ class FastAPIMCPServer:
         output_model: type[BaseModel] | None,
     ) -> Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]:
         async def validated_handler(payload: dict[str, Any]) -> dict[str, Any]:
+            logger.info(
+                "mcp_tool_invoked path=%s service=%s",
+                path,
+                self.app.title,
+            )
             normalized_payload = payload
             if input_model is not None:
                 try:
                     validated_input = input_model.model_validate(payload)
                 except ValidationError as exc:
+                    logger.warning(
+                        "mcp_tool_input_validation_failed path=%s error=%s",
+                        path,
+                        exc,
+                    )
                     await self._emit_failure(
                         path=path,
                         status_code=422,
@@ -146,14 +159,29 @@ class FastAPIMCPServer:
                     ) from exc
                 normalized_payload = validated_input.model_dump(mode="json")
 
-            result = handler(normalized_payload)
-            if isawaitable(result):
-                result = await result
+            try:
+                result = handler(normalized_payload)
+                if isawaitable(result):
+                    result = await result
+            except Exception as exc:
+                logger.error(
+                    "mcp_tool_execution_failed path=%s service=%s error=%s",
+                    path,
+                    self.app.title,
+                    exc,
+                    exc_info=True,
+                )
+                raise
 
             if output_model is not None:
                 try:
                     validated_output = output_model.model_validate(result)
                 except ValidationError as exc:
+                    logger.warning(
+                        "mcp_tool_output_validation_failed path=%s error=%s",
+                        path,
+                        exc,
+                    )
                     await self._emit_failure(
                         path=path,
                         status_code=500,
