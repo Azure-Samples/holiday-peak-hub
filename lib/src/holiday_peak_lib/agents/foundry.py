@@ -20,15 +20,11 @@ from azure.ai.projects.aio import AIProjectClient
 from azure.ai.projects.models import PromptAgentDefinition
 from azure.core.exceptions import HttpResponseError
 from azure.identity.aio import DefaultAzureCredential
-from opentelemetry.trace import NonRecordingSpan as _NRS
 
 from .base_agent import ModelTarget
 
-# Workaround: azure-ai-projects <=2.0.1 NonRecordingSpan bug.
-# The SDK instrumentor reads span.span_instance.attributes, but the OTel
-# no-op span lacks the property. Adding a falsy .attributes is safe.
-if not hasattr(_NRS, "attributes"):
-    _NRS.attributes = None  # type: ignore[attr-defined]
+# NOTE: NonRecordingSpan.attributes patch is now applied in holiday_peak_lib/__init__.py
+# to guarantee it executes before any SDK instrumentation regardless of import order.
 
 _FOUNDRY_PROJECT_HOST_SUFFIX = ".services.ai.azure.com"
 
