@@ -19,10 +19,13 @@ Decision flow:
 from __future__ import annotations
 
 import json
+import logging
 import re
 import time
 from dataclasses import asdict, dataclass, field
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Data structures
@@ -298,8 +301,15 @@ async def evaluate_session_continuity(
             )
             if cosmos_session and "foundry_session_state" in cosmos_session:
                 foundry_state = cosmos_session["foundry_session_state"]
-        except Exception:  # noqa: BLE001 — fail-open on Cosmos read
-            pass
+        except Exception as exc:  # noqa: BLE001 — fail-open on Cosmos read
+            logger.warning(
+                "session_continuity_cosmos_read_failed "
+                "session_id=%s service=%s entity_id=%s error=%s",
+                summary.session_id,
+                service,
+                entity_id,
+                exc,
+            )
 
     return SessionDecision(
         continue_session=True,
@@ -416,8 +426,15 @@ async def persist_full_session(
     }
     try:
         await warm_memory.upsert(document)
-    except Exception:  # noqa: BLE001 — fail-open on Cosmos write
-        pass
+    except Exception as exc:  # noqa: BLE001 — fail-open on Cosmos write
+        logger.warning(
+            "session_persistence_cosmos_write_failed "
+            "session_id=%s service=%s entity_id=%s error=%s",
+            session_id,
+            service,
+            entity_id,
+            exc,
+        )
 
 
 # ---------------------------------------------------------------------------

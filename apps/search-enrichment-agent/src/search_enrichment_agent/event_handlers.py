@@ -97,7 +97,13 @@ def build_event_handlers(
                 result.get("status"),
                 result.get("strategy"),
             )
-        except Exception:
+        except Exception as exc:
+            logger.error(
+                "search_enrichment_event_processing_failed entity_id=%s error=%s",
+                entity_id,
+                exc,
+                exc_info=True,
+            )
             _trace_eventhub_liveness(
                 outcome="error",
                 status="error",

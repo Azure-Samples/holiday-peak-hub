@@ -1,11 +1,14 @@
 """Base agent abstraction with model selection and SDK integration points."""
 
 import asyncio
+import logging
 import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from time import perf_counter
 from typing import Any, AsyncGenerator, Awaitable, Callable
+
+logger = logging.getLogger(__name__)
 
 from agent_framework import BaseAgent
 from holiday_peak_lib.agents.complexity import assess_complexity
@@ -380,10 +383,22 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
         except asyncio.TimeoutError:
             outcome = "timeout"
             error_text = "Model invocation timed out"
+            logger.error(
+                "agent_model_invocation_timeout service=%s model=%s",
+                getattr(self, "service_name", "unknown"),
+                target.model,
+            )
             raise
         except Exception as exc:
             outcome = "error"
             error_text = str(exc)
+            logger.error(
+                "agent_model_invocation_failed service=%s model=%s error=%s",
+                getattr(self, "service_name", "unknown"),
+                target.model,
+                exc,
+                exc_info=True,
+            )
             raise
         finally:
             elapsed_ms = (perf_counter() - started) * 1000
