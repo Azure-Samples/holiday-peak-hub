@@ -592,6 +592,8 @@ function Ensure-AgentApi {
                 Write-Host "[preview]   + operation: $($op.method) $($op.template) ($($op.name))"
             }
         }
+        Write-Host "[preview]   + API-level policy (CORS, timeout=120s, on-error)"
+        Write-Host "[preview]   + Operation-level streaming policy (invoke-stream, timeout=180s, buffer-response=false)"
         return
     }
 
@@ -691,6 +693,36 @@ function Ensure-AgentApi {
             az @createArgs *> $null
         }
         Write-Host "Registered $($serviceSpecificOperations[$Service].Count) extra operations for $Service"
+    }
+
+    # --- Apply API-level policy ---
+    $subscriptionId = az account show --query id -o tsv 2>$null
+    if (-not $subscriptionId) {
+        throw "Failed to resolve Azure subscription id for agent API policy update ($Service)."
+    }
+
+    $agentPolicyPath = Join-Path $PSScriptRoot '..\..\apim-policies\agent-api-policy.xml'
+    if (Test-Path $agentPolicyPath) {
+        $corsOriginXml = Get-CorsOriginXml -OriginsCsv $ApimCorsAllowedOrigins
+        $agentPolicyXml = (Get-Content -Path $agentPolicyPath -Raw) -replace '\{\{cors-origins\}\}', $corsOriginXml
+        $policyPayload = @{ properties = @{ format = 'rawxml'; value = $agentPolicyXml } } | ConvertTo-Json -Depth 8
+        $policyTempFile = Join-Path ([System.IO.Path]::GetTempPath()) "apim-agent-policy-$Service.json"
+        Set-Content -Path $policyTempFile -Value $policyPayload -Encoding UTF8
+        $policyUrl = "https://management.azure.com/subscriptions/$subscriptionId/resourceGroups/$Rg/providers/Microsoft.ApiManagement/service/$Apim/apis/$apiId/policies/policy?api-version=2022-08-01"
+        az rest --method put --url $policyUrl --headers 'Content-Type=application/json' --body "@$policyTempFile" --only-show-errors *> $null
+        Write-Host "Applied API-level policy for $Service"
+    }
+
+    # --- Apply operation-level streaming policy for /invoke/stream ---
+    $streamPolicyPath = Join-Path $PSScriptRoot '..\..\apim-policies\agent-stream-operation-policy.xml'
+    if (Test-Path $streamPolicyPath) {
+        $streamPolicyXml = Get-Content -Path $streamPolicyPath -Raw
+        $streamPayload = @{ properties = @{ format = 'rawxml'; value = $streamPolicyXml } } | ConvertTo-Json -Depth 8
+        $streamTempFile = Join-Path ([System.IO.Path]::GetTempPath()) "apim-agent-stream-policy-$Service.json"
+        Set-Content -Path $streamTempFile -Value $streamPayload -Encoding UTF8
+        $streamOpUrl = "https://management.azure.com/subscriptions/$subscriptionId/resourceGroups/$Rg/providers/Microsoft.ApiManagement/service/$Apim/apis/$apiId/operations/invoke-stream/policies/policy?api-version=2022-08-01"
+        az rest --method put --url $streamOpUrl --headers 'Content-Type=application/json' --body "@$streamTempFile" --only-show-errors *> $null
+        Write-Host "Applied streaming operation policy for $Service"
     }
 }
 

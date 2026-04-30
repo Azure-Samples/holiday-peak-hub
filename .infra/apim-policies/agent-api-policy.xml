@@ -1,0 +1,53 @@
+<policies>
+    <inbound>
+        <base />
+        <cors allow-credentials="false">
+            <allowed-origins>
+            {{cors-origins}}
+            </allowed-origins>
+            <allowed-methods preflight-result-max-age="300">
+                <method>*</method>
+            </allowed-methods>
+            <allowed-headers>
+                <header>*</header>
+            </allowed-headers>
+            <expose-headers>
+                <header>*</header>
+            </expose-headers>
+        </cors>
+    </inbound>
+    <backend>
+        <forward-request timeout="120" />
+    </backend>
+    <outbound>
+        <base />
+        <set-header name="Access-Control-Allow-Origin" exists-action="override">
+            <value>@(context.Request.Headers.GetValueOrDefault("Origin", "http://localhost:3000"))</value>
+        </set-header>
+        <set-header name="Access-Control-Allow-Methods" exists-action="override">
+            <value>GET,POST,OPTIONS</value>
+        </set-header>
+        <set-header name="Access-Control-Allow-Headers" exists-action="override">
+            <value>*</value>
+        </set-header>
+    </outbound>
+    <on-error>
+        <base />
+        <return-response>
+            <set-status code="502" reason="Bad Gateway" />
+            <set-header name="Access-Control-Allow-Origin" exists-action="override">
+                <value>@(context.Request.Headers.GetValueOrDefault("Origin", "http://localhost:3000"))</value>
+            </set-header>
+            <set-header name="Access-Control-Allow-Methods" exists-action="override">
+                <value>GET,POST,OPTIONS</value>
+            </set-header>
+            <set-header name="Access-Control-Allow-Headers" exists-action="override">
+                <value>*</value>
+            </set-header>
+            <set-header name="Content-Type" exists-action="override">
+                <value>application/json</value>
+            </set-header>
+            <set-body>{"detail":"APIM upstream error while routing to agent backend."}</set-body>
+        </return-response>
+    </on-error>
+</policies>
