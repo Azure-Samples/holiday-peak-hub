@@ -170,7 +170,7 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: product-management-normalization-classification-product-management-normalization-classification-agc
+  name: product-management-normalization-classification-product-man-agc
   namespace: holiday-peak-agents
   labels:
     app: product-management-normalization-classification
@@ -192,5 +192,5 @@ spec:
               type: ReplacePrefixMatch
               replacePrefixMatch: "/"
       backendRefs:
-        - name: product-management-normalization-classification-product-management-normalization-classification
+        - name: product-management-normalization-classification-product-managem
           port: 80

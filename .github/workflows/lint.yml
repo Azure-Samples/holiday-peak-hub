@@ -20,9 +20,11 @@ on:
       - docs/architecture/**
       - docs/governance/**
       - scripts/ops/**
+      - scripts/ci/**
       - .github/prompts/**
       - .github/agents/**
       - .github/skills/**
+      - .kubernetes/**
       - pyproject.toml
       - conftest.py
       - .github/workflows/test.yml
@@ -86,6 +88,9 @@ jobs:
             echo "Found stale canonical governance references in .github/agents"
             exit 1
           fi
+      - name: Validate K8s resource name length (63-char limit)
+        run: |
+          python scripts/ci/validate_k8s_name_length.py
       - name: Upload governance drift reports
         if: always()
         uses: actions/upload-artifact@v4
