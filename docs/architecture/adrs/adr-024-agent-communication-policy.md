@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (Revised 2026-04-28 — consolidated agent isolation policy and async communication contracts)  
+Accepted (Revised 2026-04-29 — added Part 4: Agent Mode Classification and Differentiated SLA Policy)  
 **Supersedes**: prior separate decisions on Agent Isolation Policy and Async Communication Contract (now absorbed into this ADR)
 
 ## Date
@@ -334,11 +334,186 @@ flowchart LR
 
 ---
 
+## Part 4: Agent Mode Classification and Differentiated SLA Policy
+
+### Context
+
+Parts 1–3 define synchronous (REST/MCP) and asynchronous (Event Hub) communication paths. However, the platform applied a uniform latency SLA (8s invoke response) to all 26 agents regardless of their primary interaction pattern. This produced false-positive alerts for event-driven agents and masked real violations for user-facing agents (see [issue #927](https://github.com/Azure-Samples/holiday-peak-hub/issues/927) — confirmed SLA violation for `ecommerce-cart-intelligence`).
+
+This section formalizes a **dual-class SLA model** based on each agent's primary interaction mode.
+
+### Classification Criteria
+
+| Criterion | Primary Synchronous | Primary Asynchronous |
+|-----------|--------------------|--------------------|
+| **User blocking** | A human or frontend component is waiting for the response | No user is waiting; processing happens in the background |
+| **Trigger pattern** | REST `POST /invoke` or `/invoke/stream` from UI/CRUD | Event Hub consumer group processing domain events |
+| **Value metric** | Response latency and streaming first-token time | Throughput, completeness, and processing lag |
+| **Failure impact** | Immediate UX degradation (empty page, timeout spinner) | Delayed data freshness; users unaware until downstream read |
+
+### Agent Registry
+
+#### Primary Synchronous (11 agents)
+
+| Agent | Domain | Rationale |
+|-------|--------|-----------|
+| ecommerce-catalog-search | eCommerce | Search results rendered to shopper in real time |
+| ecommerce-cart-intelligence | eCommerce | Cart scoring and recommendations at checkout |
+| ecommerce-checkout-support | eCommerce | Checkout validation blocking purchase flow |
+| ecommerce-order-status | eCommerce | Order status query — user waiting for answer |
+| ecommerce-product-detail-enrichment | eCommerce | Real-time PDP enrichment on page load |
+| crm-profile-aggregation | CRM | Profile lookup for personalization decisions |
+| crm-support-assistance | CRM | Live support guidance for human agents |
+| inventory-reservation-validation | Inventory | Stock validation at checkout — user blocking |
+| logistics-eta-computation | Logistics | ETA displayed to customer in shipping UI |
+| logistics-carrier-selection | Logistics | Carrier options rendered at checkout |
+| logistics-returns-support | Logistics | Returns flow guidance — user waiting |
+
+#### Primary Asynchronous (15 agents)
+
+| Agent | Domain | Trigger Pattern |
+|-------|--------|-----------------|
+| crm-campaign-intelligence | CRM | Funnel behavior events |
+| crm-segmentation-personalization | CRM | Behavior/profile change events |
+| inventory-alerts-triggers | Inventory | Stock-level threshold events |
+| inventory-health-check | Inventory | Periodic/event-triggered health assessment |
+| inventory-jit-replenishment | Inventory | Stock depletion events |
+| logistics-route-issue-detection | Logistics | Route telemetry events |
+| product-management-acp-transformation | Product Mgmt | Product data change events |
+| product-management-assortment-optimization | Product Mgmt | Catalog/assortment optimization events |
+| product-management-consistency-validation | Product Mgmt | Product update validation events |
+| product-management-normalization-classification | Product Mgmt | Product ingestion events |
+| search-enrichment-agent | Search | Truth-approved product events |
+| truth-ingestion | Truth Layer | Source data upload events |
+| truth-enrichment | Truth Layer | Ingestion-complete events |
+| truth-hitl | Truth Layer | Low-confidence enrichment events |
+| truth-export | Truth Layer | HITL-approved export events |
+
+### SLA Targets by Class
+
+#### Synchronous Agent SLA
+
+| Metric | Target | Measurement |
+|--------|--------|-------------|
+| Invoke response P95 | < 8 s (end-to-end including APIM/AGC) | `POST /agents/{service}/invoke` |
+| Agent processing P95 | < 5 s (excluding network overhead) | Application telemetry span |
+| SLM routing path P95 | < 2 s | Model-tier trace annotation |
+| LLM routing path P95 | < 6 s | Model-tier trace annotation |
+| Health response P95 | < 2 s | `GET /agents/{service}/health` |
+| Streaming first token P95 | < 3 s | `POST /agents/{service}/invoke/stream` |
+
+#### Asynchronous Agent SLA
+
+| Metric | Target | Measurement |
+|--------|--------|-------------|
+| Event processing latency P95 | < 10 min (event received → processing complete) | Event Hub consumer lag + app telemetry |
+| Sustained throughput | ≥ 100 events/min per partition | Load test and production metrics |
+| Event loss rate | 0 % | Event Hub abandoned/dead-letter metrics |
+| Health response P95 | < 2 s | `GET /agents/{service}/health` |
+| Invoke response (when called sync) | Best-effort, no SLA violation | Informational metric only |
+
+### Classification Topology
+
+```mermaid
+%%{init: {'theme':'base', 'themeVariables': {
+  'primaryColor':'#FFB3BA',
+  'primaryTextColor':'#000',
+  'primaryBorderColor':'#FF8B94',
+  'lineColor':'#BAE1FF',
+  'secondaryColor':'#BAE1FF',
+  'tertiaryColor':'#FFFFFF'
+}}}%%
+flowchart TB
+    subgraph SYNC["Primary Synchronous (11)"]
+        direction LR
+        S1[catalog-search]
+        S2[cart-intelligence]
+        S3[checkout-support]
+        S4[order-status]
+        S5[product-detail-enrichment]
+        S6[profile-aggregation]
+        S7[support-assistance]
+        S8[reservation-validation]
+        S9[eta-computation]
+        S10[carrier-selection]
+        S11[returns-support]
+    end
+    subgraph ASYNC["Primary Asynchronous (15)"]
+        direction LR
+        A1[campaign-intelligence]
+        A2[segmentation-personalization]
+        A3[alerts-triggers]
+        A4[health-check]
+        A5[jit-replenishment]
+        A6[route-issue-detection]
+        A7[acp-transformation]
+        A8[assortment-optimization]
+        A9[consistency-validation]
+        A10[normalization-classification]
+        A11[search-enrichment]
+        A12[truth-ingestion]
+        A13[truth-enrichment]
+        A14[truth-hitl]
+        A15[truth-export]
+    end
+
+    UI[Frontend / CRUD] -->|REST invoke| SYNC
+    EH[(Event Hubs)] -->|domain events| ASYNC
+
+    style SYNC fill:#e8f5e9,stroke:#4caf50,color:#000
+    style ASYNC fill:#e3f2fd,stroke:#1976d2,color:#000
+```
+
+### Monitoring and Alerting Differentiation
+
+| Alert Type | Sync Agents | Async Agents |
+|------------|-------------|--------------|
+| **P95 invoke latency > 8 s** | ⚠️ Critical alert (P1) | ℹ️ Informational only — not an SLA violation |
+| **Streaming first-token > 3 s** | ⚠️ Warning alert (P2) | N/A — async agents do not stream |
+| **Consumer lag > 10 min** | N/A — sync agents do not consume Event Hubs primarily | ⚠️ Critical alert (P1) |
+| **Throughput < 100 events/min** | N/A | ⚠️ Warning alert (P2) |
+| **Event loss / dead-letter > 0** | N/A | 🚨 Critical alert (P1) — data loss |
+| **Health endpoint > 2 s** | ⚠️ Warning (both classes) | ⚠️ Warning (both classes) |
+
+### Consequences
+
+#### Positive
+
+1. **Eliminates false-positive alerts** for async agents called synchronously during testing.
+2. **Surfaces real SLA violations** for user-facing agents (e.g., [issue #927](https://github.com/Azure-Samples/holiday-peak-hub/issues/927)).
+3. **Enables differentiated dashboards** in the UI agent-activity page using `primaryMode` metadata.
+4. **Aligns monitoring Bicep module** alert rules with actual user impact.
+
+#### Negative
+
+1. Classification adds a governance overhead — new agents must declare their primary mode.
+2. Agents with mixed usage (sync invoke + async event processing) require explicit documentation of which SLA class applies to which path.
+
+#### Impact on Existing Artifacts
+
+| Artifact | Change |
+|----------|--------|
+| E2E validation skill (`.github/skills/agent-e2e-validation/SKILL.md`) | Must check `primaryMode` before applying invoke latency SLA; async agents validate throughput instead |
+| UI agent profiles (`apps/ui/lib/agents/profiles.ts`) | Add `primaryMode: 'sync' \| 'async'` field per agent profile |
+| Monitoring Bicep (`.infra/modules/monitoring/monitoring.bicep`) | Split alert rules by class; suppress latency alerts for async agents |
+| ADR-019 resilience patterns | Circuit breakers apply different timeout budgets per class (see [ADR-019](adr-019-enterprise-resilience-patterns.md)) |
+| ADR-006 saga choreography | Async agents are the primary participants in saga flows (see [ADR-006](adr-006-saga-choreography.md)) |
+
+### Cross-References
+
+- [ADR-006: Saga Choreography](adr-006-saga-choreography.md) — async agents as primary saga participants
+- [ADR-019: Enterprise Resilience Patterns](adr-019-enterprise-resilience-patterns.md) — timeout and circuit-breaker budgets per class
+- [Issue #927](https://github.com/Azure-Samples/holiday-peak-hub/issues/927) — confirmed sync SLA violation for `ecommerce-cart-intelligence`
+- [Issue #936](https://github.com/Azure-Samples/holiday-peak-hub/issues/936) — this classification proposal
+
+---
+
 ## Migration Notes
 
 This ADR consolidates three formerly separate decisions:
 - MCP Internal Communication Policy (original)
 - Agent Isolation Policy — prohibited coupling, enforcement evidence, approved paths
 - Async Communication Contract — Observer pattern, `TopicSubject`, `AgentAsyncContract`
+- Agent Mode Classification and Differentiated SLA Policy (Part 4, added 2026-04-29)
 
 The isolation and async-contract decisions are now superseded and absorbed into this ADR.
