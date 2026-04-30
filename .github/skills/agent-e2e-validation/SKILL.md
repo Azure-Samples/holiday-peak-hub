@@ -77,14 +77,31 @@ If **any** pre-flight check fails, do NOT proceed to agent testing. Instead:
 
 ## Non-Functional Requirements
 
+### Sync Agents (11 — real-time, user-facing)
+
+Agents: ecommerce-catalog-search, ecommerce-cart-intelligence, ecommerce-checkout-support, ecommerce-order-status, ecommerce-product-detail-enrichment, crm-profile-aggregation, crm-support-assistance, inventory-reservation-validation, logistics-eta-computation, logistics-carrier-selection, logistics-returns-support.
+
 | Requirement | Target | Validation |
 |---|---|---|
 | Agent health response | < 2 seconds | `GET /agents/{service}/health` |
-| Invoke response (sync) | < 8 seconds (5s pipeline + 3s HTTP overhead) | `POST /agents/{service}/invoke` |
+| Invoke response P95 | < 8 seconds (5s pipeline + 3s HTTP overhead) | `POST /agents/{service}/invoke` |
 | Streaming response (SSE) | First token < 3 seconds | `POST /agents/{service}/invoke/stream` |
-| Event Hub processing | Event consumed within 30 seconds | Check agent logs after CRUD event publish |
 | MCP tool call | < 5 seconds round-trip | `POST /agents/{service}/mcp/{tool}` |
 | CRUD REST operations | < 500ms for reads, < 1s for writes | Standard REST calls |
+
+### Async Agents (15 — background, event-driven)
+
+Agents: crm-campaign-intelligence, crm-segmentation-personalization, inventory-alerts-triggers, inventory-health-check, inventory-jit-replenishment, logistics-route-issue-detection, product-management-acp-transformation, product-management-assortment-optimization, product-management-consistency-validation, product-management-normalization-classification, search-enrichment-agent, truth-ingestion, truth-enrichment, truth-hitl, truth-export.
+
+| Requirement | Target | Validation |
+|---|---|---|
+| Agent health response | < 2 seconds | `GET /agents/{service}/health` |
+| Event Hub processing | Event consumed within 30 seconds | Check agent logs after CRUD event publish |
+| Consumer lag | < 10 minutes behind head | Event Hubs consumer group lag metric |
+| Throughput (batch window) | Process ≥ 95% of events per 15-min window | Log Analytics query on processed vs received |
+| MCP tool call | < 5 seconds round-trip | `POST /agents/{service}/mcp/{tool}` |
+
+> **Note:** Async agents do NOT have an invoke latency SLA. Their `/invoke` endpoint (if present) is used for manual testing only and is not subject to the 8-second target.
 
 ## Architecture Overview
 
