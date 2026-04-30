@@ -1,7 +1,7 @@
 # Standalone Deployment Guide
 
-**Version**: 1.1
-**Last Updated**: 2026-04-27
+**Version**: 1.2
+**Last Updated**: 2026-04-30
 
 How to deploy a single agent service independently on AKS. This guide covers both the quick `azd deploy` path and the manual Helm-based path.
 

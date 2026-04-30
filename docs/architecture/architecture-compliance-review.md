@@ -1,5 +1,7 @@
 # Architecture Compliance Review (Branch)
 
+<!-- Last Updated: 2026-04-30 -->
+
 **Branch**: `chore/999-deploy-pipeline-followup`  
 **Date**: 2026-03-11  
 **Reviewer**: Architecture pass (Copilot)

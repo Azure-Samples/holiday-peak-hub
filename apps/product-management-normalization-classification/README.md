@@ -1,30 +1,69 @@
-# Product Management Normalization Classification
+# Product Management Normalization & Classification
+
+> Last Updated: 2026-04-30
 
 ## Purpose
-Normalizes and classifies product attributes into canonical representations.
 
-## Responsibilities
-- Normalize product values into expected format and taxonomy.
-- Classify product attributes for downstream indexing and logic.
-- Return normalization and classification outcomes.
+Normalizes and classifies product attributes into canonical representations. Normalizes values into expected format and taxonomy, classifies attributes for downstream indexing, and returns normalization/classification outcomes.
 
-## Key endpoints or interfaces
-- `POST /invoke` for synchronous service requests.
-- MCP interfaces under `/mcp/*` for agent-to-agent usage.
-- Event Hub subscription for asynchronous processing.
+## Domain Bounded Context
+- **Owner**: Product Management team
+- **Bounded Context**: Product Management
 
-## Run/Test commands
+## Endpoints
+
+### REST
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/invoke` | Synchronous agent invocation |
+| GET | `/health` | Liveness probe |
+| GET | `/ready` | Readiness probe |
+
+### MCP Tools
+| Tool | Description |
+|------|-------------|
+| `/normalization/context` | Retrieve normalization context for a product |
+| `/normalization/classify` | Classify and normalize product attributes |
+
+### Event Subscriptions
+| Topic | Consumer Group | Action |
+|-------|---------------|--------|
+| `product-events` | `normalization-group` | Normalize on product catalog changes |
+
+## Model Routing
+- **SLM (fast)**: GPT-5-nano via `FOUNDRY_AGENT_ID_FAST`
+- **LLM (rich)**: GPT-4o via `FOUNDRY_AGENT_ID_RICH`
+
+## Memory Usage
+| Tier | Purpose |
+|------|---------||
+| Hot (Redis) | Cached normalization results (TTL 300s) |
+| Warm (Cosmos DB) | Taxonomy mappings and classification state |
+| Cold (Blob) | Historical normalization archives |
+
+## Environment Variables
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `PROJECT_ENDPOINT` | Yes | Azure AI Foundry project endpoint |
+| `FOUNDRY_AGENT_ID_FAST` | Yes | SLM agent ID |
+| `MODEL_DEPLOYMENT_NAME_FAST` | Yes | SLM deployment name |
+| `FOUNDRY_AGENT_ID_RICH` | Yes | LLM agent ID |
+| `MODEL_DEPLOYMENT_NAME_RICH` | Yes | LLM deployment name |
+| `REDIS_URL` | No | Redis connection URL |
+| `COSMOS_ACCOUNT_URI` | No | Cosmos DB endpoint |
+| `EVENTHUB_NAMESPACE` | Yes | Event Hub namespace |
+
+## Local Development
 ```bash
 cd apps/product-management-normalization-classification/src
 uv sync
-uv run uvicorn product_management_normalization_classification.main:app --reload
-python -m pytest ../tests
+uv run uvicorn product_management_normalization_classification.main:app --reload --port 8021
 ```
 
-## Configuration notes
-- Uses Foundry model settings (`PROJECT_ENDPOINT` or `FOUNDRY_ENDPOINT`, fast/rich model identifiers).
-- Supports Redis/Cosmos/Blob memory configuration via shared memory settings.
-- Requires Event Hub namespace and consumer configuration for background jobs.
+## Test Coverage
+```bash
+python -m pytest apps/product-management-normalization-classification/tests
+```
 
 ---
 

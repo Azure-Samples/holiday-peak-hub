@@ -1,5 +1,7 @@
 # Single Resource Group Deployment Runbook
 
+> Last Updated: 2026-04-30
+
 This runbook standardizes dev/demo operations on a single resource group:
 
 - Resource group: `holidaypeakhub405-dev-rg`

@@ -1,6 +1,6 @@
 # Live Demo Runbook: Search, Enrichment, and HITL
 
-**Last Updated**: March 23, 2026  
+**Last Updated**: April 30, 2026  
 **Audience**: Demo operators and stakeholder-facing presenters  
 **Target UI**: https://blue-meadow-00fcb8810.4.azurestaticapps.net/
 
@@ -23,9 +23,9 @@ Before starting, confirm:
    - Keep one extra tab ready for `/staff/review`.
 5. **Catalog-search AI Search runtime wiring**:
     - Confirm deployment env vars are present:
-       - `kubectl set env deployment/ecommerce-catalog-search-ecommerce-catalog-search --list -n holiday-peak | Select-String "AI_SEARCH_ENDPOINT|AI_SEARCH_INDEX|AI_SEARCH_AUTH_MODE|CRUD_SERVICE_URL"`
+       - `kubectl set env deployment/ecommerce-catalog-search-ecommerce-catalog-search --list -n holiday-peak-agents | Select-String "AI_SEARCH_ENDPOINT|AI_SEARCH_INDEX|AI_SEARCH_AUTH_MODE|CRUD_SERVICE_URL"`
     - If env vars were changed, wait for rollout:
-       - `kubectl rollout status deployment/ecommerce-catalog-search-ecommerce-catalog-search -n holiday-peak --timeout=180s`
+       - `kubectl rollout status deployment/ecommerce-catalog-search-ecommerce-catalog-search -n holiday-peak-agents --timeout=180s`
 
 ---
 

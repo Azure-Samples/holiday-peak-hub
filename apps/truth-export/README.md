@@ -1,10 +1,16 @@
 # Truth Export
 
+> Last Updated: 2026-04-30
+
 > Full pipeline documentation: [`docs/implementation/truth-layer-agents-guide.md`](../../docs/implementation/truth-layer-agents-guide.md)
 
 ## Purpose
 
 Transforms approved product truth into protocol-specific formats (UCP/ACP) and manages PIM writeback. Acts as the **export stage** of the Product Truth Layer pipeline.
+
+## Domain Bounded Context
+- **Owner**: Truth Layer team
+- **Bounded Context**: Truth Layer
 
 ## Why This Agent Exists
 

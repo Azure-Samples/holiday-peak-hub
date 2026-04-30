@@ -1,30 +1,71 @@
 # CRM Profile Aggregation
 
+> Last Updated: 2026-04-30
+
 ## Purpose
-Builds a unified customer profile from distributed CRM and interaction sources.
 
-## Responsibilities
-- Aggregate identity, contact, and engagement context.
-- Resolve profile-level signals for downstream decisioning.
-- Provide a consistent profile view for other services.
+Builds unified customer profiles by aggregating identity, contact, and engagement context from distributed CRM and interaction sources. Resolves profile-level signals for downstream decisioning agents.
 
-## Key endpoints or interfaces
-- `POST /invoke` for synchronous service requests.
-- MCP interfaces under `/mcp/*` for agent-to-agent usage.
-- Event Hub subscription for asynchronous processing.
+## Domain Bounded Context
+- **Owner**: CRM team
+- **Bounded Context**: CRM
 
-## Run/Test commands
+## Endpoints
+
+### REST
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/invoke` | Synchronous agent invocation |
+| GET | `/health` | Liveness probe |
+| GET | `/ready` | Readiness probe |
+
+### MCP Tools
+| Tool | Description |
+|------|-------------|
+| `/profile/contact-context` | Retrieve full contact context with interactions |
+| `/profile/summary` | AI-generated profile summary |
+| `/profile/account-summary` | Account-level aggregation |
+
+### Event Subscriptions
+| Topic | Consumer Group | Action |
+|-------|---------------|--------|
+| `user-events` | `profile-agg-group` | Update profile on user changes |
+| `order-events` | `profile-agg-group` | Incorporate purchase history |
+
+## Model Routing
+- **SLM (fast)**: GPT-5-nano via `FOUNDRY_AGENT_ID_FAST`
+- **LLM (rich)**: GPT-4o via `FOUNDRY_AGENT_ID_RICH`
+
+## Memory Usage
+| Tier | Purpose |
+|------|---------||
+| Hot (Redis) | Cached profile lookups (TTL 300s) |
+| Warm (Cosmos DB) | Aggregated profile state |
+| Cold (Blob) | Historical profile snapshots |
+
+## Environment Variables
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `PROJECT_ENDPOINT` | Yes | Azure AI Foundry project endpoint |
+| `FOUNDRY_AGENT_ID_FAST` | Yes | SLM agent ID |
+| `MODEL_DEPLOYMENT_NAME_FAST` | Yes | SLM deployment name |
+| `FOUNDRY_AGENT_ID_RICH` | Yes | LLM agent ID |
+| `MODEL_DEPLOYMENT_NAME_RICH` | Yes | LLM deployment name |
+| `REDIS_URL` | No | Redis connection URL |
+| `COSMOS_ACCOUNT_URI` | No | Cosmos DB endpoint |
+| `EVENTHUB_NAMESPACE` | Yes | Event Hub namespace |
+
+## Local Development
 ```bash
 cd apps/crm-profile-aggregation/src
 uv sync
-uv run uvicorn crm_profile_aggregation.main:app --reload
-python -m pytest ../tests
+uv run uvicorn crm_profile_aggregation.main:app --reload --port 8002
 ```
 
-## Configuration notes
-- Uses Foundry model settings (`PROJECT_ENDPOINT` or `FOUNDRY_ENDPOINT`, fast/rich model identifiers).
-- Supports Redis/Cosmos/Blob memory configuration via shared memory settings.
-- Requires Event Hub namespace and consumer configuration for background jobs.
+## Test Coverage
+```bash
+python -m pytest apps/crm-profile-aggregation/tests
+```
 
 ---
 

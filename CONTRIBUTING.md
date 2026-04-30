@@ -1,5 +1,7 @@
 # Contributing
 
+**Last Updated**: 2026-04-30
+
 Thanks for helping improve Holiday Peak Hub. This repo is a Python 3.13 monorepo with a shared micro-framework (`lib/`) plus multiple FastAPI agent services (`apps/`) and a Next.js frontend (`apps/ui/`). Keep changes small, tested, and focused.
 
 ## Prerequisites

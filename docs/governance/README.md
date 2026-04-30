@@ -1,7 +1,7 @@
 # Governance and Compliance Guidelines
 
-**Version**: 2.1
-**Last Updated**: 2026-04-06
+**Version**: 2.2
+**Last Updated**: 2026-04-30
 **Owner**: Architecture Team
 
 ## Overview
@@ -38,6 +38,14 @@ This folder is the governance source of truth for engineering standards, runtime
 **Audience**: Platform/DevSecOps engineers  
 **Scope**: Weekly high-severity burn-down metrics and resolution evidence links
 
+### [Self-Healing RBAC Matrix](self-healing-rbac-matrix.md)
+**Audience**: Platform/SRE engineers  
+**Scope**: RBAC assignments, denied roles, policy engine enforcement, and audit logging for self-healing remediation identities (ADR-025)
+
+### [Self-Healing Rollout Runbook](self-healing-rollout-runbook.md)
+**Audience**: Platform/SRE engineers  
+**Scope**: Feature flags, rollout milestones, emergency disable procedures, and observability integration for self-healing (ADR-025)
+
 ## Repository Source-of-Truth Map
 
 | Governance topic | Canonical source | Notes |
@@ -58,6 +66,9 @@ This folder is the governance source of truth for engineering standards, runtime
 - **Lint/format baseline (backend)**: `pylint`, `black`, `isort` (`pyproject.toml`)
 - **Lint baseline (frontend)**: ESLint 8 (`apps/ui/.eslintrc.json`)
 - **Coverage baseline**: 75% repo minimum; package-level stricter thresholds allowed (some modules enforce 80%)
+- **Test count**: 1796 tests (1136 lib + 660 app), 89% coverage
+- **Deployment model**: azd provision + Flux GitOps for AKS (ADR-017), APIM → AGC → AKS edge (ADR-021)
+- **Self-healing**: Incident lifecycle state machine with remediation policy and audit trail (ADR-025)
 
 ## Environment Policy Summary
 

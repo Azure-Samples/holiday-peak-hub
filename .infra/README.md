@@ -1,5 +1,7 @@
 # Infrastructure Management
 
+**Last Updated**: 2026-04-30
+
 This folder contains all infrastructure-as-code (Bicep) and deployment tooling for Holiday Peak Hub.
 All infrastructure uses [Azure Verified Modules (AVM)](https://azure.github.io/Azure-Verified-Modules/) for consistency, security, and maintainability.
 

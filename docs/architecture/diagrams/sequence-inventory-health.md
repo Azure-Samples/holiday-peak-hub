@@ -1,6 +1,8 @@
 # Sequence Diagram: Inventory Health Check Flow
 
-This diagram illustrates the inventory health validation process in the Holiday Peak Hub accelerator.
+> Last Updated: 2026-04-30
+
+This diagram illustrates the inventory health validation process in the Holiday Peak Hub accelerator. It covers both scheduled (every 15 min) and on-demand checks, including rule-based validation, Z-score anomaly detection, alert generation, and SAGA-based remediation. Reference this diagram when modifying health-check rules, alert thresholds, or remediation workflows.
 
 ## Flow Overview
 
@@ -14,6 +16,7 @@ This diagram illustrates the inventory health validation process in the Holiday 
 ## Sequence Diagram
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
 sequenceDiagram
     actor Scheduler
     participant API as FastAPI App

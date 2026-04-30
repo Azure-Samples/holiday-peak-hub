@@ -1,38 +1,80 @@
 # Ecommerce Catalog Search
 
+> Last Updated: 2026-04-30
+
 ## Purpose
 
-Provides product discovery and ACP-aligned catalog search responses.
+Provides product discovery and ACP-aligned catalog search responses powered by Azure AI Search. Runs a full retrieval cycle: baseline keyword retrieval, intent-driven query expansion, semantic retrieval, and fallback rerank.
 
-## Responsibilities
+## Domain Bounded Context
+- **Owner**: eCommerce team
+- **Bounded Context**: eCommerce
 
-- Resolve search queries into relevant product sets.
-- Default to intelligent search mode when no mode is specified, while keeping explicit keyword mode available for demos and compatibility.
-- Return inventory-aware and commerce-ready product context.
-- Support intelligent search enrichment for downstream flows.
-- Emit explicit degraded fallback metadata (`result_type`, `degraded_reason`, `fallback_keywords`) when model synthesis times out or fails.
-- Uses generic intent classification with model-first evaluation and deterministic fallback.
-- Runs a full retrieval cycle (baseline keyword retrieval, intent-driven query expansion, semantic retrieval, and fallback rerank) to return relevant results.
+## Endpoints
 
-## Key endpoints or interfaces
+### REST
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/invoke` | Synchronous agent invocation (search query) |
+| GET | `/health` | Liveness probe |
+| GET | `/ready` | Readiness probe (includes AI Search index readiness) |
 
-- `POST /invoke` for synchronous service requests.
-- MCP interfaces under `/mcp/*` for agent-to-agent usage.
-- Event Hub subscription: `product-events` / consumer group `catalog-search-group`.
+### MCP Tools
+| Tool | Description |
+|------|-------------|
+| `/catalog/search` | Execute catalog search with intent classification |
+| `/catalog/product-context` | Retrieve enriched product context by SKU |
 
-## Run/Test commands
+### Event Subscriptions
+| Topic | Consumer Group | Action |
+|-------|---------------|--------|
+| `product-events` | `catalog-search-group` | React to product catalog changes |
 
+## Architecture Notes
+- **No CRUD service calls** — product read path is Azure AI Search only
+- AI Search index population is owned by `search-enrichment-agent` (async, Event Hub driven)
+- Supports `intelligent` (default) and `keyword` search modes
+- Emits degraded fallback metadata when model synthesis fails
+- Uses generic intent classification with model-first evaluation and deterministic fallback
+
+## Model Routing
+- **SLM (fast)**: GPT-5-nano via `FOUNDRY_AGENT_ID_FAST`
+- **LLM (rich)**: GPT-4o via `FOUNDRY_AGENT_ID_RICH`
+- `keyword` mode never performs model response synthesis
+
+## Memory Usage
+| Tier | Purpose |
+|------|---------||
+| Hot (Redis) | Cached search results (TTL 300s) |
+| Warm (Cosmos DB) | Search history and intent patterns |
+| Cold (Blob) | Search analytics archives |
+
+## Environment Variables
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `PROJECT_ENDPOINT` | Yes | Azure AI Foundry project endpoint |
+| `FOUNDRY_AGENT_ID_FAST` | Yes | SLM agent ID |
+| `MODEL_DEPLOYMENT_NAME_FAST` | Yes | SLM deployment name |
+| `FOUNDRY_AGENT_ID_RICH` | Yes | LLM agent ID |
+| `MODEL_DEPLOYMENT_NAME_RICH` | Yes | LLM deployment name |
+| `AI_SEARCH_ENDPOINT` | Yes | Azure AI Search endpoint |
+| `AI_SEARCH_INDEX_NAME` | Yes | Search index name |
+| `AI_SEARCH_REQUIRED` | No | Strict mode for readiness (default: false) |
+| `REDIS_URL` | No | Redis connection URL |
+| `COSMOS_ACCOUNT_URI` | No | Cosmos DB endpoint |
+| `EVENTHUB_NAMESPACE` | Yes | Event Hub namespace |
+
+## Local Development
 ```bash
 cd apps/ecommerce-catalog-search/src
 uv sync
-uv run uvicorn ecommerce_catalog_search.main:app --reload
-python -m pytest ../tests
+uv run uvicorn ecommerce_catalog_search.main:app --reload --port 8006
 ```
 
-## Configuration notes
-
-- Uses Foundry model settings (`PROJECT_ENDPOINT` or `FOUNDRY_ENDPOINT`, fast/rich model identifiers).
-- `keyword` mode never performs model response synthesis, even when Foundry models are configured.
+## Test Coverage
+```bash
+python -m pytest apps/ecommerce-catalog-search/tests
+```
 - Supports Redis/Cosmos/Blob memory configuration via shared memory settings.
 - Requires Event Hub namespace and consumer configuration for background jobs.
 - Uses strict AI Search runtime mode by default on AKS unless `CATALOG_SEARCH_REQUIRE_AI_SEARCH` is explicitly overridden.

@@ -1,30 +1,70 @@
 # CRM Support Assistance
 
+> Last Updated: 2026-04-30
+
 ## Purpose
-Produces support-facing assistance with CRM context and next-best-action recommendations.
 
-## Responsibilities
-- Assemble customer context for support interactions.
-- Identify sentiment and escalation risk cues.
-- Suggest prioritized response actions.
+Produces support-facing assistance by assembling customer context from CRM, identifying sentiment and escalation risk cues, and suggesting prioritized next-best-action recommendations.
 
-## Key endpoints or interfaces
-- `POST /invoke` for synchronous service requests.
-- MCP interfaces under `/mcp/*` for agent-to-agent usage.
-- Event Hub subscription for asynchronous processing.
+## Domain Bounded Context
+- **Owner**: CRM team
+- **Bounded Context**: CRM
 
-## Run/Test commands
+## Endpoints
+
+### REST
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/invoke` | Synchronous agent invocation |
+| GET | `/health` | Liveness probe |
+| GET | `/ready` | Readiness probe |
+
+### MCP Tools
+| Tool | Description |
+|------|-------------|
+| `/support/context` | Retrieve support context for a customer |
+| `/support/recommendations` | AI-generated next-best-action suggestions |
+
+### Event Subscriptions
+| Topic | Consumer Group | Action |
+|-------|---------------|--------|
+| `order-events` | `support-group` | Track order issues for support context |
+| `return-events` | `support-group` | Incorporate return signals |
+
+## Model Routing
+- **SLM (fast)**: GPT-5-nano via `FOUNDRY_AGENT_ID_FAST`
+- **LLM (rich)**: GPT-4o via `FOUNDRY_AGENT_ID_RICH`
+
+## Memory Usage
+| Tier | Purpose |
+|------|---------||
+| Hot (Redis) | Cached support context (TTL 300s) |
+| Warm (Cosmos DB) | Support interaction history |
+| Cold (Blob) | Historical support case archives |
+
+## Environment Variables
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `PROJECT_ENDPOINT` | Yes | Azure AI Foundry project endpoint |
+| `FOUNDRY_AGENT_ID_FAST` | Yes | SLM agent ID |
+| `MODEL_DEPLOYMENT_NAME_FAST` | Yes | SLM deployment name |
+| `FOUNDRY_AGENT_ID_RICH` | Yes | LLM agent ID |
+| `MODEL_DEPLOYMENT_NAME_RICH` | Yes | LLM deployment name |
+| `REDIS_URL` | No | Redis connection URL |
+| `COSMOS_ACCOUNT_URI` | No | Cosmos DB endpoint |
+| `EVENTHUB_NAMESPACE` | Yes | Event Hub namespace |
+
+## Local Development
 ```bash
 cd apps/crm-support-assistance/src
 uv sync
-uv run uvicorn crm_support_assistance.main:app --reload
-python -m pytest ../tests
+uv run uvicorn crm_support_assistance.main:app --reload --port 8004
 ```
 
-## Configuration notes
-- Uses Foundry model settings (`PROJECT_ENDPOINT` or `FOUNDRY_ENDPOINT`, fast/rich model identifiers).
-- Supports Redis/Cosmos/Blob memory configuration via shared memory settings.
-- Requires Event Hub namespace and consumer configuration for background jobs.
+## Test Coverage
+```bash
+python -m pytest apps/crm-support-assistance/tests
+```
 
 ---
 

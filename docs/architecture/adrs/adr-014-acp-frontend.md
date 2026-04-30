@@ -55,6 +55,7 @@ We will implement **full ACP compliance** in the frontend, including schema vali
 ### Architecture
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
 graph TB
     Backend[Backend Service] -->|Raw Data| Transform[ACP Transformer]
     Transform -->|Validate| Validator[Schema Validator]

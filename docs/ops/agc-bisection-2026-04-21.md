@@ -1,5 +1,7 @@
 # AGC Edge-Path Bisection — 2026-04-21
 
+**Last Reviewed**: 2026-04-30
+
 | Field | Value |
 |---|---|
 | Date (UTC) | 2026-04-21 |

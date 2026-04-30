@@ -1,27 +1,66 @@
-# Holiday Peak Hub - Architecture Documentation
+# Holiday Peak Hub — Documentation Hub
 
-**Last Updated**: April 12, 2026
-**Version**: main (post PR #802)  
-**Status**: Active Development
-
-## Latest Update Snapshot (April 12, 2026)
-
-- **FoundryAgentInvoker** replaces legacy `FoundryInvoker` (PR #802 / Issue #801): agent tools are now properly forwarded through the Microsoft Agent Framework `FoundryAgent` runtime. `agent-framework` upgraded to `>=1.0.1` GA across all 27 Python services.
-- Memory tier reads/writes parallelized via `asyncio.gather` (PR #800): concurrent hot/warm/cold I/O reduces agent memory latency. New memory tools (`get_memory`, `set_memory`, `search_memory`) and `gather_adapters` helper added.
-- Catalog-search I/O parallelized and duplicate keyword search eliminated (PR #796).
-- CRUD_SERVICE_URL port corrected from 8000 to 80 for all agent deployments in AKS (PR #794).
-- Flux CD Phase B complete (PR #792): kubectl-apply removed, full GitOps reconciliation via Flux.
-- API Center governance, sync pipeline, and APIM MCP strategy added (PR #789 / ADR-027).
-- Namespace isolation (PR #788 / ADR-026): CRUD and agent services now run in separate Kubernetes namespaces.
-- AKS deployments migrated to Flux CD GitOps (PR #785 / ADR-017).
-- Self-healing epic complete (PR #771): incident lifecycle kernel, remediation policy, and audit trail across all agent surfaces.
-- CRUD Entra ID auth rollout contracts hardened (PR #776).
-- Validation status: **1796 tests passed** (1136 lib + 660 app), 0 failures.
-- 35 Architecture Decision Records (ADR-001 through ADR-027).
+> **Last Updated**: 2026-04-30 | **Version**: main (post PR #859) | **Status**: Active Development
 
 ## Overview
 
-Holiday Peak Hub is a **cloud-native, agent-driven retail accelerator** with complete frontend implementation and comprehensive backend architecture plan. This documentation covers all architectural decisions, implementation plans, and operational procedures.
+Holiday Peak Hub is a **cloud-native, agent-driven retail accelerator** — 26 AI agents + 1 CRUD service + 1 Next.js UI, deployed on AKS with Flux GitOps. This documentation hub provides navigation for all audiences.
+
+---
+
+## Documentation Index
+
+### By Audience
+
+| Audience | Start Here | Key Documents |
+|----------|-----------|---------------|
+| **Business / CTO** | [Business Summary](architecture/business-summary.md) | [Business Scenarios](business_scenarios/README.md), [Competitive Intel](business_scenarios/competitive-intelligence-enrichment-search.md) |
+| **Architect** | [Architecture Overview](architecture/README.md) | [ADRs](architecture/ADRs.md), [Components](architecture/components.md), [Diagrams](architecture/diagrams/README.md) |
+| **Backend Developer** | [Agentic Microservices Reference](agentic-microservices-reference.md) | [Framework (lib)](../lib/README.md), [Services](../apps/README.md), [Implementation](implementation/README.md) |
+| **Frontend Developer** | [UI README](../apps/ui/README.md) | [Route Alignment](implementation/ui-crud-route-alignment.md), [UX Review](implementation/ui-ux-modernization-review.md) |
+| **Operator / SRE** | [Infrastructure](.infra/README.md) | [Governance](governance/README.md), [Runbooks](ops/), [Deployment Runbook](#deployment-runbook-github-actions--azd) |
+| **Contributor** | [CONTRIBUTING.md](../CONTRIBUTING.md) | [Governance](governance/README.md), [Branch Convention](architecture/adrs/adr-018-branch-naming-convention.md) |
+
+### By Topic
+
+| Topic | Documents |
+|-------|-----------|
+| Architecture & Design | [Overview](architecture/architecture.md) · [Solution Architecture](architecture/solution-architecture-overview.md) · [Diagrams](architecture/solution-architecture-diagrams.md) · [Components](architecture/components.md) |
+| ADRs (27) | [Index](architecture/ADRs.md) · [ADR-001](architecture/adrs/adr-001-python-3.13.md) through [ADR-027](architecture/adrs/adr-027-api-center-apim-mcp-strategy.md) |
+| Business Scenarios (8) | [Portfolio](business_scenarios/README.md) · [Order-to-Fulfillment](business_scenarios/01-order-to-fulfillment/README.md) · [Discovery](business_scenarios/02-product-discovery-enrichment/README.md) · [Returns](business_scenarios/03-returns-refund-processing/README.md) · [Inventory](business_scenarios/04-inventory-optimization/README.md) · [Shipping](business_scenarios/05-shipment-delivery-tracking/README.md) · [Customer 360](business_scenarios/06-customer-360-personalization/README.md) · [Product Lifecycle](business_scenarios/07-product-lifecycle-management/README.md) · [Support](business_scenarios/08-customer-support-resolution/README.md) |
+| Implementation | [Index](implementation/README.md) · [Truth Layer Guide](implementation/truth-layer-agents-guide.md) · [CRUD Resilience](implementation/crud-runtime-resilience.md) · [Telemetry](implementation/telemetry-envelope-v1.md) · [Entra ID](implementation/entra-id-setup.md) |
+| Operations | [Catalog-Search Runbook](ops/catalog-search-readiness-503-runbook.md) · [AGC Bisection](ops/agc-bisection-2026-04-21.md) |
+| Governance | [Index](governance/README.md) · [Backend](governance/backend-governance.md) · [Frontend](governance/frontend-governance.md) · [Infrastructure](governance/infrastructure-governance.md) · [Security](governance/security-exception-register.md) |
+| Roadmap | [Implementation Roadmap](IMPLEMENTATION_ROADMAP.md) · [Roadmap Items](roadmap/README.md) |
+| Demos | [Demo Index](demos/README.md) · [Live Search+HITL Demo](demos/live-demo-search-enrichment-hitl.md) |
+
+---
+
+## Current Platform Metrics
+
+| Metric | Value |
+|--------|-------|
+| Tests passing | 1796 (1136 lib + 660 app) |
+| Coverage | 89% |
+| Agent services | 26 |
+| ADRs | 27 |
+| Event Hub topics | 8 |
+| Kubernetes namespaces | 2 (`crud`, `agents`) |
+| Model routing | SLM-first (GPT-5-nano) → LLM escalation (GPT-4o) |
+
+---
+
+## Latest Changes (April 2026)
+
+- **Catalog-search strict 4s pipeline** (PR #859): GPT-5-nano with `reasoning_effort="minimal"`, parallel search fan-out, 10/10 live integration tests
+- **FoundryAgentInvoker** replaces legacy FoundryInvoker (PR #802): MAF >=1.0.1 GA, proper tool forwarding
+- **Memory parallelization** (PR #800): `asyncio.gather` for hot/warm/cold I/O
+- **Flux CD Phase B** (PR #792): full GitOps reconciliation, kubectl-apply removed
+- **Namespace isolation** (PR #788 / ADR-026): separate `crud` and `agents` namespaces
+- **Self-healing epic** (PR #771): incident lifecycle, remediation policy, audit trail
+- **Executive demo** (2026-04-28): scroll-driven narrative with agent robot overlays
+
+---
 
 ## Developer Tooling
 

@@ -1,9 +1,10 @@
 # Risk Assessment: Product Enrichment Flow & Intelligent Search System
 
-> **Date**: March 19, 2026 | **Classification**: Internal — Risk Management  
+> **Last Updated**: 2026-04-30 | **Date**: March 19, 2026 | **Classification**: Internal — Risk Management  
 > **Framework**: ISO 31000 + COSO ERM | **Risk Appetite**: Moderate  
 > **Assessor**: Risk Analysis Agent  
-> **Scope**: Capabilities 1 (End-to-End Product Enrichment) and 2 (Intelligent Product Search)
+> **Scope**: Capabilities 1 (End-to-End Product Enrichment) and 2 (Intelligent Product Search)  
+> **Platform Context**: 26 agents on AKS, MAF ≥1.0.1, SLM/LLM routing, three-tier memory, Event Hub choreography
 
 ---
 
@@ -103,7 +104,7 @@ $$\text{Risk Score} = L \times I$$
 |----|------|-----------|---|---|-------|--------|-------|
 | X-01 | **Azure AI Foundry availability**: Regional outage or quota exhaustion prevents enrichment and search agent inference | Cap 1+2 | 2 | 4 | **8** | Medium | Platform Eng |
 | X-02 | **AI Search pricing changes**: Microsoft increases AI Search pricing for vector workloads, making semantic search cost-prohibitive | Cap 2 | 2 | 3 | **6** | Medium | Finance |
-| X-03 | **Model deprecation**: GPT-5-nano or GPT-5 gets deprecated or behavior-changes, requiring prompt revalidation across all 21+ agents | Cap 1+2 | 3 | 3 | **9** | Medium | AI/ML Lead |
+| X-03 | **Model deprecation**: GPT-5-nano or GPT-5 gets deprecated or behavior-changes, requiring prompt revalidation across all 26 agents | Cap 1+2 | 3 | 3 | **9** | Medium | AI/ML Lead |
 
 ---
 
