@@ -184,9 +184,22 @@ python generate-inventory.py --products products.json --warehouses 5 --output in
 
 ---
 
+## Real-World Data — Kaggle Olist (100k orders)
+
+For demos requiring realistic volume and diversity, use the [Kaggle Olist loader](../../../scripts/ops/load-kaggle-olist-dataset.py):
+
+```bash
+pip install httpx pandas opendatasets tqdm
+python scripts/ops/load-kaggle-olist-dataset.py --download --crud-url http://localhost:8000 --limit 500
+```
+
+This downloads the Brazilian E-Commerce dataset (CC BY-NC-SA 4.0), transforms products/users/orders to the CRUD schema, and POSTs them to the service. Use `--limit` to control how many products and `--order-limit` for orders.
+
+---
+
 ## Next Steps
 
-1. Load sample data using scripts
-2. Try [API Examples](../api-examples/)
+1. Load sample data using scripts above or the Kaggle loader
+2. Try [API Examples](../api-examples/) (now in [`scripts/demos/`](../../../scripts/demos/))
 3. Run [Interactive Scenarios](../interactive-scenarios/)
 4. Explore [Jupyter Notebooks](../agent-playgrounds/)

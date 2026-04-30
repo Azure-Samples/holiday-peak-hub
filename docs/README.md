@@ -33,6 +33,7 @@ Holiday Peak Hub is a **cloud-native, agent-driven retail accelerator** — 26 A
 | Governance | [Index](governance/README.md) · [Backend](governance/backend-governance.md) · [Frontend](governance/frontend-governance.md) · [Infrastructure](governance/infrastructure-governance.md) · [Security](governance/security-exception-register.md) |
 | Roadmap | [Implementation Roadmap](IMPLEMENTATION_ROADMAP.md) · [Roadmap Items](roadmap/README.md) |
 | Demos | [Demo Index](demos/README.md) · [Live Search+HITL Demo](demos/live-demo-search-enrichment-hitl.md) |
+| Scripts | [Demo Scripts](../scripts/demos/) · [Ops Scripts](../scripts/ops/) · [Kaggle Loader](../scripts/ops/load-kaggle-olist-dataset.py) |
 
 ---
 

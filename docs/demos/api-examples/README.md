@@ -1,53 +1,57 @@
 # API Examples
 
+**Last Updated**: 2026-04-30  
 **Status**: Phase 1 - Complete
 
 ---
 
 ## Overview
 
-This directory contains quick-start API examples for the 26 agent services plus the CRUD service, including curl scripts, PowerShell examples, and Postman collections.
+Quick-start API examples for the 26 agent services plus the CRUD service.
 
 ---
 
-## Available Examples
+## Scripts
 
-### Quick Start Scripts
+Executable demo scripts live in [`scripts/demos/`](../../../scripts/demos/):
 
-#### Bash/curl (Linux/macOS/WSL)
+| Script | Platform | Description |
+|--------|----------|-------------|
+| [`curl-examples.sh`](../../../scripts/demos/curl-examples.sh) | Bash (Linux/macOS/WSL) | curl calls for all 26 agents + CRUD |
+| [`powershell-examples.ps1`](../../../scripts/demos/powershell-examples.ps1) | PowerShell (Windows) | Invoke-RestMethod calls for all services |
+
+### Usage
+
+#### Bash/curl
 ```bash
-# Run all quick demos
-bash curl-examples.sh all
-
-# Run specific domain demos
-bash curl-examples.sh ecommerce
-bash curl-examples.sh product-management
-bash curl-examples.sh crm
-bash curl-examples.sh inventory
-bash curl-examples.sh logistics
-
-# Run specific agent demo
-bash curl-examples.sh enrichment
-bash curl-examples.sh catalog-search
+export BASE_URL=http://localhost  # or your APIM gateway URL
+bash scripts/demos/curl-examples.sh
 ```
 
-#### PowerShell (Windows)
+#### PowerShell
 ```powershell
-# Run all quick demos
-.\powershell-examples.ps1 -Domain All
-
-# Run specific domain demos
-.\powershell-examples.ps1 -Domain Ecommerce
-.\powershell-examples.ps1 -Domain ProductManagement
-.\powershell-examples.ps1 -Domain CRM
-.\powershell-examples.ps1 -Domain Inventory
-.\powershell-examples.ps1 -Domain Logistics
-
-# Run specific agent demo
-.\powershell-examples.ps1 -Agent enrichment
+$env:BASE_URL = "http://localhost"  # or your APIM gateway URL
+.\scripts\demos\powershell-examples.ps1
 ```
 
-### Postman Collection
+---
+
+## Data Seeding
+
+| Script | Purpose |
+|--------|---------|
+| [`scripts/ops/load-kaggle-olist-dataset.py`](../../../scripts/ops/load-kaggle-olist-dataset.py) | Load 100k real orders from Kaggle Olist dataset into CRUD service |
+| `python -m crud_service.scripts.seed_demo_data` | Load curated 100-product demo catalog (runs inside AKS) |
+
+### Kaggle Olist Loader
+```bash
+pip install httpx pandas opendatasets tqdm
+python scripts/ops/load-kaggle-olist-dataset.py --download --crud-url http://localhost:8000 --limit 500
+```
+
+---
+
+## Postman Collection
 
 **Import**: `postman-collection.json`
 
