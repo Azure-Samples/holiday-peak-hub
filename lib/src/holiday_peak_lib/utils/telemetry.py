@@ -257,6 +257,19 @@ class FoundryTracer:
         os.environ.setdefault("AZURE_SDK_TRACING_IMPLEMENTATION", "opentelemetry")
 
         with _FOUNDRY_INSTRUMENTATION_LOCK:
+            # Guarantee a real TracerProvider exists so the SDK never encounters
+            # NonRecordingSpan (which lacks .attributes and crashes the
+            # _responses_instrumentor).  Azure Monitor may override this later.
+            from opentelemetry.sdk.trace import (
+                TracerProvider as _SdkTP,  # pylint: disable=import-outside-toplevel
+            )
+
+            if not isinstance(trace.get_tracer_provider(), _SdkTP):
+                try:
+                    trace.set_tracer_provider(_SdkTP())
+                except Exception:  # noqa: BLE001 – already set
+                    pass
+
             if self.connection_string and not _FOUNDRY_INSTRUMENTATION_STATE["azure_monitor"]:
                 try:
                     configure_azure_monitor(connection_string=self.connection_string)

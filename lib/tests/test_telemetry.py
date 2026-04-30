@@ -339,3 +339,38 @@ class TestOutcomeStatusInEvents:
         )
         event = tracer.get_traces(limit=1)[0]
         assert event["metadata"]["model_tier"] == "unknown"
+
+
+class TestNonRecordingSpanPatch:
+    """Regression tests for issue #933: SDK crash on NonRecordingSpan.attributes."""
+
+    def test_nonrecordingspan_has_attributes(self):
+        """NonRecordingSpan must have a falsy .attributes after lib init."""
+        from opentelemetry.trace import INVALID_SPAN_CONTEXT, NonRecordingSpan
+
+        span = NonRecordingSpan(INVALID_SPAN_CONTEXT)
+        # Must not raise AttributeError
+        assert span.attributes is None
+
+    def test_sdk_append_attribute_path_does_not_crash(self):
+        """The exact code path from azure-ai-projects _responses_instrumentor:561."""
+        from azure.core.tracing.ext.opentelemetry_span import OpenTelemetrySpan
+        from opentelemetry.trace import INVALID_SPAN_CONTEXT, NonRecordingSpan
+
+        nrs = NonRecordingSpan(INVALID_SPAN_CONTEXT)
+        wrapper = OpenTelemetrySpan(span=nrs)
+        # Reproduce SDK line 561 — must not raise
+        result = (
+            wrapper.span_instance.attributes.get("gen_ai.input.messages")
+            if wrapper.span_instance.attributes
+            else None
+        )
+        assert result is None
+
+    def test_real_tracer_provider_configured(self):
+        """A real TracerProvider should be set so NonRecordingSpan is avoided."""
+        from opentelemetry import trace
+        from opentelemetry.sdk.trace import TracerProvider
+
+        tp = trace.get_tracer_provider()
+        assert isinstance(tp, TracerProvider)
