@@ -271,6 +271,8 @@ class FoundryTracer:
                     pass
 
             if self.connection_string and not _FOUNDRY_INSTRUMENTATION_STATE["azure_monitor"]:
+                # Ensure OTEL_SERVICE_NAME is set so App Insights identifies the emitting service.
+                os.environ.setdefault("OTEL_SERVICE_NAME", self.service_name)
                 try:
                     configure_azure_monitor(connection_string=self.connection_string)
                     _FOUNDRY_INSTRUMENTATION_STATE["azure_monitor"] = True

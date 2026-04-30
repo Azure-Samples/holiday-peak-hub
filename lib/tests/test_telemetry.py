@@ -374,3 +374,68 @@ class TestNonRecordingSpanPatch:
 
         tp = trace.get_tracer_provider()
         assert isinstance(tp, TracerProvider)
+
+
+class TestOtelServiceNamePropagation:
+    """Tests that OTEL_SERVICE_NAME is set for App Insights service identification."""
+
+    def test_configure_logging_sets_otel_service_name(self, monkeypatch):
+        """configure_logging should set OTEL_SERVICE_NAME when AppInsights is configured."""
+        import logging
+
+        from holiday_peak_lib.utils.logging import configure_logging
+
+        monkeypatch.setenv(
+            "APPLICATIONINSIGHTS_CONNECTION_STRING",
+            "InstrumentationKey=00000000-0000-0000-0000-000000000000",
+        )
+        monkeypatch.delenv("OTEL_SERVICE_NAME", raising=False)
+
+        # Clear existing handlers to force re-initialization
+        test_logger_name = "holiday-peak-lib.otel-svc-name-test"
+        logging.getLogger(test_logger_name).handlers.clear()
+
+        import os
+
+        configure_logging(app_name="otel-svc-name-test")
+        assert os.environ.get("OTEL_SERVICE_NAME") == "otel-svc-name-test"
+
+    def test_configure_logging_does_not_override_explicit_otel_service_name(self, monkeypatch):
+        """If OTEL_SERVICE_NAME is already set, configure_logging must not override it."""
+        import logging
+
+        from holiday_peak_lib.utils.logging import configure_logging
+
+        monkeypatch.setenv(
+            "APPLICATIONINSIGHTS_CONNECTION_STRING",
+            "InstrumentationKey=00000000-0000-0000-0000-000000000000",
+        )
+        monkeypatch.setenv("OTEL_SERVICE_NAME", "my-custom-service")
+
+        test_logger_name = "holiday-peak-lib.otel-no-override-test"
+        logging.getLogger(test_logger_name).handlers.clear()
+
+        import os
+
+        configure_logging(app_name="otel-no-override-test")
+        assert os.environ.get("OTEL_SERVICE_NAME") == "my-custom-service"
+
+    def test_foundry_tracer_sets_otel_service_name(self, monkeypatch):
+        """FoundryTracer should set OTEL_SERVICE_NAME when initializing Azure Monitor."""
+        monkeypatch.setenv(
+            "APPLICATIONINSIGHTS_CONNECTION_STRING",
+            "InstrumentationKey=00000000-0000-0000-0000-000000000000",
+        )
+        monkeypatch.delenv("OTEL_SERVICE_NAME", raising=False)
+        monkeypatch.setenv("FOUNDRY_TRACING_ENABLED", "true")
+
+        import os
+
+        from holiday_peak_lib.utils.telemetry import _FOUNDRY_INSTRUMENTATION_STATE, _TRACERS
+
+        # Reset state to force re-initialization
+        _FOUNDRY_INSTRUMENTATION_STATE["azure_monitor"] = False
+        _TRACERS.pop("otel-foundry-test", None)
+
+        FoundryTracer("otel-foundry-test")
+        assert os.environ.get("OTEL_SERVICE_NAME") == "otel-foundry-test"
