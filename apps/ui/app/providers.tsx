@@ -2,7 +2,6 @@
 'use client';
 
 import { ReactNode } from 'react';
-import { ChatWidget } from '@/components/organisms/ChatWidget';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { QueryProvider } from '@/lib/providers/QueryProvider';
@@ -15,7 +14,6 @@ export default function Providers({ children }: { children: ReactNode }) {
         <ThemeProvider>
           <PageSessionProvider>
             {children}
-            <ChatWidget />
           </PageSessionProvider>
         </ThemeProvider>
       </QueryProvider>

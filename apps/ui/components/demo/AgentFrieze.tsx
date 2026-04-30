@@ -21,8 +21,15 @@ export interface AgentFriezeProps {
 
 export function AgentFrieze({ healthBySlug = {}, hrefBySlug = {} }: AgentFriezeProps) {
   return (
-    <div className="overflow-x-auto pb-2">
-      <ul role="list" className="flex min-w-max gap-3">
+    <div
+      className="agent-frieze-scroller overflow-x-scroll overflow-y-hidden pb-4"
+      style={{
+        scrollbarGutter: 'stable',
+        scrollbarWidth: 'thin',
+        scrollbarColor: 'var(--hp-primary) transparent',
+      }}
+    >
+      <ul role="list" className="flex min-w-max gap-3 pr-4">
         {AGENT_PROFILE_LIST.map((profile) => {
           const health = healthBySlug[profile.slug];
           const href = hrefBySlug[profile.slug];

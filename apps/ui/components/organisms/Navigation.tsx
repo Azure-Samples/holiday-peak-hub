@@ -91,9 +91,18 @@ export const Navigation: React.FC<NavigationProps> = ({
     user?.roles?.some((role) => role === 'staff' || role === 'admin')
   );
   const healthQuery = useAgentGlobalHealth({
-    enabled: pathname !== '/' && canViewAgentHealth,
+    enabled: canViewAgentHealth,
   });
   const globalHealth = healthQuery.data ?? 'unknown';
+  const showPipelinePill = canViewAgentHealth && globalHealth !== 'unknown';
+  const pipelineStatusLabel =
+    globalHealth === 'healthy'
+      ? 'Pipeline healthy'
+      : globalHealth === 'degraded'
+        ? 'Pipeline degraded'
+        : globalHealth === 'down'
+          ? 'Pipeline down'
+          : 'Pipeline status';
 
   const mobileMenuButtonRef = React.useRef<HTMLButtonElement>(null);
   const mobileMenuRef = React.useRef<HTMLDivElement>(null);
@@ -245,14 +254,16 @@ export const Navigation: React.FC<NavigationProps> = ({
           </div>
 
           <div className="flex items-center gap-1 sm:gap-2">
-            <Link
-              href="/admin/enrichment-monitor"
-              className="hidden items-center gap-1.5 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-[10px] font-semibold tracking-wide text-gray-700 dark:text-gray-300 shadow-sm hover:shadow transition-shadow duration-200 md:inline-flex"
-              aria-label="Open enrichment pipeline monitor"
-            >
-              <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${healthIndicatorClass}`} />
-              Pipeline Status
-            </Link>
+            {showPipelinePill ? (
+              <Link
+                href="/admin/agent-activity"
+                className="hidden items-center gap-1.5 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-[10px] font-semibold tracking-wide text-gray-700 dark:text-gray-300 shadow-sm hover:shadow transition-shadow duration-200 md:inline-flex"
+                aria-label={pipelineStatusLabel}
+              >
+                <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${healthIndicatorClass}`} />
+                {pipelineStatusLabel}
+              </Link>
+            ) : null}
 
             <Link
               href="/search?agentChat=1"
@@ -385,14 +396,16 @@ export const Navigation: React.FC<NavigationProps> = ({
               />
             </div>
 
-            <Link
-              href="/admin/enrichment-monitor"
-              className="flex items-center rounded-xl border border-[var(--hp-border)] bg-[var(--hp-surface-strong)] px-3 py-2 text-sm font-semibold text-[var(--hp-text)]"
-              onClick={handleMobileLinkClick}
-            >
-              <span aria-hidden="true" className={`mr-2 h-2.5 w-2.5 rounded-full ${healthIndicatorClass}`} />
-              Pipeline status
-            </Link>
+            {showPipelinePill ? (
+              <Link
+                href="/admin/agent-activity"
+                className="flex items-center rounded-xl border border-[var(--hp-border)] bg-[var(--hp-surface-strong)] px-3 py-2 text-sm font-semibold text-[var(--hp-text)]"
+                onClick={handleMobileLinkClick}
+              >
+                <span aria-hidden="true" className={`mr-2 h-2.5 w-2.5 rounded-full ${healthIndicatorClass}`} />
+                {pipelineStatusLabel}
+              </Link>
+            ) : null}
 
             <Link
               href="/search?agentChat=1"
