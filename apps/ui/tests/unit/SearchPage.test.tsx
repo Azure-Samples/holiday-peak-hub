@@ -12,6 +12,7 @@ jest.mock('next/navigation', () => ({
   useSearchParams: () => ({
     get: getParam,
   }),
+  usePathname: () => '/search',
 }));
 
 const mockUseIntelligentSearch = jest.fn();

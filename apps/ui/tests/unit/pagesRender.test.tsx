@@ -35,6 +35,7 @@ jest.mock('next/navigation', () => ({
   useParams: () => ({ id: 'ORD-2026-0123', entityId: 'prod-001' }),
   useRouter: () => ({ push: jest.fn() }),
   useSearchParams: () => useSearchParamsMock(),
+  usePathname: () => '/',
 }));
 
 jest.mock('../../lib/hooks/useCategories', () => ({
