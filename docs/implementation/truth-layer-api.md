@@ -1,5 +1,7 @@
 # Truth Layer API Reference
 
+> Last Updated: 2026-04-30
+
 This document describes currently available truth-layer endpoints and planned service contracts for the ingestion → completeness → enrichment → review → export workflow.
 
 It also documents the grounded showcase flow used by `samples/notebooks/product-truth-layer-end-to-end-demo.ipynb`, aligned to the agentic architecture patterns in `docs/architecture/architecture.md`.

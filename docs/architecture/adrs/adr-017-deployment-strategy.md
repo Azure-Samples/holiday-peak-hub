@@ -10,7 +10,7 @@
 
 The accelerator needs a repeatable, environment-scoped deployment strategy for:
 - Provisioning shared infrastructure (AKS, Cosmos DB, Redis, Event Hubs, ACR, etc.)
-- Deploying 22 services (1 CRUD + 21 agents) to AKS in the correct order
+- Deploying 27 services (1 CRUD + 26 agents) to AKS in the correct order
 - Supporting both local developer workflows and CI/CD pipelines
 - Maintaining separation of concerns: scaffolding tools vs deployment orchestration
 
@@ -21,7 +21,7 @@ should live in the platform tooling.
 ### Requirements
 
 - **Ordered rollout**: CRUD service must deploy before agent services
-- **Parallel agent deployment**: 21 agents deploy concurrently for speed
+- **Parallel agent deployment**: 26 agents deploy concurrently for speed
 - **Environment isolation**: dev, staging, prod with separate config
 - **OIDC authentication**: No stored secrets for Azure credentials in CI
 - **Idempotent**: Re-running deployment does not cause failures
@@ -42,7 +42,7 @@ Use GitHub Actions for CI/CD with ordered rollout.**
 │                                                   │
 │  ┌─────────┐    ┌────────────┐    ┌────────────┐ │
 │  │provision │───▶│deploy-crud │───▶│deploy-agents│ │
-│  │(azd      │    │(azd deploy │    │(21 services │ │
+│  │(azd      │    │(azd deploy │    │(26 services │ │
 │  │provision)│    │ --service  │    │ in parallel │ │
 │  │          │    │ crud-svc)  │    │ matrix)     │ │
 │  └─────────┘    └────────────┘    └────────────┘ │
@@ -88,7 +88,7 @@ azd provision -e dev
 ```
 
 Provisions: AKS (3 pools), ACR, PostgreSQL (CRUD), Cosmos DB (agent warm memory), Redis,
-Event Hubs (5 topics), Key Vault, APIM, AI Foundry, VNet (5 subnets), NSGs, Private DNS
+Event Hubs (8 topics), Key Vault, APIM, AI Foundry, VNet (5 subnets), NSGs, Private DNS
 Zones, App Insights.
 
 #### 2. CRUD-First Deployment
@@ -113,7 +113,7 @@ Or individually:
 azd deploy --service ecommerce-catalog-search -e dev
 ```
 
-In CI, the 21 agent services deploy in a GitHub Actions matrix (parallel, fail-fast: false).
+In CI, the 26 agent services deploy in a GitHub Actions matrix (parallel, fail-fast: false).
 
 ### Helm Predeploy Hooks
 
@@ -179,20 +179,20 @@ Required repository secrets:
 
 ### Positive
 
-- **Single source of truth**: `azure.yaml` defines all 22 services and their deployment config
+- **Single source of truth**: `azure.yaml` defines all services and their deployment config
 - **Ordered rollout**: CRUD deploys first, agents follow — prevents dependency failures; agents do not call CRUD directly (ADR-024)
 - **Environment scoping**: azd environments isolate dev/staging/prod config
 - **Local parity**: Same `azd deploy` command works locally and in CI
 - **Separation of concerns**: CLI stays lightweight (scaffolding only)
 - **OIDC security**: No stored Azure credentials in GitHub
-- **Parallelism**: 21 agents deploy concurrently in CI, reducing total deploy time
+- **Parallelism**: Agent services deploy concurrently in CI, reducing total deploy time
 
 ### Negative
 
 - **azd dependency**: Teams must install azd locally
 - **Helm template indirection**: Predeploy hooks add a step vs direct `helm install`
 - **No rollback built-in**: azd does not provide `azd rollback`; use `kubectl rollout undo` instead
-- **Matrix job cost**: 21 parallel GitHub Actions runners consume billable minutes
+- **Matrix job cost**: Parallel GitHub Actions runners consume billable minutes
 
 ### Risk Mitigation
 
@@ -223,7 +223,7 @@ Infrastructure with Terraform, GitOps deployment with ArgoCD.
 
 - **Pros**: GitOps best practice, automatic drift detection
 - **Cons**: Two separate tools to learn, ArgoCD control plane adds cost, overengineered for
-  22-service accelerator, Bicep infra already committed
+  28-service accelerator, Bicep infra already committed
 
 ### Azure DevOps Pipelines
 
@@ -283,7 +283,7 @@ Mitigations:
 
 ### Context
 
-The platform deploys 27+ services to AKS using `helm template` + `kubectl apply` via azd (Part 1). This approach lacks release management, drift detection, atomic deploys, and Portal visibility. CNCF GitOps Principles and Azure WAF Operational Excellence recommend pull-based reconciliation for production Kubernetes at this scale.
+The platform deploys 28 services to AKS using `helm template` + `kubectl apply` via azd (Part 1). This approach lacks release management, drift detection, atomic deploys, and Portal visibility. CNCF GitOps Principles and Azure WAF Operational Excellence recommend pull-based reconciliation for production Kubernetes at this scale.
 
 ### Decision
 

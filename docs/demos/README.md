@@ -1,13 +1,69 @@
 # Agent Demonstration Guide
 
-**Last Updated**: April 12, 2026  
-**Status**: Phase 1 Complete | Phase 2 In Progress
+**Last Updated**: 2026-04-30  
+**Status**: Phase 1 Complete | Phase 3 Complete
 
 ---
 
 ## Overview
 
-This directory contains comprehensive demonstrations for all 27 agent/service apps in Holiday Peak Hub. Each demo is designed to showcase agent capabilities through realistic retail scenarios, from quick API calls to complex multi-agent workflows.
+This directory contains comprehensive demonstrations for all 26 agent services + CRUD in Holiday Peak Hub. Each demo showcases agent capabilities through realistic retail scenarios — from quick API calls to complex multi-agent workflows.
+
+---
+
+## Quick Navigation
+
+| What you want | Where to go |
+|---------------|-------------|
+| Run a quick API call | [`scripts/shell/demos/curl-examples.sh`](../../scripts/shell/demos/curl-examples.sh) or [`powershell-examples.ps1`](../../scripts/powershell/demos/powershell-examples.ps1) |
+| Seed realistic data (Kaggle) | [`scripts/python/ops/load-kaggle-olist-dataset.py`](../../scripts/python/ops/load-kaggle-olist-dataset.py) |
+| Seed curated demo catalog | `python -m crud_service.scripts.seed_demo_data` (100 products, 11 categories) |
+| Run the live search+HITL demo | [live-demo-search-enrichment-hitl.md](live-demo-search-enrichment-hitl.md) |
+| Walk through a customer journey | [interactive-scenarios/customer-journey.md](interactive-scenarios/customer-journey.md) |
+| Walk through order fulfillment | [interactive-scenarios/order-fulfillment.md](interactive-scenarios/order-fulfillment.md) |
+| Walk through CRM campaigns | [interactive-scenarios/crm-campaigns.md](interactive-scenarios/crm-campaigns.md) |
+| Walk through product lifecycle | [interactive-scenarios/product-lifecycle.md](interactive-scenarios/product-lifecycle.md) |
+| Explore sample data format | [sample-data/README.md](sample-data/README.md) |
+
+---
+
+## Scripts & Tools
+
+All executable scripts live in the `scripts/` tree, organized by language:
+
+| Script | Location | Purpose |
+|--------|----------|---------|
+| curl examples | [`scripts/shell/demos/curl-examples.sh`](../../scripts/shell/demos/curl-examples.sh) | Quick API calls for all 26 agents + CRUD (bash) |
+| PowerShell examples | [`scripts/powershell/demos/powershell-examples.ps1`](../../scripts/powershell/demos/powershell-examples.ps1) | Same as above (Windows) |
+| Kaggle Olist loader | [`scripts/python/ops/load-kaggle-olist-dataset.py`](../../scripts/python/ops/load-kaggle-olist-dataset.py) | Download + transform + seed 100k real ecommerce orders |
+| CRUD write check | [`scripts/powershell/ops/crud-post-write-check.ps1`](../../scripts/powershell/ops/crud-post-write-check.ps1) | Validate CRUD liveness and write paths |
+| Demo preflight | [`scripts/powershell/ops/demo-preflight-validate.ps1`](../../scripts/powershell/ops/demo-preflight-validate.ps1) | Pre-demo infrastructure validation |
+| Demo provision | [`scripts/powershell/ops/demo-provision.ps1`](../../scripts/powershell/ops/demo-provision.ps1) | Provision demo environment |
+| Demo recover & seed | [`scripts/powershell/ops/demo-recover-and-seed.ps1`](../../scripts/powershell/ops/demo-recover-and-seed.ps1) | Recover from nightly shutdown + seed data |
+| HITL queue seed | [`scripts/python/ops/seed_hitl_queue.py`](../../scripts/python/ops/seed_hitl_queue.py) | Seed the HITL review queue for demos |
+
+---
+
+## Data Sources
+
+### Built-in Demo Catalog (100 products)
+The CRUD service ships with a curated 100-product catalog across 11 categories (see [`seed_demo_data.py`](../../apps/crud-service/src/crud_service/scripts/seed_demo_data.py)):
+```bash
+python -m crud_service.scripts.seed_demo_data
+```
+
+### Kaggle — Brazilian E-Commerce (Olist)
+For richer demos with 100k real orders, customers, reviews, and realistic order patterns:
+```bash
+pip install httpx pandas opendatasets tqdm
+python scripts/python/ops/load-kaggle-olist-dataset.py --download --crud-url http://localhost:8000 --limit 500
+```
+Dataset: [kaggle.com/datasets/olistbr/brazilian-ecommerce](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce) (CC BY-NC-SA 4.0)
+
+### Exported Demo Data
+Pre-exported product data for offline use: [sample-data/products_export.csv](sample-data/products_export.csv)
+
+---
 
 ### Live Operator Runbook
 
@@ -45,9 +101,9 @@ This directory contains comprehensive demonstrations for all 27 agent/service ap
 #### Deliverables
 - [x] Demo directory structure
 - [x] Demo index (this file)
-- [x] Postman collection with all 21 agents ([postman-collection.json](api-examples/postman-collection.json))
+- [x] Postman collection with all 26 agents ([postman-collection.json](api-examples/postman-collection.json))
 - [x] Sample data generators ([sample-data/](sample-data/))
-- [x] Quick start CLI examples ([api-examples/curl-examples.sh](api-examples/curl-examples.sh))
+- [x] Quick start CLI examples ([scripts/shell/demos/curl-examples.sh](../../scripts/shell/demos/curl-examples.sh))
 
 #### Sample Data Sets
 - **Products**: 500 SKUs across 8 categories (Electronics, Apparel, Toys, Home, Beauty, Sports, Books, Groceries)
@@ -245,20 +301,22 @@ cd apps/ecommerce-product-detail-enrichment/src && uvicorn main:app --reload --p
 
 #### Option 1: Using curl (Linux/macOS/WSL)
 ```bash
-# Load sample data
-bash docs/demos/sample-data/load-sample-data.sh
+# Seed data (Kaggle — real orders)
+python scripts/python/ops/load-kaggle-olist-dataset.py --download --crud-url http://localhost:8000 --limit 200
 
-# Run product enrichment demo
-bash docs/demos/api-examples/curl-examples.sh enrichment
+# Run all agent demos
+export BASE_URL=http://localhost
+bash scripts/shell/demos/curl-examples.sh
 ```
 
 #### Option 2: Using PowerShell (Windows)
 ```powershell
-# Load sample data
-.\docs\demos\sample-data\load-sample-data.ps1
+# Seed data (Kaggle — real orders)
+python scripts/python/ops/load-kaggle-olist-dataset.py --download --crud-url http://localhost:8000 --limit 200
 
-# Run product enrichment demo
-.\docs\demos\api-examples\demo-enrichment.ps1
+# Run all agent demos
+$env:BASE_URL = "http://localhost"
+.\scripts\powershell\demos\powershell-examples.ps1
 ```
 
 #### Option 3: Using Postman
@@ -371,6 +429,7 @@ When adding new demos:
 
 ## Resources
 
+- **Scripts by Language**: [`scripts/python/`](../../scripts/python/) · [`scripts/powershell/`](../../scripts/powershell/) · [`scripts/shell/`](../../scripts/shell/)
 - **Architecture Documentation**: [docs/architecture/](../architecture/)
 - **Component Documentation**: [docs/architecture/components.md](../architecture/components.md)
 - **CRUD Service Implementation**: [docs/architecture/crud-service-implementation.md](../architecture/crud-service-implementation.md)

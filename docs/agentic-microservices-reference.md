@@ -1,7 +1,7 @@
 # Holiday Peak Hub — A Reference Architecture for Agentic Microservices
 
 **Version**: 1.0
-**Last Updated**: 2026-04-12
+**Last Updated**: 2026-04-30
 
 ---
 
@@ -28,7 +28,7 @@ Holiday Peak Hub demonstrates how to build an Agentic Microservices platform at 
 | **26 domain-specific agents** | Each agent handles a bounded context (CRM, eCommerce, Inventory, Logistics, Product Mgmt, Search, Truth Layer) |
 | **Shared micro-framework** | `holiday-peak-lib` provides BaseRetailAgent, memory, guardrails, resilience, telemetry |
 | **Microsoft Agent Framework (MAF)** | `agent-framework>=1.0.1` GA wraps Azure AI Foundry agents via `FoundryAgentInvoker` |
-| **SLM-first routing** | Every request starts with GPT-5-nano (fast, cheap); complex queries escalate to GPT-5 (rich) |
+| **SLM-first routing** | Every request starts with GPT-5-nano (fast, cheap); complex queries escalate to GPT-4o (rich) |
 | **Three-tier memory** | Hot (Redis, <50ms) → Warm (Cosmos DB, 100-500ms) → Cold (Blob, archival) |
 | **Agent-to-agent communication** | MCP protocol for structured tool calls between agents |
 | **Event-driven async** | Azure Event Hubs for decoupled CRUD → Agent processing |

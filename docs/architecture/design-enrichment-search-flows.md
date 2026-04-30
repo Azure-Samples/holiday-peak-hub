@@ -1,7 +1,8 @@
 # Architecture Design: End-to-End Enrichment & Intelligent Search Flows
 
-**Status**: Draft  
+**Status**: Accepted  
 **Date**: 2026-03-19  
+**Last Updated**: 2026-04-30  
 **Author**: SystemArchitect  
 **Scope**: Two new end-to-end flows for the Holiday Peak Hub agentic retail platform  
 **Frameworks**: C4 Model, DDD Bounded Contexts, EIP (Enterprise Integration Patterns), microservices.io Saga Choreography

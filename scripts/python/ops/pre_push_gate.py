@@ -72,7 +72,7 @@ def run_lint_gate() -> None:
     run_step(
         [
             "python",
-            "scripts/ops/check_markdown_links.py",
+            "scripts/python/ops/check_markdown_links.py",
             "--roots",
             "docs/governance",
             "docs/architecture",
@@ -80,7 +80,7 @@ def run_lint_gate() -> None:
         title="Lint gate: governance/architecture links",
     )
     run_step(
-        ["python", "scripts/ops/check_event_schema_contracts.py"],
+        ["python", "scripts/python/ops/check_event_schema_contracts.py"],
         title="Lint gate: canonical event schema contracts",
     )
 

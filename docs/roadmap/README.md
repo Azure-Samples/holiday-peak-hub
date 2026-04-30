@@ -1,7 +1,7 @@
 # Roadmap & Known Issues
 
 **Created**: February 27, 2026  
-**Last Updated**: April 12, 2026  
+**Last Updated**: April 30, 2026  
 **Source**: Deployment validation audit (February 2026) + ongoing issue tracking
 
 This folder tracks corrections, gaps, and planned enhancements discovered during architecture review and deployment validation.
@@ -10,7 +10,8 @@ This folder tracks corrections, gaps, and planned enhancements discovered during
 
 | Resolution | PR | Impact |
 |-----------|-----|--------|
-| Deploy pipeline hardening (9 fixes) | #813-#833 | Full AKS deploy unblocked: parser, change detection, ACR access, provision outputs |
+| Deploy pipeline hardening (9 fixes) | #813–#833 | Full AKS deploy unblocked: parser, change detection, ACR access, provision outputs |
+| AGC edge NSG bisection and fix identified | ops/agc-bisection-2026-04-21 | AGC data-plane unblocked; PR pending for NSG rule application |
 | Silent tool-dropping in FoundryInvoker | #802 | Agent tools now forwarded correctly via MAF FoundryAgent |
 | Memory tier I/O latency | #800 | Parallel hot/warm/cold operations via asyncio.gather |
 | Catalog-search duplicate queries | #796 | Eliminated redundant keyword search execution |
@@ -22,17 +23,17 @@ This folder tracks corrections, gaps, and planned enhancements discovered during
 
 | # | Issue | Severity | Category | GitHub Issue |
 |---|-------|----------|----------|--------------|
-| 1 | [CRUD not registered in APIM](001-crud-apim-routing.md) | Critical | Infrastructure | [#25](https://github.com/Azure-Samples/holiday-peak-hub/issues/25) |
-| 2 | [Agent health endpoints return 500](002-agent-health-500.md) | Critical | Agents | [#26](https://github.com/Azure-Samples/holiday-peak-hub/issues/26) |
-| 3 | [SWA API proxy returns 404](003-swa-api-proxy-404.md) | High | Frontend | [#27](https://github.com/Azure-Samples/holiday-peak-hub/issues/27) |
+| 1 | [CRUD not registered in APIM (resolved)](001-crud-apim-routing.md) | Critical | Infrastructure | [#25](https://github.com/Azure-Samples/holiday-peak-hub/issues/25) |
+| 2 | [Agent health endpoints return 500 (resolved)](002-agent-health-500.md) | Critical | Agents | [#26](https://github.com/Azure-Samples/holiday-peak-hub/issues/26) |
+| 3 | [SWA API proxy returns 404 (resolved)](003-swa-api-proxy-404.md) | High | Frontend | [#27](https://github.com/Azure-Samples/holiday-peak-hub/issues/27) |
 | 4 | [Frontend pages use mock data](004-frontend-mock-data.md) | High | Frontend | [#28](https://github.com/Azure-Samples/holiday-peak-hub/issues/28) |
-| 5 | [Lib config test failures](005-lib-config-test-failures.md) | Medium | Testing | [#29](https://github.com/Azure-Samples/holiday-peak-hub/issues/29) |
-| 6 | [CI agent tests swallowed](006-ci-agent-tests-swallowed.md) | Medium | CI/CD | [#30](https://github.com/Azure-Samples/holiday-peak-hub/issues/30) |
-| 7 | [Payments fully stubbed](007-payments-stubbed.md) | Medium | Backend | [#31](https://github.com/Azure-Samples/holiday-peak-hub/issues/31) |
-| 8 | [AI Search not provisioned](008-ai-search-not-provisioned.md) | Medium | Infrastructure | [#32](https://github.com/Azure-Samples/holiday-peak-hub/issues/32) |
+| 5 | [Lib config test failures (resolved)](005-lib-config-test-failures.md) | Medium | Testing | [#29](https://github.com/Azure-Samples/holiday-peak-hub/issues/29) |
+| 6 | [CI agent tests swallowed (resolved)](006-ci-agent-tests-swallowed.md) | Medium | CI/CD | [#30](https://github.com/Azure-Samples/holiday-peak-hub/issues/30) |
+| 7 | [Payments fully stubbed (resolved)](007-payments-stubbed.md) | Medium | Backend | [#31](https://github.com/Azure-Samples/holiday-peak-hub/issues/31) |
+| 8 | [AI Search not provisioned (resolved)](008-ai-search-not-provisioned.md) | Medium | Infrastructure | [#32](https://github.com/Azure-Samples/holiday-peak-hub/issues/32) |
 | 9 | [Route protection middleware implemented (resolved)](009-missing-middleware-ts.md) | Medium | Frontend | [#33](https://github.com/Azure-Samples/holiday-peak-hub/issues/33) |
-| 13 | [AGC edge migration plan](013-agc-edge-migration.md) | High | Infrastructure | [#282](https://github.com/Azure-Samples/holiday-peak-hub/issues/282) - [#287](https://github.com/Azure-Samples/holiday-peak-hub/issues/287) |
-| 14 | [Deploy pipeline hardening (resolved)](014-deploy-pipeline-hardening.md) | Critical | CI/CD | #813-#833 |
+| 13 | [AGC edge migration plan (in progress)](013-agc-edge-migration.md) | High | Infrastructure | [#282](https://github.com/Azure-Samples/holiday-peak-hub/issues/282) - [#287](https://github.com/Azure-Samples/holiday-peak-hub/issues/287) |
+| 14 | [Deploy pipeline hardening (resolved)](014-deploy-pipeline-hardening.md) | Critical | CI/CD | #813–#833 |
 
 ### Feature Requests
 

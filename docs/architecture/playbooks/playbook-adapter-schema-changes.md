@@ -26,7 +26,7 @@ Schema changes cause parsing failures or incorrect mapping. This playbook emphas
 ## Prevention
 - Add contract tests and schema validation.
 - Monitor upstream change logs.
-- Run `python scripts/ops/check_event_schema_contracts.py` before merge for canonical retail and connector envelope changes.
+- Run `python scripts/python/ops/check_event_schema_contracts.py` before merge for canonical retail and connector envelope changes.
 
 ## Implementation Steps
 1. Capture sample payloads in logs for failures.

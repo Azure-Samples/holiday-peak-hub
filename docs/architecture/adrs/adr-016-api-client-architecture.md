@@ -74,6 +74,7 @@ We will implement a **layered API client architecture** using:
 ### Architecture Layers
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
 graph TB
     Component[React Component] -->|useQuery/useMutation| Hook[Custom Hook]
     Hook -->|Query Key + Fetcher| ReactQuery[React Query]

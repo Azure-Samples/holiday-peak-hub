@@ -1,32 +1,72 @@
 # CRM Campaign Intelligence
 
+> Last Updated: 2026-04-30
+
 ## Purpose
-Provides campaign intelligence by combining CRM context with campaign and funnel signals.
 
-## Responsibilities
-- Analyze campaign performance patterns.
-- Surface likely drop-off and conversion risk points.
-- Return recommendations to improve campaign outcomes.
+Generates campaign intelligence insights by combining CRM contact context with campaign and funnel signals. Analyzes performance patterns, surfaces drop-off and conversion risk points, and returns recommendations to improve campaign outcomes.
 
-## Key endpoints or interfaces
-- `POST /invoke` for synchronous service requests.
-- MCP interfaces under `/mcp/*` for agent-to-agent usage.
-- Event Hub subscription for asynchronous processing.
+## Domain Bounded Context
+- **Owner**: CRM team
+- **Bounded Context**: CRM
 
-## Run/Test commands
+## Endpoints
+
+### REST
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/invoke` | Synchronous agent invocation with campaign query |
+| GET | `/health` | Liveness probe |
+| GET | `/ready` | Readiness probe (Foundry connectivity) |
+
+### MCP Tools
+| Tool | Description |
+|------|-------------|
+| `/campaign/contact-context` | Retrieve CRM contact context with interaction history |
+| `/campaign/funnel-context` | Retrieve funnel metrics for a campaign/account |
+| `/campaign/roi` | Estimate campaign ROI from funnel data and spend |
+
+### Event Subscriptions
+| Topic | Consumer Group | Action |
+|-------|---------------|--------|
+| `user-events` | `campaign-intel-group` | React to user lifecycle changes |
+| `order-events` | `campaign-intel-group` | Incorporate order signals into campaign analysis |
+| `payment-events` | `campaign-intel-group` | Track payment outcomes for ROI |
+
+## Model Routing
+- **SLM (fast)**: GPT-5-nano via `FOUNDRY_AGENT_ID_FAST`
+- **LLM (rich)**: GPT-4o via `FOUNDRY_AGENT_ID_RICH`
+
+## Memory Usage
+| Tier | Purpose |
+|------|---------|
+| Hot (Redis) | Cached campaign intelligence results (TTL 300s) |
+| Warm (Cosmos DB) | Campaign session history |
+| Cold (Blob) | Long-term campaign performance archives |
+
+## Environment Variables
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `PROJECT_ENDPOINT` | Yes | Azure AI Foundry project endpoint |
+| `FOUNDRY_AGENT_ID_FAST` | Yes | SLM agent ID |
+| `MODEL_DEPLOYMENT_NAME_FAST` | Yes | SLM deployment name |
+| `FOUNDRY_AGENT_ID_RICH` | Yes | LLM agent ID |
+| `MODEL_DEPLOYMENT_NAME_RICH` | Yes | LLM deployment name |
+| `REDIS_URL` | No | Redis connection URL |
+| `COSMOS_ACCOUNT_URI` | No | Cosmos DB endpoint |
+| `EVENTHUB_NAMESPACE` | Yes | Event Hub namespace |
+
+## Local Development
 ```bash
 cd apps/crm-campaign-intelligence/src
 uv sync
-uv run uvicorn crm_campaign_intelligence.main:app --reload
-python -m pytest ../tests
+uv run uvicorn crm_campaign_intelligence.main:app --reload --port 8001
 ```
 
-## Configuration notes
-- Uses Foundry model settings (`PROJECT_ENDPOINT` or `FOUNDRY_ENDPOINT`, fast/rich model identifiers).
-- Supports Redis/Cosmos/Blob memory configuration via shared memory settings.
-- Requires Event Hub namespace and consumer configuration for background jobs.
-
----
+## Test Coverage
+```bash
+python -m pytest apps/crm-campaign-intelligence/tests
+```
 
 ## Standalone Deployment - azd-first (ACR -> AKS)
 

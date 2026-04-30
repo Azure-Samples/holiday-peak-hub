@@ -1,7 +1,7 @@
 # CRUD Service Implementation
 
 **Status**: ✅ Implemented  
-**Last Updated**: March 12, 2026  
+**Last Updated**: 2026-04-30  
 **Version**: 1.1.0
 
 ## Overview
@@ -62,8 +62,8 @@ The **Holiday Peak Hub CRUD Service** is a FastAPI-based microservice that handl
     │         │ Publishes Events
     │         ▼
     │  ┌─────────────────┐      ┌──────────────────────┐
-    │  │  Event Hubs     │─────►│  21 Agent Services   │
-    │  │  (5 topics)     │      │  ┌────────────────┐  │
+    │  │  Event Hubs     │─────►│  26 Agent Services   │
+    │  │  (8 topics)     │      │  ┌────────────────┐  │
     │  └─────────────────┘      │  │ REST Endpoints │  │
     │         ▲               │  │ /enrich        │  │
     │         │               │  │ /search        │  │

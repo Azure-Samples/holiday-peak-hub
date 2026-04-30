@@ -7,7 +7,7 @@ the in-image ``prompts/instructions.md`` diverges from the repo file that
 produced the build, preventing prompt drift from ever reaching Foundry.
 
 Usage:
-    python scripts/ci/verify_image_prompt.py --service <service-name> \\
+    python scripts/python/ci/verify_image_prompt.py --service <service-name> \\
         --image-ref <registry/image@sha256:...>
 
 Behaviour:

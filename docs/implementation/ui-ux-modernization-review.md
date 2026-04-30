@@ -1,6 +1,6 @@
 # UI/UX Modernization Review
 
-**Last Updated**: April 3, 2026  
+**Last Updated**: 2026-04-30  
 **Status**: Draft for review
 
 ## Objective
@@ -11,7 +11,56 @@ This review maps the current Next.js UI surface to a stronger product direction 
 - a fast decision workbench for staff,
 - an explainable control plane for admin and AI operations.
 
+## Current Component Architecture
+
+```mermaid
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
+graph TB
+  subgraph Templates
+    ML[MainLayout]
+    CAL[CommerceAgentLayout]
+    CL[CheckoutLayout]
+    SL[ShopLayout]
+    OTL[OrderTrackingLayout]
+  end
+  subgraph Organisms
+    NAV[Navigation]
+    ARO[AgentRobotOverlay]
+    HS[HeroSlider]
+    PG[ProductGrid]
+    CW[ChatWidget]
+    RSI[RobotScatterIntro]
+  end
+  subgraph Molecules
+    PC[ProductCard]
+    SI[SearchInput]
+    TB[ThinkingBubble]
+    TL[Timeline]
+  end
+  subgraph Atoms
+    BTN[Button]
+    BDG[Badge]
+    SKL[Skeleton]
+    TT[ThemeToggle]
+  end
+  ML --> NAV
+  CAL --> ARO
+  CAL --> ML
+  Organisms --> Molecules
+  Molecules --> Atoms
+```
+
 The recommendations below are grounded in the current route inventory under [../../apps/ui/app/page.tsx](../../apps/ui/app/page.tsx), [../../apps/ui/app/search/page.tsx](../../apps/ui/app/search/page.tsx), [../../apps/ui/app/staff/review/page.tsx](../../apps/ui/app/staff/review/page.tsx), [../../apps/ui/app/admin/agent-activity/page.tsx](../../apps/ui/app/admin/agent-activity/page.tsx), and the shared shell components in [../../apps/ui/components/templates/MainLayout.tsx](../../apps/ui/components/templates/MainLayout.tsx) and [../../apps/ui/components/navbar-1.tsx](../../apps/ui/components/navbar-1.tsx).
+
+## Current Route Inventory
+
+| Persona | Routes | Template |
+|---------|--------|----------|
+| Customer | `/`, `/categories`, `/category`, `/product`, `/search`, `/cart`, `/checkout`, `/orders`, `/order/[id]`, `/shop`, `/deals`, `/wishlist` | MainLayout / CommerceAgentLayout |
+| Account | `/auth/login`, `/auth/signup`, `/profile`, `/dashboard`, `/logout` | MainLayout |
+| Staff | `/staff/sales`, `/staff/review`, `/staff/review/[entityId]`, `/staff/requests`, `/staff/logistics` | MainLayout |
+| Admin | `/admin`, `/admin/agent-activity`, `/admin/agent-activity/[traceId]`, `/admin/enrichment-monitor`, `/admin/enrichment-monitor/[entityId]`, `/admin/truth-analytics`, `/admin/config`, `/admin/schemas`, `/admin/workflows` | MainLayout |
+| Demo | `/scenarios/[id]`, `/demo/color-system`, `/agents/product-enrichment-chat` | MainLayout |
 
 ## Executive Summary
 

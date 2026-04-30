@@ -1,6 +1,8 @@
 # Sequence Diagram: Memory Parallel I/O
 
-This diagram illustrates the three-tier memory architecture with parallel read/write operations introduced in PR #800.
+> Last Updated: 2026-04-30
+
+This diagram illustrates the three-tier memory architecture with parallel read/write operations introduced in PR #800. All agent services use this pattern via `asyncio.gather` to minimize latency. Reference this diagram when modifying memory adapters, TTL policies, or tier promotion/demotion logic.
 
 ## Flow Overview
 

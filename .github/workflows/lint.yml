@@ -19,8 +19,9 @@ on:
       - apps/**
       - docs/architecture/**
       - docs/governance/**
-      - scripts/ops/**
-      - scripts/ci/**
+      - scripts/python/**
+      - scripts/shell/**
+      - scripts/powershell/**
       - .github/prompts/**
       - .github/agents/**
       - .github/skills/**
@@ -74,14 +75,14 @@ jobs:
           python -m mypy --config-file pyproject.toml --ignore-missing-imports --follow-imports=skip lib/src/holiday_peak_lib/agents/service_agent.py lib/src/holiday_peak_lib/agents/memory/builder.py
       - name: Validate canonical event schema contracts
         run: |
-          python scripts/ops/check_event_schema_contracts.py
+          python scripts/python/ops/check_event_schema_contracts.py
       - name: Check prompt and agent governance consistency
         run: |
-          python scripts/ops/check_prompt_agent_consistency.py --report-file governance-drift-report.md
+          python scripts/python/ops/check_prompt_agent_consistency.py --report-file governance-drift-report.md
       - name: Validate governance and architecture docs links
         run: |
           set -o pipefail
-          python scripts/ops/check_markdown_links.py --roots docs/governance docs/architecture | tee architecture-link-drift-report.txt
+          python scripts/python/ops/check_markdown_links.py --roots docs/governance docs/architecture | tee architecture-link-drift-report.txt
       - name: Block stale canonical governance references in agent docs
         run: |
           if grep -RInE "OPERATIONAL-WORKFLOWS\.md|REPOSITORY-SURFACES\.md|governance-map\.md" .github/agents; then
@@ -90,7 +91,7 @@ jobs:
           fi
       - name: Validate K8s resource name length (63-char limit)
         run: |
-          python scripts/ci/validate_k8s_name_length.py
+          python scripts/python/ci/validate_k8s_name_length.py
       - name: Upload governance drift reports
         if: always()
         uses: actions/upload-artifact@v4

@@ -8,7 +8,7 @@ image is built — preventing the silent Foundry-agent-creation failure that
 occurs when ``prompts/instructions.md`` is absent from the container.
 
 Usage:
-    python scripts/ci/verify_dockerfile_prompts.py
+    python scripts/python/ci/verify_dockerfile_prompts.py
 
 Exit codes:
     0 — All Dockerfiles that need the prompts COPY have it.

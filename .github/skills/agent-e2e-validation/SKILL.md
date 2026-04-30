@@ -33,7 +33,7 @@ The dev environment is subject to MCAPSGov nightly automation that stops Postgre
 ### Step 0: Run the Start-Dev-Environment Script
 
 ```powershell
-./scripts/start-dev-environment.ps1
+./scripts/powershell/ops/start-dev-environment.ps1
 ```
 
 **What it does (in order)**:
@@ -700,13 +700,211 @@ After individual agent validation, run these cross-domain scenarios that exercis
 | 4 | **Return Processing Flow** | CRUD returns → support-assistance → returns-support → inventory update | `POST /api/returns` | Return processed, logistics arranged, stock updated |
 | 5 | **Campaign Attribution Loop** | CRUD order → campaign-intelligence → profile-aggregation → segmentation-personalization | `POST /api/orders` | Campaign attribution updated, profile refreshed, segment recalculated |
 
+## SSE Streaming Validation
+
+SSE (Server-Sent Events) streaming validates that agents can deliver progressive token output for long-form responses. This is critical for UX responsiveness — users see incremental results rather than waiting for a full response.
+
+### SSE Routing Architecture
+
+```
+Client → APIM /agents/{svc}/invoke/stream → Agent /invoke/stream → SSE text/event-stream
+```
+
+> **Known limitation**: APIM must have an explicit operation defined for `/agents/{service-name}/invoke/stream` per agent. If the APIM API definition only covers `/invoke`, the `/invoke/stream` route will return 502.
+
+### SSE Test Matrix
+
+Test SSE on at least one agent per domain. The following agents are the primary SSE targets:
+
+| Agent | Test Prompt | Expected Behavior |
+|-------|-------------|-------------------|
+| ecommerce-catalog-search | `{"query": "Best gear for a week-long Swiss Alps hike", "limit": 8, "mode": "intelligent"}` | Progressive product results + reasoning |
+| crm-support-assistance | `{"query": "Review my entire interaction history and suggest improvements"}` | Streaming analytical response |
+| inventory-health-check | `{"query": "Generate a full inventory health report with Q1 recommendations"}` | Streaming report sections |
+| logistics-eta-computation | `{"query": "Analyze delivery trends over 6 months and predict next month on-time rate"}` | Streaming predictive analysis |
+| product-management-normalization-classification | `{"query": "Analyze classification accuracy and recommend taxonomy improvements"}` | Streaming taxonomy analysis |
+| truth-hitl | `{"query": "Generate a HITL reviewer productivity report"}` | Streaming metrics report |
+
+### SSE Validation Script
+
+```powershell
+$APIM_BASE = $env:APIM_BASE
+$sseTests = @(
+    @{svc="ecommerce-catalog-search"; body='{"query":"Best hiking gear for Swiss Alps","limit":8,"mode":"intelligent"}'}
+    @{svc="crm-support-assistance"; body='{"query":"Review interaction history and suggest improvements"}'}
+    @{svc="inventory-health-check"; body='{"query":"Full inventory health report with Q1 recommendations"}'}
+    @{svc="logistics-eta-computation"; body='{"query":"Delivery trends over 6 months, predict next month"}'}
+    @{svc="product-management-normalization-classification"; body='{"query":"Classification accuracy and taxonomy improvements"}'}
+    @{svc="truth-hitl"; body='{"query":"HITL reviewer productivity report"}'}
+)
+
+foreach ($test in $sseTests) {
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    try {
+        $req = [System.Net.HttpWebRequest]::Create("$APIM_BASE/agents/$($test.svc)/invoke/stream")
+        $req.Method = "POST"
+        $req.ContentType = "application/json"
+        $req.Timeout = 15000
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($test.body)
+        $reqStream = $req.GetRequestStream()
+        $reqStream.Write($bytes, 0, $bytes.Length)
+        $reqStream.Close()
+        $resp = $req.GetResponse()
+        $sw.Stop()
+        $contentType = $resp.ContentType
+        $resp.Close()
+        if ($contentType -like "*event-stream*") {
+            Write-Host "[OK] $($test.svc) SSE: $($sw.ElapsedMilliseconds)ms" -ForegroundColor Green
+        } else {
+            Write-Host "[WARN] $($test.svc) SSE: $($sw.ElapsedMilliseconds)ms - ContentType=$contentType (expected text/event-stream)" -ForegroundColor Yellow
+        }
+    } catch {
+        $sw.Stop()
+        Write-Host "[FAIL] $($test.svc) SSE: $($sw.ElapsedMilliseconds)ms - $($_.Exception.Message)" -ForegroundColor Red
+    }
+}
+```
+
+### SSE Acceptance Criteria
+
+- [ ] `Content-Type: text/event-stream` returned (not `application/json`)
+- [ ] First byte received within 3 seconds (first token SLA)
+- [ ] Response streams incrementally (not buffered as a single chunk)
+- [ ] HTTP 200 status (not 502 Bad Gateway)
+- [ ] At least 1 agent per domain successfully streams
+
+### SSE Failure Investigation
+
+| Symptom | Likely Cause | Fix |
+|---------|-------------|-----|
+| 502 Bad Gateway | APIM route for `/invoke/stream` not defined for this agent | Add operation to APIM API definition |
+| Timeout (no response) | Agent SSE handler not implemented or Foundry streaming disabled | Check `FOUNDRY_STREAM` env var, verify agent supports streaming |
+| Full response in single chunk | APIM or reverse proxy buffering | Check APIM policy for `forward-request` buffer settings |
+| 200 but `application/json` | Agent returning sync response on stream endpoint | Check agent code — `invoke/stream` route may be falling back to sync |
+
+---
+
+## MCP Tool Validation
+
+MCP (Model Context Protocol) tools enable structured agent-to-agent communication. Each agent can expose typed tool endpoints that return structured data (dicts) for downstream consumption by other agents.
+
+### MCP Routing Architecture
+
+```
+Calling Agent → APIM /agents/{svc}/mcp/{tool_name} → Target Agent POST /mcp/{tool_name} → Structured dict response
+```
+
+### MCP Prerequisites
+
+1. **Agent must register integrations** — check via `GET /agents/{svc}/integrations`
+   - If `integrations_registered: 0`, MCP tools are not deployed for that agent
+2. **APIM must route `/mcp/*`** — wildcard routing to the agent's MCP endpoints
+3. **Tool names must be known** — each agent documents its available MCP tools in its README
+
+### MCP Test Matrix
+
+One MCP tool call per domain:
+
+| Agent | Tool | Payload | Expected Response |
+|-------|------|---------|------------------|
+| ecommerce-catalog-search | `search_products` | `{"query": "winter boots", "limit": 3}` | Dict with `products` array, each with `id`, `title`, `score` |
+| ecommerce-cart-intelligence | `get_cart_recommendations` | `{"user_id": "test-user-1"}` | Dict with `recommendations` array of product IDs |
+| crm-profile-aggregation | `get_profile_context` | `{"user_id": "user-1"}` | Dict with `demographics`, `preferences`, `history` |
+| crm-support-assistance | `create_support_ticket` | `{"issue": "damaged_product", "order_id": "ORD-001"}` | Dict with `ticket_id`, `priority`, `assignee` |
+| inventory-alerts-triggers | `dispatch_alert` | `{"sku": "SKU-001", "alert_type": "low_stock"}` | Dict with `alert_id`, `severity`, `actions` |
+| inventory-reservation-validation | `check_reservation` | `{"reservation_id": "RES-001"}` | Dict with `status`, `expiry`, `allocated_quantity` |
+| logistics-carrier-selection | `get_carrier_routing` | `{"destination": "São Paulo, Brazil", "weight_kg": 2}` | Dict with `carriers` array, each with `name`, `cost`, `eta` |
+| logistics-eta-computation | `calculate_eta` | `{"shipment_id": "SHIP-001"}` | Dict with `eta`, `confidence`, `factors` |
+| product-management-acp-transformation | `transform_to_acp` | `{"entity_id": "SKU-001"}` | Dict with ACP-formatted attributes |
+| product-management-consistency-validation | `check_consistency` | `{"entity_id": "SKU-001"}` | Dict with `violations`, `severity` |
+
+### MCP Validation Script
+
+```powershell
+$APIM_BASE = $env:APIM_BASE
+$mcpTests = @(
+    @{svc="ecommerce-catalog-search"; tool="search_products"; body='{"query":"winter boots","limit":3}'}
+    @{svc="ecommerce-cart-intelligence"; tool="get_cart_recommendations"; body='{"user_id":"test-user-1"}'}
+    @{svc="crm-profile-aggregation"; tool="get_profile_context"; body='{"user_id":"user-1"}'}
+    @{svc="crm-support-assistance"; tool="create_support_ticket"; body='{"issue":"damaged_product","order_id":"ORD-001"}'}
+    @{svc="inventory-alerts-triggers"; tool="dispatch_alert"; body='{"sku":"SKU-001","alert_type":"low_stock"}'}
+    @{svc="inventory-reservation-validation"; tool="check_reservation"; body='{"reservation_id":"RES-001"}'}
+    @{svc="logistics-carrier-selection"; tool="get_carrier_routing"; body='{"destination":"Sao Paulo, Brazil","weight_kg":2}'}
+    @{svc="logistics-eta-computation"; tool="calculate_eta"; body='{"shipment_id":"SHIP-001"}'}
+    @{svc="product-management-acp-transformation"; tool="transform_to_acp"; body='{"entity_id":"SKU-001"}'}
+    @{svc="product-management-consistency-validation"; tool="check_consistency"; body='{"entity_id":"SKU-001"}'}
+)
+
+foreach ($test in $mcpTests) {
+    $url = "$APIM_BASE/agents/$($test.svc)/mcp/$($test.tool)"
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    try {
+        $r = Invoke-RestMethod -Uri $url -Method POST -Body $test.body -ContentType "application/json" -TimeoutSec 10
+        $sw.Stop()
+        Write-Host "[OK] $($test.svc)/$($test.tool): $($sw.ElapsedMilliseconds)ms" -ForegroundColor Green
+    } catch {
+        $sw.Stop()
+        $status = $_.Exception.Response.StatusCode.value__
+        Write-Host "[FAIL] $($test.svc)/$($test.tool): $($sw.ElapsedMilliseconds)ms - HTTP $status" -ForegroundColor Red
+    }
+}
+```
+
+### MCP Acceptance Criteria
+
+- [ ] At least 2 MCP tool calls succeed per domain (10 total minimum)
+- [ ] All successful responses return structured dicts (not plain text)
+- [ ] Response time < 5 seconds per call
+- [ ] No 500 errors (indicates tool handler crash)
+- [ ] Integrations endpoint reports `integrations_registered > 0` for agents with MCP tools
+
+### MCP Failure Investigation
+
+| Symptom | Likely Cause | Fix |
+|---------|-------------|-----|
+| 404 Not Found | MCP tool not registered or APIM route missing | Check `GET /integrations` → if `integrations_registered: 0`, MCP not deployed |
+| 500 Internal Server Error | Tool handler crash | Check agent pod logs for stack trace |
+| 502 Bad Gateway | APIM cannot reach agent MCP endpoint | Verify APIM backend config and AKS service routing |
+| Timeout (> 10s) | Tool performing expensive operation | Check if tool depends on external service (Foundry, Cosmos) that is slow |
+| Empty response `{}` | Tool executed but returned no data | Likely no matching data in store; verify test data exists |
+
+### MCP Readiness Check
+
+Before running MCP tests, verify which agents have tools registered:
+
+```powershell
+$APIM_BASE = $env:APIM_BASE
+$agents = @(
+    "ecommerce-catalog-search", "ecommerce-cart-intelligence",
+    "crm-profile-aggregation", "crm-support-assistance",
+    "inventory-alerts-triggers", "inventory-reservation-validation",
+    "logistics-carrier-selection", "logistics-eta-computation",
+    "product-management-acp-transformation", "product-management-consistency-validation"
+)
+
+foreach ($agent in $agents) {
+    try {
+        $r = Invoke-RestMethod -Uri "$APIM_BASE/agents/$agent/integrations" -TimeoutSec 5
+        $count = if ($r.integrations_registered) { $r.integrations_registered } else { 0 }
+        $color = if ($count -gt 0) { "Green" } else { "Yellow" }
+        Write-Host "[$count tools] $agent" -ForegroundColor $color
+    } catch {
+        Write-Host "[ERROR] $agent - $($_.Exception.Message)" -ForegroundColor Red
+    }
+}
+```
+
+> **If all agents report `integrations_registered: 0`**, MCP tools are not deployed in this environment. Document this finding and file a GitHub issue (see Defect Tracking section below).
+
+---
+
 ## Execution Workflow
 
 ### Phase 1: Infrastructure (mandatory, 5-10 min)
 
 ```powershell
 # Step 1: Recover infrastructure
-./scripts/start-dev-environment.ps1
+./scripts/powershell/ops/start-dev-environment.ps1
 
 # Step 2: Resolve APIM base URL
 $azdVars = azd env get-values | ConvertFrom-StringData
@@ -761,11 +959,21 @@ Execute the testing plan tables above, domain by domain:
 
 **Total: 260 individual test cases**
 
-### Phase 4: Cross-Domain Integration (15-20 min)
+### Phase 4: SSE Streaming Validation (5-10 min)
+
+Run the SSE Streaming Validation script (see section above). Target: at least 1 agent per domain returns `text/event-stream` with first byte < 3s.
+
+### Phase 5: MCP Tool Validation (5-10 min)
+
+1. Run the MCP Readiness Check to confirm which agents have tools registered.
+2. Run the MCP Validation Script against all registered agents.
+3. Skip agents reporting `integrations_registered: 0` — document as an environment gap.
+
+### Phase 6: Cross-Domain Integration (15-20 min)
 
 Execute the 5 cross-domain integration scenarios listed above.
 
-### Phase 5: Results Summary
+### Phase 7: Results Summary
 
 For each agent, record:
 
@@ -785,12 +993,16 @@ For each agent, record:
 - [ ] All "Medium" complexity tests demonstrate context awareness
 - [ ] All "High" complexity tests demonstrate multi-step reasoning
 - [ ] At least 3 Event Hub async chains verified end-to-end
-- [ ] At least 2 MCP tool calls verified per domain
-- [ ] At least 2 SSE streaming responses verified (first token < 3s)
+- [ ] At least 2 MCP tool calls verified per domain (or documented as deployment gap)
+- [ ] At least 1 SSE streaming response per domain verified (first token < 3s)
+- [ ] MCP readiness check run — `integrations_registered` documented per agent
+- [ ] SSE `Content-Type: text/event-stream` confirmed on at least 1 agent per domain
 - [ ] All 5 cross-domain integration scenarios completed
 - [ ] No `degraded_fallback` responses from catalog-search
 - [ ] Results summary table completed for all agents
 - [ ] All failures documented with timestamp, endpoint, status, and response body
+- [ ] GitHub issues created for all P1/P2 failures found during validation
+- [ ] GitHub issues created for P3/P4 gaps (SSE routing, MCP deployment) if applicable
 
 ## Investigation Playbook
 
@@ -834,3 +1046,163 @@ If multiple agents fail, return to the Pre-Flight Infrastructure Recovery sectio
 2. PostgreSQL state: `az postgres flexible-server show -g $RG -n $PG --query "state"`
 3. Event Hub namespace health: Azure Portal → Event Hubs → Activity log
 4. APIM health: Azure Portal → APIM → API health
+
+---
+
+## Defect Tracking: Creating GitHub Issues
+
+When a validation run discovers a problem, **always** create a tracked GitHub issue. Do not rely on chat logs or notes — the issue is the canonical record of the defect.
+
+### Mandatory: Deep Investigation Before Filing
+
+**Do NOT create an issue based solely on an HTTP error code.** Before filing, you MUST complete the Investigation Playbook escalation path:
+
+1. **Level 1 — Surface Diagnostics**: Confirm the failure is reproducible. Capture pod status, recent logs, and APIM proxy response.
+2. **Level 2 — Dependency Diagnosis**: Determine whether the failure originates in the agent, a downstream dependency (Foundry, Redis, Cosmos, Event Hub), or the APIM gateway.
+3. **Level 3 — Deep Investigation** (for P1/P2): Gather full pod describe, resource utilization, network connectivity test results, and self-healing status.
+4. **Level 4 — Infrastructure Recovery** (if multiple agents fail simultaneously): Attempt recovery before filing. If recovery resolves the issue, no issue is needed — document it in the results summary instead.
+
+**Minimum evidence required per severity:**
+
+| Severity | Minimum Investigation Level | Required Evidence in Issue |
+|----------|----------------------------|----------------------------|
+| **P1** | Level 3 complete | Pod logs, describe output, root cause hypothesis, failed recovery attempt (if applicable) |
+| **P2** | Level 2 complete | Pod logs, dependency diagnosis, reproduction steps with exact payloads |
+| **P3** | Level 1 complete | HTTP status + response body, pod status confirmation, basic log snippet |
+| **P4** | Level 1 complete | HTTP status + response body, expected vs actual behavior |
+
+> **Rationale**: Issues without investigation evidence get triaged slower and often require the same diagnostic steps the validator already had access to. Front-loading investigation saves the team 15-30 minutes per issue.
+
+### When to Create an Issue
+
+| Condition | Action |
+|-----------|--------|
+| Agent returns 500 on invoke | File as **bug** with `P1` or `P2` severity |
+| Agent returns 502 on SSE or MCP | File as **bug** if agent-side; **chore** if APIM routing gap |
+| Agent timeout exceeds SLA (> 8s sync, > 5s MCP) | File as **bug** with `performance` label |
+| MCP tools not registered (`integrations_registered: 0`) | File as **chore** — deployment gap |
+| Event Hub event not consumed within 30s | File as **bug** — consumer connectivity |
+| CRUD endpoint not reachable (non-auth failure) | File as **bug** with `P1` severity |
+| Degraded fallback in catalog-search | File as **bug** — AI pipeline issue |
+| Any agent health check fails | File as **bug** with `P1` severity |
+
+### Issue Template
+
+Use this structure when creating issues via `gh issue create`:
+
+```markdown
+## Summary
+[One sentence describing the defect]
+
+## Environment
+- **Validation date**: YYYY-MM-DD
+- **APIM base**: [URL]
+- **AKS cluster state**: Running / Recovered
+- **Affected agent(s)**: [list]
+
+## Reproduction Steps
+1. [Exact endpoint called]
+2. [Exact payload sent]
+3. [Response received]
+
+## Expected Behavior
+[What should have happened per the E2E validation skill NFRs]
+
+## Actual Behavior
+[What actually happened — include HTTP status, response body, and latency]
+
+## Evidence
+- **HTTP status**: [code]
+- **Response body** (truncated if large):
+```json
+[paste response]
+```
+- **Agent logs** (if accessible):
+```
+[paste relevant log lines]
+```
+- **Latency**: [ms]
+
+## Classification
+- **Severity**: P1 / P2 / P3 / P4
+- **Category**: agent-invoke / sse-streaming / mcp-tool / event-hub / infrastructure / apim-routing
+- **Agent class**: sync / async (per ADR-024 Part 4)
+
+## Suggested Fix
+[Optional — if root cause is obvious from logs, suggest the fix direction]
+```
+
+### Issue Creation Command
+
+```powershell
+# Single-agent failure (e.g., crm-campaign-intelligence 500)
+gh issue create `
+  --title "bug: crm-campaign-intelligence returns 500 on invoke (NonRecordingSpan)" `
+  --label "bug,P1,agent-invoke,crm" `
+  --body @issue-body.md
+
+# APIM routing gap (e.g., SSE 502 for non-catalog agents)
+gh issue create `
+  --title "chore: APIM missing /invoke/stream route for non-catalog agents" `
+  --label "chore,P3,apim-routing,sse-streaming" `
+  --body @issue-body.md
+
+# MCP deployment gap
+gh issue create `
+  --title "chore: MCP tools not registered (integrations_registered=0) across all agents" `
+  --label "chore,P3,mcp-tool,deployment" `
+  --body @issue-body.md
+```
+
+### Severity Guidelines
+
+| Severity | Criteria | Response Time |
+|----------|----------|---------------|
+| **P1** | Agent completely non-functional (500, crash loop) | Fix within 24h |
+| **P2** | Agent partially degraded (intermittent failures, SLA breach > 2x) | Fix within 3 days |
+| **P3** | Feature gap (SSE/MCP not routed, non-critical path) | Fix within sprint |
+| **P4** | Minor (cosmetic, documentation mismatch, cold-start delay) | Backlog |
+
+### Label Taxonomy
+
+| Label | Meaning |
+|-------|---------|
+| `bug` | Defect in existing functionality |
+| `chore` | Infrastructure/deployment/config gap |
+| `P1` through `P4` | Priority/severity |
+| `agent-invoke` | `/invoke` endpoint failure |
+| `sse-streaming` | `/invoke/stream` endpoint failure |
+| `mcp-tool` | `/mcp/{tool}` endpoint failure |
+| `event-hub` | Async event processing failure |
+| `apim-routing` | APIM gateway misconfiguration |
+| `infrastructure` | AKS, PostgreSQL, Redis, Cosmos infrastructure |
+| `performance` | SLA breach without functional failure |
+| Domain labels: `crm`, `ecommerce`, `inventory`, `logistics`, `product-management`, `truth-layer` | Domain scope |
+
+### Post-Issue Workflow
+
+1. **Create issue** with the template above
+2. **Assign** to the appropriate domain team (use issue label to signal)
+3. **Link to ADR** if applicable (e.g., ADR-024 Part 4 for mode-related issues)
+4. **Branch naming**: `bug/{issue-id}-short-description` or `chore/{issue-id}-short-description`
+5. **PR must reference** the issue number (e.g., `Closes #NNN`)
+6. **Re-validate** after fix is deployed — re-run the specific failing test from this skill
+7. **Close issue** only after re-validation passes
+
+### Batch Issue Creation After Full Validation
+
+After completing a full validation run, create issues for ALL failures found:
+
+```powershell
+# Example: Batch create from validation results
+$failures = @(
+    @{title="bug: crm-campaign-intelligence 500 on invoke"; labels="bug,P1,agent-invoke,crm"; body="NonRecordingSpan.attributes error..."}
+    @{title="chore: APIM /invoke/stream returns 502 for 24/26 agents"; labels="chore,P3,apim-routing,sse-streaming"; body="Only catalog-search has SSE route..."}
+    @{title="chore: MCP integrations_registered=0 across all agents"; labels="chore,P3,mcp-tool,deployment"; body="No agent reports registered MCP tools..."}
+)
+
+foreach ($f in $failures) {
+    gh issue create --title $f.title --label $f.labels --body $f.body
+    Start-Sleep -Seconds 2  # Rate limit courtesy
+}
+```

@@ -1,30 +1,69 @@
-# CRM Segmentation Personalization
+# CRM Segmentation & Personalization
+
+> Last Updated: 2026-04-30
 
 ## Purpose
-Segments customers and proposes personalization actions based on customer context.
 
-## Responsibilities
-- Classify users into actionable engagement segments.
-- Generate channel and content personalization guidance.
-- Provide explainable segment-level recommendations.
+Segments customers into actionable engagement groups and proposes personalization actions. Generates channel and content guidance with explainable segment-level recommendations.
 
-## Key endpoints or interfaces
-- `POST /invoke` for synchronous service requests.
-- MCP interfaces under `/mcp/*` for agent-to-agent usage.
-- Event Hub subscription for asynchronous processing.
+## Domain Bounded Context
+- **Owner**: CRM team
+- **Bounded Context**: CRM
 
-## Run/Test commands
+## Endpoints
+
+### REST
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/invoke` | Synchronous agent invocation |
+| GET | `/health` | Liveness probe |
+| GET | `/ready` | Readiness probe |
+
+### MCP Tools
+| Tool | Description |
+|------|-------------|
+| `/segmentation/context` | Retrieve segmentation context for a customer |
+| `/segmentation/personalize` | Generate personalization recommendations |
+
+### Event Subscriptions
+| Topic | Consumer Group | Action |
+|-------|---------------|--------|
+| `order-events` | `segmentation-group` | Update segments on purchase behavior |
+
+## Model Routing
+- **SLM (fast)**: GPT-5-nano via `FOUNDRY_AGENT_ID_FAST`
+- **LLM (rich)**: GPT-4o via `FOUNDRY_AGENT_ID_RICH`
+
+## Memory Usage
+| Tier | Purpose |
+|------|---------||
+| Hot (Redis) | Cached segment assignments (TTL 300s) |
+| Warm (Cosmos DB) | Segment history and personalization state |
+| Cold (Blob) | Long-term segmentation analytics |
+
+## Environment Variables
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `PROJECT_ENDPOINT` | Yes | Azure AI Foundry project endpoint |
+| `FOUNDRY_AGENT_ID_FAST` | Yes | SLM agent ID |
+| `MODEL_DEPLOYMENT_NAME_FAST` | Yes | SLM deployment name |
+| `FOUNDRY_AGENT_ID_RICH` | Yes | LLM agent ID |
+| `MODEL_DEPLOYMENT_NAME_RICH` | Yes | LLM deployment name |
+| `REDIS_URL` | No | Redis connection URL |
+| `COSMOS_ACCOUNT_URI` | No | Cosmos DB endpoint |
+| `EVENTHUB_NAMESPACE` | Yes | Event Hub namespace |
+
+## Local Development
 ```bash
 cd apps/crm-segmentation-personalization/src
 uv sync
-uv run uvicorn crm_segmentation_personalization.main:app --reload
-python -m pytest ../tests
+uv run uvicorn crm_segmentation_personalization.main:app --reload --port 8003
 ```
 
-## Configuration notes
-- Uses Foundry model settings (`PROJECT_ENDPOINT` or `FOUNDRY_ENDPOINT`, fast/rich model identifiers).
-- Supports Redis/Cosmos/Blob memory configuration via shared memory settings.
-- Requires Event Hub namespace and consumer configuration for background jobs.
+## Test Coverage
+```bash
+python -m pytest apps/crm-segmentation-personalization/tests
+```
 
 ---
 

@@ -46,7 +46,7 @@ The two-namespace split maximizes the ratio of isolation benefit to operational 
 ### Namespace Topology
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#1a1a2e', 'primaryTextColor': '#e0e0e0', 'primaryBorderColor': '#00d4ff', 'lineColor': '#00d4ff', 'secondaryColor': '#16213e', 'tertiaryColor': '#0f3460', 'background': '#0d1117', 'mainBkg': '#1a1a2e', 'nodeBorder': '#00d4ff', 'clusterBkg': '#16213e', 'clusterBorder': '#00d4ff', 'titleColor': '#00d4ff', 'edgeLabelBackground': '#1a1a2e', 'nodeTextColor': '#e0e0e0' }}}%%
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
 flowchart TB
     subgraph AKS["AKS Cluster"]
         direction TB

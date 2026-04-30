@@ -1,13 +1,35 @@
 # Agent Playgrounds
 
 **Status**: Phase 2 - In Progress  
-**Target Completion**: February 10, 2026
+**Recommended Approach**: Use [Interactive Scenarios](../interactive-scenarios/) for hands-on demos
 
 ---
 
 ## Overview
 
 Interactive Jupyter notebooks for exploring agent capabilities with rich visualizations, step-by-step narratives, and performance metrics.
+
+> **Note**: Notebooks are planned but not yet available. In the meantime, use the **Interactive Scenarios** below as the recommended approach for hands-on exploration of agent capabilities. Each scenario includes step-by-step curl commands and expected responses.
+
+---
+
+## Recommended: Interactive Scenarios
+
+While notebooks are being developed, use these detailed scenario guides:
+
+| Scenario | Agents | Guide |
+|----------|--------|-------|
+| Customer Journey | 8 agents (search → order → delivery) | [customer-journey.md](../interactive-scenarios/customer-journey.md) |
+| Order Fulfillment | 8 agents (SAGA choreography) | [order-fulfillment.md](../interactive-scenarios/order-fulfillment.md) |
+| CRM Campaigns | 5 agents (profile → segment → campaign) | [crm-campaigns.md](../interactive-scenarios/crm-campaigns.md) |
+| Product Lifecycle | 5 agents (ingest → normalize → optimize) | [product-lifecycle.md](../interactive-scenarios/product-lifecycle.md) |
+
+Each scenario includes:
+- Actual API calls with request/response payloads
+- Event Hub message examples
+- Memory tier usage
+- Performance metrics
+- Error handling demonstrations
 
 ---
 
@@ -172,18 +194,18 @@ Install Jupyter extension and open `.ipynb` files directly in VS Code
 
 ---
 
-## Coming Soon
+## Coming Soon — Notebooks
 
-- [ ] E-Commerce notebook (February 5, 2026)
-- [ ] Product Management notebook (February 7, 2026)
-- [ ] CRM notebook (February 8, 2026)
-- [ ] Inventory notebook (February 9, 2026)
-- [ ] Logistics notebook (February 10, 2026)
+- [ ] E-Commerce notebook
+- [ ] Product Management notebook
+- [ ] CRM notebook
+- [ ] Inventory notebook
+- [ ] Logistics notebook
 
 ---
 
 ## Next Steps
 
-1. Load [Sample Data](../sample-data/)
-2. Start with [E-Commerce notebook](ecommerce-agents.ipynb)
-3. Try [Interactive Scenarios](../interactive-scenarios/)
+1. Start with [Interactive Scenarios](../interactive-scenarios/) for immediate exploration
+2. Load [Sample Data](../sample-data/) to populate the CRUD service
+3. Use [API Examples](../api-examples/) for quick curl/PowerShell reference

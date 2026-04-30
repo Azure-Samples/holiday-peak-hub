@@ -1,5 +1,7 @@
 # Runbook: ecommerce-catalog-search /ready 503
 
+**Last Updated**: 2026-04-30
+
 ## Symptom
 
 The `ecommerce-catalog-search` pod fails readiness probes with HTTP 503 on `/ready`. Kubernetes marks the pod as not ready, which causes:
