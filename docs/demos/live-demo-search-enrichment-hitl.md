@@ -130,6 +130,6 @@ Run these checks if any flow fails during live demo:
 
 8. **Seed HITL queue when empty**
     - If `/staff/review` is empty, publish one queue item:
-       - `python scripts/ops/seed_hitl_queue.py --auth-mode identity --namespace holidaypeakhub405-dev-eventhub --entity-id prd-electronics-001 --field-name material --proposed-value titanium --confidence 0.42 --product-title "Aurora X1 Laptop" --category-label "Electronics"`
+       - `python scripts/python/ops/seed_hitl_queue.py --auth-mode identity --namespace holidaypeakhub405-dev-eventhub --entity-id prd-electronics-001 --field-name material --proposed-value titanium --confidence 0.42 --product-title "Aurora X1 Laptop" --category-label "Electronics"`
     - Then refresh `/staff/review`.
     - Use `--dry-run` first to preview payload without publishing.

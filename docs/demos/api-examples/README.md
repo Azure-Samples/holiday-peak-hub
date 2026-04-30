@@ -13,25 +13,25 @@ Quick-start API examples for the 26 agent services plus the CRUD service.
 
 ## Scripts
 
-Executable demo scripts live in [`scripts/demos/`](../../../scripts/demos/):
+Executable demo scripts live in the `scripts/` tree, organized by language:
 
 | Script | Platform | Description |
 |--------|----------|-------------|
-| [`curl-examples.sh`](../../../scripts/demos/curl-examples.sh) | Bash (Linux/macOS/WSL) | curl calls for all 26 agents + CRUD |
-| [`powershell-examples.ps1`](../../../scripts/demos/powershell-examples.ps1) | PowerShell (Windows) | Invoke-RestMethod calls for all services |
+| [`curl-examples.sh`](../../../scripts/shell/demos/curl-examples.sh) | Bash (Linux/macOS/WSL) | curl calls for all 26 agents + CRUD |
+| [`powershell-examples.ps1`](../../../scripts/powershell/demos/powershell-examples.ps1) | PowerShell (Windows) | Invoke-RestMethod calls for all services |
 
 ### Usage
 
 #### Bash/curl
 ```bash
 export BASE_URL=http://localhost  # or your APIM gateway URL
-bash scripts/demos/curl-examples.sh
+bash scripts/shell/demos/curl-examples.sh
 ```
 
 #### PowerShell
 ```powershell
 $env:BASE_URL = "http://localhost"  # or your APIM gateway URL
-.\scripts\demos\powershell-examples.ps1
+.\scripts\powershell\demos\powershell-examples.ps1
 ```
 
 ---
@@ -40,13 +40,13 @@ $env:BASE_URL = "http://localhost"  # or your APIM gateway URL
 
 | Script | Purpose |
 |--------|---------|
-| [`scripts/ops/load-kaggle-olist-dataset.py`](../../../scripts/ops/load-kaggle-olist-dataset.py) | Load 100k real orders from Kaggle Olist dataset into CRUD service |
+| [`scripts/python/ops/load-kaggle-olist-dataset.py`](../../../scripts/python/ops/load-kaggle-olist-dataset.py) | Load 100k real orders from Kaggle Olist dataset into CRUD service |
 | `python -m crud_service.scripts.seed_demo_data` | Load curated 100-product demo catalog (runs inside AKS) |
 
 ### Kaggle Olist Loader
 ```bash
 pip install httpx pandas opendatasets tqdm
-python scripts/ops/load-kaggle-olist-dataset.py --download --crud-url http://localhost:8000 --limit 500
+python scripts/python/ops/load-kaggle-olist-dataset.py --download --crud-url http://localhost:8000 --limit 500
 ```
 
 ---

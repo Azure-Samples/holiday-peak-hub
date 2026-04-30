@@ -22,7 +22,7 @@ Thanks for helping improve Holiday Peak Hub. This repo is a Python 3.13 monorepo
 | Tool | Version | Install |
 |------|---------|---------|
 | **Azure CLI (az)** | ≥ 2.67 | [Install guide](https://learn.microsoft.com/cli/azure/install-azure-cli) |
-| **Azure Developer CLI (azd)** | Latest | [Install guide](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd) — used by `azure.yaml` hooks and `scripts/ops/demo-provision.ps1` |
+| **Azure Developer CLI (azd)** | Latest | [Install guide](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd) — used by `azure.yaml` hooks and `scripts/powershell/ops/demo-provision.ps1` |
 | **Azure CLI `alb` extension** | Latest | `az extension add --name alb` — required for Application Gateway for Containers (AGC) operations |
 
 ### Kubernetes tooling (for AKS deployment)
@@ -30,7 +30,7 @@ Thanks for helping improve Holiday Peak Hub. This repo is a Python 3.13 monorepo
 | Tool | Version | Notes |
 |------|---------|-------|
 | **Helm** | 3.x | Predeploy hooks run `helm template` via `.infra/azd/hooks/render-helm.*` |
-| **kubectl** | Matching AKS cluster | Required after `az aks get-credentials`; used by deploy hooks and `scripts/ops/demo-preflight-validate.ps1` |
+| **kubectl** | Matching AKS cluster | Required after `az aks get-credentials`; used by deploy hooks and `scripts/powershell/ops/demo-preflight-validate.ps1` |
 | **kubelogin** | Latest | `az aks install-cli --kubelogin-version latest` — required for Entra ID-based AKS auth |
 
 ### Azure services (for end-to-end testing)
@@ -47,7 +47,7 @@ When exercising memory/adapters end-to-end, you need access to:
 - **Azure AI Foundry / AI Services** (agent model endpoints)
 - **Azure API Management** (API gateway — deploy workflows use `az apim` commands)
 
-> **Tip**: Use `scripts/start-dev-environment.ps1` to start stopped dev resources (PostgreSQL, AKS) that may have been paused by cost-saving automation.
+> **Tip**: Use `scripts/powershell/ops/start-dev-environment.ps1` to start stopped dev resources (PostgreSQL, AKS) that may have been paused by cost-saving automation.
 
 ## Backend setup (Python)
 
@@ -127,7 +127,7 @@ python -m pip_audit --skip-editable
 ```bash
 git config core.hooksPath .githooks
 ```
-With push gate enabled, every push runs `scripts/ops/pre_push_gate.py`, which mirrors the CI lint/test gate commands used by `.github/workflows/lint.yml` and `.github/workflows/test.yml`.
+With push gate enabled, every push runs `scripts/python/ops/pre_push_gate.py`, which mirrors the CI lint/test gate commands used by `.github/workflows/lint.yml` and `.github/workflows/test.yml`.
 
 ### Run a service locally
 ```bash

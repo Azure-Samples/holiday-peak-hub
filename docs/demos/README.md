@@ -15,8 +15,8 @@ This directory contains comprehensive demonstrations for all 26 agent services +
 
 | What you want | Where to go |
 |---------------|-------------|
-| Run a quick API call | [`scripts/demos/curl-examples.sh`](../../scripts/demos/curl-examples.sh) or [`powershell-examples.ps1`](../../scripts/demos/powershell-examples.ps1) |
-| Seed realistic data (Kaggle) | [`scripts/ops/load-kaggle-olist-dataset.py`](../../scripts/ops/load-kaggle-olist-dataset.py) |
+| Run a quick API call | [`scripts/shell/demos/curl-examples.sh`](../../scripts/shell/demos/curl-examples.sh) or [`powershell-examples.ps1`](../../scripts/powershell/demos/powershell-examples.ps1) |
+| Seed realistic data (Kaggle) | [`scripts/python/ops/load-kaggle-olist-dataset.py`](../../scripts/python/ops/load-kaggle-olist-dataset.py) |
 | Seed curated demo catalog | `python -m crud_service.scripts.seed_demo_data` (100 products, 11 categories) |
 | Run the live search+HITL demo | [live-demo-search-enrichment-hitl.md](live-demo-search-enrichment-hitl.md) |
 | Walk through a customer journey | [interactive-scenarios/customer-journey.md](interactive-scenarios/customer-journey.md) |
@@ -29,18 +29,18 @@ This directory contains comprehensive demonstrations for all 26 agent services +
 
 ## Scripts & Tools
 
-All executable scripts live in the `scripts/` tree (not in `docs/`):
+All executable scripts live in the `scripts/` tree, organized by language:
 
 | Script | Location | Purpose |
 |--------|----------|---------|
-| curl examples | [`scripts/demos/curl-examples.sh`](../../scripts/demos/curl-examples.sh) | Quick API calls for all 26 agents + CRUD (bash) |
-| PowerShell examples | [`scripts/demos/powershell-examples.ps1`](../../scripts/demos/powershell-examples.ps1) | Same as above (Windows) |
-| Kaggle Olist loader | [`scripts/ops/load-kaggle-olist-dataset.py`](../../scripts/ops/load-kaggle-olist-dataset.py) | Download + transform + seed 100k real ecommerce orders |
-| CRUD write check | [`scripts/ops/crud-post-write-check.ps1`](../../scripts/ops/crud-post-write-check.ps1) | Validate CRUD liveness and write paths |
-| Demo preflight | [`scripts/ops/demo-preflight-validate.ps1`](../../scripts/ops/demo-preflight-validate.ps1) | Pre-demo infrastructure validation |
-| Demo provision | [`scripts/ops/demo-provision.ps1`](../../scripts/ops/demo-provision.ps1) | Provision demo environment |
-| Demo recover & seed | [`scripts/ops/demo-recover-and-seed.ps1`](../../scripts/ops/demo-recover-and-seed.ps1) | Recover from nightly shutdown + seed data |
-| HITL queue seed | [`scripts/ops/seed_hitl_queue.py`](../../scripts/ops/seed_hitl_queue.py) | Seed the HITL review queue for demos |
+| curl examples | [`scripts/shell/demos/curl-examples.sh`](../../scripts/shell/demos/curl-examples.sh) | Quick API calls for all 26 agents + CRUD (bash) |
+| PowerShell examples | [`scripts/powershell/demos/powershell-examples.ps1`](../../scripts/powershell/demos/powershell-examples.ps1) | Same as above (Windows) |
+| Kaggle Olist loader | [`scripts/python/ops/load-kaggle-olist-dataset.py`](../../scripts/python/ops/load-kaggle-olist-dataset.py) | Download + transform + seed 100k real ecommerce orders |
+| CRUD write check | [`scripts/powershell/ops/crud-post-write-check.ps1`](../../scripts/powershell/ops/crud-post-write-check.ps1) | Validate CRUD liveness and write paths |
+| Demo preflight | [`scripts/powershell/ops/demo-preflight-validate.ps1`](../../scripts/powershell/ops/demo-preflight-validate.ps1) | Pre-demo infrastructure validation |
+| Demo provision | [`scripts/powershell/ops/demo-provision.ps1`](../../scripts/powershell/ops/demo-provision.ps1) | Provision demo environment |
+| Demo recover & seed | [`scripts/powershell/ops/demo-recover-and-seed.ps1`](../../scripts/powershell/ops/demo-recover-and-seed.ps1) | Recover from nightly shutdown + seed data |
+| HITL queue seed | [`scripts/python/ops/seed_hitl_queue.py`](../../scripts/python/ops/seed_hitl_queue.py) | Seed the HITL review queue for demos |
 
 ---
 
@@ -56,7 +56,7 @@ python -m crud_service.scripts.seed_demo_data
 For richer demos with 100k real orders, customers, reviews, and realistic order patterns:
 ```bash
 pip install httpx pandas opendatasets tqdm
-python scripts/ops/load-kaggle-olist-dataset.py --download --crud-url http://localhost:8000 --limit 500
+python scripts/python/ops/load-kaggle-olist-dataset.py --download --crud-url http://localhost:8000 --limit 500
 ```
 Dataset: [kaggle.com/datasets/olistbr/brazilian-ecommerce](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce) (CC BY-NC-SA 4.0)
 
@@ -103,7 +103,7 @@ Pre-exported product data for offline use: [sample-data/products_export.csv](sam
 - [x] Demo index (this file)
 - [x] Postman collection with all 26 agents ([postman-collection.json](api-examples/postman-collection.json))
 - [x] Sample data generators ([sample-data/](sample-data/))
-- [x] Quick start CLI examples ([scripts/demos/curl-examples.sh](../../scripts/demos/curl-examples.sh))
+- [x] Quick start CLI examples ([scripts/shell/demos/curl-examples.sh](../../scripts/shell/demos/curl-examples.sh))
 
 #### Sample Data Sets
 - **Products**: 500 SKUs across 8 categories (Electronics, Apparel, Toys, Home, Beauty, Sports, Books, Groceries)
@@ -302,21 +302,21 @@ cd apps/ecommerce-product-detail-enrichment/src && uvicorn main:app --reload --p
 #### Option 1: Using curl (Linux/macOS/WSL)
 ```bash
 # Seed data (Kaggle — real orders)
-python scripts/ops/load-kaggle-olist-dataset.py --download --crud-url http://localhost:8000 --limit 200
+python scripts/python/ops/load-kaggle-olist-dataset.py --download --crud-url http://localhost:8000 --limit 200
 
 # Run all agent demos
 export BASE_URL=http://localhost
-bash scripts/demos/curl-examples.sh
+bash scripts/shell/demos/curl-examples.sh
 ```
 
 #### Option 2: Using PowerShell (Windows)
 ```powershell
 # Seed data (Kaggle — real orders)
-python scripts/ops/load-kaggle-olist-dataset.py --download --crud-url http://localhost:8000 --limit 200
+python scripts/python/ops/load-kaggle-olist-dataset.py --download --crud-url http://localhost:8000 --limit 200
 
 # Run all agent demos
 $env:BASE_URL = "http://localhost"
-.\scripts\demos\powershell-examples.ps1
+.\scripts\powershell\demos\powershell-examples.ps1
 ```
 
 #### Option 3: Using Postman
@@ -429,8 +429,7 @@ When adding new demos:
 
 ## Resources
 
-- **Demo Scripts**: [`scripts/demos/`](../../scripts/demos/)
-- **Ops Scripts** (data loading, preflight): [`scripts/ops/`](../../scripts/ops/)
+- **Scripts by Language**: [`scripts/python/`](../../scripts/python/) · [`scripts/powershell/`](../../scripts/powershell/) · [`scripts/shell/`](../../scripts/shell/)
 - **Architecture Documentation**: [docs/architecture/](../architecture/)
 - **Component Documentation**: [docs/architecture/components.md](../architecture/components.md)
 - **CRUD Service Implementation**: [docs/architecture/crud-service-implementation.md](../architecture/crud-service-implementation.md)

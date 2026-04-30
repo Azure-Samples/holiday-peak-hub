@@ -4,4 +4,4 @@ set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 
-python scripts/ops/pre_push_gate.py
+python scripts/python/ops/pre_push_gate.py

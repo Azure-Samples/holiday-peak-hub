@@ -33,7 +33,7 @@ The dev environment is subject to MCAPSGov nightly automation that stops Postgre
 ### Step 0: Run the Start-Dev-Environment Script
 
 ```powershell
-./scripts/start-dev-environment.ps1
+./scripts/powershell/ops/start-dev-environment.ps1
 ```
 
 **What it does (in order)**:
@@ -904,7 +904,7 @@ foreach ($agent in $agents) {
 
 ```powershell
 # Step 1: Recover infrastructure
-./scripts/start-dev-environment.ps1
+./scripts/powershell/ops/start-dev-environment.ps1
 
 # Step 2: Resolve APIM base URL
 $azdVars = azd env get-values | ConvertFrom-StringData

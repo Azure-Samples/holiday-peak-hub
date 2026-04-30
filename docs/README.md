@@ -33,7 +33,7 @@ Holiday Peak Hub is a **cloud-native, agent-driven retail accelerator** — 26 A
 | Governance | [Index](governance/README.md) · [Backend](governance/backend-governance.md) · [Frontend](governance/frontend-governance.md) · [Infrastructure](governance/infrastructure-governance.md) · [Security](governance/security-exception-register.md) |
 | Roadmap | [Implementation Roadmap](IMPLEMENTATION_ROADMAP.md) · [Roadmap Items](roadmap/README.md) |
 | Demos | [Demo Index](demos/README.md) · [Live Search+HITL Demo](demos/live-demo-search-enrichment-hitl.md) |
-| Scripts | [Demo Scripts](../scripts/demos/) · [Ops Scripts](../scripts/ops/) · [Kaggle Loader](../scripts/ops/load-kaggle-olist-dataset.py) |
+| Scripts | [Python](../scripts/python/) · [PowerShell](../scripts/powershell/) · [Shell](../scripts/shell/) · [Kaggle Loader](../scripts/python/ops/load-kaggle-olist-dataset.py) |
 
 ---
 
@@ -199,7 +199,7 @@ Run this locally from the CRUD service environment with `POSTGRES_*` variables c
 Use this to validate CRUD liveness and write behavior through HTTP endpoints (instead of direct DB scripts):
 
 ```powershell
-./scripts/ops/crud-post-write-check.ps1 -AzdEnvironment dev
+./scripts/powershell/ops/crud-post-write-check.ps1 -AzdEnvironment dev
 ```
 
 By default this runs against APIM (`APIM_GATEWAY_URL` from the selected azd environment).
@@ -207,14 +207,14 @@ By default this runs against APIM (`APIM_GATEWAY_URL` from the selected azd envi
 To run against the live CRUD service directly using AKS port-forward (`svc/crud-service`):
 
 ```powershell
-./scripts/ops/crud-post-write-check.ps1 -AzdEnvironment dev -UsePortForward
+./scripts/powershell/ops/crud-post-write-check.ps1 -AzdEnvironment dev -UsePortForward
 ```
 
 If you have a bearer token for authenticated endpoints, pass it via `CRUD_BEARER_TOKEN`:
 
 ```powershell
 $env:CRUD_BEARER_TOKEN = "<token>"
-./scripts/ops/crud-post-write-check.ps1 -AzdEnvironment dev
+./scripts/powershell/ops/crud-post-write-check.ps1 -AzdEnvironment dev
 ```
 
 The script exercises all CRUD `POST` routes and reports `PASS` / `SKIPPED` / `FAIL` per endpoint.
@@ -227,7 +227,7 @@ The script exercises all CRUD `POST` routes and reports `PASS` / `SKIPPED` / `FA
 - Keep `protected-dev-live-agent-readiness.yml` limited to trusted triggers and the `dev` environment boundary; do not add it as a required PR check.
 - Preserve changed-service deployment and APIM sync/smoke behavior per environment defaults.
 - Run lint/test quality gates before deployment (repo minimum 75% coverage).
-- Verify canonical event schema compatibility before rollout whenever governed retail or connector event contracts change (`python scripts/ops/check_event_schema_contracts.py`).
+- Verify canonical event schema compatibility before rollout whenever governed retail or connector event contracts change (`python scripts/python/ops/check_event_schema_contracts.py`).
 - Update governance docs when workflow behavior or runtime controls change:
   - `docs/governance/README.md`
   - `docs/governance/backend-governance.md`

@@ -378,7 +378,7 @@ The `COPY ... prompts/` line in stage 5 is **mandatory** for all agent services.
 4. The pod's `/ready` probe returns 503 indefinitely
 5. The pod never becomes Ready and `/invoke` returns errors
 
-**CI enforcement**: Run `python scripts/ci/verify_dockerfile_prompts.py` to verify all agent Dockerfiles include the prompts COPY. This script is a fast static gate that catches the issue before any image is built.
+**CI enforcement**: Run `python scripts/python/ci/verify_dockerfile_prompts.py` to verify all agent Dockerfiles include the prompts COPY. This script is a fast static gate that catches the issue before any image is built.
 
 The prompts directory at `apps/<service>/prompts/instructions.md` is the authoritative source for each agent's Foundry instructions. The `prompt_loader` resolution order is:
 1. `importlib.resources` (package data inside installed wheel)
@@ -394,7 +394,7 @@ The prompts directory at `apps/<service>/prompts/instructions.md` is the authori
 |---------|-------|-----|
 | Pod in `CrashLoopBackoff` | `kubectl logs -l app=<svc> --previous` | Usually missing env var (`PROJECT_ENDPOINT`, `EVENT_HUB_NAMESPACE`) |
 | `/health` returns 503 | Foundry agent not provisioned | Run `ensure-foundry-agents.ps1` hook |
-| `/ready` returns 503, logs show `fallback_instructions_refused` | `prompts/instructions.md` not in Docker image | Add `COPY ... prompts/` to Dockerfile prod stage. Run `python scripts/ci/verify_dockerfile_prompts.py` to check all |
+| `/ready` returns 503, logs show `fallback_instructions_refused` | `prompts/instructions.md` not in Docker image | Add `COPY ... prompts/` to Dockerfile prod stage. Run `python scripts/python/ci/verify_dockerfile_prompts.py` to check all |
 | Event Hub consumer not receiving | Consumer group mismatch | Verify `EVENT_HUB_CONNECTION_STRING` and consumer group name |
 | Memory timeouts | Redis/Cosmos unreachable | Check network policies allow egress from agent namespace |
 | Image pull error | ACR auth expired | `az acr login --name <acr>` then re-deploy |

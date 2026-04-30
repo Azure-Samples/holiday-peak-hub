@@ -10,8 +10,8 @@ Requirements:
     pip install httpx pandas opendatasets tqdm
 
 Usage:
-    python scripts/ops/load-kaggle-olist-dataset.py --crud-url http://localhost:8000
-    python scripts/ops/load-kaggle-olist-dataset.py --limit 200 --kaggle-dir ./data/olist
+    python scripts/python/ops/load-kaggle-olist-dataset.py --crud-url http://localhost:8000
+    python scripts/python/ops/load-kaggle-olist-dataset.py --limit 200 --kaggle-dir ./data/olist
 """
 
 from __future__ import annotations
