@@ -613,7 +613,8 @@ function Ensure-AgentApi {
         @{ id = 'ready'; method = 'GET'; template = '/ready'; name = 'Ready' },
         @{ id = 'invoke'; method = 'POST'; template = '/invoke'; name = 'Invoke' },
         @{ id = 'invoke-stream'; method = 'POST'; template = '/invoke/stream'; name = 'Invoke Stream' },
-        @{ id = 'mcp-tool'; method = 'POST'; template = '/mcp/{tool}'; name = 'MCP Tool' },
+        @{ id = 'integrations'; method = 'GET'; template = '/integrations'; name = 'Integrations' },
+        @{ id = 'mcp-tool'; method = 'POST'; template = '/mcp/{*tool}'; name = 'MCP Tool' },
         @{ id = 'agent-traces'; method = 'GET'; template = '/agent/traces'; name = 'Agent Traces' },
         @{ id = 'agent-metrics'; method = 'GET'; template = '/agent/metrics'; name = 'Agent Metrics' },
         @{ id = 'agent-evaluation-latest'; method = 'GET'; template = '/agent/evaluation/latest'; name = 'Agent Evaluation Latest' }
@@ -637,7 +638,7 @@ function Ensure-AgentApi {
             $createArgs += @(
                 '--template-parameters',
                 'name=tool',
-                'description=MCP tool name',
+                'description=MCP tool path (supports nested segments)',
                 'type=string',
                 'required=true'
             )
