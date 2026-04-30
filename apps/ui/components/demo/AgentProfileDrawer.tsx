@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { TraceWaterfall } from '@/components/admin/TraceWaterfall';
 import { AgentRobot } from '@/components/organisms/AgentRobot';
 import {
@@ -60,7 +60,7 @@ export function AgentProfileDrawer({
     traceExplorerOpen ? selectedTraceId : '',
     DEFAULT_AGENT_MONITOR_RANGE,
   );
-  const recentTraces = recentTracesQuery.data ?? [];
+  const recentTraces = useMemo(() => recentTracesQuery.data ?? [], [recentTracesQuery.data]);
 
   useEffect(() => {
     if (!open || !profile) {

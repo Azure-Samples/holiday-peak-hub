@@ -80,7 +80,6 @@ export default function OrderTrackingPage() {
     () => returns.filter((item) => item.order_id === orderId),
     [returns, orderId],
   );
-  const hasReturnSignals = orderReturns.length > 0 || createReturnMutation.isSuccess;
   const returnFlowActive = Boolean(returnReason.trim())
     || createReturnMutation.isPending
     || createReturnMutation.isSuccess

@@ -231,6 +231,11 @@ function PixelFace({ personality, state, size, gazeX = 0 }: PixelFaceProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animFrameRef = useRef<number>(0);
   const blinkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const gazeXRef = useRef(gazeX);
+
+  useEffect(() => {
+    gazeXRef.current = gazeX;
+  }, [gazeX]);
 
   const visorW = Math.round(size * 0.65);
   const visorH = Math.round(size * 0.38);
@@ -317,7 +322,7 @@ function PixelFace({ personality, state, size, gazeX = 0 }: PixelFaceProps) {
       const eyePattern = getEyePattern();
       const mouthPattern = getMouthPattern();
       const color = personality.visorColor;
-      const horizontalLookOffset = Math.round(Math.max(-1, Math.min(1, gazeX)) * 1.2);
+      const horizontalLookOffset = Math.round(Math.max(-1, Math.min(1, gazeXRef.current)) * 1.2);
 
       const eyeBlockW = 5 * (pixelSize + gap);
       const eyeGapPx = Math.round(visorW * 0.12);
