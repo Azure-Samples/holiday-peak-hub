@@ -1123,5 +1123,184 @@ resource uiProxyCritical502Alert 'Microsoft.Insights/scheduledQueryRules@2023-12
   }
 }
 
+// ─── Agent Mode-Aware Alert Rules (ADR-024 Part 4) ────────────────────────────
+
+var syncAgentP95Query = '''
+let syncServices = dynamic([
+  "ecommerce-catalog-search",
+  "ecommerce-cart-intelligence",
+  "ecommerce-checkout-support",
+  "ecommerce-order-status",
+  "ecommerce-product-detail-enrichment",
+  "crm-profile-aggregation",
+  "crm-support-assistance",
+  "inventory-reservation-validation",
+  "logistics-eta-computation",
+  "logistics-carrier-selection",
+  "logistics-returns-support"
+]);
+let agentRequests =
+  union isfuzzy=true
+    (AppRequests | project eventTime = TimeGenerated, name = tostring(Name), duration = DurationMs),
+    (requests | project eventTime = timestamp, name = tostring(name), duration = toint(duration));
+agentRequests
+| where eventTime > ago(15m)
+| extend serviceName = extract(@"/agents/([^/]+)/invoke", 1, name)
+| where isnotempty(serviceName) and serviceName in~ (syncServices)
+| summarize p95_ms = percentile(duration, 95) by serviceName
+| where p95_ms > 8000
+| extend breach = 1
+'''
+
+var asyncConsumerLagQuery = '''
+let asyncServices = dynamic([
+  "crm-campaign-intelligence",
+  "crm-segmentation-personalization",
+  "inventory-alerts-triggers",
+  "inventory-health-check",
+  "inventory-jit-replenishment",
+  "logistics-route-issue-detection",
+  "product-management-acp-transformation",
+  "product-management-assortment-optimization",
+  "product-management-consistency-validation",
+  "product-management-normalization-classification",
+  "search-enrichment-agent",
+  "truth-ingestion",
+  "truth-enrichment",
+  "truth-hitl",
+  "truth-export"
+]);
+AzureMetrics
+| where TimeGenerated > ago(15m)
+| where ResourceProvider == "MICROSOFT.EVENTHUB"
+| where MetricName == "OutgoingMessages"
+| extend consumerGroup = tostring(split(Resource, "/")[2])
+| extend serviceName = iif(consumerGroup has_any (asyncServices), consumerGroup, "")
+| where isnotempty(serviceName)
+| summarize totalOutgoing = sum(Total) by serviceName
+| join kind=inner (
+    AzureMetrics
+    | where TimeGenerated > ago(15m)
+    | where ResourceProvider == "MICROSOFT.EVENTHUB"
+    | where MetricName == "IncomingMessages"
+    | summarize totalIncoming = sum(Total) by Resource
+  ) on $left.serviceName == $right.Resource
+| extend lagEstimate = totalIncoming - totalOutgoing
+| where lagEstimate > 600
+| extend breach = 1
+'''
+
+resource syncAgentLatencyAlert 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
+  name: '${projectName}-${environment}-sync-agent-p95-latency'
+  location: location
+  kind: 'LogAlert'
+  properties: {
+    description: 'Sync agent invoke P95 latency exceeds 8 seconds over 15-minute window. Per ADR-024 Part 4, only sync (user-facing) agents are subject to invoke latency SLA.'
+    displayName: '${projectName}-${environment} sync agent P95 latency breach'
+    enabled: true
+    severity: 2
+    evaluationFrequency: 'PT5M'
+    windowSize: 'PT15M'
+    scopes: [
+      monitoringWorkspaceResourceId
+    ]
+    targetResourceTypes: [
+      'Microsoft.OperationalInsights/workspaces'
+    ]
+    criteria: {
+      allOf: [
+        {
+          query: syncAgentP95Query
+          timeAggregation: 'Maximum'
+          metricMeasureColumn: 'breach'
+          operator: 'GreaterThan'
+          threshold: 0
+          failingPeriods: {
+            numberOfEvaluationPeriods: 3
+            minFailingPeriodsToAlert: 2
+          }
+          dimensions: [
+            {
+              name: 'serviceName'
+              operator: 'Include'
+              values: [
+                '*'
+              ]
+            }
+          ]
+        }
+      ]
+    }
+    autoMitigate: true
+    skipQueryValidation: false
+    actions: {
+      actionGroups: [
+        actionGroup.id
+      ]
+      customProperties: {
+        agentClass: 'sync'
+        slaTarget: 'P95 < 8s'
+        adr: 'ADR-024-Part4'
+      }
+    }
+  }
+}
+
+resource asyncAgentConsumerLagAlert 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
+  name: '${projectName}-${environment}-async-agent-consumer-lag'
+  location: location
+  kind: 'LogAlert'
+  properties: {
+    description: 'Async agent consumer lag exceeds 10-minute threshold. Per ADR-024 Part 4, async agents are measured on throughput and lag, not invoke latency.'
+    displayName: '${projectName}-${environment} async agent consumer lag breach'
+    enabled: true
+    severity: 3
+    evaluationFrequency: 'PT5M'
+    windowSize: 'PT15M'
+    scopes: [
+      monitoringWorkspaceResourceId
+    ]
+    targetResourceTypes: [
+      'Microsoft.OperationalInsights/workspaces'
+    ]
+    criteria: {
+      allOf: [
+        {
+          query: asyncConsumerLagQuery
+          timeAggregation: 'Maximum'
+          metricMeasureColumn: 'breach'
+          operator: 'GreaterThan'
+          threshold: 0
+          failingPeriods: {
+            numberOfEvaluationPeriods: 3
+            minFailingPeriodsToAlert: 2
+          }
+          dimensions: [
+            {
+              name: 'serviceName'
+              operator: 'Include'
+              values: [
+                '*'
+              ]
+            }
+          ]
+        }
+      ]
+    }
+    autoMitigate: true
+    skipQueryValidation: false
+    actions: {
+      actionGroups: [
+        actionGroup.id
+      ]
+      customProperties: {
+        agentClass: 'async'
+        slaTarget: 'consumer lag < 10min'
+        adr: 'ADR-024-Part4'
+      }
+    }
+  }
+}
+
 output actionGroupId string = actionGroup.id
 output actionGroupName string = actionGroup.name
