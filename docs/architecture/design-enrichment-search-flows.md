@@ -43,7 +43,7 @@ Both flows are **architecturally well-fitted** to the existing platform. The cod
 
 ### 2.1 How Flows Connect to Existing Services
 
-```
+```mermaid
 %%{init: {'theme':'base', 'themeVariables': {
   'primaryColor':'#FFB3BA',
   'primaryTextColor':'#000',
@@ -99,7 +99,7 @@ flowchart TB
 ### 2.2 Pattern Compliance Matrix
 
 | Pattern | ADR | Flow 1 Compliance | Flow 2 Compliance |
-|---------|-----|--------------------|--------------------|
+| --- | --- | --- | --- |
 | Adapter Pattern | ADR-003 | ✅ New `DAMImageAnalysisAdapter` extends `BaseAdapter` | ✅ New `SearchEnrichmentAdapter` extends `BaseAdapter` |
 | Builder Pattern | ADR-007 | ✅ Uses `AgentBuilder.with_foundry_models()` | ✅ Uses `AgentBuilder` for new search agent |
 | Saga Choreography | ADR-006 | ✅ Event Hub pub/sub chain: ingest → enrich → hitl → export | ✅ Event Hub: approval → search-enrich → index |
@@ -116,7 +116,7 @@ flowchart TB
 
 ### 3.1 C4 Container Diagram
 
-```
+```mermaid
 %%{init: {'theme':'base', 'themeVariables': {
   'primaryColor':'#FFB3BA',
   'primaryTextColor':'#000',
@@ -163,7 +163,7 @@ C4Container
 
 ### 3.2 Sequence Diagram — Event-Driven Enrichment
 
-```
+```mermaid
 %%{init: {'theme':'base', 'themeVariables': {
   'primaryColor':'#FFB3BA',
   'primaryTextColor':'#000',
@@ -271,7 +271,7 @@ The existing `attributes_proposed` Cosmos container already stores proposed attr
 ### 3.4 What Changes in Existing Services
 
 | Service | Change Type | Details |
-|---------|-------------|---------|
+| --- | --- | --- |
 | `truth-enrichment` | **Extend** | Add `DAMImageAnalysisAdapter` in `adapters.py`; add image analysis step in `enrichment_engine.py`; extend event handler to call DAM + Foundry GPT-4o |
 | `truth-enrichment` | **Extend** | Upgrade `_detect_gaps()` to compare against full `CategorySchema` with required/recommended field differentiation |
 | `truth-enrichment` | **Extend** | Add enhanced proposed record with `original_data`, `enriched_data`, `reasoning` fields |
@@ -285,7 +285,7 @@ The existing `attributes_proposed` Cosmos container already stores proposed attr
 
 ### 4.1 C4 Container Diagram
 
-```
+```mermaid
 %%{init: {'theme':'base', 'themeVariables': {
   'primaryColor':'#FFB3BA',
   'primaryTextColor':'#000',
@@ -330,7 +330,7 @@ C4Container
 
 ### 4.2 Sequence Diagram — Background Enrichment + Indexing
 
-```
+```mermaid
 %%{init: {'theme':'base', 'themeVariables': {
   'primaryColor':'#FFB3BA',
   'primaryTextColor':'#000',
@@ -367,7 +367,7 @@ sequenceDiagram
 
 ### 4.3 Sequence Diagram — Agentic Search Query
 
-```
+```mermaid
 %%{init: {'theme':'base', 'themeVariables': {
   'primaryColor':'#FFB3BA',
   'primaryTextColor':'#000',
@@ -414,7 +414,7 @@ sequenceDiagram
 
 ### 4.4 Non-Agentic Path (Simple Queries)
 
-```
+```mermaid
 %%{init: {'theme':'base', 'themeVariables': {
   'primaryColor':'#FFB3BA',
   'primaryTextColor':'#000',
@@ -512,6 +512,25 @@ sequenceDiagram
 }
 ```
 
+### 4.7 Retailer IQ RecommenderIQ Alignment
+
+The intelligent search flow is the first customer-facing surface for Retailer IQ recommendations, but it does not move recommendation ownership into Product Graph or into `ecommerce-catalog-search`.
+
+The current `search-enrichment-agent` is the better evolutionary boundary for `recommendation-agent`. Recommendation is primarily an enrichment and correlation process that produces products correlated with intent, complements, substitutes, bundles, and ranked candidate projections. `ecommerce-catalog-search` remains the online search/query experience that consumes those outputs.
+
+Architectural alignment:
+
+| Concern | Owner | Search-Time Role |
+| --- | --- | --- |
+| Product truth and Product Graph | Truth Layer / Product IQ | Supplies approved product facts, relationships, use cases, complements, substitutes, and evidence |
+| Intent-aware retrieval | `ecommerce-catalog-search` | Uses Foundry SLM/LLM for intent interpretation, query expansion, adjacent-need discovery, explicit retrieval, and online result composition |
+| Product-intent correlation enrichment | `recommendation-agent` evolved from `search-enrichment-agent` | Produces correlated products, complements, substitutes, bundles, candidate projections, evidence, and reason codes |
+| Classical ML ranking | RecommenderIQ / agnostic recommender engine | Scores matches, complements, substitutes, bundles, and next-best alternatives with versioned feature contracts |
+| Customer context and loyalty | Customer IQ / CRM and loyalty owners | Supplies consent-aware preferences, segments, loyalty eligibility, and behavioral features through contracts |
+| Final search recommendation experience | `ecommerce-catalog-search` consuming `recommendation-agent` outputs | Returns products that match the explicit query and products that suit the user's inferred intent |
+
+The search agent should become richer than a thin AI Search wrapper, but it should not become the recommendation owner. It should use the LLM to understand user intent, generate retrieval plans, compare alternatives, and explain why recommended products suit the user's goal. Final correlation, scoring, and model lifecycle belong to RecommenderIQ through `recommendation-agent`; scoring remains classical ML and inference-only in the request path.
+
 ---
 
 ## 5. New/Modified Infrastructure
@@ -519,7 +538,7 @@ sequenceDiagram
 ### 5.1 Cosmos DB Containers
 
 | Container | Status | Partition Key | Purpose |
-|-----------|--------|---------------|---------|
+| --- | --- | --- | --- |
 | `products` | **Existing** | `/categoryId` | Product styles and variants |
 | `attributes_proposed` | **Existing** — schema extended | `/entityId` | Add `source_type`, `source_assets`, `original_data`, `enriched_data`, `reasoning` |
 | `attributes_truth` | **Existing** | `/entityId` | Approved canonical attributes |
@@ -538,7 +557,7 @@ sequenceDiagram
 ### 5.2 Event Hub Topics
 
 | Topic | Status | Publishers | Subscribers |
-|-------|--------|-----------|-------------|
+| --- | --- | --- | --- |
 | `enrichment-jobs` | **Existing** | `truth-ingestion` | `truth-enrichment` |
 | `hitl-jobs` | **Existing** | `truth-enrichment` | `truth-hitl` |
 | `export-jobs` | **Existing** | `truth-hitl` | `truth-export` |
@@ -550,11 +569,12 @@ sequenceDiagram
 ### 5.3 AI Search Indexes
 
 | Index | Status | Data Source | Population Method |
-|-------|--------|------------|-------------------|
+| --- | --- | --- | --- |
 | `catalog-products` | **Existing** | Manual push | `upsert_catalog_document()` in `ai_search.py` — keep as-is for backward compat |
 | `product_search_index` | **NEW** | `search_enriched_products` Cosmos container | Azure AI Search indexer with Cosmos DB data source + AI skills pipeline (vectorization) |
 
 **Indexer configuration**:
+
 - **Data source**: Cosmos DB change feed on `search_enriched_products`
 - **Skillset**: Text splitting → embedding generation (`text-embedding-3-large`) → field mapping
 - **Schedule**: Every 5 minutes (configurable) or change-feed triggered
@@ -567,7 +587,7 @@ sequenceDiagram
 ### 6.1 Flow 1 — New Adapters
 
 | Adapter | Location | Extends | Purpose |
-|---------|----------|---------|---------|
+| --- | --- | --- | --- |
 | `DAMImageAnalysisAdapter` | `apps/truth-enrichment/src/truth_enrichment/adapters.py` | `BaseAdapter` (circuit breaker, rate limiter inherited) | Fetches images from Generic DAM connector, sends to Foundry GPT-4o for vision analysis, returns extracted attributes |
 | *(none new in lib)* | — | — | Existing `GenericDAMConnector` in `lib/integrations/dam_generic.py` provides asset fetching; the adapter wraps it with Foundry vision calls |
 
@@ -601,7 +621,7 @@ class DAMImageAnalysisAdapter(BaseAdapter):
 ### 6.2 Flow 2 — New Adapters
 
 | Adapter | Location | Extends | Purpose |
-|---------|----------|---------|---------|
+| --- | --- | --- | --- |
 | `SearchEnrichmentAdapter` | `apps/search-enrichment-agent/src/adapters.py` | `BaseAdapter` | Reads approved product data from Cosmos, writes enriched search data to `search_enriched_products` |
 | `AISearchIndexAdapter` | `apps/ecommerce-catalog-search/src/ecommerce_catalog_search/adapters.py` | Extends existing `CatalogAdapters` | Queries `product_search_index` with vector/semantic/hybrid capabilities |
 
@@ -612,7 +632,7 @@ class DAMImageAnalysisAdapter(BaseAdapter):
 ### 7.1 Decision Matrix
 
 | Component | Decision | Rationale |
-|-----------|----------|-----------|
+| --- | --- | --- |
 | **Product enrichment with DAM images** | **Extend `truth-enrichment`** | Same bounded context (product data enrichment). Adding a DAM analysis step is a capability extension, not a new domain. Already has `EnrichmentEngine`, `EnrichmentAdapters`, and event handlers. Creating a separate service would violate DDD — it's the same aggregate (enrichment proposal). |
 | **Search enrichment agent** | **NEW service: `search-enrichment-agent`** | Different bounded context (search optimization ≠ truth enrichment). Different output container. Different consumer (AI Search indexer, not HITL). Follows microservices.io "Database per Service" — owns `search_enriched_products`. |
 | **Agentic search** | **Extend `ecommerce-catalog-search`** | Same bounded context (product search). Already has `CatalogSearchAgent`, `AISearchConfig`, `search_catalog_skus_detailed()`. Adding agentic intent interpretation is a capability upgrade to the existing agent, not a new domain. |
@@ -620,7 +640,7 @@ class DAMImageAnalysisAdapter(BaseAdapter):
 
 ### 7.2 New Service: `search-enrichment-agent`
 
-```
+```text
 apps/search-enrichment-agent/
 ├── src/
 │   └── search_enrichment/
@@ -639,7 +659,7 @@ Follows the identical Agent/Adapter/Schema pattern of every other service.
 
 ### 7.3 Extension: `truth-enrichment` Changes
 
-```
+```text
 apps/truth-enrichment/src/truth_enrichment/
 ├── adapters.py          # + DAMImageAnalysisAdapter
 ├── agents.py            # + enrich_with_images() method
@@ -650,7 +670,7 @@ apps/truth-enrichment/src/truth_enrichment/
 
 ### 7.4 Extension: `ecommerce-catalog-search` Changes
 
-```
+```text
 apps/ecommerce-catalog-search/src/ecommerce_catalog_search/
 ├── agents.py    # + complexity assessment, agentic multi-query path
 ├── ai_search.py # + vector_search(), semantic_search(), hybrid_search()
@@ -739,7 +759,7 @@ apps/ecommerce-catalog-search/src/ecommerce_catalog_search/
 ## 10. Risk Register
 
 | Risk | Impact | Probability | Mitigation |
-|------|--------|-------------|------------|
+| --- | --- | --- | --- |
 | GPT-4o vision latency (2-5s per image) blocks enrichment throughput | Medium | High | Process images asynchronously; batch during off-peak; cache per asset ID |
 | AI Search indexer lag creates stale search results | Low | Medium | Configure 5-min indexer schedule; add manual trigger endpoint for urgent updates |
 | `search_enriched_products` RU cost from continuous indexer reads | Medium | Medium | Use Cosmos autoscale 400-4000 RU/s; monitor with Azure Monitor alerts |
@@ -752,7 +772,7 @@ apps/ecommerce-catalog-search/src/ecommerce_catalog_search/
 ## Appendix A: Event Hub Topology Update
 
 | Topic | Publishers | Subscribers |
-|-------|-----------|-------------|
+| --- | --- | --- |
 | `ingestion-notifications` | `truth-ingestion` | `truth-enrichment`, `product-management-*` |
 | `enrichment-jobs` | `truth-ingestion` | `truth-enrichment` |
 | `hitl-jobs` | `truth-enrichment` | `truth-hitl` |
@@ -768,7 +788,7 @@ apps/ecommerce-catalog-search/src/ecommerce_catalog_search/
 ## Appendix B: Service Count Impact
 
 | Category | Before | After | Delta |
-|----------|--------|-------|-------|
+| --- | --- | --- | --- |
 | Existing services (unchanged) | 21 | 21 | 0 |
 | Extended services | 0 | 2 | +2 (`truth-enrichment`, `ecommerce-catalog-search`) |
 | New services | 0 | 1 | +1 (`search-enrichment-agent`) |

@@ -590,6 +590,11 @@ describe('Page rendering smoke tests', () => {
   it('renders the home page', () => {
     render(<HomePage />);
     expect(screen.getByTestId('main-layout')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', {
+        name: 'Retailer IQ: Azure operating fabric for agentic retail.',
+      }),
+    ).toBeInTheDocument();
   });
 
   it('renders categories page heading', () => {

@@ -9,7 +9,7 @@ This folder tracks corrections, gaps, and planned enhancements discovered during
 ## Recent Resolutions (April 2026)
 
 | Resolution | PR | Impact |
-|-----------|-----|--------|
+| --- | --- | --- |
 | Deploy pipeline hardening (9 fixes) | #813–#833 | Full AKS deploy unblocked: parser, change detection, ACR access, provision outputs |
 | AGC edge NSG bisection and fix identified | ops/agc-bisection-2026-04-21 | AGC data-plane unblocked; PR pending for NSG rule application |
 | Silent tool-dropping in FoundryInvoker | #802 | Agent tools now forwarded correctly via MAF FoundryAgent |
@@ -22,7 +22,7 @@ This folder tracks corrections, gaps, and planned enhancements discovered during
 ## Issue Index
 
 | # | Issue | Severity | Category | GitHub Issue |
-|---|-------|----------|----------|--------------|
+| --- | --- | --- | --- | --- |
 | 1 | [CRUD not registered in APIM (resolved)](001-crud-apim-routing.md) | Critical | Infrastructure | [#25](https://github.com/Azure-Samples/holiday-peak-hub/issues/25) |
 | 2 | [Agent health endpoints return 500 (resolved)](002-agent-health-500.md) | Critical | Agents | [#26](https://github.com/Azure-Samples/holiday-peak-hub/issues/26) |
 | 3 | [SWA API proxy returns 404 (resolved)](003-swa-api-proxy-404.md) | High | Frontend | [#27](https://github.com/Azure-Samples/holiday-peak-hub/issues/27) |
@@ -38,8 +38,9 @@ This folder tracks corrections, gaps, and planned enhancements discovered during
 ### Feature Requests
 
 | # | Feature | Priority | Category | GitHub Issue |
-|---|---------|----------|----------|--------------|
+| --- | --- | --- | --- | --- |
 | 10 | [PIM/DAM Agentic Workflow](010-pim-dam-feature-request.md) | High | Product Management | [#34](https://github.com/Azure-Samples/holiday-peak-hub/issues/34) |
+| 15 | [Retailer IQ Intelligence Platform](015-retailer-iq-recommender-system-plan.md) | High | Architecture / Agents | TBD |
 
 ## Categories
 
