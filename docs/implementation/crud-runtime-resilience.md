@@ -1,4 +1,6 @@
-# CRUD Runtime Resilience Improvements (2026-03-06)
+# CRUD Runtime Resilience Improvements
+
+> Last Updated: 2026-04-30
 
 ## Scope
 

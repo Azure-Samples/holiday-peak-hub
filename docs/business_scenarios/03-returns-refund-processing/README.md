@@ -1,32 +1,53 @@
 # Business Scenario 03: Returns & Refund Processing
 
-## Executive Statement
+> **Last Updated**: 2026-04-30 | **Domain Owner**: Logistics + CRM Agents | **Bounded Context**: Return Request → Evaluation → Restock → Refund
 
-Reverse-logistics value stream that protects margins, accelerates customer trust recovery, and minimizes manual exception handling.
+---
 
-## Capability Mapping
+## Business Problem
 
-| Capability | Business Leverage |
-| --- | --- |
-| Returns support intelligence | Faster policy evaluation and fewer manual touches |
-| Inventory health check | Quicker restock and recovered sellable inventory |
-| CRM support context | Better retention outcomes on high-risk returns |
-| Event-driven refund progression | Predictable and auditable refund lifecycle |
+Returns cost retailers 3–5% of revenue annually. Manual return evaluation creates bottlenecks (average 48h decision time), damages customer trust, and delays inventory recovery. Traditional systems apply rigid policy rules that cannot handle edge cases (partial damage, loyalty tier exceptions, fraud patterns) without human escalation for 40–60% of cases.
 
-## Outcome Targets
+## Agentic Difference
 
-| North-Star KPI | Target |
-| --- | --- |
-| Return decision latency | < 10 min for auto-eligible cases |
-| Refund cycle time | < 72h for approved returns |
-| Restock recovery time | < 24h |
-| Manual review rate | < 20% of total returns |
+| Aspect | Traditional Microservice | Holiday Peak Hub Agent |
+|---|---|---|
+| **Policy evaluation** | Static rule engine (if/else) | `returns-support` agent evaluates policy + customer history + product condition using LLM reasoning |
+| **Fraud detection** | Batch ML scoring | Real-time pattern detection via three-tier memory (customer return frequency in Redis) |
+| **Restock decision** | Manual warehouse inspection | `health-check` agent assesses condition + demand signals to determine restock vs. liquidation |
+| **Customer communication** | Template emails | `support-assistance` agent generates contextual, empathetic responses based on customer 360 |
+
+## KPIs Impacted
+
+| North-Star KPI | Target | Measurement |
+|---|---|---|
+| Return decision latency | < 10 min (auto-eligible) | Agent policy evaluation time |
+| Refund cycle time | < 72h (approved returns) | End-to-end lifecycle from approval to refund |
+| Restock recovery time | < 24h | Time from received to available inventory |
+| Manual review rate | < 20% of total returns | Agent auto-resolution rate |
+
+## Stakeholder Value
+
+| Stakeholder | Value |
+|---|---|
+| **VP Commerce** | Margin recovery through faster restock; reduced refund leakage |
+| **Ops Manager** | 80% auto-resolution frees staff for complex cases |
+| **CTO** | Event-driven lifecycle eliminates polling; complete audit trail |
+| **Developer** | Typed state machine with 409 on invalid transitions |
 
 ## Executive Flow
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {
+  'primaryColor':'#FFB3BA',
+  'primaryTextColor':'#000',
+  'primaryBorderColor':'#FF8B94',
+  'lineColor':'#BAE1FF',
+  'secondaryColor':'#BAE1FF',
+  'tertiaryColor':'#FFFFFF'
+}}}%%
 flowchart LR
-   A[Return Request Created] --> B[Returns Support Evaluation]
+   A[Return Request Created] --> B[Returns Support Agent]
    B --> C{Policy Eligible?}
    C -->|Yes| D[Auto Approval + Label Generation]
    C -->|No / Complex| E[Staff Review Queue]
@@ -37,43 +58,46 @@ flowchart LR
    H --> I[Refund Issuance]
    I --> J[Customer Resolution Closure]
 
-   classDef a fill:#0B84F3,color:#fff,stroke:#085ea8
-   classDef b fill:#00A88F,color:#fff,stroke:#0b6e5f
-   classDef c fill:#F39C12,color:#fff,stroke:#af6f0c
-   classDef d fill:#8E44AD,color:#fff,stroke:#5b2a70
-   class A,B a
-   class D,G,H,I,J b
-   class C c
-   class E,F d
+   classDef primary fill:#FFB3BA,stroke:#FF8B94,stroke-width:2px,color:#000
+   classDef secondary fill:#BAE1FF,stroke:#89CFF0,stroke-width:2px,color:#000
+   classDef alert fill:#FFFACD,stroke:#FFD700,stroke-width:2px,color:#000
+
+   class A,B primary
+   class D,G,H,I,J secondary
+   class C,E,F alert
 ```
 
-## Implemented Lifecycle Scope (Issue #217)
+## Non-Functional Requirements
 
-This scenario is implemented through CRUD lifecycle APIs and staff operations (not agent-orchestrated workflow).
+| Requirement | Target | Mechanism |
+|---|---|---|
+| Lifecycle consistency | ACID per transition | CRUD state machine; 409 on invalid transitions |
+| Event delivery | At-least-once | Event Hub with checkpoint; idempotent handlers |
+| Audit completeness | 100% lifecycle events | `return-events` + `payment-events` topics |
+| SLA | 99.9% | Circuit breakers on payment provider calls |
+
+## Implementation Status (Live)
 
 ### Canonical Return Lifecycle
 
-- `requested -> approved|rejected -> received -> restocked -> refunded`
+`requested → approved|rejected → received → restocked → refunded`
+
 - Terminal states: `rejected`, `refunded`
 - Invalid transitions return `409 Conflict`
 
-### Customer Journey (Implemented APIs)
+### Customer APIs
+- `POST /api/returns` — create return request (`requested` status)
+- `GET /api/returns` — list customer-owned returns
+- `GET /api/returns/{return_id}` — lifecycle timeline + refund snapshot
+- `GET /api/returns/{return_id}/refund` — refund progression
 
-- `POST /api/returns` creates a return request in `requested`
-- `GET /api/returns` lists customer-owned returns
-- `GET /api/returns/{return_id}` returns lifecycle timeline and attached refund snapshot when present
-- `GET /api/returns/{return_id}/refund` returns refund progression (`issued`)
-
-### Staff Operations (Implemented APIs)
-
-- `GET /api/staff/returns/` and `GET /api/staff/returns/{return_id}` provide shared read model access
+### Staff APIs
+- `GET /api/staff/returns/` — shared read model
 - Transition endpoints: `POST /approve`, `POST /reject`, `POST /receive`, `POST /restock`, `POST /refund`
-- Legacy compatibility endpoint: `PATCH /api/staff/returns/{return_id}/approve`
 
 ### Event Outcomes
-
-- Return lifecycle events are emitted to `return-events`: `ReturnRequested`, `ReturnApproved`, `ReturnRejected`, `ReturnReceived`, `ReturnRestocked`, `ReturnRefunded`
-- Refund issuance is emitted to `payment-events` as `RefundIssued`
+- Return events → `return-events` topic: `ReturnRequested`, `ReturnApproved`, `ReturnRejected`, `ReturnReceived`, `ReturnRestocked`, `ReturnRefunded`
+- Refund issuance → `payment-events` topic: `RefundIssued`
 
 ## Detailed Walkthroughs
 

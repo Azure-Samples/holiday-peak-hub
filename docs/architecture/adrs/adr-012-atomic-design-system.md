@@ -53,6 +53,7 @@ MainLayout, ShopLayout, CheckoutLayout, OrderTrackingLayout
 ### Architecture
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
 graph TB
     Pages[Pages] -->|Use| Templates[Templates]
     Templates -->|Compose| Organisms[Organisms]

@@ -1,5 +1,7 @@
 # Self-Healing RBAC Matrix and Security Controls
 
+**Last Updated**: 2026-04-30
+
 > Part of the Autonomous Agent Surface Self-Healing epic (#657).
 > Governing ADR: [ADR-025](../architecture/adrs/adr-025-self-healing-boundaries.md)
 

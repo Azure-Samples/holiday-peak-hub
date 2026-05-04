@@ -1,30 +1,70 @@
 # Logistics Carrier Selection
 
+> Last Updated: 2026-04-30
+
 ## Purpose
-Recommends carrier options based on shipment requirements and constraints.
 
-## Responsibilities
-- Evaluate candidate carriers for a shipment.
-- Compare trade-offs such as service level and risk.
-- Return the recommended carrier decision context.
+Recommends carrier options based on shipment requirements and constraints. Evaluates candidate carriers, compares trade-offs (service level, cost, risk), and returns the recommended carrier decision context.
 
-## Key endpoints or interfaces
-- `POST /invoke` for synchronous service requests.
-- MCP interfaces under `/mcp/*` for agent-to-agent usage.
-- Event Hub subscription for asynchronous processing.
+## Domain Bounded Context
+- **Owner**: Logistics team
+- **Bounded Context**: Logistics
 
-## Run/Test commands
+## Endpoints
+
+### REST
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/invoke` | Synchronous agent invocation |
+| GET | `/health` | Liveness probe |
+| GET | `/ready` | Readiness probe |
+
+### MCP Tools
+| Tool | Description |
+|------|-------------|
+| `/logistics/carrier/context` | Retrieve carrier selection context |
+| `/logistics/carrier/recommend` | Generate carrier recommendation |
+
+### Event Subscriptions
+| Topic | Consumer Group | Action |
+|-------|---------------|--------|
+| `order-events` | `carrier-group` | Select carrier on new orders |
+| `shipment-events` | `carrier-group` | Re-evaluate on shipment changes |
+
+## Model Routing
+- **SLM (fast)**: GPT-5-nano via `FOUNDRY_AGENT_ID_FAST`
+- **LLM (rich)**: GPT-4o via `FOUNDRY_AGENT_ID_RICH`
+
+## Memory Usage
+| Tier | Purpose |
+|------|---------||
+| Hot (Redis) | Cached carrier recommendations (TTL 300s) |
+| Warm (Cosmos DB) | Carrier performance history |
+| Cold (Blob) | Historical carrier analytics |
+
+## Environment Variables
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `PROJECT_ENDPOINT` | Yes | Azure AI Foundry project endpoint |
+| `FOUNDRY_AGENT_ID_FAST` | Yes | SLM agent ID |
+| `MODEL_DEPLOYMENT_NAME_FAST` | Yes | SLM deployment name |
+| `FOUNDRY_AGENT_ID_RICH` | Yes | LLM agent ID |
+| `MODEL_DEPLOYMENT_NAME_RICH` | Yes | LLM deployment name |
+| `REDIS_URL` | No | Redis connection URL |
+| `COSMOS_ACCOUNT_URI` | No | Cosmos DB endpoint |
+| `EVENTHUB_NAMESPACE` | Yes | Event Hub namespace |
+
+## Local Development
 ```bash
 cd apps/logistics-carrier-selection/src
 uv sync
-uv run uvicorn logistics_carrier_selection.main:app --reload
-python -m pytest ../tests
+uv run uvicorn logistics_carrier_selection.main:app --reload --port 8014
 ```
 
-## Configuration notes
-- Uses Foundry model settings (`PROJECT_ENDPOINT` or `FOUNDRY_ENDPOINT`, fast/rich model identifiers).
-- Supports Redis/Cosmos/Blob memory configuration via shared memory settings.
-- Requires Event Hub namespace and consumer configuration for background jobs.
+## Test Coverage
+```bash
+python -m pytest apps/logistics-carrier-selection/tests
+```
 
 ---
 

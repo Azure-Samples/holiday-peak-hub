@@ -25,13 +25,14 @@ export function useProducts(filters?: {
   category?: string;
   limit?: number;
   enrich?: boolean;
-}) {
+}, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['products', filters],
     queryFn: () =>
       filters?.enrich
         ? productService.listEnriched(filters)
         : productService.list(filters),
+    enabled: options?.enabled ?? true,
     retry: shouldRetryCatalogReadQuery,
     retryOnMount: false,
     refetchOnReconnect: false,

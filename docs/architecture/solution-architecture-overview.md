@@ -1,5 +1,7 @@
 # Solution Architecture Overview
 
+<!-- Last Updated: 2026-04-30 -->
+
 This diagram presents the full Holiday Peak Hub architecture — a reference implementation for **Agentic Microservices** on Azure.
 
 ## System Context (C4 Level 1)
@@ -254,7 +256,7 @@ graph TB
 ## Related Documents
 
 - [MAF Integration Rationale](maf-integration-rationale.md) — Why Microsoft Agent Framework lives in the lib
-- [ADRs Index](ADRs.md) — All 35 Architecture Decision Records
+- [ADRs Index](ADRs.md) — All 27 Architecture Decision Records
 - [Components Overview](components.md) — Detailed component responsibility matrix
 - [Standalone Deployment Guide](standalone-deployment-guide.md) — How to deploy individual services
 - [Infrastructure README](../../.infra/README.md) — Bicep and AKS provisioning

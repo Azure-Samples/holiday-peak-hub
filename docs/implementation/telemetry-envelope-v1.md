@@ -1,5 +1,7 @@
 # Telemetry envelope v1
 
+> Last Updated: 2026-04-30
+
 This document defines the telemetry event envelope for shared `lib` emission paths via `FoundryTracer`.
 
 **Source of truth**: `lib/src/holiday_peak_lib/utils/telemetry.py`

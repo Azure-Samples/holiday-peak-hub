@@ -1,30 +1,74 @@
 # Product Management Consistency Validation
 
+> Last Updated: 2026-04-30
+
 ## Purpose
-Validates product consistency and completeness against expected product schemas.
 
-## Responsibilities
-- Assess product records for schema consistency.
-- Surface missing or conflicting attribute data.
-- Return validation results used by enrichment and review flows.
+Validates product consistency and completeness against expected product schemas. Assesses records for schema compliance, surfaces missing or conflicting attributes, and returns validation results used by enrichment and review flows.
 
-## Key endpoints or interfaces
-- `POST /invoke` for synchronous service requests.
-- MCP interfaces under `/mcp/*` for agent-to-agent usage.
-- Event Hub subscription: `completeness-jobs` / consumer group `completeness-engine`.
+## Domain Bounded Context
+- **Owner**: Product Management team
+- **Bounded Context**: Product Management
 
-## Run/Test commands
+## Endpoints
+
+### REST
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/invoke` | Synchronous agent invocation |
+| GET | `/health` | Liveness probe |
+| GET | `/ready` | Readiness probe |
+
+### MCP Tools
+| Tool | Description |
+|------|-------------|
+| `/consistency/validate` | Validate product against schema |
+| `/consistency/context` | Retrieve consistency validation context |
+
+### Event Subscriptions
+| Topic | Consumer Group | Action |
+|-------|---------------|--------|
+| `completeness-jobs` (platform) | `completeness-engine` | Validate on completeness job dispatch |
+
+## Architecture Notes
+- Uses platform-jobs Event Hub namespace (separate from domain events)
+- Configurable completeness threshold via `COMPLETENESS_THRESHOLD` env var (default: 0.7)
+
+## Model Routing
+- **SLM (fast)**: GPT-5-nano via `FOUNDRY_AGENT_ID_FAST`
+- **LLM (rich)**: GPT-4o via `FOUNDRY_AGENT_ID_RICH`
+
+## Memory Usage
+| Tier | Purpose |
+|------|---------||
+| Hot (Redis) | Cached validation results (TTL 300s) |
+| Warm (Cosmos DB) | Validation state and completeness scores |
+| Cold (Blob) | Historical validation archives |
+
+## Environment Variables
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `PROJECT_ENDPOINT` | Yes | Azure AI Foundry project endpoint |
+| `FOUNDRY_AGENT_ID_FAST` | Yes | SLM agent ID |
+| `MODEL_DEPLOYMENT_NAME_FAST` | Yes | SLM deployment name |
+| `FOUNDRY_AGENT_ID_RICH` | Yes | LLM agent ID |
+| `MODEL_DEPLOYMENT_NAME_RICH` | Yes | LLM deployment name |
+| `COMPLETENESS_THRESHOLD` | No | Minimum completeness score (default: 0.7) |
+| `PLATFORM_JOBS_EVENTHUB_NAMESPACE` | Yes | Platform jobs Event Hub namespace |
+| `REDIS_URL` | No | Redis connection URL |
+| `COSMOS_ACCOUNT_URI` | No | Cosmos DB endpoint |
+
+## Local Development
 ```bash
 cd apps/product-management-consistency-validation/src
 uv sync
-uv run uvicorn product_management_consistency_validation.main:app --reload
-python -m pytest ../tests
+uv run uvicorn product_management_consistency_validation.main:app --reload --port 8020
 ```
 
-## Configuration notes
-- Uses Foundry model settings (`PROJECT_ENDPOINT` or `FOUNDRY_ENDPOINT`, fast/rich model identifiers).
-- Supports Redis/Cosmos/Blob memory configuration via shared memory settings.
-- Requires the platform-jobs Event Hubs namespace and consumer configuration for background jobs.
+## Test Coverage
+```bash
+python -m pytest apps/product-management-consistency-validation/tests
+```
 
 ---
 

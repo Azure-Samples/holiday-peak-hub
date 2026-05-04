@@ -1,30 +1,69 @@
 # Inventory JIT Replenishment
 
+> Last Updated: 2026-04-30
+
 ## Purpose
-Recommends just-in-time replenishment actions for inventory continuity.
 
-## Responsibilities
-- Evaluate demand and stock posture.
-- Suggest timing and quantity for replenishment actions.
-- Provide rationale for replenishment prioritization.
+Recommends just-in-time replenishment actions for inventory continuity. Evaluates demand signals and stock posture to suggest timing, quantity, and prioritization rationale for replenishment.
 
-## Key endpoints or interfaces
-- `POST /invoke` for synchronous service requests.
-- MCP interfaces under `/mcp/*` for agent-to-agent usage.
-- Event Hub subscription for asynchronous processing.
+## Domain Bounded Context
+- **Owner**: Inventory team
+- **Bounded Context**: Inventory
 
-## Run/Test commands
+## Endpoints
+
+### REST
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/invoke` | Synchronous agent invocation |
+| GET | `/health` | Liveness probe |
+| GET | `/ready` | Readiness probe |
+
+### MCP Tools
+| Tool | Description |
+|------|-------------|
+| `/inventory/replenishment/context` | Retrieve replenishment context for a SKU |
+| `/inventory/replenishment/recommend` | Generate replenishment recommendation |
+
+### Event Subscriptions
+| Topic | Consumer Group | Action |
+|-------|---------------|--------|
+| `inventory-events` | `replenishment-group` | React to stock level changes |
+
+## Model Routing
+- **SLM (fast)**: GPT-5-nano via `FOUNDRY_AGENT_ID_FAST`
+- **LLM (rich)**: GPT-4o via `FOUNDRY_AGENT_ID_RICH`
+
+## Memory Usage
+| Tier | Purpose |
+|------|---------||
+| Hot (Redis) | Cached replenishment recommendations (TTL 300s) |
+| Warm (Cosmos DB) | Demand history and replenishment state |
+| Cold (Blob) | Long-term replenishment analytics |
+
+## Environment Variables
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `PROJECT_ENDPOINT` | Yes | Azure AI Foundry project endpoint |
+| `FOUNDRY_AGENT_ID_FAST` | Yes | SLM agent ID |
+| `MODEL_DEPLOYMENT_NAME_FAST` | Yes | SLM deployment name |
+| `FOUNDRY_AGENT_ID_RICH` | Yes | LLM agent ID |
+| `MODEL_DEPLOYMENT_NAME_RICH` | Yes | LLM deployment name |
+| `REDIS_URL` | No | Redis connection URL |
+| `COSMOS_ACCOUNT_URI` | No | Cosmos DB endpoint |
+| `EVENTHUB_NAMESPACE` | Yes | Event Hub namespace |
+
+## Local Development
 ```bash
 cd apps/inventory-jit-replenishment/src
 uv sync
-uv run uvicorn inventory_jit_replenishment.main:app --reload
-python -m pytest ../tests
+uv run uvicorn inventory_jit_replenishment.main:app --reload --port 8012
 ```
 
-## Configuration notes
-- Uses Foundry model settings (`PROJECT_ENDPOINT` or `FOUNDRY_ENDPOINT`, fast/rich model identifiers).
-- Supports Redis/Cosmos/Blob memory configuration via shared memory settings.
-- Requires Event Hub namespace and consumer configuration for background jobs.
+## Test Coverage
+```bash
+python -m pytest apps/inventory-jit-replenishment/tests
+```
 
 ---
 

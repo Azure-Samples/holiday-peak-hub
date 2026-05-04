@@ -1,7 +1,9 @@
 # Cost-Benefit Model: Product Enrichment & Intelligent Search
 
+> **Last Updated**: 2026-04-30 | **Platform**: 26 AI agents + 1 CRUD service + 1 Next.js UI on AKS
+
 **Date**: 2026-03-19  
-**Model Version**: 1.0  
+**Model Version**: 1.1  
 **Time Horizon**: 24 months  
 **Discount Rate**: 10% (WACC proxy for mid-market SaaS/retail tech)  
 **Currency**: USD

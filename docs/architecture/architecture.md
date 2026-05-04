@@ -1,10 +1,15 @@
 # Architecture Overview
 
+<!-- Last Updated: 2026-04-30 -->
+
 This document provides the overall system architecture for Holiday Peak Hub, including context diagrams, use case models, component interactions, and deployment topology.
+
+**Key facts**: 26 AI agents + 1 CRUD service + 1 Next.js UI deployed on AKS with Flux CD GitOps. APIM + AGC edge routing. MAF ≥1.0.1 GA for all agent invocations. SLM-first model routing (GPT-5-nano → GPT-5).
 
 ## System Context
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
 C4Context
     title System Context - Holiday Peak Hub
 
@@ -43,6 +48,7 @@ C4Context
 ### E-commerce Domain
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
 graph TB
     subgraph Actors
         Customer((Customer))
@@ -74,6 +80,7 @@ graph TB
 ### Product Management Domain
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
 graph TB
     subgraph Actors
         DataEng((Data Engineer))
@@ -101,6 +108,7 @@ graph TB
 ### CRM Domain
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
 graph TB
     subgraph Actors
         Marketer((Marketing Manager))
@@ -128,6 +136,7 @@ graph TB
 ### Inventory Domain
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
 graph TB
     subgraph Actors
         OpsMgr((Operations Manager))
@@ -155,6 +164,7 @@ graph TB
 ### Logistics Domain
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
 graph TB
     subgraph Actors
         Customer((Customer))
@@ -184,6 +194,7 @@ graph TB
 ### Memory Tier Access Pattern
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
 sequenceDiagram
     participant Agent
     participant Memory
@@ -220,6 +231,7 @@ sequenceDiagram
 ### SAGA Choreography: Order Placement
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
 sequenceDiagram
     participant Customer
     participant OrderSvc as Order Service
@@ -252,6 +264,7 @@ sequenceDiagram
 ### Checkout Orchestration: Confirm-Intent Reconciliation
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
 sequenceDiagram
     participant Customer
     participant UI as Next.js UI
@@ -308,6 +321,7 @@ Orchestration responsibility is split intentionally:
 - **UI layer** orchestrates endpoint invocation order for personalization rendering.
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
 sequenceDiagram
     participant UI as Next.js UI
     participant CRUD as CRUD Service
@@ -328,6 +342,7 @@ sequenceDiagram
 ### Agent Tool Calling Flow
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
 sequenceDiagram
     participant Client
     participant App as FastAPI App
@@ -352,42 +367,40 @@ sequenceDiagram
 ## Deployment Topology
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
 graph TB
     subgraph "Azure Kubernetes Service"
-        subgraph "Namespace: ecommerce"
+        subgraph "Namespace: holiday-peak-crud"
+            CRUD_SVC[crud-service pod]
+        end
+
+        subgraph "Namespace: holiday-peak-agents"
             EC1[catalog-search pod]
             EC2[product-detail pod]
             EC3[cart-intelligence pod]
             EC4[checkout-support pod]
             EC5[order-status pod]
-        end
-        
-        subgraph "Namespace: product-mgmt"
             PM1[normalization pod]
             PM2[acp-transformation pod]
             PM3[consistency-validation pod]
             PM4[assortment-optimization pod]
-        end
-        
-        subgraph "Namespace: crm"
             CR1[profile-aggregation pod]
             CR2[segmentation pod]
             CR3[campaign-intelligence pod]
             CR4[support-assistance pod]
-        end
-        
-        subgraph "Namespace: inventory"
             IN1[health-check pod]
             IN2[jit-replenishment pod]
             IN3[reservation-validation pod]
             IN4[alerts-triggers pod]
-        end
-        
-        subgraph "Namespace: logistics"
             LO1[eta-computation pod]
             LO2[carrier-selection pod]
             LO3[returns-support pod]
             LO4[route-issue-detection pod]
+            SE1[search-enrichment pod]
+            TL1[truth-ingestion pod]
+            TL2[truth-enrichment pod]
+            TL3[truth-hitl pod]
+            TL4[truth-export pod]
         end
     end
     
@@ -399,12 +412,14 @@ graph TB
         EventHub[Azure Event Hubs]
         Monitor[Azure Monitor]
         APIM[API Management]
+        AGC[Application Gateway for Containers]
     end
     
     Client[Clients]
     
     Client -->|HTTPS| APIM
-    APIM --> EC1 & EC2 & EC3 & EC4 & EC5
+    APIM -->|ADR-021| AGC
+    AGC --> CRUD_SVC & EC1 & EC2 & EC3 & EC4 & EC5
     
     EC1 & PM1 & CR1 --> Redis
     EC1 & PM1 & CR1 --> Cosmos
@@ -421,18 +436,21 @@ graph TB
 | Layer | Technology | Purpose |
 |-------|------------|---------|
 | **Language** | Python 3.13 | All services and lib |
-| **API Framework** | FastAPI + FastAPI-MCP | REST + MCP exposition |
-| **Agent Framework** | Microsoft Agent Framework | Orchestration logic |
+| **API Framework** | FastAPI + FastAPIMCPServer | REST + MCP exposition |
+| **Agent Framework** | MAF ≥1.0.1 GA (FoundryAgent) | Orchestration logic |
+| **AI Models** | GPT-5-nano (SLM) / GPT-5 (LLM) | SLM-first routing (ADR-010) |
 | **Memory - Hot** | Azure Cache for Redis | <50ms session state |
 | **Memory - Warm** | Azure Cosmos DB | Conversation history |
 | **Memory - Cold** | Azure Blob Storage | Archival storage |
-| **Search** | Azure AI Search | Vector+hybrid search |
-| **Messaging** | Azure Event Hubs | SAGA choreography |
+| **Search** | Azure AI Search | Vector + hybrid search |
+| **Messaging** | Azure Event Hubs (8 topics) | SAGA choreography |
 | **Compute** | Azure Kubernetes Service | Container orchestration |
+| **GitOps** | Flux CD (HelmRelease CRDs) | Continuous delivery (ADR-017) |
 | **Scaling** | KEDA | Event-driven auto-scale |
-| **Deployment** | Helm + Flagger | Canary deployments |
-| **Observability** | Azure Monitor | Logs, metrics, traces |
-| **API Gateway** | Azure API Management | Rate limiting, auth |
+| **Edge** | APIM + AGC | Gateway + AKS ingress (ADR-021) |
+| **Observability** | Azure Monitor + App Insights | Logs, metrics, traces |
+| **Auth** | Microsoft Entra ID | RBAC (ADR-015) |
+| **API Governance** | API Center + APIM | Discovery + policy (ADR-027) |
 
 ## Next Steps
 

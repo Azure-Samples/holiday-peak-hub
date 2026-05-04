@@ -1,27 +1,26 @@
 # Security Policy
 
+**Last Updated**: 2026-04-30
+
 ## Supported Versions
 
 This repository currently supports the default branch:
 - `main`
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
-
 | Version | Supported          |
 | ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
+| main    | :white_check_mark: |
+
+## Security Architecture
+
+- **Authentication**: Microsoft Entra ID with JWT validation + RBAC (4 roles: anonymous, customer, staff, admin)
+- **Secrets management**: Azure Key Vault (no secrets in source or env literals)
+- **Identity**: Managed Identity and Entra-based federation for deployment identities (OIDC)
+- **Network**: Private Endpoints, NSGs, AGC for edge routing
+- **CI scanning**: CodeQL (weekly + PR), pip-audit, Dependabot (grouped updates)
+- **Governance**: Weekly security triage via `security-triage-report.yml` workflow
 
 ## Reporting a Vulnerability
-
-Use this section to tell people how to report a vulnerability.
-
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
 
 Please do **not** open public issues for security reports.
 

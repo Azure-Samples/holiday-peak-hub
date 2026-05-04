@@ -7,7 +7,7 @@ pulls the latest version of each configured Foundry agent and compares its
 ``apps/<svc>/src/<pkg>/prompts/instructions.md`` file in the repo.
 
 Usage:
-    python scripts/ci/verify_foundry_prompt.py \\
+    python scripts/python/ci/verify_foundry_prompt.py \\
         --service truth-enrichment \\
         --project-endpoint https://<ai-services>.services.ai.azure.com \\
         --project-name <project> \\
@@ -209,7 +209,7 @@ def verify(
             "  hint           : the image likely shipped a stale prompt. "
             "Rerun the deploy (which will rebuild the image and re-ensure the "
             "agent) or inspect the image contents via "
-            "'scripts/ci/verify_image_prompt.py'.",
+            "'scripts/python/ci/verify_image_prompt.py'.",
             file=sys.stderr,
         )
         return 1

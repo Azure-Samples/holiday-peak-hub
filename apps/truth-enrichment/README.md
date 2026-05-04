@@ -1,10 +1,16 @@
 # Truth Enrichment
 
+> Last Updated: 2026-04-30
+
 > Full pipeline documentation: [`docs/implementation/truth-layer-agents-guide.md`](../../docs/implementation/truth-layer-agents-guide.md)
 
 ## Purpose
 
 Detects missing product attributes by comparing ingested products against category-specific schemas, then proposes AI-generated values using text reasoning and vision analysis. Acts as the **second stage** of the Product Truth Layer pipeline.
+
+## Domain Bounded Context
+- **Owner**: Truth Layer team
+- **Bounded Context**: Truth Layer
 
 ## Why This Agent Exists
 

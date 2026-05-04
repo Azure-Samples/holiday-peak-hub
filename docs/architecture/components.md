@@ -1,5 +1,7 @@
 # Components Documentation
 
+<!-- Last Updated: 2026-04-30 -->
+
 This document indexes all component documentation for Holiday Peak Hub, organized by libs (framework) and apps (domain services).
 
 ## Libs (Framework Components)
@@ -11,11 +13,19 @@ Core micro-framework providing reusable patterns for retail AI agents.
 | [Adapters](components/libs/adapters.md) | `lib/src/holiday_peak_lib/adapters/` | Pluggable retail system integrations | Adapter Pattern |
 | [Agents](components/libs/agents.md) | `lib/src/holiday_peak_lib/agents/` | Agent orchestration, MCP wrappers, guardrails | Builder Pattern (memory) |
 | [Memory](components/libs/memory.md) | `lib/src/holiday_peak_lib/agents/memory/` | Three-tier memory with parallel I/O | Tiered Caching |
-| [Orchestration](components/libs/orchestration.md) | `lib/src/holiday_peak_lib/orchestration/` | SAGA choreography helpers | Event-driven |
+| [App Factory](components/libs/app-factory.md) | `lib/src/holiday_peak_lib/app_factory.py` | Standard service bootstrapping | Factory Pattern |
+| [Config](components/libs/config.md) | `lib/src/holiday_peak_lib/config/` | MemorySettings, ServiceSettings, TruthLayerSettings | Configuration |
+| [Events](components/libs/events.md) | `lib/src/holiday_peak_lib/events/` | RetailEvent, ConnectorEvent models, schema versioning | Event-Carried State Transfer |
+| [MCP](components/libs/mcp.md) | `lib/src/holiday_peak_lib/mcp/` | FastAPIMCPServer for agent-to-agent tools | MCP Protocol |
+| [Self-Healing](components/libs/self-healing.md) | `lib/src/holiday_peak_lib/self_healing/` | SelfHealingKernel with incident lifecycle | Observer Pattern |
+| [Truth](components/libs/truth.md) | `lib/src/holiday_peak_lib/truth/` | Product truth layer schemas and utilities | Domain Model |
+| [Evaluation](components/libs/evaluation.md) | `lib/src/holiday_peak_lib/evaluation/` | Agent response evaluation framework | Strategy Pattern |
+| [Orchestration](components/libs/orchestration.md) | `lib/src/holiday_peak_lib/agents/orchestration/` | SLM/LLM routing and complexity evaluation | Strategy Pattern |
 | [Schemas](components/libs/schemas.md) | `lib/src/holiday_peak_lib/schemas/` | Pydantic models for data contracts | Domain Models |
-| [Utils](components/libs/utils.md) | `lib/src/holiday_peak_lib/utils/` | Logging, config, retry logic | Utilities |
+| [Utils](components/libs/utils.md) | `lib/src/holiday_peak_lib/utils/` | Logging, config, retry logic, circuit breaker, bulkhead | Utilities |
 | [Integrations](components/libs/integrations.md) | `lib/src/holiday_peak_lib/integrations/` | Connector contracts, registry, writeback | Integration Pattern |
 | [Connectors](components/libs/connectors.md) | `lib/src/holiday_peak_lib/connectors/` | Enterprise system connectors | Adapter Pattern |
+| [Messaging](components/libs/messaging.md) | `lib/src/holiday_peak_lib/messaging/` | Event Hub publisher/subscriber wiring | Messaging Pattern |
 
 ### Agent Runtime (v2.1.0)
 

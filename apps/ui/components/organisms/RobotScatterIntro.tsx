@@ -72,9 +72,14 @@ export const RobotScatterIntro: React.FC<RobotScatterIntroProps> = ({
   const [phase, setPhase] = useState<Phase>(skip ? 'done' : 'gathering');
   const [opacity, setOpacity] = useState(skip ? 0 : 1);
   const containerRef = useRef<HTMLDivElement>(null);
+  const onCompleteRef = useRef(onComplete);
 
   const slugs = useMemo(() => getAllAgentSlugs(), []);
   const scatterTargets = useMemo(() => slugs.map(() => randomScatterTarget()), [slugs]);
+
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
 
   useEffect(() => {
     if (skip) {
@@ -91,7 +96,7 @@ export const RobotScatterIntro: React.FC<RobotScatterIntroProps> = ({
       setOpacity(0);
       setTimeout(() => {
         setPhase('done');
-        onComplete?.();
+        onCompleteRef.current?.();
       }, FADE_OUT_DURATION);
     }, GATHER_DURATION + WAVE_DURATION + SCATTER_DURATION);
 
@@ -100,7 +105,7 @@ export const RobotScatterIntro: React.FC<RobotScatterIntroProps> = ({
       clearTimeout(wavingTimer);
       clearTimeout(scatteringTimer);
     };
-  }, [skip, onComplete]);
+  }, [skip]);
 
   if (phase === 'done') {
     return null;

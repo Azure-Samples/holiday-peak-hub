@@ -1,6 +1,6 @@
 # Solution Architecture Diagrams
 
-**Last Updated**: 2026-04-12
+**Last Updated**: 2026-04-30
 
 This document contains the system-level and per-domain Mermaid diagrams for the Holiday Peak Hub agentic microservices platform.
 
