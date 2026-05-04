@@ -5,3 +5,4 @@
 - If Foundry/APIM/agents are mocked, it's an integration test, not e2e — place in `apps/*/tests/integration/`
 - Always check `.github/skills/` before creating any new test category
 - App-scoped e2e (e.g., `apps/crud-service/tests/e2e/`) is OK when testing the app's own HTTP surface
+- UI `/agent-api/*` probes use the configured APIM `/agents` backend unless explicitly pointed at a local agent service; local Python endpoint fixes need deployment/restart before the live page reflects them

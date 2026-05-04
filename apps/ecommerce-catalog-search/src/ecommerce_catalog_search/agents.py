@@ -43,7 +43,6 @@ from .adapters import (
 from .ai_search import (
     AISearchDocumentResult,
     ai_search_required_runtime_enabled,
-    hybrid_search,
     keyword_search,
     multi_query_search,
     search_catalog_skus_detailed,
@@ -142,10 +141,14 @@ GENERIC_KEYWORD_STOPWORDS = frozenset(
         "best",
         "buy",
         "by",
+        "catalog",
+        "discovery",
         "for",
         "from",
         "how",
         "i",
+        "item",
+        "items",
         "in",
         "is",
         "it",
@@ -155,6 +158,8 @@ GENERIC_KEYWORD_STOPWORDS = frozenset(
         "on",
         "or",
         "please",
+        "product",
+        "products",
         "recommend",
         "should",
         "show",
@@ -174,6 +179,9 @@ GENERIC_KEYWORD_STOPWORDS = frozenset(
 LEXICAL_CANONICAL_OVERRIDES: dict[str, str] = {
     "bags": "bag",
     "backpacks": "backpack",
+    "boots": "boot",
+    "caribe": "caribbean",
+    "carribean": "caribbean",
     "cloth": "clothing",
     "clothes": "clothing",
     "clothing": "clothing",
@@ -182,11 +190,114 @@ LEXICAL_CANONICAL_OVERRIDES: dict[str, str] = {
     "phones": "phone",
     "shoes": "shoe",
     "sneakers": "sneaker",
+    "socks": "sock",
+    "traveling": "travel",
+    "travelling": "travel",
+    "travels": "travel",
+    "trips": "trip",
+    "vacations": "vacation",
     "watches": "watch",
     "wearing": "wear",
     "wears": "wear",
     "wore": "wear",
 }
+
+_TRAVEL_INTENT_TOKENS = frozenset(
+    {
+        "go",
+        "going",
+        "pack",
+        "trip",
+        "travel",
+        "vacation",
+        "visit",
+    }
+)
+
+_TRAVEL_RETAIL_CONTEXTS: tuple[dict[str, Any], ...] = (
+    {
+        "match_tokens": frozenset(
+            {
+                "arctic",
+                "cold",
+                "moscow",
+                "russia",
+                "russian",
+                "siberia",
+                "snow",
+                "snowy",
+                "winter",
+            }
+        ),
+        "category": "clothing",
+        "use_case": "cold-weather travel",
+        "attributes": (
+            "cold weather",
+            "insulated",
+            "thermal",
+            "warm",
+            "water resistant",
+        ),
+        "keywords": (
+            "boot",
+            "clothing",
+            "cold",
+            "jacket",
+            "outerwear",
+            "sock",
+            "thermal",
+            "travel",
+            "warm",
+            "winter",
+        ),
+        "sub_queries": (
+            "winter jacket",
+            "thermal clothing",
+            "warm clothes",
+            "thermal socks",
+            "winter boots",
+            "cold weather outerwear",
+        ),
+    },
+    {
+        "match_tokens": frozenset(
+            {
+                "bahamas",
+                "beach",
+                "caribbean",
+                "island",
+                "jamaica",
+                "tropical",
+            }
+        ),
+        "category": "travel essentials",
+        "use_case": "warm-weather beach travel",
+        "attributes": (
+            "beach",
+            "lightweight",
+            "sun protection",
+            "warm weather",
+            "water friendly",
+        ),
+        "keywords": (
+            "beachwear",
+            "caribbean",
+            "sandal",
+            "sunscreen",
+            "swimwear",
+            "travel",
+            "tropical",
+            "warm",
+        ),
+        "sub_queries": (
+            "beachwear",
+            "sunscreen",
+            "sandals",
+            "swimwear",
+            "warm weather travel essentials",
+        ),
+    },
+)
 
 
 # ---------------------------------------------------------------------------
@@ -853,6 +964,30 @@ def _build_fallback_keywords(
     return deduplicated
 
 
+def _infer_travel_retail_context(
+    query: str,
+    tokens: set[str],
+) -> dict[str, Any] | None:
+    # No GoF pattern applies here; this is a small static data transform.
+    if not tokens.intersection(_TRAVEL_INTENT_TOKENS):
+        return None
+
+    normalized_query = query.lower()
+    for context in _TRAVEL_RETAIL_CONTEXTS:
+        match_tokens = context["match_tokens"]
+        if isinstance(match_tokens, frozenset) and tokens.intersection(match_tokens):
+            return context
+
+        category = str(context.get("category") or "")
+        use_case = str(context.get("use_case") or "")
+        if category and category in normalized_query:
+            return context
+        if use_case and use_case in normalized_query:
+            return context
+
+    return None
+
+
 def _deterministic_intent_policy(query: str) -> IntentClassification:
     normalized_query = query.strip()
     if not normalized_query:
@@ -870,14 +1005,48 @@ def _deterministic_intent_policy(query: str) -> IntentClassification:
     query_type = "complex" if _is_complex_query(normalized_query, tokens) else "simple"
     intent_name = "semantic_search" if query_type == "complex" else "keyword_lookup"
     confidence = 0.72 if intent_name == "semantic_search" else 0.56
+    category: str | None = None
+    attributes: list[str] = []
+    sub_queries: list[str] = []
+    use_case = "product discovery"
+    reasoning = "Generic deterministic fallback derived from query complexity and keywords."
+
+    retail_context = _infer_travel_retail_context(normalized_query, tokens)
+    if retail_context is not None:
+        category = str(retail_context["category"])
+        use_case = str(retail_context["use_case"])
+        attributes = [str(item) for item in retail_context["attributes"]]
+        sub_queries = [str(item) for item in retail_context["sub_queries"]]
+        context_keywords = [str(item) for item in retail_context["keywords"]]
+        keywords = _dedupe_keywords(keywords + context_keywords, limit=16)
+        query_type = "complex"
+        intent_name = "semantic_search"
+        confidence = max(confidence, 0.78)
+        reasoning = (
+            f"Deterministic fallback inferred {use_case} retail context from travel geography."
+        )
+
+    entities: dict[str, Any] = {"keywords": keywords}
+    if retail_context is not None:
+        entities.update(
+            {
+                "category": category,
+                "features": attributes,
+                "subQueries": sub_queries,
+                "use_case": use_case,
+            }
+        )
 
     return IntentClassification(
         intent=intent_name,
         queryType=query_type,
-        useCase="product discovery",
+        category=category,
+        attributes=attributes,
+        useCase=use_case,
         confidence=confidence,
-        entities={"keywords": keywords},
-        reasoning="Generic deterministic fallback derived from query complexity and keywords.",
+        entities=entities,
+        subQueries=sub_queries,
+        reasoning=reasoning,
     )
 
 
@@ -903,7 +1072,11 @@ def _is_complex_query(query: str, tokens: set[str]) -> bool:
     return len(tokens) >= 7 or "?" in query or bool(tokens & complexity_hints)
 
 
-def _dedupe_keywords(raw_keywords: list[str]) -> list[str]:
+def _dedupe_keywords(
+    raw_keywords: list[str],
+    *,
+    limit: int = GENERIC_KEYWORD_LIMIT,
+) -> list[str]:
     deduplicated: list[str] = []
     seen: set[str] = set()
     for keyword in raw_keywords:
@@ -912,7 +1085,7 @@ def _dedupe_keywords(raw_keywords: list[str]) -> list[str]:
             continue
         seen.add(normalized)
         deduplicated.append(normalized)
-        if len(deduplicated) >= GENERIC_KEYWORD_LIMIT:
+        if len(deduplicated) >= limit:
             break
     return deduplicated
 
@@ -952,6 +1125,22 @@ def _merge_intent_with_fallback(
         resolved_intent.category = fallback_intent.category
     if not resolved_intent.brand and fallback_intent.brand:
         resolved_intent.brand = fallback_intent.brand
+    if not resolved_intent.attributes and fallback_intent.attributes:
+        resolved_intent.attributes = list(fallback_intent.attributes)
+    if not resolved_intent.sub_queries and fallback_intent.sub_queries:
+        resolved_intent.sub_queries = list(fallback_intent.sub_queries)
+
+    for key in (
+        "category",
+        "use_case",
+        "useCase",
+        "features",
+        "sub_queries",
+        "subQueries",
+        "attributes",
+    ):
+        if key not in resolved_entities and key in fallback_entities:
+            resolved_entities[key] = fallback_entities[key]
 
     parsed_keywords = _coerce_keyword_list(resolved_entities.get("keywords"))
     fallback_keywords = _coerce_keyword_list(fallback_entities.get("keywords"))
@@ -1004,11 +1193,62 @@ def _search_relevance_tokens(value: str) -> set[str]:
     }
 
 
+def _append_relevance_values(values: list[str], raw_value: Any) -> None:
+    if raw_value is None:
+        return
+    if isinstance(raw_value, str):
+        value = raw_value.strip()
+        if value:
+            values.append(value)
+        return
+    if isinstance(raw_value, dict):
+        for value in raw_value.values():
+            _append_relevance_values(values, value)
+        return
+    if isinstance(raw_value, (list, set, tuple)):
+        for value in raw_value:
+            _append_relevance_values(values, value)
+        return
+    if isinstance(raw_value, (int, float)):
+        values.append(str(raw_value))
+
+
+def _build_search_relevance_text(
+    query: str,
+    intent: IntentClassification | None,
+) -> str:
+    values: list[str] = []
+    _append_relevance_values(values, query)
+    if intent is None:
+        return " ".join(values)
+
+    _append_relevance_values(values, intent.category)
+    _append_relevance_values(values, intent.use_case)
+    _append_relevance_values(values, intent.attributes)
+    _append_relevance_values(values, intent.sub_queries)
+
+    entities = intent.entities if isinstance(intent.entities, dict) else {}
+    for key in (
+        "keywords",
+        "category",
+        "use_case",
+        "useCase",
+        "features",
+        "sub_queries",
+        "subQueries",
+        "attributes",
+    ):
+        _append_relevance_values(values, entities.get(key))
+
+    return " ".join(values)
+
+
 def _rank_products_by_query_relevance(
     *,
     query: str,
     products: list[CatalogProduct],
     limit: int,
+    suppress_zero_overlap: bool = False,
 ) -> list[CatalogProduct]:
     if limit <= 0:
         return []
@@ -1018,6 +1258,9 @@ def _rank_products_by_query_relevance(
     for index, product in enumerate(products):
         product_tokens = _search_relevance_tokens(_product_search_text(product))
         overlap_score = len(query_tokens & product_tokens)
+        if suppress_zero_overlap and overlap_score <= 0:
+            continue
+
         existing = ranked_entries.get(product.sku)
         if existing is None or overlap_score > existing[1]:
             ranked_entries[product.sku] = (product, overlap_score, index)
@@ -1045,12 +1288,23 @@ async def _expand_products_with_sub_queries(
     *,
     adapters: CatalogAdapters,
     query: str,
+    relevance_text: str | None = None,
     baseline_products: list[CatalogProduct],
     sub_queries: list[str],
     limit: int,
 ) -> list[CatalogProduct]:
     if limit <= 0:
         return []
+
+    ranking_text = relevance_text or query
+    expanded_products = list(baseline_products)
+    if not ai_search_required_runtime_enabled():
+        text_fallback_products = await _search_products_text_fallback(
+            adapters,
+            query=query,
+            limit=limit,
+        )
+        expanded_products.extend(text_fallback_products)
 
     expansion_queries: list[str] = []
     seen_queries: set[str] = {query.strip().lower()}
@@ -1064,7 +1318,12 @@ async def _expand_products_with_sub_queries(
             break
 
     if not expansion_queries:
-        return baseline_products[:limit]
+        return _rank_products_by_query_relevance(
+            query=ranking_text,
+            products=expanded_products,
+            limit=limit,
+            suppress_zero_overlap=True,
+        )
 
     expanded_batches = await asyncio.gather(
         *[
@@ -1078,7 +1337,6 @@ async def _expand_products_with_sub_queries(
         return_exceptions=True,
     )
 
-    expanded_products = list(baseline_products)
     for batch in expanded_batches:
         if isinstance(batch, list):
             expanded_products.extend(
@@ -1086,11 +1344,12 @@ async def _expand_products_with_sub_queries(
             )
 
     ranked_products = _rank_products_by_query_relevance(
-        query=query,
+        query=ranking_text,
         products=expanded_products,
         limit=limit,
+        suppress_zero_overlap=True,
     )
-    if _max_query_overlap(query, ranked_products) <= 0:
+    if _max_query_overlap(ranking_text, ranked_products) <= 0:
         return []
     return ranked_products
 
@@ -1283,6 +1542,34 @@ def _intelligent_hard_error(
     }
 
 
+def _catalog_product_from_search_result(result: AISearchDocumentResult) -> CatalogProduct:
+    document = result.document
+    enriched_fields = result.enriched_fields or {}
+    raw_attributes = document.get("attributes") or {}
+    attributes = dict(raw_attributes) if isinstance(raw_attributes, dict) else {}
+    for key, value in enriched_fields.items():
+        if value is not None and key not in attributes:
+            attributes[key] = value
+
+    return CatalogProduct(
+        sku=result.sku,
+        name=str(document.get("name") or document.get("title") or result.sku),
+        description=(
+            document.get("description")
+            or document.get("enriched_description")
+            or enriched_fields.get("enriched_description")
+        ),
+        brand=document.get("brand"),
+        category=document.get("category"),
+        price=_safe_float(document.get("price")),
+        currency=document.get("currency"),
+        image_url=document.get("image_url"),
+        rating=_safe_float(document.get("rating")),
+        tags=document.get("tags") or [],
+        attributes=attributes,
+    )
+
+
 async def _search_products_intelligent(
     agent: CatalogSearchAgent | None,
     adapters: CatalogAdapters,
@@ -1382,6 +1669,7 @@ async def _search_products_intelligent(
 
     # ── step 2: build sub-queries from (model) intent ────────────
     sub_queries = _build_sub_queries(query=query, intent=intent)
+    relevance_text = _build_search_relevance_text(query=query, intent=intent)
 
     # ── step 3: hybrid search with model-derived sub-queries ─────
     # keyword_task started in step 1 runs concurrently throughout.
@@ -1423,16 +1711,17 @@ async def _search_products_intelligent(
     keyword_skus: list[str] = [r.sku for r in keyword_results]
     hybrid_skus: list[str] = [r.sku for r in hybrid_results]
 
-    enrichment_by_sku: dict[str, dict[str, Any]] = {
-        r.sku: r.enriched_fields for r in hybrid_results if r.enriched_fields
-    }
-
     top_k = max(len(keyword_results), len(hybrid_results), 1)
     ranked_merged = merge_scored_results(
         [keyword_results, hybrid_results],
         limit=limit * 2,
         rank_denominator=top_k,
     )
+    enrichment_by_sku: dict[str, dict[str, Any]] = {
+        result.sku: dict(result.enriched_fields)
+        for result in ranked_merged
+        if result.enriched_fields
+    }
 
     doc_by_sku: dict[str, Any] = {r.sku: r for r in ranked_merged}
     ordered_skus: list[str] = [r.sku for r in ranked_merged]
@@ -1442,22 +1731,7 @@ async def _search_products_intelligent(
     for sku in ordered_skus[: limit * 2]:
         doc_result = doc_by_sku.get(sku)
         if doc_result is not None:
-            doc = doc_result.document
-            products.append(
-                CatalogProduct(
-                    sku=sku,
-                    name=str(doc.get("name") or doc.get("title") or sku),
-                    description=doc.get("description") or doc.get("enriched_description"),
-                    brand=doc.get("brand"),
-                    category=doc.get("category"),
-                    price=_safe_float(doc.get("price")),
-                    currency=doc.get("currency"),
-                    image_url=doc.get("image_url"),
-                    rating=_safe_float(doc.get("rating")),
-                    tags=doc.get("tags") or [],
-                    attributes=doc.get("attributes") or {},
-                )
-            )
+            products.append(_catalog_product_from_search_result(doc_result))
         else:
             # keyword-only SKU — try CRUD adapter
             try:
@@ -1479,9 +1753,23 @@ async def _search_products_intelligent(
     )
 
     # ── rank and trim ────────────────────────────────────────────────
-    # Products are already in AI Search score order from the merge step;
-    # no token-overlap re-ranking needed for the intelligent pipeline.
-    ranked = products[:limit]
+    # Apply query-relevance ranking to prioritize token overlap over raw AI Search scores.
+    # This prevents unrelated high-scored results from dominating intent-matched products.
+    ranked = _rank_products_by_query_relevance(
+        query=relevance_text,
+        products=products,
+        limit=limit,
+        suppress_zero_overlap=True,
+    )
+    if not ranked:
+        ranked = await _expand_products_with_sub_queries(
+            adapters=adapters,
+            query=query,
+            relevance_text=relevance_text,
+            baseline_products=products,
+            sub_queries=sub_queries,
+            limit=limit,
+        )
     _t_rank = _time.perf_counter()
     logger.info(
         "intelligent_pipeline_timing",
