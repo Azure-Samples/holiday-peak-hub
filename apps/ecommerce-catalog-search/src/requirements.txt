@@ -295,7 +295,7 @@ psutil==7.2.2
     # via azure-monitor-opentelemetry-exporter
 pycparser==3.0 ; implementation_name != 'PyPy' and platform_python_implementation != 'PyPy'
     # via cffi
-pydantic==2.12.5
+pydantic==2.13.3
     # via
     #   agent-framework-core
     #   ecommerce-catalog-search
