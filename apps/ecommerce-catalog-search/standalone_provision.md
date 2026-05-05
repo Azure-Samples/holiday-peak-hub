@@ -76,6 +76,8 @@ azd env select $envName
 
 These map directly to parameters in `.infra/azd/main.bicep`.
 
+### Required
+
 ```pwsh
 azd env set AZURE_LOCATION              $location
 azd env set AZURE_RESOURCE_GROUP        "$projectName-$envName-rg"
@@ -90,21 +92,31 @@ azd env set privateNetworkingEnabled    false
 azd env set provisionAiSearch           true
 azd env set aiSearchSku                 basic
 azd env set catalogSearchRequireAiSearch true
+
+# Azure AI Foundry — REQUIRED. Bicep enforces @minLength(10) on projectEndpoint;
+# `azd provision` fails fast if missing, by design. The catalog-search agent
+# cannot generate grounded answers without Foundry, so deployments must not
+# silently land in degraded mode.
+azd env set PROJECT_ENDPOINT            'https://<foundry>.services.ai.azure.com/api/projects/<project>'
+azd env set MODEL_DEPLOYMENT_NAME_FAST  gpt-5-nano
+azd env set MODEL_DEPLOYMENT_NAME_RICH  gpt-5
 ```
 
-### Optional — point at an existing AI Search instead of provisioning
+### Optional
+
+Point at an existing AI Search instead of provisioning a new one:
 
 ```pwsh
 azd env set provisionAiSearch  false
 azd env set aiSearchEndpoint   'https://<existing>.search.windows.net'
 ```
 
-### Optional — wire Foundry agent IDs and model deployments
+Pin specific Foundry agent IDs (instead of letting the SDK pick by deployment):
 
 ```pwsh
-azd env set PROJECT_ENDPOINT             'https://<foundry>.services.ai.azure.com/api/projects/<proj>'
-azd env set MODEL_DEPLOYMENT_NAME_FAST   gpt-5-nano
-azd env set MODEL_DEPLOYMENT_NAME_RICH   gpt-5
+azd env set FOUNDRY_AGENT_ID_FAST   '<agent-id>'
+azd env set FOUNDRY_AGENT_ID_RICH   '<agent-id>'
+azd env set FOUNDRY_PROJECT_NAME    '<friendly-project-name>'
 ```
 
 ## Step 4 — Preview (recommended)
@@ -203,6 +215,9 @@ azd env set deployShared             false
 azd env set deployCatalogSearchAca   true
 azd env set provisionAiSearch        true
 azd env set aiSearchSku              basic
+azd env set PROJECT_ENDPOINT         'https://<foundry>.services.ai.azure.com/api/projects/<project>'
+azd env set MODEL_DEPLOYMENT_NAME_FAST gpt-5-nano
+azd env set MODEL_DEPLOYMENT_NAME_RICH gpt-5
 azd provision --no-prompt
 azd deploy ecommerce-catalog-search --no-prompt
 ```
@@ -222,6 +237,28 @@ azd down --purge --force --no-prompt
 ---
 
 ## Troubleshooting
+
+### `azd deploy` fails with `0 resource groups with prefix or suffix with value: '<env-name>'`
+`azd` cannot resolve the Container App's resource group. The slim Bicep emits `AZURE_RESOURCE_GROUP` as a deployment output so this is normally written automatically into `.azure/<env-name>/.env` after `azd provision`. If the file is missing or stale (typically because you ran `azd deploy` before `azd provision`, or your env was created from a tip that predates the output), set it manually:
+
+```pwsh
+azd env set AZURE_RESOURCE_GROUP "$projectName-$envName-rg"
+azd deploy ecommerce-catalog-search --no-prompt
+```
+
+Verify the env file then has both keys:
+
+```pwsh
+Get-Content .azure\$envName\.env | Select-String 'AZURE_RESOURCE_GROUP|AZURE_CONTAINER_APP_NAME'
+```
+
+### `azd provision` fails with `parameter 'projectEndpoint' must have a length of at least 10`
+Foundry is a hard requirement of the agent — Bicep enforces this so deployments cannot silently run in degraded mode. Set the env var before re-running:
+
+```pwsh
+azd env set PROJECT_ENDPOINT 'https://<foundry>.services.ai.azure.com/api/projects/<project>'
+azd provision --no-prompt
+```
 
 ### `RuntimeError: Event Hub binding missing` on container start
 The slim stack does not provision Event Hubs. The Bicep already sets `EVENT_HUB_OPTIONAL=true` so the lifespan factory in `holiday_peak_lib.utils.event_hub` logs `eventhub_binding_skipped` and continues. If you see the runtime error anyway, confirm:
