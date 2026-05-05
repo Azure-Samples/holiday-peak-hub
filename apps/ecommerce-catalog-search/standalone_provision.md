@@ -20,15 +20,21 @@ This runbook provisions the **slim ACA-only** stack for the `ecommerce-catalog-s
 | **Azure Cache for Redis** (Hot memory) | **Basic C0** | `HotMemory` — short-lived conversation context |
 | **Azure Cosmos DB** (Warm memory) | **Serverless** | `WarmMemory` — conversation threads (`agent-memory` db/container) |
 | **Azure Storage Account** (Cold memory) | **Standard_LRS** | `ColdMemory` — long-term agent state (`agent-memory` blob container) |
+| **Azure AI Foundry account** (AIServices) | **S0** | Foundry account hosting the project + model deployments (deployed in `westus3` for gpt-5 availability) |
+| **Azure AI Foundry project** | n/a | Project consumed by the agent runtime via `PROJECT_ENDPOINT` |
+| **gpt-5** model deployment | **GlobalStandard, 50 TPM** | Rich-role model target |
+| **gpt-5-nano** model deployment | **GlobalStandard, 50 TPM** | Fast-role model target (`dependsOn` gpt-5 to serialize writes) |
 | RBAC: `Search Index Data Contributor` | n/a | Granted to the workload identity on AI Search |
 | RBAC: `Search Service Contributor` | n/a | Granted to the workload identity on AI Search |
 | RBAC: `Cosmos DB Built-in Data Contributor` | n/a | Granted to the workload identity on the Cosmos account (data plane) |
 | RBAC: `Storage Blob Data Contributor` | n/a | Granted to the workload identity on the Storage account |
+| RBAC: `Cognitive Services User` | n/a | Granted to the workload identity on the Foundry account (inference data plane) |
+| RBAC: `Azure AI Developer` | n/a | Granted to the workload identity on the Foundry account (agent runtime + project ops) |
 | RBAC: `AcrPull` | n/a | Granted to the workload identity on ACR |
 
-> **Memory tiers are auto-provisioned and auto-wired.** `holiday_peak_lib`'s `create_standard_app()` constructs `HotMemory`/`WarmMemory`/`ColdMemory` automatically when their env vars are set, so the agent gets full conversation context out of the box. To bring your own memory infrastructure, set `PROVISION_MEMORY_TIERS=false` in the azd env and supply `REDIS_HOST`, `COSMOS_ACCOUNT_URI`, `COSMOS_DATABASE`, `COSMOS_CONTAINER`, `BLOB_ACCOUNT_URL`, and `BLOB_CONTAINER` overrides.
+> **Memory tiers and Foundry are auto-provisioned and auto-wired.** `holiday_peak_lib`'s `create_standard_app()` constructs `HotMemory`/`WarmMemory`/`ColdMemory` and resolves the Foundry agent runtime automatically when their env vars are set, so the agent gets full conversation context and a working model target out of the box. To bring your own infrastructure, set `PROVISION_MEMORY_TIERS=false` and/or `PROVISION_FOUNDRY=false` in the azd env and supply the corresponding overrides.
 
-**Approximate provision time**: ~17 minutes (AI Search Basic SKU dominates at ~6–15 min; Cosmos serverless and Storage finish in seconds; Redis Basic C0 takes ~5–10 min in parallel).
+**Approximate provision time**: ~22 minutes (AI Search Basic SKU dominates at ~6–15 min; gpt-5 + gpt-5-nano deployments take ~5–8 min; Cosmos serverless and Storage finish in seconds; Redis Basic C0 takes ~5–10 min in parallel).
 
 ---
 
@@ -51,10 +57,13 @@ az provider register --namespace Microsoft.ContainerRegistry
 az provider register --namespace Microsoft.OperationalInsights
 az provider register --namespace Microsoft.Search
 az provider register --namespace Microsoft.ManagedIdentity
-az provider register --namespace Microsoft.Cache         # Redis (Hot memory)
-az provider register --namespace Microsoft.DocumentDB    # Cosmos DB (Warm memory)
-az provider register --namespace Microsoft.Storage       # Blob (Cold memory)
+az provider register --namespace Microsoft.Cache             # Redis (Hot memory)
+az provider register --namespace Microsoft.DocumentDB        # Cosmos DB (Warm memory)
+az provider register --namespace Microsoft.Storage           # Blob (Cold memory)
+az provider register --namespace Microsoft.CognitiveServices # Azure AI Foundry account + projects + deployments
 ```
+
+> **Quota requirements**: gpt-5 / gpt-5-nano deployments need `OpenAI.GlobalStandard.gpt-5` and `OpenAI.GlobalStandard.gpt-5-nano` capacity in the chosen Foundry region (default `westus3`). The slim Bicep requests **50 TPM** for each. If your subscription has zero quota, request via the Azure portal *Azure AI services → Quotas* blade before running `azd provision`, or override `fastModelCapacity` / `richModelCapacity` to a smaller value.
 
 ---
 
@@ -103,11 +112,12 @@ azd env set provisionAiSearch           true
 azd env set aiSearchSku                 basic
 azd env set catalogSearchRequireAiSearch true
 
-# Azure AI Foundry — REQUIRED. Bicep enforces @minLength(10) on projectEndpoint;
-# `azd provision` fails fast if missing, by design. The catalog-search agent
-# cannot generate grounded answers without Foundry, so deployments must not
-# silently land in degraded mode.
-azd env set PROJECT_ENDPOINT            'https://<foundry>.services.ai.azure.com/api/projects/<project>'
+# Azure AI Foundry — auto-provisioned by default. The slim Bicep creates an
+# AIServices account, a project, and gpt-5 / gpt-5-nano deployments in westus3.
+# Override the model deployment names only if you want non-default identifiers;
+# the defaults match the agent runtime expectations.
+azd env set PROVISION_FOUNDRY           true
+azd env set AI_FOUNDRY_LOCATION         westus3
 azd env set MODEL_DEPLOYMENT_NAME_FAST  gpt-5-nano
 azd env set MODEL_DEPLOYMENT_NAME_RICH  gpt-5
 ```
@@ -128,6 +138,19 @@ azd env set FOUNDRY_AGENT_ID_FAST   '<agent-id>'
 azd env set FOUNDRY_AGENT_ID_RICH   '<agent-id>'
 azd env set FOUNDRY_PROJECT_NAME    '<friendly-project-name>'
 ```
+
+Bring your own Foundry project (skip the AIServices account / project / deployments) — the slim stack provisions Foundry by default:
+
+```pwsh
+azd env set PROVISION_FOUNDRY     false
+azd env set PROJECT_ENDPOINT      'https://<existing-foundry>.services.ai.azure.com/api/projects/<existing-project>'
+azd env set FOUNDRY_PROJECT_NAME  '<existing-project>'
+# Tune model deployments to match your existing project
+azd env set MODEL_DEPLOYMENT_NAME_FAST  '<your-fast-deployment>'
+azd env set MODEL_DEPLOYMENT_NAME_RICH  '<your-rich-deployment>'
+```
+
+> When using BYO Foundry, you must grant the Container App's UAMI **Cognitive Services User** + **Azure AI Developer** roles on your existing Foundry account *before* the first request. The slim Bicep does not modify pre-existing Foundry RBAC.
 
 Bring your own memory tiers (skip Redis/Cosmos/Blob provisioning) — the slim stack provisions all three by default:
 
@@ -170,8 +193,12 @@ Expected wall time: **~17 minutes**. Successful output ends with:
 (✓) Done: Redis Cache: <projectName>-<env>-redis
 (✓) Done: Cosmos DB account: <projectName><env>cos
 (✓) Done: Storage account: <projectName><env>store
+(✓) Done: Cognitive Services account: <projectName><env>foundry
+(✓) Done: Cognitive Services account project: <projectName>-<env>-proj
+(✓) Done: Cognitive Services deployment: gpt-5
+(✓) Done: Cognitive Services deployment: gpt-5-nano
 
-SUCCESS: Your application was provisioned in Azure in ~17 minutes.
+SUCCESS: Your application was provisioned in Azure in ~22 minutes.
 ```
 
 ## Step 6 — Build and deploy the catalog-search image
@@ -281,6 +308,7 @@ Get-Content .azure\$envName\.env | Select-String 'AZURE_RESOURCE_GROUP|AZURE_CON
 ```
 
 ### `azd provision` fails with `parameter 'projectEndpoint' must have a length of at least 10`
+This was the old Foundry-required behavior. The slim stack now auto-provisions Foundry by default; if you still hit this error you are on a stale `wwwmsft/main` commit. `git pull wwwmsft main` and confirm `git log --oneline wwwmsft/main -1` shows the Foundry provisioning commit (`feat(catalog-search): provision Azure AI Foundry`).
 Foundry is a hard requirement of the agent — Bicep enforces this so deployments cannot silently run in degraded mode. Set the env var before re-running:
 
 ```pwsh
@@ -313,7 +341,58 @@ Expected — see Step 8. Seed the index or temporarily set `CATALOG_SEARCH_REQUI
 Known Windows charmap codec bug in the Azure CLI. Use `az acr task list-runs --registry <acr-name>` instead.
 
 ### `azd provision` fails with template size > 4 MB
-You are running the canonical full template, not the slim path. Confirm `deployShared=false` and `deployCatalogSearchAca=true` in `azd env get-values`. The slim `.infra/azd/main.json` should compile to ~76 KB (Redis + Cosmos + Storage + AI Search + ACA + ACR + Log Analytics + RBAC).
+You are running the canonical full template, not the slim path. Confirm `deployShared=false` and `deployCatalogSearchAca=true` in `azd env get-values`. The slim `.infra/azd/main.json` should compile to ~91 KB (Redis + Cosmos + Storage + AI Search + Foundry account + project + 2 model deployments + ACA + ACR + Log Analytics + RBAC).
+
+### `azd provision` fails with `InsufficientQuota` on `gpt-5` or `gpt-5-nano` deployment
+Foundry model deployments are subject to per-region TPM quota. The slim Bicep requests **50 TPM** for each model. If your subscription has zero quota in the chosen region:
+
+1. Request quota via the Azure portal: *Azure AI services → Quotas* → select region (default `westus3`) and model (`OpenAI.GlobalStandard.gpt-5` and `OpenAI.GlobalStandard.gpt-5-nano`).
+2. Or override capacity at provision time:
+
+```pwsh
+az deployment sub create --name retry --location $env:AZURE_LOCATION --template-file .infra/azd/main.bicep `
+  --parameters .infra/azd/main.parameters.json `
+  --parameters fastModelCapacity=10 richModelCapacity=10
+```
+
+Or switch regions:
+
+```pwsh
+azd env set AI_FOUNDRY_LOCATION eastus2  # or another region with available quota
+azd provision --no-prompt
+```
+
+### Container starts but `PROJECT_ENDPOINT` is empty / agent returns `No model target configured`
+Most commonly caused by `PROVISION_FOUNDRY=false` without supplying `PROJECT_ENDPOINT`. Check:
+
+```pwsh
+azd env get-values | Select-String 'PROJECT_ENDPOINT|PROVISION_FOUNDRY|MODEL_DEPLOYMENT_NAME'
+az containerapp show -g $rg -n ecommerce-catalog-search --query "properties.template.containers[0].env[?name=='PROJECT_ENDPOINT'].value | [0]" -o tsv
+```
+
+Fix by re-enabling auto-provisioning:
+
+```pwsh
+azd env set PROVISION_FOUNDRY true
+azd env unset PROJECT_ENDPOINT
+azd provision --no-prompt
+```
+
+### Foundry calls fail with `403 Forbidden` from `services.ai.azure.com`
+Foundry RBAC propagation can lag account creation by up to 5 minutes. The slim Bicep assigns **Cognitive Services User** and **Azure AI Developer** to the workload identity at account scope. Verify:
+
+```pwsh
+$foundry = (az resource list -g $rg --resource-type Microsoft.CognitiveServices/accounts --query "[0].id" -o tsv)
+$principalId = (azd env get-values | Select-String 'CATALOG_SEARCH_MANAGED_IDENTITY_PRINCIPAL_ID=').ToString().Split('=',2)[1].Trim('"')
+az role assignment list --assignee $principalId --scope $foundry --query "[].roleDefinitionName" -o tsv
+# Expect: 'Cognitive Services User' and 'Azure AI Developer'
+```
+
+If calls still fail after 5 minutes, restart the Container App revision to refresh the token cache:
+
+```pwsh
+az containerapp revision restart -g $rg -n ecommerce-catalog-search --revision $(az containerapp show -g $rg -n ecommerce-catalog-search --query 'properties.latestRevisionName' -o tsv)
+```
 
 ### Container starts but logs `hot_memory.* degraded to fail-open mode`
 The Hot memory tier (Redis) cannot reach its host or authenticate. `HotMemory` fails open by design so degraded cache does not crash agents, but conversation context is lost across requests. Verify:
@@ -351,6 +430,6 @@ az role assignment list --assignee $principalId --scope (az storage account show
 ## What this runbook does NOT cover
 
 - **Index schema creation and seeding**: the `catalog-products` index schema lives in the catalog ingestion pipeline, not in this Bicep. Application data work is required after provisioning to make `/ready` return 200.
-- **Foundry deployment provisioning**: this runbook assumes you already have a Foundry project and deployments. `PROJECT_ENDPOINT` is enforced by Bicep `@minLength(10)` so provisioning fails fast if missing — there is no degraded-mode path.
+- **Foundry agent CRUD**: the slim Bicep provisions a Foundry **account + project + model deployments** but does not create named agents (the agent runtime auto-discovers them by deployment when `FOUNDRY_AGENT_ID_*` is unset). Use the Foundry portal or SDK to create persistent named agents if you need IDs to pin in `FOUNDRY_AGENT_ID_FAST` / `FOUNDRY_AGENT_ID_RICH`.
 - **Private networking**: the slim stack uses public ingress on the Container App. Set `privateNetworkingEnabled=true` in upstream `main` (canonical path), not here.
 - **Multi-agent topology**: this runbook deploys only `ecommerce-catalog-search`. For the full 26-agent platform, use the canonical `.infra/modules/shared-infrastructure/shared-infrastructure-main.bicep` deployment via the upstream AKS workflow.
