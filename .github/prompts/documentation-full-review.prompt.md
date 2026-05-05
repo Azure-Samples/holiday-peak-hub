@@ -1,3 +1,10 @@
+---
+name: "Documentation: Full Review and Update"
+description: "Comprehensive, document-by-document review of all repository documentation across 7 sequential waves. Updates docs/ and every README.md to reflect the current state with deep technical insights, Mermaid diagrams, and cohesive narrative."
+agent: "TechLeadOrchestrator"
+argument-hint: "Optionally specify wave numbers to scope the review (e.g., '1,3,5'); otherwise all 7 waves run sequentially."
+---
+
 # Full Documentation Review & Update
 
 ## Objective

@@ -21,7 +21,7 @@ import re
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 RENDERED_DIR = REPO_ROOT / ".kubernetes" / "rendered"
 MAX_NAME_LENGTH = 63
 

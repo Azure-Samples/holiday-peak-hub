@@ -29,7 +29,7 @@ import hashlib
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 
 # The Foundry runtime appends a hardening block to the loaded prompt before
 # publishing to agent versions. Mirror that constant here so the on-disk repo
