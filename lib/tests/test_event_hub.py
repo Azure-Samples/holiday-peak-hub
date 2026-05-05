@@ -293,6 +293,134 @@ async def test_create_eventhub_lifespan_fails_closed_when_platform_binding_is_mi
 
 
 @pytest.mark.asyncio
+async def test_create_eventhub_lifespan_optional_skips_missing_binding(monkeypatch):
+    """When optional=True, missing bindings are skipped instead of raising."""
+    monkeypatch.delenv("EVENT_HUB_NAMESPACE", raising=False)
+    monkeypatch.delenv("EVENT_HUB_CONNECTION_STRING", raising=False)
+    monkeypatch.delenv("EVENT_HUB_OPTIONAL", raising=False)
+
+    created: list[EventHubSubscriberConfig] = []
+
+    def fake_init(_self, config, *, on_event, on_error=None, client_factory=None):  # noqa: ANN001
+        _ = on_event
+        _ = on_error
+        _ = client_factory
+        created.append(config)
+
+    async def fake_start(_self):  # noqa: ANN001
+        return None
+
+    monkeypatch.setattr(event_hub_module.EventHubSubscriber, "__init__", fake_init)
+    monkeypatch.setattr(event_hub_module.EventHubSubscriber, "start", fake_start)
+
+    async def handler(_partition_context, _event):  # noqa: ANN001
+        return None
+
+    lifespan = create_eventhub_lifespan(
+        service_name="test-service",
+        subscriptions=[EventHubSubscription("product-events", "catalog-group")],
+        handlers={"product-events": handler},
+        optional=True,
+    )
+
+    async with lifespan(None):
+        await asyncio.sleep(0)
+
+    assert created == []
+
+
+@pytest.mark.asyncio
+async def test_create_eventhub_lifespan_optional_via_env_var(monkeypatch):
+    """EVENT_HUB_OPTIONAL=true env var enables skip-on-missing without code change."""
+    monkeypatch.delenv("EVENT_HUB_NAMESPACE", raising=False)
+    monkeypatch.delenv("EVENT_HUB_CONNECTION_STRING", raising=False)
+    monkeypatch.setenv("EVENT_HUB_OPTIONAL", "true")
+
+    created: list[EventHubSubscriberConfig] = []
+
+    def fake_init(_self, config, *, on_event, on_error=None, client_factory=None):  # noqa: ANN001
+        _ = on_event
+        _ = on_error
+        _ = client_factory
+        created.append(config)
+
+    async def fake_start(_self):  # noqa: ANN001
+        return None
+
+    monkeypatch.setattr(event_hub_module.EventHubSubscriber, "__init__", fake_init)
+    monkeypatch.setattr(event_hub_module.EventHubSubscriber, "start", fake_start)
+
+    async def handler(_partition_context, _event):  # noqa: ANN001
+        return None
+
+    lifespan = create_eventhub_lifespan(
+        service_name="test-service",
+        subscriptions=[EventHubSubscription("product-events", "catalog-group")],
+        handlers={"product-events": handler},
+    )
+
+    async with lifespan(None):
+        await asyncio.sleep(0)
+
+    assert created == []
+
+
+@pytest.mark.asyncio
+async def test_create_eventhub_lifespan_optional_still_binds_when_configured(monkeypatch):
+    """Optional mode must not skip subscriptions whose bindings are configured."""
+    monkeypatch.setenv("EVENT_HUB_NAMESPACE", "configured-namespace")
+    monkeypatch.delenv("EVENT_HUB_CONNECTION_STRING", raising=False)
+    monkeypatch.setenv("EVENT_HUB_OPTIONAL", "true")
+    monkeypatch.delenv("PLATFORM_JOBS_EVENT_HUB_NAMESPACE", raising=False)
+    monkeypatch.delenv("PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING", raising=False)
+
+    class FakeCredential:
+        def __init__(self, managed_identity_client_id=None):  # noqa: ANN001
+            self.client_id = managed_identity_client_id
+
+        async def close(self):
+            return None
+
+    created: list[EventHubSubscriberConfig] = []
+
+    def fake_init(_self, config, *, on_event, on_error=None, client_factory=None):  # noqa: ANN001
+        _ = on_event
+        _ = on_error
+        _ = client_factory
+        created.append(config)
+
+    async def fake_start(_self):  # noqa: ANN001
+        return None
+
+    monkeypatch.setattr(event_hub_module, "DefaultAzureCredential", FakeCredential)
+    monkeypatch.setattr(event_hub_module.EventHubSubscriber, "__init__", fake_init)
+    monkeypatch.setattr(event_hub_module.EventHubSubscriber, "start", fake_start)
+
+    async def handler(_partition_context, _event):  # noqa: ANN001
+        return None
+
+    lifespan = create_eventhub_lifespan(
+        service_name="test-service",
+        subscriptions=[
+            EventHubSubscription("product-events", "catalog-group"),
+            EventHubSubscription(
+                "export-jobs",
+                "export-engine",
+                namespace_env="PLATFORM_JOBS_EVENT_HUB_NAMESPACE",
+                connection_string_env="PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING",
+            ),
+        ],
+        handlers={"product-events": handler, "export-jobs": handler},
+    )
+
+    async with lifespan(None):
+        await asyncio.sleep(0)
+
+    assert len(created) == 1
+    assert created[0].eventhub_name == "product-events"
+
+
+@pytest.mark.asyncio
 async def test_event_hub_on_error_emits_failure_signal():
     context = FakePartitionContext()
     event = FakeEvent("test")

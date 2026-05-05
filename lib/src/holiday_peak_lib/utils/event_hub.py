@@ -752,6 +752,16 @@ def build_basic_error_handler(*, logger: Any, eventhub_name: str) -> ErrorHandle
     return _on_error
 
 
+EVENT_HUB_OPTIONAL_ENV = "EVENT_HUB_OPTIONAL"
+_TRUTHY_ENV_VALUES = frozenset({"1", "true", "yes", "on"})
+
+
+def _eventhub_optional_from_env() -> bool:
+    """Return True when the deployment opts into optional Event Hub bindings."""
+
+    return (os.getenv(EVENT_HUB_OPTIONAL_ENV) or "").strip().lower() in _TRUTHY_ENV_VALUES
+
+
 def create_eventhub_lifespan(
     *,
     service_name: str,
@@ -761,26 +771,46 @@ def create_eventhub_lifespan(
     handlers: dict[str, EventHandler] | None = None,
     self_healing_kernel: SelfHealingKernel | None = None,
     reconcile_on_error: bool = False,
+    optional: bool = False,
 ) -> Callable[[Any], AsyncContextManager[None]]:
-    """Create a FastAPI lifespan that starts Event Hub subscribers."""
+    """Create a FastAPI lifespan that starts Event Hub subscribers.
+
+    When ``optional`` is True, or the ``EVENT_HUB_OPTIONAL`` environment
+    variable is truthy, subscriptions whose bindings are not configured
+    are skipped with a warning instead of failing the lifespan. This is
+    intended for slim deployments (for example a single-service ACA stack)
+    that do not provision an Event Hubs namespace; the rest of the app
+    still starts and serves traffic.
+    """
 
     @asynccontextmanager
     async def lifespan(_app) -> AsyncIterator[None]:  # noqa: ANN001
         logger = configure_logging(app_name=f"{service_name}-events")
         credential: DefaultAzureCredential | None = None
         client_id = os.getenv("AZURE_CLIENT_ID")
+        bindings_optional = optional or _eventhub_optional_from_env()
 
-        resolved_subscriptions = [
-            (
-                subscription,
-                resolve_eventhub_binding(
+        resolved_subscriptions: list[tuple[EventHubSubscription, EventHubBinding]] = []
+        for subscription in subscriptions:
+            try:
+                binding = resolve_eventhub_binding(
                     subscription,
                     default_namespace_env=namespace_env,
                     default_connection_string_env=connection_string_env,
-                ),
-            )
-            for subscription in subscriptions
-        ]
+                )
+            except RuntimeError:
+                if not bindings_optional:
+                    raise
+                _safe_log(
+                    logger,
+                    "warning",
+                    "eventhub_binding_skipped",
+                    eventhub=subscription.eventhub_name,
+                    consumer_group=subscription.consumer_group,
+                    reason="binding_not_configured_optional_mode",
+                )
+                continue
+            resolved_subscriptions.append((subscription, binding))
 
         tasks: list[asyncio.Task] = []
 
