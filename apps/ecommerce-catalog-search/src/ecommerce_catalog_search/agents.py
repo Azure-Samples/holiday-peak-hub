@@ -1755,13 +1755,18 @@ async def _search_products_intelligent(
     # ── rank and trim ────────────────────────────────────────────────
     # Apply query-relevance ranking to prioritize token overlap over raw AI Search scores.
     # This prevents unrelated high-scored results from dominating intent-matched products.
+    # Complementary/related intents semantically resolve to products whose names
+    # need not overlap the query (e.g. "what accessories go with X" → "Travel Case"),
+    # so we trust AI Search ordering instead of imposing token-overlap suppression.
+    intent_name = str(intent.intent or "").lower() if intent is not None else ""
+    suppress_zero_overlap = intent_name not in {"complementary_search", "related_search"}
     ranked = _rank_products_by_query_relevance(
         query=relevance_text,
         products=products,
         limit=limit,
-        suppress_zero_overlap=True,
+        suppress_zero_overlap=suppress_zero_overlap,
     )
-    if not ranked:
+    if not ranked and suppress_zero_overlap:
         ranked = await _expand_products_with_sub_queries(
             adapters=adapters,
             query=query,

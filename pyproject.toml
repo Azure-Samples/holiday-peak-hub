@@ -32,6 +32,22 @@ disable = [
     "too-few-public-methods",
 ]
 
+[tool.pylint.typecheck]
+# Azure SDK clients use dynamic dispatch and lazy attribute loading that pylint
+# cannot statically resolve, producing E1101 (no-member) false positives. The
+# Azure SDK guidance is to allow these members so --fail-on=E,F stays meaningful.
+generated-members = [
+    "azure.*",
+    "azure.search.documents.*",
+    "azure.search.documents.aio.*",
+    "azure.search.documents.indexes.*",
+    "azure.cosmos.*",
+    "azure.identity.*",
+    "azure.keyvault.*",
+    "azure.storage.*",
+    "azure.eventhub.*",
+]
+
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib"
 asyncio_mode = "auto"
