@@ -1,8 +1,8 @@
 # Standalone Provisioning — `ecommerce-catalog-search`
 
-This runbook provisions the **slim ACA-only** stack for the `ecommerce-catalog-search` agent, including a dedicated **Azure AI Search** service. It is the deployment path used by the [`Cataldir/wwwmsft`](https://github.com/Cataldir/wwwmsft) remote — a single-agent, self-contained topology that does not require the shared infrastructure (AKS, Foundry, Cosmos, Event Hubs, etc.) used by the canonical full deploy.
+This runbook provisions the **slim ACA-only** stack for the `ecommerce-catalog-search` agent, including a dedicated **Azure AI Search** service, **Azure AI Foundry** account/project/model deployments, and the three-tier memory stores (Redis / Cosmos / Blob). It is the deployment path used by the [`Cataldir/wwwmsft`](https://github.com/Cataldir/wwwmsft) remote — a single-agent, self-contained topology that does not require the shared platform infrastructure (AKS, Event Hubs, Postgres, etc.) used by the canonical full deploy.
 
-> **Why this path exists**: the canonical full deploy under `.infra/modules/shared-infrastructure/` provisions one AI Search via the AI Foundry AVM module shared by all agents, but its compiled ARM template exceeds the 4 MB Azure deployment request limit when run alone. The slim path under `.infra/azd/` strips shared infrastructure and provisions a standalone AI Search scoped to this single agent.
+> **Why this path exists**: the canonical full deploy under `.infra/modules/shared-infrastructure/` provisions one AI Search via the AI Foundry AVM module shared by all 26 agents, but its compiled ARM template exceeds the 4 MB Azure deployment request limit when run alone. The slim path under `.infra/azd/` strips shared infrastructure and provisions a standalone AI Search, Foundry account, and memory tier set scoped to this single agent — so a clean subscription gets a fully working agent in one `azd up`.
 
 ---
 
@@ -75,7 +75,7 @@ git clone https://github.com/Cataldir/wwwmsft.git
 cd wwwmsft
 git checkout main
 git log --oneline -1
-# Expect at least: 2172eb19 feat(catalog-search): provision standalone Azure AI Search service in slim ACA stack
+# Expect at least: 2a2c5ef3 feat(catalog-search): provision Azure AI Foundry account, project, and gpt-5/gpt-5-nano deployments in slim ACA stack
 ```
 
 ## Step 2 — Initialize the azd environment
@@ -181,7 +181,7 @@ Expect a plan that includes `Create: Search service: <projectName><env>search` a
 azd provision --no-prompt
 ```
 
-Expected wall time: **~17 minutes**. Successful output ends with:
+Expected wall time: **~22 minutes** (AI Search Basic dominates; gpt-5 + gpt-5-nano deployments take ~5–8 min; Cosmos serverless and Storage finish in seconds; Redis Basic C0 takes ~5–10 min in parallel). Successful output ends with:
 
 ```
 (✓) Done: Resource group: <projectName>-<env>-rg
@@ -260,24 +260,27 @@ Invoke-WebRequest "https://$fqdn/health" -UseBasicParsing -TimeoutSec 30
 
 ## Quick-reference happy path
 
+Fully auto-provisioned (Foundry + memory tiers + AI Search) — no BYO infra required:
+
 ```pwsh
 git clone https://github.com/Cataldir/wwwmsft.git
 cd wwwmsft
 azd auth login --tenant-id <YOUR_TENANT_ID>
 azd env new dev --location northcentralus --subscription (az account show --query id -o tsv)
+azd env set AZURE_RESOURCE_GROUP     '<pick-fresh-suffix>-dev-rg'
 azd env set projectName              <pick-fresh-suffix>
 azd env set deployShared             false
 azd env set deployCatalogSearchAca   true
 azd env set provisionAiSearch        true
 azd env set aiSearchSku              basic
-azd env set PROJECT_ENDPOINT         'https://<foundry>.services.ai.azure.com/api/projects/<project>'
-azd env set MODEL_DEPLOYMENT_NAME_FAST gpt-5-nano
-azd env set MODEL_DEPLOYMENT_NAME_RICH gpt-5
+azd env set PROVISION_FOUNDRY        true
+azd env set AI_FOUNDRY_LOCATION      westus3
+azd env set PROVISION_MEMORY_TIERS   true
 azd provision --no-prompt
 azd deploy ecommerce-catalog-search --no-prompt
 ```
 
-Total wall time: **~22 minutes** (17 provision + 5 deploy).
+Total wall time: **~25–27 minutes** (~22 provision + ~3–5 deploy).
 
 ---
 
@@ -287,7 +290,7 @@ Total wall time: **~22 minutes** (17 provision + 5 deploy).
 azd down --purge --force --no-prompt
 ```
 
-`--purge` is required because AI Search and ACR have soft-delete behavior; without it a redeploy with the same `projectName`/`env` may fail with name conflicts.
+`--purge` is required because AI Search, ACR, **Azure AI Foundry (Cognitive Services account)**, and Key Vault all have soft-delete behavior; without it a redeploy with the same `projectName`/`env` may fail with name conflicts. Foundry soft-delete in particular blocks re-creating an account with the same `customSubDomainName` until the previous account is purged (`az cognitiveservices account purge`).
 
 ---
 
@@ -308,13 +311,23 @@ Get-Content .azure\$envName\.env | Select-String 'AZURE_RESOURCE_GROUP|AZURE_CON
 ```
 
 ### `azd provision` fails with `parameter 'projectEndpoint' must have a length of at least 10`
-This was the old Foundry-required behavior. The slim stack now auto-provisions Foundry by default; if you still hit this error you are on a stale `wwwmsft/main` commit. `git pull wwwmsft main` and confirm `git log --oneline wwwmsft/main -1` shows the Foundry provisioning commit (`feat(catalog-search): provision Azure AI Foundry`).
-Foundry is a hard requirement of the agent — Bicep enforces this so deployments cannot silently run in degraded mode. Set the env var before re-running:
+This is the old Foundry-required behavior from a pre-Foundry-auto-provision commit. The slim stack now auto-provisions Foundry by default. Confirm you are on the up-to-date `wwwmsft/main`:
 
 ```pwsh
-azd env set PROJECT_ENDPOINT 'https://<foundry>.services.ai.azure.com/api/projects/<project>'
+git pull wwwmsft main
+git log --oneline wwwmsft/main -1
+# Expect: 2a2c5ef3 feat(catalog-search): provision Azure AI Foundry account, project, and gpt-5/gpt-5-nano deployments in slim ACA stack
+```
+
+Then re-provision with auto-provisioning enabled:
+
+```pwsh
+azd env set PROVISION_FOUNDRY true
+azd env unset PROJECT_ENDPOINT
 azd provision --no-prompt
 ```
+
+If you intend to bring your own Foundry instead, supply a non-empty `PROJECT_ENDPOINT` (length ≥ 10) before re-running.
 
 ### `RuntimeError: Event Hub binding missing` on container start
 The slim stack does not provision Event Hubs. The Bicep already sets `EVENT_HUB_OPTIONAL=true` so the lifespan factory in `holiday_peak_lib.utils.event_hub` logs `eventhub_binding_skipped` and continues. If you see the runtime error anyway, confirm:
