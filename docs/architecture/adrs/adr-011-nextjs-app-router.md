@@ -72,6 +72,7 @@ We will use **Next.js 15 with App Router** as the primary frontend framework.
 ### Architecture
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
 graph TB
     Browser[Browser] -->|HTTP| NextJS[Next.js 15 App]
     NextJS -->|Server Components| SSR[SSR Pages]

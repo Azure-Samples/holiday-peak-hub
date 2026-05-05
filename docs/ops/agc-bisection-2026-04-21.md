@@ -1,5 +1,7 @@
 # AGC Edge-Path Bisection — 2026-04-21
 
+**Last Reviewed**: 2026-04-30
+
 | Field | Value |
 |---|---|
 | Date (UTC) | 2026-04-21 |
@@ -163,6 +165,6 @@ curl -sS -o /dev/null -w "code=%{http_code} time=%{time_total}\n" -m 10 \
 ## Links
 
 - Evidence JSON: [docs/ops/agc-bisection-2026-04-21.json](agc-bisection-2026-04-21.json)
-- Guardrail script (PowerShell): [scripts/ops/agc-bisect.ps1](../../scripts/ops/agc-bisect.ps1)
-- Guardrail script (bash): [scripts/ops/agc-bisect.sh](../../scripts/ops/agc-bisect.sh)
+- Guardrail script (PowerShell): [scripts/powershell/ops/agc-bisect.ps1](../../scripts/powershell/ops/agc-bisect.ps1)
+- Guardrail script (bash): [scripts/shell/ops/agc-bisect.sh](../../scripts/shell/ops/agc-bisect.sh)
 - MS docs — AGC NSG requirements: https://learn.microsoft.com/azure/application-gateway/for-containers/overview

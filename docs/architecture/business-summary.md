@@ -1,407 +1,247 @@
 # Business Summary
 
+> **Last Updated**: 2026-04-30 | **Version**: 2.0.0 | **Classification**: Internal — Executive
+
+---
+
 ## Overview
 
-Holiday Peak Hub is a comprehensive full-stack retail accelerator that enables rapid deployment of AI-powered shopping experiences while preserving existing investments in personalization, assortment, and allocation systems. The solution provides a production-ready frontend (Next.js 15 with 52 atomic design components), 21 backend microservices, complete infrastructure as code, and comprehensive governance documentation. It addresses the critical need for retailers to deploy end-to-end agentic AI experiences without requiring a complete overhaul of legacy infrastructure.
+Holiday Peak Hub is an **agent-driven retail accelerator** — a production-ready framework deploying 26 domain-specific AI agents, 1 transactional CRUD service, and a Next.js 15 storefront on Azure Kubernetes Service (AKS). The platform demonstrates how agentic architectures outperform traditional microservices for complex retail operations by combining dynamic planning, contextual reasoning, and adaptive behavior with deterministic transactional guarantees.
 
-## Business Need
+The system runs on the **Microsoft Agent Framework (MAF) >=1.0.1 GA**, with SLM/LLM dual-model routing (GPT-5-nano for fast operations, GPT-4o for rich reasoning), three-tier memory (Redis -> Cosmos DB -> Blob Storage), and Event Hub choreography — all deployed via Flux GitOps with APIM gateway and AGC edge routing.
 
-Retailers face mounting pressure to deliver personalized, intelligent shopping experiences while managing complex operational constraints:
+**Current state**: 1,796 tests passing at 89% code coverage across all services.
 
-- **Integration Challenge**: Legacy ML/data platforms must coexist with modern AI agents
-- **Latency Requirements**: 3–5 second end-to-end response times for user-facing recommendations
-- **Catalog Accuracy**: Zero-tolerance for product search failures; airtight coverage expected
-- **Future-Proofing**: ACP (Agentic Commerce Protocol) compliance for interoperability with external AI assistants
-- **Rapid Adaptation**: Minimal friction when connecting to diverse retailer data sources and APIs
-- **Agent Interoperability**: AG-UI Protocol compliance enabling AI agents to interact with UIs programmatically
-- **Complete Solution**: Need for reference architecture covering frontend, backend, infrastructure, and governance
+---
 
-The accelerator provides both greenfield (new) and brownfield (existing system integration) pathways, maximizing reusability across retailers of varying technical maturity. It includes production-ready frontend applications, comprehensive backend services, and complete operational governance.
+## Stakeholder Value Map
 
-## Value Proposition
+| Stakeholder | Primary Concern | Value Delivered |
+|---|---|---|
+| **CTO / VP Engineering** | Architecture longevity, TCO, talent retention | Future-proof agentic architecture on Azure; 81-83% development cost reduction vs. building from scratch; MAF SDK standardization reduces hiring bar |
+| **VP Commerce / CDO** | Revenue growth, conversion, personalization | 2-3x personalized conversion uplift; sub-1.2s search; AI-enriched catalog at 98% coverage |
+| **VP Operations / Ops Manager** | Uptime, incident response, scaling | 99.9% SLA enablement via circuit breakers + bulkheads; KEDA auto-scaling; self-healing kernel |
+| **Developer / Platform Engineer** | Velocity, DX, testing | `AgentBuilder` pattern; async-first Python 3.13; 1,796 tests; hot-reload dev loop |
 
-### Frontend Application (ui/)
+---
 
-**Production-ready e-commerce experience** with complete admin capabilities:
+## Architecture at a Glance
 
-#### Component Library (52 Components)
-- **Purpose**: Reusable atomic design system for rapid UI development
-- **Value**: 19 atoms, 20 molecules, 9 organisms, 4 templates—all TypeScript, dark mode, accessible
-- **Pattern**: Atomic design methodology with full AG-UI Protocol annotations
-- **Expected Use**: Retailers customize styling and extend components for brand consistency
-- **Not Expected**: Building UI from scratch; comprehensive library provided
+```mermaid
+%%{init: {'theme':'base', 'themeVariables': {
+  'primaryColor':'#FFB3BA',
+  'primaryTextColor':'#000',
+  'primaryBorderColor':'#FF8B94',
+  'lineColor':'#BAE1FF',
+  'secondaryColor':'#BAE1FF',
+  'tertiaryColor':'#FFFFFF'
+}}}%%
+flowchart TB
+    subgraph EDGE["Edge Layer"]
+        AGC[Azure App Gateway + AGC Controller]
+        APIM[Azure API Management AI Gateway]
+    end
 
-#### Public Pages (7 External)
-- **Homepage**: Featured products with personalized recommendations
-- **Store/Catalog**: Product browsing with AI-powered search and filtering
-- **Product Detail**: ACP-compliant product display with real-time inventory
-- **Shopping Cart**: Intelligent recommendations and stock validation
-- **Checkout**: Multi-step checkout with carrier selection
-- **Order Confirmation**: Post-purchase engagement
-- **Order Tracking**: Real-time shipment monitoring
+    subgraph AKS["AKS Cluster - Flux GitOps"]
+        UI[Next.js 15 UI - 52 Components]
+        CRUD[CRUD Service - FastAPI + PostgreSQL]
+        subgraph AGENTS["26 Agent Services"]
+            CRM[CRM Agents x4]
+            ECOM[E-commerce Agents x5]
+            INV[Inventory Agents x4]
+            LOG[Logistics Agents x4]
+            PM[Product Mgmt Agents x4]
+            TRUTH[Truth Layer Agents x4]
+            SEARCH[Search Enrichment x1]
+        end
+    end
 
-#### Admin Pages (7 Internal)
-- **Dashboard**: KPIs and operational metrics
-- **Inventory Management**: Stock monitoring with predictive alerts
-- **Product Management**: Catalog administration with ACP validation
-- **Logistics**: Shipment tracking and carrier optimization
-- **CRM**: Customer profiles and segmentation
-- **Support Center**: Agent-assisted customer service
-- **Analytics**: Business intelligence and reporting
+    subgraph DATA["Data and AI Layer"]
+        REDIS[(Redis - Hot Memory)]
+        COSMOS[(Cosmos DB - Warm Memory)]
+        BLOB[(Blob Storage - Cold Memory)]
+        AISEARCH[Azure AI Search - Vector + Hybrid]
+        FOUNDRY[Azure AI Foundry - GPT-5-nano / GPT-4o]
+        EVENTHUB[Event Hubs - Choreography]
+    end
 
-#### Protocol Compliance
-- **AG-UI Protocol**: All interactive elements annotated for agent interoperability
-- **ACP (Agentic Commerce Protocol)**: Product data standardized across all pages
-- **Authentication**: JWT-based auth with RBAC (7 roles: admin, manager, inventory, logistics, product, crm, support)
-- **Performance**: Lighthouse scores >90, Core Web Vitals optimized
-- **Accessibility**: WCAG 2.1 AA compliant
+    AGC --> APIM
+    APIM --> UI
+    APIM --> CRUD
+    APIM --> AGENTS
+    CRUD <--> EVENTHUB
+    AGENTS <--> EVENTHUB
+    AGENTS <--> REDIS
+    AGENTS <--> COSMOS
+    AGENTS <--> BLOB
+    AGENTS <--> AISEARCH
+    AGENTS <--> FOUNDRY
+    CRUD <--> COSMOS
 
-**Business Value**: Retailers get a complete, production-ready frontend that connects to all 21 backend services with zero UI development effort. Reduces time-to-market by 4-6 months.
+    classDef primary fill:#FFB3BA,stroke:#FF8B94,stroke-width:2px,color:#000
+    classDef secondary fill:#BAE1FF,stroke:#89CFF0,stroke-width:2px,color:#000
+    classDef data fill:#FFFFFF,stroke:#FF8B94,stroke-width:1px,color:#000
 
-#### Staff Review Pages (v1.1.0)
-- **HITL Review Queue**: Staff dashboard for reviewing AI-proposed enrichments
-- **Evidence Panel**: Source attribution and confidence scoring for proposed changes
-- **Bulk Approval**: Batch processing for high-confidence enrichments
-- **Conflict Resolution**: Side-by-side comparison of conflicting source data
+    class AGC,APIM primary
+    class UI,CRUD,CRM,ECOM,INV,LOG,PM,TRUTH,SEARCH secondary
+    class REDIS,COSMOS,BLOB,AISEARCH,FOUNDRY,EVENTHUB data
+```
 
-### Core Framework (lib/)
+---
 
-The micro-framework delivers standardized patterns for:
+## Agentic vs. Traditional Microservices: Why It Matters
 
-#### Adapters
-- **Purpose**: Expose retail system APIs through standardized interfaces
-- **Value**: Plug-and-play integration with inventory, pricing, CRM, funnel management
-- **Pattern**: Adapter design pattern for consistent agent consumption
-- **Expected Use**: Retailers override adapters to connect their own APIs
-- **Not Expected**: Direct database access; adapters mediate all data
+| Dimension | Traditional Microservices | Holiday Peak Hub (Agentic) | Business Impact |
+|---|---|---|---|
+| **Decision Making** | Static if/else chains | Dynamic LLM-driven planning per request | Handles novel scenarios without code deployment |
+| **Error Recovery** | Fixed retry policies (Saga) | Adaptive fallback + self-healing kernel | 40% fewer manual interventions |
+| **Personalization** | Batch-computed segments | Real-time three-tier memory context | 2-3x conversion uplift |
+| **Coordination** | Orchestrator or event bus | MCP agent-to-agent + Event Hub choreography | Emergent capabilities without central bottleneck |
+| **Cost Efficiency** | Fixed resource allocation | SLM-first routing (GPT-5-nano $0.0001/call) | 70-85% inference cost reduction vs. LLM-only |
+| **Change Velocity** | Code -> CI/CD -> deploy | Prompt + knowledge updates (fast) | Hours instead of days for behavior changes |
+| **Observability** | Request traces on fixed paths | Decision logging with reasoning capture | Full auditability for compliance |
 
-#### Enterprise Connectors (v1.1.0)
-- **Purpose**: Production-ready integrations with major enterprise platforms
-- **Value**: Pre-built connectors reduce 80% of integration effort
-- **Included Connectors**:
-  - **Oracle Fusion Cloud SCM**: Inventory, Purchase Orders, Shipments (OAuth 2.0 + JWKS)
-  - **Salesforce CRM & Marketing Cloud**: Contacts, Accounts, Leads, Campaigns (OAuth 2.0 + refresh)
-  - **SAP S/4HANA**: Material master, inventory positions, purchase orders (OData v4)
-  - **Dynamics 365 Customer Engagement**: Contacts, Accounts, Opportunities, Cases (Dataverse API)
-  - **Generic REST DAM**: Configurable endpoint mapping for any DAM system
-- **Pattern**: Connector Registry with factory-based instantiation
-- **Expected Use**: Configure credentials and field mappings; connectors handle protocol complexity
-- **Not Expected**: Building raw API integrations; connectors abstract all transport details
+---
 
-#### Enterprise Hardening (v1.1.0)
-- **Purpose**: Production-grade resilience patterns for high-availability deployments
-- **Included Patterns**:
-  - **Circuit Breaker**: Configurable failure threshold and recovery timeout, half-open state with gradual recovery
-  - **Bulkhead Pattern**: Semaphore-based resource isolation, per-service concurrency limits
-  - **Rate Limiter**: Token bucket algorithm with configurable burst and replenishment
-  - **Telemetry Integration**: OpenTelemetry spans and metrics, automatic trace propagation
-  - **Health Probes**: Kubernetes liveness/readiness endpoints with dependency health aggregation
-- **Value**: 99.9% uptime SLA enablement, automatic failure isolation, graceful degradation
-- **Pattern**: Decorator-based application with configuration-driven thresholds
-- **Expected Use**: Apply decorators to external API calls; configure per-service limits
-- **Not Expected**: Building custom resilience logic; patterns are production-tested
+## Service Inventory (28 Deployable Units)
 
-#### Agents
-- **Purpose**: Orchestrate AI-driven operations with multi-tier memory
-- **Value**: Reusable agent scaffolding with Builder pattern for memory configuration
-- **Pattern**: Builder for memory setup, dependency injection for flexibility
-- **Expected Use**: Retailers extend agents with custom tools and models
-- **Not Expected**: Hardcoded business logic; agents are orchestration templates
+### Transactional Core (1 Service)
 
-#### Memory Management
-- **Purpose**: Three-tier storage (hot/warm/cold) for agent state and history
-- **Value**: Optimized latency/cost trade-offs; Redis for millisecond access, Cosmos for session continuity, Blob for archival
-- **Pattern**: Tiered caching with SDK-based implementations
-- **Expected Use**: Automatic tier selection based on access patterns
-- **Not Expected**: Manual tier management; framework handles promotion/demotion
+| Service | Purpose | Endpoints |
+|---|---|---|
+| `crud-service` | Order capture, payment, inventory CRUD, returns lifecycle | REST for Frontend + Agents; publishes to Event Hubs |
 
-#### Product Truth Layer (v1.1.0)
-- **Purpose**: Single source of truth for product data with AI-driven enrichment
-- **Components**:
-  - **Truth Store Adapter**: Cosmos DB-backed storage with provenance tracking
-  - **Truth Schemas**: Pydantic v2 models for TruthAttribute, ProposedAttribute, GapReport, AuditEvent
-  - **Truth Ingestion**: Event Hub-driven ingestion with multi-source conflict resolution
-  - **HITL Review**: Human-in-the-loop workflow for AI enrichment approval
-  - **PIM Writeback**: Opt-in module for pushing approved changes back to source PIMs
-- **Value**: 95%+ attribute coverage goal, complete audit trail, AI-assisted gap filling
-- **Pattern**: Event-driven pipeline with configurable approval workflows
-- **Expected Use**: Configure tenant settings, define category schemas, monitor enrichment queues
-- **Not Expected**: Manual data entry; system identifies and proposes enrichments automatically
+### Agent Services (26 Services)
 
-### Domain Services (apps/)
+| Domain | Services | Bounded Context |
+|---|---|---|
+| **E-commerce** | `catalog-search`, `product-detail-enrichment`, `cart-intelligence`, `checkout-support`, `order-status` | Product discovery -> purchase -> post-order |
+| **CRM** | `profile-aggregation`, `segmentation-personalization`, `campaign-intelligence`, `support-assistance` | Customer identity -> engagement -> retention |
+| **Inventory** | `health-check`, `jit-replenishment`, `reservation-validation`, `alerts-triggers` | Stock visibility -> replenishment -> allocation |
+| **Logistics** | `carrier-selection`, `eta-computation`, `returns-support`, `route-issue-detection` | Fulfillment -> tracking -> reverse logistics |
+| **Product Management** | `normalization-classification`, `acp-transformation`, `consistency-validation`, `assortment-optimization` | Onboarding -> standardization -> merchandising |
+| **Truth Layer** | `truth-ingestion`, `truth-enrichment`, `truth-hitl`, `truth-export` | Data ingestion -> AI enrichment -> approval -> syndication |
+| **Search** | `search-enrichment-agent` | Background catalog enrichment for AI Search index |
 
-Each app addresses a specific retail process:
+### Frontend (1 Application)
 
-#### E-commerce
-- **Catalog Search**: Sub-3s product discovery with vector+hybrid search
-- **Product Detail Enrichment**: ACP-compliant metadata augmentation
-- **Cart Intelligence**: Real-time personalization and abandonment prevention
-- **Checkout Support**: Allocation validation and dynamic pricing
-- **Order Status**: Proactive updates and issue detection
+| App | Stack | Components |
+|---|---|---|
+| `ui` | Next.js 15, React 19, TypeScript 5.7, Tailwind CSS | 52 atomic design components; 14 pages (7 public + 7 admin) |
 
-**Business Value**: Reduced cart abandonment, improved conversion, higher order values through intelligent upsell/cross-sell.
+---
 
-#### Product Management
-- **Normalization/Classification**: Automated taxonomy alignment
-- **ACP Transformation**: Standards-compliant catalog export
-- **Consistency Validation**: Real-time data quality checks
-- **Assortment Optimization**: ML-driven SKU mix recommendations
+## Core Framework (lib/)
 
-**Business Value**: Reduced manual curation effort, improved catalog quality, faster time-to-market for new products.
+The shared library provides standardized building blocks:
 
-#### Customer Relationship Management
-- **Profile Aggregation**: Unified customer view across channels
-- **Segmentation/Personalization**: Dynamic cohort building and targeting
-- **Campaign Intelligence**: ROI-optimized marketing automation
-- **Support Assistance**: Agent-augmented customer service
+| Module | Pattern | Value |
+|---|---|---|
+| **BaseRetailAgent** | Template Method + Strategy | Agent scaffolding with complexity assessment, model routing, memory binding |
+| **AgentBuilder** | Builder | Compose agents with memory tiers, routing strategies, model targets |
+| **FoundryAgentConfig** | Configuration Object | Connect to Azure AI Foundry with SLM/LLM dual-model setup |
+| **Three-Tier Memory** | Tiered Cache | Hot (Redis <50ms) -> Warm (Cosmos DB sessions) -> Cold (Blob archival) |
+| **MCP Server** | FastAPIMCPServer | Agent-to-agent structured data exchange |
+| **Enterprise Connectors** | Adapter + Registry | Oracle Fusion, Salesforce, SAP S/4HANA, Dynamics 365, Generic REST DAM |
+| **Resilience Patterns** | Decorator | Circuit breaker, bulkhead, rate limiter, health probes |
+| **Self-Healing Kernel** | Observer | Autonomous recovery from transient failures |
+| **Product Truth Layer** | Event Sourcing | AI-driven enrichment with HITL approval and provenance tracking |
+| **Enrichment Guardrails** | Chain of Responsibility | Source validation, confidence thresholds, hallucination detection |
 
-**Business Value**: Increased marketing effectiveness, reduced support costs, higher customer lifetime value.
-
-#### Inventory Management
-- **Health Check**: Predictive stock-out alerts
-- **JIT Replenishment**: Demand-sensing reorder triggers
-- **Reservation Validation**: Real-time allocation locking
-- **Alerts/Triggers**: Exception-based notifications
-
-**Business Value**: Reduced overstock/understock, improved cash flow, minimized lost sales.
-
-#### Logistics
-- **ETA Computation**: Real-time delivery predictions
-- **Carrier Selection**: Cost/speed trade-off optimization
-- **Returns Support**: Reverse logistics automation
-- **Route Issue Detection**: Proactive delay mitigation
-
-**Business Value**: Lower shipping costs, improved delivery reliability, enhanced customer satisfaction.
-
-### Governance Framework (docs/governance/)
-
-**Comprehensive compliance and standards documentation**:
-
-#### Frontend Governance
-- **Purpose**: Ensure consistent, secure, performant frontend development
-- **Value**: Mandatory standards for Next.js, React, TypeScript covering code style, component patterns, testing, security
-- **Scope**: ESLint 7, atomic design, state management, AG-UI/ACP compliance, authentication, 80% test coverage
-- **Expected Use**: All frontend developers follow these standards; automated enforcement via CI/CD
-- **Not Expected**: Deviation from standards without architecture approval
-
-#### Backend Governance
-- **Purpose**: Standardize Python backend development across all 21 services
-- **Value**: PEP 8 compliance, architecture patterns, agent development, security, testing requirements
-- **Scope**: Python 3.13, FastAPI, async patterns, adapter/builder patterns, memory management, ACP schemas
-- **Expected Use**: All backend developers follow these standards; automated linting and type checking
-- **Not Expected**: Synchronous code, global state, hardcoded credentials
-
-#### Infrastructure Governance
-- **Purpose**: Ensure secure, cost-effective, compliant infrastructure operations
-- **Value**: Bicep standards, AKS best practices, security policies, DR procedures, cost management
-- **Scope**: Infrastructure as Code, Azure services, Kubernetes, monitoring, compliance (SOC 2, GDPR, PCI DSS)
-- **Expected Use**: All infrastructure changes via Bicep; automated validation in CI/CD pipeline
-- **Operational Gate**: Required CI smoke/health checks are deterministic and fail on transport errors or non-200 responses, with transport failures normalized as hard failures; advisory diagnostics are separated from required gates and permissive commands are limited to non-gating diagnostics/cleanup
-- **Not Expected**: Manual Azure Portal changes, untagged resources, public endpoints
-
-**Business Value**: Reduces onboarding time by 60%, ensures consistent quality across teams, minimizes security risks, facilitates compliance audits, enables automated enforcement.
+---
 
 ## Business Outcomes
 
 ### Accelerated Time-to-Market
-- **Complete Frontend**: 14 production-ready pages eliminate 4-6 months of UI development
-- **52 Components**: Atomic design library provides instant UI scaffolding
-- **Governance**: Pre-defined standards accelerate team onboarding by 60%
-- **End-to-End**: Full-stack solution from frontend to infrastructure reduces integration effort by 70%
 
-### Cost Control
-- **Memory Optimization**: Tiered storage reduces Redis spend by ~70% vs. all-hot
-- **API Efficiency**: Event-driven choreography minimizes polling overhead
-- **Infrastructure**: AKS with KEDA auto-scaling aligns spend with demand
-- **Development Efficiency**: Reusable components and patterns reduce custom development costs by 50%
+| Metric | Without Accelerator | With Accelerator |
+|---|---|---|
+| Full-stack deployment | 6-9 months | 4-8 weeks |
+| Frontend development | $200K-$300K | $0 (provided) |
+| Backend services | $300K-$450K | $0 (26 agents provided) |
+| Infrastructure setup | $80K-$120K | $0 (Bicep + Helm provided) |
+| **Total build cost** | **$800K-$1.2M** | **$150K-$250K** (customization only) |
 
-### Marketing Effectiveness
-- **Personalization**: Campaign Intelligence app increases CTR by enabling dynamic segmentation
-- **Timing**: Real-time profile aggregation ensures up-to-date targeting
+### Operational Efficiency
 
-### Cart Abandonment Reduction
-- **Intelligence**: Cart app detects abandonment signals and triggers interventions
-- **Checkout**: Streamlined multi-step checkout with real-time validation
-- **User Experience**: Sub-3s page loads and optimized checkout flow reduce friction by 40%
-- **Agent Support**: AG-UI Protocol enables AI shopping assistants to help users complete purchases
+| Capability | Mechanism | Impact |
+|---|---|---|
+| Memory cost optimization | Three-tier storage auto-promotion/demotion | ~70% reduction vs. all-hot |
+| Inference cost control | SLM-first routing (GPT-5-nano) with LLM upgrade on demand | 70-85% savings vs. LLM-only |
+| Auto-scaling | KEDA event-driven scaling on AKS | Spend aligned to demand |
+| Event choreography | Event Hub pub/sub replaces polling | Eliminates wasteful API calls |
 
-### Allocation Optimization
-- **JIT Replenishment**: Reduces excess inventory carrying costs
-- **Reservation Validation**: Prevents overselling and customer dissatisfaction
+### Revenue Impact (Modeled for $50M Annual Revenue Retailer)
 
-### Latency Target
-- **3–5 Second Goal**: Achieved through:
-  - Redis hot memory for sub-50ms cache hits
-  - Parallel adapter calls with timeout safeguards
-  - SLM routing for low-complexity queries (vs. LLM overhead)
-  - Evaluation harness to identify bottlenecks per retailer
-  - Frontend optimization: Next.js ISR, image optimization, code splitting
-  - TanStack Query caching reduces redundant API calls by 80%
+| Driver | Mechanism | Estimated Annual Impact |
+|---|---|---|
+| Conversion rate (+2-3%) | AI search + personalized recommendations | $1M-$1.5M |
+| AOV increase (+8-12%) | Cart intelligence + contextual upsell | $4M-$6M |
+| Retention improvement (+10-15%) | CRM 360 + proactive engagement | $5M-$7.5M |
+| **Total revenue uplift** | | **$10M-$15M** |
 
-### Agent Interoperability
-- **AG-UI Protocol**: AI agents can observe state and trigger actions programmatically
-- **ACP Compliance**: Standardized product data enables seamless agent integration
-- **Action Registry**: 50+ agent-callable actions across all pages
-- **State Exposure**: Real-time application state available to agents for context-aware assistance
+<!-- TODO: verify against production metrics -->
+
+---
+
+## Non-Functional Requirements
+
+| Requirement | Target | Mechanism |
+|---|---|---|
+| Availability | 99.9% SLA | Circuit breakers, bulkheads, multi-replica AKS, health probes |
+| Search latency | <1.2s p95 | Azure AI Search + Redis query cache + SLM routing |
+| Order confirmation | <5s p95 | CRUD direct path + reservation lock + async agent enrichment |
+| Enrichment throughput | 50K products/month (mid-market) | Event Hub parallelism + autoscale Cosmos DB RUs |
+| Compliance | SOC 2, GDPR, PCI DSS, EU AI Act | Governance framework + audit trails + HITL enforcement |
+| Test coverage | >=75% (current: 89%) | pytest + pytest-asyncio; 1,796 tests |
+| Scaling | 10K->100K concurrent users | KEDA HPA + node auto-provisioning + Redis cluster mode |
+
+---
 
 ## Scope Boundaries
 
-### What IS Included
-- **Production-ready frontend**: 14 pages (Next.js 15, React 19, TypeScript 5.7)
-- **52-component library**: Atomic design system with full documentation
-- **AG-UI Protocol integration**: Complete agent interoperability layer
-- **ACP frontend compliance**: Product data transformation and validation
-- **Authentication system**: JWT-based auth with RBAC (7 roles)
-- **21 backend microservices**: FastAPI services across 5 domains
-- **Modular adapter interfaces** for plugging in retailer systems
-- **Agent orchestration templates** with memory management
-- **Mock implementations** for rapid prototyping
-- **Evaluation harnesses** for latency/quality validation
-- **Bicep templates** for full Azure stack provisioning
-- **Helm charts** with canary deployment + KEDA scaling
-- **CI/CD pipelines** for lint, test, and container publishing
-- **Comprehensive governance**: Frontend, backend, and infrastructure standards (800+ pages)
-- **20 Architecture Decision Records (ADRs)**: Documented decisions with rationale
-- **Complete documentation**: Architecture, components, operational playbooks
+### Included
 
-### What is NOT Included
-- **Production-grade ML models**: Retailers supply their own personalization/allocation models (framework provided)
-- **Retailer-specific API clients**: Adapters provide interfaces; implementation is per-retailer
-- **Custom branding**: Frontend includes default styling; retailers customize for their brand
-- **Production data**: Sample datasets included; production data ingestion is retailer-scoped
-- **Retailer-specific business rules**: Framework provided; business logic is per-retailer
-- **Third-party integrations**: Payment processors, shipping carriers, marketing tools are retailer-owned
-- **Custom compliance requirements**: SOC 2, GDPR, PCI DSS frameworks provided; specific certifications are retailer-scoped
+- 26 production-ready agent services (FastAPI, Python 3.13, MAF >=1.0.1)
+- 1 transactional CRUD service (orders, payments, inventory, returns)
+- Next.js 15 storefront with 52 atomic design components and 14 pages
+- AG-UI Protocol integration (agent-observable UI state)
+- ACP (Agentic Commerce Protocol) compliance for product data
+- JWT + RBAC authentication (7 roles)
+- Full Bicep IaC + Helm charts + Flux GitOps configuration
+- CI/CD pipelines (lint, test, build, deploy)
+- Comprehensive governance (frontend, backend, infrastructure - 800+ pages)
+- 20 Architecture Decision Records (ADRs)
 
-## Financial Impact for Retailers
+### Not Included (Retailer-Owned)
 
-### Development Cost Savings
+- Production ML models (framework + adapters provided)
+- Retailer-specific API client implementations
+- Custom branding and UX customization
+- Production data ingestion pipelines
+- Third-party payment/shipping integrations (interfaces provided)
+- Specific compliance certifications (frameworks provided)
 
-**Traditional Build Cost**: $800K - $1.2M over 6-9 months
-- Frontend development (14 pages): $200K - $300K
-- Component library (52 components): $100K - $150K
-- Backend services (21 microservices): $300K - $450K
-- Infrastructure setup: $80K - $120K
-- Architecture and governance: $120K - $180K
-
-**With Holiday Peak Hub**: $150K - $250K over 4-8 weeks
-- Adapter implementation: $80K - $120K
-- Business logic customization: $40K - $70K
-- Branding and styling: $20K - $40K
-- Testing and deployment: $10K - $20K
-
-**Net Savings**: $650K - $950K (81-83% reduction in development costs)
-
-### Operational Efficiency Gains
-
-**Year 1 Operational Impact**:
-
-| Metric | Without Accelerator | With Accelerator | Annual Savings |
-|--------|-------------------|------------------|----------------|
-| Infrastructure costs | $240K/year | $72K/year | **$168K** (70% reduction via tiered memory) |
-| Development team size | 8-12 FTEs | 3-5 FTEs | **$420K-$700K** (maintaining vs. building) |
-| Time to market | 6-9 months | 4-8 weeks | **$500K-$1.5M** (opportunity cost) |
-| Customer support costs | $180K/year | $108K/year | **$72K** (40% reduction via agent assistance) |
-
-**Total Year 1 Savings**: $1.16M - $2.44M
-
-### Revenue Impact
-
-**Conversion Rate Improvement**:
-- **Cart abandonment reduction**: 15-25% decrease
-- **Average order value increase**: 8-12% via intelligent recommendations
-- **Customer retention improvement**: 10-15% via personalization
-
-**Example Retailer ($50M annual revenue)**:
-- Conversion rate improvement (2-3%): **$1M - $1.5M additional revenue**
-- Average order value increase (8-12%): **$4M - $6M additional revenue**
-- Customer retention improvement (10-15%): **$5M - $7.5M additional revenue**
-
-**Total Annual Revenue Impact**: $10M - $15M (20-30% revenue growth)
-
-### Return on Investment (ROI)
-
-**Total Investment**: $150K - $250K (implementation) + $72K (Year 1 infrastructure)
-= **$222K - $322K**
-
-**Total Year 1 Benefit**:
-- Cost savings: $1.16M - $2.44M
-- Revenue impact: $10M - $15M
-= **$11.16M - $17.44M**
-
-**Year 1 ROI**: **4,900% - 5,400%**
-
-**Payback Period**: **2-4 weeks**
-
-### Long-Term Financial Benefits (3-Year Projection)
-
-| Year | Cost Savings | Revenue Impact | Cumulative Benefit |
-|------|--------------|----------------|--------------------|
-| Year 1 | $1.16M - $2.44M | $10M - $15M | **$11.16M - $17.44M** |
-| Year 2 | $1.5M - $2.8M | $12M - $18M | **$24.66M - $38.24M** |
-| Year 3 | $1.8M - $3.2M | $14M - $21M | **$40.46M - $62.44M** |
-
-**3-Year Total Benefit**: **$40.46M - $62.44M**
-
-**3-Year ROI**: **18,000% - 19,400%**
-
-### Competitive Advantages
-
-**Speed to Market**:
-- **5-8 months faster** than building from scratch
-- First-mover advantage in AI-powered retail
-- Rapid iteration and feature deployment
-
-**Quality and Reliability**:
-- Production-ready code with 635 tests and 85%+ coverage
-- WCAG 2.1 AA accessibility compliance
-- SOC 2, GDPR, PCI DSS frameworks included
-- Proven architecture patterns
-- Enterprise-grade resilience (circuit breaker, bulkhead, rate limiter)
-
-**Future-Proofing**:
-- **AG-UI Protocol**: Ready for AI assistant ecosystem
-- **ACP Compliance**: Interoperable with third-party agents
-- **Modular Architecture**: Easy to extend and customize
-- **Cloud-Native**: Scalable from day one
-- **Product Truth Layer**: AI-driven catalog enrichment with HITL review
-- **Enterprise Connectors**: Pre-built integrations for Oracle, Salesforce, SAP, Dynamics 365
-
-### Risk Mitigation
-
-**Avoided Risks** (valued at $500K - $2M in potential losses):
-- Architecture mistakes requiring rewrites
-- Security vulnerabilities and data breaches
-- Performance issues under load
-- Accessibility lawsuits (WCAG non-compliance)
-- Compliance audit failures
-- Technical debt accumulation
-
-## Complexity Assessment
-
-**Low-to-Moderate** (Previously Moderate): v1.1.0 brings enterprise-ready integrations and hardening:
-
-- **Frontend Development**: Eliminated (14 pages provided)
-- **Component Library**: Eliminated (52 components provided)
-- **Authentication/RBAC**: Implemented (JWT + 7 roles)
-- **AG-UI Integration**: Implemented (action registry + state exposure)
-- **ACP Compliance**: Implemented (schemas + validators)
-- **Governance Standards**: Documented (frontend, backend, infrastructure)
-- **Enterprise Connectors**: Production-ready (Oracle, Salesforce, SAP, Dynamics 365)
-- **Resilience Patterns**: Implemented (circuit breaker, bulkhead, rate limiter)
-- **Product Truth Layer**: Foundation complete (schemas, adapters, ingestion)
-- **HITL Workflows**: Implemented (review queue, bulk approval, conflict resolution)
-- **Remaining Effort**: Connector credential configuration, business rule customization, branding
-
-**Estimated Timeline**:
-- **With Accelerator**: 4-8 weeks (adapter integration + customization)
-- **Without Accelerator**: 6-9 months (from scratch)
-- **Time Savings**: 5-8 months of development effort eliminated
+---
 
 ## Target Market
 
-- **Ideal Customer Profile**: Mid-market to enterprise retailers ($50M+ annual revenue)
-- **Industry Segments**: Fashion, electronics, home goods, sporting goods, general merchandise
-- **Technical Maturity**: Retailers with existing e-commerce platforms seeking AI augmentation
-- **Geographic Focus**: Global (multi-region Azure deployment supported)
-- **Deployment Model**: Cloud-native (Azure), with hybrid options for legacy integration
+| Dimension | Profile |
+|---|---|
+| **Revenue** | Mid-market to enterprise retailers ($50M+ annual revenue) |
+| **Segments** | Fashion, electronics, home goods, sporting goods, general merchandise |
+| **Technical maturity** | Existing e-commerce platform seeking AI augmentation |
+| **Cloud posture** | Azure-first or multi-cloud with Azure as primary |
+| **Deployment** | Cloud-native AKS; hybrid options for legacy integration |
+| **Geography** | Global (multi-region Azure deployment supported) |
+
+---
+
+## Related Documentation
+
+- [Business Scenarios Portfolio](../business_scenarios/README.md) - Eight value streams with executive flows
+- [Competitive Intelligence](../business_scenarios/competitive-intelligence-enrichment-search.md) - Market positioning vs. Salsify, Bloomreach, Constructor.io
+- [Cost-Benefit Model](../business_scenarios/cost-benefit-enrichment-search.md) - ROI/NPV analysis for enrichment + search
+- [Risk Assessment](../business_scenarios/risk-assessment-enrichment-search.md) - 28-risk register with mitigation strategies
+- [Architecture ADRs](../architecture/) - Decision records with rationale
+- [Implementation Roadmap](../IMPLEMENTATION_ROADMAP.md) - Phased delivery plan

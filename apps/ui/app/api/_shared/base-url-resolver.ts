@@ -195,10 +195,17 @@ export function resolveAgentApiBaseUrl(env?: EnvMap): ResolutionResult {
 }
 
 function inferRuntimeKind(env: EnvMap = process.env): RuntimeKind {
-  if (env.NODE_ENV === 'test' || typeof env.JEST_WORKER_ID === 'string') {
+  // When NODE_ENV is explicitly set to development or production we honor that
+  // intent even under jest, so tests can simulate browser/server runtime by
+  // setting NODE_ENV. Only fall back to JEST_WORKER_ID detection when NODE_ENV
+  // is unset or already declares the test runtime.
+  const nodeEnv = env.NODE_ENV;
+  if (nodeEnv === 'test') {
     return 'test';
   }
-
+  if (!nodeEnv && typeof env.JEST_WORKER_ID === 'string') {
+    return 'test';
+  }
   return typeof window === 'undefined' ? 'server' : 'browser';
 }
 

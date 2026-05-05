@@ -5,12 +5,7 @@ import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import Link from 'next/link';
 import { AgentProfileDrawer, type AgentProfileLiveMetrics } from '@/components/demo/AgentProfileDrawer';
-import { EvaluationTrendChart } from '@/components/admin/EvaluationTrendChart';
-import { ModelUsageTable } from '@/components/admin/ModelUsageTable';
-import { PipelineFlowDiagram } from '@/components/admin/PipelineFlowDiagram';
-import { TraceWaterfall } from '@/components/admin/TraceWaterfall';
 import { AgentRobot } from '@/components/organisms/AgentRobot';
-import { RobotScatterIntro } from '@/components/organisms/RobotScatterIntro';
 import { MainLayout } from '@/components/templates/MainLayout';
 import type { Product as UiProduct } from '@/components/types';
 import { useAuth } from '@/contexts/AuthContext';
@@ -45,6 +40,29 @@ type CustomerPerspective = {
   heading: string;
   summary: string;
   telemetry: TelemetrySnapshot;
+};
+
+type ExecutiveKpi = {
+  label: string;
+  value: string;
+  detail: string;
+};
+
+type AzureFabricCapability = {
+  name: string;
+  role: string;
+};
+
+type AgentWorkloadGroup = {
+  label: string;
+  count: string;
+  detail: string;
+};
+
+type RecommendationPipelineStep = {
+  label: string;
+  owner: string;
+  detail: string;
 };
 
 const CUSTOMER_360_REQUESTS = [
@@ -85,6 +103,156 @@ const FALLBACK_TELEMETRY: TelemetrySnapshot = {
   latency: 'Latency pending',
 };
 
+const NUMBER_FORMATTER = new Intl.NumberFormat('en-US');
+
+const EXECUTIVE_KPIS: ExecutiveKpi[] = [
+  {
+    label: 'Conversion lift',
+    value: '+35%',
+    detail: 'Search-to-product CTR from grounded discovery and reasoned product cards.',
+  },
+  {
+    label: 'Customer confidence',
+    value: '+18 pts',
+    detail: 'NPS proxy from evidence, promise checks, and support-aware recommendations.',
+  },
+  {
+    label: 'Revenue per session',
+    value: '+8-12%',
+    detail: 'Next-best bundles, cart rescue, and fulfillment-aware ranking working together.',
+  },
+  {
+    label: 'Revenue per platform dollar',
+    value: '3.8x',
+    detail: 'SLM-first routing with LLM escalation only when the decision needs richer reasoning.',
+  },
+];
+
+const AZURE_FABRIC: AzureFabricCapability[] = [
+  { name: 'Azure AI Foundry', role: 'Agent routing, model governance, and evaluation loops' },
+  { name: 'Azure AI Search', role: 'Hybrid retrieval over product truth and intent signals' },
+  { name: 'API Management', role: 'Governed REST facade for UI, services, and partners' },
+  { name: 'Event Hubs', role: 'Async retail events for projections and agent handoffs' },
+  { name: 'Cosmos DB + Redis + Blob', role: 'Warm, hot, and cold memory for stateful intelligence' },
+  { name: 'Azure Monitor', role: 'Traces, cost, quality, and business-readiness evidence' },
+];
+
+const AGENT_WORKLOAD_GROUPS: AgentWorkloadGroup[] = [
+  { label: 'Product Truth', count: '8 agents', detail: 'Product IQ, enrichment, graph, review, and export readiness.' },
+  { label: 'Customer IQ', count: '4 agents', detail: 'Profile, preference, campaign, consent-aware support context.' },
+  { label: 'Discovery + RecommenderIQ', count: '3 agents', detail: 'Search, recommendation-agent, and product detail enrichment.' },
+  { label: 'Revenue Guardrails', count: '4 agents', detail: 'Cart, checkout, reservation, and order status assurance.' },
+  { label: 'Operations Promise', count: '7 agents', detail: 'Inventory, logistics, returns, route, ETA, and carrier signals.' },
+];
+
+const RECOMMENDATION_PIPELINE: RecommendationPipelineStep[] = [
+  {
+    label: 'Candidate set',
+    owner: 'Product IQ + search-enrichment-agent',
+    detail: 'Find products that are grounded in catalog truth, inventory posture, and shopper intent.',
+  },
+  {
+    label: 'Classical ML rank',
+    owner: 'recommendation-agent',
+    detail: 'Score relevance, margin, availability, novelty, and policy constraints on the hot path.',
+  },
+  {
+    label: 'Experience compose',
+    owner: 'ecommerce-catalog-search',
+    detail: 'Render reason codes, evidence, confidence, and next actions in the customer journey.',
+  },
+  {
+    label: 'Feedback loop',
+    owner: 'Azure ML + MLflow lifecycle',
+    detail: 'Track outcomes, drift, model stages, and rollback readiness without coupling the UI to the model.',
+  },
+];
+
+// No GoF pattern applies - static fallback data keeps first paint independent from live APIs.
+const FALLBACK_PRODUCTS: UiProduct[] = [
+  {
+    sku: 'demo-carry-on-pro',
+    title: 'AeroFlex Pro Carry-On',
+    description: 'Premium carry-on luggage for short business trips.',
+    brand: 'AeroFlex',
+    category: 'Travel',
+    price: 229,
+    currency: 'USD',
+    images: ['/images/products/p1.jpg'],
+    thumbnail: '/images/products/p1.jpg',
+    rating: 4.8,
+    reviewCount: 128,
+    inStock: true,
+    tags: ['travel', 'business', 'carry-on'],
+  },
+  {
+    sku: 'demo-weekender-kit',
+    title: 'Executive Weekender Kit',
+    description: 'A compact travel bundle with organized compartments.',
+    brand: 'Northline',
+    category: 'Travel Accessories',
+    price: 149,
+    currency: 'USD',
+    images: ['/images/products/p2.jpg'],
+    thumbnail: '/images/products/p2.jpg',
+    rating: 4.7,
+    reviewCount: 94,
+    inStock: true,
+    tags: ['bundle', 'travel', 'organization'],
+  },
+  {
+    sku: 'demo-noise-cancel-headset',
+    title: 'QuietRoute Travel Headset',
+    description: 'Noise-canceling audio for flights and focused work.',
+    brand: 'QuietRoute',
+    category: 'Electronics',
+    price: 189,
+    currency: 'USD',
+    images: ['/images/products/p3.jpg'],
+    thumbnail: '/images/products/p3.jpg',
+    rating: 4.6,
+    reviewCount: 212,
+    inStock: true,
+    tags: ['audio', 'business', 'travel'],
+  },
+];
+
+const EvaluationTrendChart = dynamic(
+  () => import('@/components/admin/EvaluationTrendChart').then((module) => module.EvaluationTrendChart),
+  {
+    ssr: false,
+    loading: () => <div className="h-[18.75rem] rounded-xl border border-white/10 bg-black/15" />,
+  },
+);
+
+const ModelUsageTable = dynamic(
+  () => import('@/components/admin/ModelUsageTable').then((module) => module.ModelUsageTable),
+  {
+    ssr: false,
+    loading: () => <div className="h-64 rounded-xl border border-white/10 bg-black/15" />,
+  },
+);
+
+const PipelineFlowDiagram = dynamic(
+  () => import('@/components/admin/PipelineFlowDiagram').then((module) => module.PipelineFlowDiagram),
+  {
+    ssr: false,
+    loading: () => <div className="h-56 rounded-xl border border-white/10 bg-black/15" />,
+  },
+);
+
+const TraceWaterfall = dynamic(
+  () => import('@/components/admin/TraceWaterfall').then((module) => module.TraceWaterfall),
+  {
+    ssr: false,
+    loading: () => <div className="h-56 rounded-xl border border-white/10 bg-black/15" />,
+  },
+);
+
+function DeferredPanel({ heightClass = 'h-56' }: { heightClass?: string }) {
+  return <div className={`${heightClass} rounded-xl border border-white/10 bg-black/15`} />;
+}
+
 const ProductGraphCanvas = dynamic(
   () => import('@/components/organisms/ProductGraphCanvas').then((module) => module.ProductGraphCanvas),
   {
@@ -117,6 +285,13 @@ function formatCurrency(value: number | null | undefined, decimals = 2): string 
   return `$${value.toFixed(decimals)}`;
 }
 
+function formatInteger(value: number | null | undefined): string {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return '0';
+  }
+  return NUMBER_FORMATTER.format(Math.round(value));
+}
+
 function formatPercent(value: number | null | undefined, decimals = 0): string {
   if (typeof value !== 'number' || Number.isNaN(value)) {
     return 'n/a';
@@ -139,7 +314,7 @@ function formatTelemetryTokens(value: number | null | undefined): string {
     return 'Tokens pending';
   }
 
-  return `${Math.round(value).toLocaleString()} tokens`;
+  return `${formatInteger(value)} tokens`;
 }
 
 function formatTelemetryCost(value: number | null | undefined): string {
@@ -296,9 +471,6 @@ function heroRobotState(query: string, isStreaming: boolean, answerText: string)
   | 'idle'
   | 'thinking'
   | 'talking' {
-  if (query.trim().length < 3) {
-    return 'idle';
-  }
   if (isStreaming && answerText.length === 0) {
     return 'thinking';
   }
@@ -312,7 +484,7 @@ function sampleProducts(products: UiProduct[], streamed: UiProduct[]): UiProduct
   if (streamed.length > 0) {
     return streamed.slice(0, 3);
   }
-  return products.slice(0, 3);
+  return (products.length > 0 ? products : FALLBACK_PRODUCTS).slice(0, 3);
 }
 
 function buildProfileMetrics(
@@ -332,7 +504,7 @@ function buildProfileMetrics(
       continue;
     }
     if (profile.domain === 'truth-layer' && kpi.id === 'ops-kpi' && pipelineThroughput !== null) {
-      kpiValues[kpi.id] = `${Math.round(pipelineThroughput).toLocaleString()} items / 10m`;
+      kpiValues[kpi.id] = `${formatInteger(pipelineThroughput)} items / 10m`;
       continue;
     }
     if (kpi.id === 'ops-kpi' && matchedCard) {
@@ -444,6 +616,7 @@ function SceneSection({
   title,
   description,
   eyebrow,
+  titleAs = 'h2',
   children,
 }: {
   id: string;
@@ -451,8 +624,11 @@ function SceneSection({
   title: string;
   description: string;
   eyebrow: string;
+  titleAs?: 'h1' | 'h2';
   children: React.ReactNode;
 }) {
+  const TitleTag = titleAs;
+
   return (
     <section
       id={id}
@@ -468,9 +644,9 @@ function SceneSection({
       <div className="relative z-10 w-full space-y-6">
         <div className="max-w-3xl space-y-3">
           <DemoKicker>{eyebrow}</DemoKicker>
-          <h2 className="text-balance text-4xl font-semibold tracking-tight text-white md:text-5xl lg:text-6xl">
+          <TitleTag className="text-balance text-4xl font-semibold tracking-tight text-white md:text-5xl lg:text-6xl">
             {title}
-          </h2>
+          </TitleTag>
           <p className="max-w-3xl text-base leading-8 text-[var(--hp-text-muted)] md:text-lg">
             {description}
           </p>
@@ -540,8 +716,10 @@ function RobotLaunchButton({
 }
 
 export function ExecutiveDemoPage() {
-  const [introComplete, setIntroComplete] = useState(false);
   const [query, setQuery] = useState('show premium carry-on bags for short business trips');
+  const [catalogSignalsEnabled, setCatalogSignalsEnabled] = useState(false);
+  const [truthSignalsEnabled, setTruthSignalsEnabled] = useState(false);
+  const [detailScenesMounted, setDetailScenesMounted] = useState(false);
   const [heroTarget, setHeroTarget] = useState<{ x: number; y: number } | null>(null);
   const [selectedAgentSlug, setSelectedAgentSlug] = useState<AgentProfileSlug | null>(null);
   const [customer360Loading, setCustomer360Loading] = useState(false);
@@ -549,15 +727,59 @@ export function ExecutiveDemoPage() {
   const [selectedScenarioId, setSelectedScenarioId] = useState<string>(SCENARIO_OPTIONS[0].id);
   const [platformTelemetryEnabled, setPlatformTelemetryEnabled] = useState(false);
   const heroInputRef = useRef<HTMLInputElement>(null);
+  const truthLayerRef = useRef<HTMLDivElement | null>(null);
   const platformTelemetryRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (platformTelemetryEnabled) {
+    const timer = window.setTimeout(() => setDetailScenesMounted(true), 450);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setCatalogSignalsEnabled(true), 1200);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!detailScenesMounted || truthSignalsEnabled) {
+      return undefined;
+    }
+
+    const section = truthLayerRef.current;
+    if (!section) {
+      return undefined;
+    }
+
+    if (typeof IntersectionObserver === 'undefined') {
+      setTruthSignalsEnabled(true);
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setTruthSignalsEnabled(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '560px 0px' },
+    );
+
+    observer.observe(section);
+    return () => observer.disconnect();
+  }, [detailScenesMounted, truthSignalsEnabled]);
+
+  useEffect(() => {
+    if (!detailScenesMounted || platformTelemetryEnabled) {
       return undefined;
     }
 
     const section = platformTelemetryRef.current;
-    if (!section || typeof IntersectionObserver === 'undefined') {
+    if (!section) {
+      return undefined;
+    }
+
+    if (typeof IntersectionObserver === 'undefined') {
       setPlatformTelemetryEnabled(true);
       return undefined;
     }
@@ -574,18 +796,18 @@ export function ExecutiveDemoPage() {
 
     observer.observe(section);
     return () => observer.disconnect();
-  }, [platformTelemetryEnabled]);
+  }, [detailScenesMounted, platformTelemetryEnabled]);
 
   const { isAuthenticated } = useAuth();
-  const { data: categories = [] } = useCategories();
+  const { data: categories = [] } = useCategories(undefined, { enabled: truthSignalsEnabled });
   const { data: cart } = useCart({ enabled: isAuthenticated });
-  const { data: products = [] } = useProducts({ limit: 24 });
+  const { data: products = [] } = useProducts({ limit: 12 }, { enabled: catalogSignalsEnabled });
   const { data: inventoryHealth } = useInventoryHealth({ enabled: isAuthenticated });
   const { data: orders = [] } = useOrders({ enabled: isAuthenticated });
   const { data: returnsFeed = [] } = useReturns({ enabled: isAuthenticated });
-  const { data: truthSummary } = useTruthAnalyticsSummary();
+  const { data: truthSummary } = useTruthAnalyticsSummary({ enabled: truthSignalsEnabled });
   const { data: enrichmentDashboard } = useEnrichmentMonitorDashboard({
-    enabled: platformTelemetryEnabled,
+    enabled: truthSignalsEnabled || platformTelemetryEnabled,
   });
   const { data: monitorDashboard } = useAgentMonitorDashboard(DEFAULT_AGENT_MONITOR_RANGE, {
     enabled: platformTelemetryEnabled,
@@ -602,7 +824,13 @@ export function ExecutiveDemoPage() {
     enabled: platformTelemetryEnabled,
   });
   const { results, answerText, isStreaming, search, cancel } = useStreamingSearch();
-  const uiProducts = useMemo(() => mapApiProductsToUi(products), [products]);
+  const uiProducts = useMemo(
+    () => {
+      const mappedProducts = mapApiProductsToUi(products);
+      return mappedProducts.length > 0 ? mappedProducts : FALLBACK_PRODUCTS;
+    },
+    [products],
+  );
   const { similarities } = useProductSimilarity(uiProducts);
   const displayedProducts = useMemo(
     () => sampleProducts(uiProducts, results?.items ?? []),
@@ -611,7 +839,10 @@ export function ExecutiveDemoPage() {
   const heroProfile = AGENT_PROFILES['ecommerce-catalog-search'];
   const selectedProfile = selectedAgentSlug ? AGENT_PROFILES[selectedAgentSlug] : null;
   const highlightedProduct = displayedProducts[0] ?? uiProducts[0] ?? null;
-  const graphProducts = useMemo(() => uiProducts.slice(0, 18), [uiProducts]);
+  const graphProducts = useMemo(
+    () => (truthSignalsEnabled ? uiProducts.slice(0, 18) : []),
+    [truthSignalsEnabled, uiProducts],
+  );
   const graphSimilarities = useMemo(
     () =>
       similarities.filter(
@@ -700,21 +931,18 @@ export function ExecutiveDemoPage() {
     return () => window.removeEventListener('resize', updateHeroTarget);
   }, [updateHeroTarget]);
 
-  useEffect(() => {
-    if (query.trim().length < 3) {
+  const runRecommendationProof = useCallback(() => {
+    const trimmedQuery = query.trim();
+    if (trimmedQuery.length < 3) {
       cancel();
-      return undefined;
+      return;
     }
 
-    const timer = window.setTimeout(() => {
-      search({
-        query,
-        limit: 6,
-        mode: 'intelligent',
-      });
-    }, 450);
-
-    return () => window.clearTimeout(timer);
+    search({
+      query: trimmedQuery,
+      limit: 6,
+      mode: 'intelligent',
+    });
   }, [cancel, query, search]);
 
   const runCustomer360 = useCallback(async () => {
@@ -771,7 +999,7 @@ export function ExecutiveDemoPage() {
     return {
       tier: formattedHeroInvocationTelemetry?.tier ?? (modelUsage.length > 0 ? tierMixLabel : FALLBACK_TELEMETRY.tier),
       tokens: formattedHeroInvocationTelemetry?.tokens
-        ?? (modelUsageTotalTokens > 0 ? `${modelUsageTotalTokens.toLocaleString()} tokens / recent window` : FALLBACK_TELEMETRY.tokens),
+        ?? (modelUsageTotalTokens > 0 ? `${formatInteger(modelUsageTotalTokens)} tokens / recent window` : FALLBACK_TELEMETRY.tokens),
       cost: formattedHeroInvocationTelemetry?.cost ?? formatTelemetryCost(railCostPerCall),
       latency: formattedHeroInvocationTelemetry?.latency ?? formatTelemetryLatency(heroHealth?.latency_ms ?? railLatency),
     };
@@ -795,67 +1023,107 @@ export function ExecutiveDemoPage() {
 
   return (
     <MainLayout fullWidth showFooter={false}>
-      <RobotScatterIntro onComplete={() => setIntroComplete(true)} />
-
-      <div className="demo-stage h-[calc(100dvh-4.25rem)] overflow-y-auto snap-y snap-mandatory text-[var(--hp-text)]">
+      <div className="demo-stage min-h-[calc(100dvh-4.25rem)] scroll-smooth text-[var(--hp-text)]">
         <SceneSection
           id="hero"
-          accent={heroProfile.accentColor}
-          eyebrow="Shop with AI"
-          title="Find the right product faster, with answers grounded in real catalog data."
-          description="Ask about gifts, travel gear, product details, or delivery timing. The assistant finds real products first, then explains the match in plain language."
+          accent="#38bdf8"
+          eyebrow="Retailer IQ executive cockpit"
+          title="Retailer IQ: Azure operating fabric for agentic retail."
+          titleAs="h1"
+          description="A decoupled intelligence plane where domain agents, classical recommendation models, product truth, and customer context work together without turning every retail service into one tightly coupled monolith."
         >
-          <div className="grid gap-6 @4xl/scene:grid-cols-[minmax(18rem,0.8fr)_minmax(0,1.2fr)] @4xl/scene:items-center">
-            <div className="relative flex min-h-[22rem] items-center justify-center rounded-[2rem] border border-white/10 bg-black/20 px-4 py-6">
-              <div className="absolute inset-x-10 bottom-6 h-20 rounded-full bg-[var(--hp-primary)]/15 blur-3xl" aria-hidden="true" />
-              <div className="absolute left-6 top-6 hidden lg:block">
-                <RobotLaunchButton
-                  slug="crm-profile-aggregation"
-                  size={74}
-                  state="idle"
-                  scenePeer="right"
-                  onOpen={setSelectedAgentSlug}
-                />
-              </div>
-              <RobotLaunchButton
-                slug="ecommerce-catalog-search"
-                size={188}
-                state={heroRobotState(query, isStreaming, answerText)}
-                thinkingMessage={
-                  query.trim().length >= 3
-                    ? isStreaming
-                      ? 'Streaming answer as products and reasoning arrive…'
-                      : answerText
-                        ? 'Answer ready — see the streaming card on the right.'
-                        : 'Press Enter to ask the catalog search agent.'
-                    : 'Type a retail question to wake the catalog search agent.'
-                }
-                streaming={isStreaming}
-                facing="right"
-                pointAt={heroTarget}
-                onOpen={setSelectedAgentSlug}
-              />
-              <div className="absolute bottom-6 right-6 hidden lg:block">
-                <RobotLaunchButton
-                  slug="truth-enrichment"
-                  size={74}
-                  state={introComplete ? 'idle' : 'waving'}
-                  scenePeer="right"
-                  onOpen={setSelectedAgentSlug}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-6">
-              <div className="flex flex-wrap gap-3">
-                <StatPill label="Search p95" value={heroTelemetry.latency} />
-                <StatPill label="Catalog quality" value={catalogQualityLabel} />
-                <StatPill label="Cost / call" value={heroTelemetry.cost} />
+          <div className="grid gap-6 @5xl/scene:grid-cols-[minmax(0,1.05fr)_minmax(22rem,0.95fr)] @5xl/scene:items-start">
+            <div className="space-y-5">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {EXECUTIVE_KPIS.map((kpi) => (
+                  <article key={kpi.label} className="rounded-[1.5rem] border border-white/10 bg-white/6 p-4">
+                    <p className="demo-telemetry text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--hp-text-faint)]">
+                      {kpi.label}
+                    </p>
+                    <p className="mt-2 text-3xl font-semibold text-white">{kpi.value}</p>
+                    <p className="mt-2 text-xs leading-6 text-[var(--hp-text-muted)]">{kpi.detail}</p>
+                  </article>
+                ))}
               </div>
 
               <div className="demo-panel rounded-[2rem] border border-white/10 p-5">
-                <label htmlFor="homepage-search" className="text-sm font-medium text-white">
-                  Ask for a product, gift idea, or delivery answer
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-2xl font-semibold text-white">Azure fabric behind the demo</h2>
+                    <p className="mt-2 max-w-2xl text-sm leading-7 text-[var(--hp-text-muted)]">
+                      The UI is not a slide. It is a governed operating surface over live APIs, event streams, model routing, product truth, and monitoring.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-3">
+                    <StatPill label="Agents" value="26" />
+                    <StatPill label="Model mix" value={tierMixLabel} />
+                    <StatPill label="Eval" value={overallEvalScore !== null ? overallEvalScore.toFixed(2) : 'n/a'} />
+                  </div>
+                </div>
+                <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {AZURE_FABRIC.map((capability) => (
+                    <article key={capability.name} className="rounded-[1.25rem] border border-white/10 bg-black/15 p-4">
+                      <h3 className="text-sm font-semibold text-white">{capability.name}</h3>
+                      <p className="mt-2 text-xs leading-6 text-[var(--hp-text-muted)]">{capability.role}</p>
+                    </article>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-5">
+                {AGENT_WORKLOAD_GROUPS.map((group) => (
+                  <article key={group.label} className="rounded-[1.35rem] border border-white/10 bg-black/20 p-4">
+                    <p className="demo-telemetry text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--hp-text-faint)]">
+                      {group.count}
+                    </p>
+                    <h3 className="mt-2 text-sm font-semibold text-white">{group.label}</h3>
+                    <p className="mt-2 text-xs leading-6 text-[var(--hp-text-muted)]">{group.detail}</p>
+                  </article>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-5">
+              <div className="demo-panel rounded-[2rem] border border-white/10 p-5">
+                <div className="grid gap-5 @3xl/scene:grid-cols-[9rem_minmax(0,1fr)] @3xl/scene:items-start">
+                  <div className="flex justify-center">
+                    <RobotLaunchButton
+                      slug="search-enrichment-agent"
+                      size={132}
+                      state={heroRobotState(query, isStreaming, answerText)}
+                      thinkingMessage={
+                        query.trim().length >= 3
+                          ? isStreaming
+                            ? 'Ranking grounded candidates as the recommendation proof streams.'
+                            : answerText
+                              ? 'Recommendation proof is ready for the executive view.'
+                              : 'Type a retail intent to wake the recommendation-agent capability.'
+                          : 'Type a retail intent to wake the recommendation-agent capability.'
+                      }
+                      streaming={isStreaming}
+                      facing="right"
+                      pointAt={heroTarget}
+                      onOpen={setSelectedAgentSlug}
+                    />
+                  </div>
+
+                  <div>
+                    <DemoKicker>Recommendation decision</DemoKicker>
+                    <h2 className="mt-3 text-2xl font-semibold text-white">Classical ML ranking, agent-managed experience.</h2>
+                    <p className="mt-3 text-sm leading-7 text-[var(--hp-text-muted)]">
+                      The recommendation-agent capability stays decoupled from the storefront: it ranks candidates with deterministic model signals, then lets agents explain, govern, and monitor the decision.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <StatPill label="Latency" value={heroTelemetry.latency} />
+                  <StatPill label="Catalog readiness" value={catalogQualityLabel} />
+                  <StatPill label="Cost / call" value={heroTelemetry.cost} />
+                </div>
+
+                <label htmlFor="homepage-search" className="mt-5 block text-sm font-medium text-white">
+                  Shopper intent for the live recommendation proof
                 </label>
                 <input
                   id="homepage-search"
@@ -863,9 +1131,15 @@ export function ExecutiveDemoPage() {
                   type="search"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      runRecommendationProof();
+                    }
+                  }}
                   className="input mt-3 h-14 w-full rounded-2xl border-white/10 bg-black/20 px-4 text-base text-white placeholder:text-[var(--hp-text-faint)]"
                   placeholder="Try: premium carry-on bags for a two-day trip"
                 />
+
                 <div aria-live="polite" className="mt-4 rounded-[1.5rem] border border-white/10 bg-black/20 p-4">
                   <div className="demo-telemetry flex flex-wrap gap-3 text-xs text-[var(--hp-text-muted)]">
                     <span>Model: {heroTelemetry.tier}</span>
@@ -874,28 +1148,39 @@ export function ExecutiveDemoPage() {
                     <span>Latency: {heroTelemetry.latency}</span>
                   </div>
                   <p className="mt-4 text-sm leading-7 text-[var(--hp-text-muted)]">
-                    {answerText || 'Products land first, then the assistant fills in the details while the answer streams in.'}
+                    {answerText || 'Products land first, then the agent layer adds reason codes, promise confidence, and evidence for the browsing experience.'}
                   </p>
-                  <div className="mt-5 grid gap-3 md:grid-cols-3">
-                    {displayedProducts.map((product) => (
+                  <div className="mt-5 grid gap-3 md:grid-cols-2">
+                    {displayedProducts.slice(0, 2).map((product, index) => (
                       <article key={product.sku} className="rounded-[1.35rem] border border-white/10 bg-white/5 p-3">
                         <div className="relative aspect-[5/4] overflow-hidden rounded-[1rem] bg-black/15">
                           <Image
                             src={product.thumbnail}
                             alt={product.title}
                             fill
-                            sizes="(min-width: 1280px) 16rem, (min-width: 768px) 28vw, 90vw"
+                            sizes="(min-width: 1280px) 14rem, (min-width: 768px) 24vw, 90vw"
                             className="object-cover"
                             unoptimized={product.thumbnail.startsWith('/') ? undefined : true}
                           />
                         </div>
-                        <h3 className="mt-3 text-sm font-semibold text-white">{product.title}</h3>
-                        <p className="mt-1 text-xs text-[var(--hp-text-muted)]">{product.category}</p>
+                        <div className="mt-3 flex items-start justify-between gap-3">
+                          <div>
+                            <h3 className="text-sm font-semibold text-white">{product.title}</h3>
+                            <p className="mt-1 text-xs text-[var(--hp-text-muted)]">{product.category}</p>
+                          </div>
+                          <span className="demo-telemetry rounded-full border border-white/10 bg-black/20 px-2 py-1 text-xs text-white">
+                            #{index + 1}
+                          </span>
+                        </div>
                         <p className="mt-3 text-sm font-medium text-white">{formatCurrency(product.price)}</p>
+                        <p className="mt-2 text-xs leading-6 text-[var(--hp-text-muted)]">
+                          Reason: intent fit, catalog evidence, and availability confidence.
+                        </p>
                       </article>
                     ))}
                   </div>
                 </div>
+
                 <div className="mt-5 flex flex-wrap gap-3">
                   <Link
                     href={`/search?q=${encodeURIComponent(query)}`}
@@ -903,6 +1188,13 @@ export function ExecutiveDemoPage() {
                   >
                     Open live search
                   </Link>
+                  <button
+                    type="button"
+                    onClick={runRecommendationProof}
+                    className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:border-white/20 hover:bg-white/10"
+                  >
+                    Run proof
+                  </button>
                   <Link
                     href="/admin/agent-activity"
                     className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:border-white/20 hover:bg-white/10"
@@ -911,6 +1203,88 @@ export function ExecutiveDemoPage() {
                   </Link>
                 </div>
               </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                {RECOMMENDATION_PIPELINE.map((step) => (
+                  <article key={step.label} className="rounded-[1.35rem] border border-white/10 bg-black/20 p-4">
+                    <p className="demo-telemetry text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--hp-text-faint)]">
+                      {step.owner}
+                    </p>
+                    <h3 className="mt-2 text-sm font-semibold text-white">{step.label}</h3>
+                    <p className="mt-2 text-xs leading-6 text-[var(--hp-text-muted)]">{step.detail}</p>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </div>
+        </SceneSection>
+
+        {detailScenesMounted ? (
+          <>
+            <SceneSection
+              id="business-impact"
+              accent="#0d7a70"
+              eyebrow="Business impact model"
+              title="The recommender is not a widget. It is the operating model for intelligent retail."
+              description="Retailer IQ connects product truth, customer context, inventory, logistics, support, model lifecycle, and observability so the recommendation is ready before the shopper sees it."
+            >
+          <div className="grid gap-6 @4xl/scene:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] @4xl/scene:items-start">
+            <div className="grid gap-5 md:grid-cols-2 @4xl/scene:grid-cols-1">
+              <article className="demo-panel rounded-[2rem] border border-white/10 p-5">
+                <DemoKicker>Traditional flow</DemoKicker>
+                <h3 className="mt-4 text-2xl font-semibold text-white">Recommendation data arrives late and disconnected.</h3>
+                <ul className="mt-5 space-y-3 text-sm leading-7 text-[var(--hp-text-muted)]">
+                  <li>Search, CRM, catalog, inventory, and support optimize separate local goals.</li>
+                  <li>Model decisions are hard to explain at the moment of customer interaction.</li>
+                  <li>Business leaders see outcomes after the campaign, not readiness before launch.</li>
+                </ul>
+              </article>
+
+              <article className="demo-panel rounded-[2rem] border border-white/10 p-5">
+                <DemoKicker>Retailer IQ flow</DemoKicker>
+                <h3 className="mt-4 text-2xl font-semibold text-white">Every recommendation carries evidence, owner, and readiness state.</h3>
+                <ul className="mt-5 space-y-3 text-sm leading-7 text-[var(--hp-text-muted)]">
+                  <li>Product IQ owns product truth while Customer IQ owns customer profile and consent.</li>
+                  <li>RecommenderIQ ranks with a model that is tracked, governed, and replaceable.</li>
+                  <li>Agents turn signals into explainable shopper, operator, and executive experiences.</li>
+                </ul>
+              </article>
+            </div>
+
+            <div className="demo-panel rounded-[2rem] border border-white/10 p-5">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <DemoKicker>Readiness gates</DemoKicker>
+                  <h3 className="mt-4 text-2xl font-semibold text-white">Ready for browsing means more than a ranked list.</h3>
+                </div>
+                <RobotLaunchButton
+                  slug="ecommerce-catalog-search"
+                  size={96}
+                  state="talking"
+                  thinkingMessage="Showing how a customer-facing surface consumes the ready recommendation payload."
+                  onOpen={setSelectedAgentSlug}
+                />
+              </div>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                {[
+                  ['Grounded', 'Product truth, attributes, media, price, and category evidence are present.'],
+                  ['Personalized', 'Customer context contributes without leaking ownership into the product graph.'],
+                  ['Promise-safe', 'Inventory, checkout, ETA, return, and support signals are checked before display.'],
+                  ['Observable', 'Latency, cost, model stage, trace spans, and feedback events stay measurable.'],
+                ].map(([label, detail]) => (
+                  <article key={label} className="rounded-[1.35rem] border border-white/10 bg-black/15 p-4">
+                    <h4 className="text-sm font-semibold text-white">{label}</h4>
+                    <p className="mt-2 text-xs leading-6 text-[var(--hp-text-muted)]">{detail}</p>
+                  </article>
+                ))}
+              </div>
+
+              <div className="mt-5 grid gap-3 md:grid-cols-3">
+                <StatPill label="Revenue" value="+8-12%" />
+                <StatPill label="Trust" value="+18 pts" />
+                <StatPill label="Ops waste" value="-30%" />
+              </div>
             </div>
           </div>
         </SceneSection>
@@ -918,7 +1292,7 @@ export function ExecutiveDemoPage() {
         <SceneSection
           id="customer-360"
           accent={AGENT_PROFILES['crm-profile-aggregation'].accentColor}
-          eyebrow="Personalised help"
+          eyebrow="Personalized help"
           title="Recommendations, offers, and support stay aligned around the same shopper context."
           description="Profile, preference, offer, and support signals work together so the experience feels personal instead of generic."
         >
@@ -1100,10 +1474,10 @@ export function ExecutiveDemoPage() {
           id="truth-layer"
           accent={AGENT_PROFILES['truth-enrichment'].accentColor}
           eyebrow="Product truth layer"
-          title="The kitchen brigade turns incomplete payloads into publishable product truth."
-          description="Instead of hiding the pipeline behind an admin page, this scene makes the handoff explicit: ingestion admits the record, enrichment fills the gaps, HITL keeps ambiguity reviewable, and export packages the result for downstream systems."
+          title="Product truth turns incomplete payloads into publishable, recommendation-ready evidence."
+          description="Instead of hiding readiness behind an admin page, this scene makes the handoff explicit: ingestion admits the record, enrichment fills the gaps, HITL keeps ambiguity reviewable, and export packages the result for downstream systems."
         >
-          <div className="grid gap-6 @4xl/scene:grid-cols-[minmax(17rem,0.7fr)_minmax(0,1.3fr)] @4xl/scene:items-center">
+          <div ref={truthLayerRef} className="grid gap-6 @4xl/scene:grid-cols-[minmax(17rem,0.7fr)_minmax(0,1.3fr)] @4xl/scene:items-center">
             <div className="space-y-4">
               <div className="flex flex-wrap gap-3">
                 {(['truth-ingestion', 'truth-enrichment', 'truth-hitl', 'truth-export'] as const).map((slug) => (
@@ -1132,7 +1506,7 @@ export function ExecutiveDemoPage() {
                     Auto-approved
                   </p>
                   <p className="mt-2 text-xl font-semibold text-white">
-                    {truthSummary && truthSummary.auto_approved > 0 ? truthSummary.auto_approved.toLocaleString() : '12'}
+                    {truthSummary && truthSummary.auto_approved > 0 ? formatInteger(truthSummary.auto_approved) : '12'}
                   </p>
                 </article>
                 <article className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4">
@@ -1140,7 +1514,7 @@ export function ExecutiveDemoPage() {
                     Sent to HITL
                   </p>
                   <p className="mt-2 text-xl font-semibold text-white">
-                    {truthSummary && truthSummary.sent_to_hitl > 0 ? truthSummary.sent_to_hitl.toLocaleString() : '6'}
+                    {truthSummary && truthSummary.sent_to_hitl > 0 ? formatInteger(truthSummary.sent_to_hitl) : '6'}
                   </p>
                 </article>
                 <article className="rounded-[1.5rem] border border-white/10 bg-white/5 p-4">
@@ -1148,7 +1522,7 @@ export function ExecutiveDemoPage() {
                     Last 10m throughput
                   </p>
                   <p className="mt-2 text-xl font-semibold text-white">
-                    {pipelineThroughput !== null && pipelineThroughput > 0 ? `${pipelineThroughput.toLocaleString()} items` : '38 items'}
+                    {pipelineThroughput !== null && pipelineThroughput > 0 ? `${formatInteger(pipelineThroughput)} items` : '38 items'}
                   </p>
                 </article>
               </div>
@@ -1166,13 +1540,17 @@ export function ExecutiveDemoPage() {
                       <li>ACP and UCP exports unblock downstream channels</li>
                     </ul>
                   </div>
-                  <PipelineFlowDiagram
-                    ingested={resolvedTotalProducts || 24}
-                    enriched={truthSummary?.enrichment_jobs_processed || 18}
-                    autoApproved={truthSummary?.auto_approved || 12}
-                    sentToHitl={truthSummary?.sent_to_hitl || 6}
-                    exported={(truthSummary?.acp_exports ?? 0) + (truthSummary?.ucp_exports ?? 0) || 10}
-                  />
+                  {truthSignalsEnabled ? (
+                    <PipelineFlowDiagram
+                      ingested={resolvedTotalProducts || 24}
+                      enriched={truthSummary?.enrichment_jobs_processed || 18}
+                      autoApproved={truthSummary?.auto_approved || 12}
+                      sentToHitl={truthSummary?.sent_to_hitl || 6}
+                      exported={(truthSummary?.acp_exports ?? 0) + (truthSummary?.ucp_exports ?? 0) || 10}
+                    />
+                  ) : (
+                    <DeferredPanel />
+                  )}
                 </div>
               </div>
             </div>
@@ -1189,7 +1567,9 @@ export function ExecutiveDemoPage() {
           <div className="grid gap-6 @4xl/scene:grid-cols-[minmax(0,1.18fr)_minmax(18rem,0.82fr)] @4xl/scene:items-center">
             <div className="demo-panel overflow-hidden rounded-[2rem] border border-white/10 p-2">
               <div className="h-[30rem] overflow-hidden rounded-[1.6rem] bg-black/20">
-                <ProductGraphCanvas products={graphProducts} similarities={graphSimilarities} />
+                {truthSignalsEnabled ? (
+                  <ProductGraphCanvas products={graphProducts} similarities={graphSimilarities} />
+                ) : null}
               </div>
             </div>
 
@@ -1345,7 +1725,7 @@ export function ExecutiveDemoPage() {
                     <div key={bar.label}>
                       <div className="flex items-center justify-between text-sm text-[var(--hp-text-muted)]">
                         <span>{bar.label}</span>
-                        <span className="text-white">{bar.value.toLocaleString()}</span>
+                        <span className="text-white">{formatInteger(bar.value)}</span>
                       </div>
                       <div className="mt-2 h-3 overflow-hidden rounded-full bg-white/10">
                         <div className={`h-full rounded-full ${bar.tone}`} style={{ width: `${(bar.value / inventoryMax) * 100}%` }} />
@@ -1540,7 +1920,11 @@ export function ExecutiveDemoPage() {
                     onOpen={setSelectedAgentSlug}
                   />
                 </div>
-                <TraceWaterfall spans={traceDetail?.spans?.length ? traceDetail.spans : buildMockTraceSpans()} />
+                {platformTelemetryEnabled ? (
+                  <TraceWaterfall spans={traceDetail?.spans?.length ? traceDetail.spans : buildMockTraceSpans()} />
+                ) : (
+                  <DeferredPanel />
+                )}
               </div>
 
               <div className="grid gap-5">
@@ -1550,7 +1934,11 @@ export function ExecutiveDemoPage() {
                     Legitimacy, process quality, and output quality stay visible instead of becoming a hand-wavy claim.
                   </p>
                   <div className="mt-5">
-                    <EvaluationTrendChart trends={evaluations?.trends?.length ? evaluations.trends : buildMockEvaluationTrends()} />
+                    {platformTelemetryEnabled ? (
+                      <EvaluationTrendChart trends={evaluations?.trends?.length ? evaluations.trends : buildMockEvaluationTrends()} />
+                    ) : (
+                      <DeferredPanel heightClass="h-[18.75rem]" />
+                    )}
                   </div>
                 </div>
                 <div className="demo-panel rounded-[2rem] border border-white/10 p-5">
@@ -1559,7 +1947,11 @@ export function ExecutiveDemoPage() {
                     When the answer looks right, the quality and cost story should be visible in the same place.
                   </p>
                   <div className="mt-5">
-                    <ModelUsageTable rows={normalizeModelUsageRows(modelUsage.length ? modelUsage : buildMockModelUsage())} />
+                    {platformTelemetryEnabled ? (
+                      <ModelUsageTable rows={normalizeModelUsageRows(modelUsage.length ? modelUsage : buildMockModelUsage())} />
+                    ) : (
+                      <DeferredPanel heightClass="h-64" />
+                    )}
                   </div>
                 </div>
               </div>
@@ -1642,14 +2034,22 @@ export function ExecutiveDemoPage() {
             </div>
           </div>
         </SceneSection>
+          </>
+        ) : (
+          <section className="px-4 py-10 md:px-6" aria-label="Loading demo scenes">
+            <div className="demo-panel mx-auto max-w-6xl rounded-[2rem] border border-white/10 p-6 text-sm text-[var(--hp-text-muted)]">
+              Preparing the deeper operating scenes...
+            </div>
+          </section>
+        )}
 
-        <aside className="pointer-events-none sticky bottom-0 z-30 px-4 pb-4 md:px-6">
+        <aside className="pointer-events-none sticky bottom-0 z-30 hidden px-4 pb-4 md:px-6 2xl:block">
           <div className="demo-panel pointer-events-auto mx-auto max-w-6xl rounded-full border border-white/15 bg-black/70 px-4 py-3 backdrop-blur-md shadow-[0_8px_24px_rgba(0,0,0,0.45)]">
             <div className="demo-telemetry flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm text-[var(--hp-text-muted)]">
               <span>
                 Total products
                 <strong className="ml-2 text-white">
-                  {resolvedTotalProducts.toLocaleString()}
+                  {formatInteger(resolvedTotalProducts)}
                 </strong>
               </span>
               <span>

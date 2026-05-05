@@ -55,7 +55,7 @@ AKS provisions **three dedicated node pools** with taints for workload isolation
 | Pool | Mode | Taint | Workloads | Autoscale (dev) | Autoscale (prod) |
 |------|------|-------|-----------|-----------------|------------------|
 | `system` | System | *(none)* | K8s system components | 1–3 | 1–5 |
-| `agents` | User | `workload=agents:NoSchedule` | 21 agent services | 2–10 | 2–20 |
+| `agents` | User | `workload=agents:NoSchedule` | 26 agent services | 2–10 | 2–20 |
 | `crud` | User | `workload=crud:NoSchedule` | CRUD service | 1–5 | 1–10 |
 
 All pools use `Standard_D8ds_v5` VMs with Azure CNI networking.
@@ -136,7 +136,7 @@ The GitHub Actions workflow (`.github/workflows/deploy-azd.yml`) enforces ordere
 
 1. **provision** — `azd provision` for infrastructure
 2. **deploy-crud** — CRUD service first (provisions the transactional data layer, Event Hub connections, and K8s services that agents reference via cross-namespace DNS per ADR-026; agents do not call CRUD REST endpoints directly per ADR-024)
-3. **deploy-agents** — 21 agent services in parallel matrix
+3. **deploy-agents** — 26 agent services in parallel matrix
 
 Authentication uses OIDC federation (no stored secrets for Azure credentials).
 

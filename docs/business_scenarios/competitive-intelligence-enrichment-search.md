@@ -1,8 +1,9 @@
 # Competitive Intelligence Brief: Agent-Driven Enrichment & Intelligent Agentic Search
 
-> **Prepared**: March 19, 2026 | **Classification**: Internal — Business Strategy  
+> **Last Updated**: 2026-04-30 | **Prepared**: March 19, 2026 | **Classification**: Internal — Business Strategy  
 > **Analysis Type**: Competitive Landscape + Market Sizing  
-> **Confidence Legend**: `[HIGH]` = primary/public source | `[MEDIUM]` = secondary/inferred | `[LOW]` = estimate
+> **Confidence Legend**: `[HIGH]` = primary/public source | `[MEDIUM]` = secondary/inferred | `[LOW]` = estimate  
+> **Platform Context**: 26 AI agents on AKS (MAF ≥1.0.1), SLM/LLM routing, Event Hub choreography, MCP inter-agent communication
 
 ---
 
@@ -106,7 +107,7 @@ quadrantChart
 
 | Differentiator | Holiday Peak Hub | Nearest Competitor | Gap Severity |
 |---|---|---|---|
-| **Autonomous agent orchestration** — Agents dynamically plan enrichment steps, route between SLM/LLM, and coordinate via MCP protocol | Multi-agent event-driven architecture with 21+ specialized agents | Salsify Angie (conversational assistant, not autonomous agent) | **Large** — No competitor has true multi-agent commerce orchestration |
+| **Autonomous agent orchestration** — Agents dynamically plan enrichment steps, route between SLM/LLM, and coordinate via MCP protocol | Multi-agent event-driven architecture with 26 specialized agents on AKS (MAF ≥1.0.1 GA) | Salsify Angie (conversational assistant, not autonomous agent) | **Large** — No competitor has true multi-agent commerce orchestration |
 | **Unified enrichment→search pipeline** — Same platform enriches data AND powers search index | Single codebase: `truth-enrichment` feeds `ecommerce-catalog-search` via Event Hubs | Closest: Constructor.io (enrichment + search, but SaaS-locked) | **Medium** — Requires buying 2+ vendor tools to replicate |
 | **HITL with reasoning transparency** — Every AI-proposed attribute includes a `reasoning` field explaining why | `ProposedAttribute` schema with evidence chain and audit trail | Constructor.io Glassbox AI (explains ranking, not enrichment decisions) | **Large** — No PIM competitor exposes enrichment reasoning |
 | **Enterprise connector breadth with agent writeback** — Oracle, SAP, Salesforce, D365 connectors with conflict-detected auto-writeback | 4 enterprise connectors with circuit-breaker protection | Akeneo (250+ connectors, but no agent-driven writeback logic) | **Medium** — Connector count lower, but writeback intelligence higher |

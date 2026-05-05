@@ -1,5 +1,7 @@
 # Entra ID Configuration Guide
 
+> Last Updated: 2026-04-30
+
 This guide explains how to configure Microsoft Entra ID (formerly Azure Active Directory) for the Holiday Peak Hub UI in local development and deployed environments.
 
 ---

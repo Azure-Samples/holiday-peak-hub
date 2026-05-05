@@ -1,6 +1,28 @@
-# UI CRUD Route Alignment (2026-03-01)
+# UI CRUD Route Alignment
 
-## What was fixed
+> **Last Updated**: 2026-04-30
+
+## Proxy Architecture
+
+```mermaid
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
+graph LR
+  subgraph Browser["Browser (same-origin)"]
+    UI["UI Components"]
+  end
+  subgraph NextProxy["Next.js App Router Proxy"]
+    API["/api/* route handler"]
+    AGENT["/agent-api/* route handler"]
+  end
+  subgraph Upstream
+    CRUD["CRUD Service (APIM)"]
+    AGENTS["Agent Services (APIM)"]
+  end
+  UI -->|"/api/*"| API -->|NEXT_PUBLIC_CRUD_API_URL| CRUD
+  UI -->|"/agent-api/*"| AGENT -->|NEXT_PUBLIC_AGENT_API_URL| AGENTS
+```
+
+## What was fixed (2026-03-01)
 
 - Replaced static storefront rendering with live backend data for homepage, category, product, and search pages.
 - Added missing internal routes so navigation links resolve correctly:

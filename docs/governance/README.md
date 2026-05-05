@@ -1,7 +1,7 @@
 # Governance and Compliance Guidelines
 
-**Version**: 2.1
-**Last Updated**: 2026-04-06
+**Version**: 2.2
+**Last Updated**: 2026-04-30
 **Owner**: Architecture Team
 
 ## Overview
@@ -38,6 +38,14 @@ This folder is the governance source of truth for engineering standards, runtime
 **Audience**: Platform/DevSecOps engineers  
 **Scope**: Weekly high-severity burn-down metrics and resolution evidence links
 
+### [Self-Healing RBAC Matrix](self-healing-rbac-matrix.md)
+**Audience**: Platform/SRE engineers  
+**Scope**: RBAC assignments, denied roles, policy engine enforcement, and audit logging for self-healing remediation identities (ADR-025)
+
+### [Self-Healing Rollout Runbook](self-healing-rollout-runbook.md)
+**Audience**: Platform/SRE engineers  
+**Scope**: Feature flags, rollout milestones, emergency disable procedures, and observability integration for self-healing (ADR-025)
+
 ## Repository Source-of-Truth Map
 
 | Governance topic | Canonical source | Notes |
@@ -58,6 +66,9 @@ This folder is the governance source of truth for engineering standards, runtime
 - **Lint/format baseline (backend)**: `pylint`, `black`, `isort` (`pyproject.toml`)
 - **Lint baseline (frontend)**: ESLint 8 (`apps/ui/.eslintrc.json`)
 - **Coverage baseline**: 75% repo minimum; package-level stricter thresholds allowed (some modules enforce 80%)
+- **Test count**: 1796 tests (1136 lib + 660 app), 89% coverage
+- **Deployment model**: azd provision + Flux GitOps for AKS (ADR-017), APIM → AGC → AKS edge (ADR-021)
+- **Self-healing**: Incident lifecycle state machine with remediation policy and audit trail (ADR-025)
 
 ## Environment Policy Summary
 
@@ -113,18 +124,18 @@ Detailed policy is defined in [Infrastructure Governance](infrastructure-governa
 Use both checks below for governance hardening and drift detection:
 
 1. Docs reference validation (local + CI)
-	- `python scripts/ops/check_prompt_agent_consistency.py --report-file governance-drift-report.md`
+	- `python scripts/python/ops/check_prompt_agent_consistency.py --report-file governance-drift-report.md`
 	- Enforces ADR preflight and canonical prompt-to-agent consistency for issue-engineering workflows.
-	- `python scripts/ops/check_markdown_links.py --roots docs/governance docs/architecture`
+	- `python scripts/python/ops/check_markdown_links.py --roots docs/governance docs/architecture`
 	- Fails on unresolved internal markdown links across governance and architecture docs.
-	- `python scripts/ops/check_event_schema_contracts.py`
+	- `python scripts/python/ops/check_event_schema_contracts.py`
 	- Fails on incompatible drift at the canonical retail and connector event envelope boundary.
 	- `grep -RInE "OPERATIONAL-WORKFLOWS\.md|REPOSITORY-SURFACES\.md|governance-map\.md" .github/agents`
 	- CI fails if stale canonical governance reference tokens appear in tracked agent docs.
 	- CI uploads `governance-drift-reports` artifacts from `lint.yml` for PR validation evidence.
 
 2. Main protection audit (manual/CI)
-	- `python scripts/ops/audit_main_governance.py --repo <owner/repo> --required-check lint --required-check test --min-approvals 0 --require-conversation-resolution`
+	- `python scripts/python/ops/audit_main_governance.py --repo <owner/repo> --required-check lint --required-check test --min-approvals 0 --require-conversation-resolution`
 	- Validates PR-only controls for `main`:
 	  - pull request rule present
 	  - configured minimum required approvals (currently 0 for solo maintainer mode)

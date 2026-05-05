@@ -1,30 +1,70 @@
 # Ecommerce Checkout Support
 
+> Last Updated: 2026-04-30
+
 ## Purpose
-Evaluates checkout flows and surfaces guidance to reduce checkout failures.
 
-## Responsibilities
-- Detect checkout blockers across inventory, payment, and order context.
-- Return actionable guidance for completion paths.
-- Support real-time checkout assistance workflows.
+Evaluates checkout flows to detect blockers across inventory, payment, and order context. Returns actionable guidance for completion paths and supports real-time checkout assistance workflows.
 
-## Key endpoints or interfaces
-- `POST /invoke` for synchronous service requests.
-- MCP interfaces under `/mcp/*` for agent-to-agent usage.
-- Event Hub subscription for asynchronous processing.
+## Domain Bounded Context
+- **Owner**: eCommerce team
+- **Bounded Context**: eCommerce
 
-## Run/Test commands
+## Endpoints
+
+### REST
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/invoke` | Synchronous agent invocation |
+| GET | `/health` | Liveness probe |
+| GET | `/ready` | Readiness probe |
+
+### MCP Tools
+| Tool | Description |
+|------|-------------|
+| `/checkout/context` | Build checkout context with blockers |
+| `/checkout/guidance` | Generate checkout completion guidance |
+
+### Event Subscriptions
+| Topic | Consumer Group | Action |
+|-------|---------------|--------|
+| `order-events` | `checkout-group` | Track order flow for checkout analysis |
+| `inventory-events` | `checkout-group` | Monitor stock for checkout blockers |
+
+## Model Routing
+- **SLM (fast)**: GPT-5-nano via `FOUNDRY_AGENT_ID_FAST`
+- **LLM (rich)**: GPT-4o via `FOUNDRY_AGENT_ID_RICH`
+
+## Memory Usage
+| Tier | Purpose |
+|------|---------||
+| Hot (Redis) | Cached checkout analysis (TTL 300s) |
+| Warm (Cosmos DB) | Checkout session state |
+| Cold (Blob) | Checkout failure archives |
+
+## Environment Variables
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `PROJECT_ENDPOINT` | Yes | Azure AI Foundry project endpoint |
+| `FOUNDRY_AGENT_ID_FAST` | Yes | SLM agent ID |
+| `MODEL_DEPLOYMENT_NAME_FAST` | Yes | SLM deployment name |
+| `FOUNDRY_AGENT_ID_RICH` | Yes | LLM agent ID |
+| `MODEL_DEPLOYMENT_NAME_RICH` | Yes | LLM deployment name |
+| `REDIS_URL` | No | Redis connection URL |
+| `COSMOS_ACCOUNT_URI` | No | Cosmos DB endpoint |
+| `EVENTHUB_NAMESPACE` | Yes | Event Hub namespace |
+
+## Local Development
 ```bash
 cd apps/ecommerce-checkout-support/src
 uv sync
-uv run uvicorn ecommerce_checkout_support.main:app --reload
-python -m pytest ../tests
+uv run uvicorn ecommerce_checkout_support.main:app --reload --port 8007
 ```
 
-## Configuration notes
-- Uses Foundry model settings (`PROJECT_ENDPOINT` or `FOUNDRY_ENDPOINT`, fast/rich model identifiers).
-- Supports Redis/Cosmos/Blob memory configuration via shared memory settings.
-- Requires Event Hub namespace and consumer configuration for background jobs.
+## Test Coverage
+```bash
+python -m pytest apps/ecommerce-checkout-support/tests
+```
 
 ---
 

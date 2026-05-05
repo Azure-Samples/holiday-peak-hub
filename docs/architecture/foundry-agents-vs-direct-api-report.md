@@ -1,7 +1,9 @@
 # Technical Report: What We Lose by Switching from Foundry Agents to Direct Model Calls (Responses API)
 
+<!-- Last Updated: 2026-04-30 -->
+
 **Date**: 2026-04-28  
-**Status**: Decision Input  
+**Status**: Decision Input (Rejected — Foundry-only policy adopted per ADR-005)  
 **Author**: Architecture Review (automated analysis)  
 **Scope**: holiday-peak-hub — 26 retail agent services on AKS
 

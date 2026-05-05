@@ -1,10 +1,16 @@
 # Search Enrichment Agent
 
+> Last Updated: 2026-04-30
+
 > Full pipeline documentation: [`docs/implementation/truth-layer-agents-guide.md`](../../docs/implementation/truth-layer-agents-guide.md)
 
 ## Purpose
 
 Generates search-optimized content (keywords, facets, marketing copy, sustainability signals) for products and pushes them to Azure AI Search. Acts as the **discovery amplification stage** of the Product Truth Layer pipeline.
+
+## Domain Bounded Context
+- **Owner**: Search team
+- **Bounded Context**: Search
 
 ## Why This Agent Exists
 

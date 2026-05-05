@@ -22,6 +22,7 @@ Running all requests through large language models (LLMs) is expensive and slow.
 ### Routing Flow
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
 graph TD
     Request[User Request] --> Assessment[Complexity Assessor]
     Assessment --> |Simple/Moderate| SLM[SLM: GPT-5-nano]
@@ -121,7 +122,8 @@ agent = (AgentBuilder()
             endpoint=os.getenv("FOUNDRY_ENDPOINT"),
             agent_id=os.getenv("FOUNDRY_AGENT_ID_FAST"),
             max_tokens=500,
-            temperature=0.3
+            temperature=0.3,
+            reasoning_effort="minimal"  # Fastest SLM path
         ),
         llm=ModelTarget(
             deployment_name="gpt-5",

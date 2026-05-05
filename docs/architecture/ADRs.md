@@ -1,5 +1,7 @@
 # Architecture Decision Records (ADRs)
 
+<!-- Last Updated: 2026-04-30 -->
+
 This document indexes all architectural decisions for the Holiday Peak Hub accelerator.
 
 ## ADR Index

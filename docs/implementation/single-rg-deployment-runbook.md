@@ -1,5 +1,7 @@
 # Single Resource Group Deployment Runbook
 
+> Last Updated: 2026-04-30
+
 This runbook standardizes dev/demo operations on a single resource group:
 
 - Resource group: `holidaypeakhub405-dev-rg`
@@ -21,7 +23,7 @@ Run from repository root.
 ### 1. Provision and Deploy
 
 ```powershell
-./scripts/ops/demo-provision.ps1
+./scripts/powershell/ops/demo-provision.ps1
 ```
 
 This configures azd environment values for `holidaypeakhub405-dev-rg` and runs `azd up`.
@@ -29,7 +31,7 @@ This configures azd environment values for `holidaypeakhub405-dev-rg` and runs `
 ### 2. Recover and Reseed
 
 ```powershell
-./scripts/ops/demo-recover-and-seed.ps1
+./scripts/powershell/ops/demo-recover-and-seed.ps1
 ```
 
 This starts AKS and PostgreSQL, validates direct AGC CRUD health plus APIM CRUD endpoints, and runs CRUD demo seed job.
@@ -43,7 +45,7 @@ Recovery is idempotent and AGC-first out-of-the-box:
 ### 3. Pre-Demo Wake-Up + Connectivity Validation
 
 ```powershell
-./scripts/ops/demo-preflight-validate.ps1
+./scripts/powershell/ops/demo-preflight-validate.ps1
 ```
 
 This is the recommended command before live demos. It:
@@ -61,7 +63,7 @@ This is the recommended command before live demos. It:
 ### 4. Pause (Cost Save)
 
 ```powershell
-./scripts/ops/demo-deprovision.ps1
+./scripts/powershell/ops/demo-deprovision.ps1
 ```
 
 This stops AKS, Application Gateway, and PostgreSQL.
@@ -69,7 +71,7 @@ This stops AKS, Application Gateway, and PostgreSQL.
 ### 5. Full Teardown
 
 ```powershell
-./scripts/ops/demo-deprovision.ps1 -DeleteResourceGroup
+./scripts/powershell/ops/demo-deprovision.ps1 -DeleteResourceGroup
 ```
 
 This deletes `holidaypeakhub405-dev-rg` asynchronously.

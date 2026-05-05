@@ -8,8 +8,8 @@ import pytest
 from ecommerce_catalog_search.adapters import AcpCatalogMapper, CatalogAdapters
 from ecommerce_catalog_search.agents import (
     CatalogSearchAgent,
+    _deterministic_intent_policy,
     _parse_intent_response,
-    _search_products_intelligent,
 )
 from ecommerce_catalog_search.ai_search import AISearchDocumentResult, AISearchSkuResult
 from holiday_peak_lib.agents.base_agent import AgentDependencies
@@ -234,7 +234,7 @@ class TestCatalogSearchAgent:
 
             result = await agent.handle(
                 {
-                    "query": "rain jacket",
+                    "query": "test product",
                     "limit": 5,
                 }
             )
@@ -325,7 +325,7 @@ class TestCatalogSearchAgent:
 
             result = await agent.handle(
                 {
-                    "query": "winter travel jacket",
+                    "query": "test product",
                     "limit": 5,
                     "mode": "intelligent",
                 }
@@ -1405,9 +1405,7 @@ class TestIntelligentScoreBasedRanking:
     """Tests for score-based merge and ranking in _search_products_intelligent."""
 
     @pytest.mark.asyncio
-    async def test_higher_ai_search_scores_rank_first(
-        self, agent_dependencies, mock_catalog_product
-    ):
+    async def test_higher_ai_search_scores_rank_first(self, agent_dependencies):
         """Products with higher AI Search scores should appear before lower-scored ones."""
         with (
             patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
@@ -1468,9 +1466,7 @@ class TestIntelligentScoreBasedRanking:
             assert ranked_ids.index("SKU-JACKET") < ranked_ids.index("SKU-PUZZLE")
 
     @pytest.mark.asyncio
-    async def test_products_in_both_searches_get_boosted(
-        self, agent_dependencies, mock_catalog_product
-    ):
+    async def test_products_in_both_searches_get_boosted(self, agent_dependencies):
         """A product appearing in both keyword and hybrid results should rank above one in only one."""
         with (
             patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
@@ -1667,3 +1663,397 @@ class TestParseIntentResponse:
         result = _parse_intent_response({"output": '{"intent": "browse", "confidence": 0.6}'})
         assert result is not None
         assert result.intent == "browse"
+
+
+class TestIntelligentQueryRelevanceRanking:
+    """Tests for query relevance ranking in intelligent mode to suppress irrelevant high-score results."""
+
+    def test_deterministic_travel_intent_expands_retail_contexts(self):
+        """Travel geography should expand into deterministic shopping context."""
+        russia_intent = _deterministic_intent_policy("I'm traveling to russia, what should I buy")
+        assert russia_intent.category == "clothing"
+        assert russia_intent.use_case == "cold-weather travel"
+        assert "winter jacket" in russia_intent.sub_queries
+        assert "thermal clothing" in russia_intent.sub_queries
+        assert "warm clothes" in russia_intent.sub_queries
+        assert "winter boots" in russia_intent.sub_queries
+
+        caribbean_intent = _deterministic_intent_policy("What should I buy for a Caribe vacation")
+        assert caribbean_intent.use_case == "warm-weather beach travel"
+        assert "beachwear" in caribbean_intent.sub_queries
+        assert "sunscreen" in caribbean_intent.sub_queries
+        assert "sandals" in caribbean_intent.sub_queries
+        assert "swimwear" in caribbean_intent.sub_queries
+
+    @pytest.mark.asyncio
+    async def test_unrelated_high_score_results_are_outranked_by_relevant_low_score(
+        self, agent_dependencies
+    ):
+        """Unrelated high AI Search score results should be outranked by query-grounded products."""
+        with (
+            patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
+            patch("ecommerce_catalog_search.agents.multi_query_search") as mock_multi,
+            patch("ecommerce_catalog_search.agents.keyword_search") as mock_kw_search,
+        ):
+            # AI Search returns irrelevant high-scored product first
+            mock_kw_search.return_value = [
+                AISearchDocumentResult(
+                    sku="SKU-GROOMING",
+                    score=0.95,
+                    document={
+                        "sku": "SKU-GROOMING",
+                        "name": "Premium Grooming Kit",
+                        "description": "Luxury grooming essentials",
+                        "category": "Personal Care",
+                    },
+                    enriched_fields={},
+                ),
+            ]
+            # Hybrid returns relevant but lower-scored travel product
+            mock_multi.return_value = [
+                AISearchDocumentResult(
+                    sku="SKU-THERMAL",
+                    score=0.65,
+                    document={
+                        "sku": "SKU-THERMAL",
+                        "name": "Thermal Underwear Set",
+                        "description": "Cold weather thermal clothing for travel",
+                        "category": "Clothing",
+                        "tags": ["travel", "cold", "thermal"],
+                    },
+                    enriched_fields={},
+                ),
+            ]
+
+            mock_products = AsyncMock()
+            mock_products.get_product = AsyncMock(return_value=None)
+            mock_products.get_related = AsyncMock(return_value=[])
+            mock_inventory = AsyncMock()
+            mock_inventory.get_item = AsyncMock(
+                return_value=InventoryItem(sku="SKU-THERMAL", available=10, reserved=0)
+            )
+
+            mock_build.return_value = CatalogAdapters(
+                products=mock_products,
+                inventory=mock_inventory,
+                mapping=AcpCatalogMapper(),
+            )
+
+            agent = CatalogSearchAgent(config=agent_dependencies)
+            with patch.object(
+                agent,
+                "classify_intent",
+                new=AsyncMock(
+                    return_value=IntentClassification(
+                        intent="semantic_search",
+                        confidence=0.9,
+                        entities={"keywords": ["cold", "weather", "travel"]},
+                    )
+                ),
+            ):
+                result = await agent.handle(
+                    {"query": "cold weather travel gear", "limit": 5, "mode": "intelligent"}
+                )
+
+            ranked_ids = [r["item_id"] for r in result["results"]]
+            assert ranked_ids == ["SKU-THERMAL"]
+            assert "SKU-GROOMING" not in ranked_ids
+
+    @pytest.mark.asyncio
+    async def test_russia_travel_cold_weather_clothing_scenario(self, agent_dependencies):
+        """Russia travel query should rank cold-weather clothing above unrelated items."""
+        query = "I'm traveling to russia, what should I buy"
+        fallback_intent = _deterministic_intent_policy(query)
+
+        with (
+            patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
+            patch("ecommerce_catalog_search.agents.multi_query_search") as mock_multi,
+            patch("ecommerce_catalog_search.agents.keyword_search") as mock_kw_search,
+        ):
+            # AI Search returns mix of relevant and irrelevant high-scored items
+            mock_kw_search.return_value = [
+                AISearchDocumentResult(
+                    sku="SKU-MUSIC",
+                    score=0.90,
+                    document={
+                        "sku": "SKU-MUSIC",
+                        "name": "Music Theory Book",
+                        "description": "Advanced music theory textbook",
+                        "category": "Books",
+                    },
+                    enriched_fields={},
+                ),
+                AISearchDocumentResult(
+                    sku="SKU-DUTCH-OVEN",
+                    score=0.88,
+                    document={
+                        "sku": "SKU-DUTCH-OVEN",
+                        "name": "Cast Iron Dutch Oven",
+                        "description": "Heavy duty cooking pot",
+                        "category": "Kitchen",
+                    },
+                    enriched_fields={},
+                ),
+            ]
+            # Hybrid includes relevant cold-weather clothing
+            mock_multi.return_value = [
+                AISearchDocumentResult(
+                    sku="SKU-WINTER-JACKET",
+                    score=0.75,
+                    document={
+                        "sku": "SKU-WINTER-JACKET",
+                        "name": "Arctic Winter Jacket",
+                        "description": "Insulated jacket for freezing climates",
+                        "category": "Outerwear",
+                        "tags": ["winter", "cold", "jacket"],
+                        "attributes": {"weather": "cold", "type": "outerwear"},
+                    },
+                    enriched_fields={},
+                ),
+                AISearchDocumentResult(
+                    sku="SKU-THERMAL-SOCKS",
+                    score=0.70,
+                    document={
+                        "sku": "SKU-THERMAL-SOCKS",
+                        "name": "Merino Wool Thermal Socks",
+                        "description": "Warm socks for freezing weather",
+                        "category": "Clothing",
+                        "tags": ["thermal", "wool", "socks", "cold"],
+                    },
+                    enriched_fields={},
+                ),
+            ]
+
+            mock_products = AsyncMock()
+            mock_products.get_product = AsyncMock(return_value=None)
+            mock_products.get_related = AsyncMock(return_value=[])
+            mock_inventory = AsyncMock()
+            mock_inventory.get_item = AsyncMock(
+                return_value=InventoryItem(sku="SKU-WINTER-JACKET", available=5, reserved=0)
+            )
+
+            mock_build.return_value = CatalogAdapters(
+                products=mock_products,
+                inventory=mock_inventory,
+                mapping=AcpCatalogMapper(),
+            )
+
+            agent = CatalogSearchAgent(config=agent_dependencies)
+            with patch.object(
+                agent,
+                "classify_intent",
+                new=AsyncMock(return_value=fallback_intent),
+            ):
+                result = await agent.handle({"query": query, "limit": 8, "mode": "intelligent"})
+
+            ranked_ids = [r["item_id"] for r in result["results"]]
+            assert set(ranked_ids) == {"SKU-WINTER-JACKET", "SKU-THERMAL-SOCKS"}
+            assert "SKU-MUSIC" not in ranked_ids
+            assert "SKU-DUTCH-OVEN" not in ranked_ids
+
+            sub_queries = mock_multi.await_args.kwargs["sub_queries"]
+            assert "winter jacket" in sub_queries
+            assert "thermal clothing" in sub_queries
+            assert "warm clothes" in sub_queries
+            assert "thermal socks" in sub_queries
+            assert "winter boots" in sub_queries
+
+    @pytest.mark.asyncio
+    async def test_zero_overlap_unrelated_results_are_suppressed(self, agent_dependencies):
+        """When AI Search returns only weak/zero-overlap results, relevance ranking should suppress them."""
+        with (
+            patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
+            patch("ecommerce_catalog_search.agents.multi_query_search") as mock_multi,
+            patch("ecommerce_catalog_search.agents.keyword_search") as mock_kw_search,
+        ):
+            # AI Search returns completely unrelated high-scored items
+            mock_kw_search.return_value = [
+                AISearchDocumentResult(
+                    sku="SKU-PUZZLE",
+                    score=0.92,
+                    document={
+                        "sku": "SKU-PUZZLE",
+                        "name": "1000 Piece Jigsaw Puzzle",
+                        "description": "Beautiful landscape puzzle",
+                        "category": "Toys",
+                    },
+                    enriched_fields={},
+                ),
+            ]
+            mock_multi.return_value = [
+                AISearchDocumentResult(
+                    sku="SKU-CANDLE",
+                    score=0.89,
+                    document={
+                        "sku": "SKU-CANDLE",
+                        "name": "Lavender Scented Candle",
+                        "description": "Aromatherapy candle for relaxation",
+                        "category": "Home Decor",
+                    },
+                    enriched_fields={},
+                ),
+            ]
+
+            mock_products = AsyncMock()
+            mock_products.search = AsyncMock(return_value=[])
+            mock_products.get_product = AsyncMock(return_value=None)
+            mock_products.get_related = AsyncMock(return_value=[])
+            mock_inventory = AsyncMock()
+            mock_inventory.get_item = AsyncMock(
+                return_value=InventoryItem(sku="SKU-PUZZLE", available=3, reserved=0)
+            )
+
+            mock_build.return_value = CatalogAdapters(
+                products=mock_products,
+                inventory=mock_inventory,
+                mapping=AcpCatalogMapper(),
+            )
+
+            agent = CatalogSearchAgent(config=agent_dependencies)
+            with patch.object(
+                agent,
+                "classify_intent",
+                new=AsyncMock(
+                    return_value=IntentClassification(
+                        intent="semantic_search",
+                        confidence=0.8,
+                        entities={"keywords": ["laptop", "computer", "technology"]},
+                    )
+                ),
+            ):
+                result = await agent.handle(
+                    {"query": "laptop computer programming", "limit": 5, "mode": "intelligent"}
+                )
+
+            assert result["results"] == []
+
+    @pytest.mark.asyncio
+    async def test_zero_overlap_baseline_is_not_returned_without_expansion(
+        self, agent_dependencies
+    ):
+        """A no-extra-subquery fallback must not leak unrelated baseline results."""
+        query = "what should I buy"
+
+        with (
+            patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
+            patch("ecommerce_catalog_search.agents.multi_query_search") as mock_multi,
+            patch("ecommerce_catalog_search.agents.keyword_search") as mock_kw_search,
+        ):
+            mock_kw_search.return_value = [
+                AISearchDocumentResult(
+                    sku="SKU-PUZZLE",
+                    score=0.93,
+                    document={
+                        "sku": "SKU-PUZZLE",
+                        "name": "Jigsaw Puzzle",
+                        "description": "Quiet indoor puzzle activity",
+                        "category": "Toys",
+                    },
+                    enriched_fields={},
+                )
+            ]
+            mock_multi.return_value = [
+                AISearchDocumentResult(
+                    sku="SKU-CANDLE",
+                    score=0.91,
+                    document={
+                        "sku": "SKU-CANDLE",
+                        "name": "Lavender Candle",
+                        "description": "Scented candle for home decor",
+                        "category": "Home Decor",
+                    },
+                    enriched_fields={},
+                )
+            ]
+
+            mock_products = AsyncMock()
+            mock_products.search = AsyncMock(return_value=[])
+            mock_products.get_product = AsyncMock(return_value=None)
+            mock_products.get_related = AsyncMock(return_value=[])
+            mock_inventory = AsyncMock()
+            mock_inventory.get_item = AsyncMock(return_value=None)
+
+            mock_build.return_value = CatalogAdapters(
+                products=mock_products,
+                inventory=mock_inventory,
+                mapping=AcpCatalogMapper(),
+            )
+
+            agent = CatalogSearchAgent(config=agent_dependencies)
+            with patch.object(
+                agent,
+                "classify_intent",
+                new=AsyncMock(
+                    return_value=IntentClassification(
+                        intent="semantic_search",
+                        confidence=0.8,
+                        entities={},
+                    )
+                ),
+            ):
+                result = await agent.handle({"query": query, "limit": 5, "mode": "intelligent"})
+
+            assert result["results"] == []
+            mock_products.search.assert_awaited_once_with(query=query, limit=5)
+
+    @pytest.mark.asyncio
+    async def test_keyword_enriched_fields_survive_relevance_filter(self, agent_dependencies):
+        """Enrichment from surviving keyword results should be preserved."""
+        with (
+            patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
+            patch("ecommerce_catalog_search.agents.multi_query_search") as mock_multi,
+            patch("ecommerce_catalog_search.agents.keyword_search") as mock_kw_search,
+        ):
+            mock_kw_search.return_value = [
+                AISearchDocumentResult(
+                    sku="SKU-HEADPHONES",
+                    score=0.94,
+                    document={
+                        "sku": "SKU-HEADPHONES",
+                        "name": "Travel Headphones Pro",
+                        "description": "Noise-canceling headphones for travel",
+                        "category": "Audio",
+                    },
+                    enriched_fields={
+                        "use_cases": ["travel", "commute"],
+                        "enriched_description": "Noise-canceling headphones for travel.",
+                    },
+                )
+            ]
+            mock_multi.return_value = []
+
+            mock_products = AsyncMock()
+            mock_products.get_product = AsyncMock(return_value=None)
+            mock_products.get_related = AsyncMock(return_value=[])
+            mock_inventory = AsyncMock()
+            mock_inventory.get_item = AsyncMock(
+                return_value=InventoryItem(sku="SKU-HEADPHONES", available=7, reserved=0)
+            )
+
+            mock_build.return_value = CatalogAdapters(
+                products=mock_products,
+                inventory=mock_inventory,
+                mapping=AcpCatalogMapper(),
+            )
+
+            agent = CatalogSearchAgent(config=agent_dependencies)
+            with patch.object(
+                agent,
+                "classify_intent",
+                new=AsyncMock(
+                    return_value=IntentClassification(
+                        intent="semantic_search",
+                        confidence=0.9,
+                        entities={"keywords": ["travel", "headphones"]},
+                    )
+                ),
+            ):
+                result = await agent.handle(
+                    {"query": "travel headphones", "limit": 5, "mode": "intelligent"}
+                )
+
+            assert result["results"][0]["item_id"] == "SKU-HEADPHONES"
+            assert result["results"][0]["use_cases"] == ["travel", "commute"]
+            assert result["results"][0]["extended_attributes"]["enriched_description"].startswith(
+                "Noise-canceling"
+            )

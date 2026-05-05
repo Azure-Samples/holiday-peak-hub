@@ -1,26 +1,40 @@
 # Business Scenario 02: Product Discovery & Enrichment
 
-## Executive Statement
+> **Last Updated**: 2026-04-30 | **Domain Owner**: E-commerce + Search + Truth Layer Agents | **Bounded Context**: Query → Discovery → Enrichment → Conversion
 
-Conversion acceleration engine that combines semantic discovery, AI enrichment, and strict AI Search readiness enforcement to keep search quality deterministic during peak traffic.
+---
 
-## Capability Mapping
+## Business Problem
 
-| Capability | Business Leverage |
-| --- | --- |
-| Catalog search intelligence | High-relevance results and lower bounce |
-| Product detail enrichment | Better content quality and conversion lift |
-| Cart intelligence | Incremental AOV through contextual upsell |
-| CRUD bootstrap source | Controlled AI Search index seeding for strict runtime readiness |
+Retailers lose 30–40% of potential conversions due to poor search relevance, incomplete product data, and stale catalog content. Traditional keyword search returns irrelevant results for complex queries (e.g., "lightweight waterproof jacket for hiking in cold weather"). Manual product enrichment at 22 min/product cannot scale for catalogs exceeding 50K SKUs.
 
-## Outcome Targets
+## Agentic Difference
 
-| North-Star KPI | Target |
-| --- | --- |
-| Search response latency | < 1.2s p95 |
-| Search-to-product click-through | > 35% |
-| Enriched catalog coverage | > 98% |
-| Strict readiness compliance in AKS runtime | > 99% |
+| Aspect | Traditional Microservice | Holiday Peak Hub Agent |
+|---|---|---|
+| **Search** | Keyword matching + manual boost rules | `catalog-search` agent decomposes complex queries via LLM, executes vector + hybrid retrieval on Azure AI Search |
+| **Enrichment** | Manual data entry by catalog team | `truth-enrichment` agent extracts attributes from images + descriptions using GPT-4o; proposes via `ProposedAttribute` with reasoning |
+| **Index maintenance** | Batch reindex (overnight) | `search-enrichment-agent` generates `use_cases`, `complementary_products`, `substitutes` on catalog changes via Event Hub |
+| **Quality gate** | Manual QA sampling | `consistency-validation` agent + auto-approve threshold (0.95) + HITL for low confidence |
+| **Readiness** | Best-effort | Strict mode: `/ready` returns 503 until AI Search is configured, reachable, and non-empty |
+
+## KPIs Impacted
+
+| North-Star KPI | Target | Measurement |
+|---|---|---|
+| Search response latency | < 1.2s p95 | Azure AI Search + Redis query cache |
+| Search-to-product click-through | > 35% | Semantic ranking + inventory signals |
+| Enriched catalog coverage | > 98% | Truth layer completeness scoring |
+| Strict readiness compliance | > 99% | AKS readiness probe pass rate |
+
+## Stakeholder Value
+
+| Stakeholder | Value |
+|---|---|
+| **VP Commerce** | 15–30% conversion lift from semantic search; catalog always complete |
+| **Ops Manager** | Zero manual enrichment backlog; HITL only for edge cases (<20%) |
+| **CTO** | Vector search scales to 200K+ products on S1/S2 tier |
+| **Developer** | Clear seeding contract; Event Hub-driven index updates |
 
 ## Executive Flow
 
@@ -37,7 +51,7 @@ flowchart LR
    A[Customer Query Intent] --> B[Catalog Search Agent]
    B --> G{AI Search Ready?}
    G -->|Yes| C[Semantic Ranking + Inventory Signals]
-   C --> D[Product Detail Enrichment]
+   C --> D[Product Detail Enrichment Agent]
    D --> E[Personalized Recommendation Layer]
    E --> F[Conversion Decision]
    G -->|No| H[Bounded CRUD Seed Attempt]
@@ -45,32 +59,38 @@ flowchart LR
    I -->|Yes| C
    I -->|No| J[Readiness Gate Blocks Traffic]
 
-   classDef a fill:#0B84F3,color:#fff,stroke:#085ea8
-   classDef b fill:#00A88F,color:#fff,stroke:#0b6e5f
-   classDef c fill:#F39C12,color:#fff,stroke:#af6f0c
-   classDef d fill:#8E44AD,color:#fff,stroke:#5b2a70
-   class A,B a
-   class C,D,E,F b
-   class G c
-   class H,I,J d
+   classDef primary fill:#FFB3BA,stroke:#FF8B94,stroke-width:2px,color:#000
+   classDef secondary fill:#BAE1FF,stroke:#89CFF0,stroke-width:2px,color:#000
+   classDef alert fill:#FFFACD,stroke:#FFD700,stroke-width:2px,color:#000
+
+   class A,B primary
+   class C,D,E,F secondary
+   class G,H,I,J alert
 ```
 
-## Issue #32 / #675 Implementation Status (2026-04-05)
+## Non-Functional Requirements
 
-Implemented and operational in platform deployment/runtime paths:
+| Requirement | Target | Mechanism |
+|---|---|---|
+| Search availability | 99.9% | AI Search replicas + CRUD fallback seeding |
+| Enrichment throughput | 50K products/month | Event Hub parallelism + Cosmos DB autoscale RUs |
+| Index freshness | < 5 min lag | Event-driven indexer on product change events |
+| Compliance | GDPR (search queries) | Query anonymization + 30-day TTL on telemetry |
 
-- **Provisioning**: Shared infrastructure provisions Azure AI Search, and `azd` `postprovision` ensures the `catalog-products` index after the service is reachable.
-- **Environment propagation**: `AI_SEARCH_ENDPOINT`, `AI_SEARCH_INDEX`, `AI_SEARCH_AUTH_MODE`, and `CATALOG_SEARCH_REQUIRE_AI_SEARCH` flow from Bicep/workflow outputs into Helm-rendered service environment variables.
-- **Runtime query path**: `ecommerce-catalog-search` queries Azure AI Search when configured.
-- **Startup/readiness seeding**: When Search is configured but empty, runtime executes bounded CRUD-based seeding during startup and readiness checks.
-- **Strict runtime enforcement**: In AKS/image deployments, strict mode is explicitly enabled and `/ready` fails closed (`503`) until AI Search is configured, reachable, and non-empty.
-- **Index maintenance**: Product event handlers attempt AI Search document upsert/delete when AI Search configuration is present.
+## Implementation Status (Operational)
 
-### Optional Hardening (Non-blocking)
+- **Provisioning**: Shared infra provisions Azure AI Search; `azd` `postprovision` ensures `catalog-products` index
+- **Environment propagation**: `AI_SEARCH_ENDPOINT`, `AI_SEARCH_INDEX`, `AI_SEARCH_AUTH_MODE`, `CATALOG_SEARCH_REQUIRE_AI_SEARCH` flow from Bicep into Helm
+- **Runtime query path**: `ecommerce-catalog-search` queries Azure AI Search when configured
+- **Startup seeding**: When Search is configured but empty, bounded CRUD-based seeding executes during startup/readiness
+- **Strict enforcement**: In AKS, strict mode is enabled; `/ready` fails closed (503) until AI Search is configured, reachable, and non-empty
+- **Index maintenance**: Product event handlers upsert/delete AI Search documents on catalog changes
 
-- Add vector embeddings + weighted hybrid query tuning (current path is keyword/SKU retrieval).
-- Add index relevance/load evaluation suites and SLO-driven alert thresholds.
-- Add stricter index/schema drift validation in CI pre-deploy checks.
+### Planned Hardening
+
+- Vector embeddings + weighted hybrid query tuning (current: keyword/SKU retrieval)
+- Index relevance/load evaluation suites with SLO-driven alerts
+- Index/schema drift validation in CI pre-deploy checks
 
 ## Detailed Walkthroughs
 

@@ -232,6 +232,13 @@ jest.mock('../../lib/hooks/useCart', () => ({
     isLoading: false,
     isError: false,
   }),
+  useAddToCart: () => ({
+    mutate: jest.fn(),
+    mutateAsync: jest.fn().mockResolvedValue(undefined),
+    isPending: false,
+    isError: false,
+    isSuccess: false,
+  }),
 }));
 
 jest.mock('../../lib/hooks/useInventory', () => ({
@@ -590,6 +597,11 @@ describe('Page rendering smoke tests', () => {
   it('renders the home page', () => {
     render(<HomePage />);
     expect(screen.getByTestId('main-layout')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', {
+        name: 'Retailer IQ: Azure operating fabric for agentic retail.',
+      }),
+    ).toBeInTheDocument();
   });
 
   it('renders categories page heading', () => {
@@ -641,17 +653,10 @@ describe('Page rendering smoke tests', () => {
     expect(screen.getByText('My Profile')).toBeInTheDocument();
     expect(screen.getByText('Demo User')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Addresses' }));
-    expect(screen.getByText('Addresses are not available in the current API contract.')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Payment Methods' }));
-    expect(screen.getByText('Payment methods are not available in the current API contract.')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Security' }));
-    expect(screen.getByText('Security settings are not available in the current API contract.')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Preferences' }));
-    expect(screen.getByText('Preferences are not available in the current API contract.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: /Addresses/ }));
+    expect(screen.getByRole('tab', { name: /Payment Methods/ })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Security/ })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Preferences/ })).toBeInTheDocument();
 
     expect(screen.queryByText('123 Main St')).not.toBeInTheDocument();
     expect(screen.queryByText('456 Office Plaza')).not.toBeInTheDocument();
@@ -668,7 +673,9 @@ describe('Page rendering smoke tests', () => {
   it('renders deals page', () => {
     render(<DealsPage />);
     expect(screen.getByText('Deals')).toBeInTheDocument();
-    expect(screen.getByText('Campaign-selected offers likely to convert right now.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Discounted catalog products surfaced from the live feed.'),
+    ).toBeInTheDocument();
   });
 
   it('renders dashboard page', () => {

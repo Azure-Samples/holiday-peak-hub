@@ -31,6 +31,7 @@ Key questions addressed:
 ### Architecture Overview
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
 flowchart LR
     subgraph TruthLayer["Product Truth Layer"]
         subgraph Sources["Data Sources"]
@@ -184,6 +185,7 @@ class HITLWorkflow:
 **Review States**:
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
 stateDiagram-v2
     [*] --> PENDING_ENRICHMENT
     PENDING_ENRICHMENT --> PENDING_REVIEW: AI enrichment complete
@@ -281,6 +283,7 @@ interface ProductDiff {
 ### Event Flow
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
 flowchart LR
     subgraph Services["Services"]
         PIMSync["PIM Sync"]

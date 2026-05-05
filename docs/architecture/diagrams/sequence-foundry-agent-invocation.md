@@ -1,6 +1,8 @@
 # Sequence Diagram: FoundryAgentInvoker Flow
 
-This diagram illustrates the agent invocation flow using the Microsoft Agent Framework (MAF) `FoundryAgentInvoker`, which replaced the legacy `FoundryInvoker` in PR #802.
+> Last Updated: 2026-04-30
+
+This diagram illustrates the agent invocation flow using the Microsoft Agent Framework (MAF >=1.0.1 GA) `FoundryAgentInvoker`, which replaced the legacy `FoundryInvoker` in PR #802. Reference this diagram when modifying agent invocation, model routing, tool registration, or memory parallelization.
 
 ## Flow Overview
 

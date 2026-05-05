@@ -1,7 +1,7 @@
 # Backend Development Governance and Compliance Guidelines
 
-**Version**: 2.0  
-**Last Updated**: 2026-04-12  
+**Version**: 2.1  
+**Last Updated**: 2026-04-30  
 **Owner**: Backend Team
 
 ## Scope
@@ -87,3 +87,5 @@ For environment-specific deployment rules, see [Infrastructure Governance](infra
 - ADR-007 Memory Partitioning
 - ADR-017 azd-first deployment
 - ADR-019 enterprise resilience patterns
+- ADR-025 self-healing boundaries
+- ADR-026 namespace isolation

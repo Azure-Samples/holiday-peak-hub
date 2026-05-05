@@ -61,6 +61,7 @@ We will implement the **AG-UI (Agentic GUI) Protocol** throughout the frontend a
 ### Architecture
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
 graph TB
     Agent[AI Agent] -->|AG-UI Request| Handler[AG-UI Handler]
     Handler -->|Validate| Registry[Action Registry]

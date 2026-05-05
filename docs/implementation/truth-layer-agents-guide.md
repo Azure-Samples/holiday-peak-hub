@@ -1,5 +1,7 @@
 # Product Truth Layer — Agent Operations Guide
 
+> Last Updated: 2026-04-30
+
 This guide explains each agent in the Product Truth Layer pipeline: what it does, why it exists, what configuration and data it requires, and how it communicates with the rest of the system.
 
 ## Pipeline Overview

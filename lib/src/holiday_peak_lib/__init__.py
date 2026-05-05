@@ -17,7 +17,8 @@ from opentelemetry.sdk.trace import TracerProvider as _TracerProvider  # noqa: E
 if not isinstance(_trace.get_tracer_provider(), _TracerProvider):
     try:
         _trace.set_tracer_provider(_TracerProvider())
-    except Exception:  # pragma: no cover – already set by another init path
+    # pylint: disable-next=broad-exception-caught
+    except Exception:  # pragma: no cover - already set by another init path
         pass
 # -----------------------------------------------------------------------------
 

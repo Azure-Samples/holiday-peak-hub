@@ -8,7 +8,7 @@ checks HTTPRoute backendRefs[].name fields to ensure they match the
 corresponding Service names.
 
 Usage:
-    python scripts/ci/validate_k8s_name_length.py
+    python scripts/python/ci/validate_k8s_name_length.py
 
 Exit codes:
     0 — All resource names are within the 63-character limit.
@@ -21,7 +21,7 @@ import re
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 RENDERED_DIR = REPO_ROOT / ".kubernetes" / "rendered"
 MAX_NAME_LENGTH = 63
 

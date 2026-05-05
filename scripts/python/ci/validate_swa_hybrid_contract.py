@@ -106,7 +106,10 @@ def validate(repo_root: Path) -> list[str]:
 
 
 def main() -> int:
-    repo_root = Path(__file__).resolve().parents[2]
+    # Script lives at scripts/python/ci/validate_swa_hybrid_contract.py;
+    # repo root is three levels up (scripts/python/ci -> scripts/python ->
+    # scripts -> repo root).
+    repo_root = Path(__file__).resolve().parents[3]
     failures = validate(repo_root)
 
     if failures:

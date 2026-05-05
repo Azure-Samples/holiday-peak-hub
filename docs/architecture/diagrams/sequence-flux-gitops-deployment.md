@@ -1,6 +1,8 @@
 # Sequence Diagram: Flux CD GitOps Deployment
 
-This diagram illustrates the GitOps deployment pipeline using Flux CD as implemented in ADR-017.
+> Last Updated: 2026-04-30
+
+This diagram illustrates the GitOps deployment pipeline using Flux CD as implemented in ADR-017. Reference this diagram when modifying deployment strategy, CI/CD workflows, or namespace isolation policies.
 
 ## Deployment Patterns
 
@@ -162,8 +164,8 @@ Services are deployed to two isolated namespaces per ADR-026:
 
 | Namespace | Services | Network Policy |
 |-----------|----------|----------------|
-| `holiday-peak-crud` | crud-service (1 service) | Allow: UI ingress, agent egress |
-| `holiday-peak-agents` | All 26 agent services (eCommerce, CRM, Inventory, Logistics, Product Mgmt, Search, Truth Layer) | Allow: CRUD, Event Hubs, AI Search, Cosmos DB |
+| `crud` | crud-service (1 service) | Allow: UI ingress, agent egress |
+| `agents` | All 26 agent services (eCommerce, CRM, Inventory, Logistics, Product Mgmt, Search, Truth Layer) | Allow: CRUD, Event Hubs, AI Search, Cosmos DB |
 
 ## Related
 

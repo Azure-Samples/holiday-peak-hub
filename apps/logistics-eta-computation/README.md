@@ -1,30 +1,70 @@
 # Logistics ETA Computation
 
+> Last Updated: 2026-04-30
+
 ## Purpose
-Computes ETA projections and delay-risk indicators for logistics workflows.
 
-## Responsibilities
-- Estimate shipment arrival windows.
-- Detect signals that reduce ETA confidence.
-- Return ETA updates with concise risk context.
+Computes ETA projections and delay-risk indicators for logistics workflows. Estimates shipment arrival windows, detects signals that reduce ETA confidence, and returns updates with concise risk context.
 
-## Key endpoints or interfaces
-- `POST /invoke` for synchronous service requests.
-- MCP interfaces under `/mcp/*` for agent-to-agent usage.
-- Event Hub subscription for asynchronous processing.
+## Domain Bounded Context
+- **Owner**: Logistics team
+- **Bounded Context**: Logistics
 
-## Run/Test commands
+## Endpoints
+
+### REST
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/invoke` | Synchronous agent invocation |
+| GET | `/health` | Liveness probe |
+| GET | `/ready` | Readiness probe |
+
+### MCP Tools
+| Tool | Description |
+|------|-------------|
+| `/logistics/eta/context` | Retrieve ETA computation context |
+| `/logistics/eta/compute` | Compute ETA with risk assessment |
+
+### Event Subscriptions
+| Topic | Consumer Group | Action |
+|-------|---------------|--------|
+| `order-events` | `eta-group` | Compute initial ETA on order creation |
+| `shipment-events` | `eta-group` | Update ETA on shipment changes |
+
+## Model Routing
+- **SLM (fast)**: GPT-5-nano via `FOUNDRY_AGENT_ID_FAST`
+- **LLM (rich)**: GPT-4o via `FOUNDRY_AGENT_ID_RICH`
+
+## Memory Usage
+| Tier | Purpose |
+|------|---------||
+| Hot (Redis) | Cached ETA computations (TTL 300s) |
+| Warm (Cosmos DB) | Delivery time history |
+| Cold (Blob) | Historical ETA analytics |
+
+## Environment Variables
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `PROJECT_ENDPOINT` | Yes | Azure AI Foundry project endpoint |
+| `FOUNDRY_AGENT_ID_FAST` | Yes | SLM agent ID |
+| `MODEL_DEPLOYMENT_NAME_FAST` | Yes | SLM deployment name |
+| `FOUNDRY_AGENT_ID_RICH` | Yes | LLM agent ID |
+| `MODEL_DEPLOYMENT_NAME_RICH` | Yes | LLM deployment name |
+| `REDIS_URL` | No | Redis connection URL |
+| `COSMOS_ACCOUNT_URI` | No | Cosmos DB endpoint |
+| `EVENTHUB_NAMESPACE` | Yes | Event Hub namespace |
+
+## Local Development
 ```bash
 cd apps/logistics-eta-computation/src
 uv sync
-uv run uvicorn logistics_eta_computation.main:app --reload
-python -m pytest ../tests
+uv run uvicorn logistics_eta_computation.main:app --reload --port 8015
 ```
 
-## Configuration notes
-- Uses Foundry model settings (`PROJECT_ENDPOINT` or `FOUNDRY_ENDPOINT`, fast/rich model identifiers).
-- Supports Redis/Cosmos/Blob memory configuration via shared memory settings.
-- Requires Event Hub namespace and consumer configuration for background jobs.
+## Test Coverage
+```bash
+python -m pytest apps/logistics-eta-computation/tests
+```
 
 ---
 

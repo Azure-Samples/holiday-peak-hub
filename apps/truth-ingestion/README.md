@@ -1,10 +1,16 @@
 # Truth Ingestion
 
+> Last Updated: 2026-04-30
+
 > Full pipeline documentation: [`docs/implementation/truth-layer-agents-guide.md`](../../docs/implementation/truth-layer-agents-guide.md)
 
 ## Purpose
 
 Ingests raw product data from PIM (Product Information Management) and DAM (Digital Asset Management) sources into the canonical truth store. Acts as the **first stage** of the Product Truth Layer pipeline.
+
+## Domain Bounded Context
+- **Owner**: Truth Layer team
+- **Bounded Context**: Truth Layer
 
 ## Why This Agent Exists
 

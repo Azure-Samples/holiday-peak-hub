@@ -52,7 +52,7 @@ rotation run is a summary object with `status`, `server`, `user`,
 ### Bash
 
 ```bash
-scripts/ops/reconcile-postgres-password.sh \
+scripts/shell/ops/reconcile-postgres-password.sh \
   --subscription-id "$AZURE_SUBSCRIPTION_ID" \
   --resource-group holidaypeakhub405-dev-rg \
   --server-name holidaypeakhub405-dev-postgres \
@@ -63,7 +63,7 @@ scripts/ops/reconcile-postgres-password.sh \
 ### PowerShell
 
 ```powershell
-./scripts/ops/reconcile-postgres-password.ps1 `
+./scripts/powershell/ops/reconcile-postgres-password.ps1 `
   -SubscriptionId $env:AZURE_SUBSCRIPTION_ID `
   -ResourceGroup holidaypeakhub405-dev-rg `
   -ServerName holidaypeakhub405-dev-postgres `

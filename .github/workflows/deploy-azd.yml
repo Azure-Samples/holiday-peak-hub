@@ -1609,7 +1609,7 @@ jobs:
           set -euo pipefail
           echo "Verifying prompt sha256 match between repo and image for ${SERVICE_NAME}..."
           docker pull "$IMAGE_REF" >/dev/null
-          python3 scripts/ci/verify_image_prompt.py \
+          python3 scripts/python/ci/verify_image_prompt.py \
             --service "$SERVICE_NAME" \
             --image-ref "$IMAGE_REF"
 
@@ -1986,9 +1986,9 @@ jobs:
             sudo apt-get install -y -qq postgresql-client >/dev/null
           fi
 
-          chmod +x ./scripts/ops/reconcile-postgres-password.sh
+          chmod +x ./scripts/shell/ops/reconcile-postgres-password.sh
           set +e
-          ./scripts/ops/reconcile-postgres-password.sh \
+          ./scripts/shell/ops/reconcile-postgres-password.sh \
             --subscription-id "${AZURE_SUBSCRIPTION_ID}" \
             --resource-group "${RESOURCE_GROUP_NAME}" \
             --server-name "${SERVER_NAME}" \
@@ -2006,7 +2006,7 @@ jobs:
             2)
               echo "::error::Postgres admin password probe FAILED with invalid_password." >&2
               echo "::error::Key Vault secret 'postgres-admin-password' is out of sync with the Flexible Server admin password." >&2
-              echo "::error::Run: scripts/ops/reconcile-postgres-password.sh --mode rotate-from-keyvault --resource-group ${RESOURCE_GROUP_NAME} --server-name ${SERVER_NAME} --key-vault-name ${KV_NAME}" >&2
+              echo "::error::Run: scripts/shell/ops/reconcile-postgres-password.sh --mode rotate-from-keyvault --resource-group ${RESOURCE_GROUP_NAME} --server-name ${SERVER_NAME} --key-vault-name ${KV_NAME}" >&2
               exit 1
               ;;
             3)
@@ -3012,7 +3012,7 @@ jobs:
               if [ -n "$project_name" ]; then
                 args+=(--project-name "$project_name")
               fi
-              if ! python3 scripts/ci/verify_foundry_prompt.py "${args[@]}"; then
+              if ! python3 scripts/python/ci/verify_foundry_prompt.py "${args[@]}"; then
                 FAIL=1
               fi
             done
@@ -4239,8 +4239,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          chmod +x scripts/ops/watchdog-apim-agc-swa-drift.sh
-          scripts/ops/watchdog-apim-agc-swa-drift.sh
+          chmod +x scripts/shell/ops/watchdog-apim-agc-swa-drift.sh
+          scripts/shell/ops/watchdog-apim-agc-swa-drift.sh
         env:
           PROJECT_NAME: ${{ inputs.projectName }}
           ENVIRONMENT: ${{ inputs.environment }}

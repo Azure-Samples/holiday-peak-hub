@@ -1,35 +1,56 @@
 # Business Scenario 05: Shipment & Delivery Tracking
 
-## Executive Statement
+> **Last Updated**: 2026-04-30 | **Domain Owner**: Logistics Agents | **Bounded Context**: Dispatch → Transit → Delivery → Exception Handling
 
-Proactive logistics intelligence pipeline that improves ETA confidence, reduces WISMO pressure, and optimizes carrier economics.
+---
 
-## Capability Mapping
+## Business Problem
 
-| Capability | Business Leverage |
-| --- | --- |
-| Carrier selection intelligence | Lower cost-to-ship with SLA compliance |
-| ETA computation | Accurate expectation setting and trust retention |
-| Route issue detection | Early disruption detection and mitigation |
-| CRM notification context | Proactive communication and support deflection |
+"Where Is My Order?" (WISMO) accounts for 30–50% of inbound customer service contacts, costing $5–$8 per inquiry. Traditional tracking systems are reactive — they report delays after customers notice them. Carrier selection is typically rule-based (cheapest or fastest), ignoring real-time reliability signals, route disruptions, and customer segment expectations.
 
-## Outcome Targets
+## Agentic Difference
 
-| North-Star KPI | Target |
-| --- | --- |
-| ETA prediction accuracy | > 92% |
-| WISMO ticket reduction | > 60% |
-| Late-delivery incident rate | < 5% |
-| Carrier cost optimization gain | 8–15% |
+| Aspect | Traditional Microservice | Holiday Peak Hub Agent |
+|---|---|---|
+| **Carrier selection** | Static cost/speed rules | `carrier-selection` agent evaluates cost, speed, reliability, and carbon footprint per shipment using contextual LLM reasoning |
+| **ETA prediction** | Carrier-provided estimate (often inaccurate) | `eta-computation` agent combines carrier data + weather + traffic + historical performance for 92%+ accuracy |
+| **Route monitoring** | Polling carrier APIs every 30 min | `route-issue-detection` agent processes real-time transit signals via Event Hub; detects disruptions proactively |
+| **Customer notification** | Template emails on status change | CRM agents generate proactive, contextual notifications before customer inquires |
+
+## KPIs Impacted
+
+| North-Star KPI | Target | Measurement |
+|---|---|---|
+| ETA prediction accuracy | > 92% | Predicted vs. actual delivery time |
+| WISMO ticket reduction | > 60% | Pre/post proactive notification implementation |
+| Late-delivery incident rate | < 5% | Orders delivered after promised ETA |
+| Carrier cost optimization | 8–15% savings | AI-selected vs. rule-based carrier cost delta |
+
+## Stakeholder Value
+
+| Stakeholder | Value |
+|---|---|
+| **VP Commerce** | WISMO deflection saves $5–$8/ticket × 60% reduction = massive cost savings |
+| **Ops Manager** | Proactive disruption detection enables pre-emptive rerouting |
+| **CTO** | Event-driven architecture; no polling overhead |
+| **Developer** | Clean carrier abstraction; MCP tools for cross-agent logistics data |
 
 ## Executive Flow
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {
+  'primaryColor':'#FFB3BA',
+  'primaryTextColor':'#000',
+  'primaryBorderColor':'#FF8B94',
+  'lineColor':'#BAE1FF',
+  'secondaryColor':'#BAE1FF',
+  'tertiaryColor':'#FFFFFF'
+}}}%%
 flowchart LR
-   A[Order Ready to Ship] --> B[Carrier Selection]
+   A[Order Ready to Ship] --> B[Carrier Selection Agent]
    B --> C[Shipment Dispatch]
-   C --> D[ETA Computation]
-   D --> E[In-Transit Signal Monitoring]
+   C --> D[ETA Computation Agent]
+   D --> E[Route Issue Detection Agent]
    E --> F{Route Risk Detected?}
    F -->|Yes| G[Delay Prediction + Replan]
    G --> H[Proactive Customer Notification]
@@ -37,14 +58,23 @@ flowchart LR
    H --> J[Delivery Confirmation]
    I --> J
 
-   classDef a fill:#0B84F3,color:#fff,stroke:#085ea8
-   classDef b fill:#00A88F,color:#fff,stroke:#0b6e5f
-   classDef c fill:#F39C12,color:#fff,stroke:#af6f0c
-   classDef d fill:#8E44AD,color:#fff,stroke:#5b2a70
-   class A,B,C,D,E a
-   class G,H,I,J b
-   class F c
+   classDef primary fill:#FFB3BA,stroke:#FF8B94,stroke-width:2px,color:#000
+   classDef secondary fill:#BAE1FF,stroke:#89CFF0,stroke-width:2px,color:#000
+   classDef alert fill:#FFFACD,stroke:#FFD700,stroke-width:2px,color:#000
+
+   class A,B,C,D primary
+   class E,G,H,I,J secondary
+   class F alert
 ```
+
+## Non-Functional Requirements
+
+| Requirement | Target | Mechanism |
+|---|---|---|
+| Tracking update latency | < 5 min from carrier signal | Event Hub real-time processing |
+| Carrier API resilience | 99.9% | Circuit breakers per carrier + fallback to cached ETA |
+| Notification delivery | < 2 min from detection | Redis pub/sub + notification service |
+| Scaling | 100K concurrent shipments | Partitioned Event Hub consumers + KEDA |
 
 ## Detailed Walkthroughs
 

@@ -67,6 +67,26 @@ class SearchEnrichedStoreAdapter:
         }
 
 
+class RecommendationFeedbackStoreAdapter:
+    """Persist recommendation feedback events owned by RecommenderIQ."""
+
+    def __init__(self) -> None:
+        self._events: list[dict[str, Any]] = []
+
+    async def record(self, payload: dict[str, Any]) -> dict[str, Any]:
+        stored = dict(payload)
+        self._events.append(stored)
+        logger.info(
+            "recommendation_feedback_recorded recommendation_set_id=%s event_type=%s",
+            stored.get("recommendation_set_id"),
+            stored.get("event_type"),
+        )
+        return stored
+
+    async def list_events(self) -> list[dict[str, Any]]:
+        return [dict(event) for event in self._events]
+
+
 class FoundryEnrichmentAdapter:
     """Wrap model invocation for complex search enrichment generation."""
 
@@ -291,6 +311,9 @@ class SearchEnrichmentAdapters:
 
     approved_truth: ApprovedTruthAdapter = field(default_factory=ApprovedTruthAdapter)
     enriched_store: SearchEnrichedStoreAdapter = field(default_factory=SearchEnrichedStoreAdapter)
+    recommendation_feedback: RecommendationFeedbackStoreAdapter = field(
+        default_factory=RecommendationFeedbackStoreAdapter
+    )
     foundry: FoundryEnrichmentAdapter = field(default_factory=FoundryEnrichmentAdapter)
     search_indexing: SearchIndexingAdapter | None = None
 

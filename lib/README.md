@@ -1,8 +1,10 @@
 # `holiday-peak-lib` — Core Micro-Framework for Agentic Retail Services
 
+> Last Updated: 2026-04-30
+
 ![version](https://img.shields.io/badge/version-0.2.0-blue)
 ![python](https://img.shields.io/badge/python-%3E%3D3.13-blue)
-![tests](https://img.shields.io/badge/tests-1136%20passed-brightgreen)
+![tests](https://img.shields.io/badge/tests-1796%20passed-brightgreen)
 ![coverage](https://img.shields.io/badge/coverage-89%25-brightgreen)
 
 `holiday-peak-lib` is the shared micro-framework that powers every retail agent service in this repository. It provides a single, cohesive abstraction layer over Microsoft Agent Framework (MAF), Azure AI Foundry, three-tier memory, enterprise connectors, resilience patterns, and structured telemetry — enabling 26 domain-specific agent services to stay thin, consistent, and independently deployable while sharing battle-tested infrastructure code.
@@ -216,6 +218,14 @@ graph TD
 |------|-------------|---------|
 | `server.py` | `FastAPIMCPServer`, `MCPToolSchemaRef` | MCP tool server integrated with FastAPI for agent-to-agent tool exposure |
 | `ai_search_indexing.py` | `AISearchIndexingClient`, `register_ai_search_indexing_tools` | AI Search indexing operations exposed as MCP tools |
+
+### `messaging/` — Async Messaging Contracts
+
+| File | Key Exports | Purpose |
+|------|-------------|---------|
+| `async_contract.py` | `AgentAsyncContract`, `TopicDeclaration` | Observer-based async messaging contract for declaring agent event subscriptions |
+| `contract_endpoint.py` | `build_contract_router` | Generates FastAPI router exposing the messaging contract as REST |
+| `topic_subject.py` | `TopicSubject` | Reactive subject pattern for topic-based event dispatch |
 
 ### `schemas/` — Pydantic v2 Models
 
@@ -460,7 +470,7 @@ result = await execute_compensation(actions, continue_on_error=False)
 
 ## Testing
 
-The lib test suite contains **1,136 tests** with **89% code coverage**, run via `pytest` with `pytest-asyncio` for async test support.
+The lib test suite contains **1,136 tests** (of 1,796 total across the repository) with **89% code coverage**, run via `pytest` with `pytest-asyncio` for async test support.
 
 ### Running Tests
 

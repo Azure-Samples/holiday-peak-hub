@@ -1,7 +1,7 @@
 # Infrastructure Governance and Compliance Guidelines
 
-**Version**: 2.4
-**Last Updated**: 2026-04-08
+**Version**: 2.5
+**Last Updated**: 2026-04-30
 **Owner**: Infrastructure Team
 
 ## Scope
@@ -158,3 +158,5 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 - ADR-019 enterprise resilience patterns
 - ADR-021 historical AGIC traffic-management record
 - ADR-021 canonical APIM -> AGC -> AKS edge
+- ADR-025 self-healing boundaries
+- ADR-026 namespace isolation (CRUD: `holiday-peak-crud`, agents: `holiday-peak-agents`)

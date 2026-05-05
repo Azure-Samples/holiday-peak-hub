@@ -17,6 +17,12 @@ function tierClass(tier: string): string {
   return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300';
 }
 
+const NUMBER_FORMATTER = new Intl.NumberFormat('en-US');
+
+function formatInteger(value: number): string {
+  return NUMBER_FORMATTER.format(Math.round(value));
+}
+
 export const ModelUsageTable: React.FC<ModelUsageTableProps> = ({ rows }) => {
   if (rows.length === 0) {
     return <p className="text-sm text-gray-500 dark:text-gray-400">No model usage available for this time range.</p>;
@@ -40,11 +46,11 @@ export const ModelUsageTable: React.FC<ModelUsageTableProps> = ({ rows }) => {
             <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
               <div className="rounded-lg bg-[var(--hp-surface-strong)] p-2">
                 <dt className="text-[var(--hp-text-muted)]">Requests</dt>
-                <dd className="font-semibold text-[var(--hp-text)]">{row.requests.toLocaleString()}</dd>
+                <dd className="font-semibold text-[var(--hp-text)]">{formatInteger(row.requests)}</dd>
               </div>
               <div className="rounded-lg bg-[var(--hp-surface-strong)] p-2">
                 <dt className="text-[var(--hp-text-muted)]">Total tokens</dt>
-                <dd className="font-semibold text-[var(--hp-text)]">{row.total_tokens.toLocaleString()}</dd>
+                <dd className="font-semibold text-[var(--hp-text)]">{formatInteger(row.total_tokens)}</dd>
               </div>
               <div className="rounded-lg bg-[var(--hp-surface-strong)] p-2">
                 <dt className="text-[var(--hp-text-muted)]">Avg latency</dt>
@@ -80,8 +86,8 @@ export const ModelUsageTable: React.FC<ModelUsageTableProps> = ({ rows }) => {
                     {row.model_tier}
                   </span>
                 </td>
-                <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{row.requests.toLocaleString()}</td>
-                <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{row.total_tokens.toLocaleString()}</td>
+                <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{formatInteger(row.requests)}</td>
+                <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{formatInteger(row.total_tokens)}</td>
                 <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{Math.round(row.avg_latency_ms)} ms</td>
                 <td className="px-4 py-2 text-gray-700 dark:text-gray-300">${row.cost_usd.toFixed(2)}</td>
               </tr>

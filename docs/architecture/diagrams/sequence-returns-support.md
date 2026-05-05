@@ -1,6 +1,8 @@
 # Sequence Diagram: Logistics Returns Support Flow
 
-This diagram illustrates the returns processing workflow in the Holiday Peak Hub accelerator.
+> Last Updated: 2026-04-30
+
+This diagram illustrates the returns processing workflow in the Holiday Peak Hub accelerator. It covers the full lifecycle: eligibility validation, LLM-guided return instructions, label generation, SAGA choreography across WMS/Carrier/Refund, and VIP fast-track. Reference this diagram when changing returns policies, carrier integrations, or refund flows.
 
 ## Flow Overview
 
@@ -14,12 +16,13 @@ This diagram illustrates the returns processing workflow in the Holiday Peak Hub
 ## Sequence Diagram
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
 sequenceDiagram
     actor Customer
     participant API as FastAPI App
     participant Agent as Returns Support Agent
     participant Router as Model Router
-    participant LLM as GPT-5
+    participant LLM as GPT-4o
     participant Logistics as Logistics Adapter
     participant CRM as CRM Adapter
     participant Funnel as Funnel Adapter

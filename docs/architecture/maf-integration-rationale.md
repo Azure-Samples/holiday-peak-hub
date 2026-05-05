@@ -1,7 +1,7 @@
 # Microsoft Agent Framework (MAF) Integration Rationale
 
-**Version**: 1.0
-**Last Updated**: 2026-04-12
+**Version**: 1.1
+**Last Updated**: 2026-04-30
 **Status**: Implemented (PR #802, agent-framework>=1.0.1 GA)
 
 ---

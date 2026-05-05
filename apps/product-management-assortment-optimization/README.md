@@ -1,30 +1,70 @@
 # Product Management Assortment Optimization
 
+> Last Updated: 2026-04-30
+
 ## Purpose
-Optimizes assortment decisions using product performance and relevance signals.
 
-## Responsibilities
-- Rank product candidates for assortment planning.
-- Evaluate keep/drop trade-offs for target assortments.
-- Return explainable assortment recommendations.
+Optimizes assortment decisions using product performance and relevance signals. Ranks product candidates, evaluates keep/drop trade-offs, and returns explainable assortment recommendations.
 
-## Key endpoints or interfaces
-- `POST /invoke` for synchronous service requests.
-- MCP interfaces under `/mcp/*` for agent-to-agent usage.
-- Event Hub subscription for asynchronous processing.
+## Domain Bounded Context
+- **Owner**: Product Management team
+- **Bounded Context**: Product Management
 
-## Run/Test commands
+## Endpoints
+
+### REST
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/invoke` | Synchronous agent invocation |
+| GET | `/health` | Liveness probe |
+| GET | `/ready` | Readiness probe |
+
+### MCP Tools
+| Tool | Description |
+|------|-------------|
+| `/assortment/context` | Retrieve assortment optimization context |
+| `/assortment/recommend` | Generate assortment recommendations |
+
+### Event Subscriptions
+| Topic | Consumer Group | Action |
+|-------|---------------|--------|
+| `order-events` | `assortment-group` | Factor sales velocity into decisions |
+| `product-events` | `assortment-group` | React to catalog changes |
+
+## Model Routing
+- **SLM (fast)**: GPT-5-nano via `FOUNDRY_AGENT_ID_FAST`
+- **LLM (rich)**: GPT-4o via `FOUNDRY_AGENT_ID_RICH`
+
+## Memory Usage
+| Tier | Purpose |
+|------|---------||
+| Hot (Redis) | Cached assortment scores (TTL 300s) |
+| Warm (Cosmos DB) | Assortment state and performance data |
+| Cold (Blob) | Historical assortment analytics |
+
+## Environment Variables
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `PROJECT_ENDPOINT` | Yes | Azure AI Foundry project endpoint |
+| `FOUNDRY_AGENT_ID_FAST` | Yes | SLM agent ID |
+| `MODEL_DEPLOYMENT_NAME_FAST` | Yes | SLM deployment name |
+| `FOUNDRY_AGENT_ID_RICH` | Yes | LLM agent ID |
+| `MODEL_DEPLOYMENT_NAME_RICH` | Yes | LLM deployment name |
+| `REDIS_URL` | No | Redis connection URL |
+| `COSMOS_ACCOUNT_URI` | No | Cosmos DB endpoint |
+| `EVENTHUB_NAMESPACE` | Yes | Event Hub namespace |
+
+## Local Development
 ```bash
 cd apps/product-management-assortment-optimization/src
 uv sync
-uv run uvicorn product_management_assortment_optimization.main:app --reload
-python -m pytest ../tests
+uv run uvicorn product_management_assortment_optimization.main:app --reload --port 8019
 ```
 
-## Configuration notes
-- Uses Foundry model settings (`PROJECT_ENDPOINT` or `FOUNDRY_ENDPOINT`, fast/rich model identifiers).
-- Supports Redis/Cosmos/Blob memory configuration via shared memory settings.
-- Requires Event Hub namespace and consumer configuration for background jobs.
+## Test Coverage
+```bash
+python -m pytest apps/product-management-assortment-optimization/tests
+```
 
 ---
 

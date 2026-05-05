@@ -1,6 +1,8 @@
 # Sequence Diagram: E-commerce Catalog Search Flow
 
-This diagram illustrates the end-to-end flow for product search in the Holiday Peak Hub accelerator.
+> Last Updated: 2026-04-30
+
+This diagram illustrates the end-to-end flow for product search in the Holiday Peak Hub accelerator. The entire pipeline is constrained to a strict **4-second SLA** (P95) from request to response. Reference this diagram when modifying the catalog-search agent, AI Search integration, or model routing logic.
 
 ## Flow Overview
 
@@ -14,13 +16,14 @@ This diagram illustrates the end-to-end flow for product search in the Holiday P
 ## Sequence Diagram
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
 sequenceDiagram
     actor User
     participant API as FastAPI App
     participant Agent as Catalog Agent
     participant Router as Model Router
     participant SLM as GPT-5-nano
-    participant LLM as GPT-5
+    participant LLM as GPT-4o
     participant Search as Azure AI Search
     participant Inventory as Inventory Adapter
     participant Memory as Memory Stack
@@ -128,7 +131,7 @@ sequenceDiagram
 | Search execution | < 200ms | Indexed fields |
 | Inventory check (parallel) | < 300ms | Async + connection pool |
 | Personalization | < 50ms | In-memory ranking |
-| **Total (P95)** | **< 1.2s** | |
+| **Total (P95)** | **< 4s** | Strict SLA per pipeline contract |
 
 ## Error Handling
 

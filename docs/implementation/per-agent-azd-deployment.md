@@ -1,5 +1,7 @@
 # Per-Agent Deployment with Shared Dependencies
 
+> Last Updated: 2026-04-30
+
 This guide explains how to deploy one specific agentic app while still honoring the required platform dependencies (databases, Foundry, Event Hubs, and memory services) defined in this repository.
 
 ## Scope

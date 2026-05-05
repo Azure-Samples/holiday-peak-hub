@@ -1,74 +1,89 @@
 # Business Scenario 06: Customer 360 & Personalization
 
-## Executive Statement
+> **Last Updated**: 2026-04-30 | **Domain Owner**: CRM Agents | **Bounded Context**: Behavior Signals → Profile → Segmentation → Activation
 
-Real-time CRM intelligence mesh that fuses behavioral, transactional, and segment context to maximize LTV and campaign performance.
+---
 
-## Capability Mapping
+## Business Problem
 
-| Capability | Business Leverage |
-| --- | --- |
-| Profile aggregation | Unified customer context for every touchpoint |
-| Segmentation personalization | Higher relevance and retention outcomes |
-| Campaign intelligence | Better offer timing and message fit |
-| Warm-memory profile persistence | Durable personalization continuity |
+Retailers with fragmented customer data deliver generic experiences that underperform by 2–3× vs. personalized alternatives. Traditional CRM systems batch-process segments overnight, missing real-time behavioral signals. Campaign targeting relies on static rules rather than dynamic customer context, resulting in 15–20% lower CTR and wasted marketing spend.
 
-## Outcome Targets
+## Agentic Difference
 
-| North-Star KPI | Target |
-| --- | --- |
-| Personalized conversion uplift | 2–3x vs generic baseline |
-| Segment refresh latency | < 5 min |
-| Campaign CTR improvement | +30% |
-| Churn-risk interception success | > 25% uplift |
+| Aspect | Traditional Microservice | Holiday Peak Hub Agent |
+|---|---|---|
+| **Profile building** | Batch ETL (overnight sync) | `profile-aggregation` agent builds unified view in real-time via Event Hub behavioral signals |
+| **Segmentation** | Static SQL queries (daily refresh) | `segmentation-personalization` agent dynamically assigns segments using LLM + three-tier memory context |
+| **Campaign targeting** | Rule-based audience builder | `campaign-intelligence` agent optimizes timing, channel, and message using customer 360 context |
+| **Personalization** | Pre-computed recommendations | Real-time context from Hot memory (Redis) enables sub-50ms personalization decisions |
+
+## KPIs Impacted
+
+| North-Star KPI | Target | Measurement |
+|---|---|---|
+| Personalized conversion uplift | 2–3× vs. generic | A/B test: personalized vs. control |
+| Segment refresh latency | < 5 min | Time from behavior event to segment update |
+| Campaign CTR improvement | +30% | AI-targeted vs. rule-based campaigns |
+| Churn-risk interception | > 25% uplift | Proactive retention action success rate |
+
+## Stakeholder Value
+
+| Stakeholder | Value |
+|---|---|
+| **VP Commerce** | 2–3× conversion from personalization; 30% better campaign ROI |
+| **Ops Manager** | Real-time segments eliminate overnight batch dependencies |
+| **CTO** | Three-tier memory architecture optimizes cost vs. latency |
+| **Developer** | Clean `/api` contracts; versioned with additive-only changes |
 
 ## Executive Flow
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {
+  'primaryColor':'#FFB3BA',
+  'primaryTextColor':'#000',
+  'primaryBorderColor':'#FF8B94',
+  'lineColor':'#BAE1FF',
+  'secondaryColor':'#BAE1FF',
+  'tertiaryColor':'#FFFFFF'
+}}}%%
 flowchart LR
-   A[Behavior + Transaction Events] --> B[Profile Aggregation]
-   B --> C[Customer 360 Update]
-   C --> D[Segmentation Engine]
-   D --> E[Campaign Intelligence]
+   A[Behavior + Transaction Events] --> B[Profile Aggregation Agent]
+   B --> C[Customer 360 in Cosmos DB]
+   C --> D[Segmentation Agent]
+   D --> E[Campaign Intelligence Agent]
    E --> F[Personalized Experience Delivery]
-   F --> G[Engagement Feedback]
+   F --> G[Engagement Feedback Loop]
    G --> B
 
-   classDef a fill:#0B84F3,color:#fff,stroke:#085ea8
-   classDef b fill:#00A88F,color:#fff,stroke:#0b6e5f
-   classDef c fill:#F39C12,color:#fff,stroke:#af6f0c
-   class A,B,C a
-   class D,E,F,G b
+   classDef primary fill:#FFB3BA,stroke:#FF8B94,stroke-width:2px,color:#000
+   classDef secondary fill:#BAE1FF,stroke:#89CFF0,stroke-width:2px,color:#000
+
+   class A,B,C primary
+   class D,E,F,G secondary
 ```
 
-## UI Personalization Contract Flow (Issue #215)
+## Non-Functional Requirements
 
-Brand-shopping personalization in the UI now runs entirely through CRUD-owned contracts under `/api`:
+| Requirement | Target | Mechanism |
+|---|---|---|
+| Profile read latency | < 50ms (hot) | Redis cached customer profiles |
+| Profile durability | 99.999% | Cosmos DB with multi-region writes |
+| Segment computation | < 5 min from event | Event Hub trigger + agent processing |
+| Privacy compliance | GDPR Article 17 | Right-to-erasure endpoint; data TTLs |
 
-1. `GET /api/catalog/products/{sku}`
-2. `GET /api/customers/{customer_id}/profile`
-3. `POST /api/pricing/offers`
-4. `POST /api/recommendations/rank`
-5. `POST /api/recommendations/compose`
+## Implementation Status (Live)
 
-Execution model used by the dashboard personalization flow:
+### Personalization API Contract (v1)
+1. `GET /api/catalog/products/{sku}` — product context
+2. `GET /api/customers/{customer_id}/profile` — customer 360
+3. `POST /api/pricing/offers` — deterministic offer computation
+4. `POST /api/recommendations/rank` — ML-scored ranking
+5. `POST /api/recommendations/compose` — final recommendation cards
 
-- UI fetches product and customer profile first.
-- UI requests deterministic offer computation for the selected SKU and quantity.
-- UI submits ranked candidates for recommendation scoring.
-- UI composes final recommendation cards from ranked items.
-
-Versioning strategy for these contracts:
-
-- Current contract surface is `v1` on `/api` with additive-only changes.
-- Breaking schema/path changes must introduce a new versioned path (for example `/api/v2/...`) and run in parallel during migration.
-
-## Dashboard/Profile Contract Alignment (Issue #28)
-
-- Dashboard and profile UI flows now consume supported data paths via API hooks and same-origin `/api/*` contracts.
-- Remaining fabricated dashboard/profile values were removed.
-- Where no backend contract exists (for example rewards points/progress, saved addresses, payment methods, and related profile tabs), the UI renders explicit unavailable/unsupported states instead of hardcoded placeholders.
-- Scope claim is intentionally limited to supported dashboard/profile data paths and explicit no-contract states.
+### Dashboard/Profile Alignment
+- Dashboard and profile UI flows consume supported data paths via API hooks
+- Where no backend contract exists (rewards, saved addresses, payment methods): UI renders explicit unavailable states
+- Versioning: `v1` on `/api` with additive-only changes; breaking changes require `/api/v2/` parallel path
 
 ## Detailed Walkthroughs
 

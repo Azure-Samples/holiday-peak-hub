@@ -11,7 +11,6 @@ from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.agents.memory import (
     CacheConfig,
-    inject_session_id,
     resolve_cache_key,
     try_cache_read,
 )
@@ -26,6 +25,22 @@ from holiday_peak_lib.utils.telemetry import get_foundry_tracer
 
 from .adapters import SearchEnrichmentAdapters, build_search_enrichment_adapters
 from .enrichment_engine import SearchEnrichmentEngine
+from .recommendations import (
+    ComposeRecommendationsRequest,
+    ComposeRecommendationsResponse,
+    ExplainRecommendationRequest,
+    ExplainRecommendationResponse,
+    ModelStatusResponse,
+    RankRecommendationsRequest,
+    RankRecommendationsResponse,
+    RecommendationCandidatesRequest,
+    RecommendationCandidatesResponse,
+    RecommendationEngine,
+    RecommendationFeedbackRequest,
+    RecommendationFeedbackResponse,
+    RecommendationOrchestrator,
+    model_to_payload,
+)
 
 _API_LIVENESS_DECISION = "liveness.api.invoke"
 
@@ -64,47 +79,18 @@ class SearchEnrichmentOrchestrator:
             and isinstance(enriched_fields, dict)
             and enriched_fields.get("tool_calls")
         ):
-            executed_fields: dict[str, Any] = {}
-            for tool_call in enriched_fields["tool_calls"]:
-                tool_name = tool_call.get("name") or tool_call.get("function", {}).get("name")
-                if tool_name:
-                    tool_result = await self._execute_tool(tool_name, entity_id, approved)
-                    executed_fields.update(tool_result)
-            enriched_fields = (
-                executed_fields if executed_fields else self.engine.build_simple_fields(approved)
+            enriched_fields = await self._execute_tool_calls(
+                tool_calls=enriched_fields["tool_calls"],
+                entity_id=entity_id,
+                approved=approved,
             )
 
         validated_fields = self.engine.validate_fields(enriched_fields)
-        enriched_product = SearchEnrichedProduct(
-            sku=entity_id,
-            score=1.0 if strategy in ("complex", "agentic") else 0.75,
-            sourceType=(
-                SourceType.AI_REASONING
-                if strategy in ("complex", "agentic")
-                else SourceType.PRODUCT_CONTEXT
-            ),
-            sourceAssets=[],
-            originalData=approved,
-            enrichedData=validated_fields,
-            intentClassification=None,
-            reasoning=(
-                "Agentic model-orchestrated enrichment via function calling"
-                if strategy == "agentic"
-                else (
-                    "Complex strategy using model-assisted enrichment"
-                    if strategy == "complex"
-                    else "Simple deterministic strategy from approved truth"
-                )
-            ),
-            # amplification dimensions
-            marketingBullets=validated_fields.get("marketing_bullets", []),
-            seoTitle=validated_fields.get("seo_title"),
-            targetAudience=validated_fields.get("target_audience", []),
-            seasonalRelevance=validated_fields.get("seasonal_relevance", []),
-            facetTags=validated_fields.get("facet_tags", []),
-            sustainabilitySignals=validated_fields.get("sustainability_signals", []),
-            careGuidance=validated_fields.get("care_guidance"),
-            completenessPct=validated_fields.get("completeness_pct"),
+        enriched_product = self._build_enriched_product(
+            entity_id=entity_id,
+            approved=approved,
+            validated_fields=validated_fields,
+            strategy=strategy,
         )
 
         stored = await self.adapters.enriched_store.upsert(enriched_product)
@@ -136,24 +122,26 @@ class SearchEnrichmentOrchestrator:
             return "simple", simple_fields, False
 
         # Agentic: let the model decide which tools to call
-        tools = self._build_enrichment_tools(entity_id, approved)
+        tools = self._build_enrichment_tools()
         try:
             result = await self.adapters.foundry.orchestrate_enrichment(
                 entity_id=entity_id,
                 approved_truth=approved,
                 tools=tools,
             )
+            if not isinstance(result, dict):
+                return "simple", simple_fields, True
             if result.get("_status") == "ok":
                 strategy = result.get("_strategy", "agentic")
                 fields = result.get("fields", simple_fields)
                 return strategy, fields, False
             # Model invocation worked but returned fallback
             return "simple", simple_fields, result.get("_status") == "fallback"
-        except Exception:
+        except (RuntimeError, ValueError, TypeError):
             # Graceful degradation: if agentic path fails, use deterministic
             return "simple", simple_fields, True
 
-    def _build_enrichment_tools(self, entity_id: str, approved: dict[str, Any]) -> dict[str, Any]:
+    def _build_enrichment_tools(self) -> dict[str, Any]:
         """Build tool definitions for model-orchestrated enrichment."""
         return {
             "generate_simple_fields": {
@@ -180,6 +168,61 @@ class SearchEnrichmentOrchestrator:
                 "parameters": {"entity_id": {"type": "string"}},
             },
         }
+
+    async def _execute_tool_calls(
+        self,
+        *,
+        tool_calls: list[dict[str, Any]],
+        entity_id: str,
+        approved: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Execute model-selected enrichment tools and merge their fields."""
+        executed_fields: dict[str, Any] = {}
+        for tool_call in tool_calls:
+            tool_name = tool_call.get("name") or tool_call.get("function", {}).get("name")
+            if tool_name:
+                tool_result = await self._execute_tool(tool_name, entity_id, approved)
+                executed_fields.update(tool_result)
+        return executed_fields or self.engine.build_simple_fields(approved)
+
+    def _build_enriched_product(
+        self,
+        *,
+        entity_id: str,
+        approved: dict[str, Any],
+        validated_fields: dict[str, Any],
+        strategy: str,
+    ) -> SearchEnrichedProduct:
+        """Build the validated search-enriched product payload."""
+        reasoning_by_strategy = {
+            "agentic": "Agentic model-orchestrated enrichment via function calling",
+            "complex": "Complex strategy using model-assisted enrichment",
+        }
+        return SearchEnrichedProduct(
+            sku=entity_id,
+            score=1.0 if strategy in ("complex", "agentic") else 0.75,
+            sourceType=(
+                SourceType.AI_REASONING
+                if strategy in ("complex", "agentic")
+                else SourceType.PRODUCT_CONTEXT
+            ),
+            sourceAssets=[],
+            originalData=approved,
+            enrichedData=validated_fields,
+            intentClassification=None,
+            reasoning=reasoning_by_strategy.get(
+                strategy,
+                "Simple deterministic strategy from approved truth",
+            ),
+            marketingBullets=validated_fields.get("marketing_bullets", []),
+            seoTitle=validated_fields.get("seo_title"),
+            targetAudience=validated_fields.get("target_audience", []),
+            seasonalRelevance=validated_fields.get("seasonal_relevance", []),
+            facetTags=validated_fields.get("facet_tags", []),
+            sustainabilitySignals=validated_fields.get("sustainability_signals", []),
+            careGuidance=validated_fields.get("care_guidance"),
+            completenessPct=validated_fields.get("completeness_pct"),
+        )
 
     async def _execute_tool(
         self, tool_name: str, entity_id: str, approved: dict[str, Any]
@@ -279,7 +322,7 @@ def _with_mcp_liveness(
         entity_id = _extract_entity_id(payload)
         try:
             result = await handler(payload)
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             get_foundry_tracer(agent.service_name or type(agent).__name__).trace_tool_call(
                 tool_name=tool_name,
                 outcome="error",
@@ -322,6 +365,10 @@ class SearchEnrichmentAgent(BaseRetailAgent):
         self._orchestrator = SearchEnrichmentOrchestrator(
             adapters=self._adapters,
             engine=self._engine,
+        )
+        self._recommendation_orchestrator = RecommendationOrchestrator(
+            adapters=self._adapters,
+            engine=RecommendationEngine(search_engine=self._engine),
         )
 
     @property
@@ -405,7 +452,7 @@ class SearchEnrichmentAgent(BaseRetailAgent):
             _record_search_enrichment_evaluation(self, entity_id=resolved_entity_id, result=result)
             self.background_cache_write(cache_key, result, ttl_seconds=300)
             return result
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             self._trace_api_liveness(
                 outcome="error",
                 entity_id=resolved_entity_id,
@@ -419,6 +466,39 @@ class SearchEnrichmentAgent(BaseRetailAgent):
             has_model_backend=bool(self.slm or self.llm),
             trigger=trigger,
         )
+
+    async def recommendation_candidates(
+        self,
+        request: RecommendationCandidatesRequest,
+    ) -> RecommendationCandidatesResponse:
+        return await self._recommendation_orchestrator.candidates(request)
+
+    async def recommendation_rank(
+        self,
+        request: RankRecommendationsRequest,
+    ) -> RankRecommendationsResponse:
+        return await self._recommendation_orchestrator.rank(request)
+
+    async def recommendation_compose(
+        self,
+        request: ComposeRecommendationsRequest,
+    ) -> ComposeRecommendationsResponse:
+        return await self._recommendation_orchestrator.compose(request)
+
+    async def recommendation_feedback(
+        self,
+        request: RecommendationFeedbackRequest,
+    ) -> RecommendationFeedbackResponse:
+        return await self._recommendation_orchestrator.feedback(request)
+
+    async def recommendation_explain(
+        self,
+        request: ExplainRecommendationRequest,
+    ) -> ExplainRecommendationResponse:
+        return await self._recommendation_orchestrator.explain(request)
+
+    async def recommendation_model_status(self) -> ModelStatusResponse:
+        return await self._recommendation_orchestrator.model_status()
 
 
 def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
@@ -464,7 +544,65 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
             handler=status,
         ),
     )
+    _register_recommendation_tools(mcp, agent)
     _register_ai_search_tools(mcp)
+
+
+def _register_recommendation_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
+    async def candidates(payload: dict[str, Any]) -> dict[str, Any]:
+        run_fn: Callable[..., Any] | None = getattr(agent, "recommendation_candidates", None)
+        if not callable(run_fn):
+            return {"error": "recommendation capability unavailable"}
+        result = await run_fn(RecommendationCandidatesRequest.model_validate(payload))
+        return model_to_payload(result)
+
+    async def rank(payload: dict[str, Any]) -> dict[str, Any]:
+        run_fn: Callable[..., Any] | None = getattr(agent, "recommendation_rank", None)
+        if not callable(run_fn):
+            return {"error": "recommendation capability unavailable"}
+        result = await run_fn(RankRecommendationsRequest.model_validate(payload))
+        return model_to_payload(result)
+
+    async def compose(payload: dict[str, Any]) -> dict[str, Any]:
+        run_fn: Callable[..., Any] | None = getattr(agent, "recommendation_compose", None)
+        if not callable(run_fn):
+            return {"error": "recommendation capability unavailable"}
+        result = await run_fn(ComposeRecommendationsRequest.model_validate(payload))
+        return model_to_payload(result)
+
+    async def feedback(payload: dict[str, Any]) -> dict[str, Any]:
+        run_fn: Callable[..., Any] | None = getattr(agent, "recommendation_feedback", None)
+        if not callable(run_fn):
+            return {"error": "recommendation capability unavailable"}
+        result = await run_fn(RecommendationFeedbackRequest.model_validate(payload))
+        return model_to_payload(result)
+
+    async def explain(payload: dict[str, Any]) -> dict[str, Any]:
+        run_fn: Callable[..., Any] | None = getattr(agent, "recommendation_explain", None)
+        if not callable(run_fn):
+            return {"error": "recommendation capability unavailable"}
+        result = await run_fn(ExplainRecommendationRequest.model_validate(payload))
+        return model_to_payload(result)
+
+    async def model_status(_payload: dict[str, Any]) -> dict[str, Any]:
+        run_fn: Callable[..., Any] | None = getattr(agent, "recommendation_model_status", None)
+        if not callable(run_fn):
+            return {"error": "recommendation capability unavailable"}
+        result = await run_fn()
+        return model_to_payload(result)
+
+    for tool_name, handler in (
+        ("/recommendations/candidates", candidates),
+        ("/recommendations/rank", rank),
+        ("/recommendations/compose", compose),
+        ("/recommendations/feedback", feedback),
+        ("/recommendations/explain", explain),
+        ("/models/status", model_status),
+    ):
+        mcp.add_tool(
+            tool_name,
+            _with_mcp_liveness(agent, tool_name=tool_name, handler=handler),
+        )
 
 
 def _register_ai_search_tools(mcp: FastAPIMCPServer) -> None:

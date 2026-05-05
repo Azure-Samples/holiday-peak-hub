@@ -9,7 +9,7 @@ on:
       - .github/workflows/deploy-ui-swa.yml
       - .github/workflows/deploy-azd.yml
       - .github/workflows/ui-contract-gate.yml
-      - scripts/ci/validate_swa_hybrid_contract.py
+      - scripts/python/ci/validate_swa_hybrid_contract.py
   pull_request:
     branches:
       - main
@@ -36,7 +36,7 @@ jobs:
           python-version: '3.12'
 
       - name: Validate SWA hybrid runtime contract
-        run: python scripts/ci/validate_swa_hybrid_contract.py
+        run: python scripts/python/ci/validate_swa_hybrid_contract.py
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

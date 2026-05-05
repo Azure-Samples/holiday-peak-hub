@@ -57,6 +57,7 @@ We will implement a **JWT-based authentication system with Next.js middleware fo
 ### Architecture
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
 graph TB
     User[User] -->|Login| LoginPage[Login Page]
     LoginPage -->|Credentials| AuthAPI[Auth API]

@@ -1,5 +1,7 @@
 # Self-Healing Rollout Plan and Operator Runbook
 
+**Last Updated**: 2026-04-30
+
 > Part of the Autonomous Agent Surface Self-Healing epic (#657).
 > Governing ADR: [ADR-025](../architecture/adrs/adr-025-self-healing-boundaries.md)
 > RBAC: [Self-Healing RBAC Matrix](self-healing-rbac-matrix.md)
@@ -75,20 +77,20 @@ If self-healing causes unexpected behavior in any environment:
 
 1. Set `SELF_HEALING_ENABLED=false` on the affected service(s) via environment override:
    ```bash
-   kubectl set env deployment/<service-name> SELF_HEALING_ENABLED=false -n holiday-peak
+   kubectl set env deployment/<service-name> SELF_HEALING_ENABLED=false -n holiday-peak-agents
    ```
 2. Verify the service responds normally via `/health` and `/ready`.
 
 ### Partial disable (keep detection, stop remediation)
 
 ```bash
-kubectl set env deployment/<service-name> SELF_HEALING_DETECT_ONLY=true -n holiday-peak
+kubectl set env deployment/<service-name> SELF_HEALING_DETECT_ONLY=true -n holiday-peak-agents
 ```
 
 ### Global disable (all services)
 
 ```bash
-kubectl set env deployment --all SELF_HEALING_ENABLED=false -n holiday-peak
+kubectl set env deployment --all SELF_HEALING_ENABLED=false -n holiday-peak-agents
 ```
 
 ### Post-disable triage

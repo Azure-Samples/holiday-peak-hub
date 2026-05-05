@@ -12,10 +12,11 @@ function shouldRetryCatalogReadQuery(failureCount: number, error: unknown): bool
   return failureCount < 1 && error.status >= 500 && error.status < 600;
 }
 
-export function useCategories(parentId?: string) {
+export function useCategories(parentId?: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['categories', parentId || 'root'],
     queryFn: () => categoryService.list(parentId),
+    enabled: options?.enabled ?? true,
     retry: shouldRetryCatalogReadQuery,
     retryOnMount: false,
     refetchOnReconnect: false,

@@ -1,9 +1,9 @@
 # Test Coverage Gap Analysis
 
-**Generated**: 2026-04-12  
+**Generated**: 2026-04-30  
 **Coverage Tool**: pytest-cov v7.13.2  
 **Test Suite**: 1796 tests (1136 lib + 660 app)  
-**Overall Coverage**: 89.8% (477 tracked files)  
+**Overall Coverage**: 89% (477 tracked files)  
 **Target**: 75% minimum per file (governance policy)
 
 ---

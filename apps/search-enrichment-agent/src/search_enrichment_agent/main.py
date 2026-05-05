@@ -8,6 +8,7 @@ from holiday_peak_lib.utils import (
 )
 from search_enrichment_agent.agents import SearchEnrichmentAgent, register_mcp_tools
 from search_enrichment_agent.event_handlers import build_event_handlers
+from search_enrichment_agent.recommendations import register_recommendation_routes
 
 SERVICE_NAME = "search-enrichment-agent"
 
@@ -28,3 +29,5 @@ app = create_standard_app(
     ],
     handlers=build_event_handlers(),
 )
+
+register_recommendation_routes(app)

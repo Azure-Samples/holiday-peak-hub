@@ -66,10 +66,11 @@ export function useUpdateTruthConfig() {
   });
 }
 
-export function useTruthAnalyticsSummary() {
+export function useTruthAnalyticsSummary(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['truth', 'analytics', 'summary'],
     queryFn: () => truthAdminService.getAnalyticsSummary(),
+    enabled: options?.enabled ?? true,
   });
 }
 
