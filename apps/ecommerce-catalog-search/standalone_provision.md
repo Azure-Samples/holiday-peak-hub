@@ -17,11 +17,18 @@ This runbook provisions the **slim ACA-only** stack for the `ecommerce-catalog-s
 | Azure Container Apps environment | Consumption | Runtime |
 | Azure Container App | Consumption (port 8000) | Runs `ecommerce-catalog-search` |
 | **Azure AI Search** | **Basic** | Catalog index for hybrid + vector search |
+| **Azure Cache for Redis** (Hot memory) | **Basic C0** | `HotMemory` — short-lived conversation context |
+| **Azure Cosmos DB** (Warm memory) | **Serverless** | `WarmMemory` — conversation threads (`agent-memory` db/container) |
+| **Azure Storage Account** (Cold memory) | **Standard_LRS** | `ColdMemory` — long-term agent state (`agent-memory` blob container) |
 | RBAC: `Search Index Data Contributor` | n/a | Granted to the workload identity on AI Search |
 | RBAC: `Search Service Contributor` | n/a | Granted to the workload identity on AI Search |
+| RBAC: `Cosmos DB Built-in Data Contributor` | n/a | Granted to the workload identity on the Cosmos account (data plane) |
+| RBAC: `Storage Blob Data Contributor` | n/a | Granted to the workload identity on the Storage account |
 | RBAC: `AcrPull` | n/a | Granted to the workload identity on ACR |
 
-**Approximate provision time**: ~17 minutes (AI Search Basic SKU dominates at ~6–15 min; everything else is < 30 s).
+> **Memory tiers are auto-provisioned and auto-wired.** `holiday_peak_lib`'s `create_standard_app()` constructs `HotMemory`/`WarmMemory`/`ColdMemory` automatically when their env vars are set, so the agent gets full conversation context out of the box. To bring your own memory infrastructure, set `PROVISION_MEMORY_TIERS=false` in the azd env and supply `REDIS_HOST`, `COSMOS_ACCOUNT_URI`, `COSMOS_DATABASE`, `COSMOS_CONTAINER`, `BLOB_ACCOUNT_URL`, and `BLOB_CONTAINER` overrides.
+
+**Approximate provision time**: ~17 minutes (AI Search Basic SKU dominates at ~6–15 min; Cosmos serverless and Storage finish in seconds; Redis Basic C0 takes ~5–10 min in parallel).
 
 ---
 
@@ -44,6 +51,9 @@ az provider register --namespace Microsoft.ContainerRegistry
 az provider register --namespace Microsoft.OperationalInsights
 az provider register --namespace Microsoft.Search
 az provider register --namespace Microsoft.ManagedIdentity
+az provider register --namespace Microsoft.Cache         # Redis (Hot memory)
+az provider register --namespace Microsoft.DocumentDB    # Cosmos DB (Warm memory)
+az provider register --namespace Microsoft.Storage       # Blob (Cold memory)
 ```
 
 ---
@@ -119,6 +129,21 @@ azd env set FOUNDRY_AGENT_ID_RICH   '<agent-id>'
 azd env set FOUNDRY_PROJECT_NAME    '<friendly-project-name>'
 ```
 
+Bring your own memory tiers (skip Redis/Cosmos/Blob provisioning) — the slim stack provisions all three by default:
+
+```pwsh
+azd env set PROVISION_MEMORY_TIERS  false
+azd env set REDIS_HOST              '<existing-cache>.redis.cache.windows.net'
+azd env set COSMOS_ACCOUNT_URI      'https://<existing-cosmos>.documents.azure.com:443/'
+azd env set COSMOS_DATABASE         '<existing-database>'
+azd env set COSMOS_CONTAINER        '<existing-container>'
+azd env set BLOB_ACCOUNT_URL        'https://<existing-storage>.blob.core.windows.net/'
+azd env set BLOB_CONTAINER          '<existing-container>'
+# When BYO Redis, store the primary key in your Key Vault and set:
+azd env set KEY_VAULT_URI           'https://<your-keyvault>.vault.azure.net/'
+azd env set REDIS_PASSWORD_SECRET_NAME  'redis-primary-key'
+```
+
 ## Step 4 — Preview (recommended)
 
 ```pwsh
@@ -142,6 +167,9 @@ Expected wall time: **~17 minutes**. Successful output ends with:
 (✓) Done: Container Apps Environment: ecommerce-catalog-search-<env>-env
 (✓) Done: Container App: ecommerce-catalog-search
 (✓) Done: Search service: <projectName><env>search
+(✓) Done: Redis Cache: <projectName>-<env>-redis
+(✓) Done: Cosmos DB account: <projectName><env>cos
+(✓) Done: Storage account: <projectName><env>store
 
 SUCCESS: Your application was provisioned in Azure in ~17 minutes.
 ```
@@ -285,13 +313,44 @@ Expected — see Step 8. Seed the index or temporarily set `CATALOG_SEARCH_REQUI
 Known Windows charmap codec bug in the Azure CLI. Use `az acr task list-runs --registry <acr-name>` instead.
 
 ### `azd provision` fails with template size > 4 MB
-You are running the canonical full template, not the slim path. Confirm `deployShared=false` and `deployCatalogSearchAca=true` in `azd env get-values`. The slim `.infra/azd/main.json` should compile to ~54 KB.
+You are running the canonical full template, not the slim path. Confirm `deployShared=false` and `deployCatalogSearchAca=true` in `azd env get-values`. The slim `.infra/azd/main.json` should compile to ~76 KB (Redis + Cosmos + Storage + AI Search + ACA + ACR + Log Analytics + RBAC).
+
+### Container starts but logs `hot_memory.* degraded to fail-open mode`
+The Hot memory tier (Redis) cannot reach its host or authenticate. `HotMemory` fails open by design so degraded cache does not crash agents, but conversation context is lost across requests. Verify:
+
+```pwsh
+$rg = (azd env get-values | Select-String '^AZURE_RESOURCE_GROUP=').ToString().Split('=',2)[1].Trim('"')
+$redis = (az resource list -g $rg --resource-type Microsoft.Cache/Redis --query "[0].name" -o tsv)
+az redis show -g $rg -n $redis --query "{state:provisioningState, host:hostName, sslPort:sslPort}" -o table
+az containerapp show -g $rg -n ecommerce-catalog-search --query "properties.template.containers[0].env[?name=='REDIS_HOST'].value | [0]" -o tsv
+```
+
+`REDIS_HOST` must equal the cache `hostName`. If empty, you set `PROVISION_MEMORY_TIERS=false` without supplying a `REDIS_HOST` override — re-run `azd provision` with the env unset (or set to `true`).
+
+### `WarmMemory` writes fail with `Forbidden` from Cosmos DB
+Cosmos data-plane RBAC propagation can lag account creation by a few minutes. The slim Bicep assigns the workload identity the **Built-in Data Contributor** SQL role at account scope, but the role assignment is eventually consistent. Wait 2–5 min after the first cold start, then verify:
+
+```pwsh
+$cosmos = (az resource list -g $rg --resource-type Microsoft.DocumentDB/databaseAccounts --query "[0].name" -o tsv)
+$principalId = (azd env get-values | Select-String 'CATALOG_SEARCH_MANAGED_IDENTITY_PRINCIPAL_ID=').ToString().Split('=',2)[1].Trim('"')
+az cosmosdb sql role assignment list -g $rg -a $cosmos --query "[?principalId=='$principalId'].{role:roleDefinitionId, scope:scope}" -o table
+```
+
+If the assignment is missing, re-run `azd provision` — Bicep is idempotent and will reconcile.
+
+### `ColdMemory` writes return `AuthorizationPermissionMismatch` from Blob Storage
+Same pattern as Cosmos — `Storage Blob Data Contributor` propagation is eventually consistent (typically < 60 s). Confirm the role is assigned:
+
+```pwsh
+$storage = (az resource list -g $rg --resource-type Microsoft.Storage/storageAccounts --query "[0].name" -o tsv)
+az role assignment list --assignee $principalId --scope (az storage account show -g $rg -n $storage --query id -o tsv) -o table
+```
 
 ---
 
 ## What this runbook does NOT cover
 
 - **Index schema creation and seeding**: the `catalog-products` index schema lives in the catalog ingestion pipeline, not in this Bicep. Application data work is required after provisioning to make `/ready` return 200.
-- **Foundry / model targets**: the slim stack starts the agent in degraded mode (`No model target configured`) unless `PROJECT_ENDPOINT` and the `MODEL_DEPLOYMENT_NAME_*` env vars are set in Step 3.
+- **Foundry deployment provisioning**: this runbook assumes you already have a Foundry project and deployments. `PROJECT_ENDPOINT` is enforced by Bicep `@minLength(10)` so provisioning fails fast if missing — there is no degraded-mode path.
 - **Private networking**: the slim stack uses public ingress on the Container App. Set `privateNetworkingEnabled=true` in upstream `main` (canonical path), not here.
 - **Multi-agent topology**: this runbook deploys only `ecommerce-catalog-search`. For the full 26-agent platform, use the canonical `.infra/modules/shared-infrastructure/shared-infrastructure-main.bicep` deployment via the upstream AKS workflow.
