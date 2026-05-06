@@ -43,7 +43,6 @@ from .adapters import (
 from .ai_search import (
     AISearchDocumentResult,
     ai_search_required_runtime_enabled,
-    hybrid_search,
     keyword_search,
     multi_query_search,
     search_catalog_skus_detailed,
@@ -654,11 +653,11 @@ class CatalogSearchAgent(BaseRetailAgent):
         """Async generator yielding SSE-ready event dicts.
 
         Pattern: Template Method — the streaming pipeline follows a fixed
-        sequence (results → tokens → done) with the model streaming step
-        being the variable part.
+        sequence (results → tokens/degraded → done) with the model streaming
+        step being the variable part.
 
         First event: deterministic search results (< 1s).
-        Subsequent events: model answer tokens.
+        Subsequent events: model answer tokens or degraded model status.
         Final event: done marker with metadata.
         """
         yield {"event": "results", **ctx.deterministic_response}
@@ -692,9 +691,14 @@ class CatalogSearchAgent(BaseRetailAgent):
                     exc_info=True,
                 )
                 yield {
-                    "event": "error",
-                    "error": "model_error",
+                    "event": "degraded",
+                    "result_type": "degraded_fallback",
+                    "degraded": True,
+                    "degraded_reason": "model_error",
+                    "degraded_message": DEGRADED_MODEL_FALLBACK_MESSAGE,
                     "message": DEGRADED_MODEL_FALLBACK_MESSAGE,
+                    "model_attempted": True,
+                    "model_status": "error",
                 }
 
         yield {

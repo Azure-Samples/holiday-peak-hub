@@ -1,0 +1,18 @@
+schema_version: "1"
+agent_name: search-enrichment-agent
+evaluators:
+  - relevance
+  - task_adherence
+  - coherence
+dataset_path: datasets/seed.jsonl
+baseline_path: results/baseline.json
+thresholds:
+  dataset_readiness: 1.0
+  expected_behavior_coverage: 1.0
+  response_coverage: 0.0
+model_targets:
+  - slm
+  - llm
+publish_events: false
+consecutive_failure_window: 3
+rate_limit_hours: 24

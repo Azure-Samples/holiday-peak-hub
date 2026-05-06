@@ -3,6 +3,7 @@
 **Status**: Accepted  
 **Date**: 2024-12  
 **Updated**: 2026-04-28 — Added mandatory Foundry invocation policy  
+**Amended**: 2026-05 — Added continuous evaluation engine integration
 **Deciders**: Architecture Team, Ricardo Cataldi  
 **Tags**: architecture, foundry, agents, telemetry, observability, latency
 
@@ -78,12 +79,25 @@ A hybrid architecture (direct API for latency-critical agents, Foundry for compl
 - `BaseRetailAgent.invoke_model()` is the single invocation entry point
 - No `ChatCompletionsClient`, `openai.ChatCompletion`, `AzureOpenAI`, or `responses.create()` calls permitted in application code
 
+## Evaluation Integration (2026-05)
+
+Foundry is also the preferred evaluation plane. Agent services MAY opt into evaluation by adding `.foundry/eval-config.yaml` and JSONL datasets. The shared `holiday_peak_lib.evaluation` engine uses Azure AI Foundry evaluation when available and falls back to deterministic local scoring when SDK access or credentials are not present.
+
+The runtime integration is additive:
+
+- `AgentBuilder.with_evaluation()` wires `EvalConfig` into agent dependencies.
+- `build_service_app()` discovers `.foundry` configuration and exposes `/agent/evaluation/run` and `/agent/evaluation/history`.
+- `EvaluationRunResult` preserves the existing evaluation helper contract.
+- Drift signals use the self-healing contract but remain manual-only.
+
 ## Consequences
 
 **Positive**: Foundry ecosystem, Microsoft support, automatic updates, unified observability, quality drift detection  
 **Negative**: Vendor lock-in, less flexibility than custom agents, 2–5s latency overhead on every call
 
 ## Related ADRs
+
 - [ADR-004: FastAPI with Dual REST + MCP](adr-004-fastapi-mcp.md)
 - [ADR-010: SLM-First Model Routing](adr-010-model-routing.md)
 - [ADR-024: Agent Communication Policy](adr-024-agent-communication-policy.md)
+- [ADR-028: Continuous Agent Evaluation Engine](adr-028-continuous-agent-evaluation.md)

@@ -35,6 +35,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+evaluation = [
+    "azure-ai-evaluation>=1.0.0",
+]
 dev = [
     "faker",
     "pre-commit",

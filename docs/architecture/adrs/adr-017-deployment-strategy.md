@@ -3,6 +3,7 @@
 **Status**: Accepted (Revised)  
 **Date**: 2026-02  
 **Updated**: 2026-04-28 — Consolidated Flux CD deployment decision into unified deployment ADR. Infrastructure provisioning via `azd provision`; application deployment via Flux CD.  
+**Amended**: 2026-05 — Added advisory CI evaluation gate and scheduled continuous evaluation workflow.
 **Deciders**: Architecture Team, Ricardo Cataldi  
 **Tags**: infrastructure, deployment, ci-cd, azd, helm, aks, gitops, flux, helmrelease
 
@@ -174,6 +175,15 @@ Required repository secrets:
 - `AZURE_CLIENT_ID` — Service principal / managed identity client ID
 - `AZURE_TENANT_ID` — Azure AD tenant
 - `AZURE_SUBSCRIPTION_ID` — Target subscription
+
+### Agent Evaluation Workflows (2026-05)
+
+Continuous agent evaluation adds two GitHub Actions workflows:
+
+- `.github/workflows/eval-gate.yml` runs pilot agent evaluations on PRs and pushes in advisory mode. It installs `holiday-peak-lib`, reads each pilot agent's `.foundry` assets, emits artifacts, and posts PR feedback without blocking deployment.
+- `.github/workflows/eval-continuous.yml` runs on a daily schedule or manual dispatch, evaluates pilot agents, and opens a GitHub issue when drift is detected.
+
+The workflows use local fallback scoring by default and can use Azure AI Foundry evaluation when SDK access and credentials are available.
 
 ## Consequences
 

@@ -2,14 +2,16 @@
 
 import asyncio
 import logging
+from collections.abc import AsyncGenerator
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from ecommerce_catalog_search.adapters import AcpCatalogMapper, CatalogAdapters
 from ecommerce_catalog_search.agents import (
+    DEGRADED_MODEL_FALLBACK_MESSAGE,
     CatalogSearchAgent,
     _parse_intent_response,
-    _search_products_intelligent,
 )
 from ecommerce_catalog_search.ai_search import AISearchDocumentResult, AISearchSkuResult
 from holiday_peak_lib.agents.base_agent import AgentDependencies
@@ -335,6 +337,75 @@ class TestCatalogSearchAgent:
             assert result["result_type"] == "deterministic"
             assert result["degraded"] is False
             assert len(result["results"]) > 0
+
+    @pytest.mark.asyncio
+    async def test_stream_model_error_emits_degraded_event_not_error(
+        self, agent_dependencies, mock_catalog_product, mock_keyword_search_result
+    ) -> None:
+        """Optional stream model failures should not poison deterministic results."""
+        mock_inventory_item = InventoryItem(sku="SKU-001", available=10, reserved=0)
+
+        async def failing_model_stream(**_kwargs: Any) -> AsyncGenerator[str, None]:
+            yield "Partial catalog guidance."
+            raise RuntimeError("model stream failed")
+
+        with (
+            patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
+            patch("ecommerce_catalog_search.agents.multi_query_search") as mock_multi,
+            patch("ecommerce_catalog_search.agents.keyword_search") as mock_kw_search,
+        ):
+            mock_multi.return_value = []
+            mock_kw_search.return_value = mock_keyword_search_result
+
+            mock_products = AsyncMock()
+            mock_products.get_product = AsyncMock(return_value=mock_catalog_product)
+            mock_products.get_related = AsyncMock(return_value=[])
+
+            mock_inventory = AsyncMock()
+            mock_inventory.get_item = AsyncMock(return_value=mock_inventory_item)
+
+            mock_build.return_value = CatalogAdapters(
+                products=mock_products,
+                inventory=mock_inventory,
+                mapping=AcpCatalogMapper(),
+            )
+
+            agent = CatalogSearchAgent(config=agent_dependencies)
+            agent.slm = object()
+            with (
+                patch.object(
+                    agent,
+                    "classify_intent",
+                    new=AsyncMock(
+                        return_value=IntentClassification(
+                            intent="semantic_search",
+                            confidence=0.9,
+                            entities={"keywords": ["test", "product"]},
+                        )
+                    ),
+                ),
+                patch.object(agent, "invoke_model_stream", new=failing_model_stream),
+            ):
+                stream = await agent.handle(
+                    {
+                        "query": "test product",
+                        "limit": 5,
+                        "mode": "intelligent",
+                        "_stream": True,
+                    }
+                )
+                events = [event async for event in stream]
+
+            event_types = [event["event"] for event in events]
+            assert event_types == ["results", "token", "degraded", "done"]
+            assert "error" not in event_types
+            assert events[0]["results"][0]["item_id"] == "SKU-001"
+            assert events[2]["result_type"] == "degraded_fallback"
+            assert events[2]["degraded"] is True
+            assert events[2]["degraded_reason"] == "model_error"
+            assert events[2]["degraded_message"] == DEGRADED_MODEL_FALLBACK_MESSAGE
+            assert events[2]["model_attempted"] is True
+            assert events[2]["model_status"] == "error"
 
     @pytest.mark.asyncio
     async def test_handle_without_model_returns_non_degraded_deterministic_response(
@@ -798,7 +869,7 @@ class TestCatalogSearchAgent:
 
     @pytest.mark.asyncio
     async def test_handle_logs_fallback_reason_when_ai_search_degraded(
-        self, agent_dependencies, mock_catalog_product, caplog
+        self, agent_dependencies, mock_catalog_product, caplog, monkeypatch
     ):
         """Test fallback reason from AI Search degradation is logged by caller path."""
         mock_inventory_item = InventoryItem(sku="SKU-001", available=10, reserved=0)
@@ -829,6 +900,11 @@ class TestCatalogSearchAgent:
                 mapping=mock_mapping,
             )
 
+            monkeypatch.setattr(
+                logging.getLogger("ecommerce_catalog_search"),
+                "propagate",
+                True,
+            )
             caplog.set_level(logging.WARNING, logger="ecommerce_catalog_search.agents")
 
             agent = CatalogSearchAgent(config=agent_dependencies)
@@ -1405,9 +1481,7 @@ class TestIntelligentScoreBasedRanking:
     """Tests for score-based merge and ranking in _search_products_intelligent."""
 
     @pytest.mark.asyncio
-    async def test_higher_ai_search_scores_rank_first(
-        self, agent_dependencies, mock_catalog_product
-    ):
+    async def test_higher_ai_search_scores_rank_first(self, agent_dependencies):
         """Products with higher AI Search scores should appear before lower-scored ones."""
         with (
             patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,
@@ -1468,9 +1542,7 @@ class TestIntelligentScoreBasedRanking:
             assert ranked_ids.index("SKU-JACKET") < ranked_ids.index("SKU-PUZZLE")
 
     @pytest.mark.asyncio
-    async def test_products_in_both_searches_get_boosted(
-        self, agent_dependencies, mock_catalog_product
-    ):
+    async def test_products_in_both_searches_get_boosted(self, agent_dependencies):
         """A product appearing in both keyword and hybrid results should rank above one in only one."""
         with (
             patch("ecommerce_catalog_search.agents.build_catalog_adapters") as mock_build,

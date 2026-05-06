@@ -4,6 +4,7 @@
 |--------------|------------------------------------|
 | **Status**   | Accepted                           |
 | **Date**     | 2026-04-09                         |
+| **Amended**  | 2026-05 — Added quality drift evaluation surface |
 | **Epic**     | #657                             |
 | **Issue**    | #661                             |
 | **Deciders** | Platform Engineering, Architecture |
@@ -24,7 +25,7 @@ All remediation actions are classified into three risk tiers:
 |------|-------|-----------|----------|----------|
 | T1 | **Auto** | Immediate, autonomous | None — kernel executes when confidence ≥ threshold | `reconcile_api_surface_contract`, `refresh_mcp_contract_cache` |
 | T2 | **Gated** | Autonomous with pre-check | Kernel validates precondition (e.g., edge manifest matches expected state) before execution | `sync_apim_route_config`, `refresh_aks_ingress_bindings`, `reset_messaging_consumer_bindings`, `reset_messaging_publisher_bindings` |
-| T3 | **Manual-only** | Never autonomous | Human operator via runbook | Image rollback, namespace deletion, secret rotation, scaling changes |
+| T3 | **Manual-only** | Never autonomous | Human operator via runbook | Image rollback, namespace deletion, secret rotation, scaling changes, `quality_drift` |
 
 The tier assignment is encoded in the kernel's `_allowed_actions` allowlist (T1 + T2 only) and `_FORBIDDEN_ACTION_TOKENS` blocklist (T3). The blocklist uses substring matching on action names to cover all 6 prohibited categories listed below.
 
@@ -50,6 +51,7 @@ Enforcement: The `_FORBIDDEN_ACTION_TOKENS` set in `SelfHealingKernel._assert_ac
 | HTTP surface (4xx/5xx from known endpoints) | Status code in `_SELECTED_RECOVERABLE_5XX` (500, 502, 503, 504) or 4xx range |
 | Messaging surface | `failure_category` in `_RECOVERABLE_MESSAGING_FAILURE_CATEGORIES` (configuration, authentication, authorization, throttled, transient) |
 | Compensation failure | **Never auto-remediate** — escalate immediately (compensation failures indicate logic errors, not surface misconfig) |
+| Evaluation quality drift | **Never auto-remediate** — classify as `quality_drift` and escalate immediately for human review |
 | Unknown surface / unclassified | Escalate — no autonomous action permitted |
 
 ### 4. Escalation Policy and Incident Severity Mapping
@@ -63,6 +65,7 @@ Enforcement: The `_FORBIDDEN_ACTION_TOKENS` set in `SelfHealingKernel._assert_ac
 | Remediation executed but verification failed | Escalate with `reason: verification_failed` |
 | Maximum retry attempts exhausted | Escalate with `reason: max_retries_exhausted` and `attempts` count |
 | Action handler raises error | Record failure in audit trail; escalate if all actions fail |
+| Evaluation drift detected | Immediate escalation with `reason: quality_drift_manual_review_required`; audit includes breached thresholds and drift metrics |
 
 Escalation today is audit-trail-only (logged in `Incident.audit`). Integration with Azure Monitor alerts and PagerDuty is deferred to #671 (rollout and observability).
 

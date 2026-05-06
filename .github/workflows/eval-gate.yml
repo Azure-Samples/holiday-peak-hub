@@ -1,0 +1,92 @@
+name: agent-eval-gate
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - lib/**
+      - apps/ecommerce-catalog-search/**
+      - apps/search-enrichment-agent/**
+      - apps/truth-enrichment/**
+      - scripts/ci/run_agent_evaluation.py
+      - .github/workflows/eval-gate.yml
+  push:
+    branches:
+      - main
+    paths:
+      - lib/**
+      - apps/ecommerce-catalog-search/**
+      - apps/search-enrichment-agent/**
+      - apps/truth-enrichment/**
+      - scripts/ci/run_agent_evaluation.py
+      - .github/workflows/eval-gate.yml
+
+jobs:
+  evaluate:
+    name: advisory eval (${{ matrix.agent }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        agent:
+          - ecommerce-catalog-search
+          - search-enrichment-agent
+          - truth-enrichment
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+      - name: Install evaluation runtime
+        run: |
+          uv pip install --system -e ./lib/src
+      - name: Run advisory evaluation
+        run: |
+          python scripts/ci/run_agent_evaluation.py \
+            --agent-root "apps/${{ matrix.agent }}" \
+            --run-name "pr-${{ github.event.pull_request.number || github.run_id }}-${{ matrix.agent }}" \
+            --write-result ".foundry-results/${{ matrix.agent }}.json" \
+            > ".foundry-results-${{ matrix.agent }}.log"
+      - name: Upload evaluation result
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-${{ matrix.agent }}
+          path: |
+            .foundry-results/${{ matrix.agent }}.json
+            .foundry-results-${{ matrix.agent }}.log
+
+  summarize:
+    name: summarize advisory evals
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    needs: evaluate
+    steps:
+      - name: Add PR comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = [
+              '## Agent evaluation advisory gate',
+              '',
+              'Pilot agent evaluations completed in advisory mode. Download the `eval-*` artifacts from this workflow run for detailed metrics.',
+              '',
+              'This gate is intentionally non-blocking while baselines are calibrated.'
+            ].join('\n');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body
+            });

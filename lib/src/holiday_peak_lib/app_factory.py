@@ -2,6 +2,7 @@
 
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any, AsyncContextManager, AsyncIterator, Callable, cast
 
 from fastapi import FastAPI, HTTPException
@@ -34,6 +35,7 @@ from holiday_peak_lib.app_factory_components.foundry_lifecycle import (
 from holiday_peak_lib.app_factory_components.middleware import register_correlation_middleware
 from holiday_peak_lib.config import MemorySettings
 from holiday_peak_lib.connectors.registry import ConnectorRegistry
+from holiday_peak_lib.evaluation import ConfiguredEvaluationRunner, DatasetLoader
 from holiday_peak_lib.mcp.server import FastAPIMCPServer
 from holiday_peak_lib.self_healing import SelfHealingKernel
 from holiday_peak_lib.utils import (
@@ -84,6 +86,65 @@ def _runtime_foundry_config(config: FoundryAgentConfig | None) -> FoundryAgentCo
     if not agent_id or agent_id == "pending" or agent_id.endswith("-pending"):
         return None
     return config
+
+
+def _build_evaluation_runner(service_name: str, logger: Any) -> ConfiguredEvaluationRunner | None:
+    """Discover optional `.foundry` evaluation config for a service.
+
+    Pattern: Factory Method — hides discovery details and returns a ready runner
+    only when the service has opted into evaluation.
+    """
+
+    explicit_root = os.getenv("AGENT_EVALUATION_FOUNDRY_ROOT")
+    candidate_loaders: list[DatasetLoader | None] = []
+    if explicit_root:
+        candidate_loaders.append(DatasetLoader(explicit_root))
+    else:
+        cwd = Path.cwd()
+        candidate_loaders.extend(
+            [
+                DatasetLoader.discover(cwd),
+                (
+                    DatasetLoader(cwd / ".foundry")
+                    if (cwd / ".foundry" / "eval-config.yaml").exists()
+                    else None
+                ),
+                (
+                    DatasetLoader(cwd / "apps" / service_name / ".foundry")
+                    if (cwd / "apps" / service_name / ".foundry" / "eval-config.yaml").exists()
+                    else None
+                ),
+            ]
+        )
+
+    runner = None
+    for loader in candidate_loaders:
+        if loader is None:
+            continue
+        try:
+            runner = ConfiguredEvaluationRunner(loader=loader)
+            break
+        except (FileNotFoundError, ValueError) as exc:
+            log_method = getattr(logger, "warning", None)
+            if callable(log_method):
+                log_method(
+                    "evaluation_config_load_failed",
+                    extra={"service": service_name, "reason": str(exc)},
+                )
+    if runner is None:
+        return None
+
+    if runner.config.agent_name != service_name:
+        log_method = getattr(logger, "warning", None)
+        if callable(log_method):
+            log_method(
+                "evaluation_config_agent_name_mismatch",
+                extra={
+                    "service": service_name,
+                    "configured_agent_name": runner.config.agent_name,
+                },
+            )
+    return runner
 
 
 def create_standard_app(
@@ -181,6 +242,7 @@ def build_service_app(
             Core telemetry remains enabled for local/fallback execution paths.
     """
     logger = configure_logging(app_name=service_name)
+    evaluation_runner = _build_evaluation_runner(service_name, logger)
     root_path = os.getenv("ROOT_PATH", "")
     app = FastAPI(title=service_name, root_path=root_path)
     registry = connector_registry or ConnectorRegistry()
@@ -207,6 +269,8 @@ def build_service_app(
         maybe_builder = with_self_healing(healing_kernel)
         if isinstance(maybe_builder, AgentBuilder):
             builder = maybe_builder
+    if evaluation_runner is not None:
+        builder = builder.with_evaluation(evaluation_runner.config)
     if slm_config is None and llm_config is None:
         slm_config = _build_foundry_config("FOUNDRY_AGENT_ID_FAST", "MODEL_DEPLOYMENT_NAME_FAST")
         llm_config = _build_foundry_config("FOUNDRY_AGENT_ID_RICH", "MODEL_DEPLOYMENT_NAME_RICH")
@@ -620,6 +684,9 @@ def build_service_app(
     def _foundry_capabilities() -> dict[str, Any]:
         return _current_foundry_readiness().to_payload()
 
+    def _evaluation_runner_provider() -> ConfiguredEvaluationRunner | None:
+        return evaluation_runner
+
     endpoint_ctx = EndpointContext(
         service_name=service_name,
         registry=registry,
@@ -634,6 +701,7 @@ def build_service_app(
         foundry_capabilities=_foundry_capabilities,
         ensure_agents_handler=ensure_agents,
         self_healing_kernel=healing_kernel,
+        evaluation_runner_provider=_evaluation_runner_provider,
         prompt_catalog_provider=_prompt_catalog_provider,
         mcp_tool_descriptions_provider=_mcp_tool_descriptions_provider,
     )

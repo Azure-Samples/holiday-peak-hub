@@ -2,11 +2,13 @@
 
 **Status**: Accepted  
 **Date**: 2026-01  
+**Amended**: 2026-05 — Added evaluation coverage for SLM and LLM paths
 **Deciders**: Architecture Team
 
 ## Context
 
 Retail agents handle requests with varying complexity:
+
 - **Simple**: Product lookup by SKU, inventory check (deterministic)
 - **Moderate**: Natural language search, basic recommendations (rule-based + embeddings)
 - **Complex**: Multi-step reasoning, multi-agent coordination, explainability (LLM required)
@@ -38,6 +40,7 @@ graph TD
 The **ComplexityAssessor** evaluates requests based on:
 
 #### 1. Lexical Signals (Fast Heuristics)
+
 ```python
 COMPLEXITY_INDICATORS = {
     "simple": ["show", "get", "fetch", "list", "find"],
@@ -64,6 +67,7 @@ def assess_complexity(query: str) -> ComplexityLevel:
 ```
 
 #### 2. Semantic Signals (Embedding-Based)
+
 ```python
 async def assess_semantic_complexity(query: str) -> float:
     """Return complexity score 0.0-1.0 based on embedding similarity to known patterns."""
@@ -77,6 +81,7 @@ async def assess_semantic_complexity(query: str) -> float:
 ```
 
 #### 3. Context Signals
+
 - **Multi-turn conversation**: Previous turns suggest complexity
 - **User history**: Power users get SLM, new users get LLM (better experience)
 - **Time of day**: Peak hours → SLM preferred (cost optimization)
@@ -149,6 +154,7 @@ except ModelUnavailableError:
 ## Consequences
 
 ### Positive
+
 - **60-70% cost reduction**: Majority of requests handled by SLM
 - **3-5x faster responses**: SLM latency < 500ms vs LLM 2-3s
 - **Automatic optimization**: No manual routing rules
@@ -156,12 +162,14 @@ except ModelUnavailableError:
 - **Observable**: Metrics on escalation rate guide tuning
 
 ### Negative
+
 - **Two model dependencies**: More failure modes
 - **Complexity assessment overhead**: Adds 10-50ms per request
 - **Escalation latency**: Failed SLM → LLM adds total latency
 - **Confidence calibration**: Requires tuning per domain
 
 ### Risk Mitigation
+
 - **A/B testing**: Compare SLM-first vs always-LLM for quality
 - **Monitoring**: Track escalation rate, response quality, latency
 - **Circuit breaker**: Disable SLM if escalation rate > 50%
@@ -170,6 +178,7 @@ except ModelUnavailableError:
 ## Implementation Guidelines
 
 ### Environment Variables
+
 ```bash
 # SLM Configuration
 FOUNDRY_AGENT_ID_FAST=agent-slm-prod
@@ -186,6 +195,7 @@ ENABLE_SEMANTIC_COMPLEXITY=true
 ```
 
 ### Agent Integration
+
 ```python
 # apps/ecommerce-catalog-search/src/agents.py
 from holiday_peak_lib.agents import BaseRetailAgent, RoutingStrategy
@@ -210,7 +220,14 @@ class CatalogAgent(BaseRetailAgent):
         return await self.invoke_with_routing(payload)
 ```
 
+## Evaluation Requirements (2026-05)
+
+Evaluation datasets must include enough coverage to exercise both SLM and LLM routing paths. `EvalCase.expected_model_tier` records whether a case is expected to run on `slm`, `llm`, or `any`, enabling CI and continuous monitoring to detect regressions isolated to a model tier.
+
+The evaluation engine does not bypass Foundry invocation policy. When Foundry evaluation is unavailable, local fallback metrics validate dataset readiness and deterministic expectations without replacing production Foundry quality scoring.
+
 ### Observability
+
 ```python
 from opencensus.ext.azure.metrics_exporter import MetricsExporter
 
@@ -229,21 +246,25 @@ metrics.record("model_routing", {
 ## Alternatives Considered
 
 ### Always Use LLM
+
 **Pros**: Maximum quality, no routing logic  
 **Cons**: 10x higher cost, 5x higher latency  
 **Decision**: Cost prohibitive for high-volume retail workloads.
 
 ### Static Rules (Regex-Based Routing)
+
 **Pros**: Fast, deterministic, no model calls  
 **Cons**: Brittle, hard to maintain, can't handle edge cases  
 **Decision**: Too inflexible for evolving use cases.
 
 ### Separate SLM and LLM Endpoints
+
 **Pros**: Client chooses model explicitly  
 **Cons**: Client must know complexity, duplicates logic, poor UX  
 **Decision**: Transparent routing is better developer experience.
 
 ### Model Ensemble (SLM + LLM in Parallel)
+
 **Pros**: Compare outputs, choose best  
 **Cons**: 2x cost, complex merging logic, higher latency  
 **Decision**: Sequential routing with escalation is more efficient.
@@ -251,7 +272,7 @@ metrics.record("model_routing", {
 ## Performance Targets
 
 | Metric | Target | Current |
-|--------|--------|---------|
+| --- | --- | --- |
 | SLM usage rate | 60-80% | TBD |
 | Escalation rate | < 20% | TBD |
 | SLM latency (P95) | < 500ms | TBD |
@@ -259,10 +280,12 @@ metrics.record("model_routing", {
 | Cost per 1K requests | < $0.50 | TBD |
 
 ## Related ADRs
+
 - [ADR-005: Microsoft Agent Framework + Foundry](adr-005-agent-framework.md)
 - [ADR-003: Adapter Pattern and Boundaries](adr-003-adapter-pattern.md)
 
 ## References
+
 - [Azure AI Foundry Model Catalog](https://learn.microsoft.com/azure/ai-services/openai/concepts/models)
 - [Prompt Engineering for Cost Optimization](https://learn.microsoft.com/azure/ai-services/openai/concepts/prompt-engineering)
 - [Azure Monitor Application Insights](https://learn.microsoft.com/azure/azure-monitor/app/app-insights-overview)

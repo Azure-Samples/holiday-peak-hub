@@ -33,6 +33,7 @@ This document indexes all architectural decisions for the Holiday Peak Hub accel
 | [ADR-025](adrs/adr-025-self-healing-boundaries.md) | Self-Healing Boundaries, Risk Tiers, and Prohibited Actions | Accepted | 2026-04 |
 | [ADR-026](adrs/adr-026-namespace-isolation-strategy.md) | Namespace Isolation Strategy (CRUD vs Agent Namespaces) | Accepted | 2026-04 |
 | [ADR-027](adrs/adr-027-api-center-apim-mcp-strategy.md) | API Center + APIM MCP Strategy | Accepted | 2026-04 |
+| [ADR-028](adrs/adr-028-continuous-agent-evaluation.md) | Continuous Agent Evaluation Engine | Accepted | 2026-05 |
 
 ## How to Use ADRs
 
@@ -75,6 +76,7 @@ Each ADR follows a standard template:
 ### Agent & AI
 - Microsoft Agent Framework with Azure AI Foundry ([ADR-005](adrs/adr-005-agent-framework.md))
 - SLM-first routing for cost optimization ([ADR-010](adrs/adr-010-model-routing.md))
+- Continuous agent evaluation with Foundry SDK and local fallback ([ADR-028](adrs/adr-028-continuous-agent-evaluation.md))
 
 ### Memory & State
 - Memory architecture: three-tier, builder, partitioning, and namespace isolation ([ADR-007](adrs/adr-007-memory-tiers.md))
