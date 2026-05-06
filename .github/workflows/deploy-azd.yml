@@ -4034,10 +4034,11 @@ jobs:
 
   ensure-foundry-agents:
     runs-on: ubuntu-latest
-    if: ${{ always() && !cancelled() && !inputs.uiOnly && needs.detect-changes.outputs.changed_agent_services_csv != '' && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') }}
+    if: ${{ always() && !cancelled() && !inputs.uiOnly && needs.detect-changes.outputs.changed_agent_services_csv != '' && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') && (needs.wait-flux-reconciliation.result == 'success' || needs.wait-flux-reconciliation.result == 'skipped') }}
     needs:
       - deploy-agents
       - detect-changes
+      - wait-flux-reconciliation
     environment: ${{ inputs.githubEnvironment }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}

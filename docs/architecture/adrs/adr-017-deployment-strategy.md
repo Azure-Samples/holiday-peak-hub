@@ -158,6 +158,7 @@ The deployment model uses environment entrypoints plus a reusable core:
 - **OIDC federation** — federated identity for Azure login (no client secrets)
 - **Ordered jobs**: provision → deploy-crud → deploy-ui (optional) → deploy-agents
 - **Parallel agent matrix** — all agents deploy concurrently in the agents phase
+- **Foundry runtime contract gate** — agent runtime contract validation runs after rendered manifests are committed and Flux reconciliation has succeeded or been intentionally skipped, so live readiness checks compare against the reconciled Kubernetes spec rather than a previous deployment.
 - **Seed policy** — demo data seeding is run locally by operators, outside CI/CD deployment workflows
 
 Manual trigger examples:
