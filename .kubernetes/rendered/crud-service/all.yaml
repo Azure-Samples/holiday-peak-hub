@@ -7,8 +7,6 @@ metadata:
   namespace: holiday-peak-crud
   labels:
     app: crud-service
-  annotations:
-    azure.workload.identity/client-id: "b09349cf-547f-409f-8b96-f3288ddedf34"
 ---
 # Source: holiday-peak-service/templates/service.yaml
 apiVersion: v1
@@ -51,7 +49,6 @@ spec:
       labels:
         app: crud-service
         canary: "false"
-        azure.workload.identity/use: "true"
     spec:
       serviceAccountName: crud-service
       nodeSelector:
@@ -61,9 +58,10 @@ spec:
           key: workload
           operator: Equal
           value: crud
-      containers:
-        - name: crud-service
-          image: "holidaypeakhub405devacr.azurecr.io/holiday-peak-hub/crud-service-dev:azd-deploy-1775825425"
+      initContainers:
+        - name: postgres-auth-preflight
+          image: "mcr.microsoft.com/azure-cli:latest"
+          imagePullPolicy: IfNotPresent
           env:
             - name: AI_SEARCH_AUTH_MODE
               value: "managed_identity"
@@ -75,10 +73,8 @@ spec:
               value: "search-enriched-products-indexer"
             - name: AI_SEARCH_VECTOR_INDEX
               value: "product_search_index"
-            - name: APPLICATIONINSIGHTS_CONNECTION_STRING
-              value: "InstrumentationKey=d2fb45bc-e648-4da2-9345-d278636aede5;IngestionEndpoint=https://centralus-2.in.applicationinsights.azure.com/;LiveEndpoint=https://centralus.livediagnostics.monitor.azure.com/;ApplicationId=d8eb64c4-956d-46ab-a02e-d481deadaa0b"
             - name: AZURE_CLIENT_ID
-              value: "b09349cf-547f-409f-8b96-f3288ddedf34"
+              value: "a59f9460-ac67-4cf7-a270-48f398d6871c"
             - name: AZURE_TENANT_ID
               value: "16b3c013-d300-468d-ac64-7eda0820b6d3"
             - name: BLOB_ACCOUNT_URL
@@ -86,7 +82,7 @@ spec:
             - name: BLOB_CONTAINER
               value: "agent-memory"
             - name: CATALOG_SEARCH_REQUIRE_AI_SEARCH
-              value: "true"
+              value: "false"
             - name: COSMOS_ACCOUNT_URI
               value: "https://holidaypeakhub405-dev-cosmos.documents.azure.com:443/"
             - name: COSMOS_CONTAINER
@@ -97,32 +93,26 @@ spec:
               value: "text-embedding-3-large"
             - name: EVENT_HUB_NAMESPACE
               value: "holidaypeakhub405-dev-eventhub"
-            - name: FOUNDRY_AUTO_ENSURE_ON_STARTUP
-              value: "true"
             - name: FOUNDRY_STREAM
               value: "true"
-            - name: AGENT_FOUNDRY_INVOKE_TIMEOUT_SECONDS
-              value: "60"
-            - name: FOUNDRY_STRICT_ENFORCEMENT
-              value: "false"
             - name: KEY_VAULT_URI
               value: "https://holidaypeakhub405-dev-kv.vault.azure.net/"
             - name: MODEL_DEPLOYMENT_NAME_FAST
               value: "gpt-5-nano"
             - name: MODEL_DEPLOYMENT_NAME_RICH
               value: "gpt-5"
+            - name: OTEL_SERVICE_NAME
+              value: "crud-service"
             - name: POSTGRES_AUTH_MODE
-              value: "entra"
+              value: "password"
             - name: POSTGRES_DATABASE
               value: "holiday_peak_crud"
             - name: POSTGRES_HOST
               value: "holidaypeakhub405-dev-postgres.postgres.database.azure.com"
-            - name: POSTGRES_PORT
-              value: "5432"
-            - name: POSTGRES_SSL
-              value: "true"
+            - name: POSTGRES_PASSWORD_SECRET_NAME
+              value: "postgres-admin-password"
             - name: POSTGRES_USER
-              value: "holidaypeakhub405-dev-crud-identity"
+              value: "crud_admin"
             - name: PROJECT_ENDPOINT
               value: "https://holidaypeakhub405devais.services.ai.azure.com/api/projects/aipholidaris"
             - name: PROJECT_NAME
@@ -131,6 +121,153 @@ spec:
               value: "holidaypeakhub405-dev-redis.redis.cache.windows.net"
             - name: REDIS_PASSWORD_SECRET_NAME
               value: "redis-primary-key"
+            - name: WEB_CONCURRENCY
+              value: "2"
+          resources:
+            limits:
+              cpu: 250m
+              memory: 256Mi
+            requests:
+              cpu: 50m
+              memory: 64Mi
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              MAX_WAIT=60
+              echo '{"step":"preflight-start","service":"'"${POSTGRES_USER:-unknown}@${POSTGRES_HOST:-unknown}"'"}'
+
+              # Install psql and jq if missing (azure-cli image is Alpine-based).
+              if ! command -v psql >/dev/null 2>&1; then
+                apk add --no-cache postgresql-client >/dev/null
+              fi
+              if ! command -v jq >/dev/null 2>&1; then
+                apk add --no-cache jq >/dev/null
+              fi
+
+              if [ -z "${KEY_VAULT_URI:-}" ] || [ -z "${POSTGRES_PASSWORD_SECRET_NAME:-}" ]; then
+                echo '{"step":"preflight","status":"skipped","detail":"KEY_VAULT_URI or POSTGRES_PASSWORD_SECRET_NAME not set"}'
+                exit 0
+              fi
+
+              # Login using workload identity (federated token supplied by AKS).
+              az login --federated-token "$(cat ${AZURE_FEDERATED_TOKEN_FILE})" \
+                --service-principal \
+                --username "${AZURE_CLIENT_ID}" \
+                --tenant "${AZURE_TENANT_ID}" >/dev/null
+
+              VAULT_NAME="$(printf '%s' "${KEY_VAULT_URI}" | sed -E 's#https?://([^.]+).*#\1#')"
+              PG_PASSWORD="$(az keyvault secret show \
+                --vault-name "${VAULT_NAME}" \
+                --name "${POSTGRES_PASSWORD_SECRET_NAME}" \
+                --query value -o tsv)"
+              if [ -z "${PG_PASSWORD}" ]; then
+                echo '{"step":"preflight","status":"error","detail":"empty_secret"}'
+                exit 1
+              fi
+
+              SSL_MODE="require"
+              if [ "${POSTGRES_SSL:-true}" = "false" ]; then SSL_MODE="disable"; fi
+              DSN="host=${POSTGRES_HOST} port=${POSTGRES_PORT:-5432} dbname=${POSTGRES_DATABASE:-postgres} user=${POSTGRES_USER} sslmode=${SSL_MODE} connect_timeout=10"
+
+              attempt=0
+              delay=1
+              elapsed=0
+              last_err=""
+              while :; do
+                attempt=$((attempt + 1))
+                set +e
+                OUT=$(PGPASSWORD="${PG_PASSWORD}" psql "${DSN}" -v ON_ERROR_STOP=1 -At -c "SELECT 1;" 2>&1)
+                RC=$?
+                set -e
+                if [ "${RC}" = "0" ]; then
+                  echo '{"step":"preflight","status":"ok","attempt":"'"${attempt}"'"}'
+                  exit 0
+                fi
+                last_err="${OUT}"
+                if echo "${OUT}" | grep -qiE 'password authentication failed|invalidpassword'; then
+                  echo '{"step":"preflight","status":"error","error":"invalid_password","attempt":"'"${attempt}"'"}'
+                  exit 1
+                fi
+                if [ "${elapsed}" -ge "${MAX_WAIT}" ] || [ "${attempt}" -ge 10 ]; then
+                  break
+                fi
+                echo '{"step":"preflight","status":"retry","attempt":"'"${attempt}"'","delaySeconds":"'"${delay}"'"}'
+                sleep "${delay}"
+                elapsed=$((elapsed + delay))
+                delay=$((delay * 2))
+                if [ "${delay}" -gt 30 ]; then delay=30; fi
+              done
+
+              ESCAPED=$(printf '%s' "${last_err}" | tr '\n' ' ' | sed 's/"/\\"/g')
+              echo '{"step":"preflight","status":"error","error":"unreachable","attempt":"'"${attempt}"'","detail":"'"${ESCAPED}"'"}'
+              exit 1
+      containers:
+        - name: crud-service
+          image: "holidaypeakhub405devacr.azurecr.io/crud-service@sha256:bcf86afced977b30452b055c11bca56a6fd8141efa614186b2f4d2ff33fda7cb"
+          env:
+            - name: ROOT_PATH
+              value: "/health"
+            - name: AI_SEARCH_AUTH_MODE
+              value: "managed_identity"
+            - name: AI_SEARCH_ENDPOINT
+              value: "https://holidaypeakhub405devsearch.search.windows.net"
+            - name: AI_SEARCH_INDEX
+              value: "catalog-products"
+            - name: AI_SEARCH_INDEXER_NAME
+              value: "search-enriched-products-indexer"
+            - name: AI_SEARCH_VECTOR_INDEX
+              value: "product_search_index"
+            - name: AZURE_CLIENT_ID
+              value: "a59f9460-ac67-4cf7-a270-48f398d6871c"
+            - name: AZURE_TENANT_ID
+              value: "16b3c013-d300-468d-ac64-7eda0820b6d3"
+            - name: BLOB_ACCOUNT_URL
+              value: "https://holidaypeakhub405devstor.blob.core.windows.net"
+            - name: BLOB_CONTAINER
+              value: "agent-memory"
+            - name: CATALOG_SEARCH_REQUIRE_AI_SEARCH
+              value: "false"
+            - name: COSMOS_ACCOUNT_URI
+              value: "https://holidaypeakhub405-dev-cosmos.documents.azure.com:443/"
+            - name: COSMOS_CONTAINER
+              value: "agent-memory"
+            - name: COSMOS_DATABASE
+              value: "holiday-peak-db"
+            - name: EMBEDDING_DEPLOYMENT_NAME
+              value: "text-embedding-3-large"
+            - name: EVENT_HUB_NAMESPACE
+              value: "holidaypeakhub405-dev-eventhub"
+            - name: FOUNDRY_STREAM
+              value: "true"
+            - name: KEY_VAULT_URI
+              value: "https://holidaypeakhub405-dev-kv.vault.azure.net/"
+            - name: MODEL_DEPLOYMENT_NAME_FAST
+              value: "gpt-5-nano"
+            - name: MODEL_DEPLOYMENT_NAME_RICH
+              value: "gpt-5"
+            - name: OTEL_SERVICE_NAME
+              value: "crud-service"
+            - name: POSTGRES_AUTH_MODE
+              value: "password"
+            - name: POSTGRES_DATABASE
+              value: "holiday_peak_crud"
+            - name: POSTGRES_HOST
+              value: "holidaypeakhub405-dev-postgres.postgres.database.azure.com"
+            - name: POSTGRES_PASSWORD_SECRET_NAME
+              value: "postgres-admin-password"
+            - name: POSTGRES_USER
+              value: "crud_admin"
+            - name: PROJECT_ENDPOINT
+              value: "https://holidaypeakhub405devais.services.ai.azure.com/api/projects/aipholidaris"
+            - name: PROJECT_NAME
+              value: "aipholidaris"
+            - name: REDIS_HOST
+              value: "holidaypeakhub405-dev-redis.redis.cache.windows.net"
+            - name: REDIS_PASSWORD_SECRET_NAME
+              value: "redis-primary-key"
+            - name: WEB_CONCURRENCY
+              value: "2"
           ports:
             - containerPort: 8000
           startupProbe:
@@ -157,45 +294,11 @@ spec:
             timeoutSeconds: 5
           resources:
             limits:
+              cpu: 1000m
+              memory: 1Gi
+            requests:
               cpu: 500m
               memory: 512Mi
-            requests:
-              cpu: 250m
-              memory: 256Mi
----
-# Source: holiday-peak-service/templates/agc-routing.yaml
-apiVersion: alb.networking.azure.io/v1
-kind: ApplicationLoadBalancer
-metadata:
-  name: holiday-peak-agc
-  namespace: holiday-peak-crud
-  labels:
-    app: crud-service
-spec:
-  associations:
-    - "/subscriptions/150e82e8-25db-4f1a-8e04-a2f6a77d26c4/resourceGroups/holidaypeakhub405-dev-rg/providers/Microsoft.Network/virtualNetworks/holidaypeakhub405-dev-vnet/subnets/agc"
----
-# Source: holiday-peak-service/templates/agc-routing.yaml
-apiVersion: gateway.networking.k8s.io/v1
-kind: Gateway
-metadata:
-  name: holiday-peak-agc
-  namespace: holiday-peak-crud
-  labels:
-    app: crud-service
-  annotations:
-    alb.networking.azure.io/alb-name: holiday-peak-agc
-    alb.networking.azure.io/alb-namespace: holiday-peak-crud
-spec:
-  gatewayClassName: "azure-alb-external"
-  listeners:
-    - name: "http"
-      protocol: "HTTP"
-      port: 80
-      hostname: "esbcc8bcfyazbbdg.fz03.alb.azure.com"
-      allowedRoutes:
-        namespaces:
-          from: All
 ---
 # Source: holiday-peak-service/templates/agc-routing.yaml
 apiVersion: gateway.networking.k8s.io/v1
@@ -209,8 +312,6 @@ spec:
   parentRefs:
     - name: "holiday-peak-agc"
       namespace: "holiday-peak-crud"
-  hostnames:
-    - "esbcc8bcfyazbbdg.fz03.alb.azure.com"
   rules:
     - matches:
         - path:
