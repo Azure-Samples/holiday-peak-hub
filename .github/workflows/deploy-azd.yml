@@ -2040,6 +2040,27 @@ jobs:
             --query "identityProfile.kubeletidentity.clientId" -o tsv)
           echo "WORKLOAD_AZURE_CLIENT_ID=${AKS_MI_CLIENT_ID}" >> "$GITHUB_ENV"
 
+      - name: Resolve workload identity client IDs
+        shell: bash
+        run: |
+          set -euo pipefail
+          RG="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+          resolve_uami_client_id() {
+            local identity_name="$1"
+            az identity show --resource-group "$RG" --name "$identity_name" --query clientId -o tsv 2>/dev/null || true
+          }
+          CRUD_WORKLOAD_CLIENT_ID="$(resolve_uami_client_id "${{ inputs.projectName }}-${{ inputs.environment }}-crud-identity")"
+          AGENTS_WORKLOAD_CLIENT_ID="$(resolve_uami_client_id "${{ inputs.projectName }}-${{ inputs.environment }}-agents-identity")"
+          AGENTS2_WORKLOAD_CLIENT_ID="$(resolve_uami_client_id "${{ inputs.projectName }}-${{ inputs.environment }}-agents-identity-2")"
+          if [ -z "$CRUD_WORKLOAD_CLIENT_ID" ]; then
+            echo "::error::Failed to resolve CRUD workload identity client ID. Workload Identity injection will be missing from the rendered chart."
+            exit 1
+          fi
+          echo "CRUD_WORKLOAD_CLIENT_ID=${CRUD_WORKLOAD_CLIENT_ID}" >> "$GITHUB_ENV"
+          echo "AGENTS_WORKLOAD_CLIENT_ID=${AGENTS_WORKLOAD_CLIENT_ID}" >> "$GITHUB_ENV"
+          echo "AGENTS2_WORKLOAD_CLIENT_ID=${AGENTS2_WORKLOAD_CLIENT_ID}" >> "$GITHUB_ENV"
+          echo "::notice::Resolved workload identity client IDs for chart render (crud, agents, agents-2)."
+
       - name: Resolve publication context
         shell: bash
         run: |
@@ -2808,6 +2829,27 @@ jobs:
             --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
             --query "identityProfile.kubeletidentity.clientId" -o tsv)
           echo "WORKLOAD_AZURE_CLIENT_ID=${AKS_MI_CLIENT_ID}" >> "$GITHUB_ENV"
+
+      - name: Resolve workload identity client IDs
+        shell: bash
+        run: |
+          set -euo pipefail
+          RG="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+          resolve_uami_client_id() {
+            local identity_name="$1"
+            az identity show --resource-group "$RG" --name "$identity_name" --query clientId -o tsv 2>/dev/null || true
+          }
+          CRUD_WORKLOAD_CLIENT_ID="$(resolve_uami_client_id "${{ inputs.projectName }}-${{ inputs.environment }}-crud-identity")"
+          AGENTS_WORKLOAD_CLIENT_ID="$(resolve_uami_client_id "${{ inputs.projectName }}-${{ inputs.environment }}-agents-identity")"
+          AGENTS2_WORKLOAD_CLIENT_ID="$(resolve_uami_client_id "${{ inputs.projectName }}-${{ inputs.environment }}-agents-identity-2")"
+          if [ -z "$AGENTS_WORKLOAD_CLIENT_ID" ]; then
+            echo "::error::Failed to resolve agents workload identity client ID. Workload Identity injection will be missing from the rendered chart."
+            exit 1
+          fi
+          echo "CRUD_WORKLOAD_CLIENT_ID=${CRUD_WORKLOAD_CLIENT_ID}" >> "$GITHUB_ENV"
+          echo "AGENTS_WORKLOAD_CLIENT_ID=${AGENTS_WORKLOAD_CLIENT_ID}" >> "$GITHUB_ENV"
+          echo "AGENTS2_WORKLOAD_CLIENT_ID=${AGENTS2_WORKLOAD_CLIENT_ID}" >> "$GITHUB_ENV"
+          echo "::notice::Resolved workload identity client IDs for chart render (crud, agents, agents-2)."
 
       - name: Resolve publication context
         shell: bash
