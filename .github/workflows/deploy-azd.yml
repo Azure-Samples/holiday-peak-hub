@@ -2989,6 +2989,14 @@ jobs:
             fi
           done
 
+      - name: Refresh Azure login for Foundry prompt verification
+        if: ${{ success() && !inputs.skipPromptGates && needs.detect-changes.outputs.changed_agent_services_csv != '' }}
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
       - name: Verify Foundry instructions match repo
         if: ${{ success() && !inputs.skipPromptGates && needs.detect-changes.outputs.changed_agent_services_csv != '' }}
         shell: bash
