@@ -165,11 +165,12 @@ preflight:
     image: "mcr.microsoft.com/azure-cli:azurelinux3.0"
     # Total wait budget (seconds) across exponential backoff retries.
     maxWaitSeconds: 60
-    # Resource envelope for the init container (kept small on purpose).
+    # Resource envelope for the init container. Keep the request low; Azure
+    # Linux tdnf package installation needs transient memory headroom.
     resources:
       requests:
         cpu: "50m"
         memory: "64Mi"
       limits:
         cpu: "250m"
-        memory: "256Mi"
+        memory: "1Gi"
