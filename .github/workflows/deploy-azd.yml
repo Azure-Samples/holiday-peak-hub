@@ -2964,6 +2964,12 @@ jobs:
           pattern: rendered-manifest-*
           path: ${{ runner.temp }}/rendered-artifacts
 
+      - name: Download tested image references
+        uses: actions/download-artifact@v4
+        with:
+          pattern: tested-image-*
+          path: ${{ runner.temp }}/tested-image-artifacts
+
       - name: Copy rendered manifests into repo
         shell: bash
         run: |
@@ -2976,18 +2982,203 @@ jobs:
             echo "Copied rendered manifest for ${svc_name}"
           done
 
-      - name: Commit rendered manifests for Flux reconciliation
+      - name: Sync migrated HelmRelease sources
+        shell: bash
+        env:
+          RENDERED_ROOT: .kubernetes/rendered
+          RENDERED_ARTIFACT_ROOT: ${{ runner.temp }}/rendered-artifacts
+          TESTED_IMAGE_ARTIFACT_ROOT: ${{ runner.temp }}/tested-image-artifacts
+          HELMRELEASE_ROOT: .kubernetes/releases/agents
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet --disable-pip-version-check "ruamel.yaml>=0.18.6"
+
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          from ruamel.yaml import YAML
+          from ruamel.yaml.comments import CommentedMap
+          from ruamel.yaml.scalarstring import DoubleQuotedScalarString
+
+          CONTRACT_ENV_KEYS = (
+              "PROJECT_ENDPOINT",
+              "PROJECT_NAME",
+              "FOUNDRY_AGENT_ID_FAST",
+              "FOUNDRY_AGENT_ID_RICH",
+              "FOUNDRY_AGENT_NAME_FAST",
+              "FOUNDRY_AGENT_NAME_RICH",
+              "MODEL_DEPLOYMENT_NAME_FAST",
+              "MODEL_DEPLOYMENT_NAME_RICH",
+              "FOUNDRY_STREAM",
+              "FOUNDRY_STRICT_ENFORCEMENT",
+              "FOUNDRY_AUTO_ENSURE_ON_STARTUP",
+          )
+          REQUIRED_CONTRACT_ENV_KEYS = (
+              "MODEL_DEPLOYMENT_NAME_FAST",
+              "MODEL_DEPLOYMENT_NAME_RICH",
+              "FOUNDRY_STRICT_ENFORCEMENT",
+              "FOUNDRY_AUTO_ENSURE_ON_STARTUP",
+          )
+
+          rendered_root = Path(os.environ["RENDERED_ROOT"])
+          rendered_artifact_root = Path(os.environ["RENDERED_ARTIFACT_ROOT"])
+          tested_image_root = Path(os.environ["TESTED_IMAGE_ARTIFACT_ROOT"])
+          helmrelease_root = Path(os.environ["HELMRELEASE_ROOT"])
+
+          yaml = YAML()
+          yaml.preserve_quotes = True
+          yaml.indent(mapping=2, sequence=4, offset=2)
+
+          def as_quoted(value):
+              return DoubleQuotedScalarString(str(value))
+
+          def ensure_map(parent, key):
+              value = parent.get(key)
+              if value is None:
+                  value = CommentedMap()
+                  parent[key] = value
+              if not isinstance(value, dict):
+                  raise SystemExit(f"Expected mapping at '{key}', got {type(value).__name__}.")
+              return value
+
+          def split_image_ref(image_ref):
+              if "@" in image_ref:
+                  repository, digest = image_ref.split("@", 1)
+                  if not repository or not digest:
+                      raise SystemExit(f"Invalid digest image reference: {image_ref}")
+                  return repository, "latest", digest
+
+              last_slash = image_ref.rfind("/")
+              last_colon = image_ref.rfind(":")
+              if last_colon > last_slash:
+                  return image_ref[:last_colon], image_ref[last_colon + 1 :], ""
+              return image_ref, "latest", ""
+
+          def load_rendered_deployment(service_name, rendered_file):
+              with rendered_file.open(encoding="utf-8") as handle:
+                  documents = list(yaml.load_all(handle))
+
+              for document in documents:
+                  if not isinstance(document, dict) or document.get("kind") != "Deployment":
+                      continue
+                  labels = document.get("metadata", {}).get("labels", {})
+                  if labels.get("app") == service_name:
+                      return document
+
+              raise SystemExit(f"Rendered deployment for '{service_name}' not found in {rendered_file}.")
+
+          def get_primary_container(deployment, service_name):
+              containers = (
+                  deployment.get("spec", {})
+                  .get("template", {})
+                  .get("spec", {})
+                  .get("containers", [])
+              )
+              if not containers:
+                  raise SystemExit(f"Rendered deployment for '{service_name}' has no containers.")
+              return containers[0]
+
+          def get_env_map(container):
+              env_map = {}
+              for item in container.get("env", []) or []:
+                  if not isinstance(item, dict):
+                      continue
+                  name = item.get("name")
+                  if name and "value" in item:
+                      env_map[str(name)] = "" if item["value"] is None else str(item["value"])
+              return env_map
+
+          synced = []
+
+          for artifact_dir in sorted(rendered_artifact_root.glob("rendered-manifest-*")):
+              if not artifact_dir.is_dir():
+                  continue
+
+              service_name = artifact_dir.name.removeprefix("rendered-manifest-")
+              release_file = helmrelease_root / f"{service_name}.yaml"
+              if not release_file.is_file():
+                  continue
+
+              rendered_file = rendered_root / service_name / "all.yaml"
+              image_ref_file = tested_image_root / f"tested-image-{service_name}" / "image-ref.txt"
+              if not rendered_file.is_file():
+                  raise SystemExit(f"Rendered manifest missing for migrated HelmRelease service '{service_name}': {rendered_file}")
+              if not image_ref_file.is_file():
+                  raise SystemExit(f"Tested image reference missing for migrated HelmRelease service '{service_name}': {image_ref_file}")
+
+              image_ref = image_ref_file.read_text(encoding="utf-8").strip()
+              deployment = load_rendered_deployment(service_name, rendered_file)
+              container = get_primary_container(deployment, service_name)
+              rendered_image = str(container.get("image", ""))
+              if rendered_image != image_ref:
+                  raise SystemExit(
+                      f"Rendered image drift for '{service_name}': rendered '{rendered_image}', tested '{image_ref}'."
+                  )
+
+              rendered_env = get_env_map(container)
+              with release_file.open(encoding="utf-8") as handle:
+                  release = yaml.load(handle)
+
+              spec = ensure_map(release, "spec")
+              values = ensure_map(spec, "values")
+              image_values = ensure_map(values, "image")
+              env_values = ensure_map(values, "env")
+
+              repository, tag, digest = split_image_ref(image_ref)
+              image_values["repository"] = as_quoted(repository)
+              image_values["tag"] = as_quoted(tag)
+              image_values["digest"] = as_quoted(digest)
+
+              for key in CONTRACT_ENV_KEYS:
+                  if key in rendered_env:
+                      env_values[key] = as_quoted(rendered_env[key])
+
+              missing_required = [key for key in REQUIRED_CONTRACT_ENV_KEYS if key not in rendered_env]
+              if missing_required:
+                  raise SystemExit(
+                      f"Rendered Foundry contract missing for '{service_name}': {', '.join(missing_required)}"
+                  )
+
+              for key in REQUIRED_CONTRACT_ENV_KEYS:
+                  active_value = str(env_values.get(key, ""))
+                  rendered_value = rendered_env[key]
+                  if active_value != rendered_value:
+                      raise SystemExit(
+                          f"HelmRelease source drift for '{service_name}' {key}: rendered '{rendered_value}', active '{active_value}'."
+                      )
+
+              if str(image_values.get("repository", "")) != repository:
+                  raise SystemExit(f"HelmRelease source drift for '{service_name}' image.repository.")
+              if digest and str(image_values.get("digest", "")) != digest:
+                  raise SystemExit(f"HelmRelease source drift for '{service_name}' image.digest.")
+              if not digest and str(image_values.get("tag", "")) != tag:
+                  raise SystemExit(f"HelmRelease source drift for '{service_name}' image.tag.")
+
+              with release_file.open("w", encoding="utf-8") as handle:
+                  yaml.dump(release, handle)
+
+              synced.append(service_name)
+
+          if synced:
+              print("Synced migrated HelmRelease sources: " + ", ".join(synced))
+          else:
+              print("No migrated HelmRelease sources matched this deployment scope.")
+          PY
+
+      - name: Commit GitOps artifacts for Flux reconciliation
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add .kubernetes/rendered/ || true
+          git add .kubernetes/releases/agents/ || true
           if git diff --cached --quiet; then
-            echo "No rendered manifest changes to commit."
+            echo "No Flux GitOps artifact changes to commit."
             exit 0
           fi
-          git commit -m "deploy: update rendered manifests [skip ci]"
+          git commit -m "deploy: update Flux GitOps artifacts [skip ci]"
           git push origin "HEAD:refs/heads/${{ steps.publication-branch.outputs.branch_name }}"
 
   wait-flux-reconciliation:
