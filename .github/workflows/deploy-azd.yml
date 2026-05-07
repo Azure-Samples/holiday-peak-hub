@@ -307,10 +307,13 @@ jobs:
                 CRUD_IN_FILTER=true
               fi
             done
-            if [ "$CRUD_IN_FILTER" = false ]; then
-              CRUD_CHANGED=false
-            else
+            if [ ${#CHANGED_AGENTS[@]} -gt 0 ]; then
               CRUD_CHANGED=true
+              echo "::notice::Service-scoped agent deployment includes crud-service to refresh the shared dependency/runtime contract before Flux reconciles agents."
+            elif [ "$CRUD_IN_FILTER" = true ]; then
+              CRUD_CHANGED=true
+            else
+              CRUD_CHANGED=false
             fi
             UI_CHANGED=false
             echo "Service filter applied: ${CHANGED_AGENTS[*]:-none}"
