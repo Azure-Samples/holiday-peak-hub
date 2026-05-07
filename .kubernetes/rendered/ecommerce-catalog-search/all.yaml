@@ -7,6 +7,8 @@ metadata:
   namespace: holiday-peak-agents
   labels:
     app: ecommerce-catalog-search
+  annotations:
+    azure.workload.identity/client-id: "036f4fd2-9093-4948-b0dd-beb5c87aa6dc"
 ---
 # Source: holiday-peak-service/templates/service.yaml
 apiVersion: v1
@@ -49,6 +51,7 @@ spec:
       labels:
         app: ecommerce-catalog-search
         canary: "false"
+        azure.workload.identity/use: "true"
     spec:
       serviceAccountName: ecommerce-catalog-search
       nodeSelector:
@@ -60,7 +63,7 @@ spec:
           value: agents
       containers:
         - name: ecommerce-catalog-search
-          image: "holidaypeakhub405devacr.azurecr.io/ecommerce-catalog-search@sha256:fbff379dd6e1561c666641225a9244d73a3512ace1cb5b26674389a4f1d9c2be"
+          image: "holidaypeakhub405devacr.azurecr.io/ecommerce-catalog-search@sha256:80bf0c248306414300f39fc5533cdebd8896e393eebd02f74c5c08edaeaf46d0"
           env:
             - name: ROOT_PATH
               value: "/ecommerce-catalog-search"
@@ -75,7 +78,7 @@ spec:
             - name: AI_SEARCH_VECTOR_INDEX
               value: "product_search_index"
             - name: AZURE_CLIENT_ID
-              value: "a59f9460-ac67-4cf7-a270-48f398d6871c"
+              value: "036f4fd2-9093-4948-b0dd-beb5c87aa6dc"
             - name: AZURE_TENANT_ID
               value: "16b3c013-d300-468d-ac64-7eda0820b6d3"
             - name: BLOB_ACCOUNT_URL

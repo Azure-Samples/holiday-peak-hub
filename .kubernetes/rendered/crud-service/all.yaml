@@ -7,6 +7,8 @@ metadata:
   namespace: holiday-peak-crud
   labels:
     app: crud-service
+  annotations:
+    azure.workload.identity/client-id: "b09349cf-547f-409f-8b96-f3288ddedf34"
 ---
 # Source: holiday-peak-service/templates/service.yaml
 apiVersion: v1
@@ -49,6 +51,7 @@ spec:
       labels:
         app: crud-service
         canary: "false"
+        azure.workload.identity/use: "true"
     spec:
       serviceAccountName: crud-service
       nodeSelector:
@@ -74,7 +77,7 @@ spec:
             - name: AI_SEARCH_VECTOR_INDEX
               value: "product_search_index"
             - name: AZURE_CLIENT_ID
-              value: "a59f9460-ac67-4cf7-a270-48f398d6871c"
+              value: "b09349cf-547f-409f-8b96-f3288ddedf34"
             - name: AZURE_TENANT_ID
               value: "16b3c013-d300-468d-ac64-7eda0820b6d3"
             - name: BLOB_ACCOUNT_URL
@@ -224,7 +227,7 @@ spec:
               exit 1
       containers:
         - name: crud-service
-          image: "holidaypeakhub405devacr.azurecr.io/crud-service@sha256:b26a0e47ee44ce7c756d4dd9e0970492b56decc63f66fa852a9e118c45226307"
+          image: "holidaypeakhub405devacr.azurecr.io/crud-service@sha256:42625011b88c82555b8c3d4f47872113cdea4e4fbc219bed0cb58940cca6608c"
           env:
             - name: ROOT_PATH
               value: "/health"
@@ -239,7 +242,7 @@ spec:
             - name: AI_SEARCH_VECTOR_INDEX
               value: "product_search_index"
             - name: AZURE_CLIENT_ID
-              value: "a59f9460-ac67-4cf7-a270-48f398d6871c"
+              value: "b09349cf-547f-409f-8b96-f3288ddedf34"
             - name: AZURE_TENANT_ID
               value: "16b3c013-d300-468d-ac64-7eda0820b6d3"
             - name: BLOB_ACCOUNT_URL
