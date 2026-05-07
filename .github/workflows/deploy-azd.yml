@@ -2971,6 +2971,8 @@ jobs:
       - build-aks-images
     permissions:
       contents: write
+    outputs:
+      published_sha: ${{ steps.publish.outputs.published_sha }}
     steps:
       - name: Resolve publication branch
         id: publication-branch
@@ -3209,6 +3211,7 @@ jobs:
           PY
 
       - name: Commit GitOps artifacts for Flux reconciliation
+        id: publish
         shell: bash
         run: |
           set -euo pipefail
@@ -3218,10 +3221,16 @@ jobs:
           git add .kubernetes/releases/agents/ || true
           if git diff --cached --quiet; then
             echo "No Flux GitOps artifact changes to commit."
+            CURRENT_SHA="$(git rev-parse HEAD)"
+            echo "published_sha=${CURRENT_SHA}" >> "$GITHUB_OUTPUT"
+            echo "Published SHA (no-op): ${CURRENT_SHA}"
             exit 0
           fi
           git commit -m "deploy: update Flux GitOps artifacts [skip ci]"
           git push origin "HEAD:refs/heads/${{ steps.publication-branch.outputs.branch_name }}"
+          NEW_SHA="$(git rev-parse HEAD)"
+          echo "published_sha=${NEW_SHA}" >> "$GITHUB_OUTPUT"
+          echo "Published SHA: ${NEW_SHA}"
 
   wait-flux-reconciliation:
     runs-on: ubuntu-latest
@@ -3311,6 +3320,121 @@ jobs:
           flux reconcile kustomization holiday-peak-gitops-holiday-peak-agents -n flux-system --timeout=5m || true
 
           echo "Flux reconciliation triggered."
+
+      - name: Wait for Flux to converge on published revision
+        if: ${{ needs.commit-rendered-manifests.outputs.published_sha != '' }}
+        shell: bash
+        env:
+          PUBLISHED_SHA: ${{ needs.commit-rendered-manifests.outputs.published_sha }}
+          CHANGED_AGENT_SERVICES_CSV: ${{ needs.detect-changes.outputs.changed_agent_services_csv }}
+          CRUD_CHANGED: ${{ needs.detect-changes.outputs.crud_changed }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$PUBLISHED_SHA" ]; then
+            echo "No published_sha output from commit-rendered-manifests; skipping convergence wait."
+            exit 0
+          fi
+
+          FLUX_SOURCE="${FLUX_SOURCE_NAME}"
+          FLUX_NAMESPACE="${FLUX_SOURCE_NAMESPACE}"
+          SHORT_SHA="${PUBLISHED_SHA:0:8}"
+
+          if ! command -v flux &>/dev/null; then
+            curl -s https://fluxcd.io/install.sh | bash 2>/dev/null || true
+          fi
+
+          # 1) Wait for the GitRepository source to publish an artifact at the published SHA.
+          echo "Waiting for Flux source '${FLUX_SOURCE}' artifact to reach ${SHORT_SHA}..."
+          flux reconcile source git "$FLUX_SOURCE" -n "$FLUX_NAMESPACE" --timeout=3m || true
+          deadline=$(( SECONDS + 300 ))
+          while [ $SECONDS -lt $deadline ]; do
+            REVISION=$(kubectl get gitrepository.source.toolkit.fluxcd.io "$FLUX_SOURCE" -n "$FLUX_NAMESPACE" -o jsonpath='{.status.artifact.revision}' 2>/dev/null || echo "")
+            if [[ "$REVISION" == *"$PUBLISHED_SHA"* ]]; then
+              echo "Source artifact reached published revision: $REVISION"
+              break
+            fi
+            echo "Source artifact at '${REVISION}', awaiting ${SHORT_SHA}..."
+            sleep 10
+            flux reconcile source git "$FLUX_SOURCE" -n "$FLUX_NAMESPACE" --timeout=2m || true
+          done
+          REVISION=$(kubectl get gitrepository.source.toolkit.fluxcd.io "$FLUX_SOURCE" -n "$FLUX_NAMESPACE" -o jsonpath='{.status.artifact.revision}' 2>/dev/null || echo "")
+          if [[ "$REVISION" != *"$PUBLISHED_SHA"* ]]; then
+            echo "::error::Flux source did not reach published revision ${PUBLISHED_SHA} within timeout. Last seen: ${REVISION}"
+            exit 1
+          fi
+
+          # 2) Wait for both Flux kustomizations to apply the published revision and reach Ready=True.
+          wait_kustomization_applied() {
+            local name="$1"
+            local timeout_seconds="${2:-600}"
+            local force_reconcile="${3:-true}"
+            echo "Waiting for kustomization '${name}' to apply ${SHORT_SHA} and reach Ready=True (timeout ${timeout_seconds}s)..."
+            if [ "$force_reconcile" = "true" ] && command -v flux &>/dev/null; then
+              flux reconcile kustomization "$name" -n flux-system --timeout="${timeout_seconds}s" || true
+            fi
+            local local_deadline=$(( SECONDS + timeout_seconds ))
+            while [ $SECONDS -lt $local_deadline ]; do
+              local applied
+              local ready
+              applied=$(kubectl get kustomization "$name" -n flux-system -o jsonpath='{.status.lastAppliedRevision}' 2>/dev/null || echo "")
+              ready=$(kubectl get kustomization "$name" -n flux-system -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "")
+              if [[ "$applied" == *"$PUBLISHED_SHA"* ]] && [ "$ready" = "True" ]; then
+                echo "Kustomization '${name}' applied ${SHORT_SHA} and is Ready."
+                return 0
+              fi
+              echo "  kustomization=${name} applied='${applied}' ready='${ready}' — waiting..."
+              sleep 10
+            done
+            echo "::error::Kustomization '${name}' did not converge on ${PUBLISHED_SHA} within ${timeout_seconds}s."
+            kubectl describe kustomization "$name" -n flux-system | tail -80 || true
+            return 1
+          }
+
+          # CRUD kustomization first (agents has dependsOn: crud).
+          wait_kustomization_applied "holiday-peak-gitops-holiday-peak-crud" 600 true
+
+          # Agents kustomization — now that crud is ready, dependency is satisfied.
+          wait_kustomization_applied "holiday-peak-gitops-holiday-peak-agents" 600 true
+
+          # 3) For migrated HelmRelease services, wait for HelmController to apply
+          # the new values and roll the underlying Deployment. Kustomization apply
+          # only updates the HR spec; HelmController then reconciles the chart.
+          if [ -n "${CHANGED_AGENT_SERVICES_CSV:-}" ]; then
+            IFS=',' read -ra _SERVICES <<< "$CHANGED_AGENT_SERVICES_CSV"
+            for raw_svc in "${_SERVICES[@]}"; do
+              svc=$(echo "$raw_svc" | xargs)
+              [ -z "$svc" ] && continue
+              if ! kubectl get helmrelease "$svc" -n flux-system >/dev/null 2>&1; then
+                echo "Service '${svc}' has no HelmRelease — skipping HR convergence wait (legacy rendered path)."
+                continue
+              fi
+              echo "Reconciling HelmRelease '${svc}'..."
+              if command -v flux &>/dev/null; then
+                flux reconcile helmrelease "$svc" -n flux-system --timeout=10m || true
+              fi
+              hr_deadline=$(( SECONDS + 600 ))
+              while [ $SECONDS -lt $hr_deadline ]; do
+                hr_ready=$(kubectl get helmrelease "$svc" -n flux-system -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "")
+                hr_reason=$(kubectl get helmrelease "$svc" -n flux-system -o jsonpath='{.status.conditions[?(@.type=="Ready")].reason}' 2>/dev/null || echo "")
+                hr_released=$(kubectl get helmrelease "$svc" -n flux-system -o jsonpath='{.status.conditions[?(@.type=="Released")].reason}' 2>/dev/null || echo "")
+                if [ "$hr_ready" = "True" ] && [[ "$hr_reason" == "UpgradeSucceeded" || "$hr_reason" == "InstallSucceeded" || "$hr_reason" == "ReconciliationSucceeded" || "$hr_reason" == "TestSucceeded" ]]; then
+                  echo "HelmRelease '${svc}' Ready: ${hr_reason} (Released=${hr_released})"
+                  break
+                fi
+                echo "  helmrelease=${svc} ready='${hr_ready}' reason='${hr_reason}' released='${hr_released}' — waiting..."
+                sleep 10
+              done
+              hr_ready=$(kubectl get helmrelease "$svc" -n flux-system -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "")
+              if [ "$hr_ready" != "True" ]; then
+                echo "::error::HelmRelease '${svc}' did not become Ready within timeout."
+                kubectl describe helmrelease "$svc" -n flux-system | tail -80 || true
+                exit 1
+              fi
+            done
+          fi
+
+          echo "All Flux resources converged on published revision ${SHORT_SHA}."
 
       - name: Wait for CRUD rollout
         if: ${{ needs.detect-changes.outputs.crud_changed == 'true' }}
