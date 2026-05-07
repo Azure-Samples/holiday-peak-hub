@@ -1105,6 +1105,169 @@ jobs:
             echo "All provisioned outputs present — no recovery needed."
           fi
 
+      - name: Ensure Foundry RBAC for prompt gates and runtime agents
+        if: ${{ needs.detect-changes.outputs.changed_agent_services_csv != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ENV="${{ inputs.environment }}"
+          RG="${{ inputs.projectName }}-${ENV}-rg"
+
+          eval "$(azd env get-values -e "$ENV" | sed 's/^/export /')"
+
+          AI_SERVICES_NAME="${AI_SERVICES_NAME:-}"
+          PROJECT_NAME="${PROJECT_NAME:-}"
+          PROJECT_ENDPOINT="${PROJECT_ENDPOINT:-}"
+
+          if [ -z "$AI_SERVICES_NAME" ] && [ -n "$PROJECT_ENDPOINT" ]; then
+            ENDPOINT_HOST=$(printf '%s' "$PROJECT_ENDPOINT" | sed -E 's#^https?://([^./]+).*#\1#')
+            if [ -n "$ENDPOINT_HOST" ] && [ "$ENDPOINT_HOST" != "$PROJECT_ENDPOINT" ]; then
+              AI_SERVICES_NAME="$ENDPOINT_HOST"
+            fi
+          fi
+
+          if [ -z "$PROJECT_NAME" ] && [ -n "$PROJECT_ENDPOINT" ]; then
+            PROJECT_FROM_ENDPOINT=$(printf '%s' "$PROJECT_ENDPOINT" | sed -nE 's#.*/api/projects/([^/?#]+).*#\1#p')
+            [ -n "$PROJECT_FROM_ENDPOINT" ] && PROJECT_NAME="$PROJECT_FROM_ENDPOINT"
+          fi
+
+          AI_SERVICES_ID=""
+          if [ -n "$AI_SERVICES_NAME" ]; then
+            AI_SERVICES_ID=$(az cognitiveservices account show \
+              --resource-group "$RG" \
+              --name "$AI_SERVICES_NAME" \
+              --query id -o tsv 2>/dev/null || true)
+          fi
+
+          if [ -z "$AI_SERVICES_ID" ]; then
+            AI_SERVICES_ID=$(az cognitiveservices account list -g "$RG" \
+              --query "[?kind=='AIServices'] | [0].id" -o tsv 2>/dev/null || true)
+            AI_SERVICES_NAME=$(az cognitiveservices account list -g "$RG" \
+              --query "[?kind=='AIServices'] | [0].name" -o tsv 2>/dev/null || true)
+          fi
+
+          if [ -z "$AI_SERVICES_ID" ] || [ -z "$AI_SERVICES_NAME" ]; then
+            echo "::error::Unable to resolve the Foundry AI Services resource in resource group '$RG'. Expected azd output AI_SERVICES_NAME or one Microsoft.CognitiveServices/accounts resource with kind AIServices."
+            az cognitiveservices account list -g "$RG" -o table || true
+            exit 1
+          fi
+
+          if [ -z "$PROJECT_NAME" ]; then
+            PROJECT_RESOURCE_NAME=$(az resource list -g "$RG" \
+              --resource-type "Microsoft.CognitiveServices/accounts/projects" \
+              --query "[0].name" -o tsv 2>/dev/null || true)
+            if [ -n "$PROJECT_RESOURCE_NAME" ]; then
+              PROJECT_NAME="${PROJECT_RESOURCE_NAME##*/}"
+            fi
+          fi
+
+          if [ -z "$PROJECT_NAME" ]; then
+            PROJECT_NAME=$(az resource list -g "$RG" \
+              --resource-type "Microsoft.MachineLearningServices/workspaces" \
+              --query "[?kind=='Project'] | [0].name" -o tsv 2>/dev/null || true)
+          fi
+
+          if [ -z "$PROJECT_NAME" ]; then
+            echo "::error::Unable to resolve the Foundry project name. Expected azd output PROJECT_NAME, a project-scoped PROJECT_ENDPOINT, or a Microsoft.CognitiveServices/accounts/projects resource in '$RG'."
+            az resource list -g "$RG" --resource-type "Microsoft.CognitiveServices/accounts/projects" -o table || true
+            exit 1
+          fi
+
+          PROJECTS_JSON=$(az resource list -g "$RG" \
+            --resource-type "Microsoft.CognitiveServices/accounts/projects" \
+            -o json 2>/dev/null || echo '[]')
+          PROJECT_RESOURCE_ID=$(printf '%s' "$PROJECTS_JSON" | jq -r \
+            --arg account "$AI_SERVICES_NAME" \
+            --arg project "$PROJECT_NAME" \
+            '.[] | select((.name == ($account + "/" + $project)) or (.name == $project) or (.id | endswith("/accounts/" + $account + "/projects/" + $project))) | .id' \
+            | head -n 1)
+
+          if [ -z "$PROJECT_RESOURCE_ID" ]; then
+            echo "::error::Resolved AI_SERVICES_NAME='$AI_SERVICES_NAME' and PROJECT_NAME='$PROJECT_NAME', but no matching Foundry project resource was found under '$AI_SERVICES_ID'. Verify the Foundry project exists before rerunning prompt gates."
+            printf '%s\n' "$PROJECTS_JSON" | jq -r '.[] | [.name, .id] | @tsv' || true
+            exit 1
+          fi
+
+          azd env set AI_SERVICES_NAME "$AI_SERVICES_NAME" -e "$ENV" >/dev/null
+          azd env set PROJECT_NAME "$PROJECT_NAME" -e "$ENV" >/dev/null
+          if [ -z "$PROJECT_ENDPOINT" ]; then
+            PROJECT_ENDPOINT="https://${AI_SERVICES_NAME}.services.ai.azure.com/api/projects/${PROJECT_NAME}"
+            azd env set PROJECT_ENDPOINT "$PROJECT_ENDPOINT" -e "$ENV" >/dev/null
+          fi
+
+          ensure_role() {
+            local principal_object_id="$1"
+            local principal_type="$2"
+            local role_name="$3"
+            local scope="$4"
+            local principal_label="$5"
+
+            if [ -z "$principal_object_id" ]; then
+              echo "::error::Cannot verify '${role_name}' for ${principal_label}: principal object id is empty."
+              exit 1
+            fi
+
+            local existing
+            existing=$(az role assignment list \
+              --scope "$scope" \
+              --assignee-object-id "$principal_object_id" \
+              --query "[?roleDefinitionName=='${role_name}'] | length(@)" -o tsv 2>/dev/null || echo "0")
+
+            if [ "${existing:-0}" = "0" ]; then
+              echo "Assigning ${role_name} to ${principal_label} at Foundry resource scope ${scope}."
+              if ! az role assignment create \
+                --assignee-object-id "$principal_object_id" \
+                --assignee-principal-type "$principal_type" \
+                --role "$role_name" \
+                --scope "$scope" >/dev/null; then
+                echo "::error::Failed to assign '${role_name}' to ${principal_label} (${principal_object_id}) at scope ${scope}. The OIDC deploy principal must have roleAssignments/write at this scope or a parent scope."
+                exit 1
+              fi
+            else
+              echo "${principal_label} already has ${role_name} at Foundry resource scope."
+            fi
+
+            local verified
+            verified=$(az role assignment list \
+              --scope "$scope" \
+              --assignee-object-id "$principal_object_id" \
+              --query "[?roleDefinitionName=='${role_name}'] | length(@)" -o tsv 2>/dev/null || echo "0")
+
+            if [ "${verified:-0}" = "0" ]; then
+              echo "::error::Failed to verify '${role_name}' for ${principal_label} at scope ${scope}. Check RBAC assignment permissions and rerun after Azure RBAC propagation completes."
+              exit 1
+            fi
+          }
+
+          DEPLOY_SP_OBJECT_ID=$(az ad sp show --id "${AZURE_CLIENT_ID}" --query id -o tsv 2>/dev/null || true)
+          if [ -z "$DEPLOY_SP_OBJECT_ID" ]; then
+            echo "::error::Unable to resolve service principal object id for AZURE_CLIENT_ID. OIDC login succeeded, but RBAC verification needs the deploy principal object id."
+            exit 1
+          fi
+
+          echo "Foundry RBAC target resource: ${AI_SERVICES_NAME} (${AI_SERVICES_ID})"
+          echo "Foundry RBAC target project: ${PROJECT_NAME} (${PROJECT_RESOURCE_ID})"
+
+          ensure_role "$DEPLOY_SP_OBJECT_ID" "ServicePrincipal" "Azure AI User" "$AI_SERVICES_ID" "OIDC deploy principal"
+
+          if [ "${FOUNDRY_RUNTIME_AUTO_ENSURE_ON_STARTUP}" = "true" ]; then
+            for identity_name in \
+              "${{ inputs.projectName }}-${ENV}-agents-identity" \
+              "${{ inputs.projectName }}-${ENV}-agents-identity-2"; do
+              identity_principal_id=$(az identity show \
+                --resource-group "$RG" \
+                --name "$identity_name" \
+                --query principalId -o tsv 2>/dev/null || true)
+              if [ -z "$identity_principal_id" ]; then
+                echo "::error::Unable to resolve runtime workload identity '$identity_name' in resource group '$RG'. Runtime Foundry auto-ensure cannot be RBAC-verified."
+                exit 1
+              fi
+              ensure_role "$identity_principal_id" "ServicePrincipal" "Azure AI Project Manager" "$AI_SERVICES_ID" "runtime workload identity ${identity_name}"
+            done
+          else
+            echo "FOUNDRY_RUNTIME_AUTO_ENSURE_ON_STARTUP is not true; runtime Azure AI Project Manager guard is not required for this deploy."
+          fi
+
       - name: Export provisioned outputs
         id: outputs
         run: |

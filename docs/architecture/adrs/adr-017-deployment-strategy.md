@@ -3,7 +3,7 @@
 **Status**: Accepted (Revised)  
 **Date**: 2026-02  
 **Updated**: 2026-04-28 — Consolidated Flux CD deployment decision into unified deployment ADR. Infrastructure provisioning via `azd provision`; application deployment via Flux CD.  
-**Amended**: 2026-05 — Added advisory CI evaluation gate, scheduled continuous evaluation workflow, service-scoped CRUD contract refresh, and prompt-gate OIDC refresh after Flux waits.
+**Amended**: 2026-05 — Added advisory CI evaluation gate, scheduled continuous evaluation workflow, service-scoped CRUD contract refresh, prompt-gate OIDC refresh after Flux waits, and Foundry RBAC guards for live prompt verification.
 **Deciders**: Architecture Team, Ricardo Cataldi  
 **Tags**: infrastructure, deployment, ci-cd, azd, helm, aks, gitops, flux, helmrelease
 
@@ -159,7 +159,7 @@ The deployment model uses environment entrypoints plus a reusable core:
 - **Ordered jobs**: provision → deploy-crud → deploy-ui (optional) → deploy-agents
 - **Parallel agent matrix** — all agents deploy concurrently in the agents phase
 - **Service-scoped agent deployments** — when `serviceFilter` names one or more agent services, the workflow also includes `crud-service` in the AKS service set and runs CRUD first to refresh the rendered manifest/runtime contract. This keeps Flux progressing because agent kustomizations depend on the CRUD kustomization becoming ready. A `crud-service`-only filter remains CRUD-only.
-- **Foundry runtime contract gate** — for changed agent services, agent runtime contract validation runs only after rendered manifests are committed and Flux reconciliation succeeds, so live readiness checks compare against the reconciled Kubernetes spec rather than a previous deployment. The deployment workflow recovers Foundry project resources plus Cosmos and Blob memory defaults before rendering, refreshes Azure OIDC/Azure CLI authentication immediately before live Foundry prompt verification, and fails early if the agent render contract is incomplete.
+- **Foundry runtime contract gate** — for changed agent services, agent runtime contract validation runs only after rendered manifests are committed and Flux reconciliation succeeds, so live readiness checks compare against the reconciled Kubernetes spec rather than a previous deployment. The deployment workflow recovers Foundry project resources plus Cosmos and Blob memory defaults before rendering, idempotently ensures the OIDC deploy principal has `Azure AI User` on the AI Services Foundry resource for live prompt reads, ensures the agent workload identities have `Azure AI Project Manager` on the same resource for V2 agent publish/ensure operations, refreshes Azure OIDC/Azure CLI authentication immediately before live Foundry prompt verification, and fails early if the agent render contract is incomplete.
 - **Seed policy** — demo data seeding is run locally by operators, outside CI/CD deployment workflows
 
 Manual trigger examples:
@@ -284,7 +284,9 @@ queries Azure directly for missing outputs.
 Standalone `RoleAssignment` resources in `shared-infrastructure.bicep` can produce
 `RoleAssignmentExists` conflicts on re-deployment, marking the ARM deployment as `Failed`.
 Mitigations:
-- 4 workload identity → AI Services role assignments use empty-principal guards (`if (!empty(...))`)
+
+- 4 workload identity → AI Services role assignments in Bicep cover model invocation (`Cognitive Services OpenAI User`, `Cognitive Services User`)
+- The reusable deployment workflow verifies or creates the Foundry data-plane roles required for live prompt reads and V2 agent publish/ensure when changed agent services are deployed, including `skipProvision=true` runs that reuse existing infrastructure
 - 2 AI Search → Cosmos roles remain standalone due to circular dependency (AI Search principal from AI Foundry)
 - All ARM-API role assignments specify `principalType: 'ServicePrincipal'` to prevent AAD graph race conditions
 - `guid()` seeds must remain stable across deployments — verify with `az deployment sub what-if` before changing
