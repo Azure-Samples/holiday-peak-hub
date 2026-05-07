@@ -161,8 +161,8 @@ container:
 preflight:
   postgresAuth:
     enabled: false
-    # Image that provides `az` and can install `psql` (apk add postgresql-client).
-    image: "mcr.microsoft.com/azure-cli:latest"
+    # Image that provides `az`; Azure Linux tags install `psql` with tdnf.
+    image: "mcr.microsoft.com/azure-cli:azurelinux3.0"
     # Total wait budget (seconds) across exponential backoff retries.
     maxWaitSeconds: 60
     # Resource envelope for the init container (kept small on purpose).
