@@ -892,6 +892,10 @@ jobs:
             set_if_empty COSMOS_DATABASE "holiday-peak-db"
           fi
 
+          if [ -z "${COSMOS_CONTAINER:-}" ]; then
+            set_if_empty COSMOS_CONTAINER "agent-memory"
+          fi
+
           # ── Key Vault ──────────────────────────────────────────────
           if [ -z "${KEY_VAULT_URI:-}" ]; then
             V=$(az keyvault list -g "$RG" \
@@ -927,6 +931,10 @@ jobs:
             if [ -n "${V:-}" ]; then
               set_if_empty BLOB_ACCOUNT_URL "https://${V}.blob.core.windows.net"
             fi
+          fi
+
+          if [ -z "${BLOB_CONTAINER:-}" ]; then
+            set_if_empty BLOB_CONTAINER "agent-memory"
           fi
 
           # ── AI Search ──────────────────────────────────────────────
@@ -968,6 +976,15 @@ jobs:
           fi
 
           # ── AI Project ─────────────────────────────────────────────
+          if [ -z "${PROJECT_NAME:-}" ]; then
+            V=$(az resource list -g "$RG" \
+              --resource-type "Microsoft.CognitiveServices/accounts/projects" \
+              --query "[0].name" -o tsv 2>/dev/null || true)
+            if [ -n "${V:-}" ]; then
+              set_if_empty PROJECT_NAME "${V##*/}"
+            fi
+          fi
+
           if [ -z "${PROJECT_NAME:-}" ]; then
             V=$(az resource list -g "$RG" \
               --resource-type "Microsoft.MachineLearningServices/workspaces" \
@@ -1102,6 +1119,20 @@ jobs:
           if [ "$APIM_GATEWAY_URL_VALUE" = "null" ]; then
             APIM_GATEWAY_URL_VALUE=""
           fi
+          if [ -n "${CHANGED_AGENT_SERVICES:-}" ]; then
+            REQUIRED_RENDER_KEYS=(PROJECT_ENDPOINT PROJECT_NAME BLOB_ACCOUNT_URL BLOB_CONTAINER COSMOS_CONTAINER)
+            MISSING_RENDER_KEYS=()
+            for key in "${REQUIRED_RENDER_KEYS[@]}"; do
+              eval "value=\${$key:-}"
+              if [ -z "$value" ]; then
+                MISSING_RENDER_KEYS+=("$key")
+              fi
+            done
+            if [ ${#MISSING_RENDER_KEYS[@]} -gt 0 ]; then
+              echo "::error::Missing required agent render outputs: ${MISSING_RENDER_KEYS[*]}. Provision/recovery did not produce a complete runtime contract."
+              exit 1
+            fi
+          fi
           {
             echo "AI_SERVICES_NAME=${AI_SERVICES_NAME}"
             echo "AI_SEARCH_NAME=${AI_SEARCH_NAME}"
@@ -1116,10 +1147,13 @@ jobs:
             echo "APIM_GATEWAY_URL=${APIM_GATEWAY_URL_VALUE}"
             echo "COSMOS_ACCOUNT_URI=${COSMOS_ACCOUNT_URI}"
             echo "COSMOS_DATABASE=${COSMOS_DATABASE}"
+            echo "COSMOS_CONTAINER=${COSMOS_CONTAINER}"
             echo "KEY_VAULT_URI=${KEY_VAULT_URI}"
             echo "REDIS_HOST=${REDIS_HOST}"
             echo "EVENT_HUB_NAMESPACE=${EVENT_HUB_NAMESPACE}"
             echo "APPLICATIONINSIGHTS_CONNECTION_STRING=${APPLICATIONINSIGHTS_CONNECTION_STRING}"
+            echo "BLOB_ACCOUNT_URL=${BLOB_ACCOUNT_URL}"
+            echo "BLOB_CONTAINER=${BLOB_CONTAINER}"
             echo "POSTGRES_HOST=${POSTGRES_HOST}"
             echo "POSTGRES_USER=${POSTGRES_USER}"
             echo "POSTGRES_ADMIN_USER=${POSTGRES_ADMIN_USER}"
@@ -2792,7 +2826,7 @@ jobs:
 
   wait-flux-reconciliation:
     runs-on: ubuntu-latest
-    if: ${{ !inputs.uiOnly && (needs.commit-rendered-manifests.result == 'success') }}
+    if: ${{ always() && !cancelled() && !inputs.uiOnly && needs.commit-rendered-manifests.result == 'success' }}
     needs:
       - commit-rendered-manifests
       - detect-changes
@@ -4034,7 +4068,7 @@ jobs:
 
   ensure-foundry-agents:
     runs-on: ubuntu-latest
-    if: ${{ always() && !cancelled() && !inputs.uiOnly && needs.detect-changes.outputs.changed_agent_services_csv != '' && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') && (needs.wait-flux-reconciliation.result == 'success' || needs.wait-flux-reconciliation.result == 'skipped') }}
+    if: ${{ always() && !cancelled() && !inputs.uiOnly && needs.detect-changes.outputs.changed_agent_services_csv != '' && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') && needs.wait-flux-reconciliation.result == 'success' }}
     needs:
       - deploy-agents
       - detect-changes

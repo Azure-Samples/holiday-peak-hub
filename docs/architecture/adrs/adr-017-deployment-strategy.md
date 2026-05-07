@@ -158,7 +158,7 @@ The deployment model uses environment entrypoints plus a reusable core:
 - **OIDC federation** — federated identity for Azure login (no client secrets)
 - **Ordered jobs**: provision → deploy-crud → deploy-ui (optional) → deploy-agents
 - **Parallel agent matrix** — all agents deploy concurrently in the agents phase
-- **Foundry runtime contract gate** — agent runtime contract validation runs after rendered manifests are committed and Flux reconciliation has succeeded or been intentionally skipped, so live readiness checks compare against the reconciled Kubernetes spec rather than a previous deployment.
+- **Foundry runtime contract gate** — for changed agent services, agent runtime contract validation runs only after rendered manifests are committed and Flux reconciliation succeeds, so live readiness checks compare against the reconciled Kubernetes spec rather than a previous deployment. The deployment workflow recovers Foundry project resources plus Cosmos and Blob memory defaults before rendering, and fails early if the agent render contract is incomplete.
 - **Seed policy** — demo data seeding is run locally by operators, outside CI/CD deployment workflows
 
 Manual trigger examples:
