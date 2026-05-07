@@ -204,7 +204,7 @@ spec:
               exit 1
       containers:
         - name: crud-service
-          image: "holidaypeakhub405devacr.azurecr.io/crud-service@sha256:a91997d52428113f24a546a879c2cdc54d082002a0418d5d8fd721caa0bf1edf"
+          image: "holidaypeakhub405devacr.azurecr.io/crud-service@sha256:4161dfc6d8819b7c769ace86ae23839cb50e1db4b8549d739f2e36858d6daab9"
           env:
             - name: ROOT_PATH
               value: "/health"

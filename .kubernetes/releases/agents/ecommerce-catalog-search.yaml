@@ -32,9 +32,9 @@ spec:
       clientId: "036f4fd2-9093-4948-b0dd-beb5c87aa6dc"
 
     image:
-      repository: holidaypeakhub405devacr.azurecr.io/ecommerce-catalog-search
-      tag: latest
-      digest: sha256:df3ed4d7c35902bacc3b26bb8405f67c1e025015cd97eda29083f04d16264ae2
+      repository: "holidaypeakhub405devacr.azurecr.io/ecommerce-catalog-search"
+      tag: "latest"
+      digest: "sha256:b212db72cb1713bb93dbb4f9d9eeb39ba043b686bff61653c655e6f120c31736"
 
     replicaCount: 1
 
