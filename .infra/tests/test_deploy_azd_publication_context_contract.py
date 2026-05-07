@@ -31,6 +31,8 @@ def test_publication_context_recovers_agc_render_subnet_without_reusing_live_gat
         assert 'alb.networking.azure.io/alb-name' in block
         assert 'alb.networking.azure.io/alb-namespace' in block
         assert "Recovered AGC render subnet from the ApplicationLoadBalancer referenced by the live shared Gateway." in block
+        assert 'az network vnet subnet show -g "$RG_FOR_AGC_SUBNET" --vnet-name "$VNET_FOR_AGC_SUBNET" -n agc --query id -o tsv' in block
+        assert "Recovered AGC render subnet via Azure CLI fallback (provision output secret-masked or live ALB absent)." in block
         assert 'echo "AGC_SUBNET_ID=$AGC_SUBNET_ID_VALUE" >> "$GITHUB_ENV"' in block
         assert 'AGC_HOSTNAME_VALUE=' not in block
         assert 'echo "AGC_HOSTNAME=' not in block
@@ -42,9 +44,13 @@ def test_publication_context_recovers_agc_render_subnet_without_reusing_live_gat
         gateway_alb_lookup = block.index(
             'AGC_SUBNET_ID_VALUE="$(get_first_alb_association "$AGC_SHARED_ALB_NAME" "$AGC_SHARED_ALB_NAMESPACE")"'
         )
+        cli_fallback_lookup = block.index(
+            'az network vnet subnet show -g "$RG_FOR_AGC_SUBNET" --vnet-name "$VNET_FOR_AGC_SUBNET" -n agc --query id -o tsv'
+        )
         export_subnet = block.index('echo "AGC_SUBNET_ID=$AGC_SUBNET_ID_VALUE" >> "$GITHUB_ENV"')
 
-        assert direct_alb_lookup < gateway_alb_lookup < export_subnet
+        assert direct_alb_lookup < gateway_alb_lookup < cli_fallback_lookup < export_subnet
+        assert 'Unable to resolve AGC_SUBNET_ID' in block
 
 
 def test_finalize_agc_target_prefers_runtime_frontend_status_over_gateway_listener_spec() -> None:

@@ -2102,13 +2102,27 @@ jobs:
             fi
           fi
 
+          if [ -z "$AGC_SUBNET_ID_VALUE" ]; then
+            # Final fallback: query Azure directly for the AGC delegated subnet.
+            # GitHub Actions step outputs containing subscription GUIDs are sometimes secret-masked
+            # and arrive empty in this job ("Skip output 'AGC_SUBNET_ID' since it may contain secret").
+            # Re-resolve via Azure CLI so the render context is authoritative even when the live ALB is absent.
+            RG_FOR_AGC_SUBNET="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+            VNET_FOR_AGC_SUBNET="${{ inputs.projectName }}-${{ inputs.environment }}-vnet"
+            AGC_SUBNET_ID_VALUE="$(az network vnet subnet show -g "$RG_FOR_AGC_SUBNET" --vnet-name "$VNET_FOR_AGC_SUBNET" -n agc --query id -o tsv 2>/dev/null || true)"
+            if [ -n "$AGC_SUBNET_ID_VALUE" ]; then
+              echo "::notice::Recovered AGC render subnet via Azure CLI fallback (provision output secret-masked or live ALB absent)."
+            fi
+          fi
+
           echo "PUBLICATION_MODE=agc" >> "$GITHUB_ENV"
           echo "AGC_SUPPORT_ENABLED=${{ needs.provision.outputs.AGC_SUPPORT_ENABLED || 'false' }}" >> "$GITHUB_ENV"
           echo "AGC_GATEWAY_CLASS=$AGC_GATEWAY_CLASS_VALUE" >> "$GITHUB_ENV"
           echo "AGC_SUBNET_ID=$AGC_SUBNET_ID_VALUE" >> "$GITHUB_ENV"
 
           if [ -z "$AGC_SUBNET_ID_VALUE" ]; then
-            echo "::notice::No live AGC subnet association was available during render publication-context resolution. Later AGC readiness validation remains authoritative."
+            echo "::error::Unable to resolve AGC_SUBNET_ID for agent render publication-context. Agent HTTPRoutes target the shared Gateway and require it to be present in the rendered manifests."
+            exit 1
           fi
 
           kubectl get gatewayclass -o wide || true
@@ -2892,13 +2906,28 @@ jobs:
             fi
           fi
 
+          if [ -z "$AGC_SUBNET_ID_VALUE" ]; then
+            # Final fallback: query Azure directly for the AGC delegated subnet.
+            # GitHub Actions step outputs that contain subscription GUIDs may be secret-masked
+            # and arrive empty in this job ("Skip output 'AGC_SUBNET_ID' since it may contain secret").
+            # The ALB controller cannot reconcile without the subnet association, so re-resolve
+            # via Azure CLI to keep the render context authoritative even when the live ALB is absent.
+            RG_FOR_AGC_SUBNET="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+            VNET_FOR_AGC_SUBNET="${{ inputs.projectName }}-${{ inputs.environment }}-vnet"
+            AGC_SUBNET_ID_VALUE="$(az network vnet subnet show -g "$RG_FOR_AGC_SUBNET" --vnet-name "$VNET_FOR_AGC_SUBNET" -n agc --query id -o tsv 2>/dev/null || true)"
+            if [ -n "$AGC_SUBNET_ID_VALUE" ]; then
+              echo "::notice::Recovered AGC render subnet via Azure CLI fallback (provision output secret-masked or live ALB absent)."
+            fi
+          fi
+
           echo "PUBLICATION_MODE=agc" >> "$GITHUB_ENV"
           echo "AGC_SUPPORT_ENABLED=${{ needs.provision.outputs.AGC_SUPPORT_ENABLED || 'false' }}" >> "$GITHUB_ENV"
           echo "AGC_GATEWAY_CLASS=$AGC_GATEWAY_CLASS_VALUE" >> "$GITHUB_ENV"
           echo "AGC_SUBNET_ID=$AGC_SUBNET_ID_VALUE" >> "$GITHUB_ENV"
 
           if [ -z "$AGC_SUBNET_ID_VALUE" ]; then
-            echo "::notice::No live AGC subnet association was available during render publication-context resolution. Later AGC readiness validation remains authoritative."
+            echo "::error::Unable to resolve AGC_SUBNET_ID for render publication-context. The CRUD chart cannot emit the shared ApplicationLoadBalancer/Gateway without it, which would cause Flux to prune them and break AGC readiness."
+            exit 1
           fi
 
       - name: Download tested image reference
