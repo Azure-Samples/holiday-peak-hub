@@ -60,7 +60,7 @@ spec:
           value: agents
       containers:
         - name: ecommerce-catalog-search
-          image: "holidaypeakhub405devacr.azurecr.io/ecommerce-catalog-search@sha256:e59d2094b26e83318a095e957fdbb3534052110921663366e3ac09fadc85f868"
+          image: "holidaypeakhub405devacr.azurecr.io/ecommerce-catalog-search@sha256:ee0c9c288cb0ca8738a00760a183c3c26b537ab845f7cd3e042642e4df59f657"
           env:
             - name: ROOT_PATH
               value: "/ecommerce-catalog-search"
@@ -78,10 +78,16 @@ spec:
               value: "a59f9460-ac67-4cf7-a270-48f398d6871c"
             - name: AZURE_TENANT_ID
               value: "16b3c013-d300-468d-ac64-7eda0820b6d3"
+            - name: BLOB_ACCOUNT_URL
+              value: "https://holidaypeakhub405devstor.blob.core.windows.net"
+            - name: BLOB_CONTAINER
+              value: "agent-memory"
             - name: CATALOG_SEARCH_REQUIRE_AI_SEARCH
               value: "true"
             - name: COSMOS_ACCOUNT_URI
               value: "https://holidaypeakhub405-dev-cosmos.documents.azure.com:443/"
+            - name: COSMOS_CONTAINER
+              value: "agent-memory"
             - name: COSMOS_DATABASE
               value: "holiday-peak-db"
             - name: CRUD_SERVICE_URL
@@ -116,6 +122,10 @@ spec:
               value: "holidaypeakhub405-dev-postgres.postgres.database.azure.com"
             - name: POSTGRES_USER
               value: "crud_admin"
+            - name: PROJECT_ENDPOINT
+              value: "https://holidaypeakhub405devais.services.ai.azure.com/api/projects/aipholidaris"
+            - name: PROJECT_NAME
+              value: "aipholidaris"
             - name: REDIS_HOST
               value: "holidaypeakhub405-dev-redis.redis.cache.windows.net"
             - name: REDIS_PASSWORD_SECRET_NAME
