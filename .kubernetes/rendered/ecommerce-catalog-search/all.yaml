@@ -60,7 +60,7 @@ spec:
           value: agents
       containers:
         - name: ecommerce-catalog-search
-          image: "holidaypeakhub405devacr.azurecr.io/ecommerce-catalog-search@sha256:b212db72cb1713bb93dbb4f9d9eeb39ba043b686bff61653c655e6f120c31736"
+          image: "holidaypeakhub405devacr.azurecr.io/ecommerce-catalog-search@sha256:efe801b94507aa49cf80f6f346cb05969a2dd4d832869097185567d95937bdc4"
           env:
             - name: ROOT_PATH
               value: "/ecommerce-catalog-search"
