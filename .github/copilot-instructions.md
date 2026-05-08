@@ -19,11 +19,13 @@ Use this mapping to know the current vs. former names—so you can correctly int
 
 ## Repository Purpose & Architecture
 
-- This repository is a **framework for agentic retail** solutions.
-- All apps under **/apps** are **demonstration services** built on the framework.
-- Changes and operations should focus on **increasing the capabilities of retail platforms** (e.g., intelligence, automation, personalization, operational efficiency).
-- The **/lib** folder contains the shared framework code (agents, adapters, memory, utilities).
-- Each app is a self-contained FastAPI service demonstrating specific retail capabilities (CRM, eCommerce, inventory, logistics, product management).
+> **Canonical positioning lives in [.github/instructions/repository-purpose.instructions.md](instructions/repository-purpose.instructions.md). That file is the single source of truth and is auto-loaded into every agent prompt. The summary below must stay aligned with it.**
+
+- This repository is **a framework AND a product**, distributed as a public Microsoft sample under `Azure-Samples/`. It is not a demo. It is not a framework with toy apps. Both halves are first-class.
+- **`lib/holiday_peak_lib/` is a framework** — an opinionated agentic-microservices runtime for retail with stable seams (`BaseRetailAgent`, `AgentBuilder`, `ModelTarget`, `FastAPIMCPServer`, three-tier memory, guardrails, telemetry). Versioned, contracted, designed for adoption.
+- **`apps/` is a product** — a retail platform built on the framework: 1 transactional microservice (`crud-service`), 26 agent services across 7 bounded contexts, and 1 Next.js frontend (`ui`). Production-grade SLOs, canary routing, continuous evaluation, real connectors.
+- Distribution via `Azure-Samples/` is a **channel, not a quality tier**. Latency discipline, canary routing, eval baselines, and connector breadth exist because the product needs them in production — not because they make a good demo.
+- Changes to `lib/` are framework changes (stable contracts, contract tests, ADRs where applicable). Changes to `apps/` are product changes (domain reasoning, eval impact, SLO awareness, operational runbooks).
 - **Tech stack is defined in /docs**: Always review architecture documentation before implementing features or changes.
 - **Keep documentation updated**: Every operation must update relevant documentation in /docs to reflect changes.
 
