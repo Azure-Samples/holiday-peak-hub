@@ -12,6 +12,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
+    "test:a11y": "jest tests/a11y --runInBand",
     "test:e2e": "playwright test",
     "test:e2e:ci": "playwright test --reporter=line",
     "update:dependencies": "npx npm-check-updates -u && npm install"
@@ -73,6 +74,7 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
     "@types/jest": "^30.0.0",
+    "@types/jest-axe": "^3.5.9",
     "@types/node": "^22.19.17",
     "@typescript-eslint/eslint-plugin": "^8.58.1",
     "@typescript-eslint/parser": "^8.58.1",
@@ -89,6 +91,7 @@
     "eslint-plugin-simple-import-sort": "^12.1.1",
     "husky": "^9.1.7",
     "jest": "^29.7.0",
+    "jest-axe": "^9.0.0",
     "jest-environment-jsdom": "^29.7.0",
     "lint-staged": "^15.2.11",
     "postcss": "^8.5.9",
