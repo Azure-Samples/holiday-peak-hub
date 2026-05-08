@@ -596,7 +596,14 @@ describe('Page rendering smoke tests', () => {
 
   it('renders the home page', () => {
     render(<HomePage />);
-    expect(screen.getByTestId('main-layout')).toBeInTheDocument();
+    // Per ADR-034 §1, the home is an audience router with two equally-weighted
+    // CTAs. No carousel, no autoplay video, no scroll-jacking.
+    expect(
+      screen.getByRole('link', { name: /I'm a retailer/i }),
+    ).toHaveAttribute('href', '/retailers');
+    expect(
+      screen.getByRole('link', { name: /I'm a builder/i }),
+    ).toHaveAttribute('href', '/builders');
   });
 
   it('renders categories page heading', () => {
