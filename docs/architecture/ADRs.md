@@ -33,6 +33,13 @@ This document indexes all architectural decisions for the Holiday Peak Hub accel
 | [ADR-025](adrs/adr-025-self-healing-boundaries.md) | Self-Healing Boundaries, Risk Tiers, and Prohibited Actions | Accepted | 2026-04 |
 | [ADR-026](adrs/adr-026-namespace-isolation-strategy.md) | Namespace Isolation Strategy (CRUD vs Agent Namespaces) | Accepted | 2026-04 |
 | [ADR-027](adrs/adr-027-api-center-apim-mcp-strategy.md) | API Center + APIM MCP Strategy | Accepted | 2026-04 |
+| [ADR-029](adrs/adr-029-agc-weighted-canary-policy.md) | AGC Weighted Canary Policy with Automatic Rollback | Accepted | 2026-05 |
+| [ADR-030](adrs/adr-030-mcp-only-a2a.md) | MCP-Only Agent-to-Agent Communication with Hop Counter | Accepted | 2026-05 |
+| [ADR-031](adrs/adr-031-otel-span-attributes-contract.md) | OTEL Span Attributes Contract for Retail Agents | Accepted | 2026-05 |
+| [ADR-032](adrs/adr-032-three-tier-memory-contract.md) | Three-Tier Memory Contract Pinning (Hot / Warm / Cold) | Accepted (Refines ADR-007) | 2026-05 |
+| [ADR-033](adrs/adr-033-ui-modular-monolith-on-swa.md) | UI as a Modular Monolith on Static Web Apps (Path 2) | Accepted | 2026-05 |
+
+> ADR-028 (Continuous Agent Evaluation) is in flight on PR #974; once merged, it will be inserted at its sequential position above.
 
 ## How to Use ADRs
 
@@ -84,16 +91,21 @@ Each ADR follows a standard template:
 ### Infrastructure & Deployment
 - Azure-native services for enterprise readiness ([ADR-002](adrs/adr-002-azure-services.md))
 - Three-tier memory for latency/cost optimization ([ADR-007](adrs/adr-007-memory-tiers.md))
+- Three-tier memory contract pinning ([ADR-032](adrs/adr-032-three-tier-memory-contract.md))
 - AKS with KEDA for elastic scaling, 3 node pools ([ADR-008](adrs/adr-008-aks-deployment.md))
 - Deployment strategy: azd provisioning + Flux CD GitOps ([ADR-017](adrs/adr-017-deployment-strategy.md))
 - APIM + AGC as the canonical AKS edge ([ADR-021](adrs/adr-021-apim-agc-edge.md))
 - Namespace isolation for CRUD and agent workloads ([ADR-026](adrs/adr-026-namespace-isolation-strategy.md))
+- AGC weighted canary policy with automatic rollback ([ADR-029](adrs/adr-029-agc-weighted-canary-policy.md))
+- UI as a modular monolith on Static Web Apps ([ADR-033](adrs/adr-033-ui-modular-monolith-on-swa.md))
 
 ### Governance
 - Git branch naming convention ([ADR-018](adrs/adr-018-branch-naming-convention.md))
 - Agent communication policy, isolation, and async contracts ([ADR-024](adrs/adr-024-agent-communication-policy.md))
+- MCP-only agent-to-agent communication with hop counter ([ADR-030](adrs/adr-030-mcp-only-a2a.md))
 - Self-healing boundaries, risk tiers, and prohibited actions ([ADR-025](adrs/adr-025-self-healing-boundaries.md))
 - API Center + APIM MCP strategy for API governance ([ADR-027](adrs/adr-027-api-center-apim-mcp-strategy.md))
+- OTEL span attributes contract for retail agents ([ADR-031](adrs/adr-031-otel-span-attributes-contract.md))
 
 ### Enterprise Integration
 - Enterprise resilience patterns (Circuit Breaker, Bulkhead, Rate Limiter) ([ADR-019](adrs/adr-019-enterprise-resilience-patterns.md))
