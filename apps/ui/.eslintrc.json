@@ -66,6 +66,22 @@
       "rules": {
         "@typescript-eslint/no-require-imports": "off"
       }
+    },
+    {
+      "files": ["app/api/**/route.{ts,tsx}", "app/**/route.{ts,tsx}"],
+      "rules": {
+        "no-restricted-syntax": [
+          "error",
+          {
+            "selector": "BinaryExpression[left.name='persona']",
+            "message": "Persona is a HINT, not a GATE (ADR-034 §3). Route handlers must not branch on persona — see apps/ui/lib/persona/README.md."
+          },
+          {
+            "selector": "BinaryExpression[right.name='persona']",
+            "message": "Persona is a HINT, not a GATE (ADR-034 §3). Route handlers must not branch on persona — see apps/ui/lib/persona/README.md."
+          }
+        ]
+      }
     }
   ]
 }
