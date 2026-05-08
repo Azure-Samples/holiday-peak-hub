@@ -62,6 +62,23 @@ class TruthIngestionAgent(BaseRetailAgent):
         return {"action": "ingest_single", "result": result}
 
 
+def _summarize_source_configuration(adapters: IngestionAdapters) -> dict[str, bool]:
+    """Return a flat ``{source: bool}`` map of configured connectivity.
+
+    Reads private attributes on our own adapter classes for MCP telemetry. The
+    adapters intentionally do not expose a public ``is_configured`` accessor;
+    centralising the access here keeps the protected-access surface to a single
+    place that can be reviewed and audited.
+    """
+    # pylint: disable=protected-access
+    return {
+        "pim_configured": bool(adapters.pim._base_url),
+        "dam_configured": bool(adapters.dam._base_url),
+        "events_configured": bool(adapters.events._connection_string),
+        "truth_store_configured": bool(adapters.truth_store._cosmos_uri),
+    }
+
+
 def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
     """Expose MCP tools for truth ingestion workflows."""
     adapters: IngestionAdapters = get_agent_adapters(agent, build_ingestion_adapters)
@@ -87,12 +104,7 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
 
     async def list_sources(_payload: dict[str, Any]) -> dict[str, Any]:
         """MCP tool: list configured PIM/DAM source connectivity."""
-        return {
-            "pim_configured": bool(adapters.pim._base_url),
-            "dam_configured": bool(adapters.dam._base_url),
-            "events_configured": bool(adapters.events._connection_string),
-            "truth_store_configured": bool(adapters.truth_store._cosmos_uri),
-        }
+        return _summarize_source_configuration(adapters)
 
     mcp.add_tool("/ingest/product", ingest_product)
     mcp.add_tool("/ingest/status", get_ingestion_status)
