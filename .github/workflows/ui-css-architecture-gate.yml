@@ -1,0 +1,90 @@
+name: ui-css-architecture-gate
+
+# CSS architecture gate — enforces Issue #1058 contract:
+#   - globals.css line count ≤ 80 (warn at 60, hard fail at 80).
+#   - No new *.css imports at root layout (allowlist baselines existing
+#     legacy imports; new ones fail the PR).
+# This is a marketing-site (audience-IA) hygiene gate; per ADR-035 §49.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - apps/ui/app/globals.css
+      - apps/ui/app/layout.tsx
+      - apps/ui/app/styles/**
+      - .github/workflows/ui-css-architecture-gate.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - apps/ui/app/globals.css
+      - apps/ui/app/layout.tsx
+      - apps/ui/app/styles/**
+      - .github/workflows/ui-css-architecture-gate.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ui-css-architecture-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: globals.css ≤ 80 lines (hard fail)
+        run: |
+          set -euo pipefail
+          LINES=$(wc -l < apps/ui/app/globals.css)
+          echo "globals.css line count: $LINES"
+          if [ "$LINES" -gt 80 ]; then
+            echo "::error file=apps/ui/app/globals.css::globals.css has $LINES lines (hard ceiling: 80, soft target: 60). See ADR-035 §49 / Issue #1058 CI1."
+            exit 1
+          fi
+          if [ "$LINES" -gt 60 ]; then
+            echo "::warning file=apps/ui/app/globals.css::globals.css has $LINES lines (soft target: 60). Consider trimming."
+          fi
+
+      - name: No new *.css imports at root layout (allowlist baseline)
+        run: |
+          set -euo pipefail
+          # Allowlist: existing legacy CSS imports baselined at #1058 merge time.
+          # Adding a new *.css import at apps/ui/app/layout.tsx fails the PR.
+          # Future cleanup: migrate vendor CSS into per-route layouts and
+          # remove from this allowlist.
+          ALLOWED=(
+            "./globals.css"
+            "@/css/main.css"
+            "@/css/animate.css"
+            "@/css/components/nprogress.css"
+            "@/css/components/recharts.css"
+            "@/css/components/steps.css"
+            "@/css/components/left-sidebar-3.css"
+          )
+          IMPORTS=$(grep -E "^import\s+['\"][^'\"]+\.css['\"]" apps/ui/app/layout.tsx | sed -E "s/^import\s+['\"]([^'\"]+)['\"].*$/\\1/" || true)
+          DRIFT=0
+          for IMP in $IMPORTS; do
+            FOUND=0
+            for A in "${ALLOWED[@]}"; do
+              if [ "$IMP" = "$A" ]; then
+                FOUND=1
+                break
+              fi
+            done
+            if [ "$FOUND" = "0" ]; then
+              echo "::error file=apps/ui/app/layout.tsx::New CSS import '$IMP' detected at root layout. Vendor and route-scoped CSS must be imported at the consuming route segment, not at the root layout (ADR-035 §49 / Issue #1058 CI3)."
+              DRIFT=1
+            fi
+          done
+          if [ "$DRIFT" = "1" ]; then
+            exit 1
+          fi
+          echo "Root layout CSS imports match the baseline allowlist."

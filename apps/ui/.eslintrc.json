@@ -100,6 +100,33 @@
           {
             "selector": "TemplateElement[value.cooked=/#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\\b/]",
             "message": "Raw hex color literals are forbidden in audience route groups and components/shared/. Use design tokens via var(--hp-…) declared in apps/ui/styles/tokens/{brand,retailer,builder,deploy}.css (ADR-034 / ADR-035)."
+          },
+          {
+            "selector": "JSXAttribute[name.name='className'] Literal[value=/cubic-bezier\\(/]",
+            "message": "Inline cubic-bezier(...) literals are forbidden. Use motion tokens var(--ease-base) / var(--ease-emphasized) declared in apps/ui/app/styles/tokens.reference.css (ADR-035 §52 / Issue #1058 L-6)."
+          },
+          {
+            "selector": "JSXAttribute[name.name='className'] TemplateElement[value.cooked=/cubic-bezier\\(/]",
+            "message": "Inline cubic-bezier(...) literals are forbidden. Use motion tokens var(--ease-base) / var(--ease-emphasized) declared in apps/ui/app/styles/tokens.reference.css (ADR-035 §52 / Issue #1058 L-6)."
+          },
+          {
+            "selector": "JSXAttribute[name.name='className'] Literal[value=/\\bdark:/]",
+            "message": "`dark:` Tailwind variants are forbidden in audience route groups (ADR-035 §49 / Issue #1058 L-4). Theme switching is at the system-token layer via `light-dark()` in apps/ui/app/styles/tokens.system.css."
+          },
+          {
+            "selector": "JSXAttribute[name.name='className'] TemplateElement[value.cooked=/\\bdark:/]",
+            "message": "`dark:` Tailwind variants are forbidden in audience route groups (ADR-035 §49 / Issue #1058 L-4). Theme switching is at the system-token layer via `light-dark()` in apps/ui/app/styles/tokens.system.css."
+          }
+        ],
+        "react/forbid-dom-props": [
+          "error",
+          {
+            "forbid": [
+              {
+                "propName": "style",
+                "message": "Inline `style={{}}` is forbidden in audience route groups (ADR-035 §49 / Issue #1058 L-3). Use Tailwind utilities or co-located CSS Modules."
+              }
+            ]
           }
         ]
       }

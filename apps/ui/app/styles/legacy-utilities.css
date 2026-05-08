@@ -1,0 +1,121 @@
+/* ── Legacy utility classes ───────────────────────────────────────────────
+ * These component / utility classes pre-date the audience-IA design system
+ * and the new component library at `apps/ui/components/`. They are used
+ * by legacy d-board / demo / dashboard / scenario / showcase routes
+ * (e.g., `/scenarios/[id]`, `/dashboard`, `/cart`, `/orders`,
+ * `/admin/*`, `/agents/*`).
+ *
+ * Audience-IA route groups (`(retailer)`, `(builder)`, `(deploy)`) and
+ * the new component library do NOT consume these classes. Adding new
+ * classes here is forbidden by Issue #1058 — new component styling lives
+ * inline as Tailwind utilities or as co-located `*.module.css` files.
+ *
+ * This file was carved out of the legacy `globals.css` per Issue #1058 to
+ * keep `globals.css` ≤ 60 lines and to make the legacy surface visible
+ * to follow-up cleanup PRs.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+@layer components {
+  .btn-primary {
+    background: var(--sys-action-primary);
+    color: var(--sys-action-primary-foreground);
+  }
+
+  .btn-primary:hover {
+    background: var(--sys-action-primary-hover);
+  }
+
+  .btn-success {
+    background: var(--hp-accent);
+    color: #fff;
+  }
+
+  .btn-secondary {
+    background: color-mix(in srgb, var(--sys-surface-strong) 75%, white 25%);
+    color: var(--sys-text);
+  }
+
+  .showcase-shell {
+    @apply rounded-3xl border shadow-sm;
+    background: var(--sys-surface);
+    border-color: var(--sys-border);
+  }
+
+  .card {
+    @apply rounded-2xl border shadow-sm;
+    background: var(--sys-surface);
+    border-color: var(--sys-border);
+  }
+
+  .input {
+    @apply border rounded-lg;
+    background: color-mix(in srgb, var(--sys-surface) 90%, white 10%);
+    border-color: var(--sys-border);
+    color: var(--sys-text);
+  }
+
+  .link {
+    color: var(--sys-action-primary);
+    @apply underline-offset-4 hover:underline;
+  }
+
+  .demo-stage {
+    background:
+      radial-gradient(circle at 16% 18%, color-mix(in srgb, var(--sys-action-primary) 14%, transparent) 0%, transparent 26%),
+      radial-gradient(circle at 82% 10%, color-mix(in srgb, var(--hp-accent) 16%, transparent) 0%, transparent 24%),
+      radial-gradient(circle at 50% 88%, rgba(255, 184, 108, 0.08) 0%, transparent 22%),
+      var(--hp-stage-bg);
+  }
+
+  .demo-panel {
+    background: linear-gradient(180deg, rgba(18, 18, 24, 0.78), rgba(8, 8, 12, 0.72));
+    backdrop-filter: blur(18px) saturate(1.2);
+    -webkit-backdrop-filter: blur(18px) saturate(1.2);
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.24);
+  }
+
+  .demo-telemetry {
+    font-family: var(--font-mono);
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .showcase-enter {
+    animation: showcase-enter var(--motion-emphasized) var(--ease-emphasized) both;
+  }
+
+  .showcase-rise {
+    animation: showcase-rise var(--motion-base) var(--ease-base) both;
+  }
+
+  .showcase-gradient-text {
+    background-image: linear-gradient(118deg, var(--sys-action-primary), var(--hp-accent));
+    @apply bg-clip-text text-transparent;
+  }
+}
+
+@keyframes showcase-enter {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes showcase-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
