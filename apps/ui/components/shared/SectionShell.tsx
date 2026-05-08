@@ -23,10 +23,24 @@ const VARIANT_LABEL: Record<SectionVariant, string> = {
 };
 
 /**
+ * Map a section variant to its audience taxonomy class (ADR-034 §3 / ADR-035
+ * §50). The `data-audience` attribute drives the `[data-audience="…"]`
+ * selectors in `app/styles/tokens.system.css`. The `audience-*` className
+ * mirrors it for grep + dev-tool clarity.
+ */
+const VARIANT_AUDIENCE: Record<SectionVariant, 'retailer' | 'builder' | 'deploy' | 'neutral'> = {
+  home: 'neutral',
+  retailer: 'retailer',
+  builder: 'builder',
+  deploy: 'deploy',
+  docs: 'neutral',
+};
+
+/**
  * SectionShell — the single shell consumed by every audience route group.
  *
  * Per ADR-034 the shell only handles:
- *   - tokens (variant attribute on the wrapper for CSS scoping)
+ *   - tokens (variant + audience attributes on the wrapper for CSS scoping)
  *   - top-level brand mark + section label
  *   - breadcrumb slot
  *   - lane-switch slot (filled by the audience-IA persona switcher)
@@ -41,8 +55,13 @@ export function SectionShell({
   breadcrumb,
   laneSwitch,
 }: SectionShellProps) {
+  const audience = VARIANT_AUDIENCE[variant];
   return (
-    <div data-section={variant} className="flex min-h-screen flex-col">
+    <div
+      data-section={variant}
+      data-audience={audience}
+      className={`audience-${audience} flex min-h-screen flex-col`}
+    >
       <header className="border-b border-[var(--hp-border,#e5e7eb)] bg-white">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-4">
           <Link
