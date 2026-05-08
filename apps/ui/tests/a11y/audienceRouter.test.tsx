@@ -18,13 +18,13 @@ import '@testing-library/jest-dom';
 import { render } from '@testing-library/react';
 import { toHaveNoViolations } from 'jest-axe';
 
+import HomePage from '@/app/page';
 import RetailerLayout from '@/app/(retailer)/layout';
 import RetailersIndexPage from '@/app/(retailer)/retailers/page';
 import BuilderLayout from '@/app/(builder)/layout';
 import BuildersIndexPage from '@/app/(builder)/builders/page';
 import DeployLayout from '@/app/(deploy)/layout';
 import DeployIndexPage from '@/app/(deploy)/deploy/page';
-import { HomeSplitHero } from '@/components/shared/HomeSplitHero';
 
 import { axeAA } from './axeConfig';
 
@@ -32,10 +32,10 @@ expect.extend(toHaveNoViolations);
 
 describe('ui-axe-core — WCAG 2.2 AA gate (ADR-034 §7)', () => {
   it('home audience-router has zero AA violations', async () => {
-    // HomePage is async (resolves persona from cookies/searchParams). Axe
-    // exercises the actually-interactive payload, which is HomeSplitHero
-    // — the rest of the home is static wrapper copy.
-    const { container } = render(<HomeSplitHero persona={null} />);
+    // HomePage is now a sync server component (Issue #1059). The full
+    // HomeShell + Hero + ValuePropGrid + CallToAction stack is rendered
+    // through the same path the route uses at runtime.
+    const { container } = render(<HomePage />);
     const results = await axeAA(container);
     expect(results).toHaveNoViolations();
   });
