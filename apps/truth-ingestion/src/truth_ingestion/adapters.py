@@ -33,8 +33,14 @@ from holiday_peak_lib.utils.truth_event_hub import (
 
 
 @dataclass
-class ProductStyle:
-    """Canonical product style record stored in the truth layer."""
+class ProductStyle:  # pylint: disable=too-many-instance-attributes
+    """Canonical product style record stored in the truth layer.
+
+    Fields map 1:1 to the persisted Cosmos document and are constructed by
+    name from PIM payloads; restructuring them via Extract Class or grouping
+    would alter the dataclass init API used by tests/adapters and the
+    ``to_dict()`` schema persisted to the truth store.
+    """
 
     entity_id: str
     name: str
@@ -63,8 +69,14 @@ class ProductStyle:
 
 
 @dataclass
-class ProductVariant:
-    """Canonical product variant record stored in the truth layer."""
+class ProductVariant:  # pylint: disable=too-many-instance-attributes
+    """Canonical product variant record stored in the truth layer.
+
+    Fields map 1:1 to the persisted Cosmos document and are constructed by
+    name from PIM payloads; restructuring them via Extract Class or grouping
+    would alter the dataclass init API used by tests/adapters and the
+    ``to_dict()`` schema persisted to the truth store.
+    """
 
     entity_id: str
     style_id: str
@@ -241,10 +253,12 @@ class TruthStoreAdapter:
         if not self._cosmos_uri:
             return None
         if self._client is None:
-            from azure.cosmos.aio import CosmosClient  # pylint: disable=import-outside-toplevel
-            from azure.identity.aio import (
-                DefaultAzureCredential,  # pylint: disable=import-outside-toplevel
-            )
+            # Lazy imports: avoid pulling azure.cosmos / azure.identity into
+            # the module load path when the in-memory fallback is used (no
+            # COSMOS_ACCOUNT_URI configured), which is the default for tests.
+            # pylint: disable=import-outside-toplevel
+            from azure.cosmos.aio import CosmosClient
+            from azure.identity.aio import DefaultAzureCredential
 
             credential = DefaultAzureCredential()
             self._client = CosmosClient(self._cosmos_uri, credential=credential)
@@ -275,9 +289,15 @@ class TruthStoreAdapter:
         """Fetch a ProductStyle by entity_id."""
         container = await self._get_container(self._cosmos_container)
         if container is not None:
+            # Lazy import: keep azure.cosmos.exceptions out of the in-memory
+            # fallback path; only loaded when a Cosmos container is configured.
+            from azure.cosmos.exceptions import (  # pylint: disable=import-outside-toplevel
+                CosmosHttpResponseError,
+            )
+
             try:
                 return await container.read_item(item=entity_id, partition_key=entity_id)
-            except Exception:  # noqa: BLE001
+            except CosmosHttpResponseError:
                 return None
         return self._in_memory.get(entity_id)
 
@@ -594,6 +614,9 @@ async def ingest_bulk_products(
         async with semaphore:
             try:
                 return await ingest_single_product(raw, adapters, field_mapping=field_mapping)
+            # pylint: disable=broad-exception-caught
+            # Bulk ingestion must continue when individual products fail; the
+            # per-item error is surfaced in the aggregated result list.
             except Exception as exc:  # noqa: BLE001
                 entity_id = raw.get("id") or raw.get("entity_id", "unknown")
                 return {"entity_id": entity_id, "error": str(exc)}

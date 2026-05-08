@@ -79,7 +79,9 @@ def sample_attributes():
 
 
 def test_engine_ucp_export(engine, sample_style, sample_attributes):
-    result = engine.export("job-1", sample_style, sample_attributes, "ucp")
+    result = engine.export(
+        job_id="job-1", product=sample_style, attributes=sample_attributes, protocol="ucp"
+    )
     assert result.status == "completed"
     assert result.payload["product_id"] == "STYLE-001"
     assert result.payload["title"] == "Trail Runner Pro"
@@ -90,7 +92,9 @@ def test_engine_ucp_export(engine, sample_style, sample_attributes):
 
 
 def test_engine_acp_export(engine, sample_style, sample_attributes):
-    result = engine.export("job-2", sample_style, sample_attributes, "acp")
+    result = engine.export(
+        job_id="job-2", product=sample_style, attributes=sample_attributes, protocol="acp"
+    )
     assert result.status == "completed"
     assert result.payload["item_id"] == "STYLE-001"
     assert result.payload["title"] == "Trail Runner Pro"
@@ -98,7 +102,12 @@ def test_engine_acp_export(engine, sample_style, sample_attributes):
 
 
 def test_engine_unsupported_protocol(engine, sample_style, sample_attributes):
-    result = engine.export("job-3", sample_style, sample_attributes, "unknown_protocol")
+    result = engine.export(
+        job_id="job-3",
+        product=sample_style,
+        attributes=sample_attributes,
+        protocol="unknown_protocol",
+    )
     assert result.status == "failed"
     assert result.errors
 

@@ -29,12 +29,12 @@ class ExportEngine:
 
     def export(
         self,
+        *,
         job_id: str,
         product: Any,
         attributes: list[Any],
         protocol: str,
         mapping: dict[str, Any] | None = None,
-        *,
         partner_id: str | None = None,
     ) -> Any:
         """Run the export pipeline for a single product.
