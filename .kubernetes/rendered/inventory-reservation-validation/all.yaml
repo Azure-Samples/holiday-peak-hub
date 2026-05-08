@@ -63,7 +63,7 @@ spec:
           value: agents
       containers:
         - name: inventory-reservation-validation
-          image: "holidaypeakhub405devacr.azurecr.io/inventory-reservation-validation@sha256:8d62bc93688e82d6f1a47f6f971b77783f2a81220aeeaed68745c45b3073bece"
+          image: "holidaypeakhub405devacr.azurecr.io/inventory-reservation-validation@sha256:9c6201e9d7dbe4002b75ab2b30839b2d445cab007c9167fb90942875ac1542e7"
           env:
             - name: ROOT_PATH
               value: "/inventory-reservation-validation"

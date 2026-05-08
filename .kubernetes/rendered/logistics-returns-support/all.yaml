@@ -63,7 +63,7 @@ spec:
           value: agents
       containers:
         - name: logistics-returns-support
-          image: "holidaypeakhub405devacr.azurecr.io/logistics-returns-support@sha256:27ed97dc84edd49316148b7e7648033c8eda5bd807362df64fe835e67b39f803"
+          image: "holidaypeakhub405devacr.azurecr.io/logistics-returns-support@sha256:c123277d5e2a6c63d1d71b6ad144fd180d63828dca8c717aea2955a870efc53c"
           env:
             - name: ROOT_PATH
               value: "/logistics-returns-support"

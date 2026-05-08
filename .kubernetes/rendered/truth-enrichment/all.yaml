@@ -63,7 +63,7 @@ spec:
           value: agents
       containers:
         - name: truth-enrichment
-          image: "holidaypeakhub405devacr.azurecr.io/truth-enrichment@sha256:2d10447badd94f49f6a25074332b750558ceee2d45ae88da8e6a5688d8b5f691"
+          image: "holidaypeakhub405devacr.azurecr.io/truth-enrichment@sha256:cdddb6218696d2d95b71ed2955846ebf7ac3f13271913b6659468760fab778a2"
           env:
             - name: ROOT_PATH
               value: "/truth-enrichment"

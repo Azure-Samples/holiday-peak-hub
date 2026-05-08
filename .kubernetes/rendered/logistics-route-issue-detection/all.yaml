@@ -63,7 +63,7 @@ spec:
           value: agents
       containers:
         - name: logistics-route-issue-detection
-          image: "holidaypeakhub405devacr.azurecr.io/logistics-route-issue-detection@sha256:f59b479e0f1973fd01c9258b43e4fc79a823baa84211d73f4c3c3045b97d0d6d"
+          image: "holidaypeakhub405devacr.azurecr.io/logistics-route-issue-detection@sha256:e4c8abe6bc79e0f40d3ce8fa2e974df9791ec74cff41e43b9e279da00ffb627f"
           env:
             - name: ROOT_PATH
               value: "/logistics-route-issue-detection"

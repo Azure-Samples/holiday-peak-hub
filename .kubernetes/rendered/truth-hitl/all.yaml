@@ -63,7 +63,7 @@ spec:
           value: agents
       containers:
         - name: truth-hitl
-          image: "holidaypeakhub405devacr.azurecr.io/truth-hitl@sha256:85ceae3c5e663d8837c9a31ff2e34661275b962d745172198e40d3a555ebc0b1"
+          image: "holidaypeakhub405devacr.azurecr.io/truth-hitl@sha256:d9a6c70a25b0b1e58648fbe288f3c76cc4f2eca4ae66f87b2c057fa857598024"
           env:
             - name: ROOT_PATH
               value: "/truth-hitl"

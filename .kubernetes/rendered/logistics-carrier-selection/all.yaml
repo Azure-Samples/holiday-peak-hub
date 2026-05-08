@@ -63,7 +63,7 @@ spec:
           value: agents
       containers:
         - name: logistics-carrier-selection
-          image: "holidaypeakhub405devacr.azurecr.io/logistics-carrier-selection@sha256:d9675eb2becb17da58a944373e26b8976c56a339cb6b86260bf5cc745741136e"
+          image: "holidaypeakhub405devacr.azurecr.io/logistics-carrier-selection@sha256:3e19cf61521046a54b6e241c561ca9d352a583895277f1643e3ebd681a2daf13"
           env:
             - name: ROOT_PATH
               value: "/logistics-carrier-selection"

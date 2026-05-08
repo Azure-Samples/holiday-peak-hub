@@ -63,7 +63,7 @@ spec:
           value: agents
       containers:
         - name: ecommerce-cart-intelligence
-          image: "holidaypeakhub405devacr.azurecr.io/ecommerce-cart-intelligence@sha256:5c32de2a7a12b4a15df88d0be97e5f20d50198d93d64f105754607971b4be638"
+          image: "holidaypeakhub405devacr.azurecr.io/ecommerce-cart-intelligence@sha256:28df620d6f378d5f707fbc1cc729951ca39baaa1fa4e4a2a808b063cac6625b2"
           env:
             - name: ROOT_PATH
               value: "/ecommerce-cart-intelligence"

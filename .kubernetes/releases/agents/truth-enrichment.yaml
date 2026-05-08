@@ -35,7 +35,7 @@ spec:
       repository: "holidaypeakhub405devacr.azurecr.io/truth-enrichment"
       tag: "latest"
 
-      digest: "sha256:2d10447badd94f49f6a25074332b750558ceee2d45ae88da8e6a5688d8b5f691"
+      digest: "sha256:cdddb6218696d2d95b71ed2955846ebf7ac3f13271913b6659468760fab778a2"
     replicaCount: 2
 
     resources:

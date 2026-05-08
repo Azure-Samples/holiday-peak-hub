@@ -64,7 +64,7 @@ spec:
           value: agents
       containers:
         - name: truth-ingestion
-          image: "holidaypeakhub405devacr.azurecr.io/truth-ingestion@sha256:8470ce138fbe4942717880b0d85b75791d672d8001e678107766896eb6155946"
+          image: "holidaypeakhub405devacr.azurecr.io/truth-ingestion@sha256:eb610adcde80c73cb843ebf4dbcb0669765c817d50442ea2c65c2c4024da03ba"
           env:
             - name: ROOT_PATH
               value: "/truth-ingestion"

@@ -63,7 +63,7 @@ spec:
           value: agents
       containers:
         - name: crm-segmentation-personalization
-          image: "holidaypeakhub405devacr.azurecr.io/crm-segmentation-personalization@sha256:80810fde76746f2e8c15a8c2fdfab84f2aaed3eaa12d0f799f10bdac2eb3732f"
+          image: "holidaypeakhub405devacr.azurecr.io/crm-segmentation-personalization@sha256:39fa19bc264b807f1063622890464450a96ced477fc901685dea0e9489c647a9"
           env:
             - name: ROOT_PATH
               value: "/crm-segmentation-personalization"

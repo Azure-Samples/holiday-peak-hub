@@ -34,7 +34,7 @@ spec:
     image:
       repository: "holidaypeakhub405devacr.azurecr.io/ecommerce-catalog-search"
       tag: "latest"
-      digest: "sha256:204a10160efa04058464cb7511f21129facf95e9f5d407316c054614eec3a7a7"
+      digest: "sha256:ec9a272116b9cb4af46ffc819b9125e0f90403ae77dec52b61266ecea65b12be"
 
     replicaCount: 1
 

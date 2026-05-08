@@ -63,7 +63,7 @@ spec:
           value: agents
       containers:
         - name: product-management-consistency-validation
-          image: "holidaypeakhub405devacr.azurecr.io/product-management-consistency-validation@sha256:6115dd34e0dd875dcb40a13df1c76993c105fc60ec96f9d1c754aea2cfc84416"
+          image: "holidaypeakhub405devacr.azurecr.io/product-management-consistency-validation@sha256:a2d97a644c1a2d5996938baf34155575f8a17eee63abb4af5b032b1929b7298d"
           env:
             - name: ROOT_PATH
               value: "/product-management-consistency-validation"

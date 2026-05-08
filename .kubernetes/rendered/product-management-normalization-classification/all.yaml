@@ -63,7 +63,7 @@ spec:
           value: agents
       containers:
         - name: product-management-normalization-classification
-          image: "holidaypeakhub405devacr.azurecr.io/product-management-normalization-classification@sha256:72553d4f4be5aa052e770fbff2fbe6c3ceba6e7e93ca2c1eb6c47c55a3f23bc6"
+          image: "holidaypeakhub405devacr.azurecr.io/product-management-normalization-classification@sha256:8893688ce65fe85d38907a790950787818c377901ae124b2285562ec937d71f7"
           env:
             - name: ROOT_PATH
               value: "/product-management-normalization-classification"
