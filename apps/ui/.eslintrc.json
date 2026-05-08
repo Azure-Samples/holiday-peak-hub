@@ -116,6 +116,14 @@
           {
             "selector": "JSXAttribute[name.name='className'] TemplateElement[value.cooked=/\\bdark:/]",
             "message": "`dark:` Tailwind variants are forbidden in audience route groups (ADR-035 §49 / Issue #1058 L-4). Theme switching is at the system-token layer via `light-dark()` in apps/ui/app/styles/tokens.system.css."
+          },
+          {
+            "selector": "JSXAttribute[name.name='className'] Literal[value=/\\boutline-none\\b/]",
+            "message": "`outline-none` strips the focus ring without a replacement (WCAG 2.4.7 / Issue #1060). Use `focus-visible:outline-[var(--sys-focus-ring)]` or rely on the `:focus-visible` rule in globals.css."
+          },
+          {
+            "selector": "JSXAttribute[name.name='className'] TemplateElement[value.cooked=/\\boutline-none\\b/]",
+            "message": "`outline-none` strips the focus ring without a replacement (WCAG 2.4.7 / Issue #1060). Use `focus-visible:outline-[var(--sys-focus-ring)]` or rely on the `:focus-visible` rule in globals.css."
           }
         ],
         "react/forbid-dom-props": [

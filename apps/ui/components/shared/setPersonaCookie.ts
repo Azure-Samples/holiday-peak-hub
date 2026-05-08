@@ -8,7 +8,7 @@ import {
 
 /**
  * Set the persona cookie from the browser. Used by client-side handlers
- * (LaneSwitch click, HomeSplitHero CTA click).
+ * (LaneSwitch click, audience-route CTA click).
  *
  * Per ADR-034: 90-day TTL, SameSite=Lax, Secure.
  */

@@ -1,5 +1,5 @@
 /**
- * Persona type — used by LaneSwitch and HomeSplitHero for soft persona
+ * Persona type — used by LaneSwitch for soft persona
  * detection per ADR-034. Persona is a HINT, not a GATE.
  *
  * Only retailer / builder are personas. The deploy lane is procedural and

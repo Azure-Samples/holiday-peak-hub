@@ -1,0 +1,91 @@
+name: ui-bundle-budget-gate
+
+on:
+  pull_request:
+    paths:
+      - 'apps/ui/**'
+      - '.github/workflows/ui-bundle-budget-gate.yml'
+  workflow_dispatch:
+
+jobs:
+  bundle-budget:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: write
+    defaults:
+      run:
+        working-directory: apps/ui
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22.11.0'
+          cache: 'yarn'
+          cache-dependency-path: apps/ui/yarn.lock
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile --ignore-engines
+
+      - name: Build production bundle
+        run: yarn build
+        env:
+          # Use a benign metadataBase for CI so the build does not warn-spam.
+          NEXT_PUBLIC_METADATA_BASE: https://holiday-peak-hub.example
+
+      - name: Run bundle-budget gate (advisory at v1)
+        id: budget
+        run: |
+          set +e
+          node scripts/check-bundle-budgets.mjs --mode=advisory | tee budget-report.txt
+          echo "exitcode=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Run bundle-budget gate (strict report-only)
+        run: |
+          set +e
+          node scripts/check-bundle-budgets.mjs --mode=strict > strict-report.txt 2>&1 || true
+          cat strict-report.txt
+
+      - name: Annotate PR with budget delta
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('fs');
+            const advisory = fs.readFileSync('apps/ui/budget-report.txt', 'utf-8').trim();
+            const body = [
+              '### UI route-segment bundle budgets',
+              '',
+              '```',
+              advisory,
+              '```',
+              '',
+              '_Advisory at v1 (does not block PRs). Strict mode activates after the F1 cleanup follow-up trims dead-weight deps from the global path._',
+              '',
+              'Budgets live in `apps/ui/budgets.json`. Gate spec: `docs/ui/a11y-perf.md`.',
+            ].join('\n');
+            const {data: comments} = await github.rest.issues.listComments({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+            const marker = '<!-- ui-bundle-budget-gate -->';
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                comment_id: existing.id,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: `${marker}\n${body}`,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: `${marker}\n${body}`,
+              });
+            }
