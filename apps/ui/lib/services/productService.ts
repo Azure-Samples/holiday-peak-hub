@@ -125,17 +125,15 @@ export const productService = {
       baseProduct = null;
     }
 
-    if (!baseProduct) {
-      try {
-        const response = await agentApiClient.post('/ecommerce-product-detail-enrichment/invoke', {
-          sku: id,
-        });
-        recordAgentInvocationTelemetry('ecommerce-product-detail-enrichment', response.data);
-        const payload = response.data || {};
-        enrichment = (payload.enriched_product || payload) as AgentEnrichmentPayload;
-      } catch {
-        enrichment = null;
-      }
+    try {
+      const response = await agentApiClient.post('/ecommerce-product-detail-enrichment/invoke', {
+        sku: id,
+      });
+      recordAgentInvocationTelemetry('ecommerce-product-detail-enrichment', response.data);
+      const payload = response.data || {};
+      enrichment = (payload.enriched_product || payload) as AgentEnrichmentPayload;
+    } catch {
+      enrichment = null;
     }
 
     if (!baseProduct && !enrichment) {
