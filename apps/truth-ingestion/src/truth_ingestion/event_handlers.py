@@ -36,6 +36,9 @@ def build_event_handlers() -> dict[str, EventHandler]:
                 payload.get("event_type"),
                 result.get("assets_resolved", 0),
             )
+        # pylint: disable=broad-exception-caught
+        # Event Hub consumer boundary: per-event errors must not crash the
+        # partition processor; failures are logged and the offset advances.
         except Exception as exc:  # noqa: BLE001
             logger.error(
                 "ingest_job_failed entity_id=%s error=%s",

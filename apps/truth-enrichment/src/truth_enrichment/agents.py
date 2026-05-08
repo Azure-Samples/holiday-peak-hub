@@ -155,6 +155,9 @@ class TruthEnrichmentAgent(BaseRetailAgent):
                         },
                     }
                 )
+            # pylint: disable=broad-exception-caught
+            # Best-effort cross-domain bridge: a search-enrichment publish
+            # failure must not regress the main enrichment result.
             except Exception:  # noqa: BLE001
                 self._trace_decision(
                     decision="search_enrichment_bridge",
@@ -223,6 +226,9 @@ class TruthEnrichmentAgent(BaseRetailAgent):
         if self.engine.needs_hitl(proposed):
             try:
                 await self._publish_hitl(entity_id, field_name, product, proposed)
+            # pylint: disable=broad-exception-caught
+            # HITL publish is a fire-and-forget side-effect: any failure must
+            # not regress the proposed-attribute return value.
             except Exception:  # noqa: BLE001
                 self._trace_decision(
                     decision="hitl_publish",
@@ -267,6 +273,9 @@ class TruthEnrichmentAgent(BaseRetailAgent):
                 messages=messages,
                 tools=tools,
             )
+        # pylint: disable=broad-exception-caught
+        # Model orchestration is opportunistic: any failure (model error,
+        # network, schema) falls back to the deterministic sequential path.
         except Exception:  # noqa: BLE001
             return await self._enrich_gaps(entity_id, product, gaps, schema)
 

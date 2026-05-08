@@ -159,6 +159,10 @@ async def trigger_sync(
                 _update_job(job_id, "completed", {"count": len(results), "results": results})
             else:
                 _update_job(job_id, "completed", {"count": 0, "results": []})
+        # pylint: disable=broad-exception-caught
+        # BackgroundTasks runner boundary: the sync job records its outcome in
+        # the job state; uncaught exceptions here would silently terminate the
+        # task without updating the job state visible via /status.
         except Exception as exc:  # noqa: BLE001
             _update_job(job_id, "failed", {"error": str(exc)})
 
@@ -192,6 +196,9 @@ async def receive_webhook(payload: WebhookPayload) -> dict[str, Any]:
         try:
             result = await ingest_single_product(product_data, adapters)
             return {"status": "processed", "entity_id": result.get("entity_id")}
+        # pylint: disable=broad-exception-caught
+        # Webhook handler boundary: any ingestion error must surface as a
+        # 500 to the caller while preserving the originating exception chain.
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 

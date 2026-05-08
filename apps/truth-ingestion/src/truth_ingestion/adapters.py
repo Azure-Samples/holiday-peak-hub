@@ -277,9 +277,15 @@ class TruthStoreAdapter:
         """Fetch a ProductStyle by entity_id."""
         container = await self._get_container(self._cosmos_container)
         if container is not None:
+            # Lazy import: keep azure.cosmos.exceptions out of the in-memory
+            # fallback path; only loaded when a Cosmos container is configured.
+            from azure.cosmos.exceptions import (  # pylint: disable=import-outside-toplevel
+                CosmosHttpResponseError,
+            )
+
             try:
                 return await container.read_item(item=entity_id, partition_key=entity_id)
-            except Exception:  # noqa: BLE001
+            except CosmosHttpResponseError:
                 return None
         return self._in_memory.get(entity_id)
 
@@ -596,6 +602,9 @@ async def ingest_bulk_products(
         async with semaphore:
             try:
                 return await ingest_single_product(raw, adapters, field_mapping=field_mapping)
+            # pylint: disable=broad-exception-caught
+            # Bulk ingestion must continue when individual products fail; the
+            # per-item error is surfaced in the aggregated result list.
             except Exception as exc:  # noqa: BLE001
                 entity_id = raw.get("id") or raw.get("entity_id", "unknown")
                 return {"entity_id": entity_id, "error": str(exc)}
