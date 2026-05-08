@@ -1,0 +1,60 @@
+/* ── Reference layer (Tailwind 4 `@theme`) ───────────────────────────────
+ * The OKLCH values are perceptually-uniform approximations of the verified
+ * audience accent palette (#b45309 / #1d4ed8 / #334155 — see
+ * docs/ui/design-tokens.md for the WCAG 2.2 AA contrast log). The hex
+ * values that grounded the verification remain available as
+ * `--hp-*-accent` aliases inside `tokens/*.css`.
+ *
+ * This file is the REFERENCE layer of the three-layer token system
+ * (ADR-035 §49). System tokens (`--sys-*`) are bound in
+ * `./tokens.system.css`. Component tokens (`--comp-*`) are co-located
+ * with their owning component.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+@theme {
+  /* Warm palette (retailer cognitive model) */
+  --color-warm-50: oklch(0.97 0.02 65);
+  --color-warm-100: oklch(0.94 0.04 60);
+  --color-warm-200: oklch(0.88 0.07 55);
+  --color-warm-400: oklch(0.66 0.13 50);
+  --color-warm-500: oklch(0.55 0.135 50);
+  --color-warm-600: oklch(0.48 0.135 48);
+  --color-warm-700: oklch(0.41 0.12 45);
+  --color-warm-900: oklch(0.27 0.09 40);
+
+  /* Cool palette (builder cognitive model) */
+  --color-cool-50: oklch(0.97 0.02 250);
+  --color-cool-100: oklch(0.93 0.04 250);
+  --color-cool-200: oklch(0.86 0.08 252);
+  --color-cool-400: oklch(0.55 0.18 260);
+  --color-cool-500: oklch(0.44 0.215 264);
+  --color-cool-600: oklch(0.38 0.21 264);
+  --color-cool-700: oklch(0.32 0.18 264);
+  --color-cool-900: oklch(0.20 0.10 264);
+
+  /* Neutral scale */
+  --color-neutral-50: oklch(0.98 0 0);
+  --color-neutral-100: oklch(0.96 0 0);
+  --color-neutral-200: oklch(0.92 0 0);
+  --color-neutral-400: oklch(0.70 0 0);
+  --color-neutral-600: oklch(0.50 0 0);
+  --color-neutral-800: oklch(0.30 0 0);
+  --color-neutral-900: oklch(0.18 0 0);
+  --color-neutral-950: oklch(0.10 0 0);
+
+  /* Typography */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, monospace;
+
+  /* Radius scale */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+
+  /* Motion — three durations + two named easings (ADR-035 §52). */
+  --motion-fast: 120ms;
+  --motion-base: 200ms;
+  --motion-emphasized: 320ms;
+  --ease-base: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.05, 0.7, 0.1, 1);
+}

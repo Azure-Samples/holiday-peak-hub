@@ -1,147 +1,27 @@
 @import 'tailwindcss';
-
-/* ── Three-layer design tokens (ADR-035 / Issue #1056) ────────────────────
- * REFERENCE layer — declared inside `@theme` so they appear as Tailwind
- *   utilities (e.g. `bg-warm-500`, `text-cool-50`).
- * SYSTEM layer  — `app/styles/tokens.system.css` (audience-aware bindings,
- *   `light-dark()` for theme-aware pairs, `[data-audience="…"]` selectors).
- * COMPONENT layer — declared per component under `components/shared/`.
- *
- * Brand & section overrides retain the section-scoped tonal layer per
- * ADR-034 (warm for /retailers, cool for /builders & /deploy, neutral on /).
- * ──────────────────────────────────────────────────────────────────────── */
-@import '../styles/tokens/brand.css';
+@import './styles/tokens.reference.css';
 @import './styles/tokens.system.css';
+@import './styles/tokens.legacy-decorations.css';
+@import '../styles/tokens/brand.css';
 @import '../styles/tokens/retailer.css';
 @import '../styles/tokens/builder.css';
 @import '../styles/tokens/deploy.css';
+@import './styles/legacy-utilities.css';
 
-/* ── Reference tokens (Tailwind 4 `@theme`) ───────────────────────────────
- * The OKLCH values are perceptually-uniform approximations of the verified
- * audience accent palette (#b45309 / #1d4ed8 / #334155 — see
- * docs/ui/design-tokens.md for the WCAG 2.2 AA contrast log). The hex
- * values that grounded the verification remain available as
- * `--hp-*-accent` aliases inside `tokens/*.css`.
- */
-@theme {
-  /* Warm palette (retailer cognitive model) */
-  --color-warm-50: oklch(0.97 0.02 65);
-  --color-warm-100: oklch(0.94 0.04 60);
-  --color-warm-200: oklch(0.88 0.07 55);
-  --color-warm-400: oklch(0.66 0.13 50);
-  --color-warm-500: oklch(0.55 0.135 50);
-  --color-warm-600: oklch(0.48 0.135 48);
-  --color-warm-700: oklch(0.41 0.12 45);
-  --color-warm-900: oklch(0.27 0.09 40);
-
-  /* Cool palette (builder cognitive model) */
-  --color-cool-50: oklch(0.97 0.02 250);
-  --color-cool-100: oklch(0.93 0.04 250);
-  --color-cool-200: oklch(0.86 0.08 252);
-  --color-cool-400: oklch(0.55 0.18 260);
-  --color-cool-500: oklch(0.44 0.215 264);
-  --color-cool-600: oklch(0.38 0.21 264);
-  --color-cool-700: oklch(0.32 0.18 264);
-  --color-cool-900: oklch(0.20 0.10 264);
-
-  /* Neutral scale */
-  --color-neutral-50: oklch(0.98 0 0);
-  --color-neutral-100: oklch(0.96 0 0);
-  --color-neutral-200: oklch(0.92 0 0);
-  --color-neutral-400: oklch(0.70 0 0);
-  --color-neutral-600: oklch(0.50 0 0);
-  --color-neutral-800: oklch(0.30 0 0);
-  --color-neutral-900: oklch(0.18 0 0);
-  --color-neutral-950: oklch(0.10 0 0);
-
-  /* Typography */
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-mono: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, monospace;
-
-  /* Radius scale */
-  --radius-sm: 0.5rem;
-  --radius-md: 0.75rem;
-  --radius-lg: 1rem;
-
-  /* Motion — three durations + two named easings (ADR-035 §52). */
-  --motion-fast: 120ms;
-  --motion-base: 200ms;
-  --motion-emphasized: 320ms;
-  --ease-base: cubic-bezier(0.2, 0, 0, 1);
-  --ease-emphasized: cubic-bezier(0.05, 0.7, 0.1, 1);
-}
+@layer reset, theme, base, components, utilities, app;
 
 @layer base {
-  :root {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
     color-scheme: light dark;
-
-    /* ── Brand-specific tokens (preserved for component compatibility) ── */
-    --hp-surface-elevated: #ffffff;
-    --hp-border-subtle: #f0ede8;
-    --hp-text-faint: #9ca3af;
-
-    /* Brand chromatic identity */
-    --hp-primary-soft: rgba(199, 58, 42, 0.08);
-    --hp-accent: #0d7a70;
-    --hp-accent-soft: rgba(13, 122, 112, 0.08);
-    --hp-success: #16a34a;
-    --hp-warning: #f59e0b;
-    --hp-error: #dc2626;
-
-    /* Glass & glow */
-    --hp-glass-bg: rgba(255, 255, 255, 0.65);
-    --hp-glass-border: rgba(255, 255, 255, 0.5);
-    --hp-glass-blur: 20px;
-    --hp-glow-primary: rgba(199, 58, 42, 0.25);
-    --hp-glow-accent: rgba(13, 122, 112, 0.2);
-    --hp-stage-bg: radial-gradient(ellipse at top, #1a0f2e 0%, #0a0a0a 68%);
-    --hp-font-mono: var(--font-mono);
-
-    /* Shadows */
-    --hp-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.03);
-    --hp-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.06), 0 1px 4px rgba(0, 0, 0, 0.04);
-    --hp-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.08), 0 4px 12px rgba(0, 0, 0, 0.04);
-    --hp-shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.1), 0 8px 20px rgba(0, 0, 0, 0.06);
-    --hp-shadow-glow: 0 0 40px var(--hp-glow-primary);
-
-    /* Legacy motion / radius aliases (forward to reference tokens) */
-    --hp-ease-out: var(--ease-base);
-    --hp-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-    --hp-ease-smooth: var(--ease-base);
-    --hp-duration-fast: var(--motion-fast);
-    --hp-duration-normal: var(--motion-base);
-    --hp-duration-slow: var(--motion-emphasized);
-    --hp-space-section: clamp(3rem, 6vw, 6rem);
-    --hp-radius-sm: var(--radius-sm);
-    --hp-radius-md: var(--radius-md);
-    --hp-radius-lg: var(--radius-lg);
-    --hp-radius-xl: 1.5rem;
-    --hp-radius-2xl: 2rem;
+    -webkit-text-size-adjust: 100%;
   }
 
-  /* Dark-scheme adjustments to brand-specific (non-system-layer) tokens.
-   * Theme-aware system tokens are switched via `light-dark()` in
-   * tokens.system.css; this block carries only the brand decorations. */
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --hp-glass-bg: rgba(20, 20, 20, 0.7);
-      --hp-glass-border: rgba(255, 255, 255, 0.08);
-      --hp-glow-primary: rgba(240, 120, 88, 0.2);
-      --hp-glow-accent: rgba(76, 201, 187, 0.15);
-      --hp-stage-bg: radial-gradient(ellipse at top, #1b1134 0%, #050505 68%);
-      --hp-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.2);
-      --hp-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.3);
-      --hp-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.35);
-      --hp-shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.45);
-      --hp-shadow-glow: 0 0 60px var(--hp-glow-primary);
-    }
-  }
-
-  * {
-    @apply border-transparent;
-  }
-
-  /* Single :focus-visible rule consuming `--sys-focus-ring` (ADR-035 §50). */
   *:focus-visible {
     outline: 3px solid var(--sys-focus-ring);
     outline-offset: 2px;
@@ -154,150 +34,32 @@
   }
 
   body {
-    background:
-      radial-gradient(circle at 16% 12%, rgba(243, 151, 64, 0.16), transparent 42%),
-      radial-gradient(circle at 82% 4%, rgba(11, 110, 102, 0.16), transparent 36%),
-      var(--sys-bg);
+    background: var(--sys-bg);
     color: var(--sys-text);
-    @apply antialiased;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   ::selection {
     background: color-mix(in srgb, var(--sys-action-primary) 28%, white 72%);
     color: var(--sys-text);
   }
-}
 
-@layer components {
-  .btn-primary {
-    background: var(--sys-action-primary);
-    color: var(--sys-action-primary-foreground);
-  }
+  @media (prefers-reduced-motion: reduce) {
+    :root {
+      --motion-fast: 0.01ms !important;
+      --motion-base: 0.01ms !important;
+      --motion-emphasized: 0.01ms !important;
+    }
 
-  .btn-primary:hover {
-    background: var(--sys-action-primary-hover);
-  }
-
-  .btn-success {
-    background: var(--hp-accent);
-    color: #fff;
-  }
-
-  .btn-secondary {
-    background: color-mix(in srgb, var(--sys-surface-strong) 75%, white 25%);
-    color: var(--sys-text);
-  }
-
-  .showcase-shell {
-    @apply rounded-3xl border shadow-sm;
-    background: var(--sys-surface);
-    border-color: var(--sys-border);
-  }
-
-  .card {
-    @apply rounded-2xl border shadow-sm;
-    background: var(--sys-surface);
-    border-color: var(--sys-border);
-  }
-
-  .input {
-    @apply border rounded-lg;
-    background: color-mix(in srgb, var(--sys-surface) 90%, white 10%);
-    border-color: var(--sys-border);
-    color: var(--sys-text);
-  }
-
-  .link {
-    color: var(--sys-action-primary);
-    @apply underline-offset-4 hover:underline;
-  }
-
-  .demo-stage {
-    background:
-      radial-gradient(circle at 16% 18%, color-mix(in srgb, var(--sys-action-primary) 14%, transparent) 0%, transparent 26%),
-      radial-gradient(circle at 82% 10%, color-mix(in srgb, var(--hp-accent) 16%, transparent) 0%, transparent 24%),
-      radial-gradient(circle at 50% 88%, rgba(255, 184, 108, 0.08) 0%, transparent 22%),
-      var(--hp-stage-bg);
-  }
-
-  .demo-panel {
-    background: linear-gradient(180deg, rgba(18, 18, 24, 0.78), rgba(8, 8, 12, 0.72));
-    backdrop-filter: blur(18px) saturate(1.2);
-    -webkit-backdrop-filter: blur(18px) saturate(1.2);
-    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.24);
-  }
-
-  .demo-telemetry {
-    font-family: var(--font-mono);
-  }
-}
-
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
-
-  .showcase-enter {
-    animation: showcase-enter var(--motion-emphasized) var(--ease-emphasized) both;
-  }
-
-  .showcase-rise {
-    animation: showcase-rise var(--motion-base) var(--ease-base) both;
-  }
-
-  .showcase-gradient-text {
-    background-image: linear-gradient(118deg, var(--sys-action-primary), var(--hp-accent));
-    @apply bg-clip-text text-transparent;
-  }
-}
-
-@keyframes showcase-enter {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes showcase-rise {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes shimmer {
-  from { transform: translateX(-100%); }
-  to { transform: translateX(100%); }
-}
-
-/* ── Reduced motion (ADR-035 §52) ─────────────────────────────────────────
- * Zeros out the reference motion tokens AND the global animation/transition
- * durations. Spinners remain visible (we zero duration, not visibility).
- */
-@media (prefers-reduced-motion: reduce) {
-  :root {
-    --motion-fast: 0.01ms;
-    --motion-base: 0.01ms;
-    --motion-emphasized: 0.01ms;
-    --hp-duration-fast: 0.01ms;
-    --hp-duration-normal: 0.01ms;
-    --hp-duration-slow: 0.01ms;
-  }
-
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }

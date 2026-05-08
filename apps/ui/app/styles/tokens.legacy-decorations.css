@@ -1,0 +1,74 @@
+/* ── Legacy decoration tokens ─────────────────────────────────────────────
+ * Brand "decoration" tokens used by legacy d-board / demo / dashboard
+ * routes that pre-date the audience-IA design system. These are NOT
+ * part of the three-layer token system (reference/system/component) and
+ * MUST NOT be consumed inside `app/(retailer)/**`, `app/(builder)/**`,
+ * `app/(deploy)/**`, or `components/shared/**`.
+ *
+ * The audience-IA route groups consume `--sys-*` (system layer) only.
+ *
+ * This file exists to keep `globals.css` ≤ 60 lines per ADR-035 §49 and
+ * Issue #1058 acceptance criterion CI1. It was carved out of the legacy
+ * `:root` block of the previous `globals.css`.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* Brand-specific surface tokens (preserved for legacy compatibility) */
+  --hp-surface-elevated: #ffffff;
+  --hp-border-subtle: #f0ede8;
+  --hp-text-faint: #9ca3af;
+
+  /* Brand chromatic identity (decorations, not core flow) */
+  --hp-primary-soft: rgba(199, 58, 42, 0.08);
+  --hp-accent: #0d7a70;
+  --hp-accent-soft: rgba(13, 122, 112, 0.08);
+  --hp-success: #16a34a;
+  --hp-warning: #f59e0b;
+  --hp-error: #dc2626;
+
+  /* Glass & glow */
+  --hp-glass-bg: rgba(255, 255, 255, 0.65);
+  --hp-glass-border: rgba(255, 255, 255, 0.5);
+  --hp-glass-blur: 20px;
+  --hp-glow-primary: rgba(199, 58, 42, 0.25);
+  --hp-glow-accent: rgba(13, 122, 112, 0.2);
+  --hp-stage-bg: radial-gradient(ellipse at top, #1a0f2e 0%, #0a0a0a 68%);
+  --hp-font-mono: var(--font-mono);
+
+  /* Shadows (decorations) */
+  --hp-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.03);
+  --hp-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.06), 0 1px 4px rgba(0, 0, 0, 0.04);
+  --hp-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.08), 0 4px 12px rgba(0, 0, 0, 0.04);
+  --hp-shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.1), 0 8px 20px rgba(0, 0, 0, 0.06);
+  --hp-shadow-glow: 0 0 40px var(--hp-glow-primary);
+
+  /* Legacy motion / radius aliases (forward to reference tokens) */
+  --hp-ease-out: var(--ease-base);
+  --hp-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --hp-ease-smooth: var(--ease-base);
+  --hp-duration-fast: var(--motion-fast);
+  --hp-duration-normal: var(--motion-base);
+  --hp-duration-slow: var(--motion-emphasized);
+  --hp-space-section: clamp(3rem, 6vw, 6rem);
+  --hp-radius-sm: var(--radius-sm);
+  --hp-radius-md: var(--radius-md);
+  --hp-radius-lg: var(--radius-lg);
+  --hp-radius-xl: 1.5rem;
+  --hp-radius-2xl: 2rem;
+}
+
+/* Dark-scheme adjustments to brand-specific decoration tokens. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --hp-glass-bg: rgba(20, 20, 20, 0.7);
+    --hp-glass-border: rgba(255, 255, 255, 0.08);
+    --hp-glow-primary: rgba(240, 120, 88, 0.2);
+    --hp-glow-accent: rgba(76, 201, 187, 0.15);
+    --hp-stage-bg: radial-gradient(ellipse at top, #1b1134 0%, #050505 68%);
+    --hp-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.2);
+    --hp-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.3);
+    --hp-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.35);
+    --hp-shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.45);
+    --hp-shadow-glow: 0 0 60px var(--hp-glow-primary);
+  }
+}
