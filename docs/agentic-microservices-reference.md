@@ -19,14 +19,16 @@ This pattern is distinct from both traditional microservices (deterministic, cod
 
 ---
 
-## Why This Repository Is a Reference Implementation
+## Why This Repository Is Both Framework AND Product
 
-Holiday Peak Hub demonstrates how to build an Agentic Microservices platform at scale using Microsoft's AI and cloud stack. It is a working, tested, deployed system — not a conceptual framework.
+Holiday Peak Hub is **a framework AND a product**, not just a reference implementation. `lib/holiday_peak_lib/` is an opinionated agentic-microservices framework with stable, versioned seams that architects fork and adopt. `apps/` is a production-grade retail platform built on it — 26 agents running in production-shape under real SLOs, AGC weighted-canary routing, continuous evaluation, three-tier memory, and full observability. Both halves ship together. Distribution under `Azure-Samples/` is a channel, not a quality tier.
+
+> Canonical positioning: [.github/instructions/repository-purpose.instructions.md](../.github/instructions/repository-purpose.instructions.md).
 
 | Characteristic | Implementation |
 |----------------|---------------|
-| **26 domain-specific agents** | Each agent handles a bounded context (CRM, eCommerce, Inventory, Logistics, Product Mgmt, Search, Truth Layer) |
-| **Shared micro-framework** | `holiday-peak-lib` provides BaseRetailAgent, memory, guardrails, resilience, telemetry |
+| **Framework layer** | `holiday-peak-lib` provides `BaseRetailAgent`, `AgentBuilder`, `ModelTarget`, `FastAPIMCPServer`, three-tier memory, guardrails, routing strategy, evaluation runners, telemetry — versioned, contracted, designed for adoption |
+| **Product layer** | 1 transactional microservice (`crud-service`) + 26 agent services across CRM/eCommerce/Inventory/Logistics/Product Management/Search/Truth Layer + 1 Next.js frontend |
 | **Microsoft Agent Framework (MAF)** | `agent-framework>=1.0.1` GA wraps Azure AI Foundry agents via `FoundryAgentInvoker` |
 | **SLM-first routing** | Every request starts with GPT-5-nano (fast, cheap); complex queries escalate to GPT-5 (rich) |
 | **Three-tier memory** | Hot (Redis, <50ms) → Warm (Cosmos DB, 100-500ms) → Cold (Blob, archival) |

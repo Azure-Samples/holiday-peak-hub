@@ -1,11 +1,15 @@
-# `holiday-peak-lib` — Core Micro-Framework for Agentic Retail Services
+# `holiday-peak-lib` — The Framework
 
 ![version](https://img.shields.io/badge/version-0.2.0-blue)
 ![python](https://img.shields.io/badge/python-%3E%3D3.13-blue)
 ![tests](https://img.shields.io/badge/tests-1136%20passed-brightgreen)
 ![coverage](https://img.shields.io/badge/coverage-89%25-brightgreen)
 
-`holiday-peak-lib` is the shared micro-framework that powers every retail agent service in this repository. It provides a single, cohesive abstraction layer over Microsoft Agent Framework (MAF), Azure AI Foundry, three-tier memory, enterprise connectors, resilience patterns, and structured telemetry — enabling 26 domain-specific agent services to stay thin, consistent, and independently deployable while sharing battle-tested infrastructure code.
+`holiday-peak-lib` is **the framework** half of this repository — an opinionated agentic-microservices runtime for retail. The product half (1 transactional microservice + 26 agent services + 1 Next.js frontend) lives in [`apps/`](../apps/README.md) and is built on the contracts defined here. The canonical positioning is in [.github/instructions/repository-purpose.instructions.md](../.github/instructions/repository-purpose.instructions.md).
+
+Its stable seams — `BaseRetailAgent`, `AgentBuilder`, `ModelTarget` / `ModelInvoker`, `FastAPIMCPServer`, three-tier memory (Hot/Warm/Cold), enrichment guardrails, routing strategy, evaluation runners, structured telemetry, connector contracts — are **load-bearing**. Forks adopt them. Breaking changes here cascade to every service in `apps/` and to anyone who has forked the framework. Treat `lib/` edits as framework edits: stable contracts, contract tests, ADRs where applicable.
+
+The library wraps Microsoft Agent Framework (MAF), Azure AI Foundry, three-tier memory, enterprise connectors, resilience patterns, and structured telemetry behind a single cohesive abstraction layer — enabling 26 domain-specific agent services to stay thin, consistent, and independently deployable while sharing battle-tested infrastructure code.
 
 ---
 

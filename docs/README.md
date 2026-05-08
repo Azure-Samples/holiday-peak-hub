@@ -21,7 +21,9 @@
 
 ## Overview
 
-Holiday Peak Hub is a **cloud-native, agent-driven retail accelerator** with complete frontend implementation and comprehensive backend architecture plan. This documentation covers all architectural decisions, implementation plans, and operational procedures.
+Holiday Peak Hub is **a framework AND a product** for agentic retail, distributed as a public Microsoft sample under `Azure-Samples/`. The framework (`lib/holiday_peak_lib/`) is an opinionated agentic-microservices runtime with stable, versioned seams that forks adopt directly. The product (`apps/`) is a production-grade retail platform built on the framework — 1 transactional microservice, 26 agent services across 7 bounded contexts, and 1 Next.js frontend, with real SLOs, AGC weighted-canary routing, continuous evaluation, three-tier memory, and end-to-end observability. Both halves ship together. Distribution is a channel, not a quality tier.
+
+> Canonical positioning: [.github/instructions/repository-purpose.instructions.md](../.github/instructions/repository-purpose.instructions.md). All architectural decisions, implementation plans, and operational procedures in this folder must align with that file.
 
 ## Developer Tooling
 

@@ -20,7 +20,6 @@ Before delegating to any agent:
 ## Managed File Update Policy
 
 For these delegation-managed files:
-- `.github/copilot-instructions.md`
 - `.github/instructions/team-mapping.instructions.md`
 - `.github/agents/data/team-mapping.md`
 
@@ -29,6 +28,8 @@ Apply the following rules:
 2. Keep changes minimal and scoped only to the intended synchronization/update.
 3. Any update must go through a dedicated PR named `agent-update`.
 4. The `agent-update` PR must always target the repository default branch (`main`).
+
+> Note: `.github/copilot-instructions.md` is intentionally **not** managed. It is the canonical agent instruction surface for this repository. Edits ship through normal PRs to `main` and do **not** require the `agent-update` workflow.
 
 ## Temporary Artifact Policy
 
