@@ -38,6 +38,7 @@ This document indexes all architectural decisions for the Holiday Peak Hub accel
 | [ADR-031](adrs/adr-031-otel-span-attributes-contract.md) | OTEL Span Attributes Contract for Retail Agents | Accepted | 2026-05 |
 | [ADR-032](adrs/adr-032-three-tier-memory-contract.md) | Three-Tier Memory Contract Pinning (Hot / Warm / Cold) | Accepted (Refines ADR-007) | 2026-05 |
 | [ADR-033](adrs/adr-033-ui-modular-monolith-on-swa.md) | UI as a Modular Monolith on Static Web Apps (Path 2) | Accepted | 2026-05 |
+| [ADR-034](adrs/adr-034-audience-segmented-ia.md) | Audience-Segmented Information Architecture for the UI | Accepted (Extends ADR-033) | 2026-05 |
 
 > ADR-028 (Continuous Agent Evaluation) is in flight on PR #974; once merged, it will be inserted at its sequential position above. ADRs 029, 030, 031 forward-reference ADR-028 and reference specific eval attribute keys (`eval.score`, `eval.baseline_id`, `baselineSource: continuous-eval`); those keys are subject to ADR-028's final schema and will be reconciled in lock-step on PR #974 merge.
 
