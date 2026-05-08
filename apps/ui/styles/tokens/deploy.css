@@ -1,0 +1,19 @@
+/* ───────────────────────────────────────────────────────────────────────────
+ * Deploy audience tokens.
+ * Scoped to the (deploy) route group via the SectionShell's
+ * `data-section="deploy"` attribute.
+ *
+ * Tone: neutral, task-focused, wizard-like. Minimizes brand noise so the
+ * one-click deployment portal stays clearly procedural.
+ * ─────────────────────────────────────────────────────────────────────── */
+
+[data-section='deploy'] {
+  --hp-section-accent: var(--hp-deploy-accent);
+  --hp-section-accent-hover: var(--hp-deploy-accent-hover);
+  --hp-section-accent-soft: var(--hp-deploy-accent-soft);
+
+  --hp-section-rhythm: var(--hp-space-16);
+
+  --hp-section-display-weight: 600;
+  --hp-section-body-leading: 1.65;
+}

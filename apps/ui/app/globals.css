@@ -1,4 +1,14 @@
-@import "tailwindcss";
+@import 'tailwindcss';
+
+/* ── Audience-router design tokens (ADR-034 / ADR-035) ────────────────────
+ * brand.css defines the shared baseline (audience accents, typography scale,
+ * spacing rhythm, motion). retailer.css / builder.css / deploy.css scope
+ * tonal overrides via [data-section="…"] selectors emitted by SectionShell.
+ * ──────────────────────────────────────────────────────────────────────── */
+@import '../styles/tokens/brand.css';
+@import '../styles/tokens/retailer.css';
+@import '../styles/tokens/builder.css';
+@import '../styles/tokens/deploy.css';
 
 @layer base {
   :root {

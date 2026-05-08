@@ -82,6 +82,27 @@
           }
         ]
       }
+    },
+    {
+      "files": [
+        "app/(retailer)/**/*.{ts,tsx}",
+        "app/(builder)/**/*.{ts,tsx}",
+        "app/(deploy)/**/*.{ts,tsx}",
+        "components/shared/**/*.{ts,tsx}"
+      ],
+      "rules": {
+        "no-restricted-syntax": [
+          "error",
+          {
+            "selector": "Literal[value=/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/]",
+            "message": "Raw hex color literals are forbidden in audience route groups and components/shared/. Use design tokens via var(--hp-…) declared in apps/ui/styles/tokens/{brand,retailer,builder,deploy}.css (ADR-034 / ADR-035)."
+          },
+          {
+            "selector": "TemplateElement[value.cooked=/#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\\b/]",
+            "message": "Raw hex color literals are forbidden in audience route groups and components/shared/. Use design tokens via var(--hp-…) declared in apps/ui/styles/tokens/{brand,retailer,builder,deploy}.css (ADR-034 / ADR-035)."
+          }
+        ]
+      }
     }
   ]
 }
