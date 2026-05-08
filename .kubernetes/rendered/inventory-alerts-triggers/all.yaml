@@ -63,7 +63,7 @@ spec:
           value: agents
       containers:
         - name: inventory-alerts-triggers
-          image: "holidaypeakhub405devacr.azurecr.io/inventory-alerts-triggers@sha256:6b20889b41cbf50e8a1163b46f65a57a89386367f498e379451631ea10e4e66f"
+          image: "holidaypeakhub405devacr.azurecr.io/inventory-alerts-triggers@sha256:09126aeb12260a73b7561c688ef3a11cc48cb9763ec96769dbc51419906b2832"
           env:
             - name: ROOT_PATH
               value: "/inventory-alerts-triggers"

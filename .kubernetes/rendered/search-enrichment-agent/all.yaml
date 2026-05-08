@@ -63,7 +63,7 @@ spec:
           value: agents
       containers:
         - name: search-enrichment-agent
-          image: "holidaypeakhub405devacr.azurecr.io/search-enrichment-agent@sha256:c20a7ee968da0065e1b34c1be033b17c3bee0bdd3ef5cde5a69ba9d69162ecfe"
+          image: "holidaypeakhub405devacr.azurecr.io/search-enrichment-agent@sha256:a947883e32024f4d0cc037129d80d061b0076024d3d6f0eeb888dc333349f44a"
           env:
             - name: ROOT_PATH
               value: "/search-enrichment-agent"

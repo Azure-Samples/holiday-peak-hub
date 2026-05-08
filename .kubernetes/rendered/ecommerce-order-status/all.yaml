@@ -63,7 +63,7 @@ spec:
           value: agents
       containers:
         - name: ecommerce-order-status
-          image: "holidaypeakhub405devacr.azurecr.io/ecommerce-order-status@sha256:d0cc57ac4f2cf9ed5c446dba2685bd9778962c748902fbf8d56f6ae4960b61ec"
+          image: "holidaypeakhub405devacr.azurecr.io/ecommerce-order-status@sha256:9c5630d92fda154cd1e25e5deda31e3794fbe0f49c2a2319c72157ffc51f79ab"
           env:
             - name: ROOT_PATH
               value: "/ecommerce-order-status"

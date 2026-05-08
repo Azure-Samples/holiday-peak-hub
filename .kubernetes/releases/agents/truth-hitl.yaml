@@ -35,7 +35,7 @@ spec:
       repository: "holidaypeakhub405devacr.azurecr.io/truth-hitl"
       tag: "latest"
 
-      digest: "sha256:d9a6c70a25b0b1e58648fbe288f3c76cc4f2eca4ae66f87b2c057fa857598024"
+      digest: "sha256:c195f69d7f296c0961fcc67d6dad28cf2f524fae9ed92464cde48938673813ed"
     replicaCount: 2
 
     resources:

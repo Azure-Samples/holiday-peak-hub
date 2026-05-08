@@ -63,7 +63,7 @@ spec:
           value: agents
       containers:
         - name: crm-campaign-intelligence
-          image: "holidaypeakhub405devacr.azurecr.io/crm-campaign-intelligence@sha256:3bd3ff244722f2e76ca75d31986eec00909a8254cc683703272dca733a468635"
+          image: "holidaypeakhub405devacr.azurecr.io/crm-campaign-intelligence@sha256:1248f139a8a7f51494629616b9fdf3cc14e30c13efbe7b7eb512a753b14824aa"
           env:
             - name: ROOT_PATH
               value: "/crm-campaign-intelligence"

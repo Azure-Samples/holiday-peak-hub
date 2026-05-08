@@ -63,7 +63,7 @@ spec:
           value: agents
       containers:
         - name: logistics-eta-computation
-          image: "holidaypeakhub405devacr.azurecr.io/logistics-eta-computation@sha256:87ac6503c5d523482f4c7bfa202f24ef746badcdb3d6a640781e735fc68ea94b"
+          image: "holidaypeakhub405devacr.azurecr.io/logistics-eta-computation@sha256:a7dd47e1229fdccd5eecd1686c18277bf489bee32ccc150003840cb6400bcee3"
           env:
             - name: ROOT_PATH
               value: "/logistics-eta-computation"

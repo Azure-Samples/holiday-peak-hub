@@ -63,7 +63,7 @@ spec:
           value: agents
       containers:
         - name: ecommerce-product-detail-enrichment
-          image: "holidaypeakhub405devacr.azurecr.io/ecommerce-product-detail-enrichment@sha256:4d6f1e429e16e66cb60bbc671bf19e849144c8462c70a116bc219d77d1ebe2c0"
+          image: "holidaypeakhub405devacr.azurecr.io/ecommerce-product-detail-enrichment@sha256:3dcc97bbbc624a6039a9117b4fd32478f016095bc91b884b62a0c146a61e8166"
           env:
             - name: ROOT_PATH
               value: "/ecommerce-product-detail-enrichment"

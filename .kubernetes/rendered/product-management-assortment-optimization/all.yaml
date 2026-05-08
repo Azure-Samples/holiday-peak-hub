@@ -63,7 +63,7 @@ spec:
           value: agents
       containers:
         - name: product-management-assortment-optimization
-          image: "holidaypeakhub405devacr.azurecr.io/product-management-assortment-optimization@sha256:6c28a72dc4a6838b7690c25668db8b11bf5c590f92ca03c6a60ab343baf7afcc"
+          image: "holidaypeakhub405devacr.azurecr.io/product-management-assortment-optimization@sha256:6ac562e9971f3e8fb428e719ac7c1d1b59090053e737ff7fbb2e832674a1a300"
           env:
             - name: ROOT_PATH
               value: "/product-management-assortment-optimization"

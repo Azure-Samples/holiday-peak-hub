@@ -63,7 +63,7 @@ spec:
           value: agents
       containers:
         - name: inventory-health-check
-          image: "holidaypeakhub405devacr.azurecr.io/inventory-health-check@sha256:718b7dc397b24697239a2358e2a20dc9126deccf9e812fc8885c7fd5a8e2a3aa"
+          image: "holidaypeakhub405devacr.azurecr.io/inventory-health-check@sha256:6a90e6b787bcc06a95ad83c6eed82945d0fa47b0979c422c33b98fe4d55c8b56"
           env:
             - name: ROOT_PATH
               value: "/inventory-health-check"

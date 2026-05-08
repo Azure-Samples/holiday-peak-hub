@@ -63,7 +63,7 @@ spec:
           value: agents
       containers:
         - name: truth-export
-          image: "holidaypeakhub405devacr.azurecr.io/truth-export@sha256:407f613d8ea8c0d338b09dca22c23ebc57687833dd6bb48f342241cb6a3df6e0"
+          image: "holidaypeakhub405devacr.azurecr.io/truth-export@sha256:0cdae88f0bf174baf20032b24f3047bb5242cbf0c4210d7034e9123a66d5a7dd"
           command:
             - uvicorn
           args:

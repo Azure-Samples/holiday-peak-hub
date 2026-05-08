@@ -63,7 +63,7 @@ spec:
           value: agents
       containers:
         - name: crm-profile-aggregation
-          image: "holidaypeakhub405devacr.azurecr.io/crm-profile-aggregation@sha256:77dcdbcd748cb93c5e3c55f11e19134903294dd1befb10b395e22a65953d308c"
+          image: "holidaypeakhub405devacr.azurecr.io/crm-profile-aggregation@sha256:c3e38f5ebf3cd47b6ae7eb75e5a4c00052747a1d33ab428bd4c63286519cf8dd"
           env:
             - name: ROOT_PATH
               value: "/crm-profile-aggregation"

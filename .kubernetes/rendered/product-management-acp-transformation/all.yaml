@@ -63,7 +63,7 @@ spec:
           value: agents
       containers:
         - name: product-management-acp-transformation
-          image: "holidaypeakhub405devacr.azurecr.io/product-management-acp-transformation@sha256:a26812dc82b1b0a5e0be2e14f98852a0f8b36ea04e68917a889ad9d44f3111f7"
+          image: "holidaypeakhub405devacr.azurecr.io/product-management-acp-transformation@sha256:004a74b73e00e8f6e6c59aaa65e0b7eb22d40a4b8fe98b96c010d215fe249816"
           env:
             - name: ROOT_PATH
               value: "/product-management-acp-transformation"

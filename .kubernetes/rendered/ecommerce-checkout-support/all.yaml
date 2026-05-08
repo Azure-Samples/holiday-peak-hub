@@ -63,7 +63,7 @@ spec:
           value: agents
       containers:
         - name: ecommerce-checkout-support
-          image: "holidaypeakhub405devacr.azurecr.io/ecommerce-checkout-support@sha256:7fb43981c10d4139f478a37f7a134920b5a5b4ec4bce07f7496fc83dcd9c6b62"
+          image: "holidaypeakhub405devacr.azurecr.io/ecommerce-checkout-support@sha256:6ee95f567397e40fd6e2635ac5beaf19551e791f5d8f11b4ff7db52639ca79fd"
           env:
             - name: ROOT_PATH
               value: "/ecommerce-checkout-support"

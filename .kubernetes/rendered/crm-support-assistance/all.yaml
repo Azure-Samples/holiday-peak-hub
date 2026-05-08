@@ -63,7 +63,7 @@ spec:
           value: agents
       containers:
         - name: crm-support-assistance
-          image: "holidaypeakhub405devacr.azurecr.io/crm-support-assistance@sha256:175bdb8c133facdbe305bec5bb786d3ee7091ec35791b7a35dfe18d907a31789"
+          image: "holidaypeakhub405devacr.azurecr.io/crm-support-assistance@sha256:8621c00b14d75b1a66c5e788ef0fd4716ae04a98e8780c652a998b0f7d83d550"
           env:
             - name: ROOT_PATH
               value: "/crm-support-assistance"

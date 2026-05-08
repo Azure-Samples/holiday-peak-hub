@@ -63,7 +63,7 @@ spec:
           value: agents
       containers:
         - name: inventory-jit-replenishment
-          image: "holidaypeakhub405devacr.azurecr.io/inventory-jit-replenishment@sha256:9876ea12554107d0487cf99ffc95ae1d75f3fe4a28f1a1f6fcc65cf5b0a2b97b"
+          image: "holidaypeakhub405devacr.azurecr.io/inventory-jit-replenishment@sha256:9053871e3c9971b66b5cf6b0b81845ea2550265db013ee978a96eca59fc3a9ee"
           env:
             - name: ROOT_PATH
               value: "/inventory-jit-replenishment"
