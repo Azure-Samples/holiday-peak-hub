@@ -2,6 +2,7 @@
 
 from typing import Any, Callable
 
+from holiday_peak_lib.evaluation.models import EvalConfig
 from holiday_peak_lib.mcp.server import FastAPIMCPServer
 
 from .base_agent import AgentDependencies, BaseRetailAgent, ModelTarget
@@ -25,6 +26,7 @@ class AgentBuilder:
         self._memory_builder: MemoryBuilder | None = None
         self._mcp_server: FastAPIMCPServer | None = None
         self._self_healing_kernel: Any = None
+        self._evaluation_config: EvalConfig | None = None
         self._tools: dict[str, Callable[..., Any]] = {}
         self._slm: ModelTarget | None = None
         self._llm: ModelTarget | None = None
@@ -59,6 +61,10 @@ class AgentBuilder:
 
     def with_self_healing(self, self_healing_kernel: Any) -> "AgentBuilder":
         self._self_healing_kernel = self_healing_kernel
+        return self
+
+    def with_evaluation(self, evaluation_config: EvalConfig) -> "AgentBuilder":
+        self._evaluation_config = evaluation_config
         return self
 
     def with_tool(self, name: str, handler: Callable[..., Any]) -> "AgentBuilder":
@@ -112,6 +118,7 @@ class AgentBuilder:
             router=self._router or RoutingStrategy(),
             tools=self._tools,
             self_healing_kernel=self._self_healing_kernel,
+            evaluation_config=self._evaluation_config,
             slm=self._slm,
             llm=self._llm,
             complexity_threshold=self._complexity_threshold,

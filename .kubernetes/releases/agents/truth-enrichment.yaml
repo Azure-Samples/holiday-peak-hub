@@ -32,9 +32,10 @@ spec:
       clientId: "e9c11fac-45b3-4057-8477-1d96703eaae4"
 
     image:
-      repository: holidaypeakhub405devacr.azurecr.io/holiday-peak-hub/truth-enrichment-dev
-      tag: azd-deploy-1775350057
+      repository: "holidaypeakhub405devacr.azurecr.io/truth-enrichment"
+      tag: "latest"
 
+      digest: "sha256:402003d1ebb928242e996cac3666429169a53d579b7aac2004b7c8faef2b50fb"
     replicaCount: 2
 
     resources:
@@ -104,7 +105,7 @@ spec:
       FOUNDRY_AUTO_ENSURE_ON_STARTUP: "true"
       FOUNDRY_STREAM: "true"
       AGENT_FOUNDRY_INVOKE_TIMEOUT_SECONDS: "60"
-      FOUNDRY_STRICT_ENFORCEMENT: "false"
+      FOUNDRY_STRICT_ENFORCEMENT: "true"
 
       # --- Embeddings ---
       EMBEDDING_DEPLOYMENT_NAME: "text-embedding-3-large"

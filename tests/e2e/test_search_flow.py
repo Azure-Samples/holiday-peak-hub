@@ -261,6 +261,7 @@ async def test_ai_search_unavailable_uses_fallback_path(
     harness = build_catalog_harness(default_product=catalog_product, related_products=[])
     harness.products.search = AsyncMock(return_value=[catalog_product])
 
+    monkeypatch.setattr(logging.getLogger("ecommerce_catalog_search"), "propagate", True)
     caplog.set_level(logging.WARNING, logger="ecommerce_catalog_search.agents")
 
     with (

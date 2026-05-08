@@ -21,6 +21,7 @@ from holiday_peak_lib.agents.memory.hot import HotMemory
 from holiday_peak_lib.agents.memory.warm import WarmMemory
 from holiday_peak_lib.agents.orchestration.router import RoutingStrategy
 from holiday_peak_lib.agents.telemetry_mixin import AgentTelemetryMixin
+from holiday_peak_lib.evaluation.models import EvalConfig
 from holiday_peak_lib.mcp.server import FastAPIMCPServer
 from holiday_peak_lib.self_healing import SelfHealingKernel
 from pydantic import BaseModel, ConfigDict, Field
@@ -102,6 +103,7 @@ class AgentDependencies(BaseModel):
     cold_memory: Any | None = None
     mcp_server: Any | None = None
     self_healing_kernel: Any | None = None
+    evaluation_config: EvalConfig | None = None
     slm: ModelTarget | None = None
     llm: ModelTarget | None = None
     complexity_threshold: float = 0.5
@@ -208,6 +210,14 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
     @self_healing_kernel.setter
     def self_healing_kernel(self, value: SelfHealingKernel | None) -> None:
         self.config.self_healing_kernel = value
+
+    @property
+    def evaluation_config(self) -> EvalConfig | None:
+        return self.config.evaluation_config
+
+    @evaluation_config.setter
+    def evaluation_config(self, value: EvalConfig | None) -> None:
+        self.config.evaluation_config = value
 
     @property
     def slm(self) -> ModelTarget | None:

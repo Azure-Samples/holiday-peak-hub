@@ -78,7 +78,7 @@ Use environment-specific entry workflows:
 - `AZURE_TENANT_ID`
 - `AZURE_SUBSCRIPTION_ID`
 
-The OIDC deploy principal behind `AZURE_CLIENT_ID` must be allowed to manage the environment-scoped RBAC assignments used by the reusable deployment workflow. `deploy-azd.yml` now idempotently verifies `Azure Kubernetes Service RBAC Cluster Admin` on the environment resource group and `AcrPush` on the environment ACR before tested-image builds start.
+The OIDC deploy principal behind `AZURE_CLIENT_ID` must be allowed to manage the environment-scoped RBAC assignments used by the reusable deployment workflow. `deploy-azd.yml` now idempotently verifies `Azure Kubernetes Service RBAC Cluster Admin` on the environment resource group, `AcrPush` on the environment ACR, and `Azure AI User` on the AI Services Foundry resource before live prompt gates run. Agent workload identities must have `Azure AI Project Manager` on the same Foundry resource when startup auto-ensure is enabled so V2 agents can be published and updated without static credentials.
 
 For the protected live suite, store these values in the GitHub Environment `dev` and keep Azure authentication OIDC-only. Do not add client secrets, connection strings, or API keys for live validation.
 
@@ -124,7 +124,7 @@ Core workflow note: `.github/workflows/deploy-azd.yml` is reusable-only and not 
 
 **Execution order**:
 
-1. `provision` job: sets azd env values, runs `azd provision`, and idempotently ensures the OIDC deploy principal has `Azure Kubernetes Service RBAC Cluster Admin` on the environment resource group plus `AcrPush` on the environment ACR.
+1. `provision` job: sets azd env values, runs `azd provision`, recovers Foundry outputs when needed, and idempotently ensures the OIDC deploy principal has `Azure Kubernetes Service RBAC Cluster Admin` on the environment resource group, `AcrPush` on the environment ACR, and `Azure AI User` on the AI Services Foundry resource; when changed agents are deployed, it also verifies `Azure AI Project Manager` on the agent workload identities for runtime V2 agent ensure.
 2. `build-aks-images` job: builds changed AKS workloads from the tested source SHA into the existing ACR (or reuses an existing per-SHA image), retries `az acr login` with bounded backoff to absorb RBAC propagation delay, and then records immutable digest refs for downstream deploy jobs. When `autoAllowAcrRunnerIp=true`, the workflow also reuses the existing runner-IP allowlist path; if the ACR public endpoint is disabled, it first enables public access with `defaultAction=Deny`, adds only the active GitHub-hosted runner IP, and restores the original public-access setting after the build phase. This is required because disabling ACR public network access overrides firewall rules, and GitHub-hosted runners do not have private network line of sight to a private-only registry.
 3. `deploy-crud` job: renders and applies the `crud-service` Helm manifest pinned to the tested image digest when CRUD/lib changes are detected.
 4. `deploy-foundry-models` and `deploy-agents` jobs: run after provision; `deploy-agents` deploys changed agent services from prebuilt digest-pinned manifests (and can proceed when `deploy-crud` is skipped for agent-only changes).
@@ -139,7 +139,7 @@ Core workflow note: `.github/workflows/deploy-azd.yml` is reusable-only and not 
 
 - Keep `deployShared=true` for all shared-environment rollouts.
 - Dev AKS rollouts must use the tested source checkout plus immutable image digests (`repo@sha256:...`); deploy jobs render/apply Kubernetes manifests directly and must not rebuild service images inline.
-- `skipProvision=true` is a manual dev-only emergency path for already-provisioned infrastructure. It skips only the `azd provision` step; Azure login, azd environment setup, AKS/ACR/Key Vault guards, output export, image build, deploy, Foundry ensure, and downstream smoke/deploy gates remain active.
+- `skipProvision=true` is a manual dev-only emergency path for already-provisioned infrastructure. It skips only the `azd provision` step; Azure login, azd environment setup, AKS/ACR/Key Vault/Foundry guards, output export, image build, deploy, Foundry ensure, and downstream smoke/deploy gates remain active.
 - For GitHub-hosted tested-image builds, `autoAllowAcrRunnerIp=true` preserves OIDC-only auth and the existing ACR IP allowlist flow. If the environment registry is private-only (`publicNetworkAccess=Disabled`), the workflow temporarily reopens the public endpoint with `defaultAction=Deny`, scopes access to the current runner IP, and restores the original ACR public-access state immediately after the build phase.
 - For changed AKS agent services, treat the Foundry runtime contract as a blocking gate: expected `FOUNDRY_STRICT_ENFORCEMENT=true` and `FOUNDRY_AUTO_ENSURE_ON_STARTUP=true` must survive render and rollout, and `/ready` is only accepted when it matches successful Foundry ensure results.
 - UI deployment intentionally uses the SWA GitHub Action path (not `azd deploy --service ui`) so App Router dynamic segments (`[id]`, `[slug]`) are built in the same mode as standard SWA workflows.

@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (Revised 2026-04-29 — added Part 4: Agent Mode Classification and Differentiated SLA Policy)  
+Accepted (Revised 2026-04-29 — added Part 4: Agent Mode Classification and Differentiated SLA Policy; Amended 2026-05 — added evaluation result event contract)
 **Supersedes**: prior separate decisions on Agent Isolation Policy and Async Communication Contract (now absorbed into this ADR)
 
 ## Date
@@ -182,6 +182,7 @@ The platform deploys 26 agent services alongside 1 CRUD service. Agents are forb
 | Cross-namespace K8s DNS | Agent → CRUD | Transactional reads only | ADR-026 Option A |
 | APIM MCP tools | Agent → Agent | MCP tool invocation through APIM | §Allowed Paths above |
 | Event Hubs | Agent ↔ CRUD | Asynchronous domain events (SAGA) | ADR-006 |
+| Event Hubs | Evaluation engine → Observability consumers | `agent-evaluation-results` quality event stream | ADR-028 |
 | APIM REST | CRUD → Agent | Enrichment/decision-assist calls | §Allowed Paths above |
 | APIM REST | Frontend → CRUD | Transactional UI operations | ADR-021 |
 | APIM REST | Frontend → Agent | Intelligence endpoints for UI | ADR-021 |

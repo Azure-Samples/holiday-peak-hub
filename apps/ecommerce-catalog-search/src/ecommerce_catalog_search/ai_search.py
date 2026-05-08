@@ -72,6 +72,8 @@ _ENRICHED_FIELDS = (
 )
 _TRUE_VALUES = {"1", "true", "yes", "on"}
 _FALSE_VALUES = {"0", "false", "no", "off"}
+# Azure Search aio clients expose generated methods that CI Pylint can miss on
+# Python 3.13; keep no-member suppressions scoped to direct SDK calls.
 
 
 def load_ai_search_config() -> AISearchConfig | None:
@@ -251,6 +253,7 @@ async def _search_documents(
     }
 
     try:
+        # pylint: disable-next=no-member
         results = await client.search(**search_kwargs)
         documents: list[AISearchDocumentResult] = []
         async for document in results:
@@ -436,6 +439,7 @@ async def search_catalog_skus_detailed(query: str, limit: int) -> AISearchSkuRes
 
     skus: list[str] = []
     try:
+        # pylint: disable-next=no-member
         results = await client.search(
             search_text=query,
             top=limit,
@@ -485,6 +489,7 @@ async def upsert_catalog_document(document: dict[str, Any]) -> bool:
     )
 
     try:
+        # pylint: disable-next=no-member
         await client.merge_or_upload_documents(documents=[document])
         return True
     except AzureError as error:
@@ -518,6 +523,7 @@ async def delete_catalog_document(sku: str) -> bool:
     )
 
     try:
+        # pylint: disable-next=no-member
         await client.delete_documents(documents=[{"id": sku, "sku": sku}])
         return True
     except AzureError as error:
@@ -556,6 +562,7 @@ async def get_catalog_index_status() -> AISearchIndexStatus:
     )
 
     try:
+        # pylint: disable-next=no-member
         results = await client.search(
             search_text="*",
             top=1,

@@ -307,10 +307,13 @@ jobs:
                 CRUD_IN_FILTER=true
               fi
             done
-            if [ "$CRUD_IN_FILTER" = false ]; then
-              CRUD_CHANGED=false
-            else
+            if [ ${#CHANGED_AGENTS[@]} -gt 0 ]; then
               CRUD_CHANGED=true
+              echo "::notice::Service-scoped agent deployment includes crud-service to refresh the shared dependency/runtime contract before Flux reconciles agents."
+            elif [ "$CRUD_IN_FILTER" = true ]; then
+              CRUD_CHANGED=true
+            else
+              CRUD_CHANGED=false
             fi
             UI_CHANGED=false
             echo "Service filter applied: ${CHANGED_AGENTS[*]:-none}"
@@ -892,6 +895,10 @@ jobs:
             set_if_empty COSMOS_DATABASE "holiday-peak-db"
           fi
 
+          if [ -z "${COSMOS_CONTAINER:-}" ]; then
+            set_if_empty COSMOS_CONTAINER "agent-memory"
+          fi
+
           # ── Key Vault ──────────────────────────────────────────────
           if [ -z "${KEY_VAULT_URI:-}" ]; then
             V=$(az keyvault list -g "$RG" \
@@ -927,6 +934,10 @@ jobs:
             if [ -n "${V:-}" ]; then
               set_if_empty BLOB_ACCOUNT_URL "https://${V}.blob.core.windows.net"
             fi
+          fi
+
+          if [ -z "${BLOB_CONTAINER:-}" ]; then
+            set_if_empty BLOB_CONTAINER "agent-memory"
           fi
 
           # ── AI Search ──────────────────────────────────────────────
@@ -968,6 +979,15 @@ jobs:
           fi
 
           # ── AI Project ─────────────────────────────────────────────
+          if [ -z "${PROJECT_NAME:-}" ]; then
+            V=$(az resource list -g "$RG" \
+              --resource-type "Microsoft.CognitiveServices/accounts/projects" \
+              --query "[0].name" -o tsv 2>/dev/null || true)
+            if [ -n "${V:-}" ]; then
+              set_if_empty PROJECT_NAME "${V##*/}"
+            fi
+          fi
+
           if [ -z "${PROJECT_NAME:-}" ]; then
             V=$(az resource list -g "$RG" \
               --resource-type "Microsoft.MachineLearningServices/workspaces" \
@@ -1085,6 +1105,169 @@ jobs:
             echo "All provisioned outputs present — no recovery needed."
           fi
 
+      - name: Ensure Foundry RBAC for prompt gates and runtime agents
+        if: ${{ needs.detect-changes.outputs.changed_agent_services_csv != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ENV="${{ inputs.environment }}"
+          RG="${{ inputs.projectName }}-${ENV}-rg"
+
+          eval "$(azd env get-values -e "$ENV" | sed 's/^/export /')"
+
+          AI_SERVICES_NAME="${AI_SERVICES_NAME:-}"
+          PROJECT_NAME="${PROJECT_NAME:-}"
+          PROJECT_ENDPOINT="${PROJECT_ENDPOINT:-}"
+
+          if [ -z "$AI_SERVICES_NAME" ] && [ -n "$PROJECT_ENDPOINT" ]; then
+            ENDPOINT_HOST=$(printf '%s' "$PROJECT_ENDPOINT" | sed -E 's#^https?://([^./]+).*#\1#')
+            if [ -n "$ENDPOINT_HOST" ] && [ "$ENDPOINT_HOST" != "$PROJECT_ENDPOINT" ]; then
+              AI_SERVICES_NAME="$ENDPOINT_HOST"
+            fi
+          fi
+
+          if [ -z "$PROJECT_NAME" ] && [ -n "$PROJECT_ENDPOINT" ]; then
+            PROJECT_FROM_ENDPOINT=$(printf '%s' "$PROJECT_ENDPOINT" | sed -nE 's#.*/api/projects/([^/?#]+).*#\1#p')
+            [ -n "$PROJECT_FROM_ENDPOINT" ] && PROJECT_NAME="$PROJECT_FROM_ENDPOINT"
+          fi
+
+          AI_SERVICES_ID=""
+          if [ -n "$AI_SERVICES_NAME" ]; then
+            AI_SERVICES_ID=$(az cognitiveservices account show \
+              --resource-group "$RG" \
+              --name "$AI_SERVICES_NAME" \
+              --query id -o tsv 2>/dev/null || true)
+          fi
+
+          if [ -z "$AI_SERVICES_ID" ]; then
+            AI_SERVICES_ID=$(az cognitiveservices account list -g "$RG" \
+              --query "[?kind=='AIServices'] | [0].id" -o tsv 2>/dev/null || true)
+            AI_SERVICES_NAME=$(az cognitiveservices account list -g "$RG" \
+              --query "[?kind=='AIServices'] | [0].name" -o tsv 2>/dev/null || true)
+          fi
+
+          if [ -z "$AI_SERVICES_ID" ] || [ -z "$AI_SERVICES_NAME" ]; then
+            echo "::error::Unable to resolve the Foundry AI Services resource in resource group '$RG'. Expected azd output AI_SERVICES_NAME or one Microsoft.CognitiveServices/accounts resource with kind AIServices."
+            az cognitiveservices account list -g "$RG" -o table || true
+            exit 1
+          fi
+
+          if [ -z "$PROJECT_NAME" ]; then
+            PROJECT_RESOURCE_NAME=$(az resource list -g "$RG" \
+              --resource-type "Microsoft.CognitiveServices/accounts/projects" \
+              --query "[0].name" -o tsv 2>/dev/null || true)
+            if [ -n "$PROJECT_RESOURCE_NAME" ]; then
+              PROJECT_NAME="${PROJECT_RESOURCE_NAME##*/}"
+            fi
+          fi
+
+          if [ -z "$PROJECT_NAME" ]; then
+            PROJECT_NAME=$(az resource list -g "$RG" \
+              --resource-type "Microsoft.MachineLearningServices/workspaces" \
+              --query "[?kind=='Project'] | [0].name" -o tsv 2>/dev/null || true)
+          fi
+
+          if [ -z "$PROJECT_NAME" ]; then
+            echo "::error::Unable to resolve the Foundry project name. Expected azd output PROJECT_NAME, a project-scoped PROJECT_ENDPOINT, or a Microsoft.CognitiveServices/accounts/projects resource in '$RG'."
+            az resource list -g "$RG" --resource-type "Microsoft.CognitiveServices/accounts/projects" -o table || true
+            exit 1
+          fi
+
+          PROJECTS_JSON=$(az resource list -g "$RG" \
+            --resource-type "Microsoft.CognitiveServices/accounts/projects" \
+            -o json 2>/dev/null || echo '[]')
+          PROJECT_RESOURCE_ID=$(printf '%s' "$PROJECTS_JSON" | jq -r \
+            --arg account "$AI_SERVICES_NAME" \
+            --arg project "$PROJECT_NAME" \
+            '.[] | select((.name == ($account + "/" + $project)) or (.name == $project) or (.id | endswith("/accounts/" + $account + "/projects/" + $project))) | .id' \
+            | head -n 1)
+
+          if [ -z "$PROJECT_RESOURCE_ID" ]; then
+            echo "::error::Resolved AI_SERVICES_NAME='$AI_SERVICES_NAME' and PROJECT_NAME='$PROJECT_NAME', but no matching Foundry project resource was found under '$AI_SERVICES_ID'. Verify the Foundry project exists before rerunning prompt gates."
+            printf '%s\n' "$PROJECTS_JSON" | jq -r '.[] | [.name, .id] | @tsv' || true
+            exit 1
+          fi
+
+          azd env set AI_SERVICES_NAME "$AI_SERVICES_NAME" -e "$ENV" >/dev/null
+          azd env set PROJECT_NAME "$PROJECT_NAME" -e "$ENV" >/dev/null
+          if [ -z "$PROJECT_ENDPOINT" ]; then
+            PROJECT_ENDPOINT="https://${AI_SERVICES_NAME}.services.ai.azure.com/api/projects/${PROJECT_NAME}"
+            azd env set PROJECT_ENDPOINT "$PROJECT_ENDPOINT" -e "$ENV" >/dev/null
+          fi
+
+          ensure_role() {
+            local principal_object_id="$1"
+            local principal_type="$2"
+            local role_name="$3"
+            local scope="$4"
+            local principal_label="$5"
+
+            if [ -z "$principal_object_id" ]; then
+              echo "::error::Cannot verify '${role_name}' for ${principal_label}: principal object id is empty."
+              exit 1
+            fi
+
+            local existing
+            existing=$(az role assignment list \
+              --scope "$scope" \
+              --assignee-object-id "$principal_object_id" \
+              --query "[?roleDefinitionName=='${role_name}'] | length(@)" -o tsv 2>/dev/null || echo "0")
+
+            if [ "${existing:-0}" = "0" ]; then
+              echo "Assigning ${role_name} to ${principal_label} at Foundry resource scope ${scope}."
+              if ! az role assignment create \
+                --assignee-object-id "$principal_object_id" \
+                --assignee-principal-type "$principal_type" \
+                --role "$role_name" \
+                --scope "$scope" >/dev/null; then
+                echo "::error::Failed to assign '${role_name}' to ${principal_label} (${principal_object_id}) at scope ${scope}. The OIDC deploy principal must have roleAssignments/write at this scope or a parent scope."
+                exit 1
+              fi
+            else
+              echo "${principal_label} already has ${role_name} at Foundry resource scope."
+            fi
+
+            local verified
+            verified=$(az role assignment list \
+              --scope "$scope" \
+              --assignee-object-id "$principal_object_id" \
+              --query "[?roleDefinitionName=='${role_name}'] | length(@)" -o tsv 2>/dev/null || echo "0")
+
+            if [ "${verified:-0}" = "0" ]; then
+              echo "::error::Failed to verify '${role_name}' for ${principal_label} at scope ${scope}. Check RBAC assignment permissions and rerun after Azure RBAC propagation completes."
+              exit 1
+            fi
+          }
+
+          DEPLOY_SP_OBJECT_ID=$(az ad sp show --id "${AZURE_CLIENT_ID}" --query id -o tsv 2>/dev/null || true)
+          if [ -z "$DEPLOY_SP_OBJECT_ID" ]; then
+            echo "::error::Unable to resolve service principal object id for AZURE_CLIENT_ID. OIDC login succeeded, but RBAC verification needs the deploy principal object id."
+            exit 1
+          fi
+
+          echo "Foundry RBAC target resource: ${AI_SERVICES_NAME} (${AI_SERVICES_ID})"
+          echo "Foundry RBAC target project: ${PROJECT_NAME} (${PROJECT_RESOURCE_ID})"
+
+          ensure_role "$DEPLOY_SP_OBJECT_ID" "ServicePrincipal" "Azure AI User" "$AI_SERVICES_ID" "OIDC deploy principal"
+
+          if [ "${FOUNDRY_RUNTIME_AUTO_ENSURE_ON_STARTUP}" = "true" ]; then
+            for identity_name in \
+              "${{ inputs.projectName }}-${ENV}-agents-identity" \
+              "${{ inputs.projectName }}-${ENV}-agents-identity-2"; do
+              identity_principal_id=$(az identity show \
+                --resource-group "$RG" \
+                --name "$identity_name" \
+                --query principalId -o tsv 2>/dev/null || true)
+              if [ -z "$identity_principal_id" ]; then
+                echo "::error::Unable to resolve runtime workload identity '$identity_name' in resource group '$RG'. Runtime Foundry auto-ensure cannot be RBAC-verified."
+                exit 1
+              fi
+              ensure_role "$identity_principal_id" "ServicePrincipal" "Azure AI Project Manager" "$AI_SERVICES_ID" "runtime workload identity ${identity_name}"
+            done
+          else
+            echo "FOUNDRY_RUNTIME_AUTO_ENSURE_ON_STARTUP is not true; runtime Azure AI Project Manager guard is not required for this deploy."
+          fi
+
       - name: Export provisioned outputs
         id: outputs
         run: |
@@ -1102,6 +1285,20 @@ jobs:
           if [ "$APIM_GATEWAY_URL_VALUE" = "null" ]; then
             APIM_GATEWAY_URL_VALUE=""
           fi
+          if [ -n "${CHANGED_AGENT_SERVICES:-}" ]; then
+            REQUIRED_RENDER_KEYS=(PROJECT_ENDPOINT PROJECT_NAME BLOB_ACCOUNT_URL BLOB_CONTAINER COSMOS_CONTAINER)
+            MISSING_RENDER_KEYS=()
+            for key in "${REQUIRED_RENDER_KEYS[@]}"; do
+              eval "value=\${$key:-}"
+              if [ -z "$value" ]; then
+                MISSING_RENDER_KEYS+=("$key")
+              fi
+            done
+            if [ ${#MISSING_RENDER_KEYS[@]} -gt 0 ]; then
+              echo "::error::Missing required agent render outputs: ${MISSING_RENDER_KEYS[*]}. Provision/recovery did not produce a complete runtime contract."
+              exit 1
+            fi
+          fi
           {
             echo "AI_SERVICES_NAME=${AI_SERVICES_NAME}"
             echo "AI_SEARCH_NAME=${AI_SEARCH_NAME}"
@@ -1116,10 +1313,13 @@ jobs:
             echo "APIM_GATEWAY_URL=${APIM_GATEWAY_URL_VALUE}"
             echo "COSMOS_ACCOUNT_URI=${COSMOS_ACCOUNT_URI}"
             echo "COSMOS_DATABASE=${COSMOS_DATABASE}"
+            echo "COSMOS_CONTAINER=${COSMOS_CONTAINER}"
             echo "KEY_VAULT_URI=${KEY_VAULT_URI}"
             echo "REDIS_HOST=${REDIS_HOST}"
             echo "EVENT_HUB_NAMESPACE=${EVENT_HUB_NAMESPACE}"
             echo "APPLICATIONINSIGHTS_CONNECTION_STRING=${APPLICATIONINSIGHTS_CONNECTION_STRING}"
+            echo "BLOB_ACCOUNT_URL=${BLOB_ACCOUNT_URL}"
+            echo "BLOB_CONTAINER=${BLOB_CONTAINER}"
             echo "POSTGRES_HOST=${POSTGRES_HOST}"
             echo "POSTGRES_USER=${POSTGRES_USER}"
             echo "POSTGRES_ADMIN_USER=${POSTGRES_ADMIN_USER}"
@@ -1840,6 +2040,27 @@ jobs:
             --query "identityProfile.kubeletidentity.clientId" -o tsv)
           echo "WORKLOAD_AZURE_CLIENT_ID=${AKS_MI_CLIENT_ID}" >> "$GITHUB_ENV"
 
+      - name: Resolve workload identity client IDs
+        shell: bash
+        run: |
+          set -euo pipefail
+          RG="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+          resolve_uami_client_id() {
+            local identity_name="$1"
+            az identity show --resource-group "$RG" --name "$identity_name" --query clientId -o tsv 2>/dev/null || true
+          }
+          CRUD_WORKLOAD_CLIENT_ID="$(resolve_uami_client_id "${{ inputs.projectName }}-${{ inputs.environment }}-crud-identity")"
+          AGENTS_WORKLOAD_CLIENT_ID="$(resolve_uami_client_id "${{ inputs.projectName }}-${{ inputs.environment }}-agents-identity")"
+          AGENTS2_WORKLOAD_CLIENT_ID="$(resolve_uami_client_id "${{ inputs.projectName }}-${{ inputs.environment }}-agents-identity-2")"
+          if [ -z "$CRUD_WORKLOAD_CLIENT_ID" ]; then
+            echo "::error::Failed to resolve CRUD workload identity client ID. Workload Identity injection will be missing from the rendered chart."
+            exit 1
+          fi
+          echo "CRUD_WORKLOAD_CLIENT_ID=${CRUD_WORKLOAD_CLIENT_ID}" >> "$GITHUB_ENV"
+          echo "AGENTS_WORKLOAD_CLIENT_ID=${AGENTS_WORKLOAD_CLIENT_ID}" >> "$GITHUB_ENV"
+          echo "AGENTS2_WORKLOAD_CLIENT_ID=${AGENTS2_WORKLOAD_CLIENT_ID}" >> "$GITHUB_ENV"
+          echo "::notice::Resolved workload identity client IDs for chart render (crud, agents, agents-2)."
+
       - name: Resolve publication context
         shell: bash
         run: |
@@ -1881,13 +2102,27 @@ jobs:
             fi
           fi
 
+          if [ -z "$AGC_SUBNET_ID_VALUE" ]; then
+            # Final fallback: query Azure directly for the AGC delegated subnet.
+            # GitHub Actions step outputs containing subscription GUIDs are sometimes secret-masked
+            # and arrive empty in this job ("Skip output 'AGC_SUBNET_ID' since it may contain secret").
+            # Re-resolve via Azure CLI so the render context is authoritative even when the live ALB is absent.
+            RG_FOR_AGC_SUBNET="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+            VNET_FOR_AGC_SUBNET="${{ inputs.projectName }}-${{ inputs.environment }}-vnet"
+            AGC_SUBNET_ID_VALUE="$(az network vnet subnet show -g "$RG_FOR_AGC_SUBNET" --vnet-name "$VNET_FOR_AGC_SUBNET" -n agc --query id -o tsv 2>/dev/null || true)"
+            if [ -n "$AGC_SUBNET_ID_VALUE" ]; then
+              echo "::notice::Recovered AGC render subnet via Azure CLI fallback (provision output secret-masked or live ALB absent)."
+            fi
+          fi
+
           echo "PUBLICATION_MODE=agc" >> "$GITHUB_ENV"
           echo "AGC_SUPPORT_ENABLED=${{ needs.provision.outputs.AGC_SUPPORT_ENABLED || 'false' }}" >> "$GITHUB_ENV"
           echo "AGC_GATEWAY_CLASS=$AGC_GATEWAY_CLASS_VALUE" >> "$GITHUB_ENV"
           echo "AGC_SUBNET_ID=$AGC_SUBNET_ID_VALUE" >> "$GITHUB_ENV"
 
           if [ -z "$AGC_SUBNET_ID_VALUE" ]; then
-            echo "::notice::No live AGC subnet association was available during render publication-context resolution. Later AGC readiness validation remains authoritative."
+            echo "::error::Unable to resolve AGC_SUBNET_ID for agent render publication-context. Agent HTTPRoutes target the shared Gateway and require it to be present in the rendered manifests."
+            exit 1
           fi
 
           kubectl get gatewayclass -o wide || true
@@ -2609,6 +2844,27 @@ jobs:
             --query "identityProfile.kubeletidentity.clientId" -o tsv)
           echo "WORKLOAD_AZURE_CLIENT_ID=${AKS_MI_CLIENT_ID}" >> "$GITHUB_ENV"
 
+      - name: Resolve workload identity client IDs
+        shell: bash
+        run: |
+          set -euo pipefail
+          RG="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+          resolve_uami_client_id() {
+            local identity_name="$1"
+            az identity show --resource-group "$RG" --name "$identity_name" --query clientId -o tsv 2>/dev/null || true
+          }
+          CRUD_WORKLOAD_CLIENT_ID="$(resolve_uami_client_id "${{ inputs.projectName }}-${{ inputs.environment }}-crud-identity")"
+          AGENTS_WORKLOAD_CLIENT_ID="$(resolve_uami_client_id "${{ inputs.projectName }}-${{ inputs.environment }}-agents-identity")"
+          AGENTS2_WORKLOAD_CLIENT_ID="$(resolve_uami_client_id "${{ inputs.projectName }}-${{ inputs.environment }}-agents-identity-2")"
+          if [ -z "$AGENTS_WORKLOAD_CLIENT_ID" ]; then
+            echo "::error::Failed to resolve agents workload identity client ID. Workload Identity injection will be missing from the rendered chart."
+            exit 1
+          fi
+          echo "CRUD_WORKLOAD_CLIENT_ID=${CRUD_WORKLOAD_CLIENT_ID}" >> "$GITHUB_ENV"
+          echo "AGENTS_WORKLOAD_CLIENT_ID=${AGENTS_WORKLOAD_CLIENT_ID}" >> "$GITHUB_ENV"
+          echo "AGENTS2_WORKLOAD_CLIENT_ID=${AGENTS2_WORKLOAD_CLIENT_ID}" >> "$GITHUB_ENV"
+          echo "::notice::Resolved workload identity client IDs for chart render (crud, agents, agents-2)."
+
       - name: Resolve publication context
         shell: bash
         run: |
@@ -2650,13 +2906,28 @@ jobs:
             fi
           fi
 
+          if [ -z "$AGC_SUBNET_ID_VALUE" ]; then
+            # Final fallback: query Azure directly for the AGC delegated subnet.
+            # GitHub Actions step outputs that contain subscription GUIDs may be secret-masked
+            # and arrive empty in this job ("Skip output 'AGC_SUBNET_ID' since it may contain secret").
+            # The ALB controller cannot reconcile without the subnet association, so re-resolve
+            # via Azure CLI to keep the render context authoritative even when the live ALB is absent.
+            RG_FOR_AGC_SUBNET="${{ inputs.projectName }}-${{ inputs.environment }}-rg"
+            VNET_FOR_AGC_SUBNET="${{ inputs.projectName }}-${{ inputs.environment }}-vnet"
+            AGC_SUBNET_ID_VALUE="$(az network vnet subnet show -g "$RG_FOR_AGC_SUBNET" --vnet-name "$VNET_FOR_AGC_SUBNET" -n agc --query id -o tsv 2>/dev/null || true)"
+            if [ -n "$AGC_SUBNET_ID_VALUE" ]; then
+              echo "::notice::Recovered AGC render subnet via Azure CLI fallback (provision output secret-masked or live ALB absent)."
+            fi
+          fi
+
           echo "PUBLICATION_MODE=agc" >> "$GITHUB_ENV"
           echo "AGC_SUPPORT_ENABLED=${{ needs.provision.outputs.AGC_SUPPORT_ENABLED || 'false' }}" >> "$GITHUB_ENV"
           echo "AGC_GATEWAY_CLASS=$AGC_GATEWAY_CLASS_VALUE" >> "$GITHUB_ENV"
           echo "AGC_SUBNET_ID=$AGC_SUBNET_ID_VALUE" >> "$GITHUB_ENV"
 
           if [ -z "$AGC_SUBNET_ID_VALUE" ]; then
-            echo "::notice::No live AGC subnet association was available during render publication-context resolution. Later AGC readiness validation remains authoritative."
+            echo "::error::Unable to resolve AGC_SUBNET_ID for render publication-context. The CRUD chart cannot emit the shared ApplicationLoadBalancer/Gateway without it, which would cause Flux to prune them and break AGC readiness."
+            exit 1
           fi
 
       - name: Download tested image reference
@@ -2729,6 +3000,8 @@ jobs:
       - build-aks-images
     permissions:
       contents: write
+    outputs:
+      published_sha: ${{ steps.publish.outputs.published_sha }}
     steps:
       - name: Resolve publication branch
         id: publication-branch
@@ -2764,6 +3037,12 @@ jobs:
           pattern: rendered-manifest-*
           path: ${{ runner.temp }}/rendered-artifacts
 
+      - name: Download tested image references
+        uses: actions/download-artifact@v4
+        with:
+          pattern: tested-image-*
+          path: ${{ runner.temp }}/tested-image-artifacts
+
       - name: Copy rendered manifests into repo
         shell: bash
         run: |
@@ -2776,23 +3055,215 @@ jobs:
             echo "Copied rendered manifest for ${svc_name}"
           done
 
-      - name: Commit rendered manifests for Flux reconciliation
+      - name: Sync migrated HelmRelease sources
+        shell: bash
+        env:
+          RENDERED_ROOT: .kubernetes/rendered
+          RENDERED_ARTIFACT_ROOT: ${{ runner.temp }}/rendered-artifacts
+          TESTED_IMAGE_ARTIFACT_ROOT: ${{ runner.temp }}/tested-image-artifacts
+          HELMRELEASE_ROOT: .kubernetes/releases/agents
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet --disable-pip-version-check "ruamel.yaml>=0.18.6"
+
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          from ruamel.yaml import YAML
+          from ruamel.yaml.comments import CommentedMap
+          from ruamel.yaml.scalarstring import DoubleQuotedScalarString
+
+          CONTRACT_ENV_KEYS = (
+              "PROJECT_ENDPOINT",
+              "PROJECT_NAME",
+              "FOUNDRY_AGENT_ID_FAST",
+              "FOUNDRY_AGENT_ID_RICH",
+              "FOUNDRY_AGENT_NAME_FAST",
+              "FOUNDRY_AGENT_NAME_RICH",
+              "MODEL_DEPLOYMENT_NAME_FAST",
+              "MODEL_DEPLOYMENT_NAME_RICH",
+              "FOUNDRY_STREAM",
+              "FOUNDRY_STRICT_ENFORCEMENT",
+              "FOUNDRY_AUTO_ENSURE_ON_STARTUP",
+          )
+          REQUIRED_CONTRACT_ENV_KEYS = (
+              "MODEL_DEPLOYMENT_NAME_FAST",
+              "MODEL_DEPLOYMENT_NAME_RICH",
+              "FOUNDRY_STRICT_ENFORCEMENT",
+              "FOUNDRY_AUTO_ENSURE_ON_STARTUP",
+          )
+
+          rendered_root = Path(os.environ["RENDERED_ROOT"])
+          rendered_artifact_root = Path(os.environ["RENDERED_ARTIFACT_ROOT"])
+          tested_image_root = Path(os.environ["TESTED_IMAGE_ARTIFACT_ROOT"])
+          helmrelease_root = Path(os.environ["HELMRELEASE_ROOT"])
+
+          yaml = YAML()
+          yaml.preserve_quotes = True
+          yaml.indent(mapping=2, sequence=4, offset=2)
+
+          def as_quoted(value):
+              return DoubleQuotedScalarString(str(value))
+
+          def ensure_map(parent, key):
+              value = parent.get(key)
+              if value is None:
+                  value = CommentedMap()
+                  parent[key] = value
+              if not isinstance(value, dict):
+                  raise SystemExit(f"Expected mapping at '{key}', got {type(value).__name__}.")
+              return value
+
+          def split_image_ref(image_ref):
+              if "@" in image_ref:
+                  repository, digest = image_ref.split("@", 1)
+                  if not repository or not digest:
+                      raise SystemExit(f"Invalid digest image reference: {image_ref}")
+                  return repository, "latest", digest
+
+              last_slash = image_ref.rfind("/")
+              last_colon = image_ref.rfind(":")
+              if last_colon > last_slash:
+                  return image_ref[:last_colon], image_ref[last_colon + 1 :], ""
+              return image_ref, "latest", ""
+
+          def load_rendered_deployment(service_name, rendered_file):
+              with rendered_file.open(encoding="utf-8") as handle:
+                  documents = list(yaml.load_all(handle))
+
+              for document in documents:
+                  if not isinstance(document, dict) or document.get("kind") != "Deployment":
+                      continue
+                  labels = document.get("metadata", {}).get("labels", {})
+                  if labels.get("app") == service_name:
+                      return document
+
+              raise SystemExit(f"Rendered deployment for '{service_name}' not found in {rendered_file}.")
+
+          def get_primary_container(deployment, service_name):
+              containers = (
+                  deployment.get("spec", {})
+                  .get("template", {})
+                  .get("spec", {})
+                  .get("containers", [])
+              )
+              if not containers:
+                  raise SystemExit(f"Rendered deployment for '{service_name}' has no containers.")
+              return containers[0]
+
+          def get_env_map(container):
+              env_map = {}
+              for item in container.get("env", []) or []:
+                  if not isinstance(item, dict):
+                      continue
+                  name = item.get("name")
+                  if name and "value" in item:
+                      env_map[str(name)] = "" if item["value"] is None else str(item["value"])
+              return env_map
+
+          synced = []
+
+          for artifact_dir in sorted(rendered_artifact_root.glob("rendered-manifest-*")):
+              if not artifact_dir.is_dir():
+                  continue
+
+              service_name = artifact_dir.name.removeprefix("rendered-manifest-")
+              release_file = helmrelease_root / f"{service_name}.yaml"
+              if not release_file.is_file():
+                  continue
+
+              rendered_file = rendered_root / service_name / "all.yaml"
+              image_ref_file = tested_image_root / f"tested-image-{service_name}" / "image-ref.txt"
+              if not rendered_file.is_file():
+                  raise SystemExit(f"Rendered manifest missing for migrated HelmRelease service '{service_name}': {rendered_file}")
+              if not image_ref_file.is_file():
+                  raise SystemExit(f"Tested image reference missing for migrated HelmRelease service '{service_name}': {image_ref_file}")
+
+              image_ref = image_ref_file.read_text(encoding="utf-8").strip()
+              deployment = load_rendered_deployment(service_name, rendered_file)
+              container = get_primary_container(deployment, service_name)
+              rendered_image = str(container.get("image", ""))
+              if rendered_image != image_ref:
+                  raise SystemExit(
+                      f"Rendered image drift for '{service_name}': rendered '{rendered_image}', tested '{image_ref}'."
+                  )
+
+              rendered_env = get_env_map(container)
+              with release_file.open(encoding="utf-8") as handle:
+                  release = yaml.load(handle)
+
+              spec = ensure_map(release, "spec")
+              values = ensure_map(spec, "values")
+              image_values = ensure_map(values, "image")
+              env_values = ensure_map(values, "env")
+
+              repository, tag, digest = split_image_ref(image_ref)
+              image_values["repository"] = as_quoted(repository)
+              image_values["tag"] = as_quoted(tag)
+              image_values["digest"] = as_quoted(digest)
+
+              for key in CONTRACT_ENV_KEYS:
+                  if key in rendered_env:
+                      env_values[key] = as_quoted(rendered_env[key])
+
+              missing_required = [key for key in REQUIRED_CONTRACT_ENV_KEYS if key not in rendered_env]
+              if missing_required:
+                  raise SystemExit(
+                      f"Rendered Foundry contract missing for '{service_name}': {', '.join(missing_required)}"
+                  )
+
+              for key in REQUIRED_CONTRACT_ENV_KEYS:
+                  active_value = str(env_values.get(key, ""))
+                  rendered_value = rendered_env[key]
+                  if active_value != rendered_value:
+                      raise SystemExit(
+                          f"HelmRelease source drift for '{service_name}' {key}: rendered '{rendered_value}', active '{active_value}'."
+                      )
+
+              if str(image_values.get("repository", "")) != repository:
+                  raise SystemExit(f"HelmRelease source drift for '{service_name}' image.repository.")
+              if digest and str(image_values.get("digest", "")) != digest:
+                  raise SystemExit(f"HelmRelease source drift for '{service_name}' image.digest.")
+              if not digest and str(image_values.get("tag", "")) != tag:
+                  raise SystemExit(f"HelmRelease source drift for '{service_name}' image.tag.")
+
+              with release_file.open("w", encoding="utf-8") as handle:
+                  yaml.dump(release, handle)
+
+              synced.append(service_name)
+
+          if synced:
+              print("Synced migrated HelmRelease sources: " + ", ".join(synced))
+          else:
+              print("No migrated HelmRelease sources matched this deployment scope.")
+          PY
+
+      - name: Commit GitOps artifacts for Flux reconciliation
+        id: publish
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add .kubernetes/rendered/ || true
+          git add .kubernetes/releases/agents/ || true
           if git diff --cached --quiet; then
-            echo "No rendered manifest changes to commit."
+            echo "No Flux GitOps artifact changes to commit."
+            CURRENT_SHA="$(git rev-parse HEAD)"
+            echo "published_sha=${CURRENT_SHA}" >> "$GITHUB_OUTPUT"
+            echo "Published SHA (no-op): ${CURRENT_SHA}"
             exit 0
           fi
-          git commit -m "deploy: update rendered manifests [skip ci]"
+          git commit -m "deploy: update Flux GitOps artifacts [skip ci]"
           git push origin "HEAD:refs/heads/${{ steps.publication-branch.outputs.branch_name }}"
+          NEW_SHA="$(git rev-parse HEAD)"
+          echo "published_sha=${NEW_SHA}" >> "$GITHUB_OUTPUT"
+          echo "Published SHA: ${NEW_SHA}"
 
   wait-flux-reconciliation:
     runs-on: ubuntu-latest
-    if: ${{ !inputs.uiOnly && (needs.commit-rendered-manifests.result == 'success') }}
+    if: ${{ always() && !cancelled() && !inputs.uiOnly && needs.commit-rendered-manifests.result == 'success' }}
     needs:
       - commit-rendered-manifests
       - detect-changes
@@ -2879,6 +3350,121 @@ jobs:
 
           echo "Flux reconciliation triggered."
 
+      - name: Wait for Flux to converge on published revision
+        if: ${{ needs.commit-rendered-manifests.outputs.published_sha != '' }}
+        shell: bash
+        env:
+          PUBLISHED_SHA: ${{ needs.commit-rendered-manifests.outputs.published_sha }}
+          CHANGED_AGENT_SERVICES_CSV: ${{ needs.detect-changes.outputs.changed_agent_services_csv }}
+          CRUD_CHANGED: ${{ needs.detect-changes.outputs.crud_changed }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$PUBLISHED_SHA" ]; then
+            echo "No published_sha output from commit-rendered-manifests; skipping convergence wait."
+            exit 0
+          fi
+
+          FLUX_SOURCE="${FLUX_SOURCE_NAME}"
+          FLUX_NAMESPACE="${FLUX_SOURCE_NAMESPACE}"
+          SHORT_SHA="${PUBLISHED_SHA:0:8}"
+
+          if ! command -v flux &>/dev/null; then
+            curl -s https://fluxcd.io/install.sh | bash 2>/dev/null || true
+          fi
+
+          # 1) Wait for the GitRepository source to publish an artifact at the published SHA.
+          echo "Waiting for Flux source '${FLUX_SOURCE}' artifact to reach ${SHORT_SHA}..."
+          flux reconcile source git "$FLUX_SOURCE" -n "$FLUX_NAMESPACE" --timeout=3m || true
+          deadline=$(( SECONDS + 300 ))
+          while [ $SECONDS -lt $deadline ]; do
+            REVISION=$(kubectl get gitrepository.source.toolkit.fluxcd.io "$FLUX_SOURCE" -n "$FLUX_NAMESPACE" -o jsonpath='{.status.artifact.revision}' 2>/dev/null || echo "")
+            if [[ "$REVISION" == *"$PUBLISHED_SHA"* ]]; then
+              echo "Source artifact reached published revision: $REVISION"
+              break
+            fi
+            echo "Source artifact at '${REVISION}', awaiting ${SHORT_SHA}..."
+            sleep 10
+            flux reconcile source git "$FLUX_SOURCE" -n "$FLUX_NAMESPACE" --timeout=2m || true
+          done
+          REVISION=$(kubectl get gitrepository.source.toolkit.fluxcd.io "$FLUX_SOURCE" -n "$FLUX_NAMESPACE" -o jsonpath='{.status.artifact.revision}' 2>/dev/null || echo "")
+          if [[ "$REVISION" != *"$PUBLISHED_SHA"* ]]; then
+            echo "::error::Flux source did not reach published revision ${PUBLISHED_SHA} within timeout. Last seen: ${REVISION}"
+            exit 1
+          fi
+
+          # 2) Wait for both Flux kustomizations to apply the published revision and reach Ready=True.
+          wait_kustomization_applied() {
+            local name="$1"
+            local timeout_seconds="${2:-600}"
+            local force_reconcile="${3:-true}"
+            echo "Waiting for kustomization '${name}' to apply ${SHORT_SHA} and reach Ready=True (timeout ${timeout_seconds}s)..."
+            if [ "$force_reconcile" = "true" ] && command -v flux &>/dev/null; then
+              flux reconcile kustomization "$name" -n flux-system --timeout="${timeout_seconds}s" || true
+            fi
+            local local_deadline=$(( SECONDS + timeout_seconds ))
+            while [ $SECONDS -lt $local_deadline ]; do
+              local applied
+              local ready
+              applied=$(kubectl get kustomization "$name" -n flux-system -o jsonpath='{.status.lastAppliedRevision}' 2>/dev/null || echo "")
+              ready=$(kubectl get kustomization "$name" -n flux-system -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "")
+              if [[ "$applied" == *"$PUBLISHED_SHA"* ]] && [ "$ready" = "True" ]; then
+                echo "Kustomization '${name}' applied ${SHORT_SHA} and is Ready."
+                return 0
+              fi
+              echo "  kustomization=${name} applied='${applied}' ready='${ready}' — waiting..."
+              sleep 10
+            done
+            echo "::error::Kustomization '${name}' did not converge on ${PUBLISHED_SHA} within ${timeout_seconds}s."
+            kubectl describe kustomization "$name" -n flux-system | tail -80 || true
+            return 1
+          }
+
+          # CRUD kustomization first (agents has dependsOn: crud).
+          wait_kustomization_applied "holiday-peak-gitops-holiday-peak-crud" 600 true
+
+          # Agents kustomization — now that crud is ready, dependency is satisfied.
+          wait_kustomization_applied "holiday-peak-gitops-holiday-peak-agents" 600 true
+
+          # 3) For migrated HelmRelease services, wait for HelmController to apply
+          # the new values and roll the underlying Deployment. Kustomization apply
+          # only updates the HR spec; HelmController then reconciles the chart.
+          if [ -n "${CHANGED_AGENT_SERVICES_CSV:-}" ]; then
+            IFS=',' read -ra _SERVICES <<< "$CHANGED_AGENT_SERVICES_CSV"
+            for raw_svc in "${_SERVICES[@]}"; do
+              svc=$(echo "$raw_svc" | xargs)
+              [ -z "$svc" ] && continue
+              if ! kubectl get helmrelease "$svc" -n flux-system >/dev/null 2>&1; then
+                echo "Service '${svc}' has no HelmRelease — skipping HR convergence wait (legacy rendered path)."
+                continue
+              fi
+              echo "Reconciling HelmRelease '${svc}'..."
+              if command -v flux &>/dev/null; then
+                flux reconcile helmrelease "$svc" -n flux-system --timeout=10m || true
+              fi
+              hr_deadline=$(( SECONDS + 600 ))
+              while [ $SECONDS -lt $hr_deadline ]; do
+                hr_ready=$(kubectl get helmrelease "$svc" -n flux-system -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "")
+                hr_reason=$(kubectl get helmrelease "$svc" -n flux-system -o jsonpath='{.status.conditions[?(@.type=="Ready")].reason}' 2>/dev/null || echo "")
+                hr_released=$(kubectl get helmrelease "$svc" -n flux-system -o jsonpath='{.status.conditions[?(@.type=="Released")].reason}' 2>/dev/null || echo "")
+                if [ "$hr_ready" = "True" ] && [[ "$hr_reason" == "UpgradeSucceeded" || "$hr_reason" == "InstallSucceeded" || "$hr_reason" == "ReconciliationSucceeded" || "$hr_reason" == "TestSucceeded" ]]; then
+                  echo "HelmRelease '${svc}' Ready: ${hr_reason} (Released=${hr_released})"
+                  break
+                fi
+                echo "  helmrelease=${svc} ready='${hr_ready}' reason='${hr_reason}' released='${hr_released}' — waiting..."
+                sleep 10
+              done
+              hr_ready=$(kubectl get helmrelease "$svc" -n flux-system -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "")
+              if [ "$hr_ready" != "True" ]; then
+                echo "::error::HelmRelease '${svc}' did not become Ready within timeout."
+                kubectl describe helmrelease "$svc" -n flux-system | tail -80 || true
+                exit 1
+              fi
+            done
+          fi
+
+          echo "All Flux resources converged on published revision ${SHORT_SHA}."
+
       - name: Wait for CRUD rollout
         if: ${{ needs.detect-changes.outputs.crud_changed == 'true' }}
         shell: bash
@@ -2951,6 +3537,14 @@ jobs:
               echo "::warning::rendered manifest artifact missing for ${svc}: ${src}"
             fi
           done
+
+      - name: Refresh Azure login for Foundry prompt verification
+        if: ${{ success() && !inputs.skipPromptGates && needs.detect-changes.outputs.changed_agent_services_csv != '' }}
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
       - name: Verify Foundry instructions match repo
         if: ${{ success() && !inputs.skipPromptGates && needs.detect-changes.outputs.changed_agent_services_csv != '' }}
@@ -4034,10 +4628,11 @@ jobs:
 
   ensure-foundry-agents:
     runs-on: ubuntu-latest
-    if: ${{ always() && !cancelled() && !inputs.uiOnly && needs.detect-changes.outputs.changed_agent_services_csv != '' && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') }}
+    if: ${{ always() && !cancelled() && !inputs.uiOnly && needs.detect-changes.outputs.changed_agent_services_csv != '' && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') && needs.wait-flux-reconciliation.result == 'success' }}
     needs:
       - deploy-agents
       - detect-changes
+      - wait-flux-reconciliation
     environment: ${{ inputs.githubEnvironment }}
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}

@@ -209,6 +209,15 @@ class SelfHealingKernel:
         incident = self._detect(signal)
         self._classify(incident)
 
+        if incident.incident_class == IncidentClass.QUALITY_DRIFT:
+            self._transition(
+                incident,
+                IncidentState.ESCALATED,
+                event="incident_escalated",
+                details={"reason": "quality_drift_manual_review_required"},
+            )
+            return incident
+
         if not incident.recoverable:
             self._transition(
                 incident,
@@ -349,6 +358,21 @@ class SelfHealingKernel:
 
     def _classify(self, incident: Incident) -> None:
         status_code = incident.status_code
+        if incident.surface == SurfaceType.EVALUATION:
+            incident.incident_class = IncidentClass.QUALITY_DRIFT
+            incident.recoverable = False
+            self._transition(
+                incident,
+                IncidentState.CLASSIFIED,
+                event="incident_classified",
+                details={
+                    "recoverable": False,
+                    "incident_class": IncidentClass.QUALITY_DRIFT.value,
+                    "risk_tier": "T3",
+                },
+            )
+            return
+
         if incident.surface == SurfaceType.MESSAGING:
             recoverable = self._classify_messaging_incident(incident)
         else:

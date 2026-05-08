@@ -32,6 +32,7 @@ class SurfaceType(StrEnum):
     API = "api"
     APIM = "apim"
     AKS_INGRESS = "aks_ingress"
+    EVALUATION = "evaluation"
     MCP = "mcp"
     MESSAGING = "messaging"
 
@@ -40,6 +41,7 @@ class IncidentClass(StrEnum):
     """Classifications assigned during the classify phase."""
 
     INFRASTRUCTURE_MISCONFIGURATION = "infrastructure_misconfiguration"
+    QUALITY_DRIFT = "quality_drift"
     NON_RECOVERABLE = "non_recoverable"
 
 
