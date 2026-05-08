@@ -61,10 +61,22 @@ const config = {
         'hp-border': 'var(--hp-border)',
         'hp-text': 'var(--hp-text)',
         'hp-text-muted': 'var(--hp-text-muted)',
+        'hp-muted': 'var(--hp-muted)',
         'hp-primary': 'var(--hp-primary)',
         'hp-primary-hover': 'var(--hp-primary-hover)',
         'hp-accent': 'var(--hp-accent)',
         'hp-focus': 'var(--hp-focus)',
+        // Audience-router accents (ADR-034 / ADR-035)
+        'hp-retailer-accent': 'var(--hp-retailer-accent)',
+        'hp-retailer-accent-hover': 'var(--hp-retailer-accent-hover)',
+        'hp-builder-accent': 'var(--hp-builder-accent)',
+        'hp-builder-accent-hover': 'var(--hp-builder-accent-hover)',
+        'hp-deploy-accent': 'var(--hp-deploy-accent)',
+        'hp-deploy-accent-hover': 'var(--hp-deploy-accent-hover)',
+        // Section-scoped accent (resolves to retailer / builder / deploy
+        // depending on the [data-section="…"] selector emitted by SectionShell).
+        'hp-section-accent': 'var(--hp-section-accent)',
+        'hp-section-accent-hover': 'var(--hp-section-accent-hover)',
         'hp-hero-overlay': '#0f0a06',
         'hp-neutral-700': '#2F2F2F',
         'hp-neutral-800': '#1a1a1a',

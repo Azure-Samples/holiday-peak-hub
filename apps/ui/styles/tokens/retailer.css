@@ -1,0 +1,26 @@
+/* ───────────────────────────────────────────────────────────────────────────
+ * Retailer audience tokens.
+ * Scoped to the (retailer) route group via the SectionShell's
+ * `data-section="retailer"` attribute.
+ *
+ * Tone: warm, product-led, generous spacing, hero-image-friendly.
+ * Inherits from brand.css; overrides only what's tonally distinct.
+ * ─────────────────────────────────────────────────────────────────────── */
+
+[data-section='retailer'] {
+  /* Retailer surface palette — warm whites + amber accents.
+   * Existing base palette already trends warm, so the overrides are minimal:
+   * the section-scoped accent locks in the retailer brand color regardless
+   * of light/dark mode. */
+  --hp-section-accent: var(--hp-retailer-accent);
+  --hp-section-accent-hover: var(--hp-retailer-accent-hover);
+  --hp-section-accent-soft: var(--hp-retailer-accent-soft);
+
+  /* Spacing rhythm — generous, narrative-oriented sections */
+  --hp-section-rhythm: var(--hp-space-24);
+
+  /* Typography — sans-serif headings (Inter as set in brand.css), no special
+   * mono treatment; retailer pages favor short, scannable copy. */
+  --hp-section-display-weight: 700;
+  --hp-section-body-leading: 1.7;
+}
