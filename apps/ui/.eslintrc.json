@@ -103,6 +103,54 @@
           }
         ]
       }
+    },
+    {
+      "files": ["components/atoms/**/*.{ts,tsx}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["**/molecules/**", "**/organisms/**", "**/templates/**"],
+                "message": "Atoms cannot import from molecules / organisms / templates (ADR-035 §53 tier discipline)."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["components/molecules/**/*.{ts,tsx}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["**/organisms/**", "**/templates/**"],
+                "message": "Molecules cannot import from organisms / templates (ADR-035 §53 tier discipline)."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["components/organisms/**/*.{ts,tsx}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["**/templates/**"],
+                "message": "Organisms cannot import from templates (ADR-035 §53 tier discipline)."
+              }
+            ]
+          }
+        ]
+      }
     }
   ]
 }
