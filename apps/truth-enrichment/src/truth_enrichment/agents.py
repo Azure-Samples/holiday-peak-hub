@@ -294,7 +294,12 @@ class TruthEnrichmentAgent(BaseRetailAgent):
                     tool_args = {}
 
             proposed = await self._execute_enrichment_tool(
-                tool_name, entity_id, product, gaps, schema, tool_args
+                tool_name=tool_name,
+                entity_id=entity_id,
+                product=product,
+                gaps=gaps,
+                schema=schema,
+                tool_args=tool_args,
             )
             if proposed is not None:
                 if isinstance(proposed, list):
@@ -399,6 +404,7 @@ class TruthEnrichmentAgent(BaseRetailAgent):
 
     async def _execute_enrichment_tool(
         self,
+        *,
         tool_name: str,
         entity_id: str,
         product: dict[str, Any],
