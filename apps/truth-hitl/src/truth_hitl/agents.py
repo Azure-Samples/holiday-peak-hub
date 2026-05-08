@@ -75,57 +75,72 @@ class TruthHITLAgent(BaseRetailAgent):
     async def handle(self, request: dict[str, Any]) -> dict[str, Any]:
         action = request.get("action", "stats")
 
-        if action == "stats":
-            return {"stats": self._adapters.review_manager.stats()}
+        handler = self._action_handlers().get(action)
+        if handler is not None:
+            return await handler(request)
 
-        if action == "queue":
-            skip = int(request.get("skip", 0) or 0)
-            limit = int(request.get("limit", 50) or 50)
-            entity_id = request.get("entity_id")
-            field_name = request.get("field_name")
-            items = self._adapters.review_manager.list_pending(
-                entity_id=entity_id,
-                field_name=field_name,
-                skip=skip,
-                limit=limit,
-            )
-            return {
-                "items": [self._to_ui_queue_item(item) for item in items],
-                "count": len(items),
-                "skip": skip,
-                "limit": limit,
-            }
-
-        if action == "detail":
-            entity_id = request.get("entity_id")
-            if not entity_id:
-                return {"error": "entity_id is required", "action": action}
-
-            items = self._adapters.review_manager.get_by_entity(entity_id)
-            product_title = items[0].product_title if items else entity_id
-            category = items[0].category_label if items else "Unknown"
-            return {
-                "entity_id": entity_id,
-                "product_title": product_title or entity_id,
-                "category": category or "Unknown",
-                "completeness_score": 0,
-                "proposed_attributes": [self._to_ui_proposal(item) for item in items],
-            }
-
-        if action == "audit":
-            entity_id = request.get("entity_id")
-            events = self._adapters.review_manager.audit_log(entity_id=entity_id)
-            return {
-                "events": [self._to_ui_audit_event(event) for event in events],
-                "count": len(events),
-            }
-
+        # Legacy "list" action requires an entity_id; preserves prior behaviour.
         entity_id = request.get("entity_id")
         if action == "list" and entity_id:
             items = self._adapters.review_manager.get_by_entity(entity_id)
             return {"entity_id": entity_id, "items": [i.model_dump() for i in items]}
 
         return {"error": "unsupported action or missing entity_id", "action": action}
+
+    def _action_handlers(
+        self,
+    ) -> dict[str, Any]:
+        return {
+            "stats": self._handle_stats,
+            "queue": self._handle_queue,
+            "detail": self._handle_detail,
+            "audit": self._handle_audit,
+        }
+
+    async def _handle_stats(self, _request: dict[str, Any]) -> dict[str, Any]:
+        return {"stats": self._adapters.review_manager.stats()}
+
+    async def _handle_queue(self, request: dict[str, Any]) -> dict[str, Any]:
+        skip = int(request.get("skip", 0) or 0)
+        limit = int(request.get("limit", 50) or 50)
+        entity_id = request.get("entity_id")
+        field_name = request.get("field_name")
+        items = self._adapters.review_manager.list_pending(
+            entity_id=entity_id,
+            field_name=field_name,
+            skip=skip,
+            limit=limit,
+        )
+        return {
+            "items": [self._to_ui_queue_item(item) for item in items],
+            "count": len(items),
+            "skip": skip,
+            "limit": limit,
+        }
+
+    async def _handle_detail(self, request: dict[str, Any]) -> dict[str, Any]:
+        entity_id = request.get("entity_id")
+        if not entity_id:
+            return {"error": "entity_id is required", "action": "detail"}
+
+        items = self._adapters.review_manager.get_by_entity(entity_id)
+        product_title = items[0].product_title if items else entity_id
+        category = items[0].category_label if items else "Unknown"
+        return {
+            "entity_id": entity_id,
+            "product_title": product_title or entity_id,
+            "category": category or "Unknown",
+            "completeness_score": 0,
+            "proposed_attributes": [self._to_ui_proposal(item) for item in items],
+        }
+
+    async def _handle_audit(self, request: dict[str, Any]) -> dict[str, Any]:
+        entity_id = request.get("entity_id")
+        events = self._adapters.review_manager.audit_log(entity_id=entity_id)
+        return {
+            "events": [self._to_ui_audit_event(event) for event in events],
+            "count": len(events),
+        }
 
 
 def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
