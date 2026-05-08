@@ -62,3 +62,34 @@ export type { TimelineProps, TimelineItemData } from './Timeline';
 
 export { ProfileCard } from './ProfileCard';
 export type { ProfileCardProps } from './ProfileCard';
+
+// ── Audience-router composites (ADR-035 §54 / Issue #1057) ──────────────────
+export { Hero } from './Hero';
+export type {
+  HeroProps,
+  HeroAudienceRouterProps,
+  HeroAudiencePageProps,
+  HeroDocsProps,
+} from './Hero';
+
+export { ValueProp } from './ValueProp';
+export type {
+  ValuePropProps,
+  ValuePropQualitative,
+  ValuePropQuantitative,
+} from './ValueProp';
+
+export { ValuePropGrid } from './ValuePropGrid';
+export type {
+  ValuePropGridProps,
+  ValuePropGridStrictProps,
+  ValuePropGridFlexibleProps,
+} from './ValuePropGrid';
+
+export { CallToAction } from './CallToAction';
+export type {
+  CallToActionProps,
+  CallToActionAudiencePairProps,
+  CallToActionSingleProps,
+  CallToActionProcurementProps,
+} from './CallToAction';

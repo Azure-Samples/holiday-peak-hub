@@ -62,3 +62,10 @@ export type { ProgressBarProps } from './ProgressBar';
 
 export { Chart } from './Chart';
 export type { ChartProps, ChartType, ChartDataPoint, ChartSeries } from './Chart';
+
+// ── Honesty enforcers (ADR-035 §54 / Issue #1057) ───────────────────────────
+export { MaturityBadge } from './MaturityBadge';
+export type { MaturityBadgeProps, MaturityLevel } from './MaturityBadge';
+
+export { ConfidenceInterval } from './ConfidenceInterval';
+export type { ConfidenceIntervalProps } from './ConfidenceInterval';
