@@ -65,7 +65,8 @@ describe('lib/seo/buildMetadata', () => {
       description: 'Pick your lane.',
       path: '/',
     });
-    expect(meta.twitter?.card).toBe('summary_large_image');
+    const twitter = meta.twitter as { card?: string } | undefined;
+    expect(twitter?.card).toBe('summary_large_image');
   });
 
   it('uses en_US locale and website type for OG', () => {
@@ -74,7 +75,8 @@ describe('lib/seo/buildMetadata', () => {
       description: 'Architecture.',
       path: '/builders',
     });
-    expect(meta.openGraph?.locale).toBe('en_US');
-    expect(meta.openGraph?.type).toBe('website');
+    const og = meta.openGraph as { locale?: string; type?: string } | undefined;
+    expect(og?.locale).toBe('en_US');
+    expect(og?.type).toBe('website');
   });
 });
