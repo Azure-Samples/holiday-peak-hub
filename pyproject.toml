@@ -16,6 +16,19 @@ ensure_newline_before_comments = true
 ignore-paths = [".*\\.venv.*", ".*node_modules.*", ".*\\.next.*", ".*__pycache__.*"]
 fail-under = 8.5
 max-line-length = 100
+# Azure SDK clients (azure.search.documents.SearchClient, azure.cosmos.aio,
+# azure.storage.blob.aio, azure.eventhub.aio, azure.identity.aio) resolve
+# methods dynamically via azure.core decorators (distributed_trace_async,
+# api_version_validation). pylint cannot statically infer them, so it emits
+# E1101 no-member. The CI gate uses --fail-on=E,F, which means those false
+# positives block every PR — including docs-only PRs that never touch SDK
+# code. Whitelisting the Azure SDK surface as generated-members is the
+# minimum-blast-radius fix: it suppresses no-member only for symbols whose
+# fully-qualified name starts with `azure.`, leaving every project-owned
+# symbol fully checked.
+generated-members = [
+    "azure\\..*",
+]
 
 [tool.pylint."messages control"]
 disable = [
