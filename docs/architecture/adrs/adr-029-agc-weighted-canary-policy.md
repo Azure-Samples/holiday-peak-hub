@@ -4,7 +4,7 @@
 **Date**: 2026-05-08
 **Deciders**: Architecture Team, Ricardo Cataldi
 **Tags**: deployment, canary, agc, observability, sre
-**References**: [ADR-008](adr-008-aks-deployment.md), [ADR-017](adr-017-deployment-strategy.md), [ADR-021](adr-021-apim-agc-edge.md), [ADR-028](adr-028-continuous-agent-evaluation.md)
+**References**: [ADR-008](adr-008-aks-deployment.md), [ADR-017](adr-017-deployment-strategy.md), [ADR-021](adr-021-apim-agc-edge.md), ADR-028 (Continuous Agent Evaluation — in flight on PR #974; link will be added when merged)
 
 ## Context
 
@@ -38,7 +38,7 @@ For each step:
 2. Query gate metrics over the hold window:
    - **5xx error rate** delta vs. baseline ≤ 0.5 percentage points.
    - **P95 latency** delta vs. baseline ≤ 10 %.
-   - **Eval baseline** (services with continuous eval per ADR-028): score within `maxDeltaPercent` (default 5 %).
+   - **Eval baseline** (services with continuous eval per ADR-028): score within `maxDeltaPercent` (default 5 %). Specific attribute keys (`eval.score`, `eval.baseline_id`) and the `baselineSource: continuous-eval` literal are subject to ADR-028's final schema (PR #974 in flight); this ADR will be revised in lock-step if PR #974 changes them.
 3. All gates pass → advance to next step.
 4. Any gate fails outside the rollback window → halt; oncall decides hold, manual rollback, or roll forward.
 5. Any gate fails **inside the first 90 s of the step** → automatic rollback to previous step weight; oncall notified post-fact.
@@ -71,9 +71,11 @@ canary:
 
 Drift from this schema fails the chart build via `scripts/ci/validate_canary_helm_values.py`.
 
+**Migration**: the existing `.kubernetes/chart/values.yaml` ships a legacy header-routing `canary` block (`headerRouting.headerName: x-canary`, `selectorIncludeCanary`, `replicaCount`). The validator runs in advisory mode (logs drift, does not fail) until the migration PR replaces the legacy block with the schema above; it flips to enforcing once every chart consumer has migrated. Per-service activation is tracked in the R1 epic, mirroring ADR-030's gradual-adoption pattern.
+
 ### 4. Automatic Rollback Controller
 
-A canary controller (Flagger or equivalent) runs in the cluster and:
+A canary controller (Flagger or equivalent, integrated with AGC via the Kubernetes Gateway API provider — AGC must be deployed in Gateway API mode) runs in the cluster and:
 
 - Steps the AGC route weights via the AGC ARM API or the Gateway API custom resources.
 - Reads gate metrics from Azure Monitor / App Insights via OTEL exporters.
@@ -118,7 +120,7 @@ The runbook at `docs/ops/runbooks/agc-canary-rollout.md` documents trigger condi
 | Auto-rollback fails (controller dies, AGC API rate-limits). | Watchdog pages oncall when no transition event within `rollbackWindowSeconds × 1.5`. |
 | Eval gate too sensitive — fails on legitimate behavior shifts. | Eval gate uses `maxDeltaPercent` (relative), not absolute. Baselines refresh nightly per ADR-028. |
 | Helm schema drift between services. | CI step `scripts/ci/validate_canary_helm_values.py` rejects drift; required check on PR. |
-| Single-region failure scope (no cross-region failover during canary). | Documented limitation. Multi-region canary is a future ADR. |
+| Single-region failure scope (no cross-region failover during canary). | Region-health alert (Azure Service Health on the AGC region) halts the ramp and pages oncall; the runbook `docs/ops/runbooks/agc-canary-rollout.md` documents APIM-level traffic shift to a passive secondary region during a regional outage. Multi-region active-active canary remains a future ADR. |
 
 ## Alternatives Considered
 
@@ -136,13 +138,15 @@ Considered. Both are viable. Decision deferred to platform-engineering choice du
 
 ## Implementation
 
+> **Conditional acceptance**: this ADR is Accepted on the contract (§1–§5 above), but the runbook (`docs/ops/runbooks/agc-canary-rollout.md`) and the App Insights workbook referenced from it are net-new artifacts that MUST land in the same merge train as the framework changes below. Until they exist, the ADR's operational guarantees are advisory.
+
 | Component | File / Location | Change |
 |---|---|---|
 | ADR | `docs/architecture/adrs/adr-029-agc-weighted-canary-policy.md` | This file |
 | Runbook | `docs/ops/runbooks/agc-canary-rollout.md` | New — trigger conditions, dashboards, oncall procedure, post-mortem template |
 | Helm schema validator | `scripts/ci/validate_canary_helm_values.py` | New — fails build on schema drift |
-| Service Helm charts | `infra/charts/<service>/values.yaml` | Add `canary` block matching schema |
-| Flux Kustomization patches | `infra/flux/<channel>/patches/canary.yaml` | Pin per-channel overrides (`dev`, `staging`, `prod`) |
+| Service Helm charts | `.kubernetes/chart/values.yaml` (shared chart `holiday-peak-service`) | Replace the legacy header-routing `canary` block (`headerRouting`, `selectorIncludeCanary`, `replicaCount`) with the schema in §3. Per-service overrides land in `.kubernetes/chart/values-<service>.yaml`. |
+| Flux Kustomization patches | `.kubernetes/flux/<channel>/patches/canary.yaml` | Pin per-channel overrides (`dev`, `staging`, `prod`); chart path follows the shared chart layout above. |
 | Controller | Cluster add-on (Flagger candidate) | Deployed via Flux; emits transition events |
 | OTEL spans | per ADR-031 | `agc.canary.*` attributes on transitions |
 
@@ -166,5 +170,5 @@ Considered. Both are viable. Decision deferred to platform-engineering choice du
 - [ADR-008 — AKS with Helm, KEDA, and Canary Deployments](adr-008-aks-deployment.md)
 - [ADR-017 — Deployment Strategy: azd Provisioning + Flux CD GitOps](adr-017-deployment-strategy.md)
 - [ADR-021 — APIM + AGC as the Canonical AKS Edge](adr-021-apim-agc-edge.md)
-- [ADR-028 — Continuous Agent Evaluation](adr-028-continuous-agent-evaluation.md)
+- ADR-028 — Continuous Agent Evaluation (in flight on PR #974; link will be added once that PR merges and the ADR file lands at `adrs/adr-028-continuous-agent-evaluation.md`)
 - [ADR-031 — OTEL Span Attributes Contract for Retail Agents](adr-031-otel-span-attributes-contract.md)

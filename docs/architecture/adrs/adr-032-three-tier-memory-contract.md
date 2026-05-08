@@ -1,14 +1,14 @@
 # ADR-032: Three-Tier Memory Contract Pinning (Hot / Warm / Cold)
 
-**Status**: Accepted (Refines ADR-007)
+**Status**: Accepted (Refines ADR-007; supersedes Part 2 "Builder Pattern Configuration" of ADR-007)
 **Date**: 2026-05-08
 **Deciders**: Architecture Team, Ricardo Cataldi
 **Tags**: memory, redis, cosmos-db, blob-storage, contract
-**References**: [ADR-007](adr-007-memory-tiers.md), [ADR-026](adr-026-namespace-isolation-strategy.md), [ADR-031](adr-031-otel-span-attributes-contract.md)
+**References**: [ADR-007](adr-007-memory-tiers.md), [ADR-024](adr-024-agent-communication-policy.md), [ADR-026](adr-026-namespace-isolation-strategy.md), [ADR-031](adr-031-otel-span-attributes-contract.md)
 
 ## Context
 
-ADR-007 established the three-tier memory architecture: Hot (Redis), Warm (Cosmos DB), Cold (Azure Blob). The implementation in `lib/holiday_peak_lib/memory/` is largely in place and used by every agent service via `MemorySettings`. What is still missing is a **pinned contract** — a single, enforceable specification that fixes:
+ADR-007 established the three-tier memory architecture: Hot (Redis), Warm (Cosmos DB), Cold (Azure Blob). The implementation lives at `lib/src/holiday_peak_lib/agents/memory/` (under `agents/`, not at lib root) and is used by every agent service via `MemorySettings`. The pinned API in §3 is the target seam; the implementation refactor PR will lift the module to its target path or keep it at `agents/memory/` and re-export — that placement decision is captured in the refactor PR, not this ADR. What is still missing is a **pinned contract** — a single, enforceable specification that fixes:
 
 - Public API surface (class names, method signatures).
 - Per-tier latency budgets, durability, indexability.
@@ -16,6 +16,10 @@ ADR-007 established the three-tier memory architecture: Hot (Redis), Warm (Cosmo
 - Health-probe contract (read-only, no PII).
 
 Without this, agent authors and integrators drift on what each tier means, when each is read or written, and what survives eviction. R1 (the MAF cutover) re-binds the agent runtime to memory; pinning the contract ahead of R1 means every migrated service inherits the same expectations.
+
+### Relationship to ADR-007
+
+ADR-007 §Part 2 declared protocol classes `HotMemory`, `WarmMemory`, `ColdMemory` and a `MemoryClient` returned by `MemoryBuilder`, with `str` payloads and `Optional[int]` TTL. The pinned surface in this ADR (§Decision 3) supersedes those names with `HotStore`, `WarmStore`, `ColdStore`, and `MemoryFacade`, and tightens types (`bytes` for tier payloads; explicit `partition_key` / `item_id` on Warm reads; `timedelta` for TTL). A one-time refactor PR aligns the implementation under `lib/holiday_peak_lib/memory/` to the pinned surface and ships a deprecation shim that re-exports the legacy names for one minor release. Until the refactor PR merges, the contract test in §Verification runs in advisory mode (logs drift, does not fail) so the supersession does not break existing services.
 
 ## Decision
 
@@ -52,6 +56,7 @@ class HotStore:  # Redis
     async def health(self) -> bool: ...
 
 class WarmStore:  # Cosmos
+    # `partition_key` is the HPK string form, slash-joined: e.g., f"{tenant_id}/{user_id}".
     async def read(self, partition_key: str, item_id: str) -> dict | None: ...
     async def upsert(self, item: dict) -> None: ...
     async def query(self, sql: str, parameters: list[dict] | None = None) -> AsyncIterator[dict]: ...
@@ -90,12 +95,12 @@ Per the workspace's Cosmos DB instructions (loaded into every prompt):
 
 ### 6. Cold-Tier Path Convention
 
-Blob layout pinned: `<tenant>/<bounded-context>/<date>/<artifact-id>`. Lifecycle policy archives blobs older than 30 days to cool / archive tier.
+Blob layout pinned: `<tenant_hash>/<bounded-context>/<date>/<artifact-id>`, where `<tenant_hash>` is `sha256(tenant_id)` truncated to 16 hex chars. Raw tenant identifiers MUST NOT appear in blob paths (path leaks via SAS audits, container listings, and log retention). Lifecycle policy archives blobs older than 30 days to cool / archive tier.
 
 ### 7. Privacy Boundary
 
 - Tracing spans NEVER carry PII (per ADR-031).
-- Warm tier MAY carry PII for permitted purposes (eval, audit), with documented retention.
+- Warm tier MAY carry PII for permitted purposes (eval, audit). Retention is pinned per container in `MemorySettings` (`warm_pii_retention_days`, default 30 days; max 180 days); records older than retention are evicted by Cosmos TTL. "Documented retention" is not optional.
 - Cold tier MAY carry PII when the source of truth requires replay; encrypted at rest by Blob defaults; access audited.
 
 ## Consequences
@@ -141,7 +146,7 @@ Rejected. Pod-local cache loses state on every restart and cannot share across p
 | Component | File / Location | Change |
 |-----------|----------------|--------|
 | ADR | `docs/architecture/adrs/adr-032-three-tier-memory-contract.md` | This file |
-| Public API | `lib/holiday_peak_lib/memory/` | Pin classes / signatures; refactor only if signatures already match |
+| Public API | `lib/src/holiday_peak_lib/agents/memory/` (current location) → re-exported from `lib/src/holiday_peak_lib/memory/` (target) | Pin classes / signatures per §3; refactor PR ships re-exports + deprecation shims for `HotMemory`/`WarmMemory`/`ColdMemory` for one minor release. |
 | Contract test | `lib/tests/test_memory_contract.py` | New — asserts public surface + read-only `health()` |
 | Health endpoint | `apps/<service>/src/.../routes.py` | `/healthz/memory` per service |
 | Helm readiness | `infra/charts/<service>/values.yaml` | `readinessProbe.httpGet.path: /healthz/memory` |

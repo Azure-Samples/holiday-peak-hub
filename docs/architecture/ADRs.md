@@ -16,7 +16,7 @@ This document indexes all architectural decisions for the Holiday Peak Hub accel
 | [ADR-008](adrs/adr-008-aks-deployment.md) | AKS with Helm, KEDA, and Canary Deployments | Accepted | 2024-12 |
 | [ADR-009](adrs/adr-009-acp-catalog-search.md) | ACP Alignment for Ecommerce Catalog Search | Accepted | 2026-01 |
 | [ADR-010](adrs/adr-010-model-routing.md) | SLM-First Model Routing Strategy | Accepted | 2026-01 |
-| [ADR-011](adrs/adr-011-nextjs-app-router.md) | Next.js 15 with App Router for Frontend | Accepted | 2026-01 |
+| [ADR-011](adrs/adr-011-nextjs-app-router.md) | Next.js 15 with App Router for Frontend | Accepted (Revised by ADR-033) | 2026-01 |
 | [ADR-012](adrs/adr-012-atomic-design-system.md) | Atomic Design System for Component Library | Accepted | 2026-01 |
 | [ADR-013](adrs/adr-013-ag-ui-protocol.md) | AG-UI Protocol Integration | Accepted | 2026-01 |
 | [ADR-014](adrs/adr-014-acp-frontend.md) | Agentic Commerce Protocol (ACP) Frontend Integration | Accepted | 2026-01 |
@@ -39,7 +39,7 @@ This document indexes all architectural decisions for the Holiday Peak Hub accel
 | [ADR-032](adrs/adr-032-three-tier-memory-contract.md) | Three-Tier Memory Contract Pinning (Hot / Warm / Cold) | Accepted (Refines ADR-007) | 2026-05 |
 | [ADR-033](adrs/adr-033-ui-modular-monolith-on-swa.md) | UI as a Modular Monolith on Static Web Apps (Path 2) | Accepted | 2026-05 |
 
-> ADR-028 (Continuous Agent Evaluation) is in flight on PR #974; once merged, it will be inserted at its sequential position above.
+> ADR-028 (Continuous Agent Evaluation) is in flight on PR #974; once merged, it will be inserted at its sequential position above. ADRs 029, 030, 031 forward-reference ADR-028 and reference specific eval attribute keys (`eval.score`, `eval.baseline_id`, `baselineSource: continuous-eval`); those keys are subject to ADR-028's final schema and will be reconciled in lock-step on PR #974 merge.
 
 ## How to Use ADRs
 

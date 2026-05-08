@@ -36,7 +36,7 @@ This refines ADR-024 by elevating the A2A row to **enforced**.
 
 - **Header name**: `x-mcp-hop` (lowercase). Optional inbound — absent means `0`.
 - **Type**: integer in `[0, 5]`. Out-of-range returns `400`. Hard cap at `5`; configurable on `FastAPIMCPServer` constructor (`max_hops` parameter).
-- **Propagation**: `FastAPIMCPServer.invoke_tool()` reads inbound, increments by `1` before any outbound MCP call originating from the request's correlation context, restores on exit.
+- **Propagation**: `FastAPIMCPServer.invoke_tool()` reads inbound, increments by `1` before any outbound MCP call originating from the request's correlation context. The hop value is carried in an asyncio `ContextVar`, so concurrent fan-out preserves per-branch values without explicit "restore on exit."
 - **Overflow**: an outbound call from a server already at the cap returns `429` with body `{"error": "mcp.hop_overflow", "hop": 5, "cap": 5}` and emits `mcp.hop_overflow=true` as a span attribute.
 - **Correlation**: hop counter rides with the existing trace context (W3C `traceparent`). The combination `(trace_id, mcp.hop)` is sufficient to reconstruct any agent chain end-to-end.
 
@@ -112,8 +112,8 @@ Rejected. Adds a third RPC style to the platform with no clear benefit over MCP,
 | Component | File / Location | Change |
 |---|---|---|
 | ADR | `docs/architecture/adrs/adr-030-mcp-only-a2a.md` | This file |
-| Framework seam | `lib/holiday_peak_lib/mcp/server.py` | Read/validate/propagate `x-mcp-hop`; emit `mcp.hop` span attribute |
-| Contract test | `lib/tests/test_mcp_hop_counter.py` | New — hop semantics + overflow + malformed |
+| Framework seam | `lib/src/holiday_peak_lib/mcp/server.py` | Add `max_hops: int = 5` to `FastAPIMCPServer.__init__`; read/validate/propagate `x-mcp-hop`; emit `mcp.hop` span attribute. |
+| Contract test | `lib/tests/test_mcp_hop_counter.py` | New — hop semantics (asyncio contextvar propagation, no manual "restore") + overflow + malformed. |
 | CI lint | `scripts/ci/lint_no_a2a_http.py` | New — AST/regex check across `apps/*/src/**` |
 | Allowlists | `apps/<service>/.a2a-allow.txt` | New — empty by default |
 | Framework docs | `lib/README.md` | Document the contract and example usage |

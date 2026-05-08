@@ -4,11 +4,11 @@
 **Date**: 2026-05-08
 **Deciders**: Architecture Team, Ricardo Cataldi
 **Tags**: frontend, deployment, modular-monolith, static-web-apps, decoupling
-**References**: [ADR-011](adr-011-nextjs-app-router.md), [ADR-012](adr-012-atomic-design-system.md), [ADR-016](adr-016-api-client-architecture.md), [ADR-017](adr-017-deployment-strategy.md), [ADR-021](adr-021-apim-agc-edge.md)
+**References**: [ADR-011](adr-011-nextjs-app-router.md), [ADR-012](adr-012-atomic-design-system.md), [ADR-016](adr-016-api-client-architecture.md), [ADR-017](adr-017-deployment-strategy.md), [ADR-021](adr-021-apim-agc-edge.md), [ADR-029](adr-029-agc-weighted-canary-policy.md), [ADR-030](adr-030-mcp-only-a2a.md), [ADR-031](adr-031-otel-span-attributes-contract.md)
 
 ## Context
 
-`apps/ui` (Next.js 16.2 + React 19 + Tailwind 4) deploys inside the same AKS rollout pipeline as the backend services. This couples three things that have no business being coupled:
+`apps/ui` (currently Next.js 16.2 + React 19 + Tailwind 4 in the running app, while ADR-011 still pins "Next.js 15") deploys inside the same AKS rollout pipeline as the backend services. **ADR-011 is revised in lock-step with this ADR**: the version statement in ADR-011 and its index entry move to "Next.js 16 with App Router" in the same PR that lands ADR-033. This couples three things that have no business being coupled:
 
 1. **Release cadence** — every UI tweak waits for the AKS + Flux + Helm cycle.
 2. **Failure blast radius** — a backend rollback affects UI uptime even when the UI didn't change.
@@ -30,6 +30,8 @@ Path 2 was chosen on three rounds of deliberation plus adversarial review. The d
 ## Decision
 
 ### 1. Modular-Monolith Directory Contract
+
+Current `apps/ui/` ships a flat layout (`app/`, `components/`, `lib/`, `slices/`, no `src/` root). The directory contract below is the **target** state; the refactor PR introduces the `src/` root, moves features into `src/features/<context>/`, and migrates ESLint config from the existing `.eslintrc.json` (legacy) to `eslint.config.mjs` (flat config) so the rule snippet below is the live source of truth.
 
 ```
 apps/ui/
@@ -55,7 +57,7 @@ apps/ui/
 └── eslint.config.mjs                 # no-restricted-imports enforces feature isolation
 ```
 
-ESLint rule (mandatory):
+ESLint rule (mandatory; lives in `eslint.config.mjs` after the legacy-to-flat-config migration in §1 preamble):
 
 ```js
 {
@@ -72,19 +74,20 @@ ESLint rule (mandatory):
 }
 ```
 
+Until the flat-config migration ships, the equivalent rule lives in `apps/ui/.eslintrc.json` under `rules['no-restricted-imports']` using the legacy object-array form. Both forms are kept in sync by the refactor PR; only one is active per commit.
+
 A cross-feature import outside `src/shared/` is a defect; the lint rule blocks it at PR time.
 
 ### 2. Static Web Apps Deployment
 
-- New Bicep module under `infra/swa-ui/` (or extension of `infra/main.bicep`) provisioning the SWA resource and bindings.
-- New workflow `.github/workflows/deploy-ui-swa.yml`, path-filtered on `apps/ui/**` and `infra/swa-ui/**`.
+- SWA is **already provisioned** (`.infra/modules/static-web-app/static-web-app.bicep`); the workflow `.github/workflows/deploy-ui-swa.yml` and proxy routes (`apps/ui/app/api/[...path]/route.ts`, `apps/ui/app/agent-api/[...path]/route.ts`) are already in place. This ADR pins the contract for that existing SWA, not its initial provisioning.
 - Preview environments enabled per PR.
 - SWA built-in auth disabled; existing MSAL flow preserved verbatim.
-- Output mode (`static` or `hybrid`) chosen during phase-A inventory based on which Next.js features `apps/ui` actively uses (server actions / RSC require `hybrid`).
+- Output mode is **`standalone`** (SWA hybrid runtime), already enforced by the existing CI guard `scripts/ci/validate_swa_hybrid_contract.py`. `static`-only export is rejected. The earlier "phase-A inventory chooses static or hybrid" framing is superseded.
 
 ### 3. Cutover Mechanism — DNS-Weighted Strangler Fig
 
-DNS weighted records (Azure DNS or Front Door) for the public UI hostname:
+Azure Front Door weighted routing for the public UI hostname (Azure DNS public zones do not support native record-level weighting; Front Door is the chosen weighting layer):
 
 | Step | SWA % | AKS % | Hold | Exit gate |
 |------|-------|-------|------|-----------|
@@ -95,7 +98,9 @@ DNS weighted records (Azure DNS or Front Door) for the public UI hostname:
 | 4 | 100 | 0 | 30 min steady | same |
 | 5 | 100 | 0 (chart deleted) | n/a | post-mortem template completed |
 
-A breach in any step halts the ramp. A breach inside the first 90 s of a step rolls back automatically (DNS weight reverts). DNS TTLs are lowered to 60 s during the ramp and restored after stabilization.
+A breach in any step halts the ramp. A breach inside the first 90 s of a step rolls back automatically (Front Door weight reverts). DNS TTLs are lowered to 60 s during the ramp and restored after stabilization. The exit-gate philosophy and step weights mirror ADR-029 (90-second auto-rollback floor; identical 5/25/50/100 ladder); **hold times are intentionally extended to 24 h per step** (vs ADR-029's 15 min) because UI Core Web Vitals (LCP/INP/CLS) are P75 metrics that require a 24 h baseline window to reach statistical significance. The control plane differs (Front Door for UI vs AGC for backend services), and the hold cadence differs accordingly.
+
+**Prerequisite**: Azure Front Door is not yet provisioned in `.infra/`. A separate Bicep module under `.infra/modules/front-door/` is required before phase C step 1; the cutover ladder cannot begin until that module lands.
 
 ### 4. Hard Sunset
 
@@ -104,7 +109,7 @@ The AKS UI Helm chart is deleted **in the same PR** that ramps to 100 % SWA. No 
 ### 5. Telemetry Parity
 
 - Browser-side OTEL spans tagged with `deploy.target ∈ {aks, swa}` for the duration of the ramp.
-- Mandatory browser-side attributes (mirroring the spirit of ADR-031): `service.name=ui`, `service.version=<git sha>`, `route` (Next.js route), `tenant.id` (when authenticated), `deploy.target`.
+- Mandatory browser-side attributes adopt ADR-031 directly: `service.name=ui`, `service.version=<git sha>`, `tenant.id` (when authenticated). UI-specific additions: `route` (Next.js route) and `deploy.target`. Browser-side cardinality is reviewed under the ADR-031 quarterly cadence; PII filtering follows ADR-031 §3.
 - App Insights workbook updated to filter by `deploy.target`; engineers compare like-for-like.
 - Core Web Vitals collected via App Insights browser SDK.
 - Server actions / RSC spans propagate `traceparent` to backend agent / CRUD calls.
@@ -157,6 +162,8 @@ Rejected. ADR-011 pins Next.js with App Router. Switching frameworks is out of s
 Considered. Container Apps would preserve container-image discipline but lose SWA's preview-per-PR ergonomics and serverless cost profile. Path 2 chooses SWA explicitly for the cadence and cost wins.
 
 ## Implementation
+
+> **Conditional acceptance**: this ADR is Accepted on the contract (§1–§6 above), but the cutover runbook (`docs/ops/runbooks/ui-swa-cutover.md`), the Front Door Bicep module (`.infra/modules/front-door/`), and the App Insights workbook (`docs/ops/workbooks/ui-cwv.json`) are net-new artifacts that MUST land before phase C step 1. Until they exist, phase C is blocked.
 
 | Component | File / Location | Change |
 |-----------|----------------|--------|
