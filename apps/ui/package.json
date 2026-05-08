@@ -1,5 +1,5 @@
 {
-  "name": "d-board",
+  "name": "@hph/ui",
   "version": "2.0.0",
   "scripts": {
     "dev": "next dev",
@@ -47,8 +47,6 @@
     "axios": "^1.15.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
-    "flatted": "^3.4.2",
-    "lodash": "^4.18.1",
     "next": "^16.2.3",
     "nprogress": "^0.2.0",
     "react": "^19.2.5",
@@ -56,11 +54,7 @@
     "react-hook-form": "^7.72.1",
     "react-hotkeys-hook": "^4.6.1",
     "react-icons": "^5.6.0",
-    "react-popper": "^2.3.0",
     "react-redux": "^9.2.0",
-    "react-select": "^5.9.0",
-    "react-star-ratings": "^2.3.0",
-    "react-switch": "^7.0.0",
     "recharts": "^2.15.3"
   },
   "license": "ISC",
