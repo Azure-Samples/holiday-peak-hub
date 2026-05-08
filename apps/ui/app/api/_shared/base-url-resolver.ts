@@ -195,7 +195,17 @@ export function resolveAgentApiBaseUrl(env?: EnvMap): ResolutionResult {
 }
 
 function inferRuntimeKind(env: EnvMap = process.env): RuntimeKind {
-  if (env.NODE_ENV === 'test' || typeof env.JEST_WORKER_ID === 'string') {
+  // Explicit NODE_ENV=test always wins. When NODE_ENV is unset, fall back to
+  // JEST_WORKER_ID detection so jest runs without an explicit NODE_ENV still
+  // resolve to the test-runtime defaults. When NODE_ENV is explicitly
+  // 'development' or 'production', honor that intent so jest tests can
+  // simulate browser/server runtime by setting NODE_ENV before importing the
+  // module under test.
+  const nodeEnv = env.NODE_ENV;
+  if (nodeEnv === 'test') {
+    return 'test';
+  }
+  if (!nodeEnv && typeof env.JEST_WORKER_ID === 'string') {
     return 'test';
   }
 
