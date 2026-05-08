@@ -24,7 +24,7 @@ import BuilderLayout from '@/app/(builder)/layout';
 import BuildersIndexPage from '@/app/(builder)/builders/page';
 import DeployLayout from '@/app/(deploy)/layout';
 import DeployIndexPage from '@/app/(deploy)/deploy/page';
-import HomePage from '@/app/page';
+import { HomeSplitHero } from '@/components/shared/HomeSplitHero';
 
 import { axeAA } from './axeConfig';
 
@@ -32,7 +32,10 @@ expect.extend(toHaveNoViolations);
 
 describe('ui-axe-core — WCAG 2.2 AA gate (ADR-034 §7)', () => {
   it('home audience-router has zero AA violations', async () => {
-    const { container } = render(<HomePage />);
+    // HomePage is async (resolves persona from cookies/searchParams). Axe
+    // exercises the actually-interactive payload, which is HomeSplitHero
+    // — the rest of the home is static wrapper copy.
+    const { container } = render(<HomeSplitHero persona={null} />);
     const results = await axeAA(container);
     expect(results).toHaveNoViolations();
   });
