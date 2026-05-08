@@ -1,11 +1,14 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-export const metadata: Metadata = {
-  title: 'For Builders — Holiday Peak Hub',
+import { buildMetadata } from '@/lib/seo';
+
+export const metadata: Metadata = buildMetadata({
+  section: 'builder',
   description:
     'Architecture, ADRs, patterns, telemetry, and the reference implementation for engineers building on the platform.',
-};
+  path: '/builders',
+});
 
 /**
  * Placeholder hero for `/builders`.

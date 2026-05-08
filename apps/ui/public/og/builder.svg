@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="For Builders — Holiday Peak Hub">
+  <defs>
+    <linearGradient id="bgGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#eff6ff" />
+      <stop offset="100%" stop-color="#dbeafe" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bgGradient)" />
+  <rect x="0" y="0" width="6" height="630" fill="#1d4ed8" />
+  <text x="64" y="120" font-family="ui-monospace, 'JetBrains Mono', 'Fira Code', monospace" font-size="22" font-weight="600" fill="#1e3a8a" letter-spacing="6">FOR BUILDERS</text>
+  <text x="64" y="240" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="84" font-weight="700" fill="#1a1a1a">The architecture,</text>
+  <text x="64" y="340" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="84" font-weight="700" fill="#1a1a1a">the contracts, the receipts.</text>
+  <text x="64" y="430" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="32" font-weight="400" fill="#6b6b6b">ADRs, patterns, telemetry, reference implementation.</text>
+  <text x="64" y="566" font-family="ui-monospace, 'JetBrains Mono', 'Fira Code', monospace" font-size="20" font-weight="500" fill="#1d4ed8">Holiday Peak Hub · Microsoft · Azure-Samples</text>
+</svg>
