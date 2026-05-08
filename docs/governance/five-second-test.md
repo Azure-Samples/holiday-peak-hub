@@ -8,7 +8,7 @@
 ## Purpose
 
 The Holiday Peak Hub home is an **audience router**, not a marketing landing.
-Per [ADR-034](../architecture/adrs/adr-034-information-architecture-audience-segmentation.md)
+Per [ADR-034](../architecture/adrs/adr-034-audience-segmented-ia.md)
 the home page must give a retailer or a builder enough information in five
 seconds to (1) know which lane is for them and (2) describe what the platform
 offers. If the IA fails that test, the audience router has stopped routing.
@@ -125,6 +125,6 @@ The 5-second test gate and the axe gate are independent — both must pass.
 
 ## Related ADRs / docs
 
-- [ADR-034 — Information architecture, audience segmentation](../architecture/adrs/adr-034-information-architecture-audience-segmentation.md)
-- [ADR-035 — UI design system contract](../architecture/adrs/adr-035-ui-design-system-contract.md)
+- [ADR-034 — Information architecture, audience segmentation](../architecture/adrs/adr-034-audience-segmented-ia.md)
+- [ADR-035 — UI design system contract](../architecture/adrs/adr-035-ui-design-system.md)
 - [Frontend governance](frontend-governance.md)
