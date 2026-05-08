@@ -220,95 +220,143 @@ class EnrichmentEngine:
         """Merge image and text enrichment candidates with unified metadata."""
         text_parsed = text_parsed or {}
 
-        image_value = image_parsed.get("value")
-        text_value = text_parsed.get("value")
+        image_metadata = self._candidate_metadata(image_parsed)
+        text_metadata = self._candidate_metadata(text_parsed)
+        source_assets = self._extract_source_assets(image_metadata)
 
-        image_confidence = self.score_confidence(image_parsed)
-        text_confidence = self.score_confidence(text_parsed) if text_parsed else 0.0
-
-        image_metadata = image_parsed.get("metadata") if isinstance(image_parsed, dict) else {}
-        if not isinstance(image_metadata, dict):
-            image_metadata = {}
-        text_metadata = text_parsed.get("metadata") if isinstance(text_parsed, dict) else {}
-        if not isinstance(text_metadata, dict):
-            text_metadata = {}
-
-        image_assets_raw = image_metadata.get("assets")
-        source_assets = [
-            str(asset)
-            for asset in (image_assets_raw if isinstance(image_assets_raw, list) else [])
-            if asset is not None
-        ]
-
-        has_image_value = image_value not in (None, "")
-        has_text_value = text_value not in (None, "")
-
-        if has_image_value and has_text_value:
-            source_type = "hybrid"
-            selected_value = image_value if image_confidence >= text_confidence else text_value
-            confidence = max(image_confidence, text_confidence)
-            reasoning = (
-                f"Hybrid enrichment: image_analysis confidence={image_confidence:.2f}, "
-                f"text_enrichment confidence={text_confidence:.2f}."
-            )
-            evidence = " | ".join(
-                str(part)
-                for part in [image_parsed.get("evidence", ""), text_parsed.get("evidence", "")]
-                if part
-            )
-        elif has_image_value:
-            source_type = "image_analysis"
-            selected_value = image_value
-            confidence = image_confidence
-            reasoning = f"Image analysis selected with confidence={image_confidence:.2f}."
-            evidence = str(image_parsed.get("evidence", ""))
-        elif has_text_value:
-            source_type = "text_enrichment"
-            selected_value = text_value
-            confidence = text_confidence
-            reasoning = f"Text enrichment selected with confidence={text_confidence:.2f}."
-            evidence = str(text_parsed.get("evidence", ""))
-        else:
-            source_type = "text_enrichment" if text_parsed else "image_analysis"
-            selected_value = None
-            confidence = max(image_confidence, text_confidence)
-            reasoning = "No reliable value extracted from available enrichment sources."
-            evidence = (
-                " | ".join(
-                    str(part)
-                    for part in [image_parsed.get("evidence", ""), text_parsed.get("evidence", "")]
-                    if part
-                )
-                or "enrichment unavailable"
-            )
+        selection = self._select_enrichment(
+            image_parsed=image_parsed,
+            text_parsed=text_parsed,
+        )
 
         return {
-            "value": selected_value,
-            "confidence": confidence,
-            "evidence": evidence,
-            "reasoning": reasoning,
-            "source_type": source_type,
+            "value": selection["selected_value"],
+            "confidence": selection["confidence"],
+            "evidence": selection["evidence"],
+            "reasoning": selection["reasoning"],
+            "source_type": selection["source_type"],
             "source_assets": source_assets,
             "original_data": original_data,
-            "enriched_data": {field_name: selected_value},
+            "enriched_data": {field_name: selection["selected_value"]},
             "metadata": {
-                "source_type": source_type,
+                "source_type": selection["source_type"],
                 "image": {
-                    "confidence": image_confidence,
+                    "confidence": selection["image_confidence"],
                     "assets_count": len(source_assets),
                 },
-                "text": {"confidence": text_confidence},
+                "text": {"confidence": selection["text_confidence"]},
                 "sources_used": [
                     source
                     for source, present in (
-                        ("image_analysis", has_image_value),
-                        ("text_enrichment", has_text_value),
+                        ("image_analysis", selection["has_image_value"]),
+                        ("text_enrichment", selection["has_text_value"]),
                     )
                     if present
                 ],
                 "image_metadata": image_metadata,
                 "text_metadata": text_metadata,
             },
+        }
+
+    @staticmethod
+    def _candidate_metadata(parsed: Any) -> dict[str, Any]:
+        metadata = parsed.get("metadata") if isinstance(parsed, dict) else {}
+        return metadata if isinstance(metadata, dict) else {}
+
+    @staticmethod
+    def _extract_source_assets(image_metadata: dict[str, Any]) -> list[str]:
+        raw_assets = image_metadata.get("assets")
+        return [
+            str(asset)
+            for asset in (raw_assets if isinstance(raw_assets, list) else [])
+            if asset is not None
+        ]
+
+    def _select_enrichment(
+        self,
+        *,
+        image_parsed: dict[str, Any],
+        text_parsed: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Pick the winning candidate (image / text / hybrid / none) and build the descriptors."""
+        image_value = image_parsed.get("value")
+        text_value = text_parsed.get("value")
+        image_confidence = self.score_confidence(image_parsed)
+        text_confidence = self.score_confidence(text_parsed) if text_parsed else 0.0
+        has_image_value = image_value not in (None, "")
+        has_text_value = text_value not in (None, "")
+        evidences = (str(image_parsed.get("evidence", "")), str(text_parsed.get("evidence", "")))
+
+        chosen = self._choose_candidate(
+            image_value=image_value,
+            text_value=text_value,
+            image_confidence=image_confidence,
+            text_confidence=text_confidence,
+            has_image_value=has_image_value,
+            has_text_value=has_text_value,
+            evidences=evidences,
+            text_parsed_is_truthy=bool(text_parsed),
+        )
+
+        return {
+            **chosen,
+            "image_confidence": image_confidence,
+            "text_confidence": text_confidence,
+            "has_image_value": has_image_value,
+            "has_text_value": has_text_value,
+        }
+
+    @staticmethod
+    def _choose_candidate(
+        *,
+        image_value: Any,
+        text_value: Any,
+        image_confidence: float,
+        text_confidence: float,
+        has_image_value: bool,
+        has_text_value: bool,
+        evidences: tuple[str, str],
+        text_parsed_is_truthy: bool,
+    ) -> dict[str, Any]:
+        image_evidence, text_evidence = evidences
+        if has_image_value and has_text_value:
+            return {
+                "source_type": "hybrid",
+                "selected_value": (
+                    image_value if image_confidence >= text_confidence else text_value
+                ),
+                "confidence": max(image_confidence, text_confidence),
+                "reasoning": (
+                    f"Hybrid enrichment: image_analysis confidence={image_confidence:.2f}, "
+                    f"text_enrichment confidence={text_confidence:.2f}."
+                ),
+                "evidence": " | ".join(part for part in (image_evidence, text_evidence) if part),
+            }
+        if has_image_value:
+            return {
+                "source_type": "image_analysis",
+                "selected_value": image_value,
+                "confidence": image_confidence,
+                "reasoning": f"Image analysis selected with confidence={image_confidence:.2f}.",
+                "evidence": image_evidence,
+            }
+        if has_text_value:
+            return {
+                "source_type": "text_enrichment",
+                "selected_value": text_value,
+                "confidence": text_confidence,
+                "reasoning": f"Text enrichment selected with confidence={text_confidence:.2f}.",
+                "evidence": text_evidence,
+            }
+        return {
+            "source_type": "text_enrichment" if text_parsed_is_truthy else "image_analysis",
+            "selected_value": None,
+            "confidence": max(image_confidence, text_confidence),
+            "reasoning": "No reliable value extracted from available enrichment sources.",
+            "evidence": (
+                " | ".join(part for part in (image_evidence, text_evidence) if part)
+                or "enrichment unavailable"
+            ),
         }
 
     def build_proposed_attribute(
