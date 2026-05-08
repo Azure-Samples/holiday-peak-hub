@@ -4,11 +4,14 @@ import Link from 'next/link';
 import { HomeSplitHero } from '@/components/shared/HomeSplitHero';
 import { resolvePersonaFromRequest } from '@/lib/persona/resolve';
 
-export const metadata: Metadata = {
-  title: 'Holiday Peak Hub — Intelligent Retail Platform',
+import { buildMetadata } from '@/lib/seo';
+
+export const metadata: Metadata = buildMetadata({
+  section: 'home',
   description:
     'An audience-segmented router. Retailers see business outcomes; builders see architecture and reference implementation. Pick your lane.',
-};
+  path: '/',
+});
 
 type HomePageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;

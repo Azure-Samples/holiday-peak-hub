@@ -1,11 +1,14 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-export const metadata: Metadata = {
-  title: 'Deploy — Holiday Peak Hub',
+import { buildMetadata } from '@/lib/seo';
+
+export const metadata: Metadata = buildMetadata({
+  section: 'deploy',
   description:
     'One-click deployment portal. Pick a scenario, configure, pre-flight, deploy, track, clean up — no GitHub account required.',
-};
+  path: '/deploy',
+});
 
 /**
  * Placeholder hero for `/deploy`.

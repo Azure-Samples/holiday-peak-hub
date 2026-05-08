@@ -1,11 +1,14 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-export const metadata: Metadata = {
-  title: 'For Retailers — Holiday Peak Hub',
+import { buildMetadata } from '@/lib/seo';
+
+export const metadata: Metadata = buildMetadata({
+  section: 'retailer',
   description:
     'Business outcomes, agent catalog, ROI calculator, comparators, and case studies for retail leaders.',
-};
+  path: '/retailers',
+});
 
 /**
  * Placeholder hero for `/retailers`.
