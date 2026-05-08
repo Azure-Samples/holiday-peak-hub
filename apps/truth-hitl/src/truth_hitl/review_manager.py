@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime, timezone
 from typing import Any
 
@@ -223,8 +224,6 @@ class ReviewManager:
         reviewed_by: str | None,
         item: ReviewItem,
     ) -> None:
-        import uuid
-
         self._audit_log.append(
             AuditEvent(
                 event_id=str(uuid.uuid4()),

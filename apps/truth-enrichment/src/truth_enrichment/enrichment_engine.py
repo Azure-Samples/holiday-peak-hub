@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Optional
@@ -172,9 +174,6 @@ class EnrichmentEngine:
         2. Agent-level: {"proposed_attributes": [{"proposed_value": "X", ...}]}
         3. Markdown-wrapped JSON
         """
-        import json
-        import re
-
         if isinstance(content, dict):
             return _normalize_parsed_response(content)
         if not isinstance(content, str):

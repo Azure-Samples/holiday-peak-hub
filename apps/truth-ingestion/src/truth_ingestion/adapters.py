@@ -241,10 +241,12 @@ class TruthStoreAdapter:
         if not self._cosmos_uri:
             return None
         if self._client is None:
-            from azure.cosmos.aio import CosmosClient  # pylint: disable=import-outside-toplevel
-            from azure.identity.aio import (
-                DefaultAzureCredential,  # pylint: disable=import-outside-toplevel
-            )
+            # Lazy imports: avoid pulling azure.cosmos / azure.identity into
+            # the module load path when the in-memory fallback is used (no
+            # COSMOS_ACCOUNT_URI configured), which is the default for tests.
+            # pylint: disable=import-outside-toplevel
+            from azure.cosmos.aio import CosmosClient
+            from azure.identity.aio import DefaultAzureCredential
 
             credential = DefaultAzureCredential()
             self._client = CosmosClient(self._cosmos_uri, credential=credential)
