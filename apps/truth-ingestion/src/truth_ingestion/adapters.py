@@ -33,8 +33,14 @@ from holiday_peak_lib.utils.truth_event_hub import (
 
 
 @dataclass
-class ProductStyle:
-    """Canonical product style record stored in the truth layer."""
+class ProductStyle:  # pylint: disable=too-many-instance-attributes
+    """Canonical product style record stored in the truth layer.
+
+    Fields map 1:1 to the persisted Cosmos document and are constructed by
+    name from PIM payloads; restructuring them via Extract Class or grouping
+    would alter the dataclass init API used by tests/adapters and the
+    ``to_dict()`` schema persisted to the truth store.
+    """
 
     entity_id: str
     name: str
@@ -63,8 +69,14 @@ class ProductStyle:
 
 
 @dataclass
-class ProductVariant:
-    """Canonical product variant record stored in the truth layer."""
+class ProductVariant:  # pylint: disable=too-many-instance-attributes
+    """Canonical product variant record stored in the truth layer.
+
+    Fields map 1:1 to the persisted Cosmos document and are constructed by
+    name from PIM payloads; restructuring them via Extract Class or grouping
+    would alter the dataclass init API used by tests/adapters and the
+    ``to_dict()`` schema persisted to the truth store.
+    """
 
     entity_id: str
     style_id: str
