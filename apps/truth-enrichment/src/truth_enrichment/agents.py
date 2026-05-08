@@ -260,9 +260,39 @@ class TruthEnrichmentAgent(BaseRetailAgent):
         schema: dict[str, Any] | None,
     ) -> list[dict[str, Any]]:
         """Let the model orchestrate which enrichment tools to call per gap."""
+        tool_calls = await self._invoke_orchestration_model(
+            entity_id=entity_id, product=product, gaps=gaps, schema=schema
+        )
+        if tool_calls is None or not tool_calls:
+            return await self._enrich_gaps(entity_id, product, gaps, schema)
+
+        proposed_list = await self._dispatch_tool_calls(
+            tool_calls=tool_calls,
+            entity_id=entity_id,
+            product=product,
+            gaps=gaps,
+            schema=schema,
+        )
+
+        return await self._fill_remaining_gaps(
+            entity_id=entity_id,
+            product=product,
+            gaps=gaps,
+            schema=schema,
+            proposed_list=proposed_list,
+        )
+
+    async def _invoke_orchestration_model(
+        self,
+        *,
+        entity_id: str,
+        product: dict[str, Any],
+        gaps: list[str],
+        schema: dict[str, Any] | None,
+    ) -> list[dict[str, Any]] | None:
+        """Call the orchestration model and return its tool_calls list, or None on failure."""
         tools = self._build_enrichment_tools()
         messages = self._build_orchestration_messages(entity_id, product, gaps, schema)
-
         try:
             result = await self.invoke_model(
                 request={
@@ -277,22 +307,22 @@ class TruthEnrichmentAgent(BaseRetailAgent):
         # Model orchestration is opportunistic: any failure (model error,
         # network, schema) falls back to the deterministic sequential path.
         except Exception:  # noqa: BLE001
-            return await self._enrich_gaps(entity_id, product, gaps, schema)
+            return None
+        return result.get("tool_calls", []) if isinstance(result, dict) else []
 
-        tool_calls = result.get("tool_calls", []) if isinstance(result, dict) else []
-        if not tool_calls:
-            return await self._enrich_gaps(entity_id, product, gaps, schema)
-
+    async def _dispatch_tool_calls(
+        self,
+        *,
+        tool_calls: list[dict[str, Any]],
+        entity_id: str,
+        product: dict[str, Any],
+        gaps: list[str],
+        schema: dict[str, Any] | None,
+    ) -> list[dict[str, Any]]:
         proposed_list: list[dict[str, Any]] = []
         for tool_call in tool_calls:
             tool_name = tool_call.get("name") or tool_call.get("function", {}).get("name", "")
-            tool_args = tool_call.get("arguments", {})
-            if isinstance(tool_args, str):
-                try:
-                    tool_args = _json_mod.loads(tool_args)
-                except (ValueError, TypeError):
-                    tool_args = {}
-
+            tool_args = _coerce_tool_args(tool_call.get("arguments", {}))
             proposed = await self._execute_enrichment_tool(
                 tool_name=tool_name,
                 entity_id=entity_id,
@@ -301,21 +331,29 @@ class TruthEnrichmentAgent(BaseRetailAgent):
                 schema=schema,
                 tool_args=tool_args,
             )
-            if proposed is not None:
-                if isinstance(proposed, list):
-                    proposed_list.extend(proposed)
-                else:
-                    proposed_list.append(proposed)
+            if proposed is None:
+                continue
+            if isinstance(proposed, list):
+                proposed_list.extend(proposed)
+            else:
+                proposed_list.append(proposed)
+        return proposed_list
 
+    async def _fill_remaining_gaps(
+        self,
+        *,
+        entity_id: str,
+        product: dict[str, Any],
+        gaps: list[str],
+        schema: dict[str, Any] | None,
+        proposed_list: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
         addressed_fields = {
             p["field_name"] for p in proposed_list if isinstance(p, dict) and "field_name" in p
         }
-        remaining = [g for g in gaps if g not in addressed_fields]
-        for field_name in remaining:
+        for field_name in (g for g in gaps if g not in addressed_fields):
             field_def = _field_definition_for_name(schema, field_name)
-            proposed = await self.enrich_field(entity_id, field_name, product, field_def)
-            proposed_list.append(proposed)
-
+            proposed_list.append(await self.enrich_field(entity_id, field_name, product, field_def))
         return proposed_list
 
     def _build_enrichment_tools(self) -> dict[str, Any]:
@@ -575,6 +613,19 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
     mcp.add_tool("/enrich/status", get_enrichment_status)
 
 
+def _coerce_tool_args(raw: Any) -> dict[str, Any]:
+    """Normalise the orchestration model's tool_call.arguments into a dict."""
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str):
+        try:
+            parsed = _json_mod.loads(raw)
+        except (ValueError, TypeError):
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+    return {}
+
+
 def _detect_gaps(product: dict[str, Any], schema: dict[str, Any] | None) -> list[str]:
     """Return field names from the full schema that are missing from the product."""
     if schema is None:
@@ -592,6 +643,14 @@ def _detect_gaps(product: dict[str, Any], schema: dict[str, Any] | None) -> list
 
 
 def _iter_schema_field_names(schema: dict[str, Any]) -> list[str]:
+    names: list[str] = []
+    names.extend(_collect_simple_field_lists(schema))
+    names.extend(_collect_fields_section(schema.get("fields", {})))
+    names.extend(_collect_attribute_type_names(schema.get("attribute_types", {})))
+    return names
+
+
+def _collect_simple_field_lists(schema: dict[str, Any]) -> list[str]:
     keys_to_expand = (
         "required_fields",
         "optional_fields",
@@ -605,30 +664,26 @@ def _iter_schema_field_names(schema: dict[str, Any]) -> list[str]:
         value = schema.get(key, [])
         if not isinstance(value, list):
             continue
-        for field_name in value:
-            if isinstance(field_name, str):
-                names.append(field_name)
-
-    fields = schema.get("fields", {})
-    if isinstance(fields, list):
-        for field in fields:
-            if not isinstance(field, dict):
-                continue
-            field_name = field.get("name")
-            if isinstance(field_name, str):
-                names.append(field_name)
-    elif isinstance(fields, dict):
-        for field_name in fields:
-            if isinstance(field_name, str):
-                names.append(field_name)
-
-    attribute_types = schema.get("attribute_types", {})
-    if isinstance(attribute_types, dict):
-        for field_name in attribute_types:
-            if isinstance(field_name, str):
-                names.append(field_name)
-
+        names.extend(field_name for field_name in value if isinstance(field_name, str))
     return names
+
+
+def _collect_fields_section(fields: Any) -> list[str]:
+    if isinstance(fields, list):
+        return [
+            field.get("name")
+            for field in fields
+            if isinstance(field, dict) and isinstance(field.get("name"), str)
+        ]
+    if isinstance(fields, dict):
+        return [field_name for field_name in fields if isinstance(field_name, str)]
+    return []
+
+
+def _collect_attribute_type_names(attribute_types: Any) -> list[str]:
+    if not isinstance(attribute_types, dict):
+        return []
+    return [field_name for field_name in attribute_types if isinstance(field_name, str)]
 
 
 def _field_definition_for_name(
