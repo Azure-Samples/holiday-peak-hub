@@ -85,7 +85,7 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
             "record": record,
         }
 
-    async def list_sources(payload: dict[str, Any]) -> dict[str, Any]:
+    async def list_sources(_payload: dict[str, Any]) -> dict[str, Any]:
         """MCP tool: list configured PIM/DAM source connectivity."""
         return {
             "pim_configured": bool(adapters.pim._base_url),

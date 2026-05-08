@@ -254,7 +254,7 @@ class TruthEnrichmentAgent(BaseRetailAgent):
         schema: dict[str, Any] | None,
     ) -> list[dict[str, Any]]:
         """Let the model orchestrate which enrichment tools to call per gap."""
-        tools = self._build_enrichment_tools(gaps, schema)
+        tools = self._build_enrichment_tools()
         messages = self._build_orchestration_messages(entity_id, product, gaps, schema)
 
         try:
@@ -304,11 +304,7 @@ class TruthEnrichmentAgent(BaseRetailAgent):
 
         return proposed_list
 
-    def _build_enrichment_tools(
-        self,
-        gaps: list[str],
-        schema: dict[str, Any] | None,
-    ) -> dict[str, Any]:
+    def _build_enrichment_tools(self) -> dict[str, Any]:
         """Build tool definitions for the orchestration model."""
         return {
             "enrich_field_with_text": {
