@@ -140,6 +140,24 @@ export function AppSearchBox({
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
 
+  // Seed the query from the `?q=` URL parameter (Issue #1022 cross-link
+  // contract). When the mkdocs Material search results page links to
+  // `/?q=<term>`, the home AppSearchBox should pre-populate so the user
+  // continues their search seamlessly. Only runs once on mount; we never
+  // overwrite user typing.
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    const incoming = params.get('q');
+    if (incoming && incoming.length > 0) {
+      setQuery(incoming);
+      setOpen(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount only
+  }, []);
+
   const allowedAudiences = AUDIENCE_FILTER[audience];
 
   const hits: SearchHit[] = useMemo(
