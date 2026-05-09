@@ -75,6 +75,9 @@ jobs:
       - name: Validate canonical event schema contracts
         run: |
           python scripts/ops/check_event_schema_contracts.py
+      - name: Validate enablement asset contract (front-matter + currency)
+        run: |
+          python scripts/ops/build_enablement_index.py --check
       - name: Check prompt and agent governance consistency
         run: |
           python scripts/ops/check_prompt_agent_consistency.py --report-file governance-drift-report.md

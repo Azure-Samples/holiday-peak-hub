@@ -500,6 +500,10 @@ htmlcov/
 mkdocs/site/
 # Generated mkdocs sub-site mounted under SWA at /docs/* (Issue #1021 / Epic #1026).
 apps/ui/public/docs/
+# Generated enablement asset index, built by scripts/ops/build_enablement_index.py
+# at deploy time (Issue #1052 / Epic #1053). The Markdown sources under
+# docs/enablement/ are the truth; the JSON artifact is rebuilt from them.
+apps/ui/public/enablement-index.json
 
 # Archive files
 *.zip

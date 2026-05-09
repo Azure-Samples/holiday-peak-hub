@@ -76,6 +76,9 @@ jobs:
       - name: Run app tests
         run: |
           pytest apps/*/tests --ignore=apps/ui/tests --cov=apps --cov-report=xml:coverage-apps.xml --cov-fail-under=60 --junitxml=test-results-apps.xml
+      - name: Run scripts/ops tests
+        run: |
+          pytest tests/ops --maxfail=1 --junitxml=test-results-ops.xml
       - name: Run e2e tests
         run: |
           pytest tests/e2e -m e2e --maxfail=1
@@ -90,6 +93,7 @@ jobs:
           path: |
             test-results-lib.xml
             test-results-apps.xml
+            test-results-ops.xml
             test-results-self-healing.xml
             coverage-lib.xml
             coverage-apps.xml
