@@ -12,6 +12,7 @@ use_directory_urls: true
 
 theme:
   name: material
+  custom_dir: overrides
   palette:
     - scheme: default
       primary: deep purple

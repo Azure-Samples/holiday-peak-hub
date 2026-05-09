@@ -9,18 +9,27 @@ import { SectionShell } from '../shared/SectionShell';
  *   - `laneSwitch`  : the lane-switch persona toggle (filled by the
  *                     audience-IA persona switcher; never rendered on `/`
  *                     for the audience-router itself)
+ *   - `appSearch`   : the in-app search box (Issue #1022). Rendered in the
+ *                     header so the home page is searchable, with the same
+ *                     cross-link contract to the mkdocs Material search.
  *
- * Adding a fifth shell variant requires amending ADR-034.
+ * Adding a sixth shell variant requires amending ADR-034.
  */
 export type HomeShellProps = {
   children: ReactNode;
   breadcrumb?: ReactNode;
   laneSwitch?: ReactNode;
+  appSearch?: ReactNode;
 };
 
-export function HomeShell({ children, breadcrumb, laneSwitch }: HomeShellProps): ReactElement {
+export function HomeShell({ children, breadcrumb, laneSwitch, appSearch }: HomeShellProps): ReactElement {
   return (
-    <SectionShell variant="home" breadcrumb={breadcrumb} laneSwitch={laneSwitch}>
+    <SectionShell
+      variant="home"
+      breadcrumb={breadcrumb}
+      laneSwitch={laneSwitch}
+      appSearch={appSearch}
+    >
       {children}
     </SectionShell>
   );
