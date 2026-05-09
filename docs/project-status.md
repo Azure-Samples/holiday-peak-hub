@@ -1,8 +1,42 @@
 # Project Status & Issue Prioritization
 
-> Generated: 2026-04-19 | Version: main (post PR #859) | Branch: `main`
+> Generated: 2026-04-19 | Last updated: 2026-05-09 | Branch: `main`
 
-## Current Main Snapshot (2026-04-19)
+## Current Main Snapshot (2026-05-09)
+
+### Audience-IA cutover wave (April–May 2026)
+
+A large block of the audience-segmented IA, design-system cleanup, and
+deploy-portal preview work landed on `main` in this wave. Each row is a
+merged squash commit on `main`.
+
+| PR | Epic / Issue | Scope |
+|----|--------------|-------|
+| #1075 | #1060 | A11y + performance quality gates: bundle-budget gate (`apps/ui/budgets.json`, `scripts/check-bundle-budgets.mjs`), Web Vitals reporter wiring, Lighthouse CI workflow, ESLint `outline-none` rules, deletion of legacy `HomeSplitHero`. |
+| #1076 | #1046 | Retailer pages: `/retailers/{value,agents,roi,comparators,case-studies}` with `ROICalculator`, `AgentCatalog`, `ComparatorMatrix`, `CaseStudyEmptyState` molecules. ROI methodology pinned in `docs/methodology/retailer-roi.md` (75% buyer-time savings, 22% dispute reduction, ±40% CI band). |
+| #1077 | #1053 | Builder pages: `/builders/{architecture,adrs,patterns,telemetry,enablement}` with `RegistryTable` + `TelemetryEmbed` molecules. ADR + architecture diagram registry generators (`scripts/ops/build_adr_registry.py`, `scripts/ops/build_architecture_registry.py`). Server-side enablement gate (`apps/ui/lib/enablement/gate.ts`) + currency contract (`docs/governance/enablement-currency-contract.md`). |
+| #1078 | #1039 | Deploy-portal preview: `/deploy/{catalog,configure,preflight,track/[id]}` + `/retailers/security`. Bicep skeleton (`infra/deploy-portal/`). Rate-limit + log-scrub libraries (`apps/ui/lib/deploy/rateLimits.ts`, `apps/ui/lib/deploy/logScrub.ts`). OBO contract (`docs/security/deploy-portal-obo.md`) + cleanup contract (`docs/governance/deploy-portal-cleanup-contract.md`). |
+| #1079 | #1018 #1021 #1023 #1024 #1025 | mkdocs at `/docs/*` on SWA: workflow integration, `mkdocs/requirements.txt`, `staticwebapp.config.json` route block, `ReadTheDocsCta` + `TryThisInTheAppCta` molecules, segmented sitemap deep-page expansion (18 URLs). |
+
+### Epic state matrix (2026-05-09)
+
+| Epic | Title | State | Notes |
+|------|-------|-------|-------|
+| #1014 | Audience-router foundation (CODEOWNERS, tokens, route groups) | ✅ Closed | Landed in earlier wave. |
+| #1020 | Audience-segmented IA | ✅ Effective closure | Route groups (#1015), dual tokens (#1016), `LaneSwitch` (#1017), per-section SEO + sitemap (#1018), CODEOWNERS 5-second-test (#1019), axe-core CI all in `main`. |
+| #1026 | mkdocs-as-/docs sub-path | 🟡 v1 in PR #1079 | #1021 #1023 #1024 #1025 shipped non-strict; #1022 Pagefind index + `--strict` flip deferred to follow-up. |
+| #1039 | Deploy-portal one-click preview | 🟡 v1 in PR #1078 | Sub-issues #1027–#1038 scaffolded; real ARM kickoff + SignalR client + production GA gated on third-party / Microsoft Red Team pen-test (#1027). |
+| #1046 | Retailer pages | ✅ v1 in PR #1076 | #1040–#1045 shipped. |
+| #1053 | Builder pages | ✅ v1 in PR #1077 | #1047–#1052 shipped. |
+| #1060 | A11y + perf quality gates | ✅ Closed (#1075) | Bundle-budget advisory at v1; flip strict via `vars.MKDOCS_STRICT_BUILD`-style toggle once dependency-trim follow-up lands. |
+| #1061 | UI design-system cleanup + roll-forward | ✅ Effective closure | F1–F6 (#1055–#1060) all merged; ADR-035 in place. |
+
+### Tracking-only epics (out of session)
+
+| Epic | Title | State | Notes |
+|------|-------|-------|-------|
+| #990 | R1 — MAF backend cutover | 🟡 In flight | Catalog-search strict-4s pipeline (PR #859) + FoundryAgentInvoker (PR #802) + agent-framework 1.0.1 GA upgrade landed earlier. Remaining: CRM, e-commerce, inventory, logistics, product-management, search-enrichment, truth services migration. Tracked under #990. |
+| #1008 | R2 — UI decoupling onto Static Web Apps | 🟡 In flight | `apps/ui/staticwebapp.config.json` exists; `.github/workflows/deploy-ui-swa.yml` exists; SWA-specific behaviour (route block, navigation fallback, mkdocs sub-path) shipped in PR #1079. Code cutover stages remain. |
 
 ### Recently Merged (April 2026)
 
