@@ -2,7 +2,6 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 
 import HomePage from '../../app/page';
-import { HomeSplitHero } from '../../components/shared/HomeSplitHero';
 import { CategoryPageClient } from '../../app/category/CategoryPageClient';
 import { ProductPageClient } from '../../app/product/ProductPageClient';
 import { ScenarioDetailPage } from '../../app/scenarios/[id]/ScenarioDetailPage';
@@ -596,14 +595,8 @@ describe('Page rendering smoke tests', () => {
   });
 
   it('renders the home page', () => {
-    // HomePage is an async server component that reads cookies via
-    // next/headers; we cover its persona-aware client behavior by rendering
-    // HomeSplitHero directly. The home page itself is covered by `yarn build`
-    // (prerender + static analysis) and the LaneSwitch integration test.
-    // Static reference to the server component for type-checking only.
-    void HomePage;
-
-    render(<HomeSplitHero persona={null} />);
+    // HomePage is a sync server component (post #1059). Render it directly.
+    render(<HomePage />);
     // Per ADR-034 §1, the home is an audience router with two equally-weighted
     // CTAs. No carousel, no autoplay video, no scroll-jacking.
     expect(

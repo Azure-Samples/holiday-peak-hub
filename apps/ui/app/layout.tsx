@@ -1,6 +1,7 @@
 import {ReactNode} from 'react'
 import {Metadata} from 'next'
 import Providers from './providers'
+import {WebVitalsReporter} from './web-vitals'
 
 import './globals.css'
 import '@/css/main.css'
@@ -36,6 +37,7 @@ export default function RootLayout({
         <meta name="color-scheme" content="light dark" />
       </head>
       <body className="min-h-full font-sans text-sm antialiased disable-scrollbars bg-[var(--hp-bg)] text-[var(--hp-text)] transition-colors duration-200">
+        <WebVitalsReporter />
         <Providers>
           {children}
         </Providers>
