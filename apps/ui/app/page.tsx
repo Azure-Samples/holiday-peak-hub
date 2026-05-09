@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 
+import { AppSearchBox } from '@/components/molecules/AppSearchBox';
 import { CallToAction } from '@/components/molecules/CallToAction';
 import { Hero } from '@/components/molecules/Hero';
 import { ValuePropGrid } from '@/components/molecules/ValuePropGrid';
@@ -28,7 +29,7 @@ export const metadata: Metadata = buildMetadata({
  */
 export default function HomePage() {
   return (
-    <HomeShell>
+    <HomeShell appSearch={<AppSearchBox audience="home" />}>
       <Hero
         kind="audience-router"
         headline="Intelligent retail, built on Azure's agentic platform."

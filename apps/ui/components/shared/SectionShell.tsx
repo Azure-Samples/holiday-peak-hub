@@ -12,6 +12,12 @@ type SectionShellProps = {
   breadcrumb?: ReactNode;
   /** Optional lane-switch slot. Used by the audience-IA persona switcher. */
   laneSwitch?: ReactNode;
+  /**
+   * Optional app-search slot (Issue #1022). Renders inside the header so
+   * every audience-IA shell exposes the lightweight in-app search box, with
+   * a documented cross-link to the mkdocs Material search.
+   */
+  appSearch?: ReactNode;
 };
 
 const VARIANT_LABEL: Record<SectionVariant, string> = {
@@ -54,6 +60,7 @@ export function SectionShell({
   children,
   breadcrumb,
   laneSwitch,
+  appSearch,
 }: SectionShellProps) {
   const audience = VARIANT_AUDIENCE[variant];
   return (
@@ -63,7 +70,7 @@ export function SectionShell({
       className={`audience-${audience} flex min-h-screen flex-col`}
     >
       <header className="border-b border-[var(--hp-border,#e5e7eb)] bg-white">
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-4">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-6 py-4">
           <Link
             href="/"
             className="flex items-baseline gap-2 text-base font-semibold text-[var(--hp-text,#111827)] hover:opacity-80"
@@ -76,8 +83,24 @@ export function SectionShell({
               {VARIANT_LABEL[variant]}
             </span>
           </Link>
+          {appSearch ? (
+            <div
+              className="hidden flex-1 justify-center md:flex"
+              data-section-slot="app-search"
+            >
+              {appSearch}
+            </div>
+          ) : null}
           {laneSwitch ? <div className="ml-auto">{laneSwitch}</div> : null}
         </div>
+        {appSearch ? (
+          <div
+            className="mx-auto flex w-full max-w-7xl px-6 pb-3 md:hidden"
+            data-section-slot="app-search-mobile"
+          >
+            {appSearch}
+          </div>
+        ) : null}
         {breadcrumb ? (
           <div className="mx-auto w-full max-w-7xl px-6 pb-3 text-sm text-[var(--hp-muted,#6b7280)]">
             {breadcrumb}
