@@ -3,3 +3,14 @@ kind: Kustomization
 
 resources:
   - ../crud-service/all.yaml
+
+  # Phase 2 finalization (Pattern A): the CRUD service is also published as a
+  # Flux HelmRelease at .kubernetes/releases/crud/crud-service.yaml.
+  # helm-controller renders the chart in-cluster on every reconciliation and
+  # adopts the existing Deployment/Service/HTTPRoute via matching labels.
+  # The legacy `../crud-service/all.yaml` reference above is kept temporarily
+  # to mirror the rendered/agents transitional layout; both layers converge
+  # on identical objects, so Helm performs a no-op adopt on first install.
+  # Cleanup of the legacy reference + the rendered/ tree is tracked as a
+  # follow-up to ADR-017 Phase 2b (image automation).
+  - ../../releases/crud
