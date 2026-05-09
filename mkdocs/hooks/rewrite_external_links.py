@@ -67,11 +67,14 @@ _REPO_BLOB_BASE = (
 
 # Markdown link regex: capture [label](target) where target has no `://`.
 # The label permits one level of nested square brackets (Next.js dynamic
-# segments like `[id]` inside backtick spans). The target permits one
-# level of balanced parens (Next.js route groups like `(deploy)`).
-# Handles optional title suffix `[label](target "title")`.
+# segments like `[id]` inside backtick spans) — but the "plain" branch
+# excludes both `[` and `]` so the `\[…\]` alternative is deterministic
+# and cannot trigger exponential backtracking (CodeQL py/redos).
+# The target permits one level of balanced parens (Next.js route groups
+# like `(deploy)`); the plain branch excludes both `(` and `)` for the
+# same reason. Handles optional title suffix `[label](target "title")`.
 _MD_LINK = re.compile(
-    r"(?<!!)\[(?P<label>(?:\[[^\]]*\]|[^\]])*)\]\("
+    r"(?<!!)\[(?P<label>(?:\[[^\]]*\]|[^\[\]])*)\]\("
     r"(?P<target>(?:\([^()\s]*\)|[^()\s])+)"
     r"(?P<suffix>(?:\s+\"[^\"]*\")?)\)",
 )

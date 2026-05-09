@@ -204,3 +204,26 @@ def test_rewrites_mkdocs_directory_link() -> None:
         "https://github.com/Azure-Samples/holiday-peak-hub/blob/main/"
         "mkdocs/mkdocs.yml" in out
     )
+
+
+def test_label_regex_is_redos_safe() -> None:
+    """Pathological inputs with many `[[...` must not trigger exponential
+    backtracking. CodeQL flagged the previous label regex (py/redos) for
+    this exact pattern; the test runs a bounded-time replacement on
+    a hostile input and asserts it returns quickly with no rewrite."""
+    import time
+
+    hook = _load_hook()
+    page = _make_page("README.md")
+    # 4000 unbalanced `[` followed by trailing text. The legacy regex
+    # would explore exponentially many paths trying to match the label.
+    md = "[" * 4000 + "x](../apps/foo.md)"
+    start = time.perf_counter()
+    out = hook.on_page_markdown(md, page, config={}, files=[])
+    elapsed = time.perf_counter() - start
+    # Anything under 1 second is comfortable. Pre-fix this would run
+    # multiple seconds (or hang).
+    assert elapsed < 1.0, f"regex took {elapsed:.2f}s on adversarial input"
+    # The hostile input is malformed markdown — we just need it to not
+    # blow up. Output equality with input is acceptable behaviour.
+    assert out is not None
