@@ -1,0 +1,22 @@
+graph TB
+    subgraph Actors
+        Marketer((Marketing Manager))
+        Agent((Service Agent))
+    end
+    
+    subgraph "CRM Use Cases"
+        UC1[Aggregate Customer Profiles]
+        UC2[Segment Customers]
+        UC3[Generate Campaign Intelligence]
+        UC4[Provide Support Assistance]
+    end
+    
+    Marketer -->|requests| UC1
+    Marketer -->|creates| UC2
+    Marketer -->|reviews| UC3
+    Agent -->|uses| UC4
+    
+    UC1 -.->|includes| FetchHistory[Pull Order History]
+    UC2 -.->|includes| RunMLModel[Apply Clustering]
+    UC3 -.->|includes| Forecast[Predict Campaign ROI]
+    UC4 -.->|includes| SearchKB[Query Knowledge Base]

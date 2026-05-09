@@ -1,0 +1,18 @@
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
+graph LR
+    CRUD["CRUD Service"]
+    EH["Event Hubs"]
+
+    subgraph CRM["CRM Domain (holiday-peak-agents)"]
+        PA["👤 Profile Aggregation<br/><i>360° customer view<br/>Purchase history synthesis</i>"]
+        SP["🎯 Segmentation &<br/>Personalization<br/><i>Dynamic cohorts<br/>Behavioral clustering</i>"]
+        CAM["📣 Campaign Intelligence<br/><i>Channel optimization<br/>ROI prediction</i>"]
+        SA["🎧 Support Assistance<br/><i>Ticket classification<br/>Resolution suggestions</i>"]
+    end
+
+    CRUD -->|user.updated<br/>order.completed| EH
+    EH --> PA & SP
+    PA -->|MCP: get_profile| SP
+    SP -->|MCP: get_segments| CAM
+    CRUD <-->|sync| SA
+    SA -->|MCP: get_profile_context| PA

@@ -1,0 +1,87 @@
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
+graph TB
+    subgraph SWA["Azure Static Web Apps"]
+        UI["Next.js 15 UI<br/><i>TypeScript / Tailwind</i>"]
+    end
+
+    subgraph APIM["Azure API Management"]
+        GW["API Gateway<br/><i>JWT auth, rate limiting,<br/>AI policies</i>"]
+    end
+
+    subgraph AKS["Azure Kubernetes Service"]
+        subgraph CrudNS["namespace: holiday-peak-crud"]
+            CRUD["crud-service<br/><i>FastAPI / PostgreSQL</i>"]
+        end
+
+        subgraph AgentsNS["namespace: holiday-peak-agents"]
+            subgraph EcomGrp["eCommerce Domain"]
+                CS["catalog-search"]
+                PDE["product-detail-enrichment"]
+                CI["cart-intelligence"]
+                CKS["checkout-support"]
+                OS["order-status"]
+            end
+
+            subgraph CrmGrp["CRM Domain"]
+                PA["profile-aggregation"]
+                SP["segmentation-personalization"]
+                CAM["campaign-intelligence"]
+                SA["support-assistance"]
+            end
+
+            subgraph InvGrp["Inventory Domain"]
+                AT["alerts-triggers"]
+                HC["health-check"]
+                JIT["jit-replenishment"]
+                RV["reservation-validation"]
+            end
+
+            subgraph LogGrp["Logistics Domain"]
+                CSel["carrier-selection"]
+                ETA["eta-computation"]
+                RS["returns-support"]
+                RID["route-issue-detection"]
+            end
+
+            subgraph PmGrp["Product Management Domain"]
+                ACP["acp-transformation"]
+                ASO["assortment-optimization"]
+                CSV["consistency-validation"]
+                NC["normalization-classification"]
+            end
+
+            subgraph SearchGrp["Search Domain"]
+                SEA["search-enrichment"]
+            end
+
+            subgraph TruthGrp["Truth Layer Domain"]
+                TI["truth-ingestion"]
+                TE["truth-enrichment"]
+                TH["truth-hitl"]
+                TX["truth-export"]
+            end
+        end
+    end
+
+    subgraph Data["Data & Messaging"]
+        PG["PostgreSQL<br/><i>Transactional</i>"]
+        Cosmos["Cosmos DB<br/><i>Warm memory</i>"]
+        Redis["Redis Cache<br/><i>Hot memory</i>"]
+        Blob["Blob Storage<br/><i>Cold memory</i>"]
+        EH["Event Hubs<br/><i>5 topics</i>"]
+    end
+
+    subgraph AI["AI & Search"]
+        Foundry["Azure AI Foundry<br/><i>SLM + LLM</i>"]
+        AIS["Azure AI Search<br/><i>Vector + hybrid</i>"]
+    end
+
+    UI --> GW
+    GW --> CRUD
+    GW --> CS
+    CRUD --> PG
+    CRUD --> EH
+    EH --> EcomNS & CrmNS & InvNS & LogNS & PmNS & SearchNS & TruthNS
+    EcomNS & CrmNS & InvNS & LogNS & PmNS & SearchNS & TruthNS --> Redis & Cosmos & Blob
+    EcomNS & CrmNS & InvNS & LogNS & PmNS & SearchNS & TruthNS --> Foundry
+    CS & SEA --> AIS

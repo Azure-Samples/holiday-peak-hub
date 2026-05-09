@@ -1,0 +1,46 @@
+%%{init: {'theme':'base', 'themeVariables': {
+  'primaryColor':'#FFB3BA',
+  'primaryTextColor':'#000',
+  'primaryBorderColor':'#FF8B94',
+  'lineColor':'#BAE1FF',
+  'secondaryColor':'#BAE1FF',
+  'tertiaryColor':'#FFFFFF'
+}}}%%
+graph TB
+    subgraph "26 Agent Services"
+        S1["ecommerce-catalog-search"]
+        S2["crm-campaign-intelligence"]
+        S3["truth-ingestion"]
+        SN["... (23 more)"]
+    end
+
+    subgraph "holiday-peak-lib"
+        BA["BaseRetailAgent"]
+        AB["AgentBuilder"]
+        FAI["FoundryAgentInvoker"]
+        MT["ModelTarget"]
+        GR["Guardrails"]
+        MEM["MemoryClient"]
+        MCP["FastAPIMCPServer"]
+    end
+
+    subgraph "Microsoft Agent Framework"
+        MAF_BA["BaseAgent"]
+        MAF_FA["FoundryAgent"]
+        MAF_MSG["Message Protocol"]
+    end
+
+    subgraph "Azure AI Foundry"
+        PROJ["AIProjectClient"]
+        AGENT_FAST["Fast Agent (SLM)"]
+        AGENT_RICH["Rich Agent (LLM)"]
+    end
+
+    S1 & S2 & S3 & SN --> BA
+    BA -->|extends| MAF_BA
+    BA --> AB
+    AB --> FAI
+    FAI --> MAF_FA
+    MAF_FA --> PROJ
+    PROJ --> AGENT_FAST & AGENT_RICH
+    AB --> GR & MEM & MCP

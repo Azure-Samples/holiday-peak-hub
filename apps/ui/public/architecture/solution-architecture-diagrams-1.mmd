@@ -1,0 +1,32 @@
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
+graph TB
+    Customer["👤 Customer<br/>(Browser / Mobile)"]
+    Staff["👤 Staff<br/>(Admin Dashboard)"]
+    PIM["📦 External PIM<br/>(Akeneo / Salsify)"]
+    DAM["🖼️ External DAM<br/>(Cloudinary)"]
+    Carrier["🚛 Carrier APIs<br/>(FedEx / UPS / DHL)"]
+    Payment["💳 Payment Gateway<br/>(Stripe)"]
+
+    subgraph HPH["Holiday Peak Hub Platform"]
+        UI["Next.js Frontend"]
+        APIM["Azure API Management"]
+        CRUD["CRUD Service"]
+        Agents["26 Agent Services<br/>(7 Domains)"]
+        EH["Azure Event Hubs"]
+        Memory["Three-Tier Memory<br/>(Redis / Cosmos / Blob)"]
+        Foundry["Azure AI Foundry<br/>(GPT-5 / GPT-5-nano)"]
+        Search["Azure AI Search"]
+    end
+
+    Customer --> UI
+    Staff --> UI
+    UI --> APIM --> CRUD
+    APIM --> Agents
+    CRUD --> EH --> Agents
+    Agents --> Memory
+    Agents --> Foundry
+    Agents --> Search
+    CRUD --> Payment
+    Agents --> PIM
+    Agents --> DAM
+    Agents --> Carrier

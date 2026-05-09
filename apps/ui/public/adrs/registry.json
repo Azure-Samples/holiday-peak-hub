@@ -1,0 +1,540 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-05-09T00:15:15+00:00",
+  "source_dir": "docs/architecture/adrs",
+  "stale": true,
+  "parse_errors": [
+    "adr-021-apim-agc-edge.md: missing **Status**",
+    "adr-021-apim-agc-edge.md: missing **Date**",
+    "adr-022-dam-image-analysis-enrichment-pipeline-boundary.md: missing **Status**",
+    "adr-022-dam-image-analysis-enrichment-pipeline-boundary.md: missing **Date**",
+    "adr-023-search-enrichment-bounded-context.md: missing **Status**",
+    "adr-023-search-enrichment-bounded-context.md: missing **Date**",
+    "adr-024-agent-communication-policy.md: missing **Status**",
+    "adr-024-agent-communication-policy.md: missing **Date**",
+    "adr-025-self-healing-boundaries.md: missing **Status**",
+    "adr-025-self-healing-boundaries.md: missing **Date**"
+  ],
+  "adrs": [
+    {
+      "number": 1,
+      "slug": "python-3.13",
+      "title": "Python 3.13 as Primary Language",
+      "status": "Accepted",
+      "date": "2024-12",
+      "tags": [],
+      "deciders": [
+        "Architecture Team",
+        "Ricardo Cataldi"
+      ],
+      "source_path": "docs/architecture/adrs/adr-001-python-3.13.md"
+    },
+    {
+      "number": 2,
+      "slug": "azure-services",
+      "title": "Azure Service Stack Selection",
+      "status": "Accepted",
+      "date": "2024-12",
+      "tags": [],
+      "deciders": [
+        "Architecture Team",
+        "Ricardo Cataldi"
+      ],
+      "source_path": "docs/architecture/adrs/adr-002-azure-services.md"
+    },
+    {
+      "number": 3,
+      "slug": "adapter-pattern",
+      "title": "Adapter Pattern, Boundaries, and Connector Registry",
+      "status": "Accepted",
+      "date": "2024-12",
+      "tags": [],
+      "deciders": [
+        "Architecture Team",
+        "Ricardo Cataldi"
+      ],
+      "source_path": "docs/architecture/adrs/adr-003-adapter-pattern.md"
+    },
+    {
+      "number": 4,
+      "slug": "fastapi-mcp",
+      "title": "FastAPI with Dual REST + MCP Exposition",
+      "status": "Accepted",
+      "date": "2024-12",
+      "tags": [],
+      "deciders": [
+        "Architecture Team",
+        "Ricardo Cataldi"
+      ],
+      "source_path": "docs/architecture/adrs/adr-004-fastapi-mcp.md"
+    },
+    {
+      "number": 5,
+      "slug": "agent-framework",
+      "title": "Microsoft Agent Framework + Foundry",
+      "status": "Accepted",
+      "date": "2024-12",
+      "tags": [
+        "architecture",
+        "foundry",
+        "agents",
+        "telemetry",
+        "observability",
+        "latency"
+      ],
+      "deciders": [
+        "Architecture Team",
+        "Ricardo Cataldi"
+      ],
+      "source_path": "docs/architecture/adrs/adr-005-agent-framework.md"
+    },
+    {
+      "number": 6,
+      "slug": "saga-choreography",
+      "title": "SAGA Choreography with Event Hubs",
+      "status": "Accepted",
+      "date": "2024-12",
+      "tags": [],
+      "deciders": [],
+      "source_path": "docs/architecture/adrs/adr-006-saga-choreography.md"
+    },
+    {
+      "number": 7,
+      "slug": "memory-tiers",
+      "title": "Memory Architecture and Isolation Strategy",
+      "status": "Accepted",
+      "date": "2024-12",
+      "tags": [],
+      "deciders": [],
+      "source_path": "docs/architecture/adrs/adr-007-memory-tiers.md"
+    },
+    {
+      "number": 8,
+      "slug": "aks-deployment",
+      "title": "AKS with Helm, KEDA, and Canary Deployments",
+      "status": "Accepted",
+      "date": "2024-12",
+      "tags": [],
+      "deciders": [
+        "Architecture Team",
+        "Ricardo Cataldi"
+      ],
+      "source_path": "docs/architecture/adrs/adr-008-aks-deployment.md"
+    },
+    {
+      "number": 9,
+      "slug": "acp-catalog-search",
+      "title": "ACP Alignment for Ecommerce Catalog Search",
+      "status": "Accepted",
+      "date": "2026-01",
+      "tags": [],
+      "deciders": [
+        "Architecture Team"
+      ],
+      "source_path": "docs/architecture/adrs/adr-009-acp-catalog-search.md"
+    },
+    {
+      "number": 10,
+      "slug": "model-routing",
+      "title": "SLM-First Model Routing Strategy",
+      "status": "Accepted",
+      "date": "2026-01",
+      "tags": [],
+      "deciders": [
+        "Architecture Team"
+      ],
+      "source_path": "docs/architecture/adrs/adr-010-model-routing.md"
+    },
+    {
+      "number": 11,
+      "slug": "nextjs-app-router",
+      "title": "Next.js 15 with App Router for Frontend Framework",
+      "status": "Accepted",
+      "date": "2026-01-30",
+      "tags": [
+        "frontend",
+        "framework",
+        "nextjs"
+      ],
+      "deciders": [
+        "Architecture Team"
+      ],
+      "source_path": "docs/architecture/adrs/adr-011-nextjs-app-router.md"
+    },
+    {
+      "number": 12,
+      "slug": "atomic-design-system",
+      "title": "Atomic Design System for Component Library",
+      "status": "Accepted",
+      "date": "2026-01-30",
+      "tags": [
+        "frontend",
+        "components",
+        "design-system"
+      ],
+      "deciders": [
+        "Frontend Team"
+      ],
+      "source_path": "docs/architecture/adrs/adr-012-atomic-design-system.md"
+    },
+    {
+      "number": 13,
+      "slug": "ag-ui-protocol",
+      "title": "AG-UI Protocol Integration",
+      "status": "Accepted",
+      "date": "2026-01-30",
+      "tags": [
+        "frontend",
+        "agents",
+        "protocol",
+        "ag-ui"
+      ],
+      "deciders": [
+        "Architecture Team"
+      ],
+      "source_path": "docs/architecture/adrs/adr-013-ag-ui-protocol.md"
+    },
+    {
+      "number": 14,
+      "slug": "acp-frontend",
+      "title": "Agentic Commerce Protocol (ACP) Frontend Integration",
+      "status": "Accepted",
+      "date": "2026-01-30",
+      "tags": [
+        "frontend",
+        "protocol",
+        "acp",
+        "product-data"
+      ],
+      "deciders": [
+        "Architecture Team"
+      ],
+      "source_path": "docs/architecture/adrs/adr-014-acp-frontend.md"
+    },
+    {
+      "number": 15,
+      "slug": "authentication-rbac",
+      "title": "Authentication and Role-Based Access Control",
+      "status": "Accepted",
+      "date": "2026-01-30",
+      "tags": [
+        "security",
+        "authentication",
+        "authorization",
+        "rbac"
+      ],
+      "deciders": [
+        "Security Team",
+        "Architecture Team"
+      ],
+      "source_path": "docs/architecture/adrs/adr-015-authentication-rbac.md"
+    },
+    {
+      "number": 16,
+      "slug": "api-client-architecture",
+      "title": "API Client Architecture",
+      "status": "Accepted",
+      "date": "2026-01-30",
+      "tags": [
+        "frontend",
+        "api",
+        "client",
+        "architecture"
+      ],
+      "deciders": [
+        "Architecture Team",
+        "Frontend Team"
+      ],
+      "source_path": "docs/architecture/adrs/adr-016-api-client-architecture.md"
+    },
+    {
+      "number": 17,
+      "slug": "deployment-strategy",
+      "title": "Deployment Strategy - azd Provisioning + Flux CD GitOps",
+      "status": "Accepted",
+      "date": "2026-02",
+      "tags": [
+        "infrastructure",
+        "deployment",
+        "ci-cd",
+        "azd",
+        "helm",
+        "aks",
+        "gitops",
+        "flux",
+        "helmrelease"
+      ],
+      "deciders": [
+        "Architecture Team",
+        "Ricardo Cataldi"
+      ],
+      "source_path": "docs/architecture/adrs/adr-017-deployment-strategy.md"
+    },
+    {
+      "number": 18,
+      "slug": "branch-naming-convention",
+      "title": "Git Branch Naming Convention",
+      "status": "Accepted",
+      "date": "2026-03",
+      "tags": [
+        "governance",
+        "git",
+        "branching",
+        "ci-cd"
+      ],
+      "deciders": [
+        "Architecture Team",
+        "Ricardo Cataldi"
+      ],
+      "source_path": "docs/architecture/adrs/adr-018-branch-naming-convention.md"
+    },
+    {
+      "number": 19,
+      "slug": "enterprise-resilience-patterns",
+      "title": "Enterprise Resilience Patterns",
+      "status": "Accepted",
+      "date": "2026-03",
+      "tags": [],
+      "deciders": [
+        "Architecture Team"
+      ],
+      "source_path": "docs/architecture/adrs/adr-019-enterprise-resilience-patterns.md"
+    },
+    {
+      "number": 20,
+      "slug": "product-truth-layer",
+      "title": "Product Truth Layer Architecture",
+      "status": "Accepted",
+      "date": "2026-03",
+      "tags": [],
+      "deciders": [
+        "Architecture Team"
+      ],
+      "source_path": "docs/architecture/adrs/adr-020-product-truth-layer.md"
+    },
+    {
+      "number": 21,
+      "slug": "apim-agc-edge",
+      "title": "APIM + Application Gateway for Containers as Canonical AKS Edge",
+      "status": "unknown",
+      "date": "unknown",
+      "tags": [],
+      "deciders": [],
+      "source_path": "docs/architecture/adrs/adr-021-apim-agc-edge.md"
+    },
+    {
+      "number": 22,
+      "slug": "dam-image-analysis-enrichment-pipeline-boundary",
+      "title": "DAM Image Analysis as an Enrichment Pipeline within Truth Boundaries",
+      "status": "unknown",
+      "date": "unknown",
+      "tags": [],
+      "deciders": [],
+      "source_path": "docs/architecture/adrs/adr-022-dam-image-analysis-enrichment-pipeline-boundary.md"
+    },
+    {
+      "number": 23,
+      "slug": "search-enrichment-bounded-context",
+      "title": "Search Enrichment as an Isolated Bounded Context",
+      "status": "unknown",
+      "date": "unknown",
+      "tags": [],
+      "deciders": [],
+      "source_path": "docs/architecture/adrs/adr-023-search-enrichment-bounded-context.md"
+    },
+    {
+      "number": 24,
+      "slug": "agent-communication-policy",
+      "title": "Agent Communication Policy, Isolation, and Async Contracts",
+      "status": "unknown",
+      "date": "unknown",
+      "tags": [],
+      "deciders": [],
+      "source_path": "docs/architecture/adrs/adr-024-agent-communication-policy.md"
+    },
+    {
+      "number": 25,
+      "slug": "self-healing-boundaries",
+      "title": "Self-Healing Boundaries, Risk Tiers, and Prohibited Actions",
+      "status": "unknown",
+      "date": "unknown",
+      "tags": [],
+      "deciders": [],
+      "source_path": "docs/architecture/adrs/adr-025-self-healing-boundaries.md"
+    },
+    {
+      "number": 26,
+      "slug": "namespace-isolation-strategy",
+      "title": "Namespace Isolation Strategy",
+      "status": "Accepted",
+      "date": "2026-04-11",
+      "tags": [
+        "infrastructure",
+        "kubernetes",
+        "aks",
+        "namespace",
+        "security",
+        "istio",
+        "flux",
+        "network-policy"
+      ],
+      "deciders": [
+        "Architecture Team",
+        "Ricardo Cataldi"
+      ],
+      "source_path": "docs/architecture/adrs/adr-026-namespace-isolation-strategy.md"
+    },
+    {
+      "number": 27,
+      "slug": "api-center-apim-mcp-strategy",
+      "title": "API Center Governance and APIM MCP Server Strategy",
+      "status": "Accepted",
+      "date": "2026-04-11",
+      "tags": [
+        "api-governance",
+        "api-center",
+        "apim",
+        "mcp",
+        "api-discovery"
+      ],
+      "deciders": [
+        "Architecture Team",
+        "Ricardo Cataldi"
+      ],
+      "source_path": "docs/architecture/adrs/adr-027-api-center-apim-mcp-strategy.md"
+    },
+    {
+      "number": 29,
+      "slug": "agc-weighted-canary-policy",
+      "title": "AGC Weighted Canary Policy with Automatic Rollback",
+      "status": "Accepted",
+      "date": "2026-05-08",
+      "tags": [
+        "deployment",
+        "canary",
+        "agc",
+        "observability",
+        "sre"
+      ],
+      "deciders": [
+        "Architecture Team",
+        "Ricardo Cataldi"
+      ],
+      "source_path": "docs/architecture/adrs/adr-029-agc-weighted-canary-policy.md"
+    },
+    {
+      "number": 30,
+      "slug": "mcp-only-a2a",
+      "title": "MCP-Only Agent-to-Agent Communication with Hop Counter",
+      "status": "Accepted",
+      "date": "2026-05-08",
+      "tags": [
+        "mcp",
+        "agent-communication",
+        "isolation",
+        "observability"
+      ],
+      "deciders": [
+        "Architecture Team",
+        "Ricardo Cataldi"
+      ],
+      "source_path": "docs/architecture/adrs/adr-030-mcp-only-a2a.md"
+    },
+    {
+      "number": 31,
+      "slug": "otel-span-attributes-contract",
+      "title": "OTEL Span Attributes Contract for Retail Agents",
+      "status": "Accepted",
+      "date": "2026-05-08",
+      "tags": [
+        "observability",
+        "opentelemetry",
+        "telemetry",
+        "governance"
+      ],
+      "deciders": [
+        "Architecture Team",
+        "Ricardo Cataldi"
+      ],
+      "source_path": "docs/architecture/adrs/adr-031-otel-span-attributes-contract.md"
+    },
+    {
+      "number": 32,
+      "slug": "three-tier-memory-contract",
+      "title": "Three-Tier Memory Contract Pinning (Hot / Warm / Cold)",
+      "status": "Accepted",
+      "date": "2026-05-08",
+      "tags": [
+        "memory",
+        "redis",
+        "cosmos-db",
+        "blob-storage",
+        "contract"
+      ],
+      "deciders": [
+        "Architecture Team",
+        "Ricardo Cataldi"
+      ],
+      "source_path": "docs/architecture/adrs/adr-032-three-tier-memory-contract.md"
+    },
+    {
+      "number": 33,
+      "slug": "ui-modular-monolith-on-swa",
+      "title": "UI as a Modular Monolith on Static Web Apps (Path 2)",
+      "status": "Accepted",
+      "date": "2026-05-08",
+      "tags": [
+        "frontend",
+        "deployment",
+        "modular-monolith",
+        "static-web-apps",
+        "decoupling"
+      ],
+      "deciders": [
+        "Architecture Team",
+        "Ricardo Cataldi"
+      ],
+      "source_path": "docs/architecture/adrs/adr-033-ui-modular-monolith-on-swa.md"
+    },
+    {
+      "number": 34,
+      "slug": "audience-segmented-ia",
+      "title": "Audience-Segmented Information Architecture for the UI",
+      "status": "Accepted",
+      "date": "2026-05-08",
+      "tags": [
+        "frontend",
+        "information-architecture",
+        "design-tokens",
+        "accessibility",
+        "sales-surface"
+      ],
+      "deciders": [
+        "Architecture Team",
+        "Ricardo Cataldi"
+      ],
+      "source_path": "docs/architecture/adrs/adr-034-audience-segmented-ia.md"
+    },
+    {
+      "number": 35,
+      "slug": "ui-design-system",
+      "title": "UI Design System Contract — Tokens, Components, CSS Architecture, and Quality Gates",
+      "status": "Accepted",
+      "date": "2026-05-08",
+      "tags": [
+        "frontend",
+        "design-system",
+        "design-tokens",
+        "css",
+        "accessibility",
+        "performance",
+        "quality-gates"
+      ],
+      "deciders": [
+        "Architecture Team",
+        "Ricardo Cataldi"
+      ],
+      "source_path": "docs/architecture/adrs/adr-035-ui-design-system.md"
+    }
+  ]
+}

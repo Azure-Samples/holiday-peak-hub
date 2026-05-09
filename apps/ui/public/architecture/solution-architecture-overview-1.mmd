@@ -1,0 +1,53 @@
+%%{init: {'theme':'base', 'themeVariables': {
+  'primaryColor':'#FFB3BA',
+  'primaryTextColor':'#000',
+  'primaryBorderColor':'#FF8B94',
+  'lineColor':'#BAE1FF',
+  'secondaryColor':'#BAE1FF',
+  'tertiaryColor':'#FFFFFF'
+}}}%%
+graph TB
+    Customer["🛒 Customer<br/>(Browser/Mobile)"]
+    Staff["👤 Staff<br/>(Admin Console)"]
+
+    subgraph "Holiday Peak Hub"
+        UI["Next.js 15 UI<br/>Azure Static Web Apps"]
+        APIM["Azure API Management<br/>Gateway + AI Policies"]
+        CRUD["CRUD Service<br/>FastAPI + PostgreSQL"]
+
+        subgraph "Agent Mesh (26 Agents on AKS)"
+            EC["eCommerce Agents (5)"]
+            CRM["CRM Agents (4)"]
+            INV["Inventory Agents (4)"]
+            LOG["Logistics Agents (4)"]
+            PM["Product Mgmt Agents (4)"]
+            SE["Search Agent (1)"]
+            TL["Truth Layer Agents (4)"]
+        end
+    end
+
+    subgraph "Azure Platform Services"
+        Foundry["Azure AI Foundry<br/>GPT-5, GPT-5-nano"]
+        CosmosDB["Azure Cosmos DB<br/>Warm Memory"]
+        Redis["Azure Redis<br/>Hot Memory"]
+        Blob["Azure Blob Storage<br/>Cold Memory"]
+        EH["Azure Event Hubs<br/>Async Messaging"]
+        AIS["Azure AI Search<br/>Vector + Hybrid"]
+        PG["Azure PostgreSQL<br/>CRUD Data"]
+        KV["Azure Key Vault<br/>Secrets"]
+        AppIns["Application Insights<br/>Telemetry"]
+    end
+
+    Customer --> UI
+    Staff --> UI
+    UI --> APIM
+    APIM --> CRUD
+    APIM --> EC & CRM & INV & LOG & PM & SE & TL
+    CRUD --> PG
+    CRUD --> EH
+    EH --> EC & CRM & INV & LOG & PM & TL
+    EC & CRM & INV & LOG & PM & SE & TL --> Foundry
+    EC & CRM & INV & LOG & PM & SE & TL --> CosmosDB & Redis & Blob
+    SE --> AIS
+    EC & CRM & INV & LOG & PM & SE & TL --> KV
+    EC & CRM & INV & LOG & PM & SE & TL --> AppIns
