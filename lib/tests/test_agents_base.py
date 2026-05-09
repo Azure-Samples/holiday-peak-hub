@@ -1,5 +1,7 @@
 """Tests for base agent functionality."""
 
+import asyncio
+import logging
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -181,6 +183,54 @@ class TestBaseRetailAgent:
         )
         assert result is not None
         assert result.get("_target") == "test-slm"
+
+    @pytest.mark.asyncio
+    async def test_invoke_model_logs_provider_failure(self, caplog):
+        """Provider failures emit an error log before propagating."""
+
+        async def failing_invoker(**_kwargs):
+            raise RuntimeError("provider down")
+
+        slm = ModelTarget(name="slm", model="small", invoker=failing_invoker)
+        deps = AgentDependencies(slm=slm, llm=None, service_name="critical-log-test")
+        agent = SimpleTestAgent(config=deps)
+
+        with caplog.at_level(logging.ERROR, logger="holiday_peak_lib.agents.base_agent"):
+            with pytest.raises(RuntimeError, match="provider down"):
+                await agent.invoke_model(
+                    {"query": "hello"},
+                    [{"role": "user", "content": "hello"}],
+                )
+
+        assert any(
+            "agent_model_invocation_failed service=critical-log-test "
+            "model=small error=provider down" in record.getMessage()
+            for record in caplog.records
+        )
+
+    @pytest.mark.asyncio
+    async def test_invoke_model_logs_provider_timeout(self, caplog):
+        """Provider timeouts emit an error log and return the timeout fallback."""
+
+        async def timeout_invoker(**_kwargs):
+            raise asyncio.TimeoutError
+
+        slm = ModelTarget(name="slm", model="small", invoker=timeout_invoker)
+        deps = AgentDependencies(slm=slm, llm=None, service_name="critical-log-test")
+        agent = SimpleTestAgent(config=deps)
+
+        with caplog.at_level(logging.ERROR, logger="holiday_peak_lib.agents.base_agent"):
+            result = await agent.invoke_model(
+                {"query": "hello"},
+                [{"role": "user", "content": "hello"}],
+            )
+
+        assert result["error"] == "timeout"
+        assert any(
+            "agent_model_invocation_timeout service=critical-log-test model=small"
+            in record.getMessage()
+            for record in caplog.records
+        )
 
     @pytest.mark.asyncio
     async def test_foundry_governance_strips_system_prompt(self):

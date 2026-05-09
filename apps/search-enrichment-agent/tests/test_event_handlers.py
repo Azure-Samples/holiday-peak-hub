@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -18,6 +19,20 @@ def _clear_service_traces() -> None:
     tracer = get_foundry_tracer(_TRACE_SERVICE_NAME)
     tracer.set_enabled(True)
     tracer.clear()
+
+
+@pytest.fixture
+def event_logger(monkeypatch: pytest.MonkeyPatch) -> logging.Logger:
+    """Return a capturable logger for Event Hub handler assertions."""
+    logger = logging.getLogger("search_enrichment_event_handler_test")
+    logger.handlers.clear()
+    logger.setLevel(logging.INFO)
+    logger.propagate = True
+    monkeypatch.setattr(
+        "search_enrichment_agent.event_handlers.configure_logging",
+        lambda app_name: logger,
+    )
+    return logger
 
 
 def _eventhub_liveness_events() -> list[dict[str, object]]:
@@ -36,7 +51,11 @@ async def test_build_event_handlers_includes_search_enrichment_jobs() -> None:
 
 
 @pytest.mark.asyncio
-async def test_search_enrichment_event_handler_processes_job_with_mocks() -> None:
+async def test_search_enrichment_event_handler_processes_job_with_mocks(
+    event_logger: logging.Logger,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.INFO, logger=event_logger.name)
     approved_truth = AsyncMock()
     approved_truth.get_approved_data = AsyncMock(
         return_value={
@@ -80,10 +99,18 @@ async def test_search_enrichment_event_handler_processes_job_with_mocks() -> Non
         "entity_id": "SKU-9",
         "status": "enriched",
     }
+    assert any(
+        "search_enrichment_event_processed entity_id=SKU-9 status=enriched" in record.getMessage()
+        for record in caplog.records
+    )
 
 
 @pytest.mark.asyncio
-async def test_search_enrichment_event_handler_traces_missing_entity() -> None:
+async def test_search_enrichment_event_handler_traces_missing_entity(
+    event_logger: logging.Logger,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.INFO, logger=event_logger.name)
     approved_truth = AsyncMock()
     approved_truth.get_approved_data = AsyncMock(return_value=None)
 
@@ -119,10 +146,18 @@ async def test_search_enrichment_event_handler_traces_missing_entity() -> None:
         "eventhub": "search-enrichment-jobs",
         "status": "skipped",
     }
+    assert any(
+        "search_enrichment_event_skipped_missing_entity" in record.getMessage()
+        for record in caplog.records
+    )
 
 
 @pytest.mark.asyncio
-async def test_search_enrichment_event_handler_traces_error_when_orchestrator_raises() -> None:
+async def test_search_enrichment_event_handler_traces_error_when_orchestrator_raises(
+    event_logger: logging.Logger,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.INFO, logger=event_logger.name)
     approved_truth = AsyncMock()
     approved_truth.get_approved_data = AsyncMock(side_effect=RuntimeError("eventhub boom"))
 
@@ -160,3 +195,8 @@ async def test_search_enrichment_event_handler_traces_error_when_orchestrator_ra
         "entity_id": "SKU-9",
         "status": "error",
     }
+    assert any(
+        "search_enrichment_event_processing_failed entity_id=SKU-9 error=eventhub boom"
+        in record.getMessage()
+        for record in caplog.records
+    )

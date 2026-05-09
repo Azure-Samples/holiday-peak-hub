@@ -1,6 +1,7 @@
 """Unit tests for the async circuit breaker."""
 
 import asyncio
+import logging
 
 import pytest
 from holiday_peak_lib.utils.circuit_breaker import (
@@ -41,6 +42,27 @@ class TestCircuitBreaker:
 
         assert cb.state == CircuitState.OPEN
         assert cb.failure_count == 3
+
+    async def test_failure_and_open_transition_are_logged(self, caplog):
+        cb = CircuitBreaker("inventory-api", failure_threshold=1, recovery_timeout=30.0)
+
+        async def failing():
+            raise RuntimeError("backend unavailable")
+
+        with caplog.at_level(logging.INFO, logger="holiday_peak_lib.utils.circuit_breaker"):
+            with pytest.raises(RuntimeError, match="backend unavailable"):
+                await cb.call(failing)
+
+        messages = [record.getMessage() for record in caplog.records]
+        assert any(
+            "circuit_breaker_failure name=inventory-api state=closed "
+            "failure_count=1 threshold=1 error=backend unavailable" in message
+            for message in messages
+        )
+        assert any(
+            "circuit_breaker name=inventory-api state=open failures=1" in message
+            for message in messages
+        )
 
     async def test_open_circuit_raises_without_fallback(self):
         cb = CircuitBreaker("test", failure_threshold=1, recovery_timeout=30.0)
