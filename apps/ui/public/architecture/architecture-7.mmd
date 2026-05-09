@@ -1,0 +1,31 @@
+sequenceDiagram
+    participant Agent
+    participant Memory
+    participant Redis
+    participant Cosmos
+    participant Blob
+    
+    Agent->>Memory: get("session_123")
+    Memory->>Redis: check hot tier
+    alt Found in Redis
+        Redis-->>Memory: value
+        Memory-->>Agent: value
+    else Not in Redis
+        Memory->>Cosmos: check warm tier
+        alt Found in Cosmos
+            Cosmos-->>Memory: value
+            Memory->>Redis: promote to hot
+            Redis-->>Memory: ok
+            Memory-->>Agent: value
+        else Not in Cosmos
+            Memory->>Blob: check cold tier
+            alt Found in Blob
+                Blob-->>Memory: value
+                Memory->>Cosmos: promote to warm
+                Memory->>Redis: promote to hot
+                Memory-->>Agent: value
+            else Not found
+                Memory-->>Agent: null
+            end
+        end
+    end

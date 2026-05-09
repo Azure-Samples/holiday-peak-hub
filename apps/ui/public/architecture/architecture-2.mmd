@@ -1,0 +1,26 @@
+graph TB
+    subgraph Actors
+        Customer((Customer))
+        Agent((Service Agent))
+    end
+    
+    subgraph "E-commerce Use Cases"
+        UC1[Search Product Catalog]
+        UC2[View Product Details]
+        UC3[Add to Cart]
+        UC4[Checkout]
+        UC5[Track Order Status]
+    end
+    
+    Customer -->|performs| UC1
+    Customer -->|performs| UC2
+    Customer -->|performs| UC3
+    Customer -->|performs| UC4
+    Customer -->|performs| UC5
+    Agent -->|assists with| UC5
+    
+    UC1 -.->|includes| SearchIndex[Query AI Search]
+    UC2 -.->|includes| Enrich[Fetch ACP Metadata]
+    UC3 -.->|includes| CartLogic[Apply Personalization]
+    UC4 -.->|includes| ValidateAllocation[Check Inventory]
+    UC5 -.->|includes| QueryLogistics[Get Shipment ETA]
