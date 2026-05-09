@@ -1,0 +1,9 @@
+# Pinned mkdocs Material toolchain (Issue #1023 / Epic #1026).
+#
+# Pinned versions so the SWA pipeline produces deterministic doc bundles.
+# Renovate will produce dedicated PRs that get manually verified.
+mkdocs==1.6.1
+mkdocs-material==9.5.50
+mkdocs-material-extensions==1.3.1
+pymdown-extensions==10.14.3
+mkdocs-autorefs==1.2.0
