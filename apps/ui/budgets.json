@@ -1,0 +1,39 @@
+{
+  "$schema": "./scripts/budgets.schema.json",
+  "version": 1,
+  "description": "UI route-segment JS budgets (gzipped). Gate at scripts/check-bundle-budgets.mjs runs after `yarn build` and parses `.next/app-build-manifest.json` to assert per-route totals. Initial targets per Issue #1060; revisited at first cutover after 30 days of RUM data.",
+  "unit": "kilobytes-gzipped",
+  "limits": {
+    "/": 150,
+    "/retailers": 200,
+    "/builders": 200,
+    "/deploy": 250
+  },
+  "exempt": [
+    "/admin/**",
+    "/dashboard/**",
+    "/agents/**",
+    "/scenarios/**",
+    "/staff/**",
+    "/demo/**",
+    "/auth/**",
+    "/cart/**",
+    "/category/**",
+    "/categories/**",
+    "/checkout/**",
+    "/deals/**",
+    "/logout/**",
+    "/new/**",
+    "/order/**",
+    "/orders/**",
+    "/product/**",
+    "/profile/**",
+    "/search/**",
+    "/shop/**",
+    "/wishlist/**"
+  ],
+  "notes": [
+    "Audience-route budgets are PR-blocking. Demo / admin / legacy d-board routes are un-budgeted at v1 — they live behind separate route groups and do not affect the audience surface.",
+    "Targets are tighter than the ADR-035 §55 baseline at v1. They will be re-calibrated against P75 RUM data after 30 days; if loosening is required, file an amendment to ADR-035."
+  ]
+}

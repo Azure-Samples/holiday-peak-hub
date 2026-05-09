@@ -9,4 +9,3 @@ export { SectionShell } from './SectionShell';
 export type { SectionVariant } from './SectionShell';
 export { LaneSwitch } from './LaneSwitch';
 export type { LaneAudience } from './LaneSwitch';
-export { HomeSplitHero } from './HomeSplitHero';
