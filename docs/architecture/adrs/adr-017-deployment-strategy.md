@@ -3,6 +3,7 @@
 **Status**: Accepted (Revised)  
 **Date**: 2026-02  
 **Updated**: 2026-04-28 — Consolidated Flux CD deployment decision into unified deployment ADR. Infrastructure provisioning via `azd provision`; application deployment via Flux CD.  
+**Updated**: 2026-05-21 — Phase 2 completed: rolled out HelmRelease-driven reconciliation to all 27 AKS services (1 CRUD + 26 agents). Removed the `commit-rendered-manifests` workflow seam that pushed bot commits to protected `main` (rejected by `main-governance-baseline` ruleset, GH013). Flux now reconciles `.kubernetes/releases/{crud,agents}` exclusively.  
 **Deciders**: Architecture Team, Ricardo Cataldi  
 **Tags**: infrastructure, deployment, ci-cd, azd, helm, aks, gitops, flux, helmrelease
 
@@ -350,11 +351,48 @@ Phase 2: CI pushes image to ACR → Flux HelmRelease renders in-cluster from cha
 - E2E test: 200 OK, 5 results, correct image and env vars deployed
 - Timeout env vars (`INTELLIGENT_PIPELINE_TIMEOUT_SECONDS=120`, etc.) confirmed
 
-#### Phase 2b (Future): Image Automation
+##### Phase 2 Completion (2026-05-21)
 
-- Flux `ImageRepository` + `ImagePolicy` + `ImageUpdateAutomation` for ACR tag updates
-- Eliminates CI committing image tags; Flux watches ACR directly
-- Branch deployment support via HelmRelease targeting different sourceRef
+Pattern A (Flux HelmRelease + in-cluster Helm rendering) is the canonical AKS
+deployment surface for the entire product. Trigger was the `commit-rendered-manifests`
+job in `deploy-azd.yml` repeatedly failing to push bot-generated rendered manifests
+to `refs/heads/main` (`main-governance-baseline` ruleset, GitHub `GH013`).
+Bypass-actor and orphan-branch alternatives were rejected as anti-patterns.
+
+What landed:
+
+- **27 HelmReleases** in git: 1 CRUD (`.kubernetes/releases/crud/crud-service.yaml`),
+  26 agents (`.kubernetes/releases/agents/<service>.yaml`). Generator script preserves
+  every env var, resource limit, AGC route, command/args override, and UAMI binding
+  read from the previously deployed cluster state.
+- **Bicep `fluxConfig`** switched from `.kubernetes/rendered/{crud,agents}` to
+  `.kubernetes/releases/{crud,agents}`. CRUD kustomization runs first; agents
+  kustomization depends on it.
+- **Workflow `deploy-azd.yml`**: removed `commit-rendered-manifests` job and rewired
+  `wait-flux-reconciliation` to depend on `deploy-crud` / `deploy-agents` directly.
+  No workflow ever pushes back to `main`.
+- **Image tag policy**: HelmRelease YAML carries the immutable image tag for the
+  current desired state. New deploys still build + push to ACR via `azd deploy`,
+  and the existing kubectl-apply path rolls the new image. Within 5 minutes Flux
+  reconciles the HelmRelease and may revert if the image tag in the YAML is older
+  — image automation closes this gap (see Phase 2b).
+
+Why this resolves the protected-branch problem permanently:
+
+- The helm-controller renders the chart in-cluster on every reconciliation. There
+  is no rendered YAML in git, so no bot commit to `main` is ever required to
+  reflect a deploy.
+- The HelmRelease YAML is the single source of truth for desired state. It is
+  edited via normal PRs, which clears the ruleset.
+
+#### Phase 2b (Next): Image Automation
+
+- Flux `ImageRepository` + `ImagePolicy` + `ImageUpdateAutomation` for ACR tag updates.
+- For protected branches, image-update commits arrive as auto-merging PRs (PR-bridge
+  pattern) instead of direct pushes — same protection model as human edits.
+- Eliminates the residual drift window where Flux can revert a freshly applied
+  image to the older tag still recorded in the HelmRelease YAML.
+- Branch deployment support via HelmRelease targeting different sourceRef.
 
 #### Why Flux over Argo CD
 

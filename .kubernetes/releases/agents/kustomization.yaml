@@ -1,10 +1,35 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# Phase 2: Flux HelmRelease-based deployments (replaces rendered YAML).
-# Each file is a HelmRelease CRD that Flux Helm Controller reconciles in-cluster.
-# Migrated services are removed from .kubernetes/rendered/agents/kustomization.yaml.
+# Pattern A — Flux HelmRelease-based deployments (ADR-017 amended).
+# Each file is a HelmRelease CRD reconciled by the Flux helm-controller in-cluster.
+# Chart source: .kubernetes/chart, values inline per service.
+# Replaces .kubernetes/rendered/agents/ which was a workflow-emitted artifact
+# requiring a bot push to protected main (rejected by main-governance-baseline ruleset).
 resources:
+  - crm-campaign-intelligence.yaml
+  - crm-profile-aggregation.yaml
+  - crm-segmentation-personalization.yaml
+  - crm-support-assistance.yaml
+  - ecommerce-cart-intelligence.yaml
   - ecommerce-catalog-search.yaml
+  - ecommerce-checkout-support.yaml
+  - ecommerce-order-status.yaml
+  - ecommerce-product-detail-enrichment.yaml
+  - inventory-alerts-triggers.yaml
+  - inventory-health-check.yaml
+  - inventory-jit-replenishment.yaml
+  - inventory-reservation-validation.yaml
+  - logistics-carrier-selection.yaml
+  - logistics-eta-computation.yaml
+  - logistics-returns-support.yaml
+  - logistics-route-issue-detection.yaml
+  - product-management-acp-transformation.yaml
+  - product-management-assortment-optimization.yaml
+  - product-management-consistency-validation.yaml
+  - product-management-normalization-classification.yaml
+  - search-enrichment-agent.yaml
   - truth-enrichment.yaml
+  - truth-export.yaml
   - truth-hitl.yaml
+  - truth-ingestion.yaml

@@ -1218,7 +1218,9 @@ resource fluxExtension 'Microsoft.KubernetesConfiguration/extensions@2023-05-01'
   }
 }
 
-// Flux GitOps configuration — reconciles rendered manifests from the repository.
+// Flux GitOps configuration — reconciles HelmRelease CRDs from the repository.
+// Pattern A (ADR-017 amended): the helm-controller renders the chart in-cluster on
+// every reconciliation, so no workflow ever pushes rendered YAML back to main.
 resource fluxConfig 'Microsoft.KubernetesConfiguration/fluxConfigurations@2024-04-01-preview' = {
   name: 'holiday-peak-gitops'
   scope: aksClusterResource
@@ -1239,7 +1241,7 @@ resource fluxConfig 'Microsoft.KubernetesConfiguration/fluxConfigurations@2024-0
     }
     kustomizations: {
       'holiday-peak-crud': {
-        path: '.kubernetes/rendered/crud'
+        path: '.kubernetes/releases/crud'
         syncIntervalInSeconds: 300
         timeoutInSeconds: 600
         prune: true
@@ -1247,7 +1249,7 @@ resource fluxConfig 'Microsoft.KubernetesConfiguration/fluxConfigurations@2024-0
         dependsOn: []
       }
       'holiday-peak-agents': {
-        path: '.kubernetes/rendered/agents'
+        path: '.kubernetes/releases/agents'
         syncIntervalInSeconds: 300
         timeoutInSeconds: 600
         prune: true
