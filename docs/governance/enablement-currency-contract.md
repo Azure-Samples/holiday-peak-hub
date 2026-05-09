@@ -126,7 +126,7 @@ customer's role or context has changed.
 
 ## Cross-references
 
-- [`apps/ui/app/(builder)/builders/enablement/layout.tsx`](../../apps/ui/app/(builder)/builders/enablement/layout.tsx) — server-side gate
+- `apps/ui/app/(builder)/builders/enablement/layout.tsx` — server-side gate (path contains parentheses; see file in repo)
 - [`apps/ui/lib/enablement/gate.ts`](../../apps/ui/lib/enablement/gate.ts) — gate evaluator + audit log
 - [`apps/ui/lib/enablement/registry.ts`](../../apps/ui/lib/enablement/registry.ts) — registry loader + currency rules
 - Epic #1053 (this contract is acceptance for Issue #1052)

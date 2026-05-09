@@ -4,7 +4,6 @@
 
 import {
   decodeSwaPrincipal,
-  evaluateGate,
   denyMessage,
 } from '../../lib/enablement/gate';
 
