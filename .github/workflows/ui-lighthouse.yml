@@ -40,6 +40,10 @@ jobs:
 
       - name: Build production bundle
         run: yarn build
+        env:
+          NEXT_PUBLIC_METADATA_BASE: https://holiday-peak-hub.example
+          # next.config.js requires NEXT_PUBLIC_CRUD_API_URL at build time.
+          NEXT_PUBLIC_CRUD_API_URL: http://localhost:8000
 
       - name: Start Next.js (background)
         run: |

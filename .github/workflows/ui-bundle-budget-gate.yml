@@ -35,6 +35,10 @@ jobs:
         env:
           # Use a benign metadataBase for CI so the build does not warn-spam.
           NEXT_PUBLIC_METADATA_BASE: https://holiday-peak-hub.example
+          # next.config.js requires NEXT_PUBLIC_CRUD_API_URL at build time.
+          # Use a placeholder; the bundle gate measures byte size only,
+          # not runtime behavior.
+          NEXT_PUBLIC_CRUD_API_URL: http://localhost:8000
 
       - name: Run bundle-budget gate (advisory at v1)
         id: budget
