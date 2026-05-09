@@ -1,0 +1,41 @@
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
+sequenceDiagram
+    actor User
+    participant UI as Next.js Frontend
+    participant APIM as API Management
+    participant CRUD as CRUD Service
+    participant PG as PostgreSQL
+    participant EH as Event Hubs
+    participant Agent as Agent Service
+    participant Foundry as AI Foundry
+    participant Memory as Memory Stack
+
+    Note over User,Memory: Sync Path (< 200ms) — Transactional + Enrichment
+
+    User->>UI: Browse / Search / Checkout
+    UI->>APIM: REST request (JWT)
+    APIM->>CRUD: Validated request
+
+    alt Transactional (CRUD)
+        CRUD->>PG: SQL query / mutation
+        PG-->>CRUD: Result
+        CRUD-->>APIM: JSON response
+    else Enrichment (Agent sync)
+        CRUD->>Agent: REST call (circuit breaker)
+        Agent->>Memory: parallel get (Redis + Cosmos)
+        Agent->>Foundry: SLM invoke
+        Foundry-->>Agent: Response
+        Agent-->>CRUD: Enriched result
+        CRUD-->>APIM: JSON response
+    end
+
+    APIM-->>UI: Response
+    UI-->>User: Rendered page
+
+    Note over CRUD,Memory: Async Path — Event-Driven Processing
+
+    CRUD->>EH: Publish domain event
+    EH->>Agent: Consume event
+    Agent->>Foundry: LLM invoke (complex)
+    Agent->>Memory: Write results
+    Agent->>CRUD: Callback (if needed)

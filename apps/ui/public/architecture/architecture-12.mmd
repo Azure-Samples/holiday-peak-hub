@@ -1,0 +1,62 @@
+graph TB
+    subgraph "Azure Kubernetes Service"
+        subgraph "Namespace: ecommerce"
+            EC1[catalog-search pod]
+            EC2[product-detail pod]
+            EC3[cart-intelligence pod]
+            EC4[checkout-support pod]
+            EC5[order-status pod]
+        end
+        
+        subgraph "Namespace: product-mgmt"
+            PM1[normalization pod]
+            PM2[acp-transformation pod]
+            PM3[consistency-validation pod]
+            PM4[assortment-optimization pod]
+        end
+        
+        subgraph "Namespace: crm"
+            CR1[profile-aggregation pod]
+            CR2[segmentation pod]
+            CR3[campaign-intelligence pod]
+            CR4[support-assistance pod]
+        end
+        
+        subgraph "Namespace: inventory"
+            IN1[health-check pod]
+            IN2[jit-replenishment pod]
+            IN3[reservation-validation pod]
+            IN4[alerts-triggers pod]
+        end
+        
+        subgraph "Namespace: logistics"
+            LO1[eta-computation pod]
+            LO2[carrier-selection pod]
+            LO3[returns-support pod]
+            LO4[route-issue-detection pod]
+        end
+    end
+    
+    subgraph "Azure Services"
+        Redis[Azure Cache for Redis]
+        Cosmos[Azure Cosmos DB]
+        Blob[Azure Blob Storage]
+        Search[Azure AI Search]
+        EventHub[Azure Event Hubs]
+        Monitor[Azure Monitor]
+        APIM[API Management]
+    end
+    
+    Client[Clients]
+    
+    Client -->|HTTPS| APIM
+    APIM --> EC1 & EC2 & EC3 & EC4 & EC5
+    
+    EC1 & PM1 & CR1 --> Redis
+    EC1 & PM1 & CR1 --> Cosmos
+    EC1 & PM1 & CR1 --> Blob
+    EC1 --> Search
+    
+    EC3 & IN2 --> EventHub
+    
+    EC1 & PM1 & CR1 & IN1 & LO1 --> Monitor

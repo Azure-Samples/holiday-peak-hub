@@ -1,0 +1,47 @@
+%%{init: {'theme':'base', 'themeVariables': {
+  'primaryColor':'#FFB3BA',
+  'primaryTextColor':'#000',
+  'primaryBorderColor':'#FF8B94',
+  'lineColor':'#BAE1FF',
+  'secondaryColor':'#BAE1FF',
+  'tertiaryColor':'#FFFFFF'
+}}}%%
+graph TB
+    subgraph "Azure Subscription"
+        subgraph "AKS Cluster"
+            SYS["system pool<br/>K8s components"]
+            subgraph "crud namespace"
+                CRUD_POD["crud-service pods<br/>(1-10 replicas)"]
+            end
+            subgraph "holiday-peak-agents"
+                subgraph "eCommerce"
+                    ECOM_PODS["5 agent deployments"]
+                end
+                subgraph "CRM"
+                    CRM_PODS["4 agent deployments"]
+                end
+                subgraph "Inventory"
+                    INV_PODS["4 agent deployments"]
+                end
+                subgraph "Logistics"
+                    LOG_PODS["4 agent deployments"]
+                end
+                subgraph "Product Mgmt"
+                    PM_PODS["4 agent deployments"]
+                end
+                subgraph "Search"
+                    SEARCH_PODS["1 agent deployment"]
+                end
+                subgraph "Truth Layer"
+                    TRUTH_PODS["4 agent deployments"]
+                end
+            end
+        end
+
+        SWA["Azure Static Web Apps<br/>Next.js 15 UI"]
+        APIM_GW["API Management"]
+        FLUX["Flux CD<br/>GitOps Controller"]
+    end
+
+    FLUX -->|reconcile| ECOM_PODS & CRM_PODS & INV_PODS & LOG_PODS & PM_PODS & SEARCH_PODS & TRUTH_PODS & CRUD_POD
+    SWA --> APIM_GW --> CRUD_POD & ECOM_PODS

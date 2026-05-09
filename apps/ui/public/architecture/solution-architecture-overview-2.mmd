@@ -1,0 +1,42 @@
+%%{init: {'theme':'base', 'themeVariables': {
+  'primaryColor':'#FFB3BA',
+  'primaryTextColor':'#000',
+  'primaryBorderColor':'#FF8B94',
+  'lineColor':'#BAE1FF',
+  'secondaryColor':'#BAE1FF',
+  'tertiaryColor':'#FFFFFF'
+}}}%%
+graph LR
+    subgraph "Any Agent Service"
+        MAIN["main.py<br/>create_standard_app()"]
+        AGENT["Domain Agent<br/>extends BaseRetailAgent"]
+        HANDLER["handle()"]
+        TOOLS["MCP Tools<br/>FastAPIMCPServer"]
+        ADAPT["Adapters<br/>CRM, Inventory, etc."]
+        EVENTS["Event Handlers<br/>EventHubSubscriber"]
+    end
+
+    subgraph "holiday-peak-lib"
+        AF["AppFactory"]
+        BA["BaseRetailAgent"]
+        AB["AgentBuilder"]
+        FAI["FoundryAgentInvoker"]
+        MEM["MemoryClient<br/>Hot|Warm|Cold"]
+        GR["Guardrails"]
+        CB["CircuitBreaker"]
+        TEL["FoundryTracer"]
+    end
+
+    subgraph "Microsoft Agent Framework"
+        MAF["FoundryAgent"]
+    end
+
+    MAIN --> AF
+    AF --> AB
+    AB --> AGENT
+    AGENT -->|extends| BA
+    AGENT --> HANDLER
+    HANDLER --> TOOLS & ADAPT & EVENTS
+    BA --> FAI
+    FAI --> MAF
+    BA --> MEM & GR & CB & TEL

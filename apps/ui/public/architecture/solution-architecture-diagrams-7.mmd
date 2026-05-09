@@ -1,0 +1,17 @@
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
+graph LR
+    CRUD["CRUD Service"]
+    EH["Event Hubs"]
+
+    subgraph PM["Product Management Domain (holiday-peak-agents)"]
+        ACP["🔄 ACP Transformation<br/><i>Canonical product format<br/>Attribute mapping</i>"]
+        ASO["📈 Assortment Optimization<br/><i>Category performance<br/>Gap analysis</i>"]
+        CSV["✓ Consistency Validation<br/><i>Cross-channel parity<br/>Data quality scoring</i>"]
+        NC["🏷️ Normalization &<br/>Classification<br/><i>Taxonomy mapping<br/>Attribute normalization</i>"]
+    end
+
+    CRUD -->|product.created<br/>product.updated| EH
+    EH --> ACP & ASO & CSV & NC
+    ACP -->|MCP: validate_consistency| CSV
+    NC -->|MCP: get_taxonomy| ACP
+    ACP --> PIM["External PIM<br/>(Akeneo / Salsify)"]
