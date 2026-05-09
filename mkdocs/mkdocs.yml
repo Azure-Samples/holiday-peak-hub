@@ -53,12 +53,45 @@ markdown_extensions:
   - pymdownx.snippets
   - toc:
       permalink: true
+      # GitHub-compatible slugifier so anchors authored with the GitHub
+      # convention (e.g. `#41-products--catalog` from `4.1 Products & Catalog`)
+      # resolve correctly. Default python-markdown slugifier collapses
+      # non-alphanumeric runs and emitted single-dash anchors, breaking
+      # ~30 cross-references in `crud-features-map.md` (Issue #1021).
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
   - tables
   - attr_list
   - md_in_html
 
 plugins:
   - search
+
+hooks:
+  - hooks/rewrite_external_links.py
+
+# Validation policy for `mkdocs build --strict` (Issue #1021).
+#
+# Source-tree references (../apps/, ../lib/, ../scripts/, ../infra/, etc.)
+# are rewritten to absolute GitHub blob URLs by the
+# `hooks/rewrite_external_links.py` hook before validation runs, so they
+# resolve as external links and pass strict-mode link checks.
+#
+# `unrecognized_links: warn` (default) is preserved so genuine new
+# regressions surface as warnings; `not_found: warn` likewise. Anchor
+# warnings stay warn-only because they are content-author errors that
+# should be fixed at the source, not silenced.
+validation:
+  # Many docs intentionally live outside the curated `nav:` (ADRs, ops
+  # runbooks, sequence diagrams, internal references). Enumerating them
+  # all in nav would balloon the config without improving navigation —
+  # the audience-segmented IA on the SWA host is the canonical entry
+  # point. Suppress the omitted-files warning so `--strict` can land.
+  omitted_files: ignore
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
 
 nav:
   - Home: README.md
@@ -69,7 +102,7 @@ nav:
       - CRUD Features Map: crud-features-map.md
 
   - Architecture:
-      - Overview: architecture/index.md
+      - Overview: architecture/README.md
       - Architecture: architecture/architecture.md
       - Components: architecture/components.md
       - Business Summary: architecture/business-summary.md

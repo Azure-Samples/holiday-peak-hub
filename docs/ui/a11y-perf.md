@@ -4,7 +4,7 @@ This file is the registry of automated quality gates applied to the UI surface.
 It is updated whenever a gate is added, tightened, or made advisory. Gates
 implement the acceptance criteria of [Issue #1060](https://github.com/Azure-Samples/holiday-peak-hub/issues/1060)
 and the WCAG 2.2 AA + Core Web Vitals discipline of
-[ADR-035 §55](../architecture/adrs/adr-035-ui-design-system.md#55-quality-gates-axe-core--lighthouse-ci--wcag-22-aa--core-web-vitals).
+[ADR-035 §5](../architecture/adrs/adr-035-ui-design-system.md#5-quality-gates).
 
 > **Honest beats marketing.** Lab targets in CI are tighter than field targets
 > in production. Field targets are recalibrated against P75 RUM data after the

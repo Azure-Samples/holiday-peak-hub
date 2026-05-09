@@ -100,11 +100,14 @@ jobs:
           # Pip install only when the requirements file exists so the workflow
           # is forward-compatible with branches that have not yet pinned mkdocs.
           PYTHONUNBUFFERED: '1'
-          # `--strict` is the eventual contract per #1021; today the docs
-          # subtree has ~130 pre-existing link warnings inherited from
-          # earlier editorial passes. Strict mode flips on once those clear
-          # zero — tracked under issue #1021 acceptance criteria final pass.
-          MKDOCS_STRICT: ${{ vars.MKDOCS_STRICT_BUILD || 'false' }}
+          # `--strict` is the contract per #1021. The docs subtree's
+          # ~130 pre-existing link warnings were resolved by adding the
+          # `rewrite_external_links.py` mkdocs hook (rewrites docs-to-source
+          # links to absolute GitHub blob URLs) plus a GitHub-compatible
+          # toc slugifier. The gate now defaults on; the
+          # `MKDOCS_STRICT_BUILD` repo variable can override to `false`
+          # for emergency unblocks.
+          MKDOCS_STRICT: ${{ vars.MKDOCS_STRICT_BUILD || 'true' }}
         run: |
           set -euo pipefail
           if [ ! -f "mkdocs/requirements.txt" ]; then
