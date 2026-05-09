@@ -1,8 +1,8 @@
 # Project Status & Issue Prioritization
 
-> Generated: 2026-04-19 | Last updated: 2026-05-09 | Branch: `main`
+> Generated: 2026-04-19 | Last updated: 2026-05-10 | Branch: `main`
 
-## Current Main Snapshot (2026-05-09)
+## Current Main Snapshot (2026-05-10)
 
 ### Audience-IA cutover wave (April–May 2026)
 
@@ -17,6 +17,9 @@ merged squash commit on `main`.
 | #1077 | #1053 | Builder pages: `/builders/{architecture,adrs,patterns,telemetry,enablement}` with `RegistryTable` + `TelemetryEmbed` molecules. ADR + architecture diagram registry generators (`scripts/ops/build_adr_registry.py`, `scripts/ops/build_architecture_registry.py`). Server-side enablement gate (`apps/ui/lib/enablement/gate.ts`) + currency contract (`docs/governance/enablement-currency-contract.md`). |
 | #1078 | #1039 | Deploy-portal preview: `/deploy/{catalog,configure,preflight,track/[id]}` + `/retailers/security`. Bicep skeleton (`infra/deploy-portal/`). Rate-limit + log-scrub libraries (`apps/ui/lib/deploy/rateLimits.ts`, `apps/ui/lib/deploy/logScrub.ts`). OBO contract (`docs/security/deploy-portal-obo.md`) + cleanup contract (`docs/governance/deploy-portal-cleanup-contract.md`). |
 | #1079 | #1018 #1021 #1023 #1024 #1025 | mkdocs at `/docs/*` on SWA: workflow integration, `mkdocs/requirements.txt`, `staticwebapp.config.json` route block, `ReadTheDocsCta` + `TryThisInTheAppCta` molecules, segmented sitemap deep-page expansion (18 URLs). |
+| #1082 | #1019 | Axe deep-page coverage (`tests/a11y/audienceDeepPages.test.tsx` — 14 cases over `/retailers/*`, `/builders/*`, `/deploy/*`). |
+| #1081 | #1022 | Pagefind v1 app-search (`AppSearchBox` molecule, 19-page `APP_PAGES` manifest, GitHub-style scoring), `?q=` URL seeding from docs cross-link, mkdocs `overrides/main.html` cross-link aside. |
+| #1084 | #1021 follow-up | mkdocs `--strict` gate flip: `rewrite_external_links.py` hook (docs-to-source links → absolute GitHub blob URLs), GitHub-compatible toc slugifier, 130 → 0 strict-mode warnings, `MKDOCS_STRICT_BUILD` defaults `true`. |
 
 ### Epic state matrix (2026-05-09)
 
@@ -24,7 +27,7 @@ merged squash commit on `main`.
 |------|-------|-------|-------|
 | #1014 | Audience-router foundation (CODEOWNERS, tokens, route groups) | ✅ Closed | Landed in earlier wave. |
 | #1020 | Audience-segmented IA | ✅ Effective closure | Route groups (#1015), dual tokens (#1016), `LaneSwitch` (#1017), per-section SEO + sitemap (#1018), CODEOWNERS 5-second-test (#1019), axe-core CI all in `main`. |
-| #1026 | mkdocs-as-/docs sub-path | 🟡 v1 in PR #1079 | #1021 #1023 #1024 #1025 shipped non-strict; #1022 Pagefind index + `--strict` flip deferred to follow-up. |
+| #1026 | mkdocs-as-/docs sub-path | ✅ Effective closure | #1021 #1023 #1024 #1025 shipped non-strict in PR #1079; #1022 Pagefind v1 + `?q=` cross-link in PR #1081; `--strict` gate flip in PR #1084 (130 → 0 warnings via the `rewrite_external_links.py` hook + GitHub-style toc slugifier). |
 | #1039 | Deploy-portal one-click preview | 🟡 v1 in PR #1078 | Sub-issues #1027–#1038 scaffolded; real ARM kickoff + SignalR client + production GA gated on third-party / Microsoft Red Team pen-test (#1027). |
 | #1046 | Retailer pages | ✅ v1 in PR #1076 | #1040–#1045 shipped. |
 | #1053 | Builder pages | ✅ v1 in PR #1077 | #1047–#1052 shipped. |
