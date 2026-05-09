@@ -124,6 +124,16 @@ jobs:
           test -f apps/ui/public/docs/index.html
           echo "mkdocs site emitted to apps/ui/public/docs/"
 
+      - name: Build enablement asset index (Issue #1052 / Epic #1053)
+        shell: bash
+        env:
+          PYTHONUNBUFFERED: '1'
+        run: |
+          set -euo pipefail
+          python scripts/ops/build_enablement_index.py
+          test -f apps/ui/public/enablement-index.json
+          echo "enablement-index.json emitted to apps/ui/public/"
+
       - name: Resolve and validate API URL
         id: api
         shell: bash
