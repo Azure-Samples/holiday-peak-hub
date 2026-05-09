@@ -1,0 +1,15 @@
+sequenceDiagram
+    participant UI as Next.js UI
+    participant CRUD as CRUD Service
+
+    UI->>CRUD: GET /api/catalog/products/{sku}
+    CRUD-->>UI: CatalogProductResponse
+    UI->>CRUD: GET /api/customers/{customer_id}/profile
+    CRUD-->>UI: CustomerProfileResponse
+
+    UI->>CRUD: POST /api/pricing/offers
+    CRUD-->>UI: PricingOffersResponse
+    UI->>CRUD: POST /api/recommendations/rank
+    CRUD-->>UI: RankRecommendationsResponse
+    UI->>CRUD: POST /api/recommendations/compose
+    CRUD-->>UI: ComposeRecommendationsResponse

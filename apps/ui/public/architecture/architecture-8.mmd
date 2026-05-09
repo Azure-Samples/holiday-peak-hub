@@ -1,0 +1,27 @@
+sequenceDiagram
+    participant Customer
+    participant OrderSvc as Order Service
+    participant InventorySvc as Inventory Service
+    participant PaymentSvc as Payment Service
+    participant LogisticsSvc as Logistics Service
+    participant EventHub as Event Hubs
+    
+    Customer->>OrderSvc: POST /orders
+    OrderSvc->>EventHub: OrderCreated event
+    OrderSvc-->>Customer: 202 Accepted
+    
+    EventHub->>InventorySvc: OrderCreated
+    InventorySvc->>InventorySvc: Reserve stock
+    InventorySvc->>EventHub: InventoryReserved event
+    
+    EventHub->>PaymentSvc: InventoryReserved
+    PaymentSvc->>PaymentSvc: Process payment
+    PaymentSvc->>EventHub: PaymentProcessed event
+    
+    EventHub->>LogisticsSvc: PaymentProcessed
+    LogisticsSvc->>LogisticsSvc: Schedule shipment
+    LogisticsSvc->>EventHub: ShipmentScheduled event
+    
+    EventHub->>OrderSvc: ShipmentScheduled
+    OrderSvc->>OrderSvc: Update order status
+    OrderSvc->>Customer: Email confirmation

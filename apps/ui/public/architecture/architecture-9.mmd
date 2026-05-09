@@ -1,0 +1,30 @@
+sequenceDiagram
+    participant Customer
+    participant UI as Next.js UI
+    participant CRUD as CRUD Service
+    participant Stripe as Stripe
+    participant EventHub as Event Hubs
+
+    Customer->>UI: Checkout submission
+    UI->>CRUD: POST /api/checkout/validate
+    CRUD-->>UI: Validation result
+    UI->>CRUD: POST /api/orders
+    CRUD-->>UI: Order created
+
+    UI->>CRUD: POST /api/payments/intent
+    CRUD->>Stripe: Create PaymentIntent
+    Stripe-->>CRUD: client_secret + intent_id
+    CRUD-->>UI: client_secret + intent_id
+
+    UI->>Stripe: Confirm PaymentIntent (Stripe.js)
+    Stripe-->>UI: intent status = succeeded
+    UI->>CRUD: POST /api/payments/confirm-intent
+    CRUD->>Stripe: Retrieve PaymentIntent
+    Stripe-->>CRUD: Confirmed intent metadata
+
+    CRUD->>CRUD: Persist payment if missing (idempotent)
+    CRUD->>CRUD: Set order status=paid, attach payment_id
+    alt order transitioned to paid
+        CRUD->>EventHub: payment.processed
+    end
+    CRUD-->>UI: PaymentResponse

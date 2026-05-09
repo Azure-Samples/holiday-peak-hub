@@ -1,0 +1,25 @@
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
+graph LR
+    CRUD["CRUD Service"]
+    EH["Event Hubs"]
+
+    subgraph SRCH["Search Domain (holiday-peak-agents)"]
+        SEA["🔍 Search Enrichment<br/><i>Index augmentation<br/>Embedding generation</i>"]
+    end
+
+    subgraph TRUTH["Truth Layer Domain (holiday-peak-agents)"]
+        TI["📥 Truth Ingestion<br/><i>Multi-source intake<br/>Schema validation</i>"]
+        TE["🧠 Truth Enrichment<br/><i>AI attribute generation<br/>Guardrail validation</i>"]
+        TH["👁️ Truth HITL<br/><i>Human review queue<br/>Approve / Reject / Edit</i>"]
+        TX["📤 Truth Export<br/><i>PIM writeback<br/>Channel distribution</i>"]
+    end
+
+    CRUD -->|product.updated| EH
+    EH --> SEA
+    SEA --> AIS["Azure AI Search"]
+
+    TI -->|MCP: enrich_product| TE
+    TE -->|MCP: submit_review| TH
+    TH -->|MCP: export_approved| TX
+    TX --> PIM["External PIM"]
+    TI --> EH2["Platform Jobs<br/>Event Hub"]

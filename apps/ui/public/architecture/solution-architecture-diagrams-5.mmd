@@ -1,0 +1,17 @@
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
+graph LR
+    CRUD["CRUD Service"]
+    EH["Event Hubs"]
+
+    subgraph INV["Inventory Domain (holiday-peak-agents)"]
+        AT["🚨 Alerts & Triggers<br/><i>Stock threshold alerts<br/>Anomaly detection</i>"]
+        HC["📊 Health Check<br/><i>Inventory accuracy<br/>Cycle count scheduling</i>"]
+        JIT["📦 JIT Replenishment<br/><i>Demand forecasting<br/>Automated reorder</i>"]
+        RV["🔒 Reservation Validation<br/><i>Hold management<br/>Conflict resolution</i>"]
+    end
+
+    CRUD -->|inventory.updated<br/>reservation.created| EH
+    EH --> AT & HC & JIT & RV
+    AT -->|MCP: get_stock_level| HC
+    JIT -->|MCP: check_thresholds| AT
+    CRUD <-->|sync| RV

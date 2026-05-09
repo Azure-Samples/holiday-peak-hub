@@ -1,0 +1,18 @@
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
+graph LR
+    CRUD["CRUD Service"]
+    EH["Event Hubs"]
+
+    subgraph LOG["Logistics Domain (holiday-peak-agents)"]
+        CSel["🚛 Carrier Selection<br/><i>Rate comparison<br/>SLA matching</i>"]
+        ETA["⏱️ ETA Computation<br/><i>Multi-carrier tracking<br/>Delay prediction</i>"]
+        RS["↩️ Returns Support<br/><i>Return eligibility<br/>Label generation</i>"]
+        RID["🗺️ Route Issue Detection<br/><i>Delay alerts<br/>Rerouting suggestions</i>"]
+    end
+
+    CRUD -->|shipment.created<br/>return.requested| EH
+    EH --> CSel & ETA & RS & RID
+    CSel -->|MCP: get_delivery_estimate| ETA
+    RID -->|MCP: get_carrier_status| ETA
+    CRUD <-->|sync| RS
+    CSel --> Carrier["External Carrier APIs"]

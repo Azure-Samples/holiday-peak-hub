@@ -1,0 +1,22 @@
+graph TB
+    subgraph Actors
+        OpsMgr((Operations Manager))
+        System((Automated System))
+    end
+    
+    subgraph "Inventory Use Cases"
+        UC1[Health Check]
+        UC2[JIT Replenishment]
+        UC3[Reservation Validation]
+        UC4[Generate Alerts]
+    end
+    
+    OpsMgr -->|monitors| UC1
+    System -->|triggers| UC2
+    System -->|executes| UC3
+    OpsMgr -->|receives| UC4
+    
+    UC1 -.->|includes| PredictStockout[Forecast Demand]
+    UC2 -.->|includes| CreatePO[Generate Purchase Order]
+    UC3 -.->|includes| LockStock[Reserve Inventory]
+    UC4 -.->|includes| NotifyTeam[Send Notifications]
