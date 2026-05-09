@@ -14,7 +14,7 @@ agent-framework-openai==1.0.1
     # via agent-framework-foundry
 aiohappyeyeballs==2.6.1
     # via aiohttp
-aiohttp==3.13.4
+aiohttp==3.13.5
     # via holiday-peak-lib
 aiosignal==1.4.0
     # via aiohttp
