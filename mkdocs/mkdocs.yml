@@ -1,9 +1,14 @@
 site_name: Holiday Peak Hub
 site_description: Agentic Retail Platform — Documentation
-site_url: https://azure-samples.github.io/holiday-peak-hub/
+# Mounted as a sub-path under the SWA UI at /docs/ (Issue #1023 / Epic #1026).
+# The host is overridden at deploy time via the `MKDOCS_SITE_URL` env var
+# the deploy-ui-swa workflow passes through; the path component `/docs/`
+# is what controls internal-link resolution and is the contract.
+site_url: https://holiday-peak-hub.example/docs/
 
 docs_dir: ../docs
 site_dir: site
+use_directory_urls: true
 
 theme:
   name: material

@@ -498,6 +498,8 @@ htmlcov/
 
 # MkDocs build output
 mkdocs/site/
+# Generated mkdocs sub-site mounted under SWA at /docs/* (Issue #1021 / Epic #1026).
+apps/ui/public/docs/
 
 # Archive files
 *.zip

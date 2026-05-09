@@ -1,3 +1,19 @@
 {
-  "routes": []
+  "routes": [
+    {
+      "route": "/docs/*",
+      "headers": {
+        "cache-control": "public, max-age=600"
+      }
+    }
+  ],
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": [
+      "/docs/*",
+      "/_next/*",
+      "/api/*",
+      "/*.{png,jpg,jpeg,svg,ico,webp,gif,css,js,json,txt,xml,woff,woff2,map,wasm,pdf}"
+    ]
+  }
 }

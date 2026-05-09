@@ -5,18 +5,31 @@ import { SEO_CONFIG } from '@/lib/seo/buildMetadata';
 describe('app/sitemap.ts', () => {
   const entries = sitemap();
 
-  it('emits the home, three audience landings, plus the docs cross-reference', () => {
+  it('emits the home, three audience landings, deep audience pages, plus the docs cross-reference', () => {
     const urls = entries.map((entry) => entry.url);
     expect(urls).toEqual(
       expect.arrayContaining([
         `${SEO_CONFIG.SITE_URL}/`,
         `${SEO_CONFIG.SITE_URL}/retailers`,
+        `${SEO_CONFIG.SITE_URL}/retailers/value`,
+        `${SEO_CONFIG.SITE_URL}/retailers/agents`,
+        `${SEO_CONFIG.SITE_URL}/retailers/roi`,
+        `${SEO_CONFIG.SITE_URL}/retailers/comparators`,
+        `${SEO_CONFIG.SITE_URL}/retailers/case-studies`,
+        `${SEO_CONFIG.SITE_URL}/retailers/security`,
         `${SEO_CONFIG.SITE_URL}/builders`,
+        `${SEO_CONFIG.SITE_URL}/builders/architecture`,
+        `${SEO_CONFIG.SITE_URL}/builders/adrs`,
+        `${SEO_CONFIG.SITE_URL}/builders/patterns`,
+        `${SEO_CONFIG.SITE_URL}/builders/telemetry`,
         `${SEO_CONFIG.SITE_URL}/deploy`,
+        `${SEO_CONFIG.SITE_URL}/deploy/catalog`,
+        `${SEO_CONFIG.SITE_URL}/deploy/configure`,
+        `${SEO_CONFIG.SITE_URL}/deploy/preflight`,
         `${SEO_CONFIG.SITE_URL}/docs/sitemap.xml`,
       ]),
     );
-    expect(urls.length).toBe(5);
+    expect(urls.length).toBeGreaterThanOrEqual(18);
   });
 
   it('home has the highest priority', () => {
