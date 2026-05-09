@@ -258,7 +258,6 @@ export function AppSearchBox({
                 href={docsHref}
                 data-telemetry="app-search-cross-link-click"
                 data-telemetry-source={audience}
-                data-telemetry-query={query}
               >
                 searching the docs instead →
               </Link>
@@ -296,7 +295,6 @@ export function AppSearchBox({
               href={docsHref}
               data-telemetry="app-search-cross-link-click"
               data-telemetry-source={audience}
-              data-telemetry-query={query}
               style={{ fontWeight: 600 }}
             >
               Search the docs →
