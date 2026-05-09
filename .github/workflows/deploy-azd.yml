@@ -2057,7 +2057,7 @@ jobs:
           POSTGRES_USER: ${{ needs.provision.outputs.POSTGRES_AUTH_MODE == 'password' && needs.provision.outputs.POSTGRES_ADMIN_USER || needs.provision.outputs.POSTGRES_USER }}
           POSTGRES_DATABASE: ${{ needs.provision.outputs.POSTGRES_DATABASE }}
 
-      - name: Upload rendered CRUD manifest for Flux commit
+      - name: Upload rendered CRUD manifest for verification
         uses: actions/upload-artifact@v4
         with:
           name: rendered-manifest-crud-service
@@ -2710,7 +2710,7 @@ jobs:
           POSTGRES_USER: ${{ needs.provision.outputs.POSTGRES_AUTH_MODE == 'password' && needs.provision.outputs.POSTGRES_ADMIN_USER || needs.provision.outputs.POSTGRES_USER }}
           POSTGRES_DATABASE: ${{ needs.provision.outputs.POSTGRES_DATABASE }}
 
-      - name: Upload rendered agent manifest for Flux commit
+      - name: Upload rendered agent manifest for verification
         if: ${{ success() }}
         uses: actions/upload-artifact@v4
         with:
@@ -2718,83 +2718,21 @@ jobs:
           path: .kubernetes/rendered/${{ matrix.service }}/all.yaml
           retention-days: 1
 
-  commit-rendered-manifests:
-    runs-on: ubuntu-latest
-    if: ${{ always() && !cancelled() && !inputs.uiOnly && (needs.deploy-crud.result == 'success' || needs.deploy-agents.result == 'success') }}
-    needs:
-      - detect-changes
-      - provision
-      - deploy-crud
-      - deploy-agents
-      - build-aks-images
-    permissions:
-      contents: write
-    steps:
-      - name: Resolve publication branch
-        id: publication-branch
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          SOURCE_REF="${DEPLOY_SOURCE_REF}"
-
-          if [[ "$SOURCE_REF" != refs/heads/* ]]; then
-            echo "::error::Rendered manifest publication requires a pushable branch ref, but DEPLOY_SOURCE_REF='$SOURCE_REF'."
-            exit 1
-          fi
-
-          BRANCH_NAME="${SOURCE_REF#refs/heads/}"
-          if [ -z "$BRANCH_NAME" ]; then
-            echo "::error::Rendered manifest publication could not resolve a branch name from DEPLOY_SOURCE_REF='$SOURCE_REF'."
-            exit 1
-          fi
-
-          echo "branch_ref=$SOURCE_REF" >> "$GITHUB_OUTPUT"
-          echo "branch_name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
-
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ steps.publication-branch.outputs.branch_ref }}
-          fetch-depth: 1
-          token: ${{ github.token }}
-
-      - name: Download rendered manifests
-        uses: actions/download-artifact@v4
-        with:
-          pattern: rendered-manifest-*
-          path: ${{ runner.temp }}/rendered-artifacts
-
-      - name: Copy rendered manifests into repo
-        shell: bash
-        run: |
-          set -euo pipefail
-          for artifact_dir in "${RUNNER_TEMP}"/rendered-artifacts/rendered-manifest-*; do
-            [ -d "$artifact_dir" ] || continue
-            svc_name=$(basename "$artifact_dir" | sed 's/^rendered-manifest-//')
-            mkdir -p ".kubernetes/rendered/${svc_name}"
-            cp "${artifact_dir}/all.yaml" ".kubernetes/rendered/${svc_name}/all.yaml"
-            echo "Copied rendered manifest for ${svc_name}"
-          done
-
-      - name: Commit rendered manifests for Flux reconciliation
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .kubernetes/rendered/ || true
-          if git diff --cached --quiet; then
-            echo "No rendered manifest changes to commit."
-            exit 0
-          fi
-          git commit -m "deploy: update rendered manifests [skip ci]"
-          git push origin "HEAD:refs/heads/${{ steps.publication-branch.outputs.branch_name }}"
+  # NOTE (ADR-017 amendment, Pattern A): the previous `commit-rendered-manifests`
+  # job was deleted because it pushed bot-generated manifests directly to
+  # `refs/heads/main`, which is rejected by the `main-governance-baseline`
+  # ruleset (GH013). Flux now reconciles HelmRelease CRDs from
+  # `.kubernetes/releases/{crud,agents}` and the helm-controller renders the
+  # chart in-cluster on every reconciliation, so no workflow push to main is
+  # ever required. Image tag updates remain a follow-up (planned: Flux
+  # ImageUpdateAutomation with PR bridge).
 
   wait-flux-reconciliation:
     runs-on: ubuntu-latest
-    if: ${{ !inputs.uiOnly && (needs.commit-rendered-manifests.result == 'success') }}
+    if: ${{ always() && !cancelled() && !inputs.uiOnly && (needs.deploy-crud.result == 'success' || needs.deploy-agents.result == 'success') }}
     needs:
-      - commit-rendered-manifests
+      - deploy-crud
+      - deploy-agents
       - detect-changes
     environment: ${{ inputs.githubEnvironment }}
     env:
@@ -4203,7 +4141,6 @@ jobs:
       - detect-changes
       - deploy-crud
       - deploy-agents
-      - commit-rendered-manifests
       - wait-flux-reconciliation
       - sync-apim
       - sync-apic
@@ -4299,7 +4236,6 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ always() && !cancelled() && !inputs.uiOnly }}
     needs:
-      - commit-rendered-manifests
       - wait-flux-reconciliation
       - validate-agc-readiness
       - sync-apim
