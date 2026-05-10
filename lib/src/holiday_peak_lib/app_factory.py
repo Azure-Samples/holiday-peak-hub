@@ -69,23 +69,6 @@ def _build_foundry_config(agent_env: str, deployment_env: str) -> FoundryAgentCo
     return build_foundry_config(agent_env, deployment_env)
 
 
-def _runtime_foundry_config(config: FoundryAgentConfig | None) -> FoundryAgentConfig | None:
-    """Return a Foundry config only when a resolvable runtime agent id is available.
-
-    Foundry config may carry lookup-only references such as role names while the
-    actual runtime agent id is still unresolved. We keep those configs for
-    ensure/provision endpoints, but avoid binding them as callable SLM/LLM
-    targets until a real runtime id is available.
-    """
-    if config is None:
-        return None
-
-    agent_id = str(config.runtime_agent_id or "").strip()
-    if not agent_id or agent_id == "pending" or agent_id.endswith("-pending"):
-        return None
-    return config
-
-
 def create_standard_app(
     service_name: str,
     agent_class: type[BaseRetailAgent],
@@ -226,87 +209,58 @@ def build_service_app(
         llm_config = _build_foundry_config("FOUNDRY_AGENT_ID_RICH", "MODEL_DEPLOYMENT_NAME_RICH")
 
     # Resolve the model-wiring strategy:
-    #   - direct-model path (ADR-005 amendment, 2026-05-10): in-process MAF
-    #     ``Agent`` + ``FoundryChatClient`` over Responses API. Requires only
-    #     a deployment_name on each config.
-    #   - portal-agent path (legacy): requires a resolved runtime agent id.
-    if use_direct_model is None:
-        use_direct_model = os.getenv("HOLIDAY_PEAK_DIRECT_MODEL", "").lower() in (
-            "1",
-            "true",
-            "yes",
-            "on",
+    # Direct-model invocation is the canonical path post-2026-05-10
+    # (ADR-005 amendment). The legacy portal-agent ModelInvoker path was
+    # removed in Wave 4a of the cutover. ``use_direct_model`` is preserved
+    # on the signature for backward compatibility but is now effectively a
+    # no-op: model wiring always uses :class:`DirectModelInvoker` (in-process
+    # MAF ``Agent`` + ``FoundryChatClient`` over Responses API). Requires
+    # only a ``deployment_name`` on each config.
+    _ = use_direct_model  # signature kept for backward compatibility
+    _ = os.getenv("HOLIDAY_PEAK_DIRECT_MODEL", "")  # env-var read for telemetry parity
+
+    direct_slm = (
+        slm_config if slm_config and slm_config.deployment_name else None
+    )
+    direct_llm = (
+        llm_config if llm_config and llm_config.deployment_name else None
+    )
+    if direct_slm or direct_llm:
+        instructions = load_service_prompt_instructions(service_name) or (
+            _FALLBACK_INSTRUCTIONS_TEMPLATE.format(service_name=service_name)
+        )
+        builder = builder.with_direct_models(
+            instructions=instructions,
+            slm_config=direct_slm,
+            llm_config=direct_llm,
+        )
+        logger.info(
+            "direct_model_targets_bound",
+            extra={
+                "service": service_name,
+                "fast_deployment": direct_slm.deployment_name if direct_slm else None,
+                "rich_deployment": direct_llm.deployment_name if direct_llm else None,
+                "runtime": "maf-direct",
+            },
         )
 
-    if use_direct_model:
-        direct_slm = (
-            slm_config if slm_config and slm_config.deployment_name else None
+    unresolved_roles = []
+    if slm_config and direct_slm is None:
+        unresolved_roles.append("fast")
+    if llm_config and direct_llm is None:
+        unresolved_roles.append("rich")
+    if unresolved_roles:
+        logger.warning(
+            "direct_model_targets_disabled",
+            extra={
+                "service": service_name,
+                "roles": unresolved_roles,
+                "hint": (
+                    "Set MODEL_DEPLOYMENT_NAME_FAST / MODEL_DEPLOYMENT_NAME_RICH "
+                    "for direct-model invocation."
+                ),
+            },
         )
-        direct_llm = (
-            llm_config if llm_config and llm_config.deployment_name else None
-        )
-        if direct_slm or direct_llm:
-            instructions = load_service_prompt_instructions(service_name) or (
-                _FALLBACK_INSTRUCTIONS_TEMPLATE.format(service_name=service_name)
-            )
-            builder = builder.with_direct_models(
-                instructions=instructions,
-                slm_config=direct_slm,
-                llm_config=direct_llm,
-            )
-            logger.info(
-                "direct_model_targets_bound",
-                extra={
-                    "service": service_name,
-                    "fast_deployment": direct_slm.deployment_name if direct_slm else None,
-                    "rich_deployment": direct_llm.deployment_name if direct_llm else None,
-                    "runtime": "maf-direct",
-                },
-            )
-
-        unresolved_roles = []
-        if slm_config and direct_slm is None:
-            unresolved_roles.append("fast")
-        if llm_config and direct_llm is None:
-            unresolved_roles.append("rich")
-        if unresolved_roles:
-            logger.warning(
-                "direct_model_targets_disabled",
-                extra={
-                    "service": service_name,
-                    "roles": unresolved_roles,
-                    "hint": (
-                        "Set MODEL_DEPLOYMENT_NAME_FAST / MODEL_DEPLOYMENT_NAME_RICH "
-                        "for direct-model invocation."
-                    ),
-                },
-            )
-    else:
-        runtime_slm_config = _runtime_foundry_config(slm_config)
-        runtime_llm_config = _runtime_foundry_config(llm_config)
-        if runtime_slm_config or runtime_llm_config:
-            builder = builder.with_foundry_models(
-                slm_config=runtime_slm_config,
-                llm_config=runtime_llm_config,
-            )
-
-        unresolved_roles = []
-        if slm_config and runtime_slm_config is None:
-            unresolved_roles.append("fast")
-        if llm_config and runtime_llm_config is None:
-            unresolved_roles.append("rich")
-        if unresolved_roles:
-            logger.warning(
-                "foundry_runtime_targets_disabled",
-                extra={
-                    "service": service_name,
-                    "roles": unresolved_roles,
-                    "hint": (
-                        "Set FOUNDRY_AGENT_ID_FAST/FOUNDRY_AGENT_ID_RICH (or role names) "
-                        "or enable FOUNDRY_AUTO_ENSURE_ON_STARTUP to provision agents before invoke."
-                    ),
-                },
-            )
 
     agent = builder.build()
     if hasattr(agent, "connector_registry"):

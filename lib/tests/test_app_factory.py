@@ -122,43 +122,6 @@ class TestBuildServiceApp:
         assert foundry_detail["last_error"]["status"] == "missing"
         assert foundry_detail["last_error"]["role"] == "fast"
 
-    def test_build_app_skips_name_only_foundry_runtime_targets(
-        self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
-    ):
-        """Test optional name-only Foundry config still allows fallback invoke paths."""
-
-        class ModelAwareAgent(BaseRetailAgent):
-            async def handle(self, request: dict) -> dict:
-                return {"model_wired": bool(self.slm or self.llm)}
-
-        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
-        monkeypatch.delenv("FOUNDRY_AGENT_ID_FAST", raising=False)
-        monkeypatch.delenv("FOUNDRY_AGENT_ID_RICH", raising=False)
-        monkeypatch.setenv("FOUNDRY_AGENT_NAME_FAST", "catalog-fast")
-        monkeypatch.delenv("FOUNDRY_AGENT_NAME_RICH", raising=False)
-        monkeypatch.setenv("FOUNDRY_AUTO_ENSURE_ON_STARTUP", "false")
-
-        app = build_service_app(
-            service_name="test-service",
-            agent_class=ModelAwareAgent,
-            hot_memory=mock_hot_memory,
-            warm_memory=mock_warm_memory,
-            cold_memory=mock_cold_memory,
-        )
-
-        client = TestClient(app)
-        with patch("holiday_peak_lib.app_factory.ensure_foundry_agent") as mock_ensure:
-            mock_ensure.return_value = {
-                "status": "missing",
-                "agent_id": None,
-                "agent_name": "catalog-fast",
-                "created": False,
-            }
-            response = client.post("/invoke", json={"query": "test"})
-
-        assert response.status_code == 200
-        assert response.json()["model_wired"] is False
-
     def test_invoke_auto_ensures_pending_foundry_runtime_targets(
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
     ):
@@ -962,37 +925,6 @@ class TestDirectModelAppFactory:
         assert agent.slm is not None
         assert agent.slm.provider == "maf-direct"
         assert agent.slm.model == "gpt-5-fast"
-
-    def test_use_direct_model_default_keeps_legacy_foundry_path(
-        self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
-    ):
-        """Without the flag and without env opt-in, the direct path is NOT used.
-
-        The legacy Foundry-portal path requires a resolved ``runtime_agent_id``
-        (set after a successful ensure call) before it binds a target. With
-        ensure disabled, no SLM/LLM target is bound — and the critical
-        invariant is that no ``maf-direct`` target appears.
-        """
-        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
-        monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-fast-legacy")
-        monkeypatch.setenv("MODEL_DEPLOYMENT_NAME_FAST", "gpt-5-fast")
-        monkeypatch.delenv("HOLIDAY_PEAK_DIRECT_MODEL", raising=False)
-        monkeypatch.setenv("FOUNDRY_AUTO_ENSURE_ON_STARTUP", "false")
-        monkeypatch.delenv("FOUNDRY_STRICT_ENFORCEMENT", raising=False)
-
-        app = build_service_app(
-            service_name="test-service",
-            agent_class=SampleServiceAgent,
-            hot_memory=mock_hot_memory,
-            warm_memory=mock_warm_memory,
-            cold_memory=mock_cold_memory,
-        )
-
-        agent = app.state.agent
-        # Critical invariant: no direct-model target was bound.
-        for target in (agent.slm, agent.llm):
-            if target is not None:
-                assert target.provider != "maf-direct"
 
 
 class TestAppFactoryIntegration:

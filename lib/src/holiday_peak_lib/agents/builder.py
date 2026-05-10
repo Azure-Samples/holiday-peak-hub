@@ -6,7 +6,7 @@ from holiday_peak_lib.mcp.server import FastAPIMCPServer
 
 from .base_agent import AgentDependencies, BaseRetailAgent, ModelTarget
 from .direct import ChatClientFactory, build_direct_model_target
-from .foundry import FoundryAgentConfig, build_foundry_model_target
+from .foundry import FoundryAgentConfig
 from .memory.builder import MemoryBuilder
 from .memory.cold import ColdMemory
 from .memory.hot import HotMemory
@@ -79,24 +79,6 @@ class AgentBuilder:
     ) -> "AgentBuilder":
         self._slm = slm
         self._llm = llm
-        self._complexity_threshold = complexity_threshold
-        return self
-
-    def with_foundry_models(
-        self,
-        *,
-        slm_config: FoundryAgentConfig | None = None,
-        llm_config: FoundryAgentConfig | None = None,
-        complexity_threshold: float = 0.5,
-    ) -> "AgentBuilder":
-        """Configure Foundry Agents for SLM/LLM targets via ModelTarget wrappers.
-
-        Accepts optional configs for fast/slow (SLM/LLM) paths and builds the
-        corresponding ``ModelTarget`` instances with telemetry-aware invokers.
-        """
-
-        self._slm = build_foundry_model_target(slm_config) if slm_config else None
-        self._llm = build_foundry_model_target(llm_config) if llm_config else None
         self._complexity_threshold = complexity_threshold
         return self
 
