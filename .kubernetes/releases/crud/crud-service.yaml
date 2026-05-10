@@ -58,7 +58,12 @@ spec:
       enabled: false
     preflight:
       postgresAuth:
-        enabled: true
+        # Disabled: the chart's init container assumes Alpine (apk add postgresql-client jq),
+        # but mcr.microsoft.com/azure-cli:latest is now Mariner -> apk missing -> Exit 127 ->
+        # CrashLoopBackOff. BaseRepository.check_pool_health self-recovers from transient pool
+        # init errors per fix 811fdbe6 (#911 / PR #1087), so this preflight gate is no longer
+        # load-bearing. Tracked for permanent multi-distro fix in chart in a follow-up.
+        enabled: false
     agc:
       enabled: true
       gatewayClassName: azure-alb-external
