@@ -94,14 +94,23 @@ response = await agent.handle({"query": "Check inventory for SKU-123"})
 
 - `AgentBuilder`: Wires agent class, router, memory tiers, tools, MCP server, and models
 
-✅ **Foundry Integration Helpers**:
+✅ **Direct-Model Invocation (canonical, post 2026-05-10)**:
 
-- `FoundryAgentConfig` + `build_foundry_model_target` (Azure AI Foundry Agents)
-- `FoundryAgentInvoker`: wraps the Microsoft Agent Framework `FoundryAgent` runtime, ensuring tools and middleware are properly forwarded (replaces deprecated `FoundryInvoker`)
-- Foundry prompt governance in `BaseRetailAgent` (system/developer prompts are stripped in Foundry mode)
-- Agents V2 provisioning path (`project_client.agents.create_version` with `PromptAgentDefinition`)
-- **42 V2 agents provisioned** in Foundry project `aipholidaris` (21 services × 2 roles: fast + rich)
-- SDK requirement: `agent-framework>=1.0.1` for MAF GA runtime
+- `DirectModelInvoker` + `build_direct_model_target`: runs `agent_framework.Agent` in-process over a pluggable `ChatClient` (`agent_framework_foundry.FoundryChatClient` by default).
+- `AgentBuilder.with_direct_models(*, instructions, slm_config, llm_config, complexity_threshold, chat_client_factory)`: sibling of `with_foundry_models`. Forwards registered tools as runtime callables.
+- `app_factory.build_service_app(..., use_direct_model=True)` / `create_standard_app(..., use_direct_model=True)`: per-service opt-in. Falls back to `HOLIDAY_PEAK_DIRECT_MODEL=true` env var. All 26 agent services run on this path as of 2026-05-10 (#990, Wave 3).
+- Provider-agnostic via `ChatClientFactory = Callable[[FoundryAgentConfig], Any]` — swap providers without touching invoker logic.
+- Native MAF function-calling — dict-schema tool definitions raise `TypeError` (no JSON-text tool-call parser fallback).
+- `default_options={"store": False}` — no portal-managed agent record at runtime; MAF `Agent` is stateless per request.
+- SDK requirement: `agent-framework>=1.2.0` + `agent-framework-foundry>=1.0.1`.
+
+✅ **Foundry Integration Helpers (transitional, scheduled for Wave 4 cleanup)**:
+
+- `FoundryAgentConfig` (kept — consumed by `DirectModelInvoker`).
+- `build_foundry_model_target` + `FoundryAgentInvoker`: portal-managed Foundry Agents path (V2 prompt-agent runtime). Wraps the MAF `FoundryAgent` runtime, ensuring tools and middleware are forwarded (replaces deprecated `FoundryInvoker`). **Status**: superseded by `DirectModelInvoker` for new work; retained in-tree until Wave 4 cleanup.
+- Foundry prompt governance in `BaseRetailAgent` (system/developer prompts are stripped in Foundry mode) — applies to legacy `FoundryAgentInvoker` path; the direct-model path uses instructions baked into the container image via `prompts/instructions.md`.
+- Agents V2 provisioning path (`project_client.agents.create_version` with `PromptAgentDefinition`): scheduled for removal in Wave 4.
+- **42 V2 agents provisioned** in Foundry project `aipholidaris` (21 services × 2 roles: fast + rich): scheduled for deprovisioning in Wave 4b once all 26 services run stably on `DirectModelInvoker` for ≥1 week.
 
 ✅ **Memory Tools and Parallel I/O**:
 
@@ -201,6 +210,54 @@ response = await agent.handle({"query": "Find Nike shoes", "requires_multi_tool"
 **SDK Requirement**: `azure-ai-projects>=2.0.0b4` is required for V2 agent provisioning (`create_version` + `PromptAgentDefinition`).
 
 **V2 Execution**: Agents V2 uses `openai_client.conversations.create()` + `openai_client.responses.create()` with `agent_reference` instead of the legacy threads/runs API. Streaming is not yet supported in V2; the invoker returns a single payload.
+
+### Direct-Model Production Example (canonical, post 2026-05-10)
+
+```python
+import os
+from typing import Any
+
+from holiday_peak_lib.app_factory import create_standard_app
+from holiday_peak_lib.agents.base_agent import BaseRetailAgent
+
+
+class CatalogSearchAgent(BaseRetailAgent):
+    async def handle(self, request: dict[str, Any]) -> dict[str, Any]:
+        messages = [{"role": "user", "content": request["query"]}]
+        return await self.invoke_model(request=request, messages=messages)
+
+
+app = create_standard_app(
+    require_foundry_readiness=True,
+    disable_tracing_without_foundry=True,
+    service_name="ecommerce-catalog-search",
+    agent_class=CatalogSearchAgent,
+    use_direct_model=True,  # opt into MAF direct-model invocation
+)
+```
+
+When `use_direct_model=True` (or `HOLIDAY_PEAK_DIRECT_MODEL=true`), `app_factory`:
+
+1. Loads service instructions from `prompts/instructions.md` (or the default fallback template).
+2. Constructs `FoundryAgentConfig` for `fast` and `rich` roles from env (only `MODEL_DEPLOYMENT_NAME_*` is required \u2014 no portal-managed agent ID).
+3. Calls `AgentBuilder.with_direct_models(instructions=..., slm_config=..., llm_config=...)`.
+4. `DirectModelInvoker` wraps the model in an in-process `agent_framework.Agent` over the configured `ChatClient` (`FoundryChatClient` by default).
+
+**Env vars (direct-model path)**
+- `PROJECT_ENDPOINT` (or `FOUNDRY_ENDPOINT`): Azure AI Foundry project endpoint.
+- `PROJECT_NAME` (or `FOUNDRY_PROJECT_NAME`): Project name (required if endpoint is not project-scoped).
+- `MODEL_DEPLOYMENT_NAME_FAST` / `MODEL_DEPLOYMENT_NAME_RICH`: Deployments backing the SLM/LLM targets (defaults: `gpt-5-nano` / `gpt-5`).
+- `HOLIDAY_PEAK_DIRECT_MODEL` (optional): `true` to opt into the direct-model path without per-service code changes.
+
+**Provider portability**: pass a custom `chat_client_factory: Callable[[FoundryAgentConfig], ChatClient]` to `with_direct_models()` (or to `app_factory.build_service_app`) to use any MAF-compatible `ChatClient` (Azure OpenAI direct, OpenAI, custom HTTP). `FoundryAgentConfig.deployment_name` becomes the model parameter; `endpoint` and `agent_id` are surfaced for provider auth/identity.
+
+**What the direct-model path does NOT use**:
+- Portal-managed Foundry Agent records (`FOUNDRY_AGENT_ID_*`).
+- `/foundry/agents/ensure` provisioning endpoint.
+- `ensure-foundry-agents.{sh,ps1}` CI hooks.
+- The JSON-text tool-call parser (`_extract_tool_calls_from_text`).
+
+These remain in-tree as transitional state and are scheduled for removal in Wave 4 of the cutover (see [docs/project-status.md](../../../project-status.md) and [ADR-005 amendment 2026-05-10](../../adrs/adr-005-agent-framework.md)).
 
 ### Configuration
 

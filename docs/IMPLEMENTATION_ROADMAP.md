@@ -1,8 +1,8 @@
 # Implementation Roadmap
 
-**Last Updated**: April 12, 2026  
-**Version**: main (post PR #802)  
-**Status**: Active Execution | Agent Runtime Migration Complete
+**Last Updated**: May 10, 2026  
+**Version**: main (post Wave 3 of #990 — direct-model migration code-complete)  
+**Status**: Active Execution | MAF Direct-Model Cutover (Wave 3 code-complete)
 
 ---
 
@@ -10,11 +10,19 @@
 
 This document tracks the implementation progress of the Holiday Peak Hub platform. The CRUD service, frontend integration, 21+ AI agents, and shared infrastructure (Bicep) are complete. v1.1.0 adds enterprise system connectors (Oracle, Salesforce, SAP, Dynamics 365), the Product Truth Layer foundation, HITL review system, and enterprise hardening patterns. v2.0.0 enforces single-path completeness operations. Current work focuses on agent runtime correctness, operational automation, and GitOps deployment.
 
-## Current Execution State (April 12, 2026)
+## Current Execution State (May 10, 2026)
 
-### Completed in Latest Merge Wave (PRs #771–#802)
+### Completed: Direct-Model Migration (Issue #990, Waves 0–3)
 
-- **Agent Runtime Migration** (PR #802): Replaced `FoundryInvoker` with `FoundryAgentInvoker` wrapping the MAF `FoundryAgent`, fixing silent tool-dropping. Upgraded `agent-framework` to `>=1.0.1` GA across all 27 service packages.
+- **Wave 0** — ADR-005 amendment + project-status update (2026-05-10): mandatory MAF direct-model invocation policy.
+- **Wave 1** (lib): `DirectModelInvoker` + `AgentBuilder.with_direct_models()` + `use_direct_model` kwarg on `app_factory.build_service_app` / `create_standard_app`. 13 invoker tests + 3 app-factory tests. Provider-agnostic via `ChatClientFactory`.
+- **Wave 2** (pilot): `inventory-health-check` flipped to `use_direct_model=True`. Pilot regression 3/3 green.
+- **Wave 3** (mass migration): all 25 remaining agent services flipped to `use_direct_model=True`. py_compile OK 26/26. Lib regression 1342/1342 green. crud-service is NOT migrated (it is a transactional microservice, not an agent).
+- **Wave 4** (legacy cleanup) and **Wave 4b** (V2 portal-agent deprovisioning) are gated on ≥1 week stable on the direct-model path + explicit confirmation.
+
+### Previously Completed in Merge Wave (PRs #771–#802)
+
+- **Agent Runtime Migration** (PR #802): Replaced `FoundryInvoker` with `FoundryAgentInvoker` wrapping the MAF `FoundryAgent`, fixing silent tool-dropping. Upgraded `agent-framework` to `>=1.0.1` GA across all 27 service packages. Superseded by direct-model invocation as of 2026-05-10 (#990); retained until Wave 4 cleanup.
 - **Memory Parallelization** (PR #800): Concurrent hot/warm/cold I/O via `asyncio.gather`; new memory tools and `gather_adapters` helper.
 - **Catalog-Search Optimization** (PR #796): Parallelized I/O, eliminated duplicate keyword search.
 - **Infrastructure Fixes** (PRs #794, #798): CRUD port correction, dev-environment recovery script.

@@ -1,12 +1,13 @@
 # Holiday Peak Hub - Architecture Documentation
 
-**Last Updated**: April 12, 2026
-**Version**: main (post PR #802)  
+**Last Updated**: May 10, 2026
+**Version**: main (post Wave 3 of #990 — direct-model migration code-complete)  
 **Status**: Active Development
 
-## Latest Update Snapshot (April 12, 2026)
+## Latest Update Snapshot (May 10, 2026)
 
-- **FoundryAgentInvoker** replaces legacy `FoundryInvoker` (PR #802 / Issue #801): agent tools are now properly forwarded through the Microsoft Agent Framework `FoundryAgent` runtime. `agent-framework` upgraded to `>=1.0.1` GA across all 27 Python services.
+- **MAF Direct-Model Invocation is now the canonical agent runtime** (Issue #990, ADR-005 amendment 2026-05-10): all 26 agent services construct an in-process `agent_framework.Agent` over a pluggable `ChatClient` (`FoundryChatClient` by default). Portal-managed Foundry Agent records (V2 prompt-agent path) are scheduled for deprovisioning. Foundry remains the model-deployment plane, the OTel telemetry backend, and the Evaluations API surface — not an agent-runtime intermediation layer. New seam: `DirectModelInvoker` (lib) + `AgentBuilder.with_direct_models()` + `use_direct_model=True` kwarg / `HOLIDAY_PEAK_DIRECT_MODEL=true` env on `build_service_app` / `create_standard_app`. `FoundryAgentInvoker`, `/foundry/agents/ensure`, and `ensure-foundry-agents.{sh,ps1}` remain in-tree as transitional state and are scheduled for removal in Wave 4 of the cutover.
+- **FoundryAgentInvoker** (PR #802 / Issue #801) is retained as the legacy `ModelInvoker` until Wave 4 cleanup. New work goes into `DirectModelInvoker`.
 - Memory tier reads/writes parallelized via `asyncio.gather` (PR #800): concurrent hot/warm/cold I/O reduces agent memory latency. New memory tools (`get_memory`, `set_memory`, `search_memory`) and `gather_adapters` helper added.
 - Catalog-search I/O parallelized and duplicate keyword search eliminated (PR #796).
 - CRUD_SERVICE_URL port corrected from 8000 to 80 for all agent deployments in AKS (PR #794).
