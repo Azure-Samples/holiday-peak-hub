@@ -95,6 +95,7 @@ def create_standard_app(
     handlers: dict[str, Any] | None = None,
     require_foundry_readiness: bool = False,
     disable_tracing_without_foundry: bool = False,
+    use_direct_model: bool | None = None,
 ) -> FastAPI:
     """Create a standard agent app with memory + default Foundry wiring.
 
@@ -104,6 +105,12 @@ def create_standard_app(
     ``disable_tracing_without_foundry`` is a backward-compatible per-service
     hint. Core telemetry collection remains enabled so admin observability
     surfaces stay available even when Foundry targets are not bound.
+
+    ``use_direct_model`` switches the model wiring to the direct-model path
+    (in-process MAF ``Agent`` + ``FoundryChatClient`` over Responses API)
+    introduced by the ADR-005 2026-05-10 amendment. When ``None`` (default),
+    the value is read from the ``HOLIDAY_PEAK_DIRECT_MODEL`` environment
+    variable. Pass ``True`` to opt a service into the pilot regardless of env.
     """
     self_healing_kernel = SelfHealingKernel.from_env(service_name)
     memory_settings = MemorySettings()
@@ -152,6 +159,7 @@ def create_standard_app(
         self_healing_kernel=self_healing_kernel,
         require_foundry_readiness=require_foundry_readiness,
         disable_tracing_without_foundry=disable_tracing_without_foundry,
+        use_direct_model=use_direct_model,
     )
 
 
@@ -171,6 +179,7 @@ def build_service_app(
     self_healing_kernel: SelfHealingKernel | None = None,
     require_foundry_readiness: bool = False,
     disable_tracing_without_foundry: bool = False,
+    use_direct_model: bool | None = None,
 ) -> FastAPI:
     """Return a FastAPI app pre-wired with MCP and required memory tiers.
 
@@ -179,6 +188,11 @@ def build_service_app(
             enforce Foundry runtime availability for this service.
         disable_tracing_without_foundry: Backward-compatible per-service hint.
             Core telemetry remains enabled for local/fallback execution paths.
+        use_direct_model: When ``True``, wires SLM/LLM targets through
+            :class:`~holiday_peak_lib.agents.direct.DirectModelInvoker`
+            (in-process MAF ``Agent`` + ``FoundryChatClient``) instead of the
+            portal-managed Foundry Agent path. ``None`` (default) falls back to
+            the ``HOLIDAY_PEAK_DIRECT_MODEL`` environment variable.
     """
     logger = configure_logging(app_name=service_name)
     root_path = os.getenv("ROOT_PATH", "")
@@ -211,31 +225,88 @@ def build_service_app(
         slm_config = _build_foundry_config("FOUNDRY_AGENT_ID_FAST", "MODEL_DEPLOYMENT_NAME_FAST")
         llm_config = _build_foundry_config("FOUNDRY_AGENT_ID_RICH", "MODEL_DEPLOYMENT_NAME_RICH")
 
-    runtime_slm_config = _runtime_foundry_config(slm_config)
-    runtime_llm_config = _runtime_foundry_config(llm_config)
-    if runtime_slm_config or runtime_llm_config:
-        builder = builder.with_foundry_models(
-            slm_config=runtime_slm_config,
-            llm_config=runtime_llm_config,
+    # Resolve the model-wiring strategy:
+    #   - direct-model path (ADR-005 amendment, 2026-05-10): in-process MAF
+    #     ``Agent`` + ``FoundryChatClient`` over Responses API. Requires only
+    #     a deployment_name on each config.
+    #   - portal-agent path (legacy): requires a resolved runtime agent id.
+    if use_direct_model is None:
+        use_direct_model = os.getenv("HOLIDAY_PEAK_DIRECT_MODEL", "").lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
         )
 
-    unresolved_roles = []
-    if slm_config and runtime_slm_config is None:
-        unresolved_roles.append("fast")
-    if llm_config and runtime_llm_config is None:
-        unresolved_roles.append("rich")
-    if unresolved_roles:
-        logger.warning(
-            "foundry_runtime_targets_disabled",
-            extra={
-                "service": service_name,
-                "roles": unresolved_roles,
-                "hint": (
-                    "Set FOUNDRY_AGENT_ID_FAST/FOUNDRY_AGENT_ID_RICH (or role names) "
-                    "or enable FOUNDRY_AUTO_ENSURE_ON_STARTUP to provision agents before invoke."
-                ),
-            },
+    if use_direct_model:
+        direct_slm = (
+            slm_config if slm_config and slm_config.deployment_name else None
         )
+        direct_llm = (
+            llm_config if llm_config and llm_config.deployment_name else None
+        )
+        if direct_slm or direct_llm:
+            instructions = load_service_prompt_instructions(service_name) or (
+                _FALLBACK_INSTRUCTIONS_TEMPLATE.format(service_name=service_name)
+            )
+            builder = builder.with_direct_models(
+                instructions=instructions,
+                slm_config=direct_slm,
+                llm_config=direct_llm,
+            )
+            logger.info(
+                "direct_model_targets_bound",
+                extra={
+                    "service": service_name,
+                    "fast_deployment": direct_slm.deployment_name if direct_slm else None,
+                    "rich_deployment": direct_llm.deployment_name if direct_llm else None,
+                    "runtime": "maf-direct",
+                },
+            )
+
+        unresolved_roles = []
+        if slm_config and direct_slm is None:
+            unresolved_roles.append("fast")
+        if llm_config and direct_llm is None:
+            unresolved_roles.append("rich")
+        if unresolved_roles:
+            logger.warning(
+                "direct_model_targets_disabled",
+                extra={
+                    "service": service_name,
+                    "roles": unresolved_roles,
+                    "hint": (
+                        "Set MODEL_DEPLOYMENT_NAME_FAST / MODEL_DEPLOYMENT_NAME_RICH "
+                        "for direct-model invocation."
+                    ),
+                },
+            )
+    else:
+        runtime_slm_config = _runtime_foundry_config(slm_config)
+        runtime_llm_config = _runtime_foundry_config(llm_config)
+        if runtime_slm_config or runtime_llm_config:
+            builder = builder.with_foundry_models(
+                slm_config=runtime_slm_config,
+                llm_config=runtime_llm_config,
+            )
+
+        unresolved_roles = []
+        if slm_config and runtime_slm_config is None:
+            unresolved_roles.append("fast")
+        if llm_config and runtime_llm_config is None:
+            unresolved_roles.append("rich")
+        if unresolved_roles:
+            logger.warning(
+                "foundry_runtime_targets_disabled",
+                extra={
+                    "service": service_name,
+                    "roles": unresolved_roles,
+                    "hint": (
+                        "Set FOUNDRY_AGENT_ID_FAST/FOUNDRY_AGENT_ID_RICH (or role names) "
+                        "or enable FOUNDRY_AUTO_ENSURE_ON_STARTUP to provision agents before invoke."
+                    ),
+                },
+            )
 
     agent = builder.build()
     if hasattr(agent, "connector_registry"):

@@ -2,6 +2,20 @@
 
 > Generated: 2026-04-19 | Last updated: 2026-05-10 | Branch: `main`
 
+## Strategy Direction (2026-05-10)
+
+**Mandatory MAF direct-model invocation.** Portal-managed Foundry Agent records (V2 prompt-agent path) are being retired across all 26 agent services. Each service's MAF `Agent` is now constructed in-process inside the existing FastAPI handler, over a pluggable `ChatClient` (`FoundryChatClient` by default, but provider-agnostic). Foundry remains the model-deployment plane, the telemetry backend (via OTel → Application Insights), and the evaluation surface — it is no longer an agent-runtime intermediation layer. The `FoundryAgentInvoker` JSON-text tool-call parser is replaced by native MAF function-calling.
+
+**Why now.** The 2026-04-28 “Mandatory Foundry Invocation Policy” in [ADR-005](architecture/adrs/adr-005-agent-framework.md) was reversed on 2026-05-10 (same ADR, append-only amendment). Drivers: (1) the 2–5s per-request overhead did not yield a proportionate operational return; (2) tool-calling fidelity is structurally cleaner with native MAF function-calling than with the hand-rolled JSON-text parser; (3) the inventory hosted-agent precedent (commit `4cf0e546`, 2026-04-25) demonstrated the direct-model shape end-to-end — it was deleted only because it had been shipped as a *parallel* entry point alongside `main.py`, which is the dual-runtime anti-pattern the new policy explicitly forbids.
+
+**Single-architecture guardrail.** No service may ship a second entry point (e.g., `hosted_main.py`, parallel `ResponsesHostServer`, secondary port) alongside `main.py`. The MAF `Agent` is constructed inside the existing FastAPI handler. This is the explicit lesson from the deleted inventory `hosted_main.py`.
+
+**Tool calling.** Tools register in two places, additively: (a) MCP server for A2A (unchanged), and (b) the in-process MAF `Agent(tools=[...])` for native function-calling. The `_inject_tool_prompt` / `_extract_tool_calls_from_text` / `schema_tools_injected` JSON-parsing path in `lib/src/holiday_peak_lib/agents/foundry.py` is scheduled for deletion in Wave 4 of the cutover.
+
+**Cutover plan (5 waves)**: doc/ADR (Wave 0) → lib `DirectModelInvoker` + `AgentBuilder.with_direct_models()` (Wave 1) → inventory-health-check pilot (Wave 2) → mass-migrate the remaining 25 services in batches (Wave 3) → remove `FoundryAgentInvoker` + `/foundry/agents/ensure` + `ensure-foundry-agents.{sh,ps1}` + the V2 provisioning code path; deprovision the 42 V2 portal agents (21 services × `fast` + `rich`) in project `aipholidaris` (Wave 4) → update agents.md / roadmap / governance to match (Wave 5).
+
+**Status of historical 2026-04-19 hotfix notes that touch the now-retired path**: “FoundryAgentInvoker replaces legacy FoundryInvoker” and “`reasoning_effort` parameter support in Foundry pipeline” both remain accurate descriptions of the current `main` runtime, but they describe the path being retired. Do not extend them; future work belongs in `DirectModelInvoker`.
+
 ## Current Main Snapshot (2026-05-10)
 
 ### Audience-IA cutover wave (April–May 2026)
@@ -38,7 +52,7 @@ merged squash commit on `main`.
 
 | Epic | Title | State | Notes |
 |------|-------|-------|-------|
-| #990 | R1 — MAF backend cutover | 🟡 In flight | Catalog-search strict-4s pipeline (PR #859) + FoundryAgentInvoker (PR #802) + agent-framework 1.0.1 GA upgrade landed earlier. Remaining: CRM, e-commerce, inventory, logistics, product-management, search-enrichment, truth services migration. Tracked under #990. |
+| #990 | R1 — MAF backend cutover *(superseded 2026-05-10)* | 🟡 Re-scoped | Original plan rolled `FoundryAgentInvoker` (PR #802) and the strict-4s pipeline (PR #859) to the remaining services. Re-scoped on 2026-05-10 by the [ADR-005 Mandatory MAF Invocation Policy amendment](architecture/adrs/adr-005-agent-framework.md): the rollout target is now `DirectModelInvoker` (MAF `Agent` + `FoundryChatClient`, single FastAPI entry point per service). Catalog-search and the FoundryAgentInvoker rollout that already landed are treated as transitional state — they migrate to the direct-model path along with the other 25 services in Wave 3 of the cutover. The 42 V2 portal agents in project `aipholidaris` are scheduled for deprovisioning in Wave 4b. |
 | #1008 | R2 — UI decoupling onto Static Web Apps | 🟡 In flight | `apps/ui/staticwebapp.config.json` exists; `.github/workflows/deploy-ui-swa.yml` exists; SWA-specific behaviour (route block, navigation fallback, mkdocs sub-path) shipped in PR #1079. Code cutover stages remain. |
 
 ### Recently Merged (April 2026)

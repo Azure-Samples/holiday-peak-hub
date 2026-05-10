@@ -16,4 +16,5 @@ app = create_standard_app(
         EventHubSubscription("inventory-events", "alerts-group"),
     ],
     handlers=build_event_handlers(),
+    use_direct_model=True,
 )

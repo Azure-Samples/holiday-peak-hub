@@ -6,6 +6,10 @@ from inventory_health_check.agents import InventoryHealthAgent, register_mcp_too
 from inventory_health_check.event_handlers import build_event_handlers
 
 SERVICE_NAME = "inventory-health-check"
+# Pilot service for the ADR-005 (2026-05-10) Mandatory MAF Invocation Policy:
+# wire SLM/LLM targets via DirectModelInvoker (in-process MAF Agent +
+# FoundryChatClient over Responses API) instead of portal-managed Foundry
+# Prompt Agents. No parallel runtime — this opts the existing entry point in.
 app = create_standard_app(
     require_foundry_readiness=True,
     disable_tracing_without_foundry=True,
@@ -17,4 +21,5 @@ app = create_standard_app(
         EventHubSubscription("inventory-events", "health-check-group"),
     ],
     handlers=build_event_handlers(),
+    use_direct_model=True,
 )

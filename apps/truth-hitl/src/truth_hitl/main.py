@@ -31,6 +31,7 @@ app = create_standard_app(
         ),
     ],
     handlers=build_event_handlers(adapters=_adapters),
+    use_direct_model=True,
 )
 
 _adapters.export_publisher.attach_self_healing(app.state.self_healing_kernel)

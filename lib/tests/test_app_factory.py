@@ -892,6 +892,109 @@ class TestBuildServiceApp:
         assert config.runtime_agent_id is None
 
 
+class TestDirectModelAppFactory:
+    """Pilot wiring for the ADR-005 (2026-05-10) direct-model path.
+
+    Verifies that ``use_direct_model=True`` (or the equivalent env var) routes
+    through ``AgentBuilder.with_direct_models`` and binds SLM/LLM targets with
+    ``provider="maf-direct"``, even when no portal-managed Foundry Agent ID
+    is available — the direct-model path only requires ``deployment_name``.
+    """
+
+    def test_use_direct_model_true_binds_maf_direct_targets(
+        self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
+    ):
+        """Explicit kwarg flips wiring to DirectModelInvoker."""
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
+        # No FOUNDRY_AGENT_ID_FAST/RICH on purpose — direct path doesn't need
+        # a portal-managed agent record.
+        monkeypatch.delenv("FOUNDRY_AGENT_ID_FAST", raising=False)
+        monkeypatch.delenv("FOUNDRY_AGENT_ID_RICH", raising=False)
+        monkeypatch.delenv("FOUNDRY_AGENT_NAME_FAST", raising=False)
+        monkeypatch.delenv("FOUNDRY_AGENT_NAME_RICH", raising=False)
+        monkeypatch.setenv("MODEL_DEPLOYMENT_NAME_FAST", "gpt-5-fast")
+        monkeypatch.setenv("MODEL_DEPLOYMENT_NAME_RICH", "gpt-5-rich")
+        monkeypatch.setenv("FOUNDRY_AUTO_ENSURE_ON_STARTUP", "false")
+        monkeypatch.delenv("FOUNDRY_STRICT_ENFORCEMENT", raising=False)
+
+        app = build_service_app(
+            service_name="test-service",
+            agent_class=SampleServiceAgent,
+            hot_memory=mock_hot_memory,
+            warm_memory=mock_warm_memory,
+            cold_memory=mock_cold_memory,
+            use_direct_model=True,
+        )
+
+        agent = app.state.agent
+        assert agent.slm is not None
+        assert agent.llm is not None
+        assert agent.slm.provider == "maf-direct"
+        assert agent.llm.provider == "maf-direct"
+        assert agent.slm.model == "gpt-5-fast"
+        assert agent.llm.model == "gpt-5-rich"
+
+    def test_env_var_opts_in_when_kwarg_omitted(
+        self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
+    ):
+        """``HOLIDAY_PEAK_DIRECT_MODEL=true`` activates direct path by default."""
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
+        monkeypatch.setenv("MODEL_DEPLOYMENT_NAME_FAST", "gpt-5-fast")
+        monkeypatch.delenv("MODEL_DEPLOYMENT_NAME_RICH", raising=False)
+        monkeypatch.delenv("FOUNDRY_AGENT_ID_FAST", raising=False)
+        monkeypatch.delenv("FOUNDRY_AGENT_ID_RICH", raising=False)
+        monkeypatch.setenv("FOUNDRY_AUTO_ENSURE_ON_STARTUP", "false")
+        monkeypatch.delenv("FOUNDRY_STRICT_ENFORCEMENT", raising=False)
+        monkeypatch.setenv("HOLIDAY_PEAK_DIRECT_MODEL", "true")
+
+        app = build_service_app(
+            service_name="test-service",
+            agent_class=SampleServiceAgent,
+            hot_memory=mock_hot_memory,
+            warm_memory=mock_warm_memory,
+            cold_memory=mock_cold_memory,
+        )
+
+        agent = app.state.agent
+        # The direct-model path doesn't require a portal-managed agent ID.
+        # As long as ``deployment_name`` resolves (env or default fallback),
+        # the target binds with ``provider="maf-direct"``.
+        assert agent.slm is not None
+        assert agent.slm.provider == "maf-direct"
+        assert agent.slm.model == "gpt-5-fast"
+
+    def test_use_direct_model_default_keeps_legacy_foundry_path(
+        self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch
+    ):
+        """Without the flag and without env opt-in, the direct path is NOT used.
+
+        The legacy Foundry-portal path requires a resolved ``runtime_agent_id``
+        (set after a successful ensure call) before it binds a target. With
+        ensure disabled, no SLM/LLM target is bound — and the critical
+        invariant is that no ``maf-direct`` target appears.
+        """
+        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
+        monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "agent-fast-legacy")
+        monkeypatch.setenv("MODEL_DEPLOYMENT_NAME_FAST", "gpt-5-fast")
+        monkeypatch.delenv("HOLIDAY_PEAK_DIRECT_MODEL", raising=False)
+        monkeypatch.setenv("FOUNDRY_AUTO_ENSURE_ON_STARTUP", "false")
+        monkeypatch.delenv("FOUNDRY_STRICT_ENFORCEMENT", raising=False)
+
+        app = build_service_app(
+            service_name="test-service",
+            agent_class=SampleServiceAgent,
+            hot_memory=mock_hot_memory,
+            warm_memory=mock_warm_memory,
+            cold_memory=mock_cold_memory,
+        )
+
+        agent = app.state.agent
+        # Critical invariant: no direct-model target was bound.
+        for target in (agent.slm, agent.llm):
+            if target is not None:
+                assert target.provider != "maf-direct"
+
+
 class TestAppFactoryIntegration:
     """Test app factory integration scenarios."""
 

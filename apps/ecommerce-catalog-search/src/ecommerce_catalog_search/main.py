@@ -117,6 +117,7 @@ def create_app() -> FastAPI:
             EventHubSubscription("product-events", "catalog-search-group"),
         ],
         handlers=build_event_handlers(),
+        use_direct_model=True,
     )
     return _install_catalog_readiness_guards(service_app)
 

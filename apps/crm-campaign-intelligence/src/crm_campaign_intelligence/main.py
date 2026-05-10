@@ -21,4 +21,5 @@ app = create_standard_app(
         EventHubSubscription("payment-events", "campaign-intel-group"),
     ],
     handlers=build_event_handlers(),
+    use_direct_model=True,
 )

@@ -22,4 +22,5 @@ app = create_standard_app(
         EventHubSubscription("product-events", "assortment-group"),
     ],
     handlers=build_event_handlers(),
+    use_direct_model=True,
 )
