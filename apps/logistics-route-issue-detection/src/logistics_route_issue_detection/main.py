@@ -19,4 +19,5 @@ app = create_standard_app(
         EventHubSubscription("order-events", "route-detect-group"),
     ],
     handlers=build_event_handlers(),
+    use_direct_model=True,
 )

@@ -29,7 +29,7 @@ Holiday Peak Hub is **a framework AND a product**, not just a reference implemen
 |----------------|---------------|
 | **Framework layer** | `holiday-peak-lib` provides `BaseRetailAgent`, `AgentBuilder`, `ModelTarget`, `FastAPIMCPServer`, three-tier memory, guardrails, routing strategy, evaluation runners, telemetry — versioned, contracted, designed for adoption |
 | **Product layer** | 1 transactional microservice (`crud-service`) + 26 agent services across CRM/eCommerce/Inventory/Logistics/Product Management/Search/Truth Layer + 1 Next.js frontend |
-| **Microsoft Agent Framework (MAF)** | `agent-framework>=1.0.1` GA wraps Azure AI Foundry agents via `FoundryAgentInvoker` |
+| **Microsoft Agent Framework (MAF)** | `agent-framework>=1.2.0` runs `agent_framework.Agent` in-process over a pluggable `ChatClient` (default `agent_framework_foundry.FoundryChatClient`). The retired portal-agent runtime path was removed in Wave 4c; Foundry remains the model-deployment, telemetry, and evaluation backend. |
 | **SLM-first routing** | Every request starts with GPT-5-nano (fast, cheap); complex queries escalate to GPT-5 (rich) |
 | **Three-tier memory** | Hot (Redis, <50ms) → Warm (Cosmos DB, 100-500ms) → Cold (Blob, archival) |
 | **Agent-to-agent communication** | MCP protocol for structured tool calls between agents |

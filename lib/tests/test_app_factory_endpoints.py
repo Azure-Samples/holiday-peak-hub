@@ -94,205 +94,149 @@ class _Logger:
         self._record("exception", _args[0] if _args else "", _kwargs)
 
 
-def test_register_standard_endpoints_ready_and_ensure_flow():
+def _register_app(
+    *,
+    router: Any | None = None,
+    logger: _Logger | None = None,
+    strict_foundry_mode: bool = False,
+    require_foundry_readiness: bool = False,
+    readiness: dict[str, Any] | None = None,
+    kernel: SelfHealingKernel | None = None,
+    prompt_catalog_provider: Any | None = None,
+    mcp_tool_descriptions_provider: Any | None = None,
+) -> tuple[FastAPI, _Logger]:
     app = FastAPI()
-    foundry_ready = False
-    runtime_definitions_missing = True
-
-    def _is_ready() -> bool:
-        return foundry_ready
-
-    def _set_ready(value: bool) -> None:
-        nonlocal foundry_ready
-        foundry_ready = value
-
-    def _requires_runtime_resolution() -> bool:
-        return runtime_definitions_missing
-
-    async def _ensure_handler(_payload: dict | None) -> dict:
-        nonlocal runtime_definitions_missing
-        runtime_definitions_missing = False
-        return {
-            "service": "svc",
-            "strict_foundry_mode": True,
-            "foundry_ready": True,
-            "results": {"fast": {"status": "exists", "agent_id": "a1"}},
-        }
+    records = logger or _Logger()
+    payload = readiness or {
+        "project_configured": True,
+        "endpoint_configured": True,
+        "ready": True,
+        "runtime_resolution_required": False,
+        "configured_roles": ["fast"],
+        "bound_roles": ["fast"],
+        "unbound_roles": [],
+    }
 
     register_standard_endpoints(
         app,
         service_name="svc",
         registry=_Registry(),
-        router=_Router(),
+        router=router or _Router(),
         tracer=_Tracer(),
-        logger=_Logger(),
-        strict_foundry_mode=True,
-        require_foundry_readiness=False,
-        is_foundry_ready=_is_ready,
-        set_foundry_ready=_set_ready,
-        requires_foundry_runtime_resolution=_requires_runtime_resolution,
-        foundry_capabilities=lambda: {"project_configured": True},
-        ensure_agents_handler=_ensure_handler,
+        logger=records,
+        strict_foundry_mode=strict_foundry_mode,
+        require_foundry_readiness=require_foundry_readiness,
+        is_foundry_ready=lambda: bool(payload.get("ready")),
+        requires_foundry_runtime_resolution=lambda: bool(
+            payload.get("runtime_resolution_required")
+        ),
+        foundry_capabilities=lambda: dict(payload),
+        self_healing_kernel=kernel,
+        prompt_catalog_provider=prompt_catalog_provider,
+        mcp_tool_descriptions_provider=mcp_tool_descriptions_provider,
+    )
+    return app, records
+
+
+def test_register_standard_endpoints_ready_reports_direct_model_status():
+    app, _logger = _register_app(
+        require_foundry_readiness=True,
+        readiness={
+            "project_configured": True,
+            "endpoint_configured": True,
+            "ready": True,
+            "runtime_resolution_required": False,
+            "configured_roles": ["fast", "rich"],
+            "bound_roles": ["fast", "rich"],
+            "unbound_roles": [],
+        },
     )
 
-    client = TestClient(app)
-    assert client.get("/ready").status_code == 503
-    ensure_response = client.post("/foundry/agents/ensure", json={"role": "fast"})
-    assert ensure_response.status_code == 200
-    assert client.get("/ready").status_code == 200
+    response = TestClient(app).get("/ready")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["foundry_ready"] is True
+    assert payload["foundry_required"] is True
+    assert payload["foundry"]["bound_roles"] == ["fast", "rich"]
 
 
-def test_invoke_auto_ensures_foundry_before_routing():
-    app = FastAPI()
-    foundry_ready = True
-    runtime_definitions_missing = True
-    ensure_calls = 0
-
-    def _is_ready() -> bool:
-        return foundry_ready
-
-    def _set_ready(value: bool) -> None:
-        nonlocal foundry_ready
-        foundry_ready = value
-
-    def _requires_runtime_resolution() -> bool:
-        return runtime_definitions_missing
-
-    async def _ensure_handler(_payload: dict | None) -> dict:
-        nonlocal runtime_definitions_missing
-        nonlocal ensure_calls
-        ensure_calls += 1
-        runtime_definitions_missing = False
-        return {
-            "service": "svc",
-            "strict_foundry_mode": False,
-            "foundry_ready": True,
-            "results": {"fast": {"status": "exists", "agent_id": "a1"}},
-        }
-
-    register_standard_endpoints(
-        app,
-        service_name="svc",
-        registry=_Registry(),
-        router=_Router(),
-        tracer=_Tracer(),
-        logger=_Logger(),
-        strict_foundry_mode=False,
-        require_foundry_readiness=False,
-        is_foundry_ready=_is_ready,
-        set_foundry_ready=_set_ready,
-        requires_foundry_runtime_resolution=_requires_runtime_resolution,
-        foundry_capabilities=lambda: {"project_configured": True},
-        ensure_agents_handler=_ensure_handler,
+def test_ready_fails_with_direct_model_language_when_required_and_unbound():
+    app, _logger = _register_app(
+        require_foundry_readiness=True,
+        readiness={
+            "project_configured": True,
+            "endpoint_configured": True,
+            "ready": False,
+            "runtime_resolution_required": True,
+            "configured_roles": ["fast"],
+            "bound_roles": [],
+            "unbound_roles": ["fast"],
+        },
     )
 
-    client = TestClient(app)
-    response = client.post("/invoke", json={"query": "hello"})
+    response = TestClient(app).get("/ready")
+
+    assert response.status_code == 503
+    detail = response.json()["detail"]
+    assert detail["status"] == "not_ready"
+    assert "Direct-model targets are not ready" in detail["reason"]
+    assert detail["foundry"]["unbound_roles"] == ["fast"]
+
+
+def test_invoke_does_not_block_on_unbound_targets_when_not_enforced():
+    app, _logger = _register_app(
+        readiness={
+            "project_configured": True,
+            "endpoint_configured": True,
+            "ready": False,
+            "runtime_resolution_required": True,
+            "configured_roles": ["fast"],
+            "bound_roles": [],
+            "unbound_roles": ["fast"],
+        },
+    )
+
+    response = TestClient(app).post("/invoke", json={"query": "hello"})
 
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert ensure_calls == 1
 
 
-def test_invoke_fails_closed_when_foundry_required_and_unresolved():
-    app = FastAPI()
-    foundry_ready = False
-    runtime_definitions_missing = True
-    ensure_calls = 0
-
-    def _is_ready() -> bool:
-        return foundry_ready
-
-    def _set_ready(value: bool) -> None:
-        nonlocal foundry_ready
-        foundry_ready = value
-
-    def _requires_runtime_resolution() -> bool:
-        return runtime_definitions_missing
-
-    async def _ensure_handler(_payload: dict | None) -> dict:
-        nonlocal ensure_calls
-        ensure_calls += 1
-        return {
-            "service": "svc",
-            "strict_foundry_mode": False,
-            "foundry_ready": False,
-            "results": {"fast": {"status": "missing", "agent_id": None}},
-        }
-
-    register_standard_endpoints(
-        app,
-        service_name="svc",
-        registry=_Registry(),
-        router=_Router(),
-        tracer=_Tracer(),
-        logger=_Logger(),
-        strict_foundry_mode=False,
+def test_invoke_fails_closed_when_direct_model_required_and_unbound():
+    app, _logger = _register_app(
         require_foundry_readiness=True,
-        is_foundry_ready=_is_ready,
-        set_foundry_ready=_set_ready,
-        requires_foundry_runtime_resolution=_requires_runtime_resolution,
-        foundry_capabilities=lambda: {
+        readiness={
             "project_configured": True,
-            "ready": foundry_ready,
+            "endpoint_configured": True,
+            "ready": False,
+            "runtime_resolution_required": True,
             "configured_roles": ["fast"],
-            "resolved_roles": [],
-            "unresolved_roles": ["fast"],
-            "runtime_resolution_required": runtime_definitions_missing,
-            "last_error": {"status": "missing", "role": "fast"},
+            "bound_roles": [],
+            "unbound_roles": ["fast"],
         },
-        ensure_agents_handler=_ensure_handler,
     )
 
-    client = TestClient(app)
-    response = client.post("/invoke", json={"query": "hello"})
+    response = TestClient(app).post("/invoke", json={"query": "hello"})
 
     assert response.status_code == 503
-    assert ensure_calls == 1
+    assert "Direct-model targets are not ready" in response.json()["detail"]
+
+
+def test_retired_route_is_absent():
+    app, _logger = _register_app()
+    route_paths = {route.path for route in app.routes}
+    retired_route = "/foundry/agents/" + "ensure"
+
+    assert retired_route not in route_paths
+    assert TestClient(app).post(retired_route, json={}).status_code == 404
 
 
 def test_invoke_emits_degraded_outcome_telemetry():
-    app = FastAPI()
-    foundry_ready = True
-    runtime_definitions_missing = False
     logger = _Logger()
+    app, _logger = _register_app(router=_DegradedRouter(), logger=logger)
 
-    def _is_ready() -> bool:
-        return foundry_ready
-
-    def _set_ready(value: bool) -> None:
-        nonlocal foundry_ready
-        foundry_ready = value
-
-    def _requires_runtime_resolution() -> bool:
-        return runtime_definitions_missing
-
-    async def _ensure_handler(_payload: dict | None) -> dict:
-        return {
-            "service": "svc",
-            "strict_foundry_mode": False,
-            "foundry_ready": True,
-            "results": {},
-        }
-
-    register_standard_endpoints(
-        app,
-        service_name="svc",
-        registry=_Registry(),
-        router=_DegradedRouter(),
-        tracer=_Tracer(),
-        logger=logger,
-        strict_foundry_mode=False,
-        require_foundry_readiness=False,
-        is_foundry_ready=_is_ready,
-        set_foundry_ready=_set_ready,
-        requires_foundry_runtime_resolution=_requires_runtime_resolution,
-        foundry_capabilities=lambda: {"project_configured": True},
-        ensure_agents_handler=_ensure_handler,
-    )
-
-    client = TestClient(app)
-    response = client.post(
+    response = TestClient(app).post(
         "/invoke",
         json={
             "query": "winter jacket",
@@ -303,7 +247,6 @@ def test_invoke_emits_degraded_outcome_telemetry():
     )
 
     assert response.status_code == 200
-
     outcome_record = next(
         record for record in logger.records if record["message"] == "service_invoke_outcome"
     )
@@ -320,47 +263,10 @@ def test_invoke_emits_degraded_outcome_telemetry():
 
 
 def test_invoke_emits_error_outcome_telemetry():
-    app = FastAPI()
-    foundry_ready = True
-    runtime_definitions_missing = False
     logger = _Logger()
+    app, _logger = _register_app(router=_FailingRouter(), logger=logger)
 
-    def _is_ready() -> bool:
-        return foundry_ready
-
-    def _set_ready(value: bool) -> None:
-        nonlocal foundry_ready
-        foundry_ready = value
-
-    def _requires_runtime_resolution() -> bool:
-        return runtime_definitions_missing
-
-    async def _ensure_handler(_payload: dict | None) -> dict:
-        return {
-            "service": "svc",
-            "strict_foundry_mode": False,
-            "foundry_ready": True,
-            "results": {},
-        }
-
-    register_standard_endpoints(
-        app,
-        service_name="svc",
-        registry=_Registry(),
-        router=_FailingRouter(),
-        tracer=_Tracer(),
-        logger=logger,
-        strict_foundry_mode=False,
-        require_foundry_readiness=False,
-        is_foundry_ready=_is_ready,
-        set_foundry_ready=_set_ready,
-        requires_foundry_runtime_resolution=_requires_runtime_resolution,
-        foundry_capabilities=lambda: {"project_configured": True},
-        ensure_agents_handler=_ensure_handler,
-    )
-
-    client = TestClient(app)
-    response = client.post(
+    response = TestClient(app).post(
         "/invoke",
         json={
             "query": "winter jacket",
@@ -371,7 +277,6 @@ def test_invoke_emits_error_outcome_telemetry():
     )
 
     assert response.status_code == 503
-
     outcome_record = next(
         record for record in logger.records if record["message"] == "service_invoke_outcome"
     )
@@ -387,52 +292,15 @@ def test_invoke_emits_error_outcome_telemetry():
 
 
 def test_self_healing_endpoints_capture_invoke_failures():
-    app = FastAPI()
-    foundry_ready = True
-    runtime_definitions_missing = False
     kernel = SelfHealingKernel(
         service_name="svc",
         manifest=default_surface_manifest("svc"),
         enabled=True,
         detect_only=True,
     )
-
-    def _is_ready() -> bool:
-        return foundry_ready
-
-    def _set_ready(value: bool) -> None:
-        nonlocal foundry_ready
-        foundry_ready = value
-
-    def _requires_runtime_resolution() -> bool:
-        return runtime_definitions_missing
-
-    async def _ensure_handler(_payload: dict | None) -> dict:
-        return {
-            "service": "svc",
-            "strict_foundry_mode": False,
-            "foundry_ready": True,
-            "results": {},
-        }
-
-    register_standard_endpoints(
-        app,
-        service_name="svc",
-        registry=_Registry(),
-        router=_FailingRouter(),
-        tracer=_Tracer(),
-        logger=_Logger(),
-        strict_foundry_mode=False,
-        require_foundry_readiness=False,
-        is_foundry_ready=_is_ready,
-        set_foundry_ready=_set_ready,
-        requires_foundry_runtime_resolution=_requires_runtime_resolution,
-        foundry_capabilities=lambda: {"project_configured": True},
-        ensure_agents_handler=_ensure_handler,
-        self_healing_kernel=kernel,
-    )
-
+    app, _logger = _register_app(router=_FailingRouter(), kernel=kernel)
     client = TestClient(app)
+
     status_response = client.get("/self-healing/status")
     assert status_response.status_code == 200
     assert status_response.json()["enabled"] is True
@@ -451,67 +319,6 @@ def test_self_healing_endpoints_capture_invoke_failures():
     assert "reconciled_incidents" in reconcile_response.json()
 
 
-def test_ready_auto_ensures_foundry_when_not_ready():
-    """Readiness probe triggers auto-ensure when Foundry is configured but not ready."""
-    app = FastAPI()
-    foundry_ready = False
-    ensure_calls = 0
-
-    def _is_ready() -> bool:
-        return foundry_ready
-
-    def _set_ready(value: bool) -> None:
-        nonlocal foundry_ready
-        foundry_ready = value
-
-    def _requires_runtime_resolution() -> bool:
-        return not foundry_ready
-
-    async def _ensure_handler(_payload: dict | None) -> dict:
-        nonlocal ensure_calls
-        ensure_calls += 1
-        return {
-            "service": "svc",
-            "strict_foundry_mode": False,
-            "foundry_ready": True,
-            "results": {"fast": {"status": "exists", "agent_id": "a1"}},
-        }
-
-    caps = {
-        "project_configured": True,
-        "ready": False,
-        "auto_ensure_on_startup": True,
-        "configured_roles": ["fast"],
-        "unresolved_roles": ["fast"],
-    }
-
-    def _caps() -> dict[str, Any]:
-        caps["ready"] = foundry_ready
-        caps["unresolved_roles"] = [] if foundry_ready else ["fast"]
-        return dict(caps)
-
-    register_standard_endpoints(
-        app,
-        service_name="svc",
-        registry=_Registry(),
-        router=_Router(),
-        tracer=_Tracer(),
-        logger=_Logger(),
-        strict_foundry_mode=False,
-        require_foundry_readiness=True,
-        is_foundry_ready=_is_ready,
-        set_foundry_ready=_set_ready,
-        requires_foundry_runtime_resolution=_requires_runtime_resolution,
-        foundry_capabilities=_caps,
-        ensure_agents_handler=_ensure_handler,
-    )
-
-    client = TestClient(app)
-    response = client.get("/ready")
-    assert response.status_code == 200
-    assert ensure_calls == 1
-
-
 def test_prompt_and_mcp_introspection_endpoints_return_registered_metadata():
     app = FastAPI(title="svc")
     mcp = FastAPIMCPServer(app)
@@ -526,7 +333,6 @@ def test_prompt_and_mcp_introspection_endpoints_return_registered_metadata():
         output_model=_ToolOutput,
         metadata={"description": "Look up live inventory evidence."},
     )
-
     prompt_catalog = [
         {
             "name": "instructions.md",
@@ -546,10 +352,8 @@ def test_prompt_and_mcp_introspection_endpoints_return_registered_metadata():
         strict_foundry_mode=False,
         require_foundry_readiness=False,
         is_foundry_ready=lambda: True,
-        set_foundry_ready=lambda _value: None,
         requires_foundry_runtime_resolution=lambda: False,
-        foundry_capabilities=lambda: {"project_configured": True},
-        ensure_agents_handler=lambda _payload: {"service": "svc", "foundry_ready": True},
+        foundry_capabilities=lambda: {"project_configured": True, "ready": True},
         prompt_catalog_provider=lambda: prompt_catalog,
         mcp_tool_descriptions_provider=lambda: [
             {
@@ -564,18 +368,8 @@ def test_prompt_and_mcp_introspection_endpoints_return_registered_metadata():
     )
 
     client = TestClient(app)
-
-    prompts_response = client.get("/agent/prompts")
-    assert prompts_response.status_code == 200
-    prompts_payload = prompts_response.json()
-    assert prompts_payload["service"] == "svc"
-    assert prompts_payload["prompts"] == prompt_catalog
-
-    tools_response = client.get("/mcp/tool_descriptions")
-    assert tools_response.status_code == 200
-    tools_payload = tools_response.json()
-    assert tools_payload["service"] == "svc"
-    assert tools_payload["tools"] == [
+    assert client.get("/agent/prompts").json()["prompts"] == prompt_catalog
+    assert client.get("/mcp/tool_descriptions").json()["tools"] == [
         {
             "name": "inventory_lookup",
             "path": "/inventory_lookup",
@@ -584,122 +378,3 @@ def test_prompt_and_mcp_introspection_endpoints_return_registered_metadata():
             "output_schema": _ToolOutput.model_json_schema(),
         }
     ]
-
-
-def test_ready_auto_ensure_respects_cooldown(monkeypatch):
-    """Auto-ensure on readiness probe does not re-attempt within cooldown window."""
-    from holiday_peak_lib.app_factory_components import endpoints as ep_mod
-
-    app = FastAPI()
-    foundry_ready = False
-    ensure_calls = 0
-
-    def _is_ready() -> bool:
-        return foundry_ready
-
-    def _set_ready(value: bool) -> None:
-        nonlocal foundry_ready
-        foundry_ready = value
-
-    def _requires_runtime_resolution() -> bool:
-        return True
-
-    async def _ensure_handler(_payload: dict | None) -> dict:
-        nonlocal ensure_calls
-        ensure_calls += 1
-        # Ensure always fails — keeps foundry not ready.
-        return {
-            "service": "svc",
-            "strict_foundry_mode": False,
-            "foundry_ready": False,
-            "results": {"fast": {"status": "missing", "agent_id": None}},
-        }
-
-    caps = {
-        "project_configured": True,
-        "ready": False,
-        "auto_ensure_on_startup": True,
-        "configured_roles": ["fast"],
-        "unresolved_roles": ["fast"],
-    }
-
-    register_standard_endpoints(
-        app,
-        service_name="svc",
-        registry=_Registry(),
-        router=_Router(),
-        tracer=_Tracer(),
-        logger=_Logger(),
-        strict_foundry_mode=False,
-        require_foundry_readiness=True,
-        is_foundry_ready=_is_ready,
-        set_foundry_ready=_set_ready,
-        requires_foundry_runtime_resolution=_requires_runtime_resolution,
-        foundry_capabilities=lambda: dict(caps),
-        ensure_agents_handler=_ensure_handler,
-    )
-
-    client = TestClient(app)
-
-    # First call: triggers ensure (cooldown not yet started).
-    resp1 = client.get("/ready")
-    assert resp1.status_code == 503
-    calls_after_first = ensure_calls
-    assert calls_after_first >= 1
-
-    # Second call within cooldown: should NOT trigger ensure again.
-    resp2 = client.get("/ready")
-    assert resp2.status_code == 503
-    assert ensure_calls == calls_after_first
-
-
-def test_ready_does_not_auto_ensure_without_auto_ensure_flag():
-    """Readiness probe does not attempt ensure when auto_ensure_on_startup is off."""
-    app = FastAPI()
-    foundry_ready = False
-    ensure_calls = 0
-
-    def _is_ready() -> bool:
-        return foundry_ready
-
-    def _set_ready(value: bool) -> None:
-        nonlocal foundry_ready
-        foundry_ready = value
-
-    def _requires_runtime_resolution() -> bool:
-        return True
-
-    async def _ensure_handler(_payload: dict | None) -> dict:
-        nonlocal ensure_calls
-        ensure_calls += 1
-        return {
-            "service": "svc",
-            "strict_foundry_mode": False,
-            "foundry_ready": True,
-            "results": {},
-        }
-
-    register_standard_endpoints(
-        app,
-        service_name="svc",
-        registry=_Registry(),
-        router=_Router(),
-        tracer=_Tracer(),
-        logger=_Logger(),
-        strict_foundry_mode=False,
-        require_foundry_readiness=True,
-        is_foundry_ready=_is_ready,
-        set_foundry_ready=_set_ready,
-        requires_foundry_runtime_resolution=_requires_runtime_resolution,
-        foundry_capabilities=lambda: {
-            "project_configured": True,
-            "ready": False,
-            "auto_ensure_on_startup": False,
-        },
-        ensure_agents_handler=_ensure_handler,
-    )
-
-    client = TestClient(app)
-    response = client.get("/ready")
-    assert response.status_code == 503
-    assert ensure_calls == 0

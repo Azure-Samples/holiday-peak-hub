@@ -5,7 +5,8 @@ from typing import Any, Callable
 from holiday_peak_lib.mcp.server import FastAPIMCPServer
 
 from .base_agent import AgentDependencies, BaseRetailAgent, ModelTarget
-from .foundry import FoundryAgentConfig, build_foundry_model_target
+from .direct import ChatClientFactory, build_direct_model_target
+from .foundry import FoundryAgentConfig
 from .memory.builder import MemoryBuilder
 from .memory.cold import ColdMemory
 from .memory.hot import HotMemory
@@ -81,21 +82,60 @@ class AgentBuilder:
         self._complexity_threshold = complexity_threshold
         return self
 
-    def with_foundry_models(
+    def with_direct_models(
         self,
         *,
+        instructions: str,
         slm_config: FoundryAgentConfig | None = None,
         llm_config: FoundryAgentConfig | None = None,
         complexity_threshold: float = 0.5,
+        chat_client_factory: ChatClientFactory | None = None,
     ) -> "AgentBuilder":
-        """Configure Foundry Agents for SLM/LLM targets via ModelTarget wrappers.
+        """Configure direct-model targets for SLM/LLM via MAF ``Agent``.
 
-        Accepts optional configs for fast/slow (SLM/LLM) paths and builds the
-        corresponding ``ModelTarget`` instances with telemetry-aware invokers.
+        Sibling of :meth:`with_foundry_models` implementing the *Mandatory MAF
+        Invocation Policy* amendment to ADR-005 (2026-05-10). The MAF ``Agent``
+        is constructed in-process from ``instructions`` and the registered
+        callable tools — no portal-managed Foundry Agent record is required.
+
+        :param instructions: Persona/role text loaded from
+            ``apps/<service>/prompts/instructions.md``. Identical for SLM and
+            LLM targets (same agent persona; different model deployment).
+        :param slm_config: Foundry config carrying the fast deployment name.
+        :param llm_config: Foundry config carrying the rich deployment name.
+        :param complexity_threshold: Routing threshold passed to
+            :class:`AgentDependencies`.
+        :param chat_client_factory: Optional override for the underlying
+            ``ChatClient``. Defaults to ``FoundryChatClient`` (Foundry
+            Responses API). Pass an alternate factory to use OpenAI,
+            Azure OpenAI, or any other provider that satisfies MAF's
+            ``SupportsChatGetResponse`` protocol.
         """
 
-        self._slm = build_foundry_model_target(slm_config) if slm_config else None
-        self._llm = build_foundry_model_target(llm_config) if llm_config else None
+        # Tools registered via ``with_tool``/``with_tools`` are forwarded to
+        # the in-process MAF ``Agent`` so native function-calling works.
+        runtime_tools = list(self._tools.values()) if self._tools else None
+
+        self._slm = (
+            build_direct_model_target(
+                slm_config,
+                instructions=instructions,
+                tools=runtime_tools,
+                chat_client_factory=chat_client_factory,
+            )
+            if slm_config
+            else None
+        )
+        self._llm = (
+            build_direct_model_target(
+                llm_config,
+                instructions=instructions,
+                tools=runtime_tools,
+                chat_client_factory=chat_client_factory,
+            )
+            if llm_config
+            else None
+        )
         self._complexity_threshold = complexity_threshold
         return self
 

@@ -17,4 +17,5 @@ app = create_standard_app(
         EventHubSubscription("order-events", "profile-agg-group"),
     ],
     handlers=build_event_handlers(),
+    use_direct_model=True,
 )

@@ -1,6 +1,22 @@
 # Project Status & Issue Prioritization
 
-> Generated: 2026-04-19 | Last updated: 2026-05-10 | Branch: `main`
+> Generated: 2026-04-19 | Last updated: 2026-05-11 | Branch: `feature/990-direct-model-migration`
+
+## Strategy Direction (2026-05-10)
+
+**Mandatory MAF direct-model invocation.** Portal-managed Foundry Agent records (V2 prompt-agent path) are retired from framework runtime code. Each service's MAF `Agent` is now constructed in-process inside the existing FastAPI handler, over a pluggable `ChatClient` (`FoundryChatClient` by default, but provider-agnostic). Foundry remains the model-deployment plane, the telemetry backend (via OTel → Application Insights), and the evaluation surface - it is no longer an agent-runtime intermediation layer. The retired `FoundryAgentInvoker` JSON-text tool-call parser has been replaced by native MAF function-calling.
+
+**Why now.** The 2026-04-28 “Mandatory Foundry Invocation Policy” in [ADR-005](architecture/adrs/adr-005-agent-framework.md) was reversed on 2026-05-10 (same ADR, append-only amendment). Drivers: (1) the 2–5s per-request overhead did not yield a proportionate operational return; (2) tool-calling fidelity is structurally cleaner with native MAF function-calling than with the hand-rolled JSON-text parser; (3) the inventory hosted-agent precedent (commit `4cf0e546`, 2026-04-25) demonstrated the direct-model shape end-to-end — it was deleted only because it had been shipped as a *parallel* entry point alongside `main.py`, which is the dual-runtime anti-pattern the new policy explicitly forbids.
+
+**Single-architecture guardrail.** No service may ship a second entry point (e.g., `hosted_main.py`, parallel `ResponsesHostServer`, secondary port) alongside `main.py`. The MAF `Agent` is constructed inside the existing FastAPI handler. This is the explicit lesson from the deleted inventory `hosted_main.py`.
+
+**Portal-tracking manifests.** Each active agent service now carries `agent.yaml` and `.foundry/agent-metadata.yaml` as local Foundry portal-tracking metadata only. These artifacts do not introduce `hosted_main.py`, `ResponsesHostServer`, `entrypoint.sh`, port `8088`, or any parallel runtime; deployment and invocation still run through `DirectModelInvoker` inside the existing FastAPI app.
+
+**Tool calling.** Tools register in two places, additively: (a) MCP server for A2A (unchanged), and (b) the in-process MAF `Agent(tools=[...])` for native function-calling. The `_inject_tool_prompt` / `_extract_tool_calls_from_text` / `schema_tools_injected` JSON-parsing path in `lib/src/holiday_peak_lib/agents/foundry.py` was deleted in Wave 4c of the cutover.
+
+**Cutover plan status**: doc/ADR (Wave 0), lib `DirectModelInvoker` + `AgentBuilder.with_direct_models()` (Wave 1), inventory-health-check pilot (Wave 2), and all remaining agent services (Wave 3) are complete. Wave 4a/4b removed legacy app-factory/builder wiring plus `ensure-foundry-agents` workflow/scripts. Wave 4c removed `FoundryAgentInvoker`, `/foundry/agents/ensure`, and the V2 provisioning code path from framework runtime code. Portal-managed agents in project `aipholidaris` are intentionally left untouched by this repository change and will be deprovisioned manually by the owner.
+
+**Status of historical 2026-04-19 hotfix notes that touch the now-retired path**: “FoundryAgentInvoker replaces legacy FoundryInvoker” and “`reasoning_effort` parameter support in Foundry pipeline” remain accurate historical descriptions of PR #802-era runtime behavior, but that path has been removed from framework runtime code. Do not extend them; future work belongs in `DirectModelInvoker`.
 
 ## Current Main Snapshot (2026-05-10)
 
@@ -38,7 +54,7 @@ merged squash commit on `main`.
 
 | Epic | Title | State | Notes |
 |------|-------|-------|-------|
-| #990 | R1 — MAF backend cutover | 🟡 In flight | Catalog-search strict-4s pipeline (PR #859) + FoundryAgentInvoker (PR #802) + agent-framework 1.0.1 GA upgrade landed earlier. Remaining: CRM, e-commerce, inventory, logistics, product-management, search-enrichment, truth services migration. Tracked under #990. |
+| #990 | R1 — MAF backend cutover *(superseded 2026-05-10)* | 🟡 Re-scoped | Original plan rolled `FoundryAgentInvoker` (PR #802) and the strict-4s pipeline (PR #859) to the remaining services. Re-scoped on 2026-05-10 by the [ADR-005 Mandatory MAF Invocation Policy amendment](architecture/adrs/adr-005-agent-framework.md): the rollout target is now `DirectModelInvoker` (MAF `Agent` + `FoundryChatClient`, single FastAPI entry point per service). Wave 3 migrated all 26 agent services. Wave 4c removed the legacy portal-agent runtime/provisioning path from code. The 42 V2 portal agents in project `aipholidaris` are intentionally left for manual deprovisioning outside this code cleanup. |
 | #1008 | R2 — UI decoupling onto Static Web Apps | 🟡 In flight | `apps/ui/staticwebapp.config.json` exists; `.github/workflows/deploy-ui-swa.yml` exists; SWA-specific behaviour (route block, navigation fallback, mkdocs sub-path) shipped in PR #1079. Code cutover stages remain. |
 
 ### Recently Merged (April 2026)
@@ -68,10 +84,11 @@ merged squash commit on `main`.
 - **Drawer streaming + telemetry completion (2026-04-28)**: `AgentProfileDrawer` sample runs now stream over `/invoke/stream`, commerce telemetry chips now hydrate from persisted `_telemetry` across search, product enrichment, and product-graph summary invoke seams, and `/order/[id]` now keeps `logistics-route-issue-detection` as the default side cast until return flow activation swaps in returns + support.
 - **Frontend regression hardening (2026-04-28)**: Added focused drawer unit coverage plus Playwright specs for the executive demo narrative, light/dark visual regression, and admin cockpit readiness (`apps/ui/tests/e2e/demo-narrative.spec.ts`, `apps/ui/tests/e2e/dark-mode-regression.spec.ts`, `apps/ui/tests/e2e/cockpit-readiness.spec.ts`).
 - **Scenario drill-down briefs (2026-04-28)**: Added `/scenarios/[id]` route briefs for discovery, customer 360, truth, and checkout flows, backed by shared scenario metadata so the homepage close scene can jump into a dedicated brief before sending users to live product or operator surfaces.
+- **MAF direct-model Wave 4c cleanup (2026-05-11)**: removed the retired portal-agent `FoundryAgentInvoker`, JSON-text tool-call parser, V2 provisioning code path, and `/foundry/agents/ensure` endpoint from framework runtime code. Readiness now validates direct-model `maf-direct` targets.
 - **Catalog-search strict 4s pipeline (v6)**: Entire intelligent pipeline runs inside `asyncio.wait_for(timeout=4.0)`. Intent classification via GPT-5-nano with `reasoning_effort="minimal"` (1.5s budget). Parallel keyword + hybrid search fan-out. Direct product construction from AI Search documents (no CRUD round-trip). Fire-and-forget history writes. Deployed as `strict-4s-v6` on 2 AKS replicas.
-- **`reasoning_effort` parameter support in Foundry pipeline**: `FoundryAgentInvoker` now plumbs `reasoning_effort` through `_PreparedInvocation` → `_request_response_impl` → `run_kwargs["options"]`. Guards ensure the parameter is only sent when explicitly passed.
+- **Historical `reasoning_effort` support in the retired Foundry pipeline**: `FoundryAgentInvoker` plumbed `reasoning_effort` through `_PreparedInvocation` to MAF options during the PR #802 runtime era. The active direct-model path owns future runtime parameter work.
 - **Live integration test suite**: 11 tests (10 parametrized queries + summary report) validate the live APIM→AKS→AI Foundry→AI Search pipeline. 10/10 within budget, avg ~2.77s.
-- **FoundryAgentInvoker** replaces legacy `FoundryInvoker`: agent tools are now properly forwarded through the Microsoft Agent Framework `FoundryAgent` runtime instead of being silently dropped.
+- **Historical FoundryAgentInvoker migration**: PR #802 replaced legacy `FoundryInvoker` with `FoundryAgentInvoker` and fixed silent tool-dropping during the portal-agent runtime era. That runtime path is now retired in favor of `DirectModelInvoker`.
 - `agent-framework` upgraded from unpinned to `>=1.0.1` GA across all 27 Python service packages; resolves `ContextProvider` vs `BaseContextProvider` import incompatibility.
 - Memory tier operations parallelized with `asyncio.gather` for reduced latency; new memory tools (`get_memory`, `set_memory`, `search_memory`) and `gather_adapters` helper available.
 - AKS deployments now reconcile through Flux CD GitOps (ADR-017); kubectl-apply path removed.

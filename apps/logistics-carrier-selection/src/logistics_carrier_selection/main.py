@@ -17,4 +17,5 @@ app = create_standard_app(
         EventHubSubscription("shipment-events", "carrier-group"),
     ],
     handlers=build_event_handlers(),
+    use_direct_model=True,
 )
