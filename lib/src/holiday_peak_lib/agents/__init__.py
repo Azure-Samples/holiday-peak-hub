@@ -2,11 +2,12 @@
 
 from .base_agent import AgentDependencies, BaseRetailAgent, ModelTarget
 from .builder import AgentBuilder
-from .foundry import (
-    FoundryAgentConfig,
-    build_foundry_model_target,
-    ensure_foundry_agent,
+from .direct import (
+    ChatClientFactory,
+    DirectModelInvoker,
+    build_direct_model_target,
 )
+from .foundry import FoundryAgentConfig
 from .guardrails import EnrichmentGuardrail, SourceValidationResult
 
 __all__ = [
@@ -14,9 +15,10 @@ __all__ = [
     "AgentDependencies",
     "BaseRetailAgent",
     "ModelTarget",
+    "ChatClientFactory",
+    "DirectModelInvoker",
     "FoundryAgentConfig",
-    "build_foundry_model_target",
-    "ensure_foundry_agent",
+    "build_direct_model_target",
     "EnrichmentGuardrail",
     "SourceValidationResult",
 ]

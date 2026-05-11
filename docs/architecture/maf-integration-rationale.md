@@ -1,8 +1,10 @@
 # Microsoft Agent Framework (MAF) Integration Rationale
 
 **Version**: 1.0
-**Last Updated**: 2026-04-12
-**Status**: Implemented (PR #802, agent-framework>=1.0.1 GA)
+**Last Updated**: 2026-05-11
+**Status**: Historical - superseded by ADR-005 direct-model policy and #990 Wave 4c cleanup
+
+> This document explains the PR #802 portal-agent runtime decision for audit history. The active runtime is now `DirectModelInvoker` (`agent_framework.Agent` over a pluggable `ChatClient`) per [ADR-005](adrs/adr-005-agent-framework.md). `FoundryAgentInvoker`, `/foundry/agents/ensure`, and the V2 provisioning code path were removed from framework runtime code in #990 Wave 4c.
 
 ---
 

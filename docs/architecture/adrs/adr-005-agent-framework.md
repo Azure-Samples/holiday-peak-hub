@@ -5,6 +5,7 @@
 **Updated**:
   - 2026-04-28 — Added mandatory Foundry invocation policy *(superseded 2026-05-10; see below)*
   - 2026-05-10 — Reversed to mandatory **MAF direct-model** invocation policy; portal-managed Foundry Agent records retired  
+   - 2026-05-11 — Recorded Wave 4c code cleanup; portal-agent Azure resources remain manual deprovisioning scope
 **Deciders**: Architecture Team, Ricardo Cataldi  
 **Tags**: architecture, foundry, agents, telemetry, observability, latency
 
@@ -116,8 +117,8 @@ The 2026-04-28 policy mandated that every LLM call route through a portal-manage
 - `DirectModelInvoker` (in `lib/src/holiday_peak_lib/agents/direct.py`) is the only production `ModelInvoker` implementation.
 - `BaseRetailAgent.invoke_model()` remains the single invocation entry point at the agent-class boundary.
 - `AgentBuilder.with_direct_models(slm_config=..., llm_config=..., complexity_threshold=...)` is the only sanctioned wiring path in service `main.py`.
-- `FoundryAgentInvoker`, `/foundry/agents/ensure`, `ensure-foundry-agents.{sh,ps1}`, `project_client.agents.create_version`, and the JSON-text tool-call parser are scheduled for removal in Wave 4 of the cutover (see [docs/project-status.md](../../project-status.md)).
-- The 42 V2 portal-managed agents in project `aipholidaris` (21 services × `fast` + `rich` roles) are scheduled for deprovisioning in Wave 4b once all 26 services are running on `DirectModelInvoker` for ≥1 stable week.
+- `FoundryAgentInvoker`, `/foundry/agents/ensure`, `ensure-foundry-agents.{sh,ps1}`, `project_client.agents.create_version`, and the JSON-text tool-call parser have been removed from framework runtime code as of Wave 4c (see [docs/project-status.md](../../project-status.md)).
+- The 42 V2 portal-managed agents in project `aipholidaris` (21 services × `fast` + `rich` roles) remain outside repository automation scope for this cleanup and will be deprovisioned manually by the owner.
 - **Single-architecture guardrail (from the inventory hosted-agent lesson):** A service must not ship a second entry point (e.g., `hosted_main.py`, parallel `ResponsesHostServer`, secondary port) alongside `main.py`. The MAF `Agent` is constructed inside the existing FastAPI handler in `main.py`. PRs introducing parallel runtimes are rejected at review.
 - No `ChatCompletionsClient`, `openai.ChatCompletion`, `AzureOpenAI`, or `responses.create()` calls permitted in application code outside the MAF `ChatClient` boundary.
 
@@ -125,7 +126,7 @@ The 2026-04-28 policy mandated that every LLM call route through a portal-manage
 
 **Positive (2026-05-10 direction)**: Provider-agnostic chat-client surface; image-owned prompt/model/tool lifecycle (no portal drift); native function-calling fidelity; deletion of JSON-text tool-call parser; 2–5s per-request latency reclaimed; single architecture across all 26 agent services.
 
-**Negative (2026-05-10 direction)**: One-time migration cost across 26 services; portal Agent dashboard ceases to be a usable invocation surface (mitigated by OTel → Application Insights traces, which already cover the same data); the 42 V2 portal agents in `aipholidaris` need to be deprovisioned after cutover (irreversible without re-running provisioning).
+**Negative (2026-05-10 direction)**: One-time migration cost across 26 services; portal Agent dashboard ceases to be a usable invocation surface (mitigated by OTel → Application Insights traces, which already cover the same data); the 42 V2 portal agents in `aipholidaris` need manual deprovisioning after cutover (irreversible without re-running provisioning).
 
 **Historical (2024-12 → 2026-04-28 direction, retained for context)**: Foundry ecosystem, Microsoft support, automatic updates, unified observability, quality drift detection — vs. vendor lock-in, less flexibility than custom agents, 2–5s latency overhead on every call.
 

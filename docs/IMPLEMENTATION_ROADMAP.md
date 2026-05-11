@@ -1,8 +1,8 @@
 # Implementation Roadmap
 
-**Last Updated**: May 10, 2026  
-**Version**: main (post Wave 3 of #990 — direct-model migration code-complete)  
-**Status**: Active Execution | MAF Direct-Model Cutover (Wave 3 code-complete)
+**Last Updated**: May 11, 2026  
+**Version**: feature/990-direct-model-migration (post Wave 4c cleanup)  
+**Status**: Active Execution | MAF Direct-Model Cutover (Wave 4c code cleanup complete)
 
 ---
 
@@ -12,17 +12,19 @@ This document tracks the implementation progress of the Holiday Peak Hub platfor
 
 ## Current Execution State (May 10, 2026)
 
-### Completed: Direct-Model Migration (Issue #990, Waves 0–3)
+### Completed: Direct-Model Migration (Issue #990, Waves 0–4c)
 
 - **Wave 0** — ADR-005 amendment + project-status update (2026-05-10): mandatory MAF direct-model invocation policy.
 - **Wave 1** (lib): `DirectModelInvoker` + `AgentBuilder.with_direct_models()` + `use_direct_model` kwarg on `app_factory.build_service_app` / `create_standard_app`. 13 invoker tests + 3 app-factory tests. Provider-agnostic via `ChatClientFactory`.
 - **Wave 2** (pilot): `inventory-health-check` flipped to `use_direct_model=True`. Pilot regression 3/3 green.
 - **Wave 3** (mass migration): all 25 remaining agent services flipped to `use_direct_model=True`. py_compile OK 26/26. Lib regression 1342/1342 green. crud-service is NOT migrated (it is a transactional microservice, not an agent).
-- **Wave 4** (legacy cleanup) and **Wave 4b** (V2 portal-agent deprovisioning) are gated on ≥1 week stable on the direct-model path + explicit confirmation.
+- **Wave 4a** (legacy app-factory/builder cleanup): removed `AgentBuilder.with_foundry_models()` and the app-factory legacy portal-agent model wiring branch.
+- **Wave 4b** (workflow/script cleanup): removed `ensure-foundry-agents.{sh,ps1}` and the workflow job that called `/foundry/agents/ensure`.
+- **Wave 4c** (framework cleanup): removed the retired portal-agent `FoundryAgentInvoker`, JSON-text tool-call parser, `/foundry/agents/ensure` endpoint, and V2 provisioning code path. Readiness now validates direct-model `maf-direct` targets. The 42 V2 portal agents in project `aipholidaris` are intentionally not deprovisioned by code and remain user-managed.
 
 ### Previously Completed in Merge Wave (PRs #771–#802)
 
-- **Agent Runtime Migration** (PR #802): Replaced `FoundryInvoker` with `FoundryAgentInvoker` wrapping the MAF `FoundryAgent`, fixing silent tool-dropping. Upgraded `agent-framework` to `>=1.0.1` GA across all 27 service packages. Superseded by direct-model invocation as of 2026-05-10 (#990); retained until Wave 4 cleanup.
+- **Agent Runtime Migration** (PR #802): Replaced `FoundryInvoker` with `FoundryAgentInvoker` wrapping the MAF `FoundryAgent`, fixing silent tool-dropping. This path was superseded by direct-model invocation on 2026-05-10 and removed from framework runtime code in Wave 4c.
 - **Memory Parallelization** (PR #800): Concurrent hot/warm/cold I/O via `asyncio.gather`; new memory tools and `gather_adapters` helper.
 - **Catalog-Search Optimization** (PR #796): Parallelized I/O, eliminated duplicate keyword search.
 - **Infrastructure Fixes** (PRs #794, #798): CRUD port correction, dev-environment recovery script.

@@ -295,21 +295,19 @@ docker build -t <acr>.azurecr.io/ecommerce-catalog-search:latest \
   -f apps/ecommerce-catalog-search/src/Dockerfile .
 docker push <acr>.azurecr.io/ecommerce-catalog-search:latest
 
-# 2. Ensure Foundry agents are provisioned
-pwsh .infra/azd/hooks/ensure-foundry-agents.ps1
-
-# 3. Install via Helm
+# 2. Install via Helm with direct-model deployments
 helm upgrade --install ecommerce-catalog-search .kubernetes/chart/ \
   --namespace holiday-peak-agents \
   --set image.repository=<acr>.azurecr.io/ecommerce-catalog-search \
   --set image.tag=latest \
   --set env.PROJECT_ENDPOINT=<foundry-endpoint> \
-  --set env.FOUNDRY_AGENT_ID_FAST=<fast-agent-id> \
-  --set env.FOUNDRY_AGENT_ID_RICH=<rich-agent-id> \
+  --set env.PROJECT_NAME=<foundry-project-name> \
+  --set env.MODEL_DEPLOYMENT_NAME_FAST=<fast-model-deployment> \
+  --set env.MODEL_DEPLOYMENT_NAME_RICH=<rich-model-deployment> \
   --set env.REDIS_URL=<redis-url> \
   --set env.COSMOS_ACCOUNT_URI=<cosmos-uri>
 
-# 4. Verify health
+# 3. Verify health
 kubectl wait --for=condition=ready pod \
   -l app=ecommerce-catalog-search \
   -n holiday-peak-agents \
@@ -374,9 +372,9 @@ The `COPY ... prompts/` line in stage 5 is **mandatory** for all agent services.
 
 1. The `prompt_loader` cannot find `prompts/instructions.md` inside the container
 2. It falls back to generic placeholder instructions
-3. Foundry refuses to create agents with fallback text (`fallback_instructions_refused`)
-4. The pod's `/ready` probe returns 503 indefinitely
-5. The pod never becomes Ready and `/invoke` returns errors
+3. The direct-model runtime falls back to generic instructions
+4. The pod can fail readiness/invoke checks under strict model-readiness enforcement
+5. The service may respond with lower-quality or generic behavior even when model targets are bound
 
 **CI enforcement**: Run `python scripts/ci/verify_dockerfile_prompts.py` to verify all agent Dockerfiles include the prompts COPY. This script is a fast static gate that catches the issue before any image is built.
 
@@ -384,7 +382,7 @@ The prompts directory at `apps/<service>/prompts/instructions.md` is the authori
 1. `importlib.resources` (package data inside installed wheel)
 2. Repo layout relative to `module_file` (`../../prompts/instructions.md`)
 3. Service scan from repo roots (`/apps/<service>/prompts/instructions.md`)
-4. Fallback text (blocked by Foundry in strict and auto-ensure modes)
+4. Fallback text (allowed only as a last resort; strict deployments should package real service instructions)
 
 ---
 
@@ -393,12 +391,12 @@ The prompts directory at `apps/<service>/prompts/instructions.md` is the authori
 | Symptom | Check | Fix |
 |---------|-------|-----|
 | Pod in `CrashLoopBackoff` | `kubectl logs -l app=<svc> --previous` | Usually missing env var (`PROJECT_ENDPOINT`, `EVENT_HUB_NAMESPACE`) |
-| `/health` returns 503 | Foundry agent not provisioned | Run `ensure-foundry-agents.ps1` hook |
-| `/ready` returns 503, logs show `fallback_instructions_refused` | `prompts/instructions.md` not in Docker image | Add `COPY ... prompts/` to Dockerfile prod stage. Run `python scripts/ci/verify_dockerfile_prompts.py` to check all |
+| `/ready` returns 503 | Direct-model target not bound | Verify `PROJECT_ENDPOINT` / `FOUNDRY_ENDPOINT`, optional `PROJECT_NAME`, and `MODEL_DEPLOYMENT_NAME_FAST/RICH` in the deployment env |
+| `/invoke` returns generic behavior | `prompts/instructions.md` not in Docker image | Add `COPY ... prompts/` to Dockerfile prod stage. Run `python scripts/ci/verify_dockerfile_prompts.py` to check all |
 | Event Hub consumer not receiving | Consumer group mismatch | Verify `EVENT_HUB_CONNECTION_STRING` and consumer group name |
 | Memory timeouts | Redis/Cosmos unreachable | Check network policies allow egress from agent namespace |
 | Image pull error | ACR auth expired | `az acr login --name <acr>` then re-deploy |
-| Tool calls silently dropped | Old `FoundryInvoker` in use | Ensure `holiday-peak-lib` uses `FoundryAgentInvoker` (PR #802+) |
+| Tool calls silently dropped | Non-direct runtime or stale image | Ensure `holiday-peak-lib` uses `DirectModelInvoker` and redeploy the service image |
 | APIM returns 502 | Backend health probe failing | Check `/health` endpoint directly via pod port-forward |
 | `could not determine AKS cluster` | `AZURE_AKS_CLUSTER_NAME` not set in azd env | `azd env set AZURE_AKS_CLUSTER_NAME <cluster-name>` |
 | `could not determine container registry endpoint` | `AZURE_CONTAINER_REGISTRY_ENDPOINT` not set | `azd env set AZURE_CONTAINER_REGISTRY_ENDPOINT <acr>.azurecr.io` |
@@ -714,8 +712,8 @@ Override the namespace with `--namespace <name>` in Helm commands.
 | Symptom | Check | Fix |
 |---------|-------|-----|
 | Pod in `CrashLoopBackoff` | `kubectl logs -l app=<svc> --previous` | Usually missing env var (Foundry, Event Hub) |
-| `/health` returns 503 | Foundry agent not provisioned | Run `ensure-foundry-agents.ps1` hook |
-| `/ready` returns 503, logs show `fallback_instructions_refused` | `prompts/instructions.md` not in Docker image | Add `COPY ... prompts/` to Dockerfile prod stage. See § Prompt Packaging |
+| `/ready` returns 503 | Direct-model target not bound | Verify `PROJECT_ENDPOINT` / `FOUNDRY_ENDPOINT`, optional `PROJECT_NAME`, and `MODEL_DEPLOYMENT_NAME_FAST/RICH` in the deployment env |
+| `/invoke` returns generic behavior | `prompts/instructions.md` not in Docker image | Add `COPY ... prompts/` to Dockerfile prod stage. See § Prompt Packaging |
 | Event Hub consumer not receiving | Consumer group mismatch | Check `EVENT_HUB_CONNECTION_STRING` and consumer group name |
 | Memory timeouts | Redis/Cosmos unreachable | Verify network policies allow egress from agent namespace |
 | Image pull error | ACR auth expired | `az acr login --name <acr>` |

@@ -104,13 +104,12 @@ response = await agent.handle({"query": "Check inventory for SKU-123"})
 - `default_options={"store": False}` — no portal-managed agent record at runtime; MAF `Agent` is stateless per request.
 - SDK requirement: `agent-framework>=1.2.0` + `agent-framework-foundry>=1.0.1`.
 
-✅ **Foundry Integration Helpers (transitional, scheduled for Wave 4 cleanup)**:
+✅ **Foundry Configuration Helpers (direct-model runtime)**:
 
 - `FoundryAgentConfig` (kept — consumed by `DirectModelInvoker`).
-- `build_foundry_model_target` + `FoundryAgentInvoker`: portal-managed Foundry Agents path (V2 prompt-agent runtime). Wraps the MAF `FoundryAgent` runtime, ensuring tools and middleware are forwarded (replaces deprecated `FoundryInvoker`). **Status**: superseded by `DirectModelInvoker` for new work; retained in-tree until Wave 4 cleanup.
-- Foundry prompt governance in `BaseRetailAgent` (system/developer prompts are stripped in Foundry mode) — applies to legacy `FoundryAgentInvoker` path; the direct-model path uses instructions baked into the container image via `prompts/instructions.md`.
-- Agents V2 provisioning path (`project_client.agents.create_version` with `PromptAgentDefinition`): scheduled for removal in Wave 4.
-- **42 V2 agents provisioned** in Foundry project `aipholidaris` (21 services × 2 roles: fast + rich): scheduled for deprovisioning in Wave 4b once all 26 services run stably on `DirectModelInvoker` for ≥1 week.
+- Endpoint normalization helpers support both project-scoped Foundry endpoints and account endpoints paired with `PROJECT_NAME` / `FOUNDRY_PROJECT_NAME`.
+- Portal-agent runtime/provisioning code (`FoundryAgentInvoker`, `build_foundry_model_target`, `/foundry/agents/ensure`, V2 `PromptAgentDefinition`) was removed in Wave 4c.
+- The 42 V2 portal agents in Foundry project `aipholidaris` were intentionally not touched by code; manual deprovisioning remains outside this repository change.
 
 ✅ **Memory Tools and Parallel I/O**:
 
@@ -135,13 +134,9 @@ response = await agent.handle({"query": "Check inventory for SKU-123"})
 ❌ **Session Management**: No multi-turn conversation context tracking  
 ❌ **MCP Schema Discovery**: No `/mcp/tools` registry endpoint  
 
-**Foundry note**: When running agents on **Foundry Agent Service**, several items above are handled by the platform:
-- **Tool orchestration + retries** (server-side tool execution with logging)
-- **Conversation/session state** (managed conversations with optional BYO storage)
-- **Observability** (conversation traces, tool invocations, and Application Insights integration)
-- **Safety controls** (integrated content filters and policy governance)
+**Direct-model note**: The active runtime executes MAF agents in-process. Tool orchestration, retries, session state, and guardrails are therefore owned by framework code, service adapters, and deployment configuration rather than by portal-managed Foundry Agent records.
 
-**Current Status**: Core orchestration and Foundry invokers are implemented, but apps must provide agent classes, tools, and model config.
+**Current Status**: Core orchestration, direct-model invocation, MCP exposition, memory, and telemetry helpers are implemented, but apps must provide agent classes, tools, and model config.
 
 ## Microsoft Agent Framework (Azure AI Foundry) Integration
 
@@ -149,46 +144,42 @@ response = await agent.handle({"query": "Check inventory for SKU-123"})
 
 `BaseRetailAgent` now accepts two `ModelTarget`s (SLM and LLM) and routes based on a simple complexity heuristic (`_assess_complexity`). Each `ModelTarget` carries a model name and an async invoker, keeping the base class SDK-agnostic while allowing Microsoft Agent Framework integration.
 
-### Production Integration Example (Microsoft Agent Framework)
+### Production Integration Example (Microsoft Agent Framework Direct Model)
 
 ```python
 from typing import Any
 
-from azure.ai.agents.aio import AgentsClient
-from azure.identity.aio import DefaultAzureCredential
 from holiday_peak_lib.agents import (
     AgentBuilder,
     BaseRetailAgent,
     FoundryAgentConfig,
-    build_foundry_model_target,
+    build_direct_model_target,
 )
 
 
 class RetailAgent(BaseRetailAgent):
     async def handle(self, request: dict[str, Any]) -> dict[str, Any]:
-        # route to the configured Foundry Agent
+        # route to the configured direct model target
         messages = [{"role": "user", "content": request["query"]}]
         return await self.invoke_model(request=request, messages=messages)
 
 
 slm_cfg = FoundryAgentConfig(
     endpoint=os.environ["PROJECT_ENDPOINT"],
-    agent_id=os.environ["FOUNDRY_AGENT_ID_FAST"],
-    deployment_name=os.environ.get("MODEL_DEPLOYMENT_NAME_FAST"),
+    deployment_name=os.environ["MODEL_DEPLOYMENT_NAME_FAST"],
     stream=False,  # set True to aggregate streaming deltas
 )
 llm_cfg = FoundryAgentConfig(
     endpoint=os.environ["PROJECT_ENDPOINT"],
-    agent_id=os.environ["FOUNDRY_AGENT_ID_RICH"],
-    deployment_name=os.environ.get("MODEL_DEPLOYMENT_NAME_RICH"),
+    deployment_name=os.environ["MODEL_DEPLOYMENT_NAME_RICH"],
 )
 
 agent = (
     AgentBuilder()
     .with_agent(RetailAgent)
     .with_models(
-        slm=build_foundry_model_target(slm_cfg),
-        llm=build_foundry_model_target(llm_cfg),
+        slm=build_direct_model_target(slm_cfg),
+        llm=build_direct_model_target(llm_cfg),
         complexity_threshold=0.6,
     )
     .build()
@@ -200,16 +191,11 @@ response = await agent.handle({"query": "Find Nike shoes", "requires_multi_tool"
 **Env vars expected**
 - `PROJECT_ENDPOINT` (or `FOUNDRY_ENDPOINT`): Azure AI Foundry project endpoint of the form `https://<resource>.services.ai.azure.com/api/projects/<project-name>`. The runtime also accepts an Azure AI Services account endpoint and derives the project-scoped endpoint when `PROJECT_NAME` is set.
 - `PROJECT_NAME` (or `FOUNDRY_PROJECT_NAME`): Azure AI Foundry project name. Required when the endpoint is not already project-scoped.
-- `FOUNDRY_AGENT_ID_FAST` / `FOUNDRY_AGENT_ID_RICH`: Agent IDs created in Foundry
-- `FOUNDRY_AGENT_NAME_FAST` / `FOUNDRY_AGENT_NAME_RICH`: Agent names (used for V2 lookup/creation)
-- `MODEL_DEPLOYMENT_NAME_FAST` / `MODEL_DEPLOYMENT_NAME_RICH` (optional): Deployment backing the Agent (defaults to `gpt-5-nano` / `gpt-5`)
+- `MODEL_DEPLOYMENT_NAME_FAST` / `MODEL_DEPLOYMENT_NAME_RICH`: Deployments backing the SLM/LLM direct-model targets.
 - `FOUNDRY_STREAM` (optional): `true` to aggregate streaming deltas per target
-- `FOUNDRY_STRICT_ENFORCEMENT` (optional): `true` to require successful ensure before serving `/invoke`
-- `FOUNDRY_AUTO_ENSURE_ON_STARTUP` (optional): `true` to auto-ensure agents on app startup
+- `FOUNDRY_STRICT_ENFORCEMENT` (optional): `true` to require bound direct-model targets before serving `/invoke`
 
-**SDK Requirement**: `azure-ai-projects>=2.0.0b4` is required for V2 agent provisioning (`create_version` + `PromptAgentDefinition`).
-
-**V2 Execution**: Agents V2 uses `openai_client.conversations.create()` + `openai_client.responses.create()` with `agent_reference` instead of the legacy threads/runs API. Streaming is not yet supported in V2; the invoker returns a single payload.
+**SDK Requirement**: `agent-framework>=1.2.0` and `agent-framework-foundry>=1.0.1`. `azure-ai-projects` V2 provisioning APIs are no longer used by the framework runtime.
 
 ### Direct-Model Production Example (canonical, post 2026-05-10)
 
@@ -239,17 +225,17 @@ app = create_standard_app(
 When `use_direct_model=True` (or `HOLIDAY_PEAK_DIRECT_MODEL=true`), `app_factory`:
 
 1. Loads service instructions from `prompts/instructions.md` (or the default fallback template).
-2. Constructs `FoundryAgentConfig` for `fast` and `rich` roles from env (only `MODEL_DEPLOYMENT_NAME_*` is required \u2014 no portal-managed agent ID).
+2. Constructs `FoundryAgentConfig` for `fast` and `rich` roles from env (model deployment names are required; no portal-managed agent ID is required).
 3. Calls `AgentBuilder.with_direct_models(instructions=..., slm_config=..., llm_config=...)`.
 4. `DirectModelInvoker` wraps the model in an in-process `agent_framework.Agent` over the configured `ChatClient` (`FoundryChatClient` by default).
 
 **Env vars (direct-model path)**
 - `PROJECT_ENDPOINT` (or `FOUNDRY_ENDPOINT`): Azure AI Foundry project endpoint.
 - `PROJECT_NAME` (or `FOUNDRY_PROJECT_NAME`): Project name (required if endpoint is not project-scoped).
-- `MODEL_DEPLOYMENT_NAME_FAST` / `MODEL_DEPLOYMENT_NAME_RICH`: Deployments backing the SLM/LLM targets (defaults: `gpt-5-nano` / `gpt-5`).
+- `MODEL_DEPLOYMENT_NAME_FAST` / `MODEL_DEPLOYMENT_NAME_RICH`: Deployments backing the SLM/LLM targets. These values are required for bound `maf-direct` targets and fail-fast readiness.
 - `HOLIDAY_PEAK_DIRECT_MODEL` (optional): `true` to opt into the direct-model path without per-service code changes.
 
-**Provider portability**: pass a custom `chat_client_factory: Callable[[FoundryAgentConfig], ChatClient]` to `with_direct_models()` (or to `app_factory.build_service_app`) to use any MAF-compatible `ChatClient` (Azure OpenAI direct, OpenAI, custom HTTP). `FoundryAgentConfig.deployment_name` becomes the model parameter; `endpoint` and `agent_id` are surfaced for provider auth/identity.
+**Provider portability**: pass a custom `chat_client_factory: Callable[[FoundryAgentConfig], ChatClient]` to `with_direct_models()` (or to `app_factory.build_service_app`) to use any MAF-compatible `ChatClient` (Azure OpenAI direct, OpenAI, custom HTTP). `FoundryAgentConfig.deployment_name` becomes the model parameter, and the normalized endpoint is available for provider auth/identity.
 
 **What the direct-model path does NOT use**:
 - Portal-managed Foundry Agent records (`FOUNDRY_AGENT_ID_*`).
@@ -257,17 +243,18 @@ When `use_direct_model=True` (or `HOLIDAY_PEAK_DIRECT_MODEL=true`), `app_factory
 - `ensure-foundry-agents.{sh,ps1}` CI hooks.
 - The JSON-text tool-call parser (`_extract_tool_calls_from_text`).
 
-These remain in-tree as transitional state and are scheduled for removal in Wave 4 of the cutover (see [docs/project-status.md](../../../project-status.md) and [ADR-005 amendment 2026-05-10](../../adrs/adr-005-agent-framework.md)).
+These were removed from framework runtime code in Wave 4c. Historical design notes may still mention them for audit context.
 
 ### Configuration
 
-```python
-# apps/ecommerce-catalog-search/src/config.py
-FOUNDRY_ENDPOINT = os.getenv("FOUNDRY_ENDPOINT", "https://<project>.inference.ml.azure.com")
-FOUNDRY_AGENT_ID = os.getenv("FOUNDRY_AGENT_ID", "retail-assistant")
+Agent services configure Foundry-backed direct model deployments through environment variables consumed by `app_factory`:
 
-agent = FoundryAgent(endpoint=FOUNDRY_ENDPOINT)
-```
+- `PROJECT_ENDPOINT` or `FOUNDRY_ENDPOINT`
+- `PROJECT_NAME` or `FOUNDRY_PROJECT_NAME` when the endpoint is not project-scoped
+- `MODEL_DEPLOYMENT_NAME_FAST`
+- `MODEL_DEPLOYMENT_NAME_RICH`
+
+There is no service-local `FoundryAgent` constructor and no portal-agent ID requirement for runtime invocation.
 
 ## MCP Server Exposition
 
@@ -309,62 +296,25 @@ Backward compatibility:
 - **Routing**: `_select_model` picks SLM when complexity < threshold and LLM otherwise (with sensible fallbacks).
 - **Integration**: `invoke_model` forwards the selected model + parameters to the provided invoker (e.g., Microsoft Agent Framework client).
 
-### Prompt Governance (Foundry)
+### Prompt Governance (Direct Model)
 
-When `ModelTarget.provider == "foundry"` (set by `build_foundry_model_target`) and
-`AgentDependencies.enforce_foundry_prompt_governance=True` (default),
-`BaseRetailAgent` enforces portal/SDK-owned prompt instructions by:
+When `ModelTarget.provider == "maf-direct"`, service instructions are loaded from
+`prompts/instructions.md` and passed into `DirectModelInvoker`. The app factory
+keeps instruction ownership local to the service image while preserving Foundry as
+the deployment, telemetry, and evaluation backend.
 
-- Removing local `system`/`developer` role messages before model invocation.
-- Keeping only conversational roles (`user`, `assistant`) as runtime input.
-- Running SLM-first and escalating to LLM by complexity threshold without injecting
-    additional local instruction prompts.
+- Runtime messages remain conversational (`user`, `assistant`, and tool results).
+- SLM-first routing still escalates to LLM by complexity threshold.
+- Tool schemas are forwarded to MAF as callable tools; dict-schema-only tools are rejected because the JSON-text parser has been removed.
 
-This guarantees instruction changes are managed in Azure AI Foundry (portal or SDK),
-not by editing service-local prompt strings in `apps/*/agents.py`.
-
-### Foundry Agent Provisioning Endpoint (Per Service)
-
-All services created with `build_service_app` now expose:
-
-- `POST /foundry/agents/ensure`
-
-This endpoint validates that configured Foundry agents exist and can create them
-once when missing (via Foundry SDK). Typical request:
-
-```json
-{
-    "role": "both",
-    "create_if_missing": true,
-    "names": {"fast": "catalog-fast", "rich": "catalog-rich"},
-    "instructions": {"fast": "...", "rich": "..."},
-    "models": {"fast": "gpt-5-nano", "rich": "gpt-5"}
-}
-```
-
-Supported roles:
-
-- `fast` (SLM)
-- `rich` (LLM)
-- `both`
-
-The service updates in-memory model targets with resolved/created Foundry agent IDs.
-
-`POST /invoke` now performs a lazy Foundry ensure pass when runtime role definitions
-exist but SLM/LLM targets are unresolved (for example, missing role IDs at startup).
-If ensure cannot resolve all configured callable role targets (`fast`/`rich`), the service returns `503`
-with a Foundry runtime resolution error instead of attempting a model call with
-placeholder role IDs.
+### Direct-Model Deployment Contract
 
 Deploy-time Helm rendering now validates the Foundry contract for each agent service:
 
 - `PROJECT_ENDPOINT` / `PROJECT_NAME` must be present.
-- Both model roles must be defined (`MODEL_DEPLOYMENT_NAME_FAST` and `MODEL_DEPLOYMENT_NAME_RICH`).
-- Both Foundry role identities must be defined (explicit `FOUNDRY_AGENT_ID_*` or deterministic
-    `FOUNDRY_AGENT_NAME_*` defaults).
-- Placeholder ids ending with `-pending` are rejected at render time.
+- Both direct model roles must be defined (`MODEL_DEPLOYMENT_NAME_FAST` and `MODEL_DEPLOYMENT_NAME_RICH`).
 
-Default deployment models in this repo are:
+Repo-standard deployment names are:
 
 - SLM (`fast`): `gpt-5-nano`
 - LLM (`rich`): `gpt-5`
@@ -372,37 +322,32 @@ Default deployment models in this repo are:
 Use **GlobalStandard** (global deployment) SKU in Azure AI Foundry to maximize
 regional compatibility and avoid runtime dependency errors.
 
-When `create_if_missing=true`, agent creation requires a model to be provided via
-`models.<role>` or configured through `MODEL_DEPLOYMENT_NAME_FAST` /
-`MODEL_DEPLOYMENT_NAME_RICH`. If no model is available, the role result returns
-`status: "missing_model"` and no agent is created.
-
 ### Foundry Readiness Contract
 
 `GET /ready` always includes **actual Foundry runtime status** for the service.
 
 - Library default (`build_service_app` / `create_standard_app`) is **Foundry-preferred, not required**.
 - Agentic services opt into enforcement with `require_foundry_readiness=True`.
-- When enforcement is enabled, `/ready` returns `503` until every configured Foundry role has a verified runtime binding.
-- When enforcement is disabled, `/ready` remains `200`; `foundry_ready` reflects whether at least one callable Foundry target is available, and unresolved roles are still reported in the payload.
+- When enforcement is enabled, `/ready` returns `503` until every configured direct-model role has a bound `maf-direct` runtime target.
+- When enforcement is disabled, `/ready` remains `200`; `foundry_ready` reflects whether at least one callable direct-model target is available, and unbound roles are still reported in the payload.
 
-- `ready` is contextual to the service contract: non-enforced services report callable-target readiness, while enforced services require every configured role to verify successfully.
-- `not_ready` means enforced traffic should not be routed because one or more configured roles remain unresolved or the latest Foundry ensure/verification attempt recorded an error state.
-- Use `POST /foundry/agents/ensure` to provision/resolve targets before serving requests.
+- `ready` is contextual to the service contract: non-enforced services report callable-target readiness, while enforced services require every configured direct-model role to be bound.
+- `not_ready` means enforced traffic should not be routed because one or more configured roles remain unbound or a configuration error was recorded.
 
 Readiness payload now includes a `foundry` capability object with:
 
 - `project_configured`
 - `endpoint_configured`
 - `configured_roles`
-- `resolved_roles`
-- `unresolved_roles`
+- `bound_roles`
+- `unbound_roles`
+- `resolved_roles` / `unresolved_roles` compatibility aliases
 - `last_error`
 - `agent_targets_bound`
 - `runtime_resolution_required`
 - `auto_ensure_on_startup`
 
-`POST /invoke` reuses the same ensure path and fails closed for enforced agentic services when configured roles remain unresolved or Foundry verification fails.
+`POST /invoke` reuses the same readiness snapshot and fails closed for enforced agentic services when configured roles remain unbound.
 
 Foundry tracer collection can be controlled per service via
 `disable_tracing_without_foundry` on `create_standard_app` / `build_service_app`.
@@ -412,17 +357,15 @@ metrics, and latest-evaluation data for admin observability surfaces.
 
 ### Strict Foundry Enforcement Mode
 
-Set `FOUNDRY_STRICT_ENFORCEMENT=true` to require a successful ensure step before
+Set `FOUNDRY_STRICT_ENFORCEMENT=true` to require bound direct-model targets before
 serving `/invoke` requests:
 
-- With bound Foundry targets: strict mode enforces Foundry readiness for `/invoke`
-- Without bound Foundry targets: `/invoke` can continue through local/fallback logic
+- With bound direct-model targets: strict mode enforces Foundry readiness for `/invoke`
+- Without bound direct-model targets: `/invoke` can continue through local/fallback logic
 
-This mode is designed for environments where all agent prompts/instructions must be
-managed exclusively in Foundry.
+This mode is designed for environments where deployed agent services must fail closed on model configuration drift.
 
-When strict mode is enabled, startup auto-ensure is also enabled by default to
-guarantee agent versions exist before serving traffic.
+Startup auto-ensure is retired with the portal-agent provisioning path; strict mode now depends on direct-model target configuration and `/ready` state.
 
 ## Observability (PARTIALLY IMPLEMENTED)
 
@@ -430,10 +373,10 @@ guarantee agent versions exist before serving traffic.
 
 ✅ **Implemented**: Basic operation logging via `configure_logging` + `log_async_operation`
 
-✅ **Foundry-managed** (when using Foundry Agent Service):
-- Conversation and tool-call traces
-- Structured run logs in the Foundry portal
-- Application Insights metrics integration
+✅ **Foundry-backed direct model**:
+- Agent traces emitted through OpenTelemetry / Application Insights
+- Tool-call and request spans captured by framework telemetry
+- Evaluation payloads remain available to the Foundry evaluation surface
 
 ❌ **NOT Implemented**:
 - No token usage tracking
@@ -537,7 +480,7 @@ async def test_agent_latency():
 - Tool access control: Restrict tools per user role
 - Output filtering: Redact sensitive data (PII, credentials)
 
-✅ **Foundry-managed** (when using Foundry Agent Service): integrated content filters and policy enforcement reduce prompt-injection risk and unsafe outputs.
+✅ **Foundry-backed direct model**: deployed model content filters remain in force, but prompt-injection handling, tool authorization, and output redaction are framework/service responsibilities.
 
 ```python
 def sanitize_query(query: str) -> str:
@@ -612,17 +555,19 @@ async def test_agent_run_stub():
 
 ### Integration Tests (NOT IMPLEMENTED)
 
-Test with real Foundry endpoint:
+Test with a real Foundry-backed direct model target:
 ```python
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_agent_foundry_call():
-    agent = FoundryAgent(endpoint=os.getenv("FOUNDRY_ENDPOINT"))
-    response = await agent.run(
-        query="Find Nike shoes",
-        tools=[search_catalog_tool]
+    app = create_standard_app(
+        service_name="ecommerce-catalog-search",
+        agent_class=CatalogSearchAgent,
+        use_direct_model=True,
+        require_foundry_readiness=True,
     )
-    assert "Nike" in response.message
+    response = await app.state.agent.handle({"query": "Find Nike shoes"})
+    assert "Nike" in str(response)
 ```
 
 ## Runbooks (NOT PROVIDED)

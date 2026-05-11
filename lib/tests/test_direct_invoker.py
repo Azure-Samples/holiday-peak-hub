@@ -16,9 +16,7 @@ from holiday_peak_lib.agents.direct import (
 from holiday_peak_lib.agents.foundry import FoundryAgentConfig
 
 TEST_PROJECT_NAME = "test-project"
-TEST_PROJECT_ENDPOINT = (
-    f"https://test.services.ai.azure.com/api/projects/{TEST_PROJECT_NAME}"
-)
+TEST_PROJECT_ENDPOINT = f"https://test.services.ai.azure.com/api/projects/{TEST_PROJECT_NAME}"
 
 
 def _make_config(*, deployment: str | None = "gpt-5-fast") -> FoundryAgentConfig:
@@ -129,9 +127,7 @@ class TestDirectModelInvokerNonStreaming:
         )
         invoker._agent = stub_agent
 
-        await invoker(
-            messages=[{"role": "user", "content": {"sku": "ABC123"}}]
-        )
+        await invoker(messages=[{"role": "user", "content": {"sku": "ABC123"}}])
 
         sent = stub_agent.run_calls[0]["messages"]
         assert len(sent) == 1
@@ -319,9 +315,7 @@ class TestDirectModelInvokerStreaming:
         )
         invoker._agent = stub_agent
 
-        gen = await invoker(
-            messages=[{"role": "user", "content": "hi"}], stream=True
-        )
+        gen = await invoker(messages=[{"role": "user", "content": "hi"}], stream=True)
 
         deltas = [delta async for delta in gen]
         assert deltas == ["He", "llo", " world"]

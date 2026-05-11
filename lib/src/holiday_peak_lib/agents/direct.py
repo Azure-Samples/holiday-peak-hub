@@ -6,17 +6,16 @@ in-process inside the existing FastAPI handler. The agent's instructions, tools,
 and model deployment reference are baked into the container image — no
 portal-managed Foundry Agent record is required at runtime.
 
-Drop-in replacement for :class:`FoundryAgentInvoker` at the
+Runtime implementation at the
 :class:`~holiday_peak_lib.agents.base_agent.ModelInvoker` boundary in
-:meth:`BaseRetailAgent.invoke_model`. Differences:
+:meth:`BaseRetailAgent.invoke_model`. Key properties:
 
 - No portal-managed Foundry Agent record. The MAF ``Agent`` is constructed
   in-process at first call from ``instructions``, ``tools``, and a
   ``ChatClient``.
-- Tool calling uses native MAF function-calling. The JSON-text tool-call parser
-  used by ``FoundryAgentInvoker`` is intentionally not replicated; dict-schema
-  tool definitions raise :class:`TypeError` rather than being silently injected
-  into the system prompt.
+- Tool calling uses native MAF function-calling. Dict-schema tool definitions
+    raise :class:`TypeError` rather than being silently injected into the system
+    prompt.
 - Provider-agnostic: pass ``chat_client_factory`` to swap providers
   (``FoundryChatClient``, ``OpenAIChatClient``, ``AzureOpenAIChatClient``).
 - ``default_options={"store": False}`` — no server-side conversation state.
@@ -43,7 +42,10 @@ from agent_framework import Message as MAFMessage
 from azure.identity.aio import DefaultAzureCredential
 
 from .base_agent import ModelTarget
-from .foundry import FoundryAgentConfig, _maybe_await
+from .foundry import (
+    FoundryAgentConfig,
+    _maybe_await,
+)
 from .provider_policy import normalize_messages as _normalize_messages
 
 _logger = logging.getLogger(__name__)
@@ -95,9 +97,8 @@ class _PreparedDirectInvocation(NamedTuple):
 class DirectModelInvoker:
     """Invoke a model directly via MAF :class:`Agent`.
 
-    Implements the same ``__call__`` contract as
-    :class:`~holiday_peak_lib.agents.foundry.FoundryAgentInvoker` so call sites
-    in :class:`BaseRetailAgent` are unchanged. Strategy dispatch:
+    Implements the shared ``__call__`` contract consumed by
+    :class:`BaseRetailAgent`. Strategy dispatch:
 
     - ``stream=False`` (default) → awaits ``agent.run()`` and returns a dict.
     - ``stream=True`` → returns an :class:`AsyncGenerator` that yields text
@@ -179,9 +180,7 @@ class DirectModelInvoker:
             raw_content = msg.get("content", "")
             if isinstance(raw_content, (dict, list)):
                 raw_content = json.dumps(raw_content, default=str)
-            maf_messages.append(
-                MAFMessage(role=msg.get("role", "user"), contents=[raw_content])
-            )
+            maf_messages.append(MAFMessage(role=msg.get("role", "user"), contents=[raw_content]))
 
         # Resolve runtime tools: per-call override > static tools.
         # Direct-model path expects callables. Dict-schema tool definitions are
@@ -228,9 +227,7 @@ class DirectModelInvoker:
             return self._stream_impl(prep)
         return await self._request_response_impl(prep)
 
-    async def _request_response_impl(
-        self, prep: _PreparedDirectInvocation
-    ) -> dict[str, Any]:
+    async def _request_response_impl(self, prep: _PreparedDirectInvocation) -> dict[str, Any]:
         """Non-streaming path: await a single :class:`AgentRunResponse`."""
         started = perf_counter()
         agent = self._ensure_agent()
@@ -262,9 +259,7 @@ class DirectModelInvoker:
                     {
                         "type": "message",
                         "role": "assistant",
-                        "content": [
-                            {"type": "output_text", "text": timeout_text}
-                        ],
+                        "content": [{"type": "output_text", "text": timeout_text}],
                     }
                 ],
                 "stream": False,
@@ -282,9 +277,7 @@ class DirectModelInvoker:
         elif prep.session is not None:
             updated_session_state = prep.session.to_dict()
 
-        assistant_text = (
-            response.text if hasattr(response, "text") else str(response)
-        )
+        assistant_text = response.text if hasattr(response, "text") else str(response)
 
         # Prefer MAF's own serialization for messages when available.
         resp_messages = getattr(response, "messages", None)
@@ -301,9 +294,7 @@ class DirectModelInvoker:
                     {
                         "type": "message",
                         "role": "assistant",
-                        "content": [
-                            {"type": "output_text", "text": assistant_text}
-                        ],
+                        "content": [{"type": "output_text", "text": assistant_text}],
                     }
                 )
 
@@ -311,9 +302,7 @@ class DirectModelInvoker:
             "content": assistant_text,
             "messages": serialized_messages,
             "stream": False,
-            "telemetry": self._build_telemetry(
-                started, prep.normalized, stream=False
-            ),
+            "telemetry": self._build_telemetry(started, prep.normalized, stream=False),
         }
 
         response_id = getattr(response, "response_id", None)
@@ -322,20 +311,16 @@ class DirectModelInvoker:
 
         usage = getattr(response, "usage_details", None)
         if usage is not None:
-            result["usage"] = (
-                usage.to_dict() if hasattr(usage, "to_dict") else usage
-            )
+            result["usage"] = usage.to_dict() if hasattr(usage, "to_dict") else usage
 
         if updated_session_state is not None:
-            # Same key name as FoundryAgentInvoker so call sites that already
-            # relay session state for thread reuse keep working unchanged.
+            # Same key name as the prior session relay contract so call sites
+            # that already preserve thread state keep working unchanged.
             result["_foundry_session_state"] = updated_session_state
 
         return result
 
-    async def _stream_impl(
-        self, prep: _PreparedDirectInvocation
-    ) -> AsyncGenerator[str, None]:
+    async def _stream_impl(self, prep: _PreparedDirectInvocation) -> AsyncGenerator[str, None]:
         """Streaming path: yield text-token deltas.
 
         ``agent.run(stream=True)`` returns an async iterable, NOT a coroutine,
@@ -360,7 +345,6 @@ class DirectModelInvoker:
         # ``Agent.run(stream=True)`` returns an async iterable, not a coroutine.
         # Pylint cannot narrow Agent.run's overload union on a literal
         # stream=True, hence the explicit suppression on the iteration line.
-        # Mirrors the same call shape in ``FoundryAgentInvoker._stream_impl``.
         stream_response = agent.run(prep.maf_messages, **run_kwargs)
 
         prev_len = 0
@@ -372,9 +356,7 @@ class DirectModelInvoker:
                     yield text[prev_len:]
                     prev_len = len(text)
 
-    def _build_chat_options(
-        self, prep: _PreparedDirectInvocation
-    ) -> _ChatOptions | None:
+    def _build_chat_options(self, prep: _PreparedDirectInvocation) -> _ChatOptions | None:
         """Build a :class:`ChatOptions` payload for the underlying ``ChatClient``.
 
         Unlike portal-managed Foundry Agents, where ``reasoning_effort`` was an
@@ -390,13 +372,9 @@ class DirectModelInvoker:
             # versions surface unknown kwargs via additional_properties. Try
             # the typed field first, fall back to the bag.
             try:
-                return _ChatOptions(
-                    reasoning_effort=prep.reasoning_effort, **kwargs
-                )
+                return _ChatOptions(reasoning_effort=prep.reasoning_effort, **kwargs)
             except TypeError:
-                kwargs["additional_properties"] = {
-                    "reasoning_effort": prep.reasoning_effort
-                }
+                kwargs["additional_properties"] = {"reasoning_effort": prep.reasoning_effort}
         if not kwargs:
             return None
         return _ChatOptions(**kwargs)
@@ -411,10 +389,9 @@ class DirectModelInvoker:
     ) -> dict[str, Any]:
         """Build a standard telemetry dict.
 
-        The shape mirrors :meth:`FoundryAgentInvoker._build_telemetry` so that
-        downstream telemetry consumers (Application Insights queries, the
-        agent-traces endpoint) keep working unchanged. Only the ``runtime``
-        marker differs (``maf-direct`` vs ``maf``).
+        The shape preserves downstream telemetry consumers (Application
+        Insights queries and the agent-traces endpoint) while marking the
+        runtime as ``maf-direct``.
         """
         telemetry: dict[str, Any] = {
             "endpoint": self.config.endpoint,
@@ -458,9 +435,8 @@ def build_direct_model_target(
 ) -> ModelTarget:
     """Create a :class:`ModelTarget` that invokes the model directly via MAF.
 
-    Sibling of :func:`build_foundry_model_target`. No portal-managed agent
-    record is required — the MAF ``Agent`` is constructed in-process from
-    instructions and tools at first invocation.
+    No portal-managed agent record is required — the MAF ``Agent`` is
+    constructed in-process from instructions and tools at first invocation.
 
     :param config: Foundry configuration carrying endpoint and deployment name.
     :param instructions: Persona/role text loaded from
