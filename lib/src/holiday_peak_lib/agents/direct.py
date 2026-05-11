@@ -31,7 +31,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 import os
 from time import perf_counter
 from typing import Any, AsyncGenerator, Callable, NamedTuple
@@ -47,8 +46,6 @@ from .foundry import (
     _maybe_await,
 )
 from .provider_policy import normalize_messages as _normalize_messages
-
-_logger = logging.getLogger(__name__)
 
 _DEFAULT_DIRECT_INVOKE_TIMEOUT = float(os.getenv("AGENT_DIRECT_INVOKE_TIMEOUT_SECONDS", "55"))
 
@@ -170,7 +167,9 @@ class DirectModelInvoker:
             try:
                 session = AgentSession.from_dict(session_state)
             except (KeyError, TypeError, ValueError):
-                pass
+                # Corrupt or stale session payload — fall back to a fresh
+                # session below; recoverable so we deliberately swallow.
+                session = None
         if session is None and session_id:
             session = AgentSession(session_id=str(session_id))
 
