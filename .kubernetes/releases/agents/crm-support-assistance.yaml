@@ -29,8 +29,8 @@ spec:
       create: true
       clientId: 036f4fd2-9093-4948-b0dd-beb5c87aa6dc
     image:
-      repository: holidaypeakhub405devacr.azurecr.io/holiday-peak-hub/crm-support-assistance-dev
-      tag: azd-deploy-1775345018
+      repository: holidaypeakhub405devacr.azurecr.io/crm-support-assistance
+      tag: 808d48227b08ceaf9f2d820010e02edf5250b57f
     replicaCount: 2
     resources:
       limits:

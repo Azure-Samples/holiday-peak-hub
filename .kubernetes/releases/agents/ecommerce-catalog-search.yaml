@@ -32,8 +32,8 @@ spec:
       clientId: "036f4fd2-9093-4948-b0dd-beb5c87aa6dc"
 
     image:
-      repository: holidaypeakhub405devacr.azurecr.io/holiday-peak-hub/ecommerce-catalog-search-dev
-      tag: deterministic-fanout-20260420-190823
+      repository: holidaypeakhub405devacr.azurecr.io/ecommerce-catalog-search
+      tag: 808d48227b08ceaf9f2d820010e02edf5250b57f
 
     replicaCount: 1
 
