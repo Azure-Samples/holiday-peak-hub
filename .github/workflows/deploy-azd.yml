@@ -2717,14 +2717,130 @@ jobs:
           path: .kubernetes/rendered/${{ matrix.service }}/all.yaml
           retention-days: 1
 
-  # NOTE (ADR-017 amendment, Pattern A): the previous `commit-rendered-manifests`
-  # job was deleted because it pushed bot-generated manifests directly to
-  # `refs/heads/main`, which is rejected by the `main-governance-baseline`
-  # ruleset (GH013). Flux now reconciles HelmRelease CRDs from
-  # `.kubernetes/releases/{crud,agents}` and the helm-controller renders the
-  # chart in-cluster on every reconciliation, so no workflow push to main is
-  # ever required. Image tag updates remain a follow-up (planned: Flux
-  # ImageUpdateAutomation with PR bridge).
+  # ADR-017 amendment, Pattern A — image-tag PR bridge.
+  #
+  # The previous ``commit-rendered-manifests`` job pushed bot-generated YAML
+  # straight at ``refs/heads/main``, which the ``main-governance-baseline``
+  # ruleset (GH013) rejects. Flux now reconciles HelmRelease CRDs from
+  # ``.kubernetes/releases/{crud,agents}`` and the helm-controller renders the
+  # chart in-cluster on every reconciliation. To close the loop without
+  # pushing to ``main``, the build emits ``tested-image-*`` artifacts holding
+  # the immutable ACR reference for each service. The job below consumes those
+  # artifacts and opens a single image-bump PR per deploy, so Flux picks up
+  # the new images on the next reconcile after the PR is merged.
+  open-image-tag-bump-pr:
+    runs-on: ubuntu-latest
+    # Run only when at least one of the deploy matrices actually produced new
+    # tested images and the run was not cancelled. The bridge intentionally
+    # does NOT depend on ``success()`` of every deploy slot — partial deploys
+    # (e.g., a single matrix entry flaked) should still surface the bumps for
+    # the services that did succeed.
+    if: ${{ always() && !cancelled() && !inputs.uiOnly && (needs.deploy-crud.result == 'success' || needs.deploy-agents.result == 'success') }}
+    needs:
+      - deploy-crud
+      - deploy-agents
+      - detect-changes
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      DEPLOY_ENV: ${{ inputs.environment }}
+      # ``env.DEPLOY_SOURCE_SHA`` is not visible inside job-level ``env:`` so
+      # we re-derive the same expression used at the workflow level.
+      DEPLOY_SHA: ${{ inputs.sourceSha != '' && inputs.sourceSha || github.sha }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@v4
+        with:
+          # The bridge edits Flux source-of-truth files on the default branch
+          # so the PR diff reflects only the image bumps from this deploy.
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Download tested-image artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/tested-images
+          pattern: tested-image-*
+
+      - name: Apply HelmRelease image bumps
+        id: update
+        shell: bash
+        env:
+          RUNNER_TEMP: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          changed=0
+          declare -a updated_services=()
+          for dir in "${RUNNER_TEMP}/tested-images"/tested-image-*; do
+            [ -d "$dir" ] || continue
+            svc=$(basename "$dir" | sed 's/^tested-image-//')
+            ref_file="$dir/image-ref.txt"
+            if [ ! -f "$ref_file" ]; then
+              echo "::warning::no image-ref.txt for ${svc} — skipping"
+              continue
+            fi
+            image_ref=$(tr -d '\r\n' < "$ref_file")
+            # image_ref shape: ``<registry>/<svc>@sha256:<digest>``. The
+            # registry path is the durable identifier; the tag is the SHA we
+            # already pushed alongside the digest in ``build-aks-images``.
+            repo="${image_ref%@*}"
+            tag="${DEPLOY_SHA}"
+            if [ "$svc" = "crud-service" ]; then
+              target=".kubernetes/releases/crud/${svc}.yaml"
+            else
+              target=".kubernetes/releases/agents/${svc}.yaml"
+            fi
+            if [ ! -f "$target" ]; then
+              echo "::warning::no HelmRelease found for ${svc} at ${target}"
+              continue
+            fi
+            python3 scripts/ci/update_helmrelease_image.py "$target" "$repo" "$tag"
+            if ! git diff --quiet -- "$target"; then
+              updated_services+=("$svc")
+              changed=$((changed + 1))
+            fi
+          done
+          echo "changed_count=${changed}" >> "$GITHUB_OUTPUT"
+          if [ "${changed}" -gt 0 ]; then
+            printf 'updated_services=%s\n' "${updated_services[*]}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open or refresh PR
+        if: ${{ steps.update.outputs.changed_count != '0' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          UPDATED_SERVICES: ${{ steps.update.outputs.updated_services }}
+        run: |
+          set -euo pipefail
+          short="${DEPLOY_SHA:0:12}"
+          branch="chore/image-bump-${DEPLOY_ENV}-${short}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add .kubernetes/releases
+          git commit -m "chore(deploy): bump ${DEPLOY_ENV} HelmRelease image tags to ${short}" \
+                     -m "Triggered by deploy-azd run ${{ github.run_id }}. Services: ${UPDATED_SERVICES}. Merge to roll new images via Flux reconciliation."
+          git push -f origin "$branch"
+          existing=$(gh pr list --state open --head "$branch" --base "${DEFAULT_BRANCH:-main}" --json number --jq '.[0].number // ""' 2>/dev/null || echo '')
+          if [ -z "${existing}" ]; then
+            gh pr create \
+              --base "${DEFAULT_BRANCH:-main}" \
+              --head "$branch" \
+              --title "chore(deploy): bump ${DEPLOY_ENV} HelmRelease image tags to ${short}" \
+              --body "Auto-generated by [deploy-azd run ${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
+
+          Updates HelmRelease \`image.repository\` and \`image.tag\` to the freshly built & tested images at SHA \`${DEPLOY_SHA}\` for environment **${DEPLOY_ENV}**.
+
+          **Services updated (${{ steps.update.outputs.changed_count }}):** ${UPDATED_SERVICES}
+
+          Merging this PR triggers Flux reconciliation, which rolls the new images. No additional action required after merge."
+          else
+            echo "PR #${existing} already open against ${branch}; force-pushed branch HEAD."
+          fi
 
   wait-flux-reconciliation:
     runs-on: ubuntu-latest

@@ -32,8 +32,8 @@ spec:
       clientId: "e9c11fac-45b3-4057-8477-1d96703eaae4"
 
     image:
-      repository: holidaypeakhub405devacr.azurecr.io/holiday-peak-hub/truth-hitl-dev
-      tag: azd-deploy-1775350566
+      repository: holidaypeakhub405devacr.azurecr.io/truth-hitl
+      tag: 808d48227b08ceaf9f2d820010e02edf5250b57f
 
     replicaCount: 2
 

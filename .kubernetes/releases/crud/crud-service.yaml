@@ -29,8 +29,8 @@ spec:
       create: true
       clientId: b09349cf-547f-409f-8b96-f3288ddedf34
     image:
-      repository: holidaypeakhub405devacr.azurecr.io/holiday-peak-hub/crud-service-dev
-      tag: azd-deploy-1775825425
+      repository: holidaypeakhub405devacr.azurecr.io/crud-service
+      tag: 808d48227b08ceaf9f2d820010e02edf5250b57f
     replicaCount: 1
     resources:
       limits:
