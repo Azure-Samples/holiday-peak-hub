@@ -904,7 +904,7 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
         self,
         fastapi_app: Any,
         *,
-        prefix: str = "/v1",
+        prefix: str = "",
         request_translator: Callable[[str], Awaitable[dict[str, Any]]] | None = None,
     ) -> Any:
         """Mount this agent's Foundry Responses-protocol endpoints on the
@@ -915,6 +915,10 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
         the mounted Starlette host server answers ``/{prefix}/responses``
         (matched after the direct routes because Starlette walks routes in
         registration order).
+
+        The default prefix is empty so the container answers ``/responses``
+        directly, matching the path that the Foundry gateway routes to
+        after stripping the public ``/openai/v1/`` segment.
 
         Returns the constructed host server for tests / diagnostics.
         Raises ``ImportError`` if ``agent-framework-foundry-hosting`` is not

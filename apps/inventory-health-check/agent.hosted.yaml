@@ -1,0 +1,89 @@
+# Foundry V3 Hosted Agent registration manifest.
+#
+# The sibling ``agent.yaml`` is the portal-tracking artifact for the existing
+# direct-model FastAPI runtime and is governed by
+# ``tests/ops/test_foundry_portal_tracking_manifests.py`` (which mandates
+# ``template.kind: direct-model`` and the shared env-var contract for all 26
+# agents).
+#
+# THIS file is the V3 hosted-agent registration manifest \u2014 it is consumed
+# only by ``scripts/ops/deploy_hosted_agent.py`` (and
+# ``holiday_peak_lib.foundry_hosting.load_manifest``) to call
+# ``AIProjectClient.agents.create_version(...)`` against Azure AI Foundry.
+# Its schema follows the canonical ``agent.manifest.yaml`` shape from the
+# Microsoft ``foundry-samples`` repository.
+name: inventory-health-check
+description: >
+  Inventory health and anomaly signal agent. Runs as a Foundry V3 hosted
+  agent: the FastAPI container exposes the Responses protocol at
+  ``/responses`` (the gateway adds the public ``/openai/v1/`` prefix) while
+  keeping ``/health``, ``/ready`` and ``/mcp/*`` for AKS-style probes and
+  agent-to-agent calls.
+metadata:
+  sourceIssue: "990"
+  runtime: foundry-hosted-fastapi
+  tags:
+    - Holiday Peak Hub
+    - Retail
+    - Inventory
+    - Health Check
+    - Foundry Hosted Agent
+template:
+  name: inventory-health-check
+  kind: hosted
+  protocols:
+    - protocol: responses
+      version: "1.0.0"
+  environment_variables:
+    # The Responses protocol library reads AZURE_AI_MODEL_DEPLOYMENT_NAME
+    # for default model lookup. Keep it explicit so a fresh deploy never
+    # depends on the operator remembering to set it at the CLI.
+    - name: AZURE_AI_MODEL_DEPLOYMENT_NAME
+      value: "{{MODEL_DEPLOYMENT_NAME_FAST}}"
+    - name: PROJECT_ENDPOINT
+      value: "{{PROJECT_ENDPOINT}}"
+    - name: PROJECT_NAME
+      value: "{{PROJECT_NAME}}"
+    - name: MODEL_DEPLOYMENT_NAME_FAST
+      value: "{{MODEL_DEPLOYMENT_NAME_FAST}}"
+    - name: MODEL_DEPLOYMENT_NAME_RICH
+      value: "{{MODEL_DEPLOYMENT_NAME_RICH}}"
+    - name: FOUNDRY_AGENT_NAME_FAST
+      value: "{{FOUNDRY_AGENT_NAME_FAST}}"
+    - name: FOUNDRY_AGENT_NAME_RICH
+      value: "{{FOUNDRY_AGENT_NAME_RICH}}"
+    - name: REDIS_HOST
+      value: "{{REDIS_HOST}}"
+    - name: REDIS_URL
+      value: "{{REDIS_URL}}"
+    - name: COSMOS_ACCOUNT_URI
+      value: "{{COSMOS_ACCOUNT_URI}}"
+    - name: COSMOS_DATABASE
+      value: "{{COSMOS_DATABASE}}"
+    - name: COSMOS_CONTAINER
+      value: "{{COSMOS_CONTAINER}}"
+    - name: BLOB_ACCOUNT_URL
+      value: "{{BLOB_ACCOUNT_URL}}"
+    - name: BLOB_CONTAINER
+      value: "{{BLOB_CONTAINER}}"
+    - name: EVENT_HUB_NAMESPACE
+      value: "{{EVENT_HUB_NAMESPACE}}"
+    - name: KEY_VAULT_URI
+      value: "{{KEY_VAULT_URI}}"
+    - name: APPLICATIONINSIGHTS_CONNECTION_STRING
+      value: "{{APPLICATIONINSIGHTS_CONNECTION_STRING}}"
+    - name: HOLIDAY_PEAK_FOUNDRY_HOSTED
+      value: "1"
+    # Foundry expects the container to serve on the dedicated internal port.
+    - name: UVICORN_PORT
+      value: "8088"
+container:
+  cpu: "1"
+  memory: 2Gi
+resources:
+  - kind: model
+    id: gpt-5-nano
+    name: MODEL_DEPLOYMENT_NAME_FAST
+  - kind: model
+    id: gpt-5
+    name: MODEL_DEPLOYMENT_NAME_RICH

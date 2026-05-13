@@ -2,7 +2,8 @@ name: inventory-health-check
 description: >
   Assesses inventory health and anomaly signals. This portal-tracking artifact
   describes the existing FastAPI direct-model runtime for Foundry traceability;
-  deployment and invocation remain owned by the service container.
+  deployment and invocation remain owned by the service container. The V3
+  hosted-agent registration manifest is sibling file ``agent.hosted.yaml``.
 metadata:
   trackingOnly: true
   runtime: fastapi-direct-model

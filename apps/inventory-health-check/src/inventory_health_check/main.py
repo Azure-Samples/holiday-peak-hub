@@ -27,12 +27,14 @@ app = create_standard_app(
 )
 
 # Foundry Hosted Agent (preview) — single-process mount that exposes the
-# Responses-protocol surface (``/v1/responses``) on the SAME FastAPI app.
-# Single uvicorn process, single port, no second runtime — the dual-runtime
-# guardrail in ADR-005 (2026-05-10) targets the multi-process / multi-port
-# shape and is preserved by this mount pattern. Direct routes registered
-# above (``/health``, ``/ready``, ``/mcp/*``) win because Starlette walks
-# routes in registration order.
+# Responses-protocol surface (``/responses``) on the SAME FastAPI app.
+# The Foundry gateway adds the public ``/openai/v1/`` segment before
+# routing to this container, so the container itself serves ``/responses``
+# directly. Single uvicorn process, single port, no second runtime — the
+# dual-runtime guardrail in ADR-005 (2026-05-10) targets the
+# multi-process / multi-port shape and is preserved by this mount pattern.
+# Direct routes registered above (``/health``, ``/ready``, ``/mcp/*``) win
+# because Starlette walks routes in registration order.
 #
 # Toggleable: set HOLIDAY_PEAK_FOUNDRY_HOSTED=0 to skip mounting (for
 # environments where ``agent-framework-foundry-hosting`` is not installed

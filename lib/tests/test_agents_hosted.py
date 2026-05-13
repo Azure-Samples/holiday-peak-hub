@@ -145,6 +145,28 @@ def test_serve_hosted_mounts_responses_routes_when_sdk_present() -> None:
     agent = _RecordingAgent()
     app = FastAPI()
 
+    # Default prefix is empty so the container exposes ``/responses`` directly,
+    # matching the path that the Foundry gateway routes to after stripping
+    # the public ``/openai/v1/`` segment.
+    host_server = agent.serve_hosted(app)
+
+    paths = {
+        getattr(r, "path", None) or getattr(r, "path_format", None) for r in host_server.routes
+    }
+    paths.discard(None)
+    assert "/responses" in paths
+    # FastAPI mount appended at the end of the route list.
+    mounted = [r for r in app.router.routes if getattr(r, "path", "") == ""]
+    assert mounted, "ResponsesHostServer should be mounted on the FastAPI app"
+
+
+def test_serve_hosted_honors_explicit_prefix_when_sdk_present() -> None:
+    pytest.importorskip("agent_framework_foundry_hosting")
+    from fastapi import FastAPI
+
+    agent = _RecordingAgent()
+    app = FastAPI()
+
     host_server = agent.serve_hosted(app, prefix="/v1")
 
     paths = {
@@ -152,6 +174,3 @@ def test_serve_hosted_mounts_responses_routes_when_sdk_present() -> None:
     }
     paths.discard(None)
     assert "/v1/responses" in paths
-    # FastAPI mount appended at the end of the route list.
-    mounted = [r for r in app.router.routes if getattr(r, "path", "") == ""]
-    assert mounted, "ResponsesHostServer should be mounted on the FastAPI app"

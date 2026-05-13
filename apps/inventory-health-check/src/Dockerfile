@@ -37,7 +37,8 @@ ENV PATH="/app/src/.venv/bin:$PATH"
 RUN uv sync --frozen --all-extras
 RUN chown -R appuser:appgroup /app
 USER appuser
-CMD ["uvicorn", "inventory_health_check.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# Listen on $UVICORN_PORT so Foundry-hosted runs (8088) and AKS runs (8000) share the image.
+CMD ["sh", "-c", "uvicorn inventory_health_check.main:app --host 0.0.0.0 --port ${UVICORN_PORT:-8000} --reload"]
 
 # ── Stage 3: prod dependency layer ──
 FROM base AS prod-builder
@@ -74,4 +75,5 @@ COPY --from=prod-builder --chown=appuser:appgroup /app/src /app/src
 COPY --chown=appuser:appgroup apps/inventory-health-check/prompts/ /app/apps/inventory-health-check/prompts/
 ENV WEB_CONCURRENCY=2
 USER appuser
-CMD ["sh", "-c", "python -m uvicorn inventory_health_check.main:app --host 0.0.0.0 --port 8000 --workers ${WEB_CONCURRENCY:-4}"]
+# Listen on $UVICORN_PORT (default 8000 for AKS; Foundry hosted-agent sets 8088).
+CMD ["sh", "-c", "python -m uvicorn inventory_health_check.main:app --host 0.0.0.0 --port ${UVICORN_PORT:-8000} --workers ${WEB_CONCURRENCY:-4}"]

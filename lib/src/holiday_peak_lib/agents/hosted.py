@@ -15,6 +15,13 @@ no parallel ``hosted_main.py``, no separate port 8088. The dual-runtime
 guardrail in ADR-005 (2026-05-10) targets the multi-process / multi-port
 shape — this helper is its compliant alternative.
 
+Prefix policy: the Foundry gateway translates the public endpoint
+``{project_endpoint}/agents/{name}/endpoint/protocols/openai/v1/responses``
+into the container-local path ``/responses`` (per the Foundry hosted-agent
+deploy reference). The mount default is therefore the empty prefix so the
+container answers ``/responses`` directly. Tests and local probes that need
+the legacy ``/v1/responses`` layout can pass ``prefix="/v1"`` explicitly.
+
 Usage in a service ``main.py``::
 
     app = create_standard_app(...)
@@ -165,7 +172,7 @@ def mount_hosted_agent(
     fastapi_app: "FastAPI",
     agent: "BaseRetailAgent",
     *,
-    prefix: str = "/v1",
+    prefix: str = "",
     request_translator: RequestTranslator | None = None,
 ) -> Any:
     """Mount the Foundry Responses-protocol surface on an existing FastAPI app.
@@ -179,8 +186,11 @@ def mount_hosted_agent(
         agent: The :class:`BaseRetailAgent` instance whose ``handle()`` will
             answer Foundry hosted-agent invocations.
         prefix: URL prefix for the Responses protocol routes
-            (``/{prefix}/responses``). Defaults to ``"/v1"`` to match the
-            documented Foundry endpoint shape.
+            (``/{prefix}/responses``). Defaults to ``""`` so the container
+            answers ``/responses`` directly — the Foundry gateway translates
+            the public ``/openai/v1/responses`` path before reaching the
+            container. Pass ``"/v1"`` only for legacy probes that need the
+            prior layout.
         request_translator: Optional async callable that converts the
             Responses-API free-form input string into the service-specific
             request dict for ``handle()``. When ``None``, falls back to
