@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- Revert of PR #1101 (`ensure-foundry-agents` workflow + `scripts/ops/ensure_foundry_tracking_agents.py` + tests). The self-heal targeted the wrong Azure AI Foundry API surface (legacy `/assistants`, OpenAI-compatible "Classic Assistants" — hidden in the new Foundry portal behind the "View classic agents" link with banner "Assistants are not yet supported"), while the portal that operators actually use renders the New Foundry Agents (`/agents?api-version=2025-11-15-preview`, versioned `PromptAgentDefinition` shape). Re-running the job on every deploy would have continued to populate a deprecated/hidden surface while leaving the visible surface drift-prone. The script also reintroduced the V2 portal-managed agent path (`project_client.agents.create_version` with `PromptAgentDefinition`) that ADR-005 explicitly retired in Wave 4c. Direct-model invocation via MAF stays canonical. Per-service prompt drift is still guarded by `scripts/ci/verify_foundry_prompt.py` (read-only). One-time cleanup of 50 stale leftovers from Wave 4a/4b applied separately on both API surfaces; the two operator-curated keepers (`ecommerce-catalog-search-fast`, `product-management-assortment-optimization-rich`) remain in the New Foundry portal.
+
 ### Changed
 
 - ADR-017 Phase 2: migrated `ecommerce-catalog-search` from rendered YAML to Flux HelmRelease CRD for in-cluster Helm rendering. Eliminates `render-helm.sh` dependency for migrated services. Pilot validated with E2E test (200 OK, 5 results, correct image + env vars). New directory `.kubernetes/releases/agents/` holds HelmRelease manifests; remaining 25 services migrate incrementally.
