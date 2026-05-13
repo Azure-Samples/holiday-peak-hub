@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Issue #1099: deploy-azd workflow was `startup_failure`-ing on every dispatch (17 startup_failures + 29 cancellations + 0 successes in the last 1,000 runs across all 27 per-service entrypoints since PR #1097 merged). Root cause: PR #1097 added an `open-image-tag-bump-pr` job to the reusable `deploy-azd.yml` that requested `permissions.pull-requests: write`, but the per-service entrypoints only grant `id-token | contents | issues: write` on their `uses:` job. GitHub Actions rejects nested-workflow callees that escalate permissions beyond what the caller grants, and the rejection happens at the orchestrator before any runner is allocated — invisible to `actionlint` and `yaml.safe_load`. Scoped revert removes the job per ADR-017 §"Phase 2b" (proper Flux `ImageUpdateAutomation` + Notification Controller bridge is tracked separately). Also adds `permissions: { id-token, contents, issues }: write` to `deploy-azd-prod.yml` (latent bug — prod tag pushes would have hit the same failure). New CI gate `.github/workflows/lint-actions.yml` runs `actionlint` plus a custom `scripts/ci/lint_workflow_permissions.py` that catches caller/callee permission-cap mismatches statically at PR time.
+
 - Issue #801 / PR #802: replaced `FoundryInvoker` with `FoundryAgentInvoker` wrapping the Microsoft Agent Framework `FoundryAgent` runtime. Tools are now properly forwarded to the agent instead of being silently dropped. Upgraded `agent-framework` to `>=1.0.1` GA across all 27 service packages.
 
 - PR #796: parallelized catalog-search I/O paths and eliminated duplicate keyword search execution, reducing p95 latency for product discovery flows.

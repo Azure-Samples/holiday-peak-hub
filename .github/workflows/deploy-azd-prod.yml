@@ -54,6 +54,17 @@ jobs:
   deploy:
     needs: verify-release
     if: ${{ startsWith(github.ref_name, 'v') && !contains(github.ref_name, '-') }}
+    permissions:
+      # Mirrors the dev entrypoint so the reusable callee's per-job
+      # ``permissions:`` cap is satisfied.  ``id-token: write`` for OIDC
+      # Azure login, ``contents: write`` for git tag operations, and
+      # ``issues: write`` for the ``watchdog-apim-agc-swa-drift`` job which
+      # posts drift reports to issue #298.  Without these grants the
+      # reusable workflow ``startup_failure``-s at the orchestrator before
+      # any job runs (see ``scripts/ci/lint_workflow_permissions.py``).
+      id-token: write
+      contents: write
+      issues: write
     uses: ./.github/workflows/deploy-azd.yml
     with:
       environment: prod
