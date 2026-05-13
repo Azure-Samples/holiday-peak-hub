@@ -160,6 +160,30 @@ def _extract(obj: Any, *names: str) -> Any:
     return None
 
 
+def _normalize_status(raw_status: Any) -> str:
+    """Return the canonical lowercase status string.
+
+    The Foundry SDK deserialises the JSON ``"status": "failed"`` field
+    into an ``AgentVersionStatus`` enum whose ``str()`` representation is
+    ``"AgentVersionStatus.FAILED"``. Lowercasing that gives
+    ``"agentversionstatus.failed"`` which does not match our terminal
+    sets. We therefore prefer the enum's ``.value`` and only fall back
+    to ``str()`` for plain strings. As a last resort we strip any
+    ``Enum.MEMBER`` dotted prefix so unexpected shapes still normalise
+    to ``"failed"`` / ``"active"`` rather than the dotted form.
+    """
+    if raw_status is None:
+        return "unknown"
+    value = getattr(raw_status, "value", None)
+    if isinstance(value, str):
+        return value.lower()
+    text = str(raw_status).lower()
+    if "." in text:
+        # Handles ``agentversionstatus.failed`` -> ``failed``.
+        text = text.rsplit(".", 1)[-1]
+    return text
+
+
 def deploy_hosted_agent_version(
     manifest: HostedAgentManifest,
     *,
@@ -239,7 +263,7 @@ def deploy_hosted_agent_version(
     )
 
     version_id = _extract(create_response, "version", "name", "id")
-    status = str(_extract(create_response, "status", "provisioning_state") or "unknown").lower()
+    status = _normalize_status(_extract(create_response, "status", "provisioning_state"))
     endpoint_url = _extract(create_response, "endpoint_url", "endpoint")
 
     result = HostedAgentDeploymentResult(
@@ -304,7 +328,7 @@ def _poll_until_terminal(
         except TypeError:
             # Older preview builds accepted positional args only.
             raw = client.agents.get_version(result.agent_name, result.version)
-        status = str(_extract(raw, "status", "provisioning_state") or status).lower()
+        status = _normalize_status(_extract(raw, "status", "provisioning_state") or status)
         result.status = status
         endpoint_url = _extract(raw, "endpoint_url", "endpoint")
         if endpoint_url:

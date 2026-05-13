@@ -280,3 +280,43 @@ def test_build_project_client_passes_allow_preview(
     assert captured["endpoint"] == "https://example.services.ai.azure.com/api/projects/p"
     assert captured["credential"] is sentinel_credential
     assert captured["kwargs"].get("allow_preview") is True
+
+
+def test_normalize_status_handles_enum_value() -> None:
+    """``_normalize_status`` prefers ``.value`` on Enum-like objects.
+
+    The Foundry SDK deserialises ``"status": "failed"`` into an
+    ``AgentVersionStatus`` Enum whose ``str()`` returns
+    ``"AgentVersionStatus.FAILED"``. The poll loop must still recognise
+    that as the terminal ``failed`` status.
+    """
+
+    class _FakeStatus:
+        value = "failed"
+
+        def __str__(self) -> str:
+            return "AgentVersionStatus.FAILED"
+
+    assert (
+        deploy_module._normalize_status(_FakeStatus())  # pylint: disable=protected-access
+        == "failed"
+    )
+
+
+def test_normalize_status_strips_dotted_enum_repr() -> None:
+    """Fallback: when ``.value`` is missing, drop the ``Enum.`` prefix."""
+
+    class _StringlyEnum:
+        def __str__(self) -> str:
+            return "AgentVersionStatus.ACTIVE"
+
+    assert (
+        deploy_module._normalize_status(_StringlyEnum())  # pylint: disable=protected-access
+        == "active"
+    )
+
+
+def test_normalize_status_plain_string() -> None:
+    """Plain string statuses are lower-cased and returned unchanged."""
+    assert deploy_module._normalize_status("Active") == "active"  # pylint: disable=protected-access
+    assert deploy_module._normalize_status(None) == "unknown"  # pylint: disable=protected-access
