@@ -13,12 +13,28 @@ DEFAULT_FOUNDRY_MODELS = {
 
 
 def build_foundry_config(agent_env: str, deployment_env: str) -> FoundryAgentConfig | None:
-    """Build direct-model Foundry configuration from environment variables."""
+    """Build direct-model Foundry configuration from environment variables.
+
+    Foundry V3 hosted-agents reserves the ``FOUNDRY_*`` and ``AGENT_*``
+    env-var namespaces (per container-image-spec, surfaced as
+    ``ValidationError: '<NAME>' is reserved for platform use`` from
+    ``AIProjectClient.agents.create_version``). For hosted containers we
+    therefore map the logical agent IDs through non-reserved
+    ``HPH_AGENT_ID_FAST`` / ``HPH_AGENT_ID_RICH`` env vars (and the
+    matching ``HPH_AGENT_NAME_*``). The legacy ``FOUNDRY_AGENT_ID_*`` /
+    ``FOUNDRY_AGENT_NAME_*`` names remain the AKS contract and are
+    consulted as a fallback so we don't break clusters that haven't yet
+    migrated to the new prefix.
+    """
     endpoint = os.getenv("PROJECT_ENDPOINT") or os.getenv("FOUNDRY_ENDPOINT")
     project_name = os.getenv("PROJECT_NAME") or os.getenv("FOUNDRY_PROJECT_NAME")
     role = "fast" if agent_env.endswith("FAST") else "rich"
-    agent_id = os.getenv(agent_env) or f"{role}-pending"
-    agent_name = os.getenv(f"FOUNDRY_AGENT_NAME_{role.upper()}")
+    agent_id = (
+        os.getenv(f"HPH_AGENT_ID_{role.upper()}") or os.getenv(agent_env) or f"{role}-pending"
+    )
+    agent_name = os.getenv(f"HPH_AGENT_NAME_{role.upper()}") or os.getenv(
+        f"FOUNDRY_AGENT_NAME_{role.upper()}"
+    )
     deployment = os.getenv(deployment_env)
     if not endpoint:
         return None
