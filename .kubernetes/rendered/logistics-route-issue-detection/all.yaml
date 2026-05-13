@@ -103,8 +103,6 @@ spec:
               value: "logistics-route-issue-detection-rich"
             - name: FOUNDRY_AUTO_ENSURE_ON_STARTUP
               value: "true"
-            - name: FOUNDRY_STREAM
-              value: "true"
             - name: AGENT_FOUNDRY_INVOKE_TIMEOUT_SECONDS
               value: "60"
             - name: FOUNDRY_STRICT_ENFORCEMENT

@@ -74,7 +74,6 @@ Use this mapping to know the current vs. former names—so you can correctly int
   - `MODEL_DEPLOYMENT_NAME_FAST`: SLM deployment name
   - `FOUNDRY_AGENT_ID_RICH`: LLM agent ID
   - `MODEL_DEPLOYMENT_NAME_RICH`: LLM deployment name
-  - `FOUNDRY_STREAM`: Enable streaming (optional, default false)
 - Each app's `main.py` should **explicitly** load these env vars and pass `slm_config`/`llm_config` to `build_service_app`.
 
 ## Memory Architecture

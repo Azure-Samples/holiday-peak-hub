@@ -20,7 +20,6 @@ def build_foundry_config(agent_env: str, deployment_env: str) -> FoundryAgentCon
     agent_id = os.getenv(agent_env) or f"{role}-pending"
     agent_name = os.getenv(f"FOUNDRY_AGENT_NAME_{role.upper()}")
     deployment = os.getenv(deployment_env)
-    stream = (os.getenv("FOUNDRY_STREAM") or "").lower() in {"1", "true", "yes"}
     if not endpoint:
         return None
     return FoundryAgentConfig(
@@ -29,7 +28,6 @@ def build_foundry_config(agent_env: str, deployment_env: str) -> FoundryAgentCon
         agent_name=agent_name,
         deployment_name=deployment,
         project_name=project_name,
-        stream=stream,
     )
 
 

@@ -127,7 +127,6 @@ class FoundryAgentConfig:
     agent_name: str | None = None
     deployment_name: str | None = None
     project_name: str | None = None
-    stream: bool = True
     credential: Any | None = None
     resolved_agent_id: str | None = None
     max_output_tokens: int | None = None
@@ -170,8 +169,6 @@ class FoundryAgentConfig:
         agent_id = os.getenv("FOUNDRY_AGENT_ID") or os.getenv("AGENT_ID") or "pending"
         agent_name = os.getenv("FOUNDRY_AGENT_NAME")
         deployment = os.getenv("MODEL_DEPLOYMENT_NAME")
-        stream_raw = os.getenv("FOUNDRY_STREAM", "true").lower()
-        stream = stream_raw not in {"0", "false", "no"}
         if not endpoint:
             raise ValueError("PROJECT_ENDPOINT/FOUNDRY_ENDPOINT is required")
         return cls(
@@ -180,7 +177,6 @@ class FoundryAgentConfig:
             agent_name=agent_name,
             deployment_name=deployment,
             project_name=project_name,
-            stream=stream,
         )
 
 

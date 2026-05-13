@@ -6,18 +6,27 @@ import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from time import perf_counter
-from typing import Any, AsyncGenerator, Awaitable, Callable
+from typing import Any, AsyncGenerator, Awaitable, Callable, cast
 
 logger = logging.getLogger(__name__)
 
 from agent_framework import BaseAgent
-from holiday_peak_lib.agents.complexity import assess_complexity
+from holiday_peak_lib.agents.complexity import (
+    UPGRADE_SENTINEL,
+    assess_complexity,
+    build_complexity_hint,
+)
 
 # Runtime imports for Pydantic model field resolution.
 # Circular-import safe: none of these modules import base_agent.
 from holiday_peak_lib.agents.memory.builder import MemoryClient
 from holiday_peak_lib.agents.memory.cold import ColdMemory
 from holiday_peak_lib.agents.memory.hot import HotMemory
+from holiday_peak_lib.agents.memory.session_manager import (
+    build_session_summary,
+    persist_full_session,
+    store_summary,
+)
 from holiday_peak_lib.agents.memory.warm import WarmMemory
 from holiday_peak_lib.agents.orchestration.router import RoutingStrategy
 from holiday_peak_lib.agents.telemetry_mixin import AgentTelemetryMixin
@@ -25,71 +34,49 @@ from holiday_peak_lib.mcp.server import FastAPIMCPServer
 from holiday_peak_lib.self_healing import SelfHealingKernel
 from pydantic import BaseModel, ConfigDict, Field
 
-from .provider_policy import sanitize_messages_for_provider
+from .models import (
+    ModelInvoker,
+    ModelTarget,
+    StreamingModelInvoker,
+    build_logprobs_payload,
+    extract_logprobs,
+    extract_text_from_response,
+    summarize_logprobs,
+    supports_streaming,
+)
+from .provider_policy import normalize_messages, sanitize_messages_for_provider
 
-ModelInvoker = Callable[..., Awaitable[dict[str, Any]]]
-
-
-class StreamingModelInvoker:
-    """Protocol-style interface for invokers that support streaming.
-
-    Pattern: Strategy — invokers implement ``__call__`` as the single entry
-    point.  When ``stream=True`` is passed, ``__call__`` dispatches to the
-    private ``_stream_impl`` method and returns an ``AsyncGenerator``.
-    ``_supports_streaming()`` checks for this method's presence.
-    """
-
-    def _stream_impl(  # noqa: ARG002
-        self,
-        prep: Any,
-    ) -> AsyncGenerator[str, None]:
-        """Yield text token deltas from a streaming model call."""
-        raise NotImplementedError  # pragma: no cover
-
-
-def _supports_streaming(invoker: Any) -> bool:
-    """Check whether an invoker's ``__call__`` supports ``stream=True``.\n\n    Convention: invokers that support streaming implement a ``_stream_impl``\n    method.  ``__call__`` dispatches to it when ``stream=True``.\n"""
-    return callable(getattr(invoker, "_stream_impl", None))
-
-
-def _extract_text_from_response(result: dict[str, Any]) -> str:
-    """Extract concatenated assistant text from a model response dict.
-
-    # No GoF pattern applies — simple data extraction utility.
-    """
-    parts: list[str] = []
-    for msg in result.get("messages", []):
-        for content in msg.get("content", []):
-            if isinstance(content, dict):
-                text = content.get("text", "")
-                if text:
-                    parts.append(text)
-    return "".join(parts)
-
+# Public re-exports kept for module-level imports such as
+# ``from holiday_peak_lib.agents.base_agent import ModelTarget`` that exist
+# in older test fixtures. New code should import from ``.models`` directly
+# or from the ``holiday_peak_lib.agents`` package re-export.
+__all__ = [
+    "AgentDependencies",
+    "BaseRetailAgent",
+    "ModelInvoker",
+    "ModelTarget",
+    "StreamingModelInvoker",
+]
 
 _DEFAULT_AGENT_INVOKE_TIMEOUT = float(os.getenv("AGENT_INVOKE_TIMEOUT_SECONDS", "90"))
 
 
-@dataclass
-class ModelTarget:
-    """Represents a specific model deployment plus its invoker.
-
-    The ``invoker`` is an async callable that receives ``messages`` (list or str),
-    optional ``tools``, and any extra kwargs. This keeps the base class agnostic
-    of the concrete SDK (Azure AI Agents, Chat Completions, etc.).
-    """
-
-    name: str
-    model: str
-    invoker: ModelInvoker
-    temperature: float = 0.2
-    top_p: float = 0.9
-    stream: bool = False
-    provider: str | None = None
-
-
 class AgentDependencies(BaseModel):
-    """Dependency container for DI via property/setter."""
+    """Construction-time DTO for :class:`BaseRetailAgent`.
+
+    Pydantic validates the shape once at build time. The agent then unpacks
+    the values into its own instance attributes in ``__init__`` and *does
+    not retain a reference* to this object — every subsequent access
+    (``agent.slm``, ``agent.hot_memory``, …) is a single dict lookup, not a
+    forwarded read through a descriptor or property.
+
+    Infrastructure-shaped fields are typed ``Any | None`` so test code can
+    construct dependencies with ``unittest.mock.AsyncMock`` without
+    triggering ``isinstance`` validation under
+    ``arbitrary_types_allowed=True``. The *real* static types live on the
+    matching class-level annotations of :class:`BaseRetailAgent`, where
+    Pyright/mypy enforce them at every read/write site.
+    """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -108,6 +95,31 @@ class AgentDependencies(BaseModel):
     enforce_foundry_prompt_governance: bool = True
 
 
+@dataclass(frozen=True, slots=True)
+class _RoutingContext:
+    """Bundled outputs of the routing decision for one invocation.
+
+    Computing complexity and selecting a target are each cheap, but the
+    framework needs both values at three different points (selection,
+    tracing, hint construction). Bundling them eliminates the previous
+    double-call to :func:`assess_complexity` and gives the streaming and
+    non-streaming paths a single, typed handoff between routing and
+    invocation.
+
+    ``supports_upgrade`` is the truth-in-advertising bit: when ``True``
+    the SLM hint promises an UPGRADE channel and the runtime must honor
+    it. Streaming sets it ``False`` (no buffering, no mid-stream
+    detection) and configurations with no LLM target leave it ``False``
+    too (nowhere to escalate to).
+    """
+
+    target: ModelTarget
+    complexity: float
+    target_tier: str  # ``"slm"`` or ``"llm"``
+    hint: str
+    supports_upgrade: bool
+
+
 class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
     """Common ingestion, routing, memory ops, and model selection.
 
@@ -115,131 +127,58 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
     based on a lightweight complexity heuristic. Pass SDK-specific invokers to
     keep this layer decoupled from the transport implementation.
 
-    Initializes a per-instance pydantic config in ``__init__`` (after calling
-    ``BaseAgent.__init__``); inject dependencies via the ``config`` property or
-    the provided setters.
+    Dependencies arrive as an :class:`AgentDependencies` DTO and are unpacked
+    into plain instance attributes — no property/descriptor indirection.
+    Static types come from the class-level annotations below; Pyright/mypy
+    use them for inference and they cost nothing at runtime.
     """
+
+    # ------------------------------------------------------------------ #
+    # Static type annotations for the dependency attributes.
+    #
+    # These are *type-only* declarations — they have no runtime values
+    # (no ``= ...`` here). Concrete values are bound per-instance in
+    # ``__init__``. Type checkers read these annotations to type
+    # ``agent.hot_memory`` as ``HotMemory | None`` (etc.), even though
+    # the underlying Pydantic field is ``Any | None`` for mock-friendliness.
+    # ------------------------------------------------------------------ #
+    router: RoutingStrategy | None
+    tools: dict[str, Callable[..., Any]]
+    service_name: str | None
+    memory_client: MemoryClient | None
+    hot_memory: HotMemory | None
+    warm_memory: WarmMemory | None
+    cold_memory: ColdMemory | None
+    mcp_server: FastAPIMCPServer | None
+    self_healing_kernel: SelfHealingKernel | None
+    slm: ModelTarget | None
+    llm: ModelTarget | None
+    complexity_threshold: float
+    enforce_foundry_prompt_governance: bool
 
     def __init__(self, config: AgentDependencies, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
-        # store the configuration object directly
-        self._config = config
+        # Unpack the DTO into plain instance attributes. After this the
+        # ``config`` object is no longer referenced — there is nothing to
+        # forward to and no per-access overhead beyond a normal attribute
+        # lookup.
+        self.router = config.router
+        self.tools = config.tools
+        self.service_name = config.service_name
+        self.memory_client = config.memory_client
+        self.hot_memory = config.hot_memory
+        self.warm_memory = config.warm_memory
+        self.cold_memory = config.cold_memory
+        self.mcp_server = config.mcp_server
+        self.self_healing_kernel = config.self_healing_kernel
+        self.slm = config.slm
+        self.llm = config.llm
+        self.complexity_threshold = config.complexity_threshold
+        self.enforce_foundry_prompt_governance = config.enforce_foundry_prompt_governance
         # Background task set for fire-and-forget memory operations.
         # Each agent is a stateful, long-lived object — tasks persist
         # across requests and are garbage-collected on completion.
         self._background_tasks: set[asyncio.Task[None]] = set()
-
-    @property
-    def config(self) -> AgentDependencies:
-        return self._config
-
-    @config.setter
-    def config(self, deps: AgentDependencies) -> None:
-        self._config = deps
-
-    @property
-    def router(self) -> RoutingStrategy | None:
-        return self.config.router
-
-    @router.setter
-    def router(self, value: RoutingStrategy | None) -> None:
-        self.config.router = value
-
-    @property
-    def tools(self) -> dict[str, Callable[..., Any]]:
-        return self.config.tools
-
-    @tools.setter
-    def tools(self, value: dict[str, Callable[..., Any]]) -> None:
-        self.config.tools = value
-
-    @property
-    def service_name(self) -> str | None:
-        return self.config.service_name
-
-    @service_name.setter
-    def service_name(self, value: str | None) -> None:
-        self.config.service_name = value
-
-    @property
-    def memory_client(self) -> MemoryClient | None:
-        return self.config.memory_client
-
-    @memory_client.setter
-    def memory_client(self, value: MemoryClient | None) -> None:
-        self.config.memory_client = value
-
-    @property
-    def hot_memory(self) -> HotMemory | None:
-        return self.config.hot_memory
-
-    @hot_memory.setter
-    def hot_memory(self, value: HotMemory | None) -> None:
-        self.config.hot_memory = value
-
-    @property
-    def warm_memory(self) -> WarmMemory | None:
-        return self.config.warm_memory
-
-    @warm_memory.setter
-    def warm_memory(self, value: WarmMemory | None) -> None:
-        self.config.warm_memory = value
-
-    @property
-    def cold_memory(self) -> ColdMemory | None:
-        return self.config.cold_memory
-
-    @cold_memory.setter
-    def cold_memory(self, value: ColdMemory | None) -> None:
-        self.config.cold_memory = value
-
-    @property
-    def mcp_server(self) -> FastAPIMCPServer | None:
-        return self.config.mcp_server
-
-    @mcp_server.setter
-    def mcp_server(self, value: FastAPIMCPServer | None) -> None:
-        self.config.mcp_server = value
-
-    @property
-    def self_healing_kernel(self) -> SelfHealingKernel | None:
-        return self.config.self_healing_kernel
-
-    @self_healing_kernel.setter
-    def self_healing_kernel(self, value: SelfHealingKernel | None) -> None:
-        self.config.self_healing_kernel = value
-
-    @property
-    def slm(self) -> ModelTarget | None:
-        return self.config.slm
-
-    @slm.setter
-    def slm(self, value: ModelTarget | None) -> None:
-        self.config.slm = value
-
-    @property
-    def llm(self) -> ModelTarget | None:
-        return self.config.llm
-
-    @llm.setter
-    def llm(self, value: ModelTarget | None) -> None:
-        self.config.llm = value
-
-    @property
-    def complexity_threshold(self) -> float:
-        return self.config.complexity_threshold
-
-    @complexity_threshold.setter
-    def complexity_threshold(self, value: float) -> None:
-        self.config.complexity_threshold = value
-
-    @property
-    def enforce_foundry_prompt_governance(self) -> bool:
-        return self.config.enforce_foundry_prompt_governance
-
-    @enforce_foundry_prompt_governance.setter
-    def enforce_foundry_prompt_governance(self, value: bool) -> None:
-        self.config.enforce_foundry_prompt_governance = value
 
     def _shared_provider_for_routing(self) -> str | None:
         """Return provider name only when SLM/LLM routing targets share one provider."""
@@ -290,11 +229,18 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
         the response immediately while the Redis write completes in the
         background.
         """
-        if self.hot_memory is None or cache_key is None or value is None:
+        # Bind the narrowed reference *before* the closure: type-narrowing
+        # from ``self.hot_memory is None`` is not preserved across closure
+        # boundaries, so without this rebind the inner ``hot.set`` would be
+        # statically typed as a method on ``Optional[HotMemory]`` and a future
+        # contributor breaking the outer guard would only see the failure at
+        # runtime. Capturing the narrowed local makes it impossible.
+        hot = self.hot_memory
+        if hot is None or cache_key is None or value is None:
             return
 
         async def _write() -> None:
-            await self.hot_memory.set(key=cache_key, value=value, ttl_seconds=ttl_seconds)
+            await hot.set(key=cache_key, value=value, ttl_seconds=ttl_seconds)
 
         self._schedule_background(_write())
 
@@ -304,17 +250,18 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
         These tools allow the model to manage session/conversation memory
         directly, enabling a 'check memory first' strategy before deeper searches.
         """
+        client = self.memory_client
         tools: dict[str, Callable[..., Any]] = {}
-        if self.memory_client is None:
+        if client is None:
             return tools
 
         async def memory_read(key: str) -> Any:
             """Read a value from the agent's tiered memory by key."""
-            return await self.memory_client.get(key)
+            return await client.get(key)
 
         async def memory_write(key: str, value: Any) -> str:
             """Write a value to the agent's tiered memory."""
-            await self.memory_client.set(key, value)
+            await client.set(key, value)
             return "stored"
 
         tools["memory_read"] = memory_read
@@ -322,7 +269,7 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
         return tools
 
     @staticmethod
-    async def gather_adapters(*coros: Awaitable[Any]) -> tuple[Any, ...]:
+    async def gather_adapters(*coros: Awaitable[Any]) -> list[Any]:
         """Execute multiple adapter/MCP coroutines in parallel.
 
         Provides a framework-level entry point so agents can dispatch
@@ -340,13 +287,27 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
         """Delegate to shared complexity heuristic."""
         return assess_complexity(request)
 
-    def _select_model(self, request: dict[str, Any]) -> ModelTarget:
-        """Select SLM vs LLM based on heuristic and configuration."""
+    def _select_model(
+        self,
+        request: dict[str, Any],
+        *,
+        complexity: float | None = None,
+    ) -> ModelTarget:
+        """Select SLM vs LLM based on heuristic and configuration.
+
+        ``complexity`` is accepted as a keyword so callers that have
+        already evaluated the heuristic (typically inside
+        :meth:`_resolve_routing_context`) can hand the value in instead
+        of paying for the work twice. When omitted, the heuristic runs
+        on demand — preserving the public signature relied upon by
+        existing tests.
+        """
 
         if self.slm is None and self.llm is None:
             raise RuntimeError("No models configured on BaseRetailAgent")
 
-        complexity = self._assess_complexity(request)
+        if complexity is None:
+            complexity = self._assess_complexity(request)
         if self.llm and (complexity >= self.complexity_threshold or self.slm is None):
             return self.llm
         if self.slm:
@@ -355,6 +316,156 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
             return self.llm
         # Defensive check: should not be reachable because of the initial guard.
         raise RuntimeError("Model selection failed: no suitable model available")
+
+    def _make_routing_context(
+        self,
+        target: ModelTarget,
+        complexity: float,
+        *,
+        supports_upgrade: bool = False,
+    ) -> _RoutingContext:
+        """Build a :class:`_RoutingContext` for an already-picked target.
+
+        Factoring the tier-detection + hint-build pair here keeps the
+        two callers (request/response and streaming) free of duplicated
+        plumbing while preserving a single source of truth for how the
+        ``target_tier`` label and the upgrade-capability bit are
+        derived. ``supports_upgrade`` only takes effect for the SLM
+        tier *and* when an LLM target exists — there is no point
+        promising an upgrade channel the runtime can't follow through
+        on.
+        """
+        tier = "slm" if target is self.slm else "llm"
+        can_upgrade = supports_upgrade and tier == "slm" and self.llm is not None
+        hint = build_complexity_hint(
+            complexity=complexity,
+            threshold=self.complexity_threshold,
+            target_kind=tier,
+            can_upgrade=can_upgrade,
+        )
+        return _RoutingContext(
+            target=target,
+            complexity=complexity,
+            target_tier=tier,
+            hint=hint,
+            supports_upgrade=can_upgrade,
+        )
+
+    def _resolve_routing_context(self, request: dict[str, Any]) -> _RoutingContext:
+        """Resolve target + complexity + hint for a request/response call.
+
+        Computes the complexity score *once* and threads it into both
+        :meth:`_select_model` (for the SLM/LLM decision) and the hint
+        builder. Downstream tracing reads from the returned context, so
+        ``_assess_complexity`` is never called more than once per
+        invocation. The non-streaming path advertises the upgrade
+        channel so :meth:`invoke_model` can act on an SLM-initiated
+        ``UPGRADE`` reply.
+        """
+        complexity = self._assess_complexity(request)
+        target = self._select_model(request, complexity=complexity)
+        return self._make_routing_context(target, complexity, supports_upgrade=True)
+
+    def _resolve_streaming_routing_context(self, request: dict[str, Any]) -> _RoutingContext:
+        """Routing context for the streaming path (SLM-first, no escalation).
+
+        :meth:`invoke_model_stream` always targets the SLM when one is
+        configured; complexity-based escalation belongs to the
+        request/response path. We still compute complexity so the model
+        receives the same tier-framed hint as the non-streaming flow,
+        but the upgrade clause is suppressed — the runtime cannot
+        introspect a streamed reply without buffering, so we don't
+        advertise a channel we can't honor.
+        """
+        target = self.slm or self.llm
+        if target is None:
+            raise RuntimeError("No models configured on BaseRetailAgent")
+        complexity = self._assess_complexity(request)
+        return self._make_routing_context(target, complexity, supports_upgrade=False)
+
+    @staticmethod
+    def _inject_routing_hint(messages: list[dict[str, Any]], hint: str) -> list[dict[str, Any]]:
+        """Insert a system-role hint after the leading system prefix.
+
+        The caller's persona prompt (typically at index 0) stays first
+        — most providers weight the leading system message highest —
+        and the routing context slides in immediately after it, before
+        the conversation turns. For inputs that have no system prefix
+        the hint becomes the first system message.
+        """
+        insert_at = 0
+        for msg in messages:
+            if isinstance(msg, dict) and str(msg.get("role", "")).lower() == "system":
+                insert_at += 1
+            else:
+                break
+        return [
+            *messages[:insert_at],
+            {"role": "system", "content": hint},
+            *messages[insert_at:],
+        ]
+
+    def _apply_routing_context(
+        self,
+        messages: Any,
+        kwargs: dict[str, Any],
+        ctx: _RoutingContext,
+    ) -> list[dict[str, Any]]:
+        """Surface routing metadata to the invoker via both channels.
+
+        * **kwargs channel** — ``routing_complexity`` / ``routing_threshold``
+          / ``routing_target_tier`` / ``routing_hint`` are mutated onto
+          the kwargs dict and reach every invoker unconditionally. This
+          is the canonical channel: Foundry hosted-agent adapters that
+          cannot accept runtime system messages still get the data and
+          can plumb it through their portal-owned prompt.
+        * **system-message channel** — the hint is inserted after the
+          leading system prefix as a best-effort surface. It reaches
+          non-Foundry providers directly; under Foundry governance the
+          subsequent :func:`sanitize_messages_for_provider` call strips
+          it, which is the right outcome (Foundry owns the prompt) and
+          matches the kwargs channel's role as the source of truth.
+        """
+        kwargs["routing_complexity"] = ctx.complexity
+        kwargs["routing_threshold"] = self.complexity_threshold
+        kwargs["routing_target_tier"] = ctx.target_tier
+        kwargs["routing_hint"] = ctx.hint
+        return self._inject_routing_hint(normalize_messages(messages), ctx.hint)
+
+    @staticmethod
+    def _response_requests_upgrade(result: Any) -> bool:
+        """Return ``True`` when the SLM's reply asks for runtime escalation.
+
+        The SLM hint instructs the model to reply with the single token
+        :data:`UPGRADE_SENTINEL` on its own line when it cannot handle
+        the request. Detecting that is annoyingly shape-sensitive
+        because different invokers return different envelopes — the
+        Foundry-shaped ``messages[].content[].text`` structure read by
+        :func:`extract_text_from_response`, but also flat ``response`` /
+        ``content`` / ``text`` / ``output`` keys used by simpler
+        adapters and test mocks. We probe all of them and treat a match
+        as authoritative when the sentinel is the first non-blank line
+        (so a passing mention like ``"I will upgrade my answer"`` does
+        not trigger escalation).
+        """
+        if not isinstance(result, dict):
+            return False
+        candidates: list[str] = []
+        structured = extract_text_from_response(result)
+        if structured:
+            candidates.append(structured)
+        for key in ("response", "content", "text", "output"):
+            value = result.get(key)
+            if isinstance(value, str) and value:
+                candidates.append(value)
+        for text in candidates:
+            stripped = text.strip()
+            if not stripped:
+                continue
+            first_line = stripped.splitlines()[0].strip().upper()
+            if first_line == UPGRADE_SENTINEL:
+                return True
+        return False
 
     async def __invoke_target(
         self,
@@ -369,17 +480,39 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
             "model": target.model,
             "temperature": target.temperature,
             "top_p": target.top_p,
-            # Always stream=False here — this is the request/response path
-            # that expects a dict back.  The streaming path goes through
-            # invoke_model_stream() which passes stream=True explicitly.
-            "stream": False,
             "tools": payload_tools,
         }
+        for key, value in build_logprobs_payload(target).items():
+            if key == "include" and isinstance(payload.get("include"), list):
+                existing = list(payload["include"])
+                for token in value:
+                    if token not in existing:
+                        existing.append(token)
+                payload["include"] = existing
+            else:
+                payload[key] = value
         started = perf_counter()
         outcome = "success"
         error_text: str | None = None
+        logprob_summary: dict[str, Any] | None = None
         try:
             result = await target.invoker(**payload)
+            if target.logprobs and isinstance(result, dict):
+                logprob_summary = summarize_logprobs(extract_logprobs(result))
+                mean_str = f"{logprob_summary['mean']:.4f}" if "mean" in logprob_summary else "n/a"
+                perplexity_str = (
+                    f"{logprob_summary['perplexity']:.4f}"
+                    if "perplexity" in logprob_summary
+                    else "n/a"
+                )
+                logger.info(
+                    "agent_model_logprobs service=%s target=%s count=%d " "mean=%s perplexity=%s",
+                    getattr(self, "service_name", "unknown"),
+                    target.name,
+                    logprob_summary.get("count", 0),
+                    mean_str,
+                    perplexity_str,
+                )
         except asyncio.TimeoutError:
             outcome = "timeout"
             error_text = "Model invocation timed out"
@@ -404,10 +537,15 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
             elapsed_ms = (perf_counter() - started) * 1000
             trace_metadata = {
                 "elapsed_ms": elapsed_ms,
-                "stream": payload.get("stream", target.stream),
+                # ``__invoke_target`` is the non-streaming request/response
+                # path; the streaming path bypasses it entirely. Hard-coding
+                # the value keeps the telemetry column stable for downstream
+                # dashboards while removing a pointless dynamic lookup.
+                "stream": False,
                 "temperature": target.temperature,
                 "top_p": target.top_p,
                 "error": error_text,
+                "logprobs_summary": logprob_summary,
             }
             try:
                 # Derive model_tier from config
@@ -443,7 +581,7 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
                 "elapsed_ms": existing_meta.get("elapsed_ms", elapsed_ms),
                 "target": existing_meta.get("target", target.name),
                 "model": existing_meta.get("model", target.model),
-                "stream": existing_meta.get("stream", payload.get("stream", target.stream)),
+                "stream": existing_meta.get("stream", False),
                 "temperature": existing_meta.get("temperature", target.temperature),
                 "top_p": existing_meta.get("top_p", target.top_p),
                 "tools": existing_meta.get(
@@ -454,6 +592,7 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
                         else payload_tools
                     ),
                 ),
+                "logprobs_summary": existing_meta.get("logprobs_summary", logprob_summary),
             }
 
             result.setdefault("_target", target.name)
@@ -503,6 +642,17 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
             if _session_decision.foundry_session_state:
                 kwargs["_foundry_session_state"] = _session_decision.foundry_session_state
 
+        # Resolve routing once (target + complexity + tier-framed hint),
+        # then surface the result through both the messages and kwargs
+        # channels before sanitisation. Doing it before the sanitiser
+        # lets Foundry governance strip the system hint while leaving
+        # the kwargs untouched — the adapter can still plumb the data
+        # into the portal-owned prompt. We keep a handle on the original
+        # caller-supplied messages so an SLM-initiated upgrade can
+        # rebuild the LLM prompt from a clean slate.
+        ctx = self._resolve_routing_context(request)
+        original_messages = messages
+        messages = self._apply_routing_context(messages, kwargs, ctx)
         messages = sanitize_messages_for_provider(
             messages,
             provider=self._shared_provider_for_routing(),
@@ -519,19 +669,63 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
         )
 
         try:
-            target = self._select_model(request)
             self._trace_decision(
                 decision="routing_strategy",
-                outcome=target.name,
+                outcome=ctx.target.name,
                 metadata={
-                    "complexity": self._assess_complexity(request),
+                    "complexity": ctx.complexity,
                     "complexity_threshold": self.complexity_threshold,
+                    "target_tier": ctx.target_tier,
                 },
             )
             result = await asyncio.wait_for(
-                self.__invoke_target(target, messages, payload_tools, **kwargs),
+                self.__invoke_target(ctx.target, messages, payload_tools, **kwargs),
                 timeout=_DEFAULT_AGENT_INVOKE_TIMEOUT,
             )
+
+            # SLM-initiated escalation: when the SLM replied with the
+            # UPGRADE sentinel, re-route to the LLM with a fresh
+            # routing context built from the *original* caller
+            # messages. This is the second leg of the two-stage routing
+            # story — the heuristic catches obvious cases up front,
+            # this branch catches the borderline ones it underestimated.
+            # We rebuild from ``original_messages`` (rather than mutating
+            # the SLM-prepared list) so the LLM never sees the SLM hint;
+            # the kwargs ``routing_*`` entries get overwritten by the
+            # second ``_apply_routing_context`` call.
+            if (
+                ctx.supports_upgrade
+                and self.llm is not None
+                and self._response_requests_upgrade(result)
+            ):
+                llm_ctx = self._make_routing_context(
+                    self.llm, ctx.complexity, supports_upgrade=False
+                )
+                self._trace_decision(
+                    decision="slm_upgrade",
+                    outcome=llm_ctx.target.name,
+                    metadata={
+                        "complexity": ctx.complexity,
+                        "complexity_threshold": self.complexity_threshold,
+                        "from": ctx.target.name,
+                        "to": llm_ctx.target.name,
+                    },
+                )
+                upgraded_messages = self._apply_routing_context(original_messages, kwargs, llm_ctx)
+                upgraded_messages = sanitize_messages_for_provider(
+                    upgraded_messages,
+                    provider=self._shared_provider_for_routing(),
+                    enforce_prompt_governance=self.enforce_foundry_prompt_governance,
+                )
+                result = await asyncio.wait_for(
+                    self.__invoke_target(
+                        llm_ctx.target,
+                        upgraded_messages,
+                        payload_tools,
+                        **kwargs,
+                    ),
+                    timeout=_DEFAULT_AGENT_INVOKE_TIMEOUT,
+                )
         except asyncio.TimeoutError:
             self._trace_decision(
                 decision="invoke_model",
@@ -554,12 +748,6 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
             and isinstance(result, dict)
             and result.get("_foundry_session_state")
         ):
-            from holiday_peak_lib.agents.memory.session_manager import (
-                build_session_summary,
-                persist_full_session,
-                store_summary,
-            )
-
             _used_session_id = _session_decision.session_id
             _messages_for_summary = messages if isinstance(messages, list) else []
 
@@ -604,58 +792,144 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
         when available, otherwise falls back to the non-streaming path.
         """
         payload_tools = kwargs.get("tools") or (self.tools if self.tools else None)
-        messages = sanitize_messages_for_provider(
-            messages,
-            provider=self._shared_provider_for_routing(),
-            enforce_prompt_governance=self.enforce_foundry_prompt_governance,
-        )
 
-        # Use SLM when available (matches provider_controlled path)
-        target = self.slm or self.llm
-        if target is None:
+        # Pick the streaming target up-front so we can decide between
+        # the streaming branch and the non-streaming fallback before
+        # paying for routing-context construction. The fallback path
+        # delegates to ``invoke_model``, which performs its own routing
+        # apply — doing it here too would double-inject the hint.
+        early_target = self.slm or self.llm
+        if early_target is None:
             raise RuntimeError("No models configured on BaseRetailAgent")
 
         self._trace_decision(
             decision="invoke_model_stream",
             outcome="start",
             metadata={
-                "target": target.name,
-                "supports_streaming": _supports_streaming(target.invoker),
+                "target": early_target.name,
+                "supports_streaming": supports_streaming(early_target.invoker),
             },
         )
 
-        if not _supports_streaming(target.invoker):
+        if not supports_streaming(early_target.invoker):
             # Graceful degradation: yield the complete non-streaming response
             # as a single text chunk so callers always get an async generator.
             self._trace_decision(
                 decision="invoke_model_stream",
                 outcome="fallback_non_streaming",
-                metadata={"target": target.name},
+                metadata={"target": early_target.name},
             )
             result = await self.invoke_model(request, messages, **kwargs)
-            text = _extract_text_from_response(result)
+            text = extract_text_from_response(result)
             if text:
                 yield text
             return
 
+        ctx = self._resolve_streaming_routing_context(request)
+        messages = self._apply_routing_context(messages, kwargs, ctx)
+        messages = sanitize_messages_for_provider(
+            messages,
+            provider=self._shared_provider_for_routing(),
+            enforce_prompt_governance=self.enforce_foundry_prompt_governance,
+        )
+
         payload = {
             **kwargs,
             "messages": messages,
-            "model": target.model,
-            "temperature": target.temperature,
-            "top_p": target.top_p,
+            "model": ctx.target.model,
+            "temperature": ctx.target.temperature,
+            "top_p": ctx.target.top_p,
+            # ``stream=True`` is the dispatch signal for invokers that
+            # branch on it (see ``direct.py``: ``kwargs.pop("stream", False)``
+            # selects ``_stream_impl`` vs ``__call__``). Without it the
+            # real adapter would return a non-streaming dict and break
+            # the ``async for`` consumer below.
             "stream": True,
             "tools": payload_tools,
         }
+        # Mirror the non-streaming logprob payload contract on the
+        # streaming path so adapters that honour it (Responses API
+        # streams emit logprobs on ``ResponseTextDoneEvent``) receive
+        # the same request keys. Capture of streamed logprobs is
+        # handled in the chunk loop — see the streaming pipeline work
+        # in :meth:`invoke_model_stream`.
+        for key, value in build_logprobs_payload(ctx.target).items():
+            if key == "include" and isinstance(payload.get("include"), list):
+                existing = list(payload["include"])
+                for token in value:
+                    if token not in existing:
+                        existing.append(token)
+                payload["include"] = existing
+            else:
+                payload[key] = value
 
-        # __call__ with stream=True returns an AsyncGenerator
-        stream_gen = await target.invoker(**payload)
+        # ``__call__`` with ``stream=True`` returns an ``AsyncGenerator[str, None]``
+        # (see ``StreamingModelInvoker._stream_impl``). The static
+        # ``ModelInvoker`` signature only documents the non-streaming
+        # ``Awaitable[dict]`` shape, so we cast here to express the
+        # streaming-path contract without widening the public type alias
+        # (which would ripple through every non-streaming caller).
+        stream_gen = cast(
+            AsyncGenerator[str, None],
+            await ctx.target.invoker(**payload),
+        )
         async for chunk in stream_gen:
             yield chunk
 
     @abstractmethod
     async def handle(self, request: dict[str, Any]) -> dict[str, Any]:
         """Handle an incoming request."""
+
+    # ------------------------------------------------------------------ #
+    # Foundry hosted-agent (Responses API) integration
+    #
+    # These two methods let an existing FastAPI service additionally serve
+    # the Foundry Responses-protocol surface (``/v1/responses``) inside the
+    # *same* uvicorn process — no second runtime, no parallel ``hosted_main.py``,
+    # no extra port. They are additive: services that don't call
+    # ``serve_hosted()`` retain their current behaviour.
+    # ------------------------------------------------------------------ #
+
+    async def hosted_request_from_text(self, text: str) -> dict[str, Any]:
+        """Translate Responses-API free-form input text into the dict shape
+        that this agent's ``handle()`` expects.
+
+        Default implementation returns ``{"prompt": text}``. Services whose
+        ``handle()`` requires structured fields (e.g. ``{"sku": "..."}``)
+        should override this to parse them out of natural-language input.
+        """
+        return {"prompt": text}
+
+    def serve_hosted(
+        self,
+        fastapi_app: Any,
+        *,
+        prefix: str = "/v1",
+        request_translator: Callable[[str], Awaitable[dict[str, Any]]] | None = None,
+    ) -> Any:
+        """Mount this agent's Foundry Responses-protocol endpoints on the
+        given FastAPI app.
+
+        Single-process, single-runtime: the FastAPI app keeps owning
+        ``/health``, ``/ready``, ``/mcp/*`` (registered before this call) and
+        the mounted Starlette host server answers ``/{prefix}/responses``
+        (matched after the direct routes because Starlette walks routes in
+        registration order).
+
+        Returns the constructed host server for tests / diagnostics.
+        Raises ``ImportError`` if ``agent-framework-foundry-hosting`` is not
+        installed in the active environment.
+        """
+        # Lazy import to avoid a circular dependency between base_agent.py
+        # and hosted.py, and to keep the optional SDK out of import time.
+        from .hosted import mount_hosted_agent  # pylint: disable=import-outside-toplevel
+
+        return mount_hosted_agent(
+            fastapi_app,
+            self,
+            prefix=prefix,
+            request_translator=request_translator,
+        )
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         """Auto-wrap concrete handle() implementations with entry/exit logging."""

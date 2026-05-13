@@ -1,5 +1,7 @@
 """Inventory health check service."""
 
+import os
+
 from holiday_peak_lib import create_standard_app
 from holiday_peak_lib.utils import EventHubSubscription
 from inventory_health_check.agents import InventoryHealthAgent, register_mcp_tools
@@ -23,3 +25,27 @@ app = create_standard_app(
     handlers=build_event_handlers(),
     use_direct_model=True,
 )
+
+# Foundry Hosted Agent (preview) — single-process mount that exposes the
+# Responses-protocol surface (``/v1/responses``) on the SAME FastAPI app.
+# Single uvicorn process, single port, no second runtime — the dual-runtime
+# guardrail in ADR-005 (2026-05-10) targets the multi-process / multi-port
+# shape and is preserved by this mount pattern. Direct routes registered
+# above (``/health``, ``/ready``, ``/mcp/*``) win because Starlette walks
+# routes in registration order.
+#
+# Toggleable: set HOLIDAY_PEAK_FOUNDRY_HOSTED=0 to skip mounting (for
+# environments where ``agent-framework-foundry-hosting`` is not installed
+# or where the operator wants to roll back the pilot without redeploying).
+if os.getenv("HOLIDAY_PEAK_FOUNDRY_HOSTED", "1") not in ("0", "false", "False"):
+    try:
+        app.state.agent.serve_hosted(app)
+    except ImportError:
+        # The optional SDK is not present in this environment — log and
+        # continue. Service still serves /health, /mcp/*, /ready normally.
+        import logging
+
+        logging.getLogger(SERVICE_NAME).warning(
+            "foundry_hosted_mount_skipped reason=sdk_missing "
+            "(install agent-framework-foundry-hosting to enable portal indexing)"
+        )

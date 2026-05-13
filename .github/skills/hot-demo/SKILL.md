@@ -285,7 +285,6 @@ These queries must return relevant results within 5 seconds:
 |---|---|---|
 | `MODEL_DEPLOYMENT_NAME_FAST` | SLM for intent classification | `gpt-5-nano` |
 | `MODEL_DEPLOYMENT_NAME_RICH` | LLM for enrichment + search synthesis | `gpt-5` |
-| `FOUNDRY_STREAM` | Enable streaming | `true` |
 
 ## Execution Workflow
 
@@ -326,7 +325,6 @@ python scripts/demo/validate_search.py
 | Enrichment stuck | Check Event Hub consumer group offset; restart truth-enrichment pod |
 | AI Search empty | Set `AI_SEARCH_PUSH_IMMEDIATE=true`; re-run upload script |
 | Search > 5s | Check AI Search tier/RU; verify vector index has documents |
-| Streaming broken | Verify `FOUNDRY_STREAM=true`; check catalog-search SSE endpoint |
 | Upload fails | Verify blob storage RBAC (Storage Blob Data Contributor); check `BLOB_ACCOUNT_URL` |
 
 ## Quality Gate Checklist

@@ -113,7 +113,7 @@ class FoundryAgentInvoker:
         # 1. Create FoundryAgent with tools registered
         # 2. Send messages through MAF middleware
         # 3. Handle tool calls (forwarded by MAF, not dropped)
-        # 4. Aggregate streaming chunks if FOUNDRY_STREAM=true
+        # 4. Aggregate streaming chunks when invoked via the streaming path
         # 5. Return normalized response
 ```
 

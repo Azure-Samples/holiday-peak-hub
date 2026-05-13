@@ -55,7 +55,6 @@ FOUNDRY_AGENT_ID_RICH=<llm-agent-id>          # Large language model (GPT-4o)
 MODEL_DEPLOYMENT_NAME_FAST=<slm-deployment>
 MODEL_DEPLOYMENT_NAME_RICH=<llm-deployment>
 FOUNDRY_PROJECT_NAME=<project-name>           # Optional
-FOUNDRY_STREAM=false                          # Enable streaming responses
 
 # Memory Configuration (Three-Tier Architecture)
 REDIS_URL=redis://localhost:6379/0            # Hot memory (session context)

@@ -8,13 +8,14 @@ from holiday_peak_lib.utils.telemetry import get_foundry_tracer
 class AgentTelemetryMixin:
     """Mixin providing telemetry tracing for agent operations.
 
-    Expects the host class to expose a ``service_name`` property (str | None).
+    The mixin reads ``service_name`` from the host class via ``getattr`` so
+    it does not constrain *how* the host exposes that value (instance
+    attribute, ``@property``, descriptor, ``__slots__``, etc.). Hosts that do
+    not expose ``service_name`` at all fall back to the class name.
     """
 
-    service_name: str | None
-
     def _get_foundry_tracer(self) -> Any:
-        service = self.service_name or type(self).__name__
+        service = getattr(self, "service_name", None) or type(self).__name__
         return get_foundry_tracer(service)
 
     def _trace_decision(

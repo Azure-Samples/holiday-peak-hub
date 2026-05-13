@@ -102,7 +102,6 @@ spec:
       FOUNDRY_AGENT_NAME_FAST: "truth-enrichment-fast"
       FOUNDRY_AGENT_NAME_RICH: "truth-enrichment-rich"
       FOUNDRY_AUTO_ENSURE_ON_STARTUP: "true"
-      FOUNDRY_STREAM: "true"
       AGENT_FOUNDRY_INVOKE_TIMEOUT_SECONDS: "60"
       FOUNDRY_STRICT_ENFORCEMENT: "false"
 

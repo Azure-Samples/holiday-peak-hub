@@ -24,7 +24,6 @@ class TestFoundryAgentConfig:
         monkeypatch.setenv("PROJECT_NAME", TEST_PROJECT_NAME)
         monkeypatch.setenv("FOUNDRY_AGENT_ID", "agent-123")
         monkeypatch.setenv("MODEL_DEPLOYMENT_NAME", "gpt-5-fast")
-        monkeypatch.setenv("FOUNDRY_STREAM", "true")
 
         config = FoundryAgentConfig.from_env()
 
@@ -33,7 +32,6 @@ class TestFoundryAgentConfig:
         assert config.agent_id == "agent-123"
         assert config.runtime_agent_id is None
         assert config.deployment_name == "gpt-5-fast"
-        assert config.stream is True
 
     def test_from_env_with_alternate_vars(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("PROJECT_ENDPOINT", raising=False)
@@ -102,31 +100,6 @@ class TestFoundryAgentConfig:
 
         with pytest.raises(ValueError, match="PROJECT_ENDPOINT/FOUNDRY_ENDPOINT"):
             FoundryAgentConfig.from_env()
-
-    @pytest.mark.parametrize(
-        ("raw_value", "expected"),
-        [
-            ("1", True),
-            ("yes", True),
-            ("true", True),
-            ("false", False),
-            ("0", False),
-            ("no", False),
-        ],
-    )
-    def test_stream_flag_variants(
-        self, monkeypatch: pytest.MonkeyPatch, raw_value: str, expected: bool
-    ) -> None:
-        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
-        monkeypatch.setenv("FOUNDRY_STREAM", raw_value)
-
-        assert FoundryAgentConfig.from_env().stream is expected
-
-    def test_stream_flag_defaults_to_true(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
-        monkeypatch.delenv("FOUNDRY_STREAM", raising=False)
-
-        assert FoundryAgentConfig.from_env().stream is True
 
     @pytest.mark.parametrize(
         "endpoint",
