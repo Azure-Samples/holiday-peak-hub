@@ -1,0 +1,53 @@
+name: Lint GitHub Actions Workflows
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+      - 'scripts/ci/lint_workflow_permissions.py'
+      - '.github/workflows/lint-actions.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/**'
+      - 'scripts/ci/lint_workflow_permissions.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lint-actions-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  actionlint:
+    name: actionlint (syntax + per-file semantics)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run actionlint
+        uses: docker://rhysd/actionlint:1.7.7
+        with:
+          args: -color
+
+  permission-cap-lint:
+    name: Permission-cap lint (cross-file nested-workflow rule)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install PyYAML
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install PyYAML==6.0.2
+
+      - name: Lint workflow permissions
+        run: |
+          python scripts/ci/lint_workflow_permissions.py
