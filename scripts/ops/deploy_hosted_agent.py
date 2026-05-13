@@ -1,12 +1,18 @@
 #!/usr/bin/env python
-"""Register a Foundry V3 hosted-agent version from a service ``agent.yaml``.
+"""Register a Foundry V3 hosted-agent version from a service manifest.
 
 Usage::
 
     python scripts/ops/deploy_hosted_agent.py \\
-        --agent-yaml apps/inventory-health-check/agent.yaml \\
+        --agent-yaml apps/inventory-health-check/agent.hosted.yaml \\
         --image-uri <acr>.azurecr.io/inventory-health-check:<tag> \\
         --project-endpoint $PROJECT_ENDPOINT
+
+When ``--agent-yaml`` points at a directory the loader probes for files in
+the documented priority order: ``agent.manifest.yaml`` (canonical name used
+by Microsoft ``foundry-samples`` and ``azd ai agent init -m``), then
+``agent.hosted.yaml`` (project-internal pilot name), then ``agent.yaml``
+(legacy single-file sample layout).
 
 Environment variables used as fallbacks:
 
@@ -41,16 +47,19 @@ from holiday_peak_lib.foundry_hosting import (  # noqa: E402  (path setup above)
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Register a Foundry V3 hosted-agent version from an agent.hosted.yaml manifest.",
+        description=(
+            "Register a Foundry V3 hosted-agent version from an "
+            "agent.manifest.yaml / agent.hosted.yaml manifest."
+        ),
     )
     parser.add_argument(
         "--agent-yaml",
         required=True,
         help=(
             "Path to the service's hosted-agent manifest "
-            "(typically ``apps/<service>/agent.hosted.yaml``; the parent directory "
-            "is also accepted and will resolve ``agent.yaml`` if it is the only "
-            "manifest present)."
+            "(typically ``apps/<service>/agent.hosted.yaml``; a directory is "
+            "also accepted and resolved in order: ``agent.manifest.yaml`` "
+            "(canonical), ``agent.hosted.yaml``, ``agent.yaml``)."
         ),
     )
     parser.add_argument(

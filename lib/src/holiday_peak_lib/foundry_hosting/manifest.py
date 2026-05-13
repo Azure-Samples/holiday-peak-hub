@@ -125,21 +125,32 @@ class HostedAgentManifest(BaseModel):
 def load_manifest(path: str | Path) -> HostedAgentManifest:
     """Read a hosted-agent manifest from ``path`` and validate the schema.
 
-    ``path`` may point at the manifest file directly (typically
-    ``agent.hosted.yaml``) or at a directory; when a directory is given the
-    loader picks ``agent.hosted.yaml`` if present, otherwise falls back to
-    ``agent.yaml`` for compatibility with the Microsoft sample layout.
+    ``path`` may point at the manifest file directly or at a directory.
+    When a directory is given the loader probes for files in priority order:
+
+    1. ``agent.manifest.yaml`` \u2014 the canonical name used by the official
+       Microsoft ``foundry-samples`` repository and by ``azd ai agent init -m``.
+    2. ``agent.hosted.yaml`` \u2014 the project-internal name that distinguishes
+       hosted-agent manifests from the sibling ``agent.yaml`` portal-tracking
+       artifact governed by ``tests/ops/test_foundry_portal_tracking_manifests.py``.
+    3. ``agent.yaml`` \u2014 legacy fallback for one-file sample layouts only.
     """
     p = Path(path)
     if p.is_dir():
-        hosted_candidate = p / "agent.hosted.yaml"
-        legacy_candidate = p / "agent.yaml"
-        if hosted_candidate.is_file():
-            p = hosted_candidate
-        elif legacy_candidate.is_file():
-            p = legacy_candidate
+        candidates = (
+            p / "agent.manifest.yaml",
+            p / "agent.hosted.yaml",
+            p / "agent.yaml",
+        )
+        for candidate in candidates:
+            if candidate.is_file():
+                p = candidate
+                break
         else:
-            raise FileNotFoundError(f"no agent.hosted.yaml or agent.yaml found in directory: {p}")
+            raise FileNotFoundError(
+                "no agent.manifest.yaml, agent.hosted.yaml or agent.yaml "
+                f"found in directory: {path}"
+            )
     if not p.exists():
         raise FileNotFoundError(f"agent manifest not found: {p}")
     raw = yaml.safe_load(p.read_text(encoding="utf-8")) or {}

@@ -233,3 +233,50 @@ def test_deploy_applies_environment_overrides(
     env = agents.create_calls[0]["definition"]["environment_variables"]
     assert env["EXTRA"] == "override-value"
     assert env["LITERAL_VAR"] == "replaced"
+
+
+def test_deploy_raises_on_deleted_status(
+    monkeypatch: pytest.MonkeyPatch, manifest: HostedAgentManifest
+) -> None:
+    """``deleted`` is a failure terminal status for create_version per docs."""
+    monkeypatch.setattr(deploy_module.time, "sleep", lambda _s: None)
+    agents = _FakeAgentsClient(polls_until_terminal=1, terminal_status="deleted")
+    client = _FakeProjectClient(agents)
+
+    with pytest.raises(RuntimeError, match="deleted"):
+        deploy_module.deploy_hosted_agent_version(
+            manifest,
+            image_uri="acr.example.io/sample:latest",
+            project_endpoint="https://example/api/projects/sample",
+            project_client=client,
+            poll_interval_seconds=0.0,
+        )
+
+
+def test_build_project_client_passes_allow_preview(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``allow_preview=True`` is mandatory for the hosted-agent V3 surface."""
+    captured: dict[str, Any] = {}
+
+    class _FakeAIProjectClient:
+        # pylint: disable=too-few-public-methods
+        def __init__(self, *, endpoint: str, credential: Any, **kwargs: Any) -> None:
+            captured["endpoint"] = endpoint
+            captured["credential"] = credential
+            captured["kwargs"] = kwargs
+            self.agents = SimpleNamespace()
+
+    fake_module = SimpleNamespace(AIProjectClient=_FakeAIProjectClient)
+    monkeypatch.setitem(__import__("sys").modules, "azure.ai.projects", fake_module)
+
+    sentinel_credential = object()
+    client = deploy_module._build_project_client(  # pylint: disable=protected-access
+        project_endpoint="https://example.services.ai.azure.com/api/projects/p",
+        credential=sentinel_credential,
+    )
+
+    assert isinstance(client, _FakeAIProjectClient)
+    assert captured["endpoint"] == "https://example.services.ai.azure.com/api/projects/p"
+    assert captured["credential"] is sentinel_credential
+    assert captured["kwargs"].get("allow_preview") is True

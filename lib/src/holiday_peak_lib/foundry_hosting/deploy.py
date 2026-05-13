@@ -38,8 +38,13 @@ from .manifest import HostedAgentManifest, resolve_environment_variables
 
 logger = logging.getLogger(__name__)
 
-_TERMINAL_STATUSES = {"active", "ready", "succeeded", "failed", "error"}
-_FAILED_STATUSES = {"failed", "error"}
+# Per Microsoft Foundry hosted-agent docs the version lifecycle is
+# ``creating -> active`` (success terminal), or ``failed`` / ``deleted``
+# (failure terminals). ``deleting`` is transient and resolves to ``deleted``.
+# Source: learn.microsoft.com/azure/foundry/agents/how-to/deploy-hosted-agent.
+_TERMINAL_STATUSES = {"active", "failed", "deleted"}
+_FAILED_STATUSES = {"failed", "deleted"}
+_SUCCESS_STATUS = "active"
 
 
 @dataclass
@@ -68,7 +73,7 @@ class HostedAgentDeploymentResult:
 
     @property
     def succeeded(self) -> bool:
-        return self.status.lower() in {"active", "ready", "succeeded"}
+        return self.status.lower() == _SUCCESS_STATUS
 
 
 def _build_definition(
@@ -114,14 +119,25 @@ def _build_project_client(
     project_endpoint: str,
     credential: Any | None,
 ) -> Any:
-    """Build the ``AIProjectClient`` with sensible preview defaults."""
+    """Build the ``AIProjectClient`` with the V3 hosted-agent preview flag.
+
+    The ``allow_preview=True`` keyword is **mandatory** for hosted-agent
+    operations (``agents.create_version``, ``agents.get_version``). Without
+    it the SDK routes calls to the legacy V2 surface and ``create_version``
+    is not exposed. Per
+    learn.microsoft.com/azure/foundry/agents/how-to/deploy-hosted-agent.
+    """
     from azure.ai.projects import AIProjectClient  # type: ignore[import-not-found]
 
     if credential is None:
         from azure.identity import DefaultAzureCredential  # type: ignore[import-not-found]
 
         credential = DefaultAzureCredential()
-    return AIProjectClient(endpoint=project_endpoint, credential=credential)
+    return AIProjectClient(
+        endpoint=project_endpoint,
+        credential=credential,
+        allow_preview=True,
+    )
 
 
 def _extract(obj: Any, *names: str) -> Any:

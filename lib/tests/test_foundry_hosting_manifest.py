@@ -61,10 +61,25 @@ def test_load_manifest_accepts_directory(tmp_path: Path) -> None:
     assert manifest.name == "sample-hosted-agent"
 
 
-def test_load_manifest_prefers_agent_hosted_yaml_in_directory(tmp_path: Path) -> None:
-    # When both files coexist (the real-world pilot layout), the hosted
-    # manifest must win so the tracking-only ``agent.yaml`` does not leak
-    # into the deploy code path.
+def test_load_manifest_prefers_canonical_filename_in_directory(tmp_path: Path) -> None:
+    # When canonical ``agent.manifest.yaml`` is present alongside any other
+    # candidate it must win (it is the name the official Microsoft
+    # foundry-samples repository and ``azd ai agent init -m`` use).
+    (tmp_path / "agent.yaml").write_text(
+        CANONICAL_YAML.replace("sample-hosted-agent", "tracking-only-name"), encoding="utf-8"
+    )
+    (tmp_path / "agent.hosted.yaml").write_text(
+        CANONICAL_YAML.replace("sample-hosted-agent", "hosted-fallback-name"), encoding="utf-8"
+    )
+    (tmp_path / "agent.manifest.yaml").write_text(CANONICAL_YAML, encoding="utf-8")
+    manifest = load_manifest(tmp_path)
+    assert manifest.name == "sample-hosted-agent"
+
+
+def test_load_manifest_prefers_agent_hosted_yaml_when_canonical_missing(tmp_path: Path) -> None:
+    # When ``agent.manifest.yaml`` is absent the loader must still prefer
+    # the project-internal ``agent.hosted.yaml`` over the legacy
+    # ``agent.yaml`` portal-tracking shape.
     (tmp_path / "agent.yaml").write_text(
         CANONICAL_YAML.replace("sample-hosted-agent", "tracking-only-name"), encoding="utf-8"
     )
@@ -74,7 +89,10 @@ def test_load_manifest_prefers_agent_hosted_yaml_in_directory(tmp_path: Path) ->
 
 
 def test_load_manifest_directory_without_any_manifest_raises(tmp_path: Path) -> None:
-    with pytest.raises(FileNotFoundError, match="agent.hosted.yaml or agent.yaml"):
+    with pytest.raises(
+        FileNotFoundError,
+        match="agent.manifest.yaml, agent.hosted.yaml or agent.yaml",
+    ):
         load_manifest(tmp_path)
 
 

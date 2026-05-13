@@ -40,6 +40,15 @@ template:
     # depends on the operator remembering to set it at the CLI.
     - name: AZURE_AI_MODEL_DEPLOYMENT_NAME
       value: "{{MODEL_DEPLOYMENT_NAME_FAST}}"
+    # NOTE: Foundry V3 platform-injects the following at container start
+    # \u2014 they are **forbidden** here per
+    # learn.microsoft.com/azure/foundry/agents/how-to/deploy-hosted-agent:
+    #   FOUNDRY_PROJECT_ENDPOINT, FOUNDRY_PROJECT_ARM_ID,
+    #   FOUNDRY_AGENT_NAME, FOUNDRY_AGENT_VERSION, FOUNDRY_AGENT_SESSION_ID,
+    #   APPLICATIONINSIGHTS_CONNECTION_STRING.
+    # Our service code falls back to ``FOUNDRY_PROJECT_ENDPOINT`` when
+    # ``PROJECT_ENDPOINT`` is absent, so we still declare PROJECT_ENDPOINT
+    # explicitly for ops parity with the AKS deployment.
     - name: PROJECT_ENDPOINT
       value: "{{PROJECT_ENDPOINT}}"
     - name: PROJECT_NAME
@@ -48,10 +57,14 @@ template:
       value: "{{MODEL_DEPLOYMENT_NAME_FAST}}"
     - name: MODEL_DEPLOYMENT_NAME_RICH
       value: "{{MODEL_DEPLOYMENT_NAME_RICH}}"
-    - name: FOUNDRY_AGENT_NAME_FAST
-      value: "{{FOUNDRY_AGENT_NAME_FAST}}"
-    - name: FOUNDRY_AGENT_NAME_RICH
-      value: "{{FOUNDRY_AGENT_NAME_RICH}}"
+    # FoundryAgentConfig reads FOUNDRY_AGENT_ID_FAST / FOUNDRY_AGENT_ID_RICH
+    # (see ADR-010). The names above were wrong (``..._NAME_*``) and are
+    # fixed here so the hosted container actually receives what the
+    # ``_build_foundry_config`` factory expects.
+    - name: FOUNDRY_AGENT_ID_FAST
+      value: "{{FOUNDRY_AGENT_ID_FAST}}"
+    - name: FOUNDRY_AGENT_ID_RICH
+      value: "{{FOUNDRY_AGENT_ID_RICH}}"
     - name: REDIS_HOST
       value: "{{REDIS_HOST}}"
     - name: REDIS_URL
@@ -70,8 +83,6 @@ template:
       value: "{{EVENT_HUB_NAMESPACE}}"
     - name: KEY_VAULT_URI
       value: "{{KEY_VAULT_URI}}"
-    - name: APPLICATIONINSIGHTS_CONNECTION_STRING
-      value: "{{APPLICATIONINSIGHTS_CONNECTION_STRING}}"
     - name: HOLIDAY_PEAK_FOUNDRY_HOSTED
       value: "1"
     # Foundry expects the container to serve on the dedicated internal port.
