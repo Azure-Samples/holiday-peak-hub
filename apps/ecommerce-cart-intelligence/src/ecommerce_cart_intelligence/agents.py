@@ -74,10 +74,15 @@ class CartIntelligenceAgent(BaseRetailAgent):
             items, inventory=inventory_contexts, pricing=pricing_contexts
         )
 
-        if self.hot_memory and user_id:
-            await self.hot_memory.set(
-                key=canonical_cache_key,
-                value={"items": items, "risk": risk},
+        # Use the framework facade instead of re-implementing the
+        # ``if self.hot_memory: await self.hot_memory.set(...)`` gate.
+        # ``background_cache_write`` runs the Redis write off the request
+        # path, no-ops when the hot tier isn't configured, and avoids
+        # duplicating null-check logic in every consumer.
+        if user_id:
+            self.background_cache_write(
+                canonical_cache_key,
+                {"items": items, "risk": risk},
                 ttl_seconds=cart_ttl_seconds,
             )
 

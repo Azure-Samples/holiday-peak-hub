@@ -23,7 +23,6 @@ def clear_ai_search_environment(monkeypatch):
         "FOUNDRY_AGENT_ID_RICH",
         "FOUNDRY_AGENT_NAME_RICH",
         "MODEL_DEPLOYMENT_NAME_RICH",
-        "FOUNDRY_STREAM",
     ):
         monkeypatch.delenv(env_name, raising=False)
 

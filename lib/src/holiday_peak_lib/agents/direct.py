@@ -7,7 +7,7 @@ and model deployment reference are baked into the container image — no
 portal-managed Foundry Agent record is required at runtime.
 
 Runtime implementation at the
-:class:`~holiday_peak_lib.agents.base_agent.ModelInvoker` boundary in
+:class:`~holiday_peak_lib.agents.models.ModelInvoker` boundary in
 :meth:`BaseRetailAgent.invoke_model`. Key properties:
 
 - No portal-managed Foundry Agent record. The MAF ``Agent`` is constructed
@@ -459,7 +459,6 @@ def build_direct_model_target(
         name=config.agent_name or config.deployment_name or "direct-model",
         model=config.deployment_name or "unknown",
         invoker=invoker,
-        stream=config.stream,
         provider="maf-direct",
     )
 

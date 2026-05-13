@@ -192,7 +192,6 @@ response = await agent.handle({"query": "Find Nike shoes", "requires_multi_tool"
 - `PROJECT_ENDPOINT` (or `FOUNDRY_ENDPOINT`): Azure AI Foundry project endpoint of the form `https://<resource>.services.ai.azure.com/api/projects/<project-name>`. The runtime also accepts an Azure AI Services account endpoint and derives the project-scoped endpoint when `PROJECT_NAME` is set.
 - `PROJECT_NAME` (or `FOUNDRY_PROJECT_NAME`): Azure AI Foundry project name. Required when the endpoint is not already project-scoped.
 - `MODEL_DEPLOYMENT_NAME_FAST` / `MODEL_DEPLOYMENT_NAME_RICH`: Deployments backing the SLM/LLM direct-model targets.
-- `FOUNDRY_STREAM` (optional): `true` to aggregate streaming deltas per target
 - `FOUNDRY_STRICT_ENFORCEMENT` (optional): `true` to require bound direct-model targets before serving `/invoke`
 
 **SDK Requirement**: `agent-framework>=1.2.0` and `agent-framework-foundry>=1.0.1`. `azure-ai-projects` V2 provisioning APIs are no longer used by the framework runtime.

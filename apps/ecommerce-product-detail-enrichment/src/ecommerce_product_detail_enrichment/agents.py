@@ -64,12 +64,16 @@ class ProductDetailEnrichmentAgent(BaseRetailAgent):
         if "error" in enriched:
             return enriched
 
-        if self.hot_memory:
-            await self.hot_memory.set(
-                key=canonical_cache_key,
-                value=enriched,
-                ttl_seconds=cache_ttl_seconds,
-            )
+        # Use the framework facade instead of re-implementing the
+        # ``if self.hot_memory: await self.hot_memory.set(...)`` gate.
+        # ``background_cache_write`` runs the Redis write off the request
+        # path, no-ops when the hot tier isn't configured, and avoids
+        # duplicating null-check logic in every consumer.
+        self.background_cache_write(
+            canonical_cache_key,
+            enriched,
+            ttl_seconds=cache_ttl_seconds,
+        )
 
         if self.slm or self.llm:
             messages = [

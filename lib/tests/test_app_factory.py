@@ -377,18 +377,6 @@ class TestBuildServiceApp:
         assert config.agent_id == "fast-pending"
         assert config.deployment_name is None
 
-    def test_build_foundry_config_with_streaming(self, monkeypatch):
-        _clear_foundry_env(monkeypatch)
-        monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
-        monkeypatch.setenv("MODEL_DEPLOYMENT_NAME_FAST", "gpt-5-fast")
-        monkeypatch.setenv("FOUNDRY_STREAM", "true")
-        from holiday_peak_lib.app_factory import _build_foundry_config
-
-        config = _build_foundry_config("FOUNDRY_AGENT_ID_FAST", "MODEL_DEPLOYMENT_NAME_FAST")
-
-        assert config is not None
-        assert config.stream is True
-
     def test_app_upgrades_explicit_azure_redis_url_with_key_vault_secret(self, monkeypatch):
         _clear_foundry_env(monkeypatch)
         hot_memory = HotMemory("rediss://myredis.redis.cache.windows.net:6380/0")

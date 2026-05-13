@@ -88,7 +88,6 @@ spec:
       FOUNDRY_AGENT_NAME_FAST: inventory-jit-replenishment-fast
       FOUNDRY_AGENT_NAME_RICH: inventory-jit-replenishment-rich
       FOUNDRY_AUTO_ENSURE_ON_STARTUP: 'true'
-      FOUNDRY_STREAM: 'true'
       AGENT_FOUNDRY_INVOKE_TIMEOUT_SECONDS: '60'
       FOUNDRY_STRICT_ENFORCEMENT: 'false'
       KEY_VAULT_URI: https://holidaypeakhub405-dev-kv.vault.azure.net/

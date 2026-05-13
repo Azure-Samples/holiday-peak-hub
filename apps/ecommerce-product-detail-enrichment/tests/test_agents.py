@@ -1,5 +1,6 @@
 """Unit tests for ProductDetailEnrichmentAgent."""
 
+import asyncio
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -324,6 +325,9 @@ class TestProductDetailEnrichmentAgent:
             agent.hot_memory = mock_hot_memory
 
             await agent.handle({"sku": "SKU-001", "cache_ttl": 600})
+            # Drain the fire-and-forget cache write scheduled via
+            # ``background_cache_write`` before asserting on the mock.
+            await asyncio.sleep(0)
 
             mock_hot_memory.set.assert_called_once()
             call_args = mock_hot_memory.set.call_args
@@ -374,6 +378,9 @@ class TestProductDetailEnrichmentAgent:
             agent.hot_memory = mock_hot_memory
 
             await agent.handle({"sku": "SKU-001", "cache_ttl": 600})
+            # Drain the fire-and-forget cache write scheduled via
+            # ``background_cache_write`` before asserting on the mock.
+            await asyncio.sleep(0)
 
             assert mock_hot_memory.get.await_count == 2
             assert mock_hot_memory.get.await_args_list[0].args[0] == (

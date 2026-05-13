@@ -34,8 +34,6 @@ template:
       value: ${FOUNDRY_AGENT_NAME_FAST}
     - name: FOUNDRY_AGENT_NAME_RICH
       value: ${FOUNDRY_AGENT_NAME_RICH}
-    - name: FOUNDRY_STREAM
-      value: ${FOUNDRY_STREAM}
     - name: REDIS_HOST
       value: ${REDIS_HOST}
     - name: REDIS_URL

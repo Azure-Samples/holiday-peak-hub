@@ -175,7 +175,6 @@ curl http://localhost:8080/ready
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `FOUNDRY_STREAM` | Enable streaming responses | `false` |
 | `FOUNDRY_STRICT_ENFORCEMENT` | Enforce Foundry prompt governance | `true` |
 | `SELF_HEALING_ENABLED` | Enable self-healing runtime | `false` |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING` | App Insights connection | (disabled) |
