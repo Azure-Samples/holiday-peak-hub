@@ -6,9 +6,6 @@ resolution-markers = [
     "python_full_version < '3.14'",
 ]
 
-[options]
-prerelease-mode = "allow"
-
 [[package]]
 name = "a2a-sdk"
 version = "0.3.23"
@@ -1920,7 +1917,7 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "agent-framework", specifier = ">=1.0.1" },
-    { name = "agent-framework-foundry-hosting", specifier = ">=1.0.0a0" },
+    { name = "agent-framework-foundry-hosting", specifier = "==1.0.0a260507" },
     { name = "asyncpg", specifier = ">=0.30.0" },
     { name = "azure-ai-projects", specifier = ">=2.0.1" },
     { name = "azure-cosmos" },
