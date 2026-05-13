@@ -112,15 +112,32 @@ def _callee_relative_path(uses: str) -> Path:
 
 
 def _collect_callee_required_permissions(callee_doc: dict) -> Dict[str, str]:
-    """Union of all per-job ``permissions`` in the callee."""
+    """Union of effective per-job permissions in the callee.
 
-    required: Dict[str, str] = {}
+    GitHub Actions resolves a job's effective ``permissions:`` as:
+
+    * if the job declares its own ``permissions:`` map, that map applies;
+    * otherwise the workflow-level ``permissions:`` map applies.
+
+    The cap rule for nested-workflow calls operates on those EFFECTIVE
+    permissions, not just on ones that happen to be redeclared on the job.
+    A linter that ignores the workflow-level fallback will miss the case
+    where every job inherits the workflow-level grant — e.g. the
+    ``deploy-azd-truth.yml`` scoped entrypoint, where the callee
+    ``deploy-azd.yml`` declares workflow-level ``contents: write`` and
+    most jobs inherit it.
+    """
+
+    workflow_perms = _normalize_permissions(callee_doc.get("permissions"))
+    required: Dict[str, str] = dict(workflow_perms)
     jobs = callee_doc.get("jobs", {}) or {}
     for _job_id, job_def in jobs.items():
         if not isinstance(job_def, dict):
             continue
-        perms = _normalize_permissions(job_def.get("permissions"))
-        for key, level in perms.items():
+        job_perms = _normalize_permissions(job_def.get("permissions"))
+        # Effective permissions for the job = job-level if present else workflow-level.
+        effective = job_perms if job_perms else workflow_perms
+        for key, level in effective.items():
             existing = required.get(key)
             # Escalate the "needed" level if any job wants write.
             if existing is None or (level in _WRITE_LEVELS and existing not in _WRITE_LEVELS):

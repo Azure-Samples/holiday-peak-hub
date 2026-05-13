@@ -183,3 +183,54 @@ def test_linter_handles_callee_without_per_job_permissions(tmp_path: Path) -> No
 
     result = _run_linter_in(tmp_path)
     assert result.returncode == 0
+
+
+def test_linter_includes_callee_workflow_level_permissions_in_required_set(
+    tmp_path: Path,
+) -> None:
+    """Regression: deploy-azd-truth.yml followup. Callee declares ``contents:
+    write`` only at workflow level (no per-job override); GitHub Actions
+    treats that as the effective permission for every job that omits its own
+    map. A caller granting ``contents: read`` fails GitHub's cap check ->
+    startup_failure. The linter must mirror that semantics by including
+    workflow-level callee permissions in the required-set when jobs do not
+    override.
+    """
+    _write_workflow(
+        tmp_path,
+        "callee.yml",
+        """
+        name: Callee
+        on:
+          workflow_call: {}
+        permissions:
+          id-token: write
+          contents: write
+        jobs:
+          do:
+            runs-on: ubuntu-latest
+            # no per-job ``permissions:`` -> inherits workflow-level
+            steps:
+              - run: echo inherits-contents-write
+        """,
+    )
+    _write_workflow(
+        tmp_path,
+        "caller.yml",
+        """
+        name: Caller
+        on:
+          push: {}
+        jobs:
+          invoke:
+            permissions:
+              id-token: write
+              contents: read
+            uses: ./.github/workflows/callee.yml
+        """,
+    )
+
+    result = _run_linter_in(tmp_path)
+    assert result.returncode == 1, result.stdout
+    assert "'contents: write'" in result.stderr
+    assert "startup_failure" in result.stderr
