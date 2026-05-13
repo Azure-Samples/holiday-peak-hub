@@ -14,8 +14,6 @@ import sys
 import textwrap
 from pathlib import Path
 
-import pytest
-
 # tests/ is alongside the script: scripts/ci/lint_workflow_permissions.py
 SCRIPT = Path(__file__).resolve().parents[1] / "lint_workflow_permissions.py"
 
