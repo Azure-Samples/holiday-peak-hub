@@ -39,28 +39,10 @@ _FALLBACK_INSTRUCTIONS_TEMPLATE = (
     "Structured instructions file not found for '{service_name}'. "
     "Use only provided request data, state missing fields, and avoid assumptions."
 )
-_HOT_MEMORY_ENABLED_ENV = "HOLIDAY_PEAK_HOT_MEMORY_ENABLED"
-_EVENTHUB_SUBSCRIBERS_ENABLED_ENV = "HOLIDAY_PEAK_EVENTHUB_SUBSCRIBERS_ENABLED"
 _REDIS_SOCKET_TIMEOUT_ENV = "HOLIDAY_PEAK_REDIS_SOCKET_TIMEOUT_SECONDS"
 _REDIS_CONNECT_TIMEOUT_ENV = "HOLIDAY_PEAK_REDIS_CONNECT_TIMEOUT_SECONDS"
 _DEFAULT_REDIS_SOCKET_TIMEOUT_SECONDS = 1.0
 _DEFAULT_REDIS_CONNECT_TIMEOUT_SECONDS = 1.0
-_FALSE_ENV_VALUES = {"0", "false", "no", "off"}
-_TRUE_ENV_VALUES = {"1", "true", "yes", "on"}
-
-
-def _env_flag_enabled(name: str, *, default: bool = True) -> bool:
-    """Return a boolean feature flag from the process environment."""
-    raw_value = os.getenv(name)
-    if raw_value is None:
-        return default
-
-    normalized = raw_value.strip().lower()
-    if normalized in _FALSE_ENV_VALUES:
-        return False
-    if normalized in _TRUE_ENV_VALUES:
-        return True
-    return default
 
 
 def _env_positive_float(name: str, *, default: float) -> float:
@@ -77,10 +59,7 @@ def _env_positive_float(name: str, *, default: float) -> float:
 
 
 def _build_hot_memory(memory_settings: MemorySettings) -> HotMemory | None:
-    """Build bounded Redis hot memory unless runtime flags disable it."""
-    if not _env_flag_enabled(_HOT_MEMORY_ENABLED_ENV):
-        return None
-
+    """Build bounded Redis hot memory when Redis configuration is present."""
     resolved_redis_url = memory_settings.resolve_redis_url()
     if not resolved_redis_url:
         return None
@@ -175,7 +154,7 @@ def create_standard_app(
         else None
     )
     lifespan = None
-    if subscriptions and handlers and _env_flag_enabled(_EVENTHUB_SUBSCRIBERS_ENABLED_ENV):
+    if subscriptions and handlers:
         eventhub_kwargs: dict[str, Any] = {}
         if self_healing_kernel is not None:
             eventhub_kwargs["self_healing_kernel"] = self_healing_kernel

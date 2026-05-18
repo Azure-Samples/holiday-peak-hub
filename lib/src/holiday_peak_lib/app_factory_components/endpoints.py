@@ -252,12 +252,9 @@ def register_standard_endpoints(
             "integrations_registered": await registry.count(),
         }
 
-    # Foundry V3 Hosted Agent platform probes ``/readiness`` (not ``/ready``)
-    # to decide when the container can accept invocation traffic. The
-    # canonical contract (azure-ai-agentserver-* / V1Preview) requires HTTP
-    # 200 here when the process is up — the deeper "downstream targets
-    # ready" check stays on ``/ready`` so Foundry doesn't false-fail us
-    # while Redis / Cosmos / Foundry models warm up.
+    # The optional Responses hosting SDK also exposes a lightweight
+    # ``/readiness`` surface. Keep the standard app's alias process-only;
+    # the deeper downstream-target check stays on ``/ready``.
     @app.get("/readiness")
     async def readiness() -> dict[str, Any]:
         return {"status": "ok", "service": service_name}

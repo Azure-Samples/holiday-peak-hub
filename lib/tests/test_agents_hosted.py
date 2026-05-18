@@ -1,4 +1,4 @@
-"""Tests for the Foundry hosted-agent FastAPI mount adapter.
+"""Tests for the AKS-hosted Responses FastAPI mount adapter.
 
 These tests cover the *translation logic* (free-form text -> handle dict ->
 AgentResponse) without requiring the optional
@@ -17,8 +17,8 @@ from holiday_peak_lib.agents.base_agent import AgentDependencies, BaseRetailAgen
 from holiday_peak_lib.agents.hosted import (
     _extract_text_from_handle_result,
     _extract_user_text,
-    _HostedAgentRunAdapter,
     _resolve_run_messages,
+    _ResponsesAgentRunAdapter,
 )
 
 
@@ -175,6 +175,13 @@ def test_extract_text_from_handle_result_falls_back_to_json() -> None:
 @pytest.mark.asyncio
 async def test_default_request_translator_passes_prompt() -> None:
     agent = _RecordingAgent()
+    request = await agent.responses_request_from_text("free form input")
+    assert request == {"prompt": "free form input"}
+
+
+@pytest.mark.asyncio
+async def test_hosted_request_translator_alias_passes_prompt() -> None:
+    agent = _RecordingAgent()
     request = await agent.hosted_request_from_text("free form input")
     assert request == {"prompt": "free form input"}
 
@@ -186,7 +193,7 @@ async def test_hosted_run_adapter_round_trips_text() -> None:
     async def translator(text: str) -> dict[str, Any]:
         return {"prompt": text, "kind": "translated"}
 
-    adapter = _HostedAgentRunAdapter(agent, translator)
+    adapter = _ResponsesAgentRunAdapter(agent, translator)
     response = await adapter.run(messages=[Message(role="user", contents=["check me"])])
 
     assert agent.last_request == {"prompt": "check me", "kind": "translated"}
@@ -202,7 +209,7 @@ async def test_hosted_run_adapter_uses_messages_from_kwargs() -> None:
     async def translator(text: str) -> dict[str, Any]:
         return {"prompt": text}
 
-    adapter = _HostedAgentRunAdapter(agent, translator)
+    adapter = _ResponsesAgentRunAdapter(agent, translator)
     response = await adapter.run(messages=[Message(role="user", contents=["positional"])])
     assert agent.last_request == {"prompt": "positional"}
     assert response.messages
@@ -216,7 +223,7 @@ async def test_hosted_run_adapter_uses_messages_from_kwargs() -> None:
 async def test_hosted_run_adapter_streams_single_update() -> None:
     """``run(stream=True)`` must return an async iterator (NOT a coroutine).
 
-    Foundry's ``ResponsesHostServer`` calls
+    The Responses ``ResponsesHostServer`` calls
     ``async for update in agent.run(stream=True, ...):`` without awaiting
     first — so the dispatcher MUST return an async iterator directly.
     Marking ``run`` as ``async def`` would always return a coroutine and
@@ -231,7 +238,7 @@ async def test_hosted_run_adapter_streams_single_update() -> None:
     async def translator(text: str) -> dict[str, Any]:
         return {"prompt": text, "kind": "translated"}
 
-    adapter = _HostedAgentRunAdapter(agent, translator)
+    adapter = _ResponsesAgentRunAdapter(agent, translator)
 
     iterator = adapter.run(messages=[Message(role="user", contents=["stream me"])], stream=True)
 
@@ -258,7 +265,7 @@ async def test_hosted_run_adapter_streams_single_update() -> None:
 async def test_hosted_run_adapter_non_streaming_returns_awaitable() -> None:
     """``run(stream=False)`` must return an awaitable (not an async iterator).
 
-    The non-streaming Foundry path does ``response = await agent.run(...)``,
+    The non-streaming Responses path does ``response = await agent.run(...)``,
     so the dispatcher must return a coroutine/awaitable that resolves to an
     :class:`AgentResponse`.
     """
@@ -267,7 +274,7 @@ async def test_hosted_run_adapter_non_streaming_returns_awaitable() -> None:
     async def translator(text: str) -> dict[str, Any]:
         return {"prompt": text}
 
-    adapter = _HostedAgentRunAdapter(agent, translator)
+    adapter = _ResponsesAgentRunAdapter(agent, translator)
     awaitable = adapter.run(messages=[Message(role="user", contents=["once"])])
 
     # The non-streaming path returns a coroutine; awaiting it yields an
@@ -278,7 +285,7 @@ async def test_hosted_run_adapter_non_streaming_returns_awaitable() -> None:
     assert response.messages and response.messages[0].contents
 
 
-def test_serve_hosted_raises_clear_error_when_sdk_missing(monkeypatch) -> None:
+def test_serve_responses_raises_clear_error_when_sdk_missing(monkeypatch) -> None:
     """If ``agent-framework-foundry-hosting`` is unavailable, the helper
     must raise an actionable ``ImportError`` rather than a generic one.
     """
@@ -300,27 +307,46 @@ def test_serve_hosted_raises_clear_error_when_sdk_missing(monkeypatch) -> None:
             raise AssertionError("mount should not be called when SDK missing")
 
     with pytest.raises(ImportError, match="agent-framework-foundry-hosting"):
+        agent.serve_responses(_StubApp())
+
+
+def test_serve_hosted_alias_raises_clear_error_when_sdk_missing(monkeypatch) -> None:
+    """The legacy method name remains an alias for existing callers."""
+    import builtins
+
+    real_import = builtins.__import__
+
+    def _blocked_import(name, *args, **kwargs):
+        if name == "agent_framework_foundry_hosting":
+            raise ImportError("blocked for test")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", _blocked_import)
+    agent = _RecordingAgent()
+
+    class _StubApp:
+        def mount(self, *args, **kwargs):  # pragma: no cover - never reached
+            raise AssertionError("mount should not be called when SDK missing")
+
+    with pytest.raises(ImportError, match="agent-framework-foundry-hosting"):
         agent.serve_hosted(_StubApp())
 
 
 # ---------------------------------------------------------------------------
 # Optional integration test: only runs when the preview SDK is installed.
 # Keeps the suite green without the SDK while exercising the real mount when
-# operators do install it (e.g. in a Foundry-hosted-pilot track).
+# operators do install it for the AKS-hosted Responses adapter.
 # ---------------------------------------------------------------------------
 
 
-def test_serve_hosted_mounts_responses_routes_when_sdk_present() -> None:
+def test_serve_responses_mounts_responses_routes_when_sdk_present() -> None:
     pytest.importorskip("agent_framework_foundry_hosting")
     from fastapi import FastAPI
 
     agent = _RecordingAgent()
     app = FastAPI()
 
-    # Default prefix is empty so the container exposes ``/responses`` directly,
-    # matching the path that the Foundry gateway routes to after stripping
-    # the public ``/openai/v1/`` segment.
-    host_server = agent.serve_hosted(app)
+    host_server = agent.serve_responses(app)
 
     paths = {
         getattr(r, "path", None) or getattr(r, "path_format", None) for r in host_server.routes
@@ -329,17 +355,17 @@ def test_serve_hosted_mounts_responses_routes_when_sdk_present() -> None:
     assert "/responses" in paths
     # FastAPI mount appended at the end of the route list.
     mounted = [r for r in app.router.routes if getattr(r, "path", "") == ""]
-    assert mounted, "ResponsesHostServer should be mounted on the FastAPI app"
+    assert mounted, "Responses adapter should be mounted on the FastAPI app"
 
 
-def test_serve_hosted_honors_explicit_prefix_when_sdk_present() -> None:
+def test_serve_responses_honors_explicit_prefix_when_sdk_present() -> None:
     pytest.importorskip("agent_framework_foundry_hosting")
     from fastapi import FastAPI
 
     agent = _RecordingAgent()
     app = FastAPI()
 
-    host_server = agent.serve_hosted(app, prefix="/v1")
+    host_server = agent.serve_responses(app, prefix="/v1")
 
     paths = {
         getattr(r, "path", None) or getattr(r, "path_format", None) for r in host_server.routes
@@ -374,7 +400,7 @@ def test_serve_hosted_honors_explicit_prefix_when_sdk_present() -> None:
         },
     ],
 )
-def test_serve_hosted_responses_post_preserves_prompt_when_sdk_present(
+def test_serve_responses_post_preserves_prompt_when_sdk_present(
     body: dict[str, Any],
 ) -> None:
     pytest.importorskip("agent_framework_foundry_hosting")
@@ -387,7 +413,7 @@ def test_serve_hosted_responses_post_preserves_prompt_when_sdk_present(
         return {"prompt": text}
 
     app = FastAPI()
-    agent.serve_hosted(app, request_translator=translator)
+    agent.serve_responses(app, request_translator=translator)
     client = TestClient(app)
 
     response = client.post("/responses", json=body)

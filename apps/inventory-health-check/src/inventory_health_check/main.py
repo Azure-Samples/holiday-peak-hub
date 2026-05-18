@@ -26,28 +26,25 @@ app = create_standard_app(
     use_direct_model=True,
 )
 
-# Foundry Hosted Agent (preview) — single-process mount that exposes the
-# Responses-protocol surface (``/responses``) on the SAME FastAPI app.
-# The Foundry gateway adds the public ``/openai/v1/`` segment before
-# routing to this container, so the container itself serves ``/responses``
-# directly. Single uvicorn process, single port, no second runtime — the
-# dual-runtime guardrail in ADR-005 (2026-05-10) targets the
-# multi-process / multi-port shape and is preserved by this mount pattern.
+# AKS-hosted Responses adapter — single-process mount that exposes the
+# Responses-protocol surface (``/responses``) on the SAME FastAPI app, pod,
+# and port as ``/health``, ``/ready``, ``/mcp/*``, and ``/invoke``. Single
+# uvicorn process, single runtime, no Foundry-managed container registration.
 # Direct routes registered above (``/health``, ``/ready``, ``/mcp/*``) win
 # because Starlette walks routes in registration order.
 #
-# Toggleable: set HOLIDAY_PEAK_FOUNDRY_HOSTED=0 to skip mounting (for
+# Toggleable: set HOLIDAY_PEAK_AKS_RESPONSES_ENABLED=0 to skip mounting (for
 # environments where ``agent-framework-foundry-hosting`` is not installed
-# or where the operator wants to roll back the pilot without redeploying).
-if os.getenv("HOLIDAY_PEAK_FOUNDRY_HOSTED", "1") not in ("0", "false", "False"):
+# or where the operator wants to roll back the adapter without redeploying).
+if os.getenv("HOLIDAY_PEAK_AKS_RESPONSES_ENABLED", "1") not in ("0", "false", "False"):
     try:
-        app.state.agent.serve_hosted(app)
+        app.state.agent.serve_responses(app)
     except ImportError:
         # The optional SDK is not present in this environment — log and
         # continue. Service still serves /health, /mcp/*, /ready normally.
         import logging
 
         logging.getLogger(SERVICE_NAME).warning(
-            "foundry_hosted_mount_skipped reason=sdk_missing "
-            "(install agent-framework-foundry-hosting to enable portal indexing)"
+            "responses_adapter_mount_skipped reason=sdk_missing "
+            "(install agent-framework-foundry-hosting to enable /responses)"
         )

@@ -84,8 +84,6 @@ def _clear_runtime_dependency_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "BLOB_CONTAINER",
         "EVENT_HUB_NAMESPACE",
         "EVENT_HUB_CONNECTION_STRING",
-        "HOLIDAY_PEAK_HOT_MEMORY_ENABLED",
-        "HOLIDAY_PEAK_EVENTHUB_SUBSCRIBERS_ENABLED",
         "HOLIDAY_PEAK_REDIS_SOCKET_TIMEOUT_SECONDS",
         "HOLIDAY_PEAK_REDIS_CONNECT_TIMEOUT_SECONDS",
     ):
@@ -93,7 +91,7 @@ def _clear_runtime_dependency_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 class TestCreateStandardAppRuntimeFlags:
-    """Test create_standard_app hosted-mode dependency controls."""
+    """Test create_standard_app dependency wiring controls."""
 
     def test_hot_memory_defaults_to_enabled_with_bounded_timeouts(self, monkeypatch):
         _clear_foundry_env(monkeypatch)
@@ -108,16 +106,6 @@ class TestCreateStandardAppRuntimeFlags:
         assert hot_memory.socket_timeout == 1.0
         assert hot_memory.socket_connect_timeout == 1.0
         assert hot_memory.retry_on_timeout is False
-
-    def test_hot_memory_can_be_disabled_with_env_flag(self, monkeypatch):
-        _clear_foundry_env(monkeypatch)
-        _clear_runtime_dependency_env(monkeypatch)
-        monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
-        monkeypatch.setenv("HOLIDAY_PEAK_HOT_MEMORY_ENABLED", "false")
-
-        app = create_standard_app("test-service", SampleServiceAgent)
-
-        assert app.state.agent.hot_memory is None
 
     def test_eventhub_subscribers_default_to_enabled(self, monkeypatch):
         _clear_foundry_env(monkeypatch)
@@ -138,24 +126,6 @@ class TestCreateStandardAppRuntimeFlags:
             )
 
         create_lifespan.assert_called_once()
-
-    def test_eventhub_subscribers_can_be_disabled_with_env_flag(self, monkeypatch):
-        _clear_foundry_env(monkeypatch)
-        _clear_runtime_dependency_env(monkeypatch)
-        monkeypatch.setenv("HOLIDAY_PEAK_EVENTHUB_SUBSCRIBERS_ENABLED", "false")
-
-        async def handler(_partition_context, _event):  # noqa: ANN001
-            return None
-
-        with patch("holiday_peak_lib.app_factory.create_eventhub_lifespan") as create_lifespan:
-            create_standard_app(
-                "test-service",
-                SampleServiceAgent,
-                subscriptions=[EventHubSubscription("inventory-events", "test-group")],
-                handlers={"inventory-events": handler},
-            )
-
-        create_lifespan.assert_not_called()
 
 
 class TestBuildServiceApp:

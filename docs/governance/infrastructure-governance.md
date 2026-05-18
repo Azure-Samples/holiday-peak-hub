@@ -23,6 +23,7 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 ### Core policy
 
 - **azd-first deployment is mandatory** (ADR-017). The only approved exception is the manual dev emergency redeploy path in `deploy-azd-dev.yml` with `skipProvision=true`, which reuses already-provisioned infrastructure and skips only `azd provision`.
+- Agent protocol surfaces, including the `inventory-health-check` Responses adapter, must be exposed through the canonical APIM/AGC-to-AKS route. Do not introduce Foundry-managed hosted-container deployment or a second runtime/port for product agent traffic.
 - Reusable workflow `deploy-azd.yml` is not the primary operator entrypoint; use env-specific entrypoint workflows.
 - OIDC Azure login is required in CI/CD; no static cloud credentials committed to repository.
 - Provisioning must fail fast when `projectName` is not `holidaypeakhub405` or when `resourceGroupName`/`AZURE_RESOURCE_GROUP` are not `holidaypeakhub405-<environment>-rg`; this is enforced through azd `preprovision` hooks.

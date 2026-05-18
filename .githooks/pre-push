@@ -4,4 +4,10 @@ set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 
-python scripts/ops/pre_push_gate.py
+if [ -x ".venv/Scripts/python.exe" ]; then
+	".venv/Scripts/python.exe" scripts/ops/pre_push_gate.py
+elif [ -x ".venv/bin/python" ]; then
+	".venv/bin/python" scripts/ops/pre_push_gate.py
+else
+	python scripts/ops/pre_push_gate.py
+fi

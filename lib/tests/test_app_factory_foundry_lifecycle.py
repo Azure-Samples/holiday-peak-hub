@@ -79,39 +79,6 @@ def test_build_foundry_config_name_only_stays_metadata(monkeypatch):
     assert cfg.runtime_agent_id is None
 
 
-def test_build_foundry_config_prefers_hph_agent_id_over_foundry_agent_id(monkeypatch):
-    """``HPH_AGENT_ID_FAST`` wins over ``FOUNDRY_AGENT_ID_FAST``.
-
-    Foundry V3 hosted-agents reserves the ``FOUNDRY_*`` / ``AGENT_*``
-    env-var namespaces (per container-image-spec), so hosted manifests
-    must map the logical agent ID through the non-reserved ``HPH_``
-    prefix. The legacy ``FOUNDRY_AGENT_ID_*`` name remains the AKS
-    contract and acts as a back-compat fallback.
-    """
-    monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
-    monkeypatch.setenv("PROJECT_NAME", TEST_PROJECT_NAME)
-    monkeypatch.setenv("HPH_AGENT_ID_FAST", "hosted-fast-id")
-    monkeypatch.setenv("FOUNDRY_AGENT_ID_FAST", "legacy-fast-id")
-    monkeypatch.setenv("MODEL_DEPLOYMENT_NAME_FAST", "gpt-fast")
-
-    cfg = build_foundry_config("FOUNDRY_AGENT_ID_FAST", "MODEL_DEPLOYMENT_NAME_FAST")
-
-    assert cfg is not None
-    assert cfg.agent_id == "hosted-fast-id"
-
-
-def test_build_foundry_config_hph_agent_name_takes_precedence(monkeypatch):
-    """``HPH_AGENT_NAME_RICH`` wins over ``FOUNDRY_AGENT_NAME_RICH``."""
-    monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
-    monkeypatch.setenv("HPH_AGENT_NAME_RICH", "hosted-rich-name")
-    monkeypatch.setenv("FOUNDRY_AGENT_NAME_RICH", "legacy-rich-name")
-
-    cfg = build_foundry_config("FOUNDRY_AGENT_ID_RICH", "MODEL_DEPLOYMENT_NAME_RICH")
-
-    assert cfg is not None
-    assert cfg.agent_name == "hosted-rich-name"
-
-
 def test_strict_foundry_mode_flag(monkeypatch):
     monkeypatch.setenv("FOUNDRY_STRICT_ENFORCEMENT", "true")
     assert strict_foundry_mode_enabled() is True

@@ -45,16 +45,11 @@ Applies to all Python services and shared framework packages under:
 - Keep Cosmos queries partition-aware and resilient to throttling (`429` backoff).
 - Do not bypass configured identity and secret patterns.
 
-### Hosted runtime isolation flags
+### AKS Responses runtime parity
 
-The three-tier memory contract remains canonical for product services (ADR-007, ADR-032), and Event Hubs remain the canonical choreography layer (ADR-006). The following flags are supported runtime isolation controls for hosted containers or other surfaces that run outside the private AKS VNet and cannot reach optional private-network dependencies; they are not removals of the memory or event architecture.
+The three-tier memory contract remains canonical for product services (ADR-007, ADR-032), and Event Hubs remain the canonical choreography layer (ADR-006). A Responses adapter mounted into an AKS-hosted FastAPI app must keep the same Redis, Cosmos DB, Blob Storage, Event Hub, Key Vault, and Application Insights wiring as the service's `/invoke` path. Do not introduce runtime flags or manifests that detach Redis hot memory or Event Hub subscribers for the AKS Responses path.
 
-| Flag | Default | Supported use |
-| --- | --- | --- |
-| `HOLIDAY_PEAK_HOT_MEMORY_ENABLED=false` | Enabled | Detaches Redis hot memory from the hosted request path while keeping warm and cold memory wiring available where configured. |
-| `HOLIDAY_PEAK_EVENTHUB_SUBSCRIBERS_ENABLED=false` | Enabled | Skips Event Hub background subscriber lifespan wiring for hosted runtimes that should serve synchronous requests without private Event Hub connectivity. |
-
-AKS manifests should keep the default full-product behavior unless an ADR-017 deployment decision explicitly scopes a workload outside private-network reachability. Redis hot memory is optional on the request path: the framework bounds socket and connect timeouts and fails open for Redis authentication, connection, timeout, and OS-level faults so optional cache failures do not surface as agent request failures.
+Redis hot memory is optional on the request path by behavior, not by deployment split: the framework bounds socket and connect timeouts and fails open for Redis authentication, connection, timeout, and OS-level faults so optional cache failures do not surface as agent request failures. Event Hub subscriber wiring remains part of the standard app lifespan whenever subscriptions and handlers are configured.
 
 ### Security
 

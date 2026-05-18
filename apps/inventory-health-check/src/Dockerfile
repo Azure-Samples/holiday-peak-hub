@@ -37,7 +37,7 @@ ENV PATH="/app/src/.venv/bin:$PATH"
 RUN uv sync --frozen --all-extras
 RUN chown -R appuser:appgroup /app
 USER appuser
-# Listen on $UVICORN_PORT so Foundry-hosted runs (8088) and AKS runs (8000) share the image.
+# Listen on the AKS service port by default.
 CMD ["sh", "-c", "uvicorn inventory_health_check.main:app --host 0.0.0.0 --port ${UVICORN_PORT:-8000} --reload"]
 
 # ── Stage 3: prod dependency layer ──
@@ -83,7 +83,6 @@ COPY --from=prod-builder --chown=appuser:appgroup /app/src /app/src
 COPY --chown=appuser:appgroup apps/inventory-health-check/prompts/ /app/apps/inventory-health-check/prompts/
 ENV WEB_CONCURRENCY=2
 USER appuser
-# Port resolution order: $PORT (Foundry V3 platform injects this, default 8088)
-# → $UVICORN_PORT (legacy override) → 8088 (Foundry canonical default).
-# AKS sets UVICORN_PORT=8000 explicitly to keep the existing service port.
-CMD ["sh", "-c", "python -m uvicorn inventory_health_check.main:app --host 0.0.0.0 --port ${PORT:-${UVICORN_PORT:-8088}} --workers ${WEB_CONCURRENCY:-4}"]
+# The Responses adapter is mounted into the same FastAPI app and uses the same
+# AKS service port as /health, /ready, /mcp/*, and /invoke.
+CMD ["sh", "-c", "python -m uvicorn inventory_health_check.main:app --host 0.0.0.0 --port ${UVICORN_PORT:-8000} --workers ${WEB_CONCURRENCY:-4}"]

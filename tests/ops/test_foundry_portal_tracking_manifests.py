@@ -37,11 +37,14 @@ REQUIRED_EVALUATION_SUITE_TAGS = {
 }
 FORBIDDEN_DUAL_RUNTIME_TOKENS = (
     "hosted_main.py",
-    "ResponsesHostServer",
+    "agent.hosted.yaml",
+    "template.kind: hosted",
+    "AIProjectClient.agents.create_version",
     "entrypoint.sh",
     "8088",
     "second runtime",
 )
+BASE_DIRECT_MODEL_PROTOCOLS = {"fastapi-rest": "1.0.0", "mcp": "1.0.0"}
 
 
 # No GoF pattern applies: this is a deterministic metadata contract test.
@@ -99,7 +102,11 @@ def test_direct_model_agent_has_foundry_portal_tracking_manifests(
     assert isinstance(template, dict)
     assert template["kind"] == "direct-model"
     protocols = {entry["protocol"]: entry["version"] for entry in template["protocols"]}
-    assert protocols == {"fastapi-rest": "1.0.0", "mcp": "1.0.0"}
+    assert BASE_DIRECT_MODEL_PROTOCOLS.items() <= protocols.items()
+    if service == "inventory-health-check":
+        assert protocols["responses"] == "1.0.0"
+    else:
+        assert protocols == BASE_DIRECT_MODEL_PROTOCOLS
 
     env_vars = {entry["name"]: entry["value"] for entry in template["environment_variables"]}
     assert REQUIRED_AGENT_ENV_VARS <= env_vars.keys()
@@ -133,3 +140,13 @@ def test_direct_model_agent_has_foundry_portal_tracking_manifests(
         tags = evaluation_suite["tags"]
         assert isinstance(tags, dict)
         assert REQUIRED_EVALUATION_SUITE_TAGS.items() <= tags.items()
+
+
+def test_inventory_health_check_has_no_foundry_managed_hosted_manifest() -> None:
+    app_dir = REPO_ROOT / "apps" / "inventory-health-check"
+    assert not (app_dir / "agent.hosted.yaml").exists()
+    assert not (app_dir / "agent.manifest.yaml").exists()
+
+    agent_text = (app_dir / "agent.yaml").read_text(encoding="utf-8")
+    assert "kind: hosted" not in agent_text
+    assert "AIProjectClient.agents.create_version" not in agent_text

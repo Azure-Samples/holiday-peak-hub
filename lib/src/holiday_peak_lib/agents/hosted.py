@@ -1,4 +1,4 @@
-"""Foundry hosted-agent runtime adapter.
+"""AKS-hosted Responses protocol adapter.
 
 This module wraps a :class:`~holiday_peak_lib.agents.base_agent.BaseRetailAgent`
 in the Microsoft Agent Framework ``SupportsAgentRun`` protocol and mounts the
@@ -7,28 +7,25 @@ service so that:
 
 * the same FastAPI process keeps serving ``/health``, ``/ready``, ``/mcp/*``,
   etc. (the AKS-friendly surface), AND
-* the ``/{prefix}/responses`` endpoints are exposed for Azure AI Foundry's
-  Hosted Agents runtime (the portal-indexed surface).
+* the ``/{prefix}/responses`` endpoints are exposed as an adapter on the same
+    AKS pod and port.
 
 Single process, single ``uvicorn`` listener, single port. No second runtime,
-no parallel ``hosted_main.py``, no separate port 8088. The dual-runtime
+no parallel ``hosted_main.py``, no separate port. The dual-runtime
 guardrail in ADR-005 (2026-05-10) targets the multi-process / multi-port
 shape — this helper is its compliant alternative.
 
-Prefix policy: the Foundry gateway translates the public endpoint
-``{project_endpoint}/agents/{name}/endpoint/protocols/openai/v1/responses``
-into the container-local path ``/responses`` (per the Foundry hosted-agent
-deploy reference). The mount default is therefore the empty prefix so the
-container answers ``/responses`` directly. Tests and local probes that need
-the legacy ``/v1/responses`` layout can pass ``prefix="/v1"`` explicitly.
+Prefix policy: the mount default is the empty prefix so the AKS service answers
+``/responses`` directly. Tests and local probes that need a prefixed layout can
+pass ``prefix="/v1"`` explicitly.
 
 Usage in a service ``main.py``::
 
     app = create_standard_app(...)
-    app.state.agent.serve_hosted(app)
+        app.state.agent.serve_responses(app)
 
-The lazy import of ``agent_framework_foundry_hosting`` keeps the dependency
-optional: services that have not yet migrated continue to work unchanged.
+The lazy import of the Responses hosting SDK keeps the dependency optional:
+services that have not enabled the adapter continue to work unchanged.
 """
 
 from __future__ import annotations
@@ -53,16 +50,16 @@ service-specific request dict expected by ``BaseRetailAgent.handle()``.
 
 Default implementation (provided on ``BaseRetailAgent``) returns
 ``{"prompt": text}``. Services with structured ``handle()`` schemas should
-override ``BaseRetailAgent.hosted_request_from_text`` to extract the right
+override ``BaseRetailAgent.responses_request_from_text`` to extract the right
 fields.
 """
 
 
-class _HostedAgentRunAdapter:
+class _ResponsesAgentRunAdapter:
     """Minimal ``SupportsAgentRun`` implementation that delegates to a
     :class:`BaseRetailAgent`.
 
-    The Foundry ``ResponsesHostServer`` calls
+    The Responses ``ResponsesHostServer`` calls
     ``agent.run(messages, *, stream, session, **kwargs)`` with two distinct
     contracts depending on ``stream`` (verified against
     ``agent_framework_foundry_hosting==1.0.0a260507`` in
@@ -308,7 +305,24 @@ def mount_hosted_agent(
     prefix: str = "",
     request_translator: RequestTranslator | None = None,
 ) -> Any:
-    """Mount the Foundry Responses-protocol surface on an existing FastAPI app.
+    """Backward-compatible alias for :func:`mount_responses_adapter`."""
+
+    return mount_responses_adapter(
+        fastapi_app,
+        agent,
+        prefix=prefix,
+        request_translator=request_translator,
+    )
+
+
+def mount_responses_adapter(
+    fastapi_app: "FastAPI",
+    agent: "BaseRetailAgent",
+    *,
+    prefix: str = "",
+    request_translator: RequestTranslator | None = None,
+) -> Any:
+    """Mount the Responses protocol adapter on an existing FastAPI app.
 
     Args:
         fastapi_app: The FastAPI application that already serves ``/health``,
@@ -317,17 +331,18 @@ def mount_hosted_agent(
             registered on this app take precedence over the mounted host
             server because Starlette matches in registration order.
         agent: The :class:`BaseRetailAgent` instance whose ``handle()`` will
-            answer Foundry hosted-agent invocations.
+            answer Responses protocol invocations.
         prefix: URL prefix for the Responses protocol routes
-            (``/{prefix}/responses``). Defaults to ``""`` so the container
-            answers ``/responses`` directly — the Foundry gateway translates
-            the public ``/openai/v1/responses`` path before reaching the
-            container. Pass ``"/v1"`` only for legacy probes that need the
-            prior layout.
+            (``/{prefix}/responses``). Defaults to ``""`` so the AKS service
+            answers ``/responses`` directly. Pass ``"/v1"`` only for probes
+            that need a prefixed layout.
         request_translator: Optional async callable that converts the
             Responses-API free-form input string into the service-specific
             request dict for ``handle()``. When ``None``, falls back to
-            ``agent.hosted_request_from_text`` (defined on ``BaseRetailAgent``).
+            ``agent.responses_request_from_text`` (defined on
+            ``BaseRetailAgent``), with the legacy
+            ``agent.hosted_request_from_text`` override honored for
+            compatibility.
 
     Returns:
         The constructed ``ResponsesHostServer`` (a Starlette ASGI app),
@@ -347,17 +362,17 @@ def mount_hosted_agent(
         )
     except ImportError as exc:  # pragma: no cover - exercised at runtime only
         raise ImportError(
-            "agent-framework-foundry-hosting is required to mount Foundry "
-            "hosted-agent endpoints. Install with "
+            "agent-framework-foundry-hosting is required to mount AKS-hosted "
+            "Responses protocol endpoints. Install with "
             "`pip install --pre agent-framework-foundry-hosting`."
         ) from exc
 
     translator = request_translator or _default_translator(agent)
-    adapter = _HostedAgentRunAdapter(agent, translator)
+    adapter = _ResponsesAgentRunAdapter(agent, translator)
     host_server = ResponsesHostServer(adapter, prefix=prefix)
     fastapi_app.mount("/", host_server)
     logger.info(
-        "hosted_agent_mounted service=%s prefix=%s",
+        "responses_adapter_mounted service=%s prefix=%s",
         getattr(agent, "service_name", adapter.name),
         prefix,
     )
@@ -365,13 +380,20 @@ def mount_hosted_agent(
 
 
 def _default_translator(agent: "BaseRetailAgent") -> RequestTranslator:
-    """Build a translator that delegates to ``agent.hosted_request_from_text``.
+    """Build a translator for the agent's Responses request hook.
 
     Defined as a function rather than a lambda so the closure carries a clear
     name in tracebacks.
     """
+    if "responses_request_from_text" in type(agent).__dict__:
+        translate_method = agent.responses_request_from_text
+    else:
+        translate_method = agent.hosted_request_from_text
 
     async def _translate(text: str) -> dict[str, Any]:
-        return await agent.hosted_request_from_text(text)
+        return await translate_method(text)
 
     return _translate
+
+
+_HostedAgentRunAdapter = _ResponsesAgentRunAdapter
