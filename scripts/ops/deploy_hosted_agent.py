@@ -123,6 +123,39 @@ def _build_parser() -> argparse.ArgumentParser:
         default=os.environ.get("LOG_LEVEL", "INFO"),
         help="Python logging level (default: INFO).",
     )
+    parser.add_argument(
+        "--no-auto-grant-foundry-user",
+        dest="auto_grant_role",
+        action="store_false",
+        default=True,
+        help=(
+            "Skip auto-granting the Foundry User role to the per-version "
+            "managed identity. By default the deploy grants the role on "
+            "the project scope so the agent can write to Foundry storage "
+            "(POST /storage/responses). Disable this when role assignment "
+            "is managed out of band (e.g. by an Azure Policy or central "
+            "identity team)."
+        ),
+    )
+    parser.add_argument(
+        "--foundry-role-name",
+        default=os.environ.get("FOUNDRY_HOSTED_AGENT_ROLE_NAME", "Foundry User"),
+        help=(
+            "Built-in role to grant the per-version MI. Defaults to "
+            "'Foundry User' (the role validated against the live project "
+            "in this repo's dev environment)."
+        ),
+    )
+    parser.add_argument(
+        "--project-scope",
+        default=os.environ.get("FOUNDRY_HOSTED_AGENT_PROJECT_SCOPE"),
+        help=(
+            "ARM scope used for the role assignment "
+            "(/subscriptions/.../accounts/<a>/projects/<p>). When omitted, "
+            "the script derives it from --project-endpoint via "
+            "'az resource list'."
+        ),
+    )
     return parser
 
 
@@ -162,6 +195,9 @@ def main(argv: list[str] | None = None) -> int:
         poll=not args.no_poll,
         poll_interval_seconds=args.poll_interval_seconds,
         poll_timeout_seconds=args.poll_timeout_seconds,
+        auto_grant_role=args.auto_grant_role,
+        foundry_role_name=args.foundry_role_name,
+        project_scope=args.project_scope,
     )
 
     if args.json:
@@ -175,16 +211,19 @@ def main(argv: list[str] | None = None) -> int:
                     "endpoint_url": result.endpoint_url,
                     "polled_seconds": result.polled_seconds,
                     "polling_attempts": result.polling_attempts,
+                    "role_grant": result.extras.get("role_grant"),
                 }
             )
             + "\n"
         )
     else:
+        role_grant = result.extras.get("role_grant") or {}
         sys.stdout.write(
             "hosted-agent deploy result: "
             f"agent={result.agent_name} version={result.version} "
             f"status={result.status} succeeded={result.succeeded} "
-            f"endpoint={result.endpoint_url or '<not surfaced>'}\n"
+            f"endpoint={result.endpoint_url or '<not surfaced>'} "
+            f"role_grant={role_grant.get('status', '<n/a>')}\n"
         )
 
     return 0 if result.succeeded else 2

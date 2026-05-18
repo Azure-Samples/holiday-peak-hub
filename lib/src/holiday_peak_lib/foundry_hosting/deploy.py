@@ -29,11 +29,14 @@ operators can iterate from a YAML file without flag soup.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import subprocess
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
+from urllib.parse import urlparse
 
 from .manifest import HostedAgentManifest, resolve_environment_variables
 
@@ -46,6 +49,21 @@ logger = logging.getLogger(__name__)
 _TERMINAL_STATUSES = {"active", "failed", "deleted"}
 _FAILED_STATUSES = {"failed", "deleted"}
 _SUCCESS_STATUS = "active"
+
+# Built-in role name granted to per-version managed identities so they can
+# write into the Foundry storage surface (POST /storage/responses, etc.).
+# Confirmed against the live ``aipholidaris`` project: without this role,
+# every Playground / Responses call returns 401 ``Principal does not have
+# access to API/Operation`` even though the container itself runs fine.
+# The ``azd`` / VS-Code extension deploy paths grant it implicitly; the
+# SDK path (this module) does not, so we grant it here.
+_DEFAULT_FOUNDRY_ROLE_NAME = "Foundry User"
+
+# Return shape contract for the ``role_granter`` callable seam. The dict
+# is shallow on purpose (gets logged + surfaced in result.extras) so test
+# fakes can return literal payloads without depending on the SDK.
+RoleGrantResult = dict[str, str]
+RoleGranter = Callable[..., RoleGrantResult | None]
 
 
 @dataclass
@@ -405,6 +423,11 @@ def deploy_hosted_agent_version(
     poll_interval_seconds: float = 5.0,
     poll_timeout_seconds: float = 600.0,
     project_client: Any | None = None,
+    auto_grant_role: bool = True,
+    foundry_role_name: str = _DEFAULT_FOUNDRY_ROLE_NAME,
+    project_scope: str | None = None,
+    role_granter: RoleGranter | None = None,
+    scope_resolver: Callable[[str], str | None] | None = None,
 ) -> HostedAgentDeploymentResult:
     """Register (or update) a hosted-agent version in Azure AI Foundry.
 
@@ -430,8 +453,28 @@ def deploy_hosted_agent_version(
         poll_interval_seconds / poll_timeout_seconds: Polling controls.
         project_client: Pre-built ``AIProjectClient``. Test-only seam \u2014
             production callers should leave this ``None`` and let the
-            helper build the client.
-
+            helper build the client.        auto_grant_role: When ``True`` (default), the helper grants
+            ``foundry_role_name`` to the per-version managed identity on
+            the project scope once the version reaches ``active``. This
+            resolves the recurring 401 ``Principal does not have access
+            to API/Operation`` on ``POST /storage/responses`` that
+            otherwise breaks every Playground / Responses invocation.
+            Set to ``False`` for environments where role assignment is
+            managed out of band.
+        foundry_role_name: Built-in role to grant. Defaults to
+            ``"Foundry User"``, the role validated against the live
+            ``aipholidaris`` project.
+        project_scope: Optional ARM scope override for the role grant
+            (``/subscriptions/.../accounts/{a}/projects/{p}``). When
+            ``None``, the helper derives it from ``project_endpoint``
+            via ``az resource list``.
+        role_granter: Test seam for the role-assignment subprocess. The
+            default :func:`_grant_role_via_az` shells out to ``az role
+            assignment create`` and is idempotent on
+            ``RoleAssignmentExists``.
+        scope_resolver: Test seam for the scope-derivation subprocess.
+            The default :func:`_resolve_ai_account_resource_id_via_az`
+            shells out to ``az resource list``.
     Returns:
         :class:`HostedAgentDeploymentResult` with the final observed status.
     """
@@ -492,14 +535,90 @@ def deploy_hosted_agent_version(
                 f"hosted-agent registration failed: agent={manifest.name} "
                 f"version={result.version} status={status}"
             )
+        _maybe_grant_foundry_user(
+            result=result,
+            project_endpoint=project_endpoint,
+            project_scope=project_scope,
+            role_name=foundry_role_name,
+            auto_grant_role=auto_grant_role,
+            role_granter=role_granter,
+            scope_resolver=scope_resolver,
+        )
         return result
 
-    return _poll_until_terminal(
+    polled = _poll_until_terminal(
         client=client,
         result=result,
         interval_seconds=poll_interval_seconds,
         timeout_seconds=poll_timeout_seconds,
     )
+    _maybe_grant_foundry_user(
+        result=polled,
+        project_endpoint=project_endpoint,
+        project_scope=project_scope,
+        role_name=foundry_role_name,
+        auto_grant_role=auto_grant_role,
+        role_granter=role_granter,
+        scope_resolver=scope_resolver,
+    )
+    return polled
+
+
+def _maybe_grant_foundry_user(
+    *,
+    result: HostedAgentDeploymentResult,
+    project_endpoint: str,
+    project_scope: str | None,
+    role_name: str,
+    auto_grant_role: bool,
+    role_granter: RoleGranter | None,
+    scope_resolver: Callable[[str], str | None] | None,
+) -> None:
+    """Wrap :func:`_ensure_foundry_user_grant` so errors surface in ``extras``
+    without breaking a successful deploy.
+
+    A failed role grant is recoverable (the operator can re-run the script
+    or apply ``az role assignment create`` by hand) and should not invalidate
+    the version that the platform just activated. We therefore record the
+    failure under ``result.extras['role_grant']`` and continue. The next
+    deploy will re-attempt and either succeed or surface the same error.
+    """
+    if not auto_grant_role:
+        result.extras.setdefault(
+            "role_grant", {"status": "skipped", "reason": "auto_grant_role=False"}
+        )
+        return
+    if result.status != _SUCCESS_STATUS:
+        # Defensive: poll only returns ``active``; this branch covers any
+        # future change to the early-return path that lands a non-active
+        # status here.
+        result.extras.setdefault(
+            "role_grant", {"status": "skipped", "reason": f"status={result.status}"}
+        )
+        return
+    granter = role_granter or _grant_role_via_az
+    try:
+        _ensure_foundry_user_grant(
+            result=result,
+            project_endpoint=project_endpoint,
+            project_scope=project_scope,
+            role_name=role_name,
+            role_granter=granter,
+            scope_resolver=scope_resolver,
+        )
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        logger.warning(
+            "foundry_hosted_agent_role_grant_failed agent=%s version=%s error=%s",
+            result.agent_name,
+            result.version,
+            exc,
+            exc_info=True,
+        )
+        result.extras["role_grant"] = {
+            "status": "failed",
+            "error": str(exc),
+            "role_name": role_name,
+        }
 
 
 def _poll_until_terminal(
@@ -575,3 +694,265 @@ async def deploy_hosted_agent_version_async(
     rather than overloaded keyword so call sites stay self-documenting.
     """
     return await asyncio.to_thread(deploy_hosted_agent_version, manifest, **kwargs)
+
+
+# ---------------------------------------------------------------------------
+# Foundry User role auto-grant (resolves operational finding O3 / issue #1107)
+# ---------------------------------------------------------------------------
+#
+# When deploying via this module's SDK path, ``create_version`` mints a per-
+# version managed identity for the agent container, but does **not** grant it
+# the ``Foundry User`` role on the project scope. The ``azd`` / VS-Code
+# extension deploy paths grant it implicitly via their own orchestration.
+#
+# Without this role, the running container can read storage but cannot write,
+# so the Foundry runtime fails persistence at terminal events:
+#
+#     Foundry storage POST .../storage/responses?api-version=v1 -> 401
+#     Principal does not have access to API/Operation.
+#
+# Surfacing this auto-grant inside ``deploy_hosted_agent_version`` keeps the
+# operational invariant in one place and avoids relying on a separate runbook
+# step that operators can forget. The grant is idempotent: an existing
+# assignment is treated as success (logged but not raised).
+
+
+def _extract_principal_id(version_obj: Any) -> str | None:
+    """Read the per-version managed-identity principal id from a version object.
+
+    Probes the field shapes observed in ``azure-ai-projects`` preview builds
+    in order:
+
+    1. ``version_obj.instance_identity.principal_id`` (current GA-aligned shape)
+    2. ``version_obj.managed_identity.principal_id`` (older preview alias)
+    3. ``version_obj.identity.principal_id``         (legacy ARM-style alias)
+
+    Returns ``None`` when the SDK has not surfaced the principal yet -- which
+    can happen if the version status was not polled to terminal. Callers must
+    therefore only invoke this helper after a successful poll.
+    """
+    for container_key in ("instance_identity", "managed_identity", "identity"):
+        container = _extract(version_obj, container_key)
+        if container is None:
+            continue
+        principal = _extract(container, "principal_id", "principalId")
+        if principal:
+            return str(principal)
+    return None
+
+
+def _derive_project_scope_from_endpoint(
+    project_endpoint: str,
+    *,
+    scope_resolver: Callable[[str], str | None] | None = None,
+    subscription_id: str | None = None,
+) -> str:
+    """Build the ARM scope string for a Foundry project endpoint.
+
+    Foundry project endpoints have the shape::
+
+        https://{account}.services.ai.azure.com/api/projects/{project}
+
+    The ARM scope used for role assignment is::
+
+        /subscriptions/{sub}/resourceGroups/{rg}/providers/
+        Microsoft.CognitiveServices/accounts/{account}/projects/{project}
+
+    We do not have ``{sub}`` / ``{rg}`` from the endpoint alone. The default
+    ``scope_resolver`` shells out to ``az resource list`` to look up the
+    Cognitive Services account by name. Operators in restricted-permission
+    environments can pre-compute the scope and pass it explicitly via
+    :func:`deploy_hosted_agent_version`'s ``project_scope`` parameter instead.
+    """
+    parsed = urlparse(project_endpoint)
+    host = parsed.hostname or ""
+    if not host:
+        raise ValueError(
+            f"Cannot derive scope from endpoint with missing host: {project_endpoint!r}"
+        )
+    account = host.split(".", 1)[0]
+    path_parts = parsed.path.strip("/").split("/")
+    if len(path_parts) < 3 or path_parts[0] != "api" or path_parts[1] != "projects":
+        raise ValueError(f"Unexpected Foundry project endpoint shape: {project_endpoint!r}")
+    project = path_parts[2]
+
+    resolver = scope_resolver or _resolve_ai_account_resource_id_via_az
+    account_resource_id = resolver(account)
+    if not account_resource_id:
+        raise RuntimeError(
+            "Could not resolve the ARM resource id for Cognitive Services "
+            f"account {account!r}. Pass --project-scope explicitly, or ensure "
+            "`az login` has access to the subscription that owns the account."
+        )
+    # Preserve the subscription hint so the caller can use --subscription on
+    # the role-grant az call (some tenants require it for cross-sub assignments).
+    _ = subscription_id
+    return f"{account_resource_id}/projects/{project}"
+
+
+def _resolve_ai_account_resource_id_via_az(account_name: str) -> str | None:
+    """Default scope resolver: ``az resource list``.
+
+    Requires the operator's ``az login`` session to have ``Reader`` on the
+    subscription that owns the Cognitive Services account. Returns the first
+    matching resource id, or ``None`` if no account is visible.
+    """
+    proc = subprocess.run(  # noqa: S603,S607 -- arg list is fixed, not user input
+        [
+            "az",
+            "resource",
+            "list",
+            "--resource-type",
+            "Microsoft.CognitiveServices/accounts",
+            "--name",
+            account_name,
+            "--query",
+            "[0].id",
+            "-o",
+            "tsv",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        logger.warning(
+            "foundry_hosted_agent_scope_resolve_failed account=%s rc=%d stderr=%s",
+            account_name,
+            proc.returncode,
+            (proc.stderr or "").strip(),
+        )
+        return None
+    resource_id = (proc.stdout or "").strip()
+    return resource_id or None
+
+
+def _grant_role_via_az(
+    *,
+    principal_id: str,
+    scope: str,
+    role_name: str = _DEFAULT_FOUNDRY_ROLE_NAME,
+) -> RoleGrantResult | None:
+    """Default ``RoleGranter`` -- shells out to ``az role assignment create``.
+
+    Idempotent: if the assignment already exists (detected by parsing the
+    Azure CLI error message), the helper logs and returns ``None`` instead
+    of raising. Any other failure raises ``RuntimeError`` with the stderr
+    payload so the caller can surface it.
+
+    The subprocess invocation matches the manual runbook line for line
+    (``az role assignment create --assignee-object-id ... --assignee-
+    principal-type ServicePrincipal --role 'Foundry User' --scope ...``)
+    so the behaviour is unchanged from what operators have been running
+    by hand.
+    """
+    proc = subprocess.run(  # noqa: S603,S607 -- arg list is fixed, not user input
+        [
+            "az",
+            "role",
+            "assignment",
+            "create",
+            "--assignee-object-id",
+            principal_id,
+            "--assignee-principal-type",
+            "ServicePrincipal",
+            "--role",
+            role_name,
+            "--scope",
+            scope,
+            "-o",
+            "json",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode == 0:
+        try:
+            payload = json.loads(proc.stdout or "{}")
+        except json.JSONDecodeError:
+            payload = {}
+        assignment_id = str(payload.get("id", ""))
+        logger.info(
+            "foundry_hosted_agent_role_granted principal=%s role=%s scope=%s assignment_id=%s",
+            principal_id,
+            role_name,
+            scope,
+            assignment_id,
+        )
+        return {
+            "id": assignment_id,
+            "scope": scope,
+            "role_name": role_name,
+            "principal_id": principal_id,
+        }
+    stderr_lower = (proc.stderr or "").lower()
+    stdout_lower = (proc.stdout or "").lower()
+    if (
+        "already exists" in stderr_lower
+        or "already exists" in stdout_lower
+        or "roleassignmentexists" in stderr_lower
+    ):
+        logger.info(
+            "foundry_hosted_agent_role_already_granted principal=%s role=%s scope=%s",
+            principal_id,
+            role_name,
+            scope,
+        )
+        return None
+    raise RuntimeError(
+        "`az role assignment create` failed for principal "
+        f"{principal_id!r} role={role_name!r} scope={scope!r}: "
+        f"rc={proc.returncode} stderr={(proc.stderr or proc.stdout or '').strip()}"
+    )
+
+
+def _ensure_foundry_user_grant(
+    *,
+    result: HostedAgentDeploymentResult,
+    project_endpoint: str,
+    project_scope: str | None,
+    role_name: str,
+    role_granter: RoleGranter,
+    scope_resolver: Callable[[str], str | None] | None,
+) -> None:
+    """Grant ``role_name`` to the per-version MI on the project scope.
+
+    Mutates ``result.extras['role_grant']`` with the outcome. Never raises
+    on the absence of a principal id (e.g. SDK build that doesn't surface
+    it yet) -- logs and records ``skipped=no_principal_id`` so the caller
+    can decide whether to escalate. Raises on actual az / scope failures.
+    """
+    principal_id = _extract_principal_id(result.raw)
+    if not principal_id:
+        logger.warning(
+            "foundry_hosted_agent_role_grant_skipped agent=%s version=%s reason=no_principal_id",
+            result.agent_name,
+            result.version,
+        )
+        result.extras["role_grant"] = {
+            "status": "skipped",
+            "reason": "no_principal_id",
+            "role_name": role_name,
+        }
+        return
+
+    scope = project_scope or _derive_project_scope_from_endpoint(
+        project_endpoint, scope_resolver=scope_resolver
+    )
+    granted = role_granter(principal_id=principal_id, scope=scope, role_name=role_name)
+    if granted is None:
+        result.extras["role_grant"] = {
+            "status": "already_exists",
+            "principal_id": principal_id,
+            "scope": scope,
+            "role_name": role_name,
+        }
+        return
+    result.extras["role_grant"] = {
+        "status": "granted",
+        "principal_id": principal_id,
+        "scope": scope,
+        "role_name": role_name,
+        "assignment_id": granted.get("id", ""),
+    }

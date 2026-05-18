@@ -792,3 +792,365 @@ def test_deploy_succeeds_with_mapping_style_get_version(
     assert agents.create_calls[0]["agent_name"] == "sample-hosted-agent"
     assert agents.get_calls and agents.get_calls[0][1] == "v1"
     assert result.polling_attempts >= 1
+
+
+# ---------------------------------------------------------------------------
+# Foundry User auto-grant (issue #1107).
+#
+# The per-version managed identity minted by ``create_version`` does not
+# automatically receive the ``Foundry User`` role on the project scope, so
+# every Playground / Responses invocation fails 401 on the storage POST.
+# These tests cover the helpers + integration that consolidate the manual
+# ``az role assignment create`` runbook step into the deploy code path.
+# ---------------------------------------------------------------------------
+
+
+class _AgentsWithIdentity(_FakeAgentsClient):
+    """``_FakeAgentsClient`` that returns ``instance_identity.principal_id``."""
+
+    def __init__(self, *, principal_id: str | None = "principal-abc", **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self._principal_id = principal_id
+
+    def _decorate(self, ns: SimpleNamespace) -> SimpleNamespace:
+        if self._principal_id is None:
+            return ns
+        ns.instance_identity = SimpleNamespace(principal_id=self._principal_id)
+        return ns
+
+    def create_version(self, *, agent_name: str, definition: Any) -> SimpleNamespace:
+        return self._decorate(super().create_version(agent_name=agent_name, definition=definition))
+
+    def get_version(self, agent_name: str, version: str | None = None) -> SimpleNamespace:
+        return self._decorate(super().get_version(agent_name, version))
+
+
+def test_extract_principal_id_from_instance_identity() -> None:
+    """Default shape: ``version_obj.instance_identity.principal_id``."""
+    obj = SimpleNamespace(instance_identity=SimpleNamespace(principal_id="abc-123"))
+    assert deploy_module._extract_principal_id(obj) == "abc-123"  # pylint: disable=protected-access
+
+
+def test_extract_principal_id_from_managed_identity_alias() -> None:
+    """Older preview alias: ``managed_identity.principal_id``."""
+    obj = SimpleNamespace(managed_identity=SimpleNamespace(principal_id="xyz-789"))
+    assert deploy_module._extract_principal_id(obj) == "xyz-789"  # pylint: disable=protected-access
+
+
+def test_extract_principal_id_from_mapping() -> None:
+    """SDK 2.x MutableMapping models expose fields via ``__getitem__``."""
+
+    class _Mapping(collections.abc.Mapping):  # pylint: disable=too-few-public-methods
+        def __init__(self, data: dict[str, Any]) -> None:
+            self._data = data
+
+        def __getitem__(self, key: str) -> Any:
+            return self._data[key]
+
+        def __iter__(self):  # pragma: no cover - iteration not exercised
+            return iter(self._data)
+
+        def __len__(self) -> int:  # pragma: no cover - len not exercised
+            return len(self._data)
+
+    obj = _Mapping({"instance_identity": _Mapping({"principal_id": "from-mapping"})})
+    assert (
+        deploy_module._extract_principal_id(obj) == "from-mapping"
+    )  # pylint: disable=protected-access
+
+
+def test_extract_principal_id_returns_none_when_missing() -> None:
+    obj = SimpleNamespace(name="agent", status="active")
+    assert deploy_module._extract_principal_id(obj) is None  # pylint: disable=protected-access
+
+
+def test_derive_project_scope_uses_resolver() -> None:
+    """``scope_resolver`` is the test seam for the az lookup."""
+    resolved = "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.CognitiveServices/accounts/account-foo"
+    scope = deploy_module._derive_project_scope_from_endpoint(  # pylint: disable=protected-access
+        "https://account-foo.services.ai.azure.com/api/projects/proj-bar",
+        scope_resolver=lambda _name: resolved,
+    )
+    assert scope == f"{resolved}/projects/proj-bar"
+
+
+def test_derive_project_scope_rejects_malformed_endpoint() -> None:
+    with pytest.raises(ValueError, match="Unexpected"):
+        deploy_module._derive_project_scope_from_endpoint(  # pylint: disable=protected-access
+            "https://example.com/not-a-foundry-endpoint",
+            scope_resolver=lambda _: "ignored",
+        )
+
+
+def test_derive_project_scope_raises_when_resolver_returns_none() -> None:
+    with pytest.raises(RuntimeError, match="ARM resource id"):
+        deploy_module._derive_project_scope_from_endpoint(  # pylint: disable=protected-access
+            "https://account-foo.services.ai.azure.com/api/projects/proj-bar",
+            scope_resolver=lambda _name: None,
+        )
+
+
+def test_deploy_auto_grants_foundry_user_after_active(
+    monkeypatch: pytest.MonkeyPatch, manifest: HostedAgentManifest
+) -> None:
+    """End-to-end: deploy reaches ``active`` -> role grant fires with right inputs."""
+    monkeypatch.setattr(deploy_module.time, "sleep", lambda _s: None)
+    agents = _AgentsWithIdentity(polls_until_terminal=1, terminal_status="active")
+    client = _FakeProjectClient(agents)
+
+    granter_calls: list[dict[str, Any]] = []
+
+    def _fake_granter(*, principal_id: str, scope: str, role_name: str) -> dict[str, str]:
+        granter_calls.append({"principal_id": principal_id, "scope": scope, "role_name": role_name})
+        return {
+            "id": "/scope/providers/Microsoft.Authorization/roleAssignments/aaa",
+            "scope": scope,
+        }
+
+    result = deploy_module.deploy_hosted_agent_version(
+        manifest,
+        image_uri="acr.example.io/sample:latest",
+        project_endpoint="https://account-foo.services.ai.azure.com/api/projects/proj-bar",
+        project_client=client,
+        poll_interval_seconds=0.0,
+        scope_resolver=lambda _name: "/sub/rg/providers/Microsoft.CognitiveServices/accounts/account-foo",
+        role_granter=_fake_granter,
+    )
+
+    assert result.status == "active"
+    assert len(granter_calls) == 1
+    assert granter_calls[0]["principal_id"] == "principal-abc"
+    assert granter_calls[0]["role_name"] == "Foundry User"
+    assert granter_calls[0]["scope"].endswith("/projects/proj-bar")
+    grant_payload = result.extras["role_grant"]
+    assert grant_payload["status"] == "granted"
+    assert grant_payload["principal_id"] == "principal-abc"
+    assert grant_payload["role_name"] == "Foundry User"
+
+
+def test_deploy_skips_grant_when_auto_grant_disabled(
+    monkeypatch: pytest.MonkeyPatch, manifest: HostedAgentManifest
+) -> None:
+    monkeypatch.setattr(deploy_module.time, "sleep", lambda _s: None)
+    agents = _AgentsWithIdentity(polls_until_terminal=1, terminal_status="active")
+    client = _FakeProjectClient(agents)
+
+    granter_calls: list[Any] = []
+
+    result = deploy_module.deploy_hosted_agent_version(
+        manifest,
+        image_uri="acr.example.io/sample:latest",
+        project_endpoint="https://account-foo.services.ai.azure.com/api/projects/proj-bar",
+        project_client=client,
+        poll_interval_seconds=0.0,
+        auto_grant_role=False,
+        role_granter=lambda **kw: granter_calls.append(kw) or {},
+        scope_resolver=lambda _n: "/should/not/be/called",
+    )
+
+    assert result.status == "active"
+    assert granter_calls == []
+    assert result.extras["role_grant"]["status"] == "skipped"
+
+
+def test_deploy_records_already_exists_when_granter_returns_none(
+    monkeypatch: pytest.MonkeyPatch, manifest: HostedAgentManifest
+) -> None:
+    monkeypatch.setattr(deploy_module.time, "sleep", lambda _s: None)
+    agents = _AgentsWithIdentity(polls_until_terminal=1, terminal_status="active")
+    client = _FakeProjectClient(agents)
+
+    result = deploy_module.deploy_hosted_agent_version(
+        manifest,
+        image_uri="acr.example.io/sample:latest",
+        project_endpoint="https://account-foo.services.ai.azure.com/api/projects/proj-bar",
+        project_client=client,
+        poll_interval_seconds=0.0,
+        scope_resolver=lambda _n: "/sub/rg/providers/Microsoft.CognitiveServices/accounts/account-foo",
+        role_granter=lambda **kw: None,  # idempotent: assignment already existed
+    )
+
+    assert result.status == "active"
+    grant_payload = result.extras["role_grant"]
+    assert grant_payload["status"] == "already_exists"
+    assert grant_payload["principal_id"] == "principal-abc"
+
+
+def test_deploy_surfaces_grant_failure_without_breaking_active(
+    monkeypatch: pytest.MonkeyPatch, manifest: HostedAgentManifest
+) -> None:
+    """A failed role grant must NOT mask a successful version activation.
+
+    The version is already ``active`` in Foundry; the operator can re-run
+    the grant by hand or re-deploy. The recorded ``role_grant.status`` is
+    ``failed`` so the failure is observable.
+    """
+    monkeypatch.setattr(deploy_module.time, "sleep", lambda _s: None)
+    agents = _AgentsWithIdentity(polls_until_terminal=1, terminal_status="active")
+    client = _FakeProjectClient(agents)
+
+    def _broken_granter(**_kwargs: Any) -> None:
+        raise RuntimeError("az failed: insufficient permissions")
+
+    result = deploy_module.deploy_hosted_agent_version(
+        manifest,
+        image_uri="acr.example.io/sample:latest",
+        project_endpoint="https://account-foo.services.ai.azure.com/api/projects/proj-bar",
+        project_client=client,
+        poll_interval_seconds=0.0,
+        scope_resolver=lambda _n: "/sub/rg/providers/Microsoft.CognitiveServices/accounts/account-foo",
+        role_granter=_broken_granter,
+    )
+
+    assert result.status == "active"
+    assert result.succeeded
+    grant_payload = result.extras["role_grant"]
+    assert grant_payload["status"] == "failed"
+    assert "insufficient permissions" in grant_payload["error"]
+
+
+def test_deploy_records_skipped_when_principal_id_missing(
+    monkeypatch: pytest.MonkeyPatch, manifest: HostedAgentManifest
+) -> None:
+    """If the SDK doesn't surface a principal id, skip gracefully."""
+    monkeypatch.setattr(deploy_module.time, "sleep", lambda _s: None)
+    agents = _AgentsWithIdentity(
+        polls_until_terminal=1, terminal_status="active", principal_id=None
+    )
+    client = _FakeProjectClient(agents)
+
+    granter_calls: list[Any] = []
+
+    result = deploy_module.deploy_hosted_agent_version(
+        manifest,
+        image_uri="acr.example.io/sample:latest",
+        project_endpoint="https://account-foo.services.ai.azure.com/api/projects/proj-bar",
+        project_client=client,
+        poll_interval_seconds=0.0,
+        role_granter=lambda **kw: granter_calls.append(kw) or {},
+    )
+
+    assert result.status == "active"
+    assert granter_calls == []
+    grant_payload = result.extras["role_grant"]
+    assert grant_payload["status"] == "skipped"
+    assert grant_payload["reason"] == "no_principal_id"
+
+
+def test_deploy_uses_explicit_project_scope_override(
+    monkeypatch: pytest.MonkeyPatch, manifest: HostedAgentManifest
+) -> None:
+    """``project_scope`` skips the resolver entirely."""
+    monkeypatch.setattr(deploy_module.time, "sleep", lambda _s: None)
+    agents = _AgentsWithIdentity(polls_until_terminal=1, terminal_status="active")
+    client = _FakeProjectClient(agents)
+
+    granter_calls: list[dict[str, Any]] = []
+    explicit_scope = (
+        "/subscriptions/sub-id/resourceGroups/my-rg/providers/"
+        "Microsoft.CognitiveServices/accounts/account-foo/projects/proj-bar"
+    )
+
+    def _resolver(_name: str) -> str:
+        raise AssertionError("scope_resolver must not run when project_scope is set")
+
+    def _granter(*, principal_id: str, scope: str, role_name: str) -> dict[str, str]:
+        granter_calls.append({"principal_id": principal_id, "scope": scope, "role_name": role_name})
+        return {"id": "ra-id", "scope": scope}
+
+    result = deploy_module.deploy_hosted_agent_version(
+        manifest,
+        image_uri="acr.example.io/sample:latest",
+        project_endpoint="https://account-foo.services.ai.azure.com/api/projects/proj-bar",
+        project_client=client,
+        poll_interval_seconds=0.0,
+        project_scope=explicit_scope,
+        scope_resolver=_resolver,
+        role_granter=_granter,
+    )
+
+    assert result.status == "active"
+    assert granter_calls[0]["scope"] == explicit_scope
+    assert result.extras["role_grant"]["scope"] == explicit_scope
+
+
+def test_grant_role_via_az_treats_already_exists_as_idempotent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Default granter: ``RoleAssignmentExists`` -> ``None`` (idempotent)."""
+
+    class _FakeProc:  # pylint: disable=too-few-public-methods
+        def __init__(self, *, returncode: int, stdout: str = "", stderr: str = "") -> None:
+            self.returncode = returncode
+            self.stdout = stdout
+            self.stderr = stderr
+
+    def _fake_run(cmd: list[str], **_kw: Any) -> _FakeProc:
+        assert cmd[:2] == ["az", "role"], cmd
+        return _FakeProc(
+            returncode=1,
+            stderr="The role assignment already exists. (RoleAssignmentExists)",
+        )
+
+    monkeypatch.setattr(deploy_module.subprocess, "run", _fake_run)
+    result = deploy_module._grant_role_via_az(  # pylint: disable=protected-access
+        principal_id="abc-123",
+        scope="/scope",
+        role_name="Foundry User",
+    )
+    assert result is None
+
+
+def test_grant_role_via_az_raises_on_real_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _FakeProc:  # pylint: disable=too-few-public-methods
+        def __init__(self, *, returncode: int, stdout: str = "", stderr: str = "") -> None:
+            self.returncode = returncode
+            self.stdout = stdout
+            self.stderr = stderr
+
+    monkeypatch.setattr(
+        deploy_module.subprocess,
+        "run",
+        lambda *_a, **_kw: _FakeProc(
+            returncode=2, stderr="AuthorizationFailed: principal not allowed"
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="AuthorizationFailed"):
+        deploy_module._grant_role_via_az(  # pylint: disable=protected-access
+            principal_id="abc-123",
+            scope="/scope",
+            role_name="Foundry User",
+        )
+
+
+def test_grant_role_via_az_parses_assignment_id_on_success(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _FakeProc:  # pylint: disable=too-few-public-methods
+        def __init__(self, *, returncode: int, stdout: str = "", stderr: str = "") -> None:
+            self.returncode = returncode
+            self.stdout = stdout
+            self.stderr = stderr
+
+    payload = (
+        '{"id": "/scope/providers/Microsoft.Authorization/roleAssignments/aaa",'
+        ' "principalId": "abc-123"}'
+    )
+    monkeypatch.setattr(
+        deploy_module.subprocess,
+        "run",
+        lambda *_a, **_kw: _FakeProc(returncode=0, stdout=payload),
+    )
+
+    result = deploy_module._grant_role_via_az(  # pylint: disable=protected-access
+        principal_id="abc-123",
+        scope="/scope",
+        role_name="Foundry User",
+    )
+    assert result is not None
+    assert result["id"].endswith("/aaa")
+    assert result["principal_id"] == "abc-123"
+    assert result["scope"] == "/scope"
