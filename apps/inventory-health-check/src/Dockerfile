@@ -45,6 +45,14 @@ FROM base AS prod-builder
 ENV APP_ENV=prod
 COPY apps/inventory-health-check/src/requirements.txt ./
 RUN uv pip install --system --no-cache -r requirements.txt
+# Workaround for namespace-collision bug in agent-framework-azure-ai-search==0.0.0a1:
+# that legacy preview wheel ships a 0-byte ``agent_framework/__init__.py`` stub
+# that overwrites the real one from ``agent-framework-core``, breaking
+# ``from agent_framework import BaseAgent`` at container start. Reinstall the
+# core package last (``--no-deps`` to avoid resolver churn) so its real
+# ``__init__.py`` wins. Remove once the meta-package no longer pulls in the
+# broken 0.0.0a1 release.
+RUN uv pip install --system --no-cache --force-reinstall --no-deps agent-framework-core==1.3.0
 # Install the lib wheel built in stage 0
 COPY --from=lib-builder /tmp/lib-dist/holiday_peak_lib-*.whl /tmp/
 RUN uv pip install --system --no-deps /tmp/holiday_peak_lib-*.whl \
@@ -75,5 +83,7 @@ COPY --from=prod-builder --chown=appuser:appgroup /app/src /app/src
 COPY --chown=appuser:appgroup apps/inventory-health-check/prompts/ /app/apps/inventory-health-check/prompts/
 ENV WEB_CONCURRENCY=2
 USER appuser
-# Listen on $UVICORN_PORT (default 8000 for AKS; Foundry hosted-agent sets 8088).
-CMD ["sh", "-c", "python -m uvicorn inventory_health_check.main:app --host 0.0.0.0 --port ${UVICORN_PORT:-8000} --workers ${WEB_CONCURRENCY:-4}"]
+# Port resolution order: $PORT (Foundry V3 platform injects this, default 8088)
+# → $UVICORN_PORT (legacy override) → 8088 (Foundry canonical default).
+# AKS sets UVICORN_PORT=8000 explicitly to keep the existing service port.
+CMD ["sh", "-c", "python -m uvicorn inventory_health_check.main:app --host 0.0.0.0 --port ${PORT:-${UVICORN_PORT:-8088}} --workers ${WEB_CONCURRENCY:-4}"]

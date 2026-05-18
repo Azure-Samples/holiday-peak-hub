@@ -31,6 +31,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -146,6 +147,21 @@ def _extract(obj: Any, *names: str) -> Any:
     The SDK shapes vary slightly across preview builds (snake_case vs
     camelCase, attrs vs ``additional_properties``). Centralising the
     lookup keeps the deploy code stable across builds.
+
+    Order of precedence:
+
+    1. ``getattr`` -- covers ``SimpleNamespace`` fakes and SDK shapes
+       that expose fields as real attributes.
+    2. ``isinstance(obj, dict)`` -- covers plain ``dict`` responses.
+    3. ``isinstance(obj, Mapping)`` -- covers SDK model types like
+       ``azure.ai.projects.models.AgentVersionDetails`` (returned by
+       ``client.agents.get_version`` in ``azure-ai-projects 2.0.1``).
+       Those models subclass ``collections.abc.MutableMapping`` but
+       are NOT ``dict`` and do NOT expose fields via ``getattr`` --
+       ``getattr(obj, 'status', None)`` returns ``None`` while
+       ``obj['status']`` returns ``'failed'``. Without this branch the
+       poll loop logged ``status=unknown`` for ~164s on real Azure
+       deployments and timed out instead of failing fast.
     """
     for name in names:
         if obj is None:
@@ -155,6 +171,13 @@ def _extract(obj: Any, *names: str) -> Any:
             return value
         if isinstance(obj, dict):
             value = obj.get(name)
+            if value is not None:
+                return value
+        elif isinstance(obj, Mapping):
+            try:
+                value = obj[name]
+            except (KeyError, TypeError):
+                value = None
             if value is not None:
                 return value
     return None
@@ -182,6 +205,191 @@ def _normalize_status(raw_status: Any) -> str:
         # Handles ``agentversionstatus.failed`` -> ``failed``.
         text = text.rsplit(".", 1)[-1]
     return text
+
+
+def _parse_version_number(value: str) -> int | None:
+    """Parse the leading integer from a version label.
+
+    Tolerant of ``"v3"``, ``"3"``, and ``"3.1.0"`` shapes. Returns ``None``
+    when the label is not numeric, which lets the picker treat it as a
+    last-resort candidate instead of crashing.
+    """
+    stripped = value.lstrip("vV")
+    if "." in stripped:
+        stripped = stripped.split(".", 1)[0]
+    try:
+        return int(stripped)
+    except ValueError:
+        return None
+
+
+def _pick_latest_version(versions: Any) -> tuple[Any, str | None]:
+    """Return the entry with the highest numeric version label.
+
+    Iterates ``versions`` (typically the return value of
+    ``client.agents.list_versions``) and selects the entry whose label
+    parses to the largest integer. Non-numeric labels are kept as a
+    last-resort candidate so an exotic preview shape never causes the
+    resolver to silently drop a real version.
+    """
+    best_num = -1
+    best_obj: Any = None
+    best_str: str | None = None
+    for entry in versions:
+        raw = _extract(entry, "version", "name", "id")
+        if raw is None:
+            continue
+        raw_str = str(raw)
+        num = _parse_version_number(raw_str)
+        if num is None:
+            if best_obj is None:
+                best_obj = entry
+                best_str = raw_str
+            continue
+        if num > best_num:
+            best_num = num
+            best_obj = entry
+            best_str = raw_str
+    return best_obj, best_str
+
+
+def _resolve_latest_version(
+    client: Any,
+    agent_name: str,
+    create_response: Any,
+) -> tuple[str | None, Any]:
+    """Re-resolve the genuinely newest version after ``create_version``.
+
+    Adapter + Chain of Responsibility: the Azure AI Projects preview SDK
+    has been observed to return ``create_version`` responses whose
+    ``.version`` / ``.status`` reflect the *previous* version, not the
+    one just created (root cause of the false "v3 active" report seen
+    against ``inventory-health-check``). This helper queries the
+    platform after the fact and returns the actually-latest version,
+    falling back to weaker signals as the SDK surface allows.
+
+    Resolution order:
+
+    1. ``client.agents.list_versions(agent_name=...)`` -- iterate and
+       pick the entry with the highest numeric version label.
+    2. ``client.agents.get_agent(agent_name=...)`` -- read
+       ``latest_version`` / ``version``, then ``get_version`` for the
+       full object.
+    3. Fall back to ``create_response`` (older SDK builds).
+
+    Whichever path resolves logs a structured INFO line of the form::
+
+        foundry_hosted_agent_resolved_version agent=<name>
+            reported=<from_create_response> resolved=<from_list>
+            path=<list_versions|get_agent|create_response>
+
+    so divergence between what the SDK reported and what the platform
+    actually holds is visible in operator logs.
+
+    Returns:
+        ``(version_str_or_none, version_obj)``. ``version_obj`` is the
+        raw SDK payload for the resolved path -- the original
+        ``create_response`` for the final fallback.
+    """
+    reported_raw = _extract(create_response, "version", "name", "id")
+    reported_str = str(reported_raw) if reported_raw is not None else None
+
+    agents = getattr(client, "agents", None)
+
+    # Path 1: list_versions -- strongest signal.
+    list_versions = getattr(agents, "list_versions", None)
+    if list_versions is not None:
+        try:
+            try:
+                versions = list_versions(agent_name=agent_name)
+            except TypeError:
+                # Older preview builds accepted positional args only.
+                versions = list_versions(agent_name)
+            latest_obj, latest_str = _pick_latest_version(versions)
+            if latest_obj is not None:
+                # The ``list_versions`` endpoint is DENORMALIZED on the
+                # preview surface: every entry reports ``status: "active"``
+                # regardless of the true per-version state. Refresh via
+                # ``get_version`` so the caller sees the real status, not
+                # the stale list-entry value. This mirrors Path 2 below and
+                # prevents the deploy from short-circuiting the poll loop
+                # on a fake "active" terminal status (the root cause of the
+                # false-positive ``v3 active`` reports observed against
+                # ``inventory-health-check`` when the underlying image
+                # actually failed to be pulled by Foundry).
+                get_version_fn = getattr(agents, "get_version", None)
+                resolved_obj: Any = latest_obj
+                if get_version_fn is not None and latest_str is not None:
+                    try:
+                        try:
+                            resolved_obj = get_version_fn(agent_name=agent_name, version=latest_str)
+                        except TypeError:
+                            resolved_obj = get_version_fn(agent_name, latest_str)
+                    except Exception:  # pylint: disable=broad-exception-caught
+                        logger.warning(
+                            "foundry_hosted_agent_resolve_get_version_after_list_error "
+                            "agent=%s version=%s",
+                            agent_name,
+                            latest_str,
+                            exc_info=True,
+                        )
+                        resolved_obj = latest_obj
+                logger.info(
+                    "foundry_hosted_agent_resolved_version agent=%s "
+                    "reported=%s resolved=%s path=list_versions",
+                    agent_name,
+                    reported_str,
+                    latest_str,
+                )
+                return latest_str, resolved_obj
+        except Exception:  # pylint: disable=broad-exception-caught
+            # Preview SDK surface is volatile: fall through rather than
+            # break deploy when list_versions exists but errors.
+            logger.warning(
+                "foundry_hosted_agent_resolve_list_versions_error agent=%s",
+                agent_name,
+                exc_info=True,
+            )
+
+    # Path 2: get_agent + get_version.
+    get_agent = getattr(agents, "get_agent", None)
+    if get_agent is not None:
+        try:
+            try:
+                agent_obj = get_agent(agent_name=agent_name)
+            except TypeError:
+                agent_obj = get_agent(agent_name)
+            latest = _extract(agent_obj, "latest_version", "version")
+            if latest is not None:
+                latest_str = str(latest)
+                try:
+                    version_obj = agents.get_version(agent_name=agent_name, version=latest_str)
+                except TypeError:
+                    version_obj = agents.get_version(agent_name, latest_str)
+                logger.info(
+                    "foundry_hosted_agent_resolved_version agent=%s "
+                    "reported=%s resolved=%s path=get_agent",
+                    agent_name,
+                    reported_str,
+                    latest_str,
+                )
+                return latest_str, version_obj
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.warning(
+                "foundry_hosted_agent_resolve_get_agent_error agent=%s",
+                agent_name,
+                exc_info=True,
+            )
+
+    # Path 3: trust create_response as today.
+    logger.info(
+        "foundry_hosted_agent_resolved_version agent=%s reported=%s "
+        "resolved=%s path=create_response",
+        agent_name,
+        reported_str,
+        reported_str,
+    )
+    return reported_str, create_response
 
 
 def deploy_hosted_agent_version(
@@ -262,16 +470,20 @@ def deploy_hosted_agent_version(
         definition=definition,
     )
 
-    version_id = _extract(create_response, "version", "name", "id")
-    status = _normalize_status(_extract(create_response, "status", "provisioning_state"))
-    endpoint_url = _extract(create_response, "endpoint_url", "endpoint")
+    # The preview SDK has been observed to return a ``create_version``
+    # response whose ``.version`` / ``.status`` reflect the *previous*
+    # version rather than the one just created. Re-resolve from the
+    # platform so ``result`` reflects reality, not stale SDK state.
+    version_id, version_obj = _resolve_latest_version(client, manifest.name, create_response)
+    status = _normalize_status(_extract(version_obj, "status", "provisioning_state"))
+    endpoint_url = _extract(version_obj, "endpoint_url", "endpoint")
 
     result = HostedAgentDeploymentResult(
         agent_name=manifest.name,
         version=str(version_id) if version_id is not None else None,
         status=status,
         endpoint_url=str(endpoint_url) if endpoint_url else None,
-        raw=create_response,
+        raw=version_obj,
     )
 
     if not poll or status in _TERMINAL_STATUSES:

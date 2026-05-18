@@ -90,8 +90,18 @@ template:
     - name: HOLIDAY_PEAK_FOUNDRY_HOSTED
       value: "1"
     # Foundry expects the container to serve on the dedicated internal port.
+    # ``PORT`` is the canonical env-var consumed by the
+    # ``azure-ai-agentserver-core`` framework (see ``_config.resolve_port``);
+    # the Dockerfile CMD reads it first, then ``UVICORN_PORT``, then 8088.
+    - name: PORT
+      value: "8088"
     - name: UVICORN_PORT
       value: "8088"
+    # Foundry hosted-agent containers get tight CPU quotas at scale-from-zero,
+    # so we run a single uvicorn worker to keep startup well under the
+    # readiness deadline. AKS pods override this via Helm.
+    - name: WEB_CONCURRENCY
+      value: "1"
 container:
   cpu: "1"
   memory: 2Gi

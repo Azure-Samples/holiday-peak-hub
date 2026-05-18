@@ -334,6 +334,7 @@ def build_service_app(
 
     @asynccontextmanager
     async def _service_lifespan(wrapped_app: FastAPI) -> AsyncIterator[None]:
+        logger.info("lifespan_start service=%s", service_name)
         # Resolve missing Azure Redis auth from Key Vault before serving traffic.
         if (
             memory_settings is not None
@@ -342,6 +343,7 @@ def build_service_app(
             and memory_settings.redis_password_secret_name
             and memory_settings.redis_url_needs_password_resolution(hot_memory.url)
         ):
+            logger.info("lifespan_kv_resolve_begin service=%s", service_name)
             try:
                 redis_password = await _fetch_key_vault_secret(
                     memory_settings.key_vault_uri,
@@ -358,12 +360,17 @@ def build_service_app(
                     "hot memory may be unavailable",
                     exc_info=True,
                 )
+            logger.info("lifespan_kv_resolve_end service=%s", service_name)
 
         if lifespan is not None:
+            logger.info("lifespan_eventhub_begin service=%s", service_name)
             async with lifespan(wrapped_app):
+                logger.info("lifespan_ready service=%s", service_name)
                 yield
         else:
+            logger.info("lifespan_ready service=%s no_eventhub_lifespan=true", service_name)
             yield
+        logger.info("lifespan_shutdown service=%s", service_name)
 
     app.router.lifespan_context = _service_lifespan
     router.register("default", agent.handle)
