@@ -2,10 +2,9 @@
 
 These tests cover the *translation logic* (free-form text -> handle dict ->
 AgentResponse) without requiring the optional
-``agent-framework-foundry-hosting`` package to be installed. End-to-end
-mount tests live under ``.tmp/probe_mount.py`` and the planned
-``inventory-health-check`` integration test once the SDK is available in
-the lib venv.
+``agent-framework-foundry-hosting`` package to be installed. When that SDK is
+present, the mounted ``/responses`` path is also exercised through FastAPI's
+``TestClient``.
 """
 
 from __future__ import annotations
@@ -19,6 +18,7 @@ from holiday_peak_lib.agents.hosted import (
     _extract_text_from_handle_result,
     _extract_user_text,
     _HostedAgentRunAdapter,
+    _resolve_run_messages,
 )
 
 
@@ -52,6 +52,12 @@ class _MessageLike:
         self.input = input_value
 
 
+class _EnumRoleLike:
+    """Minimal enum-like role object matching SDK role.value behavior."""
+
+    value = "user"
+
+
 def test_extract_user_text_pulls_last_text_message() -> None:
     msgs = [
         Message(role="user", contents=[Content(type="text", text="earlier")]),
@@ -61,6 +67,21 @@ def test_extract_user_text_pulls_last_text_message() -> None:
         ),
     ]
     assert _extract_user_text(msgs) == "latest input text"
+
+
+def test_extract_user_text_reads_content_from_text_contract() -> None:
+    messages = [Message(role="user", contents=[Content.from_text("check health for SKU-1234")])]
+
+    assert _extract_user_text(messages) == "check health for SKU-1234"
+
+
+def test_extract_user_text_handles_enum_like_user_role() -> None:
+    message = _MessageLike(
+        role=_EnumRoleLike(),
+        contents=[Content.from_text("check health for SKU-1234")],
+    )
+
+    assert _extract_user_text([message]) == "check health for SKU-1234"
 
 
 @pytest.mark.parametrize(
@@ -121,6 +142,13 @@ def test_extract_user_text_handles_empty_inputs() -> None:
     assert _extract_user_text([]) == ""
 
 
+def test_resolve_run_messages_accepts_sdk_keyword_messages() -> None:
+    messages = [Message(role="user", contents=["kwarg"])]
+
+    assert _resolve_run_messages(None, {"messages": messages}) is messages
+    assert _resolve_run_messages(["positional"], {"messages": messages}) == ["positional"]
+
+
 def test_extract_text_from_handle_result_prefers_known_keys() -> None:
     assert _extract_text_from_handle_result({"text": "t-value"}) == "t-value"
     assert _extract_text_from_handle_result({"response": "r-value"}) == "r-value"
@@ -165,6 +193,23 @@ async def test_hosted_run_adapter_round_trips_text() -> None:
     assert response.messages and response.messages[0].contents
     text = getattr(response.messages[0].contents[0], "text", None)
     assert text == "hello-from-handle"
+
+
+@pytest.mark.asyncio
+async def test_hosted_run_adapter_uses_messages_from_kwargs() -> None:
+    agent = _RecordingAgent()
+
+    async def translator(text: str) -> dict[str, Any]:
+        return {"prompt": text}
+
+    adapter = _HostedAgentRunAdapter(agent, translator)
+    response = await adapter.run(messages=[Message(role="user", contents=["positional"])])
+    assert agent.last_request == {"prompt": "positional"}
+    assert response.messages
+
+    await adapter.run(input=[Message(role="user", contents=["kwarg-input"])])
+
+    assert agent.last_request == {"prompt": "kwarg-input"}
 
 
 @pytest.mark.asyncio
@@ -301,3 +346,51 @@ def test_serve_hosted_honors_explicit_prefix_when_sdk_present() -> None:
     }
     paths.discard(None)
     assert "/v1/responses" in paths
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"model": "inventory-health-check", "input": "check health for SKU-1234"},
+        {
+            "model": "inventory-health-check",
+            "input": [
+                {
+                    "type": "message",
+                    "role": "user",
+                    "content": "check health for SKU-1234",
+                }
+            ],
+        },
+        {
+            "model": "inventory-health-check",
+            "input": [
+                {
+                    "type": "message",
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": "check health for SKU-1234"}],
+                }
+            ],
+        },
+    ],
+)
+def test_serve_hosted_responses_post_preserves_prompt_when_sdk_present(
+    body: dict[str, Any],
+) -> None:
+    pytest.importorskip("agent_framework_foundry_hosting")
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    agent = _RecordingAgent()
+
+    async def translator(text: str) -> dict[str, Any]:
+        return {"prompt": text}
+
+    app = FastAPI()
+    agent.serve_hosted(app, request_translator=translator)
+    client = TestClient(app)
+
+    response = client.post("/responses", json=body)
+
+    assert response.status_code == 200
+    assert agent.last_request == {"prompt": "check health for SKU-1234"}

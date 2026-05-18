@@ -118,7 +118,8 @@ class _HostedAgentRunAdapter:
         managed by the host server, and we do not yet pass extra client
         kwargs through to ``handle()``.
         """
-        _ = session, kwargs
+        messages = _resolve_run_messages(messages, kwargs)
+        _ = session
         if stream:
             return self._run_streaming(messages)
         return self._run_once(messages)
@@ -185,12 +186,27 @@ def _extract_user_text(messages: Any) -> str:
     return ""
 
 
+def _resolve_run_messages(messages: Any, kwargs: dict[str, Any]) -> Any:
+    """Return the message payload from known ``SupportsAgentRun`` call shapes."""
+    if messages is not None:
+        return messages
+    for field_name in ("messages", "input", "inputs"):
+        value = kwargs.get(field_name)
+        if value is not None:
+            return value
+    return messages
+
+
 def _message_role(message: Any) -> str | None:
     """Return a normalized role from dict-like or object-like messages."""
     role = _message_field(message, "role")
     if role is None:
         return None
-    return str(role).lower()
+    role_value = getattr(role, "value", role)
+    normalized = str(role_value).lower()
+    if normalized.startswith("messagerole."):
+        return normalized.rsplit(".", maxsplit=1)[-1]
+    return normalized
 
 
 def _message_field(message: Any, field_name: str) -> Any:
