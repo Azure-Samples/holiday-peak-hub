@@ -890,6 +890,102 @@ def test_derive_project_scope_raises_when_resolver_returns_none() -> None:
         )
 
 
+def test_resolve_azure_cli_executable_prefers_windows_cmd(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Windows Azure CLI installs commonly expose ``az.cmd`` on PATH."""
+    calls: list[str] = []
+    az_cmd = "C:\\Program Files\\Microsoft SDKs\\Azure\\CLI2\\wbin\\az.cmd"
+
+    def _fake_which(candidate: str) -> str | None:
+        calls.append(candidate)
+        return az_cmd if candidate == "az.cmd" else None
+
+    monkeypatch.setattr(deploy_module.sys, "platform", "win32")
+    monkeypatch.setattr(deploy_module.shutil, "which", _fake_which)
+
+    resolver = getattr(deploy_module, "_resolve_azure_cli_executable")
+    assert resolver() == az_cmd
+    assert calls == ["az.cmd"]
+
+
+def test_resolve_azure_cli_executable_falls_back_to_windows_exe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The resolver checks Windows launcher names before the bare command."""
+    calls: list[str] = []
+    az_exe = "C:\\Program Files\\Microsoft SDKs\\Azure\\CLI2\\wbin\\az.exe"
+
+    def _fake_which(candidate: str) -> str | None:
+        calls.append(candidate)
+        return az_exe if candidate == "az.exe" else None
+
+    monkeypatch.setattr(deploy_module.sys, "platform", "win32")
+    monkeypatch.setattr(deploy_module.shutil, "which", _fake_which)
+
+    resolver = getattr(deploy_module, "_resolve_azure_cli_executable")
+    assert resolver() == az_exe
+    assert calls == ["az.cmd", "az.exe"]
+
+
+def test_resolve_azure_cli_executable_uses_bare_command_off_windows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+
+    def _fake_which(candidate: str) -> str | None:
+        calls.append(candidate)
+        return "/usr/bin/az" if candidate == "az" else None
+
+    monkeypatch.setattr(deploy_module.sys, "platform", "linux")
+    monkeypatch.setattr(deploy_module.shutil, "which", _fake_which)
+
+    resolver = getattr(deploy_module, "_resolve_azure_cli_executable")
+    assert resolver() == "/usr/bin/az"
+    assert calls == ["az"]
+
+
+def test_resolve_azure_cli_executable_raises_actionable_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(deploy_module.sys, "platform", "win32")
+    monkeypatch.setattr(deploy_module.shutil, "which", lambda _candidate: None)
+
+    resolver = getattr(deploy_module, "_resolve_azure_cli_executable")
+    with pytest.raises(RuntimeError, match="Azure CLI executable not found"):
+        resolver()
+
+
+def test_resolve_ai_account_resource_id_via_az_uses_resolved_cli(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _FakeProc:  # pylint: disable=too-few-public-methods
+        def __init__(self) -> None:
+            self.returncode = 0
+            self.stdout = "/subscriptions/sub/resourceGroups/rg/providers/accounts/account-foo\n"
+            self.stderr = ""
+
+    captured: dict[str, Any] = {}
+    az_cmd = "C:\\Program Files\\Microsoft SDKs\\Azure\\CLI2\\wbin\\az.cmd"
+
+    def _fake_run(cmd: list[str], **_kw: Any) -> _FakeProc:
+        captured["cmd"] = cmd
+        return _FakeProc()
+
+    monkeypatch.setattr(deploy_module, "_resolve_azure_cli_executable", lambda: az_cmd)
+    monkeypatch.setattr(deploy_module.subprocess, "run", _fake_run)
+
+    result = (
+        deploy_module._resolve_ai_account_resource_id_via_az(  # pylint: disable=protected-access
+            "account-foo"
+        )
+    )
+
+    assert result == "/subscriptions/sub/resourceGroups/rg/providers/accounts/account-foo"
+    assert captured["cmd"][0] == az_cmd
+    assert captured["cmd"][1:3] == ["resource", "list"]
+
+
 def test_deploy_auto_grants_foundry_user_after_active(
     monkeypatch: pytest.MonkeyPatch, manifest: HostedAgentManifest
 ) -> None:
@@ -1009,6 +1105,39 @@ def test_deploy_surfaces_grant_failure_without_breaking_active(
     assert "insufficient permissions" in grant_payload["error"]
 
 
+def test_deploy_captures_cli_resolution_failure_without_breaking_active(
+    monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
+) -> None:
+    """Missing Azure CLI is recorded as role-grant failure, not deploy failure."""
+    monkeypatch.setattr(deploy_module.time, "sleep", lambda _s: None)
+    test_manifest = request.getfixturevalue("manifest")
+    agents = _AgentsWithIdentity(polls_until_terminal=1, terminal_status="active")
+    client = _FakeProjectClient(agents)
+
+    def _missing_cli() -> str:
+        raise RuntimeError("Azure CLI executable not found")
+
+    monkeypatch.setattr(deploy_module, "_resolve_azure_cli_executable", _missing_cli)
+
+    result = deploy_module.deploy_hosted_agent_version(
+        test_manifest,
+        image_uri="acr.example.io/sample:latest",
+        project_endpoint="https://account-foo.services.ai.azure.com/api/projects/proj-bar",
+        project_client=client,
+        poll_interval_seconds=0.0,
+        project_scope=(
+            "/subscriptions/sub-id/resourceGroups/my-rg/providers/"
+            "Microsoft.CognitiveServices/accounts/account-foo/projects/proj-bar"
+        ),
+    )
+
+    assert result.status == "active"
+    assert result.succeeded
+    grant_payload = result.extras["role_grant"]
+    assert grant_payload["status"] == "failed"
+    assert "Azure CLI executable not found" in grant_payload["error"]
+
+
 def test_deploy_records_skipped_when_principal_id_missing(
     monkeypatch: pytest.MonkeyPatch, manifest: HostedAgentManifest
 ) -> None:
@@ -1092,6 +1221,7 @@ def test_grant_role_via_az_treats_already_exists_as_idempotent(
             stderr="The role assignment already exists. (RoleAssignmentExists)",
         )
 
+    monkeypatch.setattr(deploy_module, "_resolve_azure_cli_executable", lambda: "az")
     monkeypatch.setattr(deploy_module.subprocess, "run", _fake_run)
     result = deploy_module._grant_role_via_az(  # pylint: disable=protected-access
         principal_id="abc-123",
@@ -1110,6 +1240,7 @@ def test_grant_role_via_az_raises_on_real_failure(
             self.stdout = stdout
             self.stderr = stderr
 
+    monkeypatch.setattr(deploy_module, "_resolve_azure_cli_executable", lambda: "az")
     monkeypatch.setattr(
         deploy_module.subprocess,
         "run",
@@ -1139,11 +1270,15 @@ def test_grant_role_via_az_parses_assignment_id_on_success(
         '{"id": "/scope/providers/Microsoft.Authorization/roleAssignments/aaa",'
         ' "principalId": "abc-123"}'
     )
-    monkeypatch.setattr(
-        deploy_module.subprocess,
-        "run",
-        lambda *_a, **_kw: _FakeProc(returncode=0, stdout=payload),
-    )
+    captured: dict[str, Any] = {}
+    az_cmd = "C:\\Program Files\\Microsoft SDKs\\Azure\\CLI2\\wbin\\az.cmd"
+
+    def _fake_run(cmd: list[str], **_kw: Any) -> _FakeProc:
+        captured["cmd"] = cmd
+        return _FakeProc(returncode=0, stdout=payload)
+
+    monkeypatch.setattr(deploy_module, "_resolve_azure_cli_executable", lambda: az_cmd)
+    monkeypatch.setattr(deploy_module.subprocess, "run", _fake_run)
 
     result = deploy_module._grant_role_via_az(  # pylint: disable=protected-access
         principal_id="abc-123",
@@ -1154,3 +1289,5 @@ def test_grant_role_via_az_parses_assignment_id_on_success(
     assert result["id"].endswith("/aaa")
     assert result["principal_id"] == "abc-123"
     assert result["scope"] == "/scope"
+    assert captured["cmd"][0] == az_cmd
+    assert captured["cmd"][1:4] == ["role", "assignment", "create"]

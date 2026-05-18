@@ -31,7 +31,9 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import shutil
 import subprocess
+import sys
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
@@ -797,9 +799,10 @@ def _resolve_ai_account_resource_id_via_az(account_name: str) -> str | None:
     subscription that owns the Cognitive Services account. Returns the first
     matching resource id, or ``None`` if no account is visible.
     """
+    az_executable = _resolve_azure_cli_executable()
     proc = subprocess.run(  # noqa: S603,S607 -- arg list is fixed, not user input
         [
-            "az",
+            az_executable,
             "resource",
             "list",
             "--resource-type",
@@ -827,6 +830,21 @@ def _resolve_ai_account_resource_id_via_az(account_name: str) -> str | None:
     return resource_id or None
 
 
+def _resolve_azure_cli_executable() -> str:
+    """Resolve the Azure CLI executable path for direct subprocess calls."""
+    candidates = ["az.cmd", "az.exe", "az"] if sys.platform == "win32" else ["az"]
+    for candidate in candidates:
+        resolved = shutil.which(candidate)
+        if resolved:
+            return resolved
+    checked = ", ".join(candidates)
+    raise RuntimeError(
+        "Azure CLI executable not found. Install Azure CLI and ensure one of "
+        f"{checked} is available on PATH before hosted-agent auto-grant runs, "
+        "or disable auto_grant_role when RBAC is managed out of band."
+    )
+
+
 def _grant_role_via_az(
     *,
     principal_id: str,
@@ -846,9 +864,10 @@ def _grant_role_via_az(
     so the behaviour is unchanged from what operators have been running
     by hand.
     """
+    az_executable = _resolve_azure_cli_executable()
     proc = subprocess.run(  # noqa: S603,S607 -- arg list is fixed, not user input
         [
-            "az",
+            az_executable,
             "role",
             "assignment",
             "create",
