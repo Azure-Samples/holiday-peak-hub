@@ -30,7 +30,7 @@ spec:
       clientId: 036f4fd2-9093-4948-b0dd-beb5c87aa6dc
     image:
       repository: holidaypeakhub405devacr.azurecr.io/inventory-health-check
-      tag: 808d48227b08ceaf9f2d820010e02edf5250b57f
+      tag: ae0201b1de5f16eba281d57b543b25a31f71a5df
     replicaCount: 2
     resources:
       limits:
@@ -90,6 +90,7 @@ spec:
       FOUNDRY_AUTO_ENSURE_ON_STARTUP: 'true'
       AGENT_FOUNDRY_INVOKE_TIMEOUT_SECONDS: '60'
       FOUNDRY_STRICT_ENFORCEMENT: 'false'
+      HOLIDAY_PEAK_AKS_RESPONSES_ENABLED: '1'
       KEY_VAULT_URI: https://holidaypeakhub405-dev-kv.vault.azure.net/
       MODEL_DEPLOYMENT_NAME_FAST: gpt-5-nano
       MODEL_DEPLOYMENT_NAME_RICH: gpt-5
