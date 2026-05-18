@@ -89,12 +89,13 @@ template:
       value: "{{KEY_VAULT_URI}}"
     - name: HOLIDAY_PEAK_FOUNDRY_HOSTED
       value: "1"
-    # Foundry expects the container to serve on the dedicated internal port.
-    # ``PORT`` is the canonical env-var consumed by the
-    # ``azure-ai-agentserver-core`` framework (see ``_config.resolve_port``);
-    # the Dockerfile CMD reads it first, then ``UVICORN_PORT``, then 8088.
-    - name: PORT
-      value: "8088"
+    # NOTE: ``PORT`` is also reserved by Foundry V3 hosted-agents (the
+    # platform injects it itself when launching the container; declaring it
+    # here triggers ``invalid_payload: Environment variable 'PORT' is reserved
+    # for platform use``). The Dockerfile CMD already prefers ``PORT`` over
+    # ``UVICORN_PORT`` over the framework default 8088, so the platform value
+    # wins automatically. We keep ``UVICORN_PORT`` as a non-reserved fallback
+    # for local docker-run / AKS dev parity only.
     - name: UVICORN_PORT
       value: "8088"
     # Foundry hosted-agent containers get tight CPU quotas at scale-from-zero,
