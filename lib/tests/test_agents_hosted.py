@@ -95,15 +95,69 @@ async def test_hosted_run_adapter_round_trips_text() -> None:
 
 
 @pytest.mark.asyncio
-async def test_hosted_run_adapter_refuses_streaming() -> None:
+async def test_hosted_run_adapter_streams_single_update() -> None:
+    """``run(stream=True)`` must return an async iterator (NOT a coroutine).
+
+    Foundry's ``ResponsesHostServer`` calls
+    ``async for update in agent.run(stream=True, ...):`` without awaiting
+    first — so the dispatcher MUST return an async iterator directly.
+    Marking ``run`` as ``async def`` would always return a coroutine and
+    fail with ``TypeError: 'async for' requires an object with __aiter__``.
+    This test pins the streaming contract that powers the Foundry portal
+    Playground (which always sets ``stream=True``).
+    """
+    from agent_framework import AgentResponseUpdate
+
+    agent = _RecordingAgent()
+
+    async def translator(text: str) -> dict[str, Any]:
+        return {"prompt": text, "kind": "translated"}
+
+    adapter = _HostedAgentRunAdapter(agent, translator)
+
+    iterator = adapter.run(messages=[Message(role="user", contents=["stream me"])], stream=True)
+
+    # MUST be an async iterator, not a coroutine.
+    assert hasattr(iterator, "__aiter__"), (
+        "run(stream=True) must return an async iterator so the host server "
+        "can `async for update in agent.run(...)` it directly"
+    )
+
+    updates = [item async for item in iterator]
+
+    assert len(updates) == 1, "Single-chunk streaming adapter emits one update"
+    update = updates[0]
+    assert isinstance(update, AgentResponseUpdate)
+    assert update.role == "assistant"
+    assert update.contents and len(update.contents) == 1
+    text = getattr(update.contents[0], "text", None)
+    assert text == "hello-from-handle"
+    # Translator was called and ``handle()`` received the translated request.
+    assert agent.last_request == {"prompt": "stream me", "kind": "translated"}
+
+
+@pytest.mark.asyncio
+async def test_hosted_run_adapter_non_streaming_returns_awaitable() -> None:
+    """``run(stream=False)`` must return an awaitable (not an async iterator).
+
+    The non-streaming Foundry path does ``response = await agent.run(...)``,
+    so the dispatcher must return a coroutine/awaitable that resolves to an
+    :class:`AgentResponse`.
+    """
     agent = _RecordingAgent()
 
     async def translator(text: str) -> dict[str, Any]:
         return {"prompt": text}
 
     adapter = _HostedAgentRunAdapter(agent, translator)
-    with pytest.raises(NotImplementedError):
-        await adapter.run(messages=[Message(role="user", contents=["x"])], stream=True)
+    awaitable = adapter.run(messages=[Message(role="user", contents=["once"])])
+
+    # The non-streaming path returns a coroutine; awaiting it yields an
+    # AgentResponse. It must NOT be async-iterable (that's the streaming
+    # path's contract).
+    assert hasattr(awaitable, "__await__")
+    response = await awaitable
+    assert response.messages and response.messages[0].contents
 
 
 def test_serve_hosted_raises_clear_error_when_sdk_missing(monkeypatch) -> None:

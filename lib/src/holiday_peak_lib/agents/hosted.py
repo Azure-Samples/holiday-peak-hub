@@ -35,9 +35,9 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import TYPE_CHECKING, Any, Awaitable, Callable
+from typing import TYPE_CHECKING, Any, AsyncIterator, Awaitable, Callable
 
-from agent_framework import AgentResponse, Message
+from agent_framework import AgentResponse, AgentResponseUpdate, Content, Message
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from fastapi import FastAPI
@@ -62,14 +62,29 @@ class _HostedAgentRunAdapter:
     """Minimal ``SupportsAgentRun`` implementation that delegates to a
     :class:`BaseRetailAgent`.
 
-    The Foundry ``ResponsesHostServer`` calls ``agent.run(messages, *,
-    stream, session, **kwargs)`` and expects an ``AgentResponse``. Our
-    retail agents implement ``handle(request: dict) -> dict`` instead.
-    This adapter bridges the two without touching ``handle()`` semantics.
+    The Foundry ``ResponsesHostServer`` calls
+    ``agent.run(messages, *, stream, session, **kwargs)`` with two distinct
+    contracts depending on ``stream`` (verified against
+    ``agent_framework_foundry_hosting==1.0.0a260507`` in
+    ``agent_framework_foundry_hosting/_responses.py``):
 
-    Streaming is not supported in this preview adapter — Foundry will fall
-    back to the non-streaming path. ``invoke_model_stream`` integration is
-    a follow-up.
+    * ``stream=False`` — ``response = await agent.run(...)`` expects an
+      :class:`AgentResponse` (with ``.messages`` of ``Message`` objects).
+    * ``stream=True`` — ``async for update in agent.run(...):`` iterates
+      :class:`AgentResponseUpdate` items whose ``.contents`` are passed to
+      a tracker that emits SSE events. The Foundry portal Playground
+      always sets ``stream=True``.
+
+    Because the same call site must return *either* a coroutine *or* an
+    async iterator, ``run`` is intentionally a synchronous dispatcher.
+    Marking it ``async def`` would always return a coroutine and break the
+    streaming path with ``TypeError: 'async for' requires an object with
+    __aiter__``.
+
+    Retail agents implement ``handle(request: dict) -> dict`` (unary). This
+    adapter currently emits the full reply as a single
+    :class:`AgentResponseUpdate` chunk in the streaming path; richer
+    incremental streaming via ``invoke_model_stream`` is a follow-up.
     """
 
     def __init__(
@@ -87,25 +102,54 @@ class _HostedAgentRunAdapter:
         # ``middleware`` is read by the host server only when present.
         self.middleware = getattr(agent, "middleware", []) or []
 
-    async def run(
+    def run(
         self,
         messages: Any = None,
         *,
         stream: bool = False,
         session: Any = None,
         **kwargs: Any,
-    ) -> AgentResponse:
-        # ``session`` and ``kwargs`` are part of the SupportsAgentRun protocol
-        # but the current adapter does not consume them — Foundry-side session
-        # state is managed by the host server, and we do not yet pass extra
-        # client kwargs through to ``handle()``.
+    ) -> "Awaitable[AgentResponse] | AsyncIterator[AgentResponseUpdate]":
+        """Dispatch on ``stream`` to satisfy the dual ``SupportsAgentRun``
+        contract used by ``ResponsesHostServer``.
+
+        ``session`` and ``kwargs`` are part of the protocol but the current
+        adapter does not consume them — Foundry-side session state is
+        managed by the host server, and we do not yet pass extra client
+        kwargs through to ``handle()``.
+        """
         _ = session, kwargs
         if stream:
-            raise NotImplementedError(
-                "Streaming responses are not yet implemented for the hosted-agent "
-                "FastAPI mount. Re-issue the request with stream=False."
-            )
+            return self._run_streaming(messages)
+        return self._run_once(messages)
 
+    async def _run_once(self, messages: Any) -> AgentResponse:
+        """Non-streaming path: collect the unary reply and return one
+        :class:`AgentResponse`.
+        """
+        reply_text = await self._invoke_handle(messages)
+        reply = Message(role="assistant", contents=[reply_text])
+        return AgentResponse(messages=[reply], agent_id=self.id)
+
+    async def _run_streaming(self, messages: Any) -> AsyncIterator[AgentResponseUpdate]:
+        """Streaming path: yield a single :class:`AgentResponseUpdate`
+        chunk carrying the full text reply.
+
+        The retail agents' ``handle()`` is unary, so we cannot emit
+        incremental tokens yet. Emitting one well-formed update is
+        sufficient for the Foundry host's SSE tracker to render the reply
+        and terminate the stream cleanly; richer per-token streaming via
+        ``invoke_model_stream`` is tracked as a follow-up.
+        """
+        reply_text = await self._invoke_handle(messages)
+        yield AgentResponseUpdate(
+            contents=[Content(type="text", text=reply_text)],
+            role="assistant",
+            agent_id=self.id,
+        )
+
+    async def _invoke_handle(self, messages: Any) -> str:
+        """Shared translation + dispatch + extraction used by both paths."""
         text = _extract_user_text(messages)
         request = await self._translate(text)
         try:
@@ -116,10 +160,7 @@ class _HostedAgentRunAdapter:
                 getattr(self._agent, "service_name", self.name),
             )
             raise
-
-        reply_text = _extract_text_from_handle_result(result)
-        reply = Message(role="assistant", contents=[reply_text])
-        return AgentResponse(messages=[reply], agent_id=self.id)
+        return _extract_text_from_handle_result(result)
 
     def create_session(self, *, session_id: str | None = None) -> Any:
         # Delegate to the wrapped agent (BaseAgent provides this from agent_framework).
