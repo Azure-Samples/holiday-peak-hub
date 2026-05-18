@@ -10,9 +10,10 @@ from holiday_peak_lib.agents.base_agent import BaseRetailAgent
 from holiday_peak_lib.agents.memory.cold import ColdMemory
 from holiday_peak_lib.agents.memory.hot import HotMemory
 from holiday_peak_lib.agents.memory.warm import WarmMemory
-from holiday_peak_lib.app_factory import build_service_app
+from holiday_peak_lib.app_factory import build_service_app, create_standard_app
 from holiday_peak_lib.config.settings import MemorySettings
 from holiday_peak_lib.connectors.registry import ConnectorRegistry
+from holiday_peak_lib.utils import EventHubSubscription
 
 TEST_PROJECT_ENDPOINT = "https://test.services.ai.azure.com/api/projects/test-project"
 
@@ -68,6 +69,93 @@ def _clear_foundry_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "HOLIDAY_PEAK_DIRECT_MODEL",
     ):
         monkeypatch.delenv(key, raising=False)
+
+
+def _clear_runtime_dependency_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    for key in (
+        "REDIS_URL",
+        "REDIS_HOST",
+        "REDIS_PASSWORD",
+        "KEY_VAULT_URI",
+        "COSMOS_ACCOUNT_URI",
+        "COSMOS_DATABASE",
+        "COSMOS_CONTAINER",
+        "BLOB_ACCOUNT_URL",
+        "BLOB_CONTAINER",
+        "EVENT_HUB_NAMESPACE",
+        "EVENT_HUB_CONNECTION_STRING",
+        "HOLIDAY_PEAK_HOT_MEMORY_ENABLED",
+        "HOLIDAY_PEAK_EVENTHUB_SUBSCRIBERS_ENABLED",
+        "HOLIDAY_PEAK_REDIS_SOCKET_TIMEOUT_SECONDS",
+        "HOLIDAY_PEAK_REDIS_CONNECT_TIMEOUT_SECONDS",
+    ):
+        monkeypatch.delenv(key, raising=False)
+
+
+class TestCreateStandardAppRuntimeFlags:
+    """Test create_standard_app hosted-mode dependency controls."""
+
+    def test_hot_memory_defaults_to_enabled_with_bounded_timeouts(self, monkeypatch):
+        _clear_foundry_env(monkeypatch)
+        _clear_runtime_dependency_env(monkeypatch)
+        monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+
+        app = create_standard_app("test-service", SampleServiceAgent)
+
+        hot_memory = app.state.agent.hot_memory
+        assert isinstance(hot_memory, HotMemory)
+        assert hot_memory.url == "redis://localhost:6379/0"
+        assert hot_memory.socket_timeout == 1.0
+        assert hot_memory.socket_connect_timeout == 1.0
+        assert hot_memory.retry_on_timeout is False
+
+    def test_hot_memory_can_be_disabled_with_env_flag(self, monkeypatch):
+        _clear_foundry_env(monkeypatch)
+        _clear_runtime_dependency_env(monkeypatch)
+        monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+        monkeypatch.setenv("HOLIDAY_PEAK_HOT_MEMORY_ENABLED", "false")
+
+        app = create_standard_app("test-service", SampleServiceAgent)
+
+        assert app.state.agent.hot_memory is None
+
+    def test_eventhub_subscribers_default_to_enabled(self, monkeypatch):
+        _clear_foundry_env(monkeypatch)
+        _clear_runtime_dependency_env(monkeypatch)
+
+        async def handler(_partition_context, _event):  # noqa: ANN001
+            return None
+
+        with patch(
+            "holiday_peak_lib.app_factory.create_eventhub_lifespan",
+            return_value=None,
+        ) as create_lifespan:
+            create_standard_app(
+                "test-service",
+                SampleServiceAgent,
+                subscriptions=[EventHubSubscription("inventory-events", "test-group")],
+                handlers={"inventory-events": handler},
+            )
+
+        create_lifespan.assert_called_once()
+
+    def test_eventhub_subscribers_can_be_disabled_with_env_flag(self, monkeypatch):
+        _clear_foundry_env(monkeypatch)
+        _clear_runtime_dependency_env(monkeypatch)
+        monkeypatch.setenv("HOLIDAY_PEAK_EVENTHUB_SUBSCRIBERS_ENABLED", "false")
+
+        async def handler(_partition_context, _event):  # noqa: ANN001
+            return None
+
+        with patch("holiday_peak_lib.app_factory.create_eventhub_lifespan") as create_lifespan:
+            create_standard_app(
+                "test-service",
+                SampleServiceAgent,
+                subscriptions=[EventHubSubscription("inventory-events", "test-group")],
+                handlers={"inventory-events": handler},
+            )
+
+        create_lifespan.assert_not_called()
 
 
 class TestBuildServiceApp:
@@ -402,6 +490,37 @@ class TestBuildServiceApp:
                 pass
 
         assert hot_memory.url == "rediss://:s3cret@myredis.redis.cache.windows.net:6380/0"
+        assert hot_memory.client is None
+        mock_fetch.assert_awaited_once_with(
+            "https://test-kv.vault.azure.net/",
+            "redis-primary-key",
+        )
+
+    def test_app_detaches_authless_azure_redis_when_key_vault_secret_fails(self, monkeypatch):
+        _clear_foundry_env(monkeypatch)
+        hot_memory = HotMemory("rediss://myredis.redis.cache.windows.net:6380/0")
+        memory_settings = MemorySettings(
+            _env_file=None,
+            redis_url="rediss://myredis.redis.cache.windows.net:6380/0",
+            key_vault_uri="https://test-kv.vault.azure.net/",
+            redis_password_secret_name="redis-primary-key",
+        )
+
+        with patch(
+            "holiday_peak_lib.app_factory._fetch_key_vault_secret",
+            new=AsyncMock(side_effect=PermissionError("rbac denied")),
+        ) as mock_fetch:
+            app = build_service_app(
+                service_name="test-service",
+                agent_class=SampleServiceAgent,
+                hot_memory=hot_memory,
+                memory_settings=memory_settings,
+            )
+
+            with TestClient(app):
+                pass
+
+        assert app.state.agent.hot_memory is None
         assert hot_memory.client is None
         mock_fetch.assert_awaited_once_with(
             "https://test-kv.vault.azure.net/",

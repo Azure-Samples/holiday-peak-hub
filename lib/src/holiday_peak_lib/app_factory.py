@@ -39,6 +39,72 @@ _FALLBACK_INSTRUCTIONS_TEMPLATE = (
     "Structured instructions file not found for '{service_name}'. "
     "Use only provided request data, state missing fields, and avoid assumptions."
 )
+_HOT_MEMORY_ENABLED_ENV = "HOLIDAY_PEAK_HOT_MEMORY_ENABLED"
+_EVENTHUB_SUBSCRIBERS_ENABLED_ENV = "HOLIDAY_PEAK_EVENTHUB_SUBSCRIBERS_ENABLED"
+_REDIS_SOCKET_TIMEOUT_ENV = "HOLIDAY_PEAK_REDIS_SOCKET_TIMEOUT_SECONDS"
+_REDIS_CONNECT_TIMEOUT_ENV = "HOLIDAY_PEAK_REDIS_CONNECT_TIMEOUT_SECONDS"
+_DEFAULT_REDIS_SOCKET_TIMEOUT_SECONDS = 1.0
+_DEFAULT_REDIS_CONNECT_TIMEOUT_SECONDS = 1.0
+_FALSE_ENV_VALUES = {"0", "false", "no", "off"}
+_TRUE_ENV_VALUES = {"1", "true", "yes", "on"}
+
+
+def _env_flag_enabled(name: str, *, default: bool = True) -> bool:
+    """Return a boolean feature flag from the process environment."""
+    raw_value = os.getenv(name)
+    if raw_value is None:
+        return default
+
+    normalized = raw_value.strip().lower()
+    if normalized in _FALSE_ENV_VALUES:
+        return False
+    if normalized in _TRUE_ENV_VALUES:
+        return True
+    return default
+
+
+def _env_positive_float(name: str, *, default: float) -> float:
+    """Return a positive float environment value, falling back on invalid input."""
+    raw_value = os.getenv(name)
+    if raw_value is None:
+        return default
+
+    try:
+        value = float(raw_value)
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
+def _build_hot_memory(memory_settings: MemorySettings) -> HotMemory | None:
+    """Build bounded Redis hot memory unless runtime flags disable it."""
+    if not _env_flag_enabled(_HOT_MEMORY_ENABLED_ENV):
+        return None
+
+    resolved_redis_url = memory_settings.resolve_redis_url()
+    if not resolved_redis_url:
+        return None
+
+    return HotMemory(
+        resolved_redis_url,
+        socket_timeout=_env_positive_float(
+            _REDIS_SOCKET_TIMEOUT_ENV,
+            default=_DEFAULT_REDIS_SOCKET_TIMEOUT_SECONDS,
+        ),
+        socket_connect_timeout=_env_positive_float(
+            _REDIS_CONNECT_TIMEOUT_ENV,
+            default=_DEFAULT_REDIS_CONNECT_TIMEOUT_SECONDS,
+        ),
+        retry_on_timeout=False,
+    )
+
+
+def _detach_agent_hot_memory(agent: BaseRetailAgent) -> None:
+    """Detach optional hot memory from the request path after auth failure."""
+    agent.hot_memory = None
+    memory_client = getattr(agent, "memory_client", None)
+    if memory_client is not None:
+        memory_client.hot = None
 
 
 async def _fetch_key_vault_secret(vault_uri: str, secret_name: str) -> str:
@@ -89,8 +155,7 @@ def create_standard_app(
     """
     self_healing_kernel = SelfHealingKernel.from_env(service_name)
     memory_settings = MemorySettings()
-    resolved_redis_url = memory_settings.resolve_redis_url()
-    hot_memory = HotMemory(resolved_redis_url) if resolved_redis_url else None
+    hot_memory = _build_hot_memory(memory_settings)
     warm_memory = (
         WarmMemory(
             memory_settings.cosmos_account_uri,
@@ -110,7 +175,7 @@ def create_standard_app(
         else None
     )
     lifespan = None
-    if subscriptions and handlers:
+    if subscriptions and handlers and _env_flag_enabled(_EVENTHUB_SUBSCRIBERS_ENABLED_ENV):
         eventhub_kwargs: dict[str, Any] = {}
         if self_healing_kernel is not None:
             eventhub_kwargs["self_healing_kernel"] = self_healing_kernel
@@ -359,6 +424,13 @@ def build_service_app(
                     "Redis password resolution from Key Vault failed; "
                     "hot memory may be unavailable",
                     exc_info=True,
+                )
+            if memory_settings.redis_url_needs_password_resolution(hot_memory.url):
+                hot_memory.client = None
+                _detach_agent_hot_memory(agent)
+                logger.warning(
+                    "Redis password resolution failed for authless Azure Redis URL; "
+                    "detached hot memory from request path"
                 )
             logger.info("lifespan_kv_resolve_end service=%s", service_name)
 

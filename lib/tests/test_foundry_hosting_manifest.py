@@ -11,6 +11,8 @@ from holiday_peak_lib.foundry_hosting.manifest import (
     resolve_environment_variables,
 )
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
 CANONICAL_YAML = """\
 name: sample-hosted-agent
 description: hosted-agent under test
@@ -126,3 +128,13 @@ def test_resolve_environment_variables_non_strict_keeps_placeholder(tmp_path: Pa
     manifest = load_manifest(_write(tmp_path, CANONICAL_YAML))
     resolved = resolve_environment_variables(manifest, env={}, strict=False)
     assert resolved["AZURE_AI_MODEL_DEPLOYMENT_NAME"] == "{{AZURE_AI_MODEL_DEPLOYMENT_NAME}}"
+
+
+def test_inventory_hosted_manifest_disables_private_network_dependencies() -> None:
+    manifest = load_manifest(REPO_ROOT / "apps/inventory-health-check/agent.hosted.yaml")
+    env_vars = {item.name: item.value for item in manifest.template.environment_variables}
+
+    assert env_vars["HOLIDAY_PEAK_HOT_MEMORY_ENABLED"] == "false"
+    assert env_vars["HOLIDAY_PEAK_EVENTHUB_SUBSCRIBERS_ENABLED"] == "false"
+    assert "PORT" not in env_vars
+    assert not any(name.startswith(("FOUNDRY_", "AGENT_")) for name in env_vars)

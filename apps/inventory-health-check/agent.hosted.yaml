@@ -89,6 +89,13 @@ template:
       value: "{{KEY_VAULT_URI}}"
     - name: HOLIDAY_PEAK_FOUNDRY_HOSTED
       value: "1"
+    # Hosted containers run outside the private AKS VNet. Keep optional
+    # private-network dependencies detached from request handling while the
+    # AKS deployment continues to use the default framework behavior.
+    - name: HOLIDAY_PEAK_HOT_MEMORY_ENABLED
+      value: "false"
+    - name: HOLIDAY_PEAK_EVENTHUB_SUBSCRIBERS_ENABLED
+      value: "false"
     # NOTE: ``PORT`` is also reserved by Foundry V3 hosted-agents (the
     # platform injects it itself when launching the container; declaring it
     # here triggers ``invalid_payload: Environment variable 'PORT' is reserved

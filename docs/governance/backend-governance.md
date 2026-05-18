@@ -1,7 +1,7 @@
 # Backend Development Governance and Compliance Guidelines
 
 **Version**: 2.0  
-**Last Updated**: 2026-04-12  
+**Last Updated**: 2026-05-18  
 **Owner**: Backend Team
 
 ## Scope
@@ -41,9 +41,20 @@ Applies to all Python services and shared framework packages under:
 
 ### Data and memory
 
-- Use three-tier memory strategy where applicable (Redis hot, Cosmos warm, Blob cold) (ADR-007).
+- Use three-tier memory strategy where applicable (Redis hot, Cosmos warm, Blob cold) (ADR-007, ADR-032).
 - Keep Cosmos queries partition-aware and resilient to throttling (`429` backoff).
 - Do not bypass configured identity and secret patterns.
+
+### Hosted runtime isolation flags
+
+The three-tier memory contract remains canonical for product services (ADR-007, ADR-032), and Event Hubs remain the canonical choreography layer (ADR-006). The following flags are supported runtime isolation controls for hosted containers or other surfaces that run outside the private AKS VNet and cannot reach optional private-network dependencies; they are not removals of the memory or event architecture.
+
+| Flag | Default | Supported use |
+| --- | --- | --- |
+| `HOLIDAY_PEAK_HOT_MEMORY_ENABLED=false` | Enabled | Detaches Redis hot memory from the hosted request path while keeping warm and cold memory wiring available where configured. |
+| `HOLIDAY_PEAK_EVENTHUB_SUBSCRIBERS_ENABLED=false` | Enabled | Skips Event Hub background subscriber lifespan wiring for hosted runtimes that should serve synchronous requests without private Event Hub connectivity. |
+
+AKS manifests should keep the default full-product behavior unless an ADR-017 deployment decision explicitly scopes a workload outside private-network reachability. Redis hot memory is optional on the request path: the framework bounds socket and connect timeouts and fails open for Redis authentication, connection, timeout, and OS-level faults so optional cache failures do not surface as agent request failures.
 
 ### Security
 
