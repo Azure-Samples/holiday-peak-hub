@@ -171,15 +171,91 @@ class _HostedAgentRunAdapter:
 
 
 def _extract_user_text(messages: Any) -> str:
-    """Pull the most recent user-message text from a MAF message sequence."""
+    """Pull the most recent user-message text from MAF/OpenAI shapes."""
     if not messages:
         return ""
-    seq = messages if isinstance(messages, (list, tuple)) else [messages]
-    for msg in reversed(seq):
-        for content in getattr(msg, "contents", None) or []:
-            text = getattr(content, "text", None)
+    sequence = messages if isinstance(messages, (list, tuple)) else [messages]
+    for message in reversed(sequence):
+        role = _message_role(message)
+        if role is not None and role != "user":
+            continue
+        text = _extract_message_text(message)
+        if text:
+            return text
+    return ""
+
+
+def _message_role(message: Any) -> str | None:
+    """Return a normalized role from dict-like or object-like messages."""
+    role = _message_field(message, "role")
+    if role is None:
+        return None
+    return str(role).lower()
+
+
+def _message_field(message: Any, field_name: str) -> Any:
+    """Read one field from a dict-like or object-like message."""
+    if isinstance(message, dict):
+        return message.get(field_name)
+    return getattr(message, field_name, None)
+
+
+def _extract_message_text(message: Any) -> str:
+    """Return the first non-empty text value from a single message."""
+    if isinstance(message, str):
+        return message
+
+    for field_name in ("contents", "content"):
+        text = _extract_content_text(_message_field(message, field_name))
+        if text:
+            return text
+
+    text = _extract_input_text(_message_field(message, "input"))
+    if text:
+        return text
+
+    return _extract_content_text(_message_field(message, "text"))
+
+
+def _extract_input_text(value: Any) -> str:
+    """Extract text from Responses ``input`` values."""
+    if _looks_like_message_sequence(value):
+        return _extract_user_text(value)
+    return _extract_content_text(value)
+
+
+def _looks_like_message_sequence(value: Any) -> bool:
+    """Return whether a value looks like a list of chat messages."""
+    if not isinstance(value, (list, tuple)):
+        return False
+    return any(
+        _message_field(item, "role") is not None
+        or _message_field(item, "contents") is not None
+        or _message_field(item, "content") is not None
+        for item in value
+    )
+
+
+def _extract_content_text(value: Any) -> str:
+    """Return the first non-empty text value from content parts."""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (list, tuple)):
+        for item in value:
+            text = _extract_content_text(item)
             if text:
-                return str(text)
+                return text
+        return ""
+    for field_name in ("contents", "content", "input", "text"):
+        field_value = _message_field(value, field_name)
+        if field_name == "input":
+            text = _extract_input_text(field_value)
+        else:
+            text = _extract_content_text(field_value)
+        if text:
+            return text
     return ""
 
 

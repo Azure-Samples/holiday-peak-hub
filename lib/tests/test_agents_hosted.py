@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from agent_framework import Message
+from agent_framework import Content, Message
 from holiday_peak_lib.agents.base_agent import AgentDependencies, BaseRetailAgent
 from holiday_peak_lib.agents.hosted import (
     _extract_text_from_handle_result,
@@ -35,12 +35,85 @@ class _RecordingAgent(BaseRetailAgent):
         return self.next_response
 
 
+class _MessageLike:
+    def __init__(
+        self,
+        *,
+        role: str | None = "user",
+        contents: list[Any] | None = None,
+        content: Any = None,
+        text: str | None = None,
+        input_value: Any = None,
+    ) -> None:
+        self.role = role
+        self.contents = contents
+        self.content = content
+        self.text = text
+        self.input = input_value
+
+
 def test_extract_user_text_pulls_last_text_message() -> None:
     msgs = [
-        Message(role="user", contents=["earlier"]),
-        Message(role="user", contents=["latest input text"]),
+        Message(role="user", contents=[Content(type="text", text="earlier")]),
+        Message(
+            role="user",
+            contents=[Content(type="text", text="latest input text")],
+        ),
     ]
     assert _extract_user_text(msgs) == "latest input text"
+
+
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        (_MessageLike(content="plain object content"), "plain object content"),
+        (
+            _MessageLike(content=[{"type": "input_text", "text": "object part"}]),
+            "object part",
+        ),
+        ({"role": "user", "content": "plain dict content"}, "plain dict content"),
+        (
+            {"role": "user", "content": [{"type": "input_text", "text": "dict part"}]},
+            "dict part",
+        ),
+        (_MessageLike(role=None, text="object direct text"), "object direct text"),
+        ({"text": "dict direct text"}, "dict direct text"),
+        ({"input": "direct input text"}, "direct input text"),
+        (
+            {
+                "input": [
+                    {"role": "user", "content": "earlier nested input"},
+                    {
+                        "role": "user",
+                        "content": [{"type": "input_text", "text": "latest nested input"}],
+                    },
+                ]
+            },
+            "latest nested input",
+        ),
+    ],
+)
+def test_extract_user_text_handles_common_maf_and_openai_shapes(
+    message: Any, expected: str
+) -> None:
+    assert _extract_user_text(message) == expected
+
+
+def test_extract_user_text_prefers_most_recent_user_message() -> None:
+    messages = [
+        {"role": "user", "content": "older user text"},
+        {"role": "assistant", "content": "assistant text should be ignored"},
+        {"role": "user", "content": "latest user text"},
+    ]
+    assert _extract_user_text(messages) == "latest user text"
+
+
+def test_extract_user_text_skips_later_non_user_messages() -> None:
+    messages = [
+        {"role": "user", "content": "latest user text"},
+        {"role": "assistant", "content": "assistant text should be ignored"},
+    ]
+    assert _extract_user_text(messages) == "latest user text"
 
 
 def test_extract_user_text_handles_empty_inputs() -> None:
