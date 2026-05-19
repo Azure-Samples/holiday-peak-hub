@@ -25,7 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Issue #1107 / PR #1103 APIM sync and smoke: corrected generated CRUD policy CORS header expressions in `.infra/azd/hooks/sync-apim-agents.sh` and `.infra/azd/hooks/sync-apim-agents.ps1` to use raw quotes inside XML `<value>` text while preserving entity-escaped quotes in XML attributes; the CRUD backend section now emits only `<forward-request timeout="60" />`; and public `/api/ready` now rewrites to the CRUD service `/ready` probe. The CRUD AGC route contract now publishes `/ready` alongside `/health` and `/api`, so APIM smoke tests reach the FastAPI readiness endpoint instead of receiving an AGC 404. Added offline infra regression coverage for these policy and route contracts.
 
-- Issue #1107 / PR #1103 APIM smoke hardening: CORS preflight validation now retries expected `Access-Control-Allow-*` headers, matching the existing health probe retry behavior and absorbing APIM policy propagation lag immediately after `sync-apim` succeeds.
+- Issue #1107 / PR #1103 APIM smoke hardening: CORS preflight validation now retries expected `Access-Control-Allow-*` headers and normalizes raw `curl -D` CRLF response headers before shell assertions, matching the existing health probe retry behavior while avoiding header-parsing false negatives immediately after `sync-apim` succeeds.
 
 - Issue #1107 / PR #1103 branch-preview cleanup: `deploy-azd.yml` now falls back to `az aks command invoke` when the runner's direct `kubectl` credentials fail while restoring the Flux `GitRepository` source from a preview branch back to `main`, preventing failed smoke runs from leaving GitOps pinned to the PR branch.
 

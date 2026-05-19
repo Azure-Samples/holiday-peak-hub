@@ -3947,18 +3947,22 @@ jobs:
             local url="$1"
             local label="$2"
             local headers_file="/tmp/apim-cors-headers.txt"
+            local normalized_headers_file="/tmp/apim-cors-headers-normalized.txt"
             local body_file="/tmp/apim-cors-body.txt"
             local status_code=""
 
             for attempt in $(seq 1 20); do
+              : > "$headers_file"
+              : > "$normalized_headers_file"
               status_code=$(curl -sS -D "$headers_file" -o "$body_file" -w "%{http_code}" \
                 -X OPTIONS "$url" \
                 -H "Origin: http://localhost:3000" \
                 -H "Access-Control-Request-Method: GET") || status_code="000"
+              tr -d '\r' < "$headers_file" > "$normalized_headers_file" 2>/dev/null || true
 
               if { [ "$status_code" = "200" ] || [ "$status_code" = "204" ]; } \
-                && grep -Eiq '^Access-Control-Allow-Origin: http://localhost:3000\r?$' "$headers_file" \
-                && grep -Eiq '^Access-Control-Allow-Methods: .*GET' "$headers_file"; then
+                && grep -Eiq '^Access-Control-Allow-Origin: http://localhost:3000$' "$normalized_headers_file" \
+                && grep -Eiq '^Access-Control-Allow-Methods: .*GET' "$normalized_headers_file"; then
                 echo "[OK] $label: $url"
                 return 0
               fi
