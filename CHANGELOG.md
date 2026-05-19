@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Issue #1107 / PR #1103 APIM sync: corrected generated CRUD policy CORS header expressions in `.infra/azd/hooks/sync-apim-agents.sh` and `.infra/azd/hooks/sync-apim-agents.ps1` to use raw quotes inside XML `<value>` text while preserving entity-escaped quotes in XML attributes; added offline infra regression coverage so APIM policy upload validation does not reject the generated policy body.
+
 - Issue #1107 / PR #1103 CRUD HelmRelease image pin: `.kubernetes/releases/crud/crud-service.yaml` now points at readiness-timeout ACR tag `07e3185c884dfd3321c90d5914597a2f34663c5b`, keeping Flux preview desired state aligned with the workflow `imageTag`/`testedSourceSha` so AGC validates the `/ready` timeout guard instead of an older CRUD image.
 
 - Issue #1107 / PR #1103 AGC CRUD readiness: bounded CRUD startup dependency warm-up for PostgreSQL pool initialization and Key Vault secret retrieval so `/health` can serve process liveness promptly while `/ready` continues to return degraded/503 for Redis, Cosmos DB, PostgreSQL, or connector dependency failures.

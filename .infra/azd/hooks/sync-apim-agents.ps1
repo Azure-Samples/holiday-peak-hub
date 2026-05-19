@@ -865,7 +865,7 @@ function Update-CrudApi {
     <outbound>
         <base />
         <set-header name="Access-Control-Allow-Origin" exists-action="override">
-            <value>@(context.Request.Headers.GetValueOrDefault(&quot;Origin&quot;, &quot;http://localhost:3000&quot;))</value>
+            <value>@(context.Request.Headers.GetValueOrDefault("Origin", "http://localhost:3000"))</value>
         </set-header>
         <set-header name="Access-Control-Allow-Methods" exists-action="override">
             <value>GET,POST,PUT,PATCH,DELETE,OPTIONS</value>
@@ -879,7 +879,7 @@ function Update-CrudApi {
         <return-response>
             <set-status code="502" reason="Bad Gateway" />
             <set-header name="Access-Control-Allow-Origin" exists-action="override">
-                <value>@(context.Request.Headers.GetValueOrDefault(&quot;Origin&quot;, &quot;http://localhost:3000&quot;))</value>
+                <value>@(context.Request.Headers.GetValueOrDefault("Origin", "http://localhost:3000"))</value>
             </set-header>
             <set-header name="Access-Control-Allow-Methods" exists-action="override">
                 <value>GET,POST,PUT,PATCH,DELETE,OPTIONS</value>
