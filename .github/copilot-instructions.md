@@ -76,6 +76,16 @@ Use this mapping to know the current vs. former names—so you can correctly int
   - `MODEL_DEPLOYMENT_NAME_RICH`: LLM deployment name
 - Each app's `main.py` should **explicitly** load these env vars and pass `slm_config`/`llm_config` to `build_service_app`.
 
+## Hosted Agent Terminology
+
+- Never use "hosted agent" without a qualifier in this repository. The term is overloaded across AKS runtime, Foundry portal labels, and Foundry-managed container hosting.
+- **AKS-hosted agent/service** means the product runtime runs as the existing FastAPI container/pod in AKS. If a service is deployed through `azure.yaml` with `host: aks` and reconciled through Flux/HelmRelease, the correct answer to "is it hosted on AKS?" is **yes**.
+- **AKS-hosted Responses adapter** means the Responses protocol is mounted into the same AKS-hosted FastAPI app, same pod, and same port as `/health`, `/ready`, `/mcp/*`, and `/invoke`. For `inventory-health-check`, this is the intended architecture.
+- **Foundry portal-tracked agent** means `agent.yaml` and `.foundry/agent-metadata.yaml` provide portal visibility, traceability, evaluations, or protocol metadata. These files do not mean Foundry owns the service runtime.
+- **Foundry-managed hosted-container agent** means Foundry owns/runs a hosted container through artifacts such as `agent.hosted.yaml`, `template.kind: hosted`, `AIProjectClient.agents.create_version`, a second entry point, or a secondary port. This is not the Holiday Peak Hub product path and must not be introduced without an ADR amendment.
+- **ACA-hosted agent** means Azure Container Apps owns the runtime. `inventory-health-check` is not ACA-hosted.
+- When explaining PR #1103, issue #1107, `inventory-health-check`, Responses protocol support, or Foundry portal labels, use the precise terms above. Do not answer "no" to "is this hosted on AKS?" when the real distinction is "yes, AKS-hosted; no, not ACA-hosted; no, not Foundry-managed hosted-container compute."
+
 ## Memory Architecture
 
 - Three-tier memory: **Hot** (Redis), **Warm** (Cosmos DB), **Cold** (Blob Storage).
