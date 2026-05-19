@@ -13,7 +13,12 @@ DEFAULT_FOUNDRY_MODELS = {
 
 
 def build_foundry_config(agent_env: str, deployment_env: str) -> FoundryAgentConfig | None:
-    """Build direct-model Foundry configuration from environment variables."""
+    """Build direct-model Foundry configuration from environment variables.
+
+    The AKS runtime contract uses the ``FOUNDRY_AGENT_ID_*`` and
+    ``FOUNDRY_AGENT_NAME_*`` environment variables for portal-tracking
+    metadata while direct-model invocation binds to ``MODEL_DEPLOYMENT_NAME_*``.
+    """
     endpoint = os.getenv("PROJECT_ENDPOINT") or os.getenv("FOUNDRY_ENDPOINT")
     project_name = os.getenv("PROJECT_NAME") or os.getenv("FOUNDRY_PROJECT_NAME")
     role = "fast" if agent_env.endswith("FAST") else "rich"

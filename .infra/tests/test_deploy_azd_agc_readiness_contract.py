@@ -3,14 +3,39 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_PATH = ROOT / ".github" / "workflows" / "deploy-azd.yml"
+INVENTORY_WRAPPER_PATH = ROOT / ".github" / "workflows" / "deploy-azd-inventory-health-check.yml"
+SERVICE_WRAPPER_GENERATOR_PATH = ROOT / "scripts" / "ci" / "regen_service_deploy_entrypoints.py"
+VALIDATE_JOB_MARKER = "  validate-agc-readiness:\n"
 VALIDATE_STEP_MARKER = "      - name: Validate AGC gateway class and direct CRUD health\n"
 NEXT_SECTION_MARKER = "\n\n  sync-apim:\n"
+
+
+def _validate_agc_readiness_job() -> str:
+    content = WORKFLOW_PATH.read_text(encoding="utf-8")
+    assert content.count(VALIDATE_JOB_MARKER) == 1
+    return content.split(VALIDATE_JOB_MARKER, 1)[1].split(NEXT_SECTION_MARKER, 1)[0]
 
 
 def _validate_agc_readiness_block() -> str:
     content = WORKFLOW_PATH.read_text(encoding="utf-8")
     assert content.count(VALIDATE_STEP_MARKER) == 1
     return content.split(VALIDATE_STEP_MARKER, 1)[1].split(NEXT_SECTION_MARKER, 1)[0]
+
+
+def test_validate_agc_readiness_receives_changed_agent_services_from_detect_changes() -> None:
+    job = _validate_agc_readiness_job()
+    env_block = job.split("    env:\n", 1)[1].split("    steps:\n", 1)[0]
+
+    assert "      CHANGED_AGENT_SERVICES: ${{ needs.detect-changes.outputs.changed_agent_services_csv }}" in env_block
+
+
+def test_inventory_service_preview_entrypoint_uses_branch_environment_contract() -> None:
+    wrapper = INVENTORY_WRAPPER_PATH.read_text(encoding="utf-8")
+    generator = SERVICE_WRAPPER_GENERATOR_PATH.read_text(encoding="utf-8")
+
+    assert "      githubEnvironment: branch\n" in wrapper
+    assert "      githubEnvironment: dev\n" not in wrapper
+    assert "githubEnvironment: branch" in generator
 
 
 def test_agc_readiness_validates_alb_and_traffic_controller_before_gateway_contract_and_direct_health() -> None:

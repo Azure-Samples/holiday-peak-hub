@@ -3,7 +3,7 @@
 This module defines what a *model* is from the agent's point of view:
 
 * :data:`ModelInvoker` — the async-callable contract every model adapter
-  satisfies (Azure AI Agents, Chat Completions, Foundry hosted, …).
+    satisfies (Azure AI Agents, Chat Completions, Responses API, etc.).
 * :class:`StreamingModelInvoker` — Strategy-pattern marker for invokers
   that additionally support token streaming via ``stream=True``.
 * :class:`ModelTarget` — a deployable model bound to a concrete invoker
@@ -154,7 +154,7 @@ def build_logprobs_payload(target: "ModelTarget") -> dict[str, Any]:
 
     * **Chat Completions** (and Azure OpenAI / generic adapters):
       ``{"logprobs": True, "top_logprobs": <int>?}``.
-    * **Responses API** (Foundry hosted agents, OpenAI Responses):
+    * **Responses API** (Foundry/OpenAI Responses):
       ``{"include": ["message.output_text.logprobs"], "top_logprobs": <int>?}`` —
       Responses API does not accept a boolean ``logprobs`` field;
       presence of the token in the ``include`` array is the toggle.
@@ -192,7 +192,7 @@ class ModelTarget:
     The ``invoker`` is an async callable that receives ``messages`` (list or
     str), optional ``tools``, and any extra kwargs. This keeps the agent
     base class agnostic of the concrete SDK (Azure AI Agents, Chat
-    Completions, Foundry hosted, …).
+    Completions, Responses API, etc.).
 
     ``logprobs`` defaults to ``True`` so every new configuration emits
     per-token confidence into the telemetry channel out-of-the-box.

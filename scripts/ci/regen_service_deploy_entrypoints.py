@@ -6,8 +6,9 @@ now-deleted deploy-azd-service.yml reusable), write a fresh entrypoint that
 calls deploy-azd.yml directly with the proven contract used by
 deploy-azd-dev.yml:
 
-- githubEnvironment: dev (so jobs bind to the existing 'dev' GitHub
-  Environment that has the required secrets and branch protection).
+- githubEnvironment: branch (so feature-branch service previews avoid the
+  protected 'dev' selected-branch restriction while still using the approved
+  environment-scoped OIDC subject).
 - environment: dev (azd env name).
 - skipProvision: true (per-service deploys never re-run provision).
 - deployStatic/uiOnly: false (per-service entrypoints are backend-only).
@@ -114,7 +115,7 @@ jobs:
     uses: ./.github/workflows/deploy-azd.yml
     with:
       environment: dev
-      githubEnvironment: dev
+      githubEnvironment: branch
       location: ${{{{ github.event_name == 'workflow_dispatch' && inputs.location || 'centralus' }}}}
       projectName: ${{{{ github.event_name == 'workflow_dispatch' && inputs.projectName || 'holidaypeakhub405' }}}}
       imageTag: ${{{{ github.event_name == 'workflow_dispatch' && inputs.imageTag || github.sha }}}}

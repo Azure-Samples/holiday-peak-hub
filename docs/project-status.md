@@ -8,9 +8,9 @@
 
 **Why now.** The 2026-04-28 “Mandatory Foundry Invocation Policy” in [ADR-005](architecture/adrs/adr-005-agent-framework.md) was reversed on 2026-05-10 (same ADR, append-only amendment). Drivers: (1) the 2–5s per-request overhead did not yield a proportionate operational return; (2) tool-calling fidelity is structurally cleaner with native MAF function-calling than with the hand-rolled JSON-text parser; (3) the inventory hosted-agent precedent (commit `4cf0e546`, 2026-04-25) demonstrated the direct-model shape end-to-end — it was deleted only because it had been shipped as a *parallel* entry point alongside `main.py`, which is the dual-runtime anti-pattern the new policy explicitly forbids.
 
-**Single-architecture guardrail.** No service may ship a second entry point (e.g., `hosted_main.py`, parallel `ResponsesHostServer`, secondary port) alongside `main.py`. The MAF `Agent` is constructed inside the existing FastAPI handler. This is the explicit lesson from the deleted inventory `hosted_main.py`.
+**Single-architecture guardrail.** No service may ship a second entry point (e.g., `hosted_main.py`, secondary port, or a second FastAPI/Starlette runtime) alongside `main.py`. The MAF `Agent` is constructed inside the existing FastAPI handler. A Responses protocol adapter is permitted only when mounted into the same AKS-hosted FastAPI app and same pod/port as `/health`, `/ready`, `/mcp/*`, and `/invoke`.
 
-**Portal-tracking manifests.** Each active agent service now carries `agent.yaml` and `.foundry/agent-metadata.yaml` as local Foundry portal-tracking metadata only. These artifacts do not introduce `hosted_main.py`, `ResponsesHostServer`, `entrypoint.sh`, port `8088`, or any parallel runtime; deployment and invocation still run through `DirectModelInvoker` inside the existing FastAPI app.
+**Portal-tracking manifests.** Each active agent service now carries `agent.yaml` and `.foundry/agent-metadata.yaml` as local Foundry portal-tracking metadata only. `inventory-health-check` may also declare `responses 1.0.0` in `agent.yaml` to describe the AKS-hosted adapter, but production/product manifests must not introduce `agent.hosted.yaml`, `agent.manifest.yaml`, `template.kind: hosted`, `AIProjectClient.agents.create_version`, `entrypoint.sh`, port `8088`, or any parallel runtime. Deployment and invocation still run through `DirectModelInvoker` inside the existing FastAPI app.
 
 **Tool calling.** Tools register in two places, additively: (a) MCP server for A2A (unchanged), and (b) the in-process MAF `Agent(tools=[...])` for native function-calling. The `_inject_tool_prompt` / `_extract_tool_calls_from_text` / `schema_tools_injected` JSON-parsing path in `lib/src/holiday_peak_lib/agents/foundry.py` was deleted in Wave 4c of the cutover.
 
@@ -190,6 +190,9 @@ merged squash commit on `main`.
 - **CRUD Dev Readiness Probe Alignment**: Dev/local Helm rendering no longer downgrades CRUD readiness to `/health`, so dependency outages are surfaced consistently in-cluster instead of being masked by process-only liveness.
 - **PostgreSQL Auth Contract Alignment**: `POSTGRES_AUTH_MODE` now drives the Flexible Server auth policy in Bicep and a pre-rollout workflow guard verifies the live server matches the configured runtime auth mode before CRUD is redeployed.
 - **CRUD Entra Principal Alignment**: Entra-mode deployment outputs now resolve `POSTGRES_USER` to the CRUD workload identity principal (`<project>-<env>-crud-identity`), matching the pod identity used for token acquisition instead of the legacy agentpool principal.
+
+### Runtime Hotfix Notes (2026-05-19)
+- **CRUD Startup Dependency Timeout Boundary**: CRUD startup now bounds PostgreSQL pool initialization with `POSTGRES_POOL_STARTUP_TIMEOUT_SECONDS` and Key Vault secret retrieval with `KEY_VAULT_SECRET_STARTUP_TIMEOUT_SECONDS`. `/health` remains process liveness once FastAPI starts, while `/ready` continues to report Redis, Cosmos DB, PostgreSQL, and connector dependency failures as degraded/503.
 
 ### Merged PRs (v1.1.0)
 | # | Title | Category |

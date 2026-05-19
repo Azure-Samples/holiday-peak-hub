@@ -1,7 +1,7 @@
 # Infrastructure Governance and Compliance Guidelines
 
-**Version**: 2.4
-**Last Updated**: 2026-04-08
+**Version**: 2.5
+**Last Updated**: 2026-05-18
 **Owner**: Infrastructure Team
 
 ## Scope
@@ -23,6 +23,7 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 ### Core policy
 
 - **azd-first deployment is mandatory** (ADR-017). The only approved exception is the manual dev emergency redeploy path in `deploy-azd-dev.yml` with `skipProvision=true`, which reuses already-provisioned infrastructure and skips only `azd provision`.
+- Agent protocol surfaces, including the `inventory-health-check` Responses adapter, must be exposed through the canonical APIM/AGC-to-AKS route. Do not introduce Foundry-managed hosted-container deployment or a second runtime/port for product agent traffic.
 - Reusable workflow `deploy-azd.yml` is not the primary operator entrypoint; use env-specific entrypoint workflows.
 - OIDC Azure login is required in CI/CD; no static cloud credentials committed to repository.
 - Provisioning must fail fast when `projectName` is not `holidaypeakhub405` or when `resourceGroupName`/`AZURE_RESOURCE_GROUP` are not `holidaypeakhub405-<environment>-rg`; this is enforced through azd `preprovision` hooks.
@@ -51,7 +52,7 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 - The canonical naming pattern for service-scoped wrappers is `.github/workflows/deploy-azd-<service-name>.yml`, using the exact service key from `azure.yaml`.
 - Service-scoped wrappers are approved for branch-independent execution from any pushed branch when their scoped path filters match; manual runs may still pass `testedSourceSha` or `testedSourceRef` for explicit targeting.
 - Service-scoped wrappers are non-production by policy. Production rollouts must continue through the protected release path in `.github/workflows/deploy-azd-prod.yml`.
-- Service-scoped preview deploys must use GitHub Environment `branch`, and Azure federated credential trust for that path must match the environment-scoped OIDC subject emitted by reusable-workflow jobs under `branch` instead of relying only on `ref:refs/heads/*` subjects.
+- Service-scoped preview deploys must use GitHub Environment `branch`, and Azure federated credential trust for that path must match the environment-scoped OIDC subject emitted by reusable-workflow jobs under `branch` instead of relying only on `ref:refs/heads/*` subjects. Generated and hand-authored service wrappers must preserve this `githubEnvironment: branch` contract.
 - For non-prod branch-preview runs where the tested source resolves to a non-default `refs/heads/*` branch, `.github/workflows/deploy-azd.yml` must temporarily switch `GitRepository/holiday-peak-gitops` in `flux-system` to that branch, must fail fast if the preview source cannot fetch the tested revision, must treat preview Flux preparation as satisfied when the AGC-relevant Flux kustomization records that preview revision within that live kustomization's configured Flux timeout window, and must restore the repository default branch in an always-run cleanup job after validation completes.
 - Shared `dev` auto-promotion remains governed separately through the protected environment flow, and GitHub Environment branch restrictions still apply where configured.
 
@@ -94,11 +95,14 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 - Push-event changed-service detection must diff `${{ github.event.before }}...${{ github.sha }}` to avoid empty comparisons against `origin/main` after merge.
 - APIM sync/smoke checks for API path health after relevant changes.
 - For branch-preview service deploys that publish rendered manifests, deployment workflows must wait for source and AGC-relevant Flux revision observation before AGC readiness evaluation so the live Gateway reflects the tested preview branch, and that preview observation window must honor the live Flux kustomization timeout instead of assuming immediate turnover.
+- Branch-preview service deploys must update the HelmRelease desired state on the preview branch for the tested image tag before Flux reconciliation is considered deploy-complete; rendered-manifest artifacts alone are verification inputs and are not the source of truth.
 - Before preview Helm renders publish GitOps manifests, deployment workflows must normalize AGC publication context from live state when azd provision outputs are empty: recover `AGC_SUBNET_ID` from the live shared `ApplicationLoadBalancer` association referenced by the CRUD-owned Gateway contract, and do not feed a previously published AGC listener hostname back into managed-controller render inputs.
 - Preview Flux preparation must be resource-focused and must not fail solely because unrelated CRUD workloads in the wider Flux kustomization are not `Ready`.
 - AGC readiness may resolve the approved frontend hostname from azd outputs, an Application Gateway for Containers frontend in the environment resource group, an Application Gateway for Containers frontend in the AKS node resource group, or the live shared Gateway status address after AKS credentials are available.
 - Shared infrastructure is the Day-0 owner of AGC controller prerequisites: the delegated AGC subnet, workload-identity federation for `azure-alb-system/alb-controller-sa`, and the controller RBAC assignments (`Reader`, `AppGw for Containers Configuration Manager`, `Network Contributor`). Deploy hooks may verify these prerequisites but must not create or repair those role assignments inline.
 - Deployment workflows must validate AGC GatewayClass readiness, the live shared `ApplicationLoadBalancer/holiday-peak-agc` contract (`Accepted=True`, `Deployment=True`, non-empty associations), Azure traffic-controller health in the AKS node resource group, the live shared `Gateway/holiday-peak-agc` binding contract (`alb.networking.azure.io/alb-name`, `alb.networking.azure.io/alb-namespace`) plus `Accepted=True`, `Programmed=True`, and an assigned status address, shared-Gateway parent attachment for CRUD and changed-agent `HTTPRoute` resources, and then direct CRUD plus changed-agent health on an approved AGC frontend hostname before APIM sync; they must fail fast with ALB, traffic-controller, Gateway, or route evidence if any step is missing or unhealthy.
+- When AGC route attachment is healthy but direct AGC health returns `500`, treat backend readiness as the primary failure domain before changing shared AGC infrastructure: verify Flux-owned HelmRelease image tags resolve to pullable ACR manifests, Deployments have available replicas, EndpointSlices report `ready=true` and `serving=true`, and pod resource limits are not causing `OOMKilled` restarts.
+- AGC readiness jobs must propagate the changed-agent service list from `detect-changes` into the validation environment so changed-agent HTTPRoute parent attachment and direct AGC health checks are actually exercised before APIM sync.
 - APIM sync determinism is required: ingress sync must resolve against an explicit AGC target in workflow execution.
 - APIM smoke coverage must include direct AGC CRUD health, APIM CRUD health, CRUD CORS preflight behavior, and at least one negative CRUD path that proves failures are not masked as upstream 5xx responses.
 - Transitional workflow or manifest logic may still detect legacy ingress classes during migration, but AGC is the canonical target state and must take precedence in governance and cutover planning.

@@ -1328,6 +1328,7 @@ jobs:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      CHANGED_AGENT_SERVICES: ${{ needs.detect-changes.outputs.changed_agent_services_csv }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -3011,6 +3012,7 @@ jobs:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      CHANGED_AGENT_SERVICES: ${{ needs.detect-changes.outputs.changed_agent_services_csv }}
     steps:
       - uses: actions/checkout@v4
 

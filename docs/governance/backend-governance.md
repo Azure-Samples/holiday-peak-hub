@@ -1,7 +1,7 @@
 # Backend Development Governance and Compliance Guidelines
 
 **Version**: 2.0  
-**Last Updated**: 2026-04-12  
+**Last Updated**: 2026-05-18  
 **Owner**: Backend Team
 
 ## Scope
@@ -41,9 +41,15 @@ Applies to all Python services and shared framework packages under:
 
 ### Data and memory
 
-- Use three-tier memory strategy where applicable (Redis hot, Cosmos warm, Blob cold) (ADR-007).
+- Use three-tier memory strategy where applicable (Redis hot, Cosmos warm, Blob cold) (ADR-007, ADR-032).
 - Keep Cosmos queries partition-aware and resilient to throttling (`429` backoff).
 - Do not bypass configured identity and secret patterns.
+
+### AKS Responses runtime parity
+
+The three-tier memory contract remains canonical for product services (ADR-007, ADR-032), and Event Hubs remain the canonical choreography layer (ADR-006). A Responses adapter mounted into an AKS-hosted FastAPI app must keep the same Redis, Cosmos DB, Blob Storage, Event Hub, Key Vault, and Application Insights wiring as the service's `/invoke` path. Do not introduce runtime flags or manifests that detach Redis hot memory or Event Hub subscribers for the AKS Responses path.
+
+Redis hot memory is optional on the request path by behavior, not by deployment split: the framework bounds socket and connect timeouts and fails open for Redis authentication, connection, timeout, and OS-level faults so optional cache failures do not surface as agent request failures. Event Hub subscriber wiring remains part of the standard app lifespan whenever subscriptions and handlers are configured.
 
 ### Security
 
