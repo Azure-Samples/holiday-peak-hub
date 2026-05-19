@@ -75,6 +75,8 @@ spec:
       paths:
       - path: /health
         pathType: PathPrefix
+      - path: /ready
+        pathType: PathPrefix
       - path: /api
         pathType: PathPrefix
       sharedResources:
