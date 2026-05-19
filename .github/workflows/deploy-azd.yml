@@ -3943,31 +3943,38 @@ jobs:
           smoke_health "${API_BASE}/api/products?limit=1" "crud-products"
           smoke_health "${API_BASE}/api/categories" "crud-categories"
 
-          CORS_HEADERS_FILE="/tmp/apim-cors-headers.txt"
-          CORS_BODY_FILE="/tmp/apim-cors-body.txt"
-          CORS_STATUS=$(curl -sS -D "$CORS_HEADERS_FILE" -o "$CORS_BODY_FILE" -w "%{http_code}" \
-            -X OPTIONS "${API_BASE}/api/products?limit=1" \
-            -H "Origin: http://localhost:3000" \
-            -H "Access-Control-Request-Method: GET") || CORS_STATUS="000"
+          smoke_cors_preflight() {
+            local url="$1"
+            local label="$2"
+            local headers_file="/tmp/apim-cors-headers.txt"
+            local body_file="/tmp/apim-cors-body.txt"
+            local status_code=""
 
-          if [ "$CORS_STATUS" != "200" ] && [ "$CORS_STATUS" != "204" ]; then
-            echo "[FAIL] crud-cors-preflight: ${API_BASE}/api/products?limit=1 returned HTTP $CORS_STATUS" >&2
-            cat "$CORS_HEADERS_FILE" 2>/dev/null || true
-            cat "$CORS_BODY_FILE" 2>/dev/null || true
-            exit 1
-          fi
+            for attempt in $(seq 1 20); do
+              status_code=$(curl -sS -D "$headers_file" -o "$body_file" -w "%{http_code}" \
+                -X OPTIONS "$url" \
+                -H "Origin: http://localhost:3000" \
+                -H "Access-Control-Request-Method: GET") || status_code="000"
 
-          if ! grep -Eiq '^Access-Control-Allow-Origin: http://localhost:3000\r?$' "$CORS_HEADERS_FILE"; then
-            echo "[FAIL] crud-cors-preflight: missing expected Access-Control-Allow-Origin header" >&2
-            cat "$CORS_HEADERS_FILE" 2>/dev/null || true
-            exit 1
-          fi
+              if { [ "$status_code" = "200" ] || [ "$status_code" = "204" ]; } \
+                && grep -Eiq '^Access-Control-Allow-Origin: http://localhost:3000\r?$' "$headers_file" \
+                && grep -Eiq '^Access-Control-Allow-Methods: .*GET' "$headers_file"; then
+                echo "[OK] $label: $url"
+                return 0
+              fi
 
-          if ! grep -Eiq '^Access-Control-Allow-Methods: .*GET' "$CORS_HEADERS_FILE"; then
-            echo "[FAIL] crud-cors-preflight: missing expected Access-Control-Allow-Methods header" >&2
-            cat "$CORS_HEADERS_FILE" 2>/dev/null || true
-            exit 1
-          fi
+              echo "Attempt $attempt/20 failed for $label with HTTP $status_code or missing CORS headers"
+              cat "$headers_file" 2>/dev/null || true
+              sleep 10
+            done
+
+            echo "[FAIL] $label: $url did not return expected CORS preflight headers" >&2
+            cat "$headers_file" 2>/dev/null || true
+            cat "$body_file" 2>/dev/null || true
+            return 1
+          }
+
+          smoke_cors_preflight "${API_BASE}/api/products?limit=1" "crud-cors-preflight"
 
           NEGATIVE_STATUS=$(curl -sS -o /tmp/apim-negative-response.json -w "%{http_code}" "${API_BASE}/api/does-not-exist") || NEGATIVE_STATUS="000"
           if [ "$NEGATIVE_STATUS" = "500" ] || [ "$NEGATIVE_STATUS" = "502" ] || [ "$NEGATIVE_STATUS" = "503" ] || [ "$NEGATIVE_STATUS" = "000" ]; then
