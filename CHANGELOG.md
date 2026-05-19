@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Issue #1107 / PR #1103 CRUD HelmRelease image pin: `.kubernetes/releases/crud/crud-service.yaml` now points at tested ACR tag `be7ce0d3f4ae4b3300327a9426dd8065fa209301`, avoiding stale or missing tags after Flux preview/default-branch source restore and preserving direct AGC readiness validation for the CRUD backend.
+- Issue #1107 / PR #1103 CRUD HelmRelease image pin: `.kubernetes/releases/crud/crud-service.yaml` now points at readiness-timeout ACR tag `07e3185c884dfd3321c90d5914597a2f34663c5b`, keeping Flux preview desired state aligned with the workflow `imageTag`/`testedSourceSha` so AGC validates the `/ready` timeout guard instead of an older CRUD image.
 
 - Issue #1107 / PR #1103 AGC CRUD readiness: bounded CRUD startup dependency warm-up for PostgreSQL pool initialization and Key Vault secret retrieval so `/health` can serve process liveness promptly while `/ready` continues to return degraded/503 for Redis, Cosmos DB, PostgreSQL, or connector dependency failures.
 
