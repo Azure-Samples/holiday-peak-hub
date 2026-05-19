@@ -64,17 +64,20 @@ def test_startup_dependency_timeouts_default_to_bounded_values(monkeypatch) -> N
 
     assert settings.postgres_pool_startup_timeout_seconds == 10.0
     assert settings.key_vault_secret_startup_timeout_seconds == 3.0
+    assert settings.readiness_dependency_timeout_seconds == 2.0
 
 
 def test_startup_dependency_timeouts_can_be_overridden(monkeypatch) -> None:
     _set_required_env(monkeypatch)
     monkeypatch.setenv("POSTGRES_POOL_STARTUP_TIMEOUT_SECONDS", "1.5")
     monkeypatch.setenv("KEY_VAULT_SECRET_STARTUP_TIMEOUT_SECONDS", "0.25")
+    monkeypatch.setenv("READINESS_DEPENDENCY_TIMEOUT_SECONDS", "0.75")
 
     settings = Settings()
 
     assert settings.postgres_pool_startup_timeout_seconds == 1.5
     assert settings.key_vault_secret_startup_timeout_seconds == 0.25
+    assert settings.readiness_dependency_timeout_seconds == 0.75
 
 
 def test_redis_url_includes_url_encoded_password_when_present(monkeypatch) -> None:

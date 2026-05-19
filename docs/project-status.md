@@ -195,6 +195,7 @@ merged squash commit on `main`.
 
 ### Runtime Hotfix Notes (2026-05-19)
 - **CRUD Startup Dependency Timeout Boundary**: CRUD startup now bounds PostgreSQL pool initialization with `POSTGRES_POOL_STARTUP_TIMEOUT_SECONDS` and Key Vault secret retrieval with `KEY_VAULT_SECRET_STARTUP_TIMEOUT_SECONDS`. `/health` remains process liveness once FastAPI starts, while `/ready` continues to report Redis, Cosmos DB, PostgreSQL, and connector dependency failures as degraded/503.
+- **CRUD Readiness Dependency Timeout Boundary**: CRUD `/ready` now runs PostgreSQL, Redis, Cosmos DB, and connector registry checks concurrently behind `READINESS_DEPENDENCY_TIMEOUT_SECONDS`, preserving strict degraded/503 readiness while surfacing slow dependency recovery as structured timeout detail before the AKS probe window is exceeded.
 
 ### Merged PRs (v1.1.0)
 | # | Title | Category |

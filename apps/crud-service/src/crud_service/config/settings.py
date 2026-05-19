@@ -64,6 +64,11 @@ class Settings(BaseSettings):
         gt=0,
         description="Bounded startup timeout for Key Vault secret retrieval (seconds)",
     )
+    readiness_dependency_timeout_seconds: float = Field(
+        default=2.0,
+        gt=0,
+        description="Bounded per-dependency timeout for readiness checks (seconds)",
+    )
 
     # Azure Event Hubs (use Managed Identity, no connection string)
     event_hub_namespace: str = Field(

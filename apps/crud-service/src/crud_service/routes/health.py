@@ -1,7 +1,10 @@
 """Health check route."""
 
+import asyncio
 import logging
 import os
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from crud_service.config.settings import get_settings
 from crud_service.repositories.base import BaseRepository
@@ -10,6 +13,10 @@ from fastapi.responses import JSONResponse
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+ReadinessDetail = str | dict[str, Any]
+ReadinessResult = tuple[str, ReadinessDetail]
+ReadinessCheck = Callable[[], Awaitable[ReadinessResult]]
 
 
 async def _check_redis(request: Request) -> tuple[str, str]:
@@ -70,6 +77,60 @@ async def _check_postgres(request: Request) -> tuple[str, str]:
     return pool_status, pool_detail
 
 
+async def _check_connectors(request: Request) -> ReadinessResult:
+    """Return (status, detail) for runtime connector readiness."""
+    connector_registry = getattr(request.app.state, "connector_registry", None)
+    if connector_registry is None:
+        return "unconfigured", "No runtime connector registry configured"
+
+    connector_health = await connector_registry.health()
+    if not connector_health:
+        return "unconfigured", "No runtime connectors registered"
+
+    unhealthy = [name for name, ok in connector_health.items() if not ok]
+    return (
+        "healthy" if not unhealthy else "unhealthy",
+        {
+            "registered": len(connector_health),
+            "unhealthy": unhealthy,
+        },
+    )
+
+
+async def _run_readiness_check(
+    name: str,
+    check: ReadinessCheck,
+    timeout_seconds: float,
+) -> tuple[str, dict[str, Any]]:
+    """Apply the readiness timeout policy around one dependency check."""
+    try:
+        status, detail = await asyncio.wait_for(check(), timeout=timeout_seconds)
+        return name, {"status": status, "detail": detail}
+    except TimeoutError:
+        logger.warning(
+            "readiness_check %s timeout after %.3f seconds",
+            name,
+            timeout_seconds,
+        )
+        return name, {
+            "status": "unhealthy",
+            "detail": {
+                "error": "timeout",
+                "timeout_seconds": timeout_seconds,
+                "message": (f"{name} readiness check exceeded " f"{timeout_seconds:g} seconds"),
+            },
+        }
+    except Exception as exc:  # pylint: disable=broad-except
+        logger.warning("readiness_check %s error: %s", name, exc)
+        return name, {
+            "status": "unhealthy",
+            "detail": {
+                "error": type(exc).__name__,
+                "message": str(exc),
+            },
+        }
+
+
 @router.get("/health")
 async def health_check():
     """Basic liveness endpoint — always returns 200 when the process is up."""
@@ -79,43 +140,24 @@ async def health_check():
 @router.get("/ready")
 async def readiness_check(request: Request):
     """Readiness probe: checks Redis, Cosmos DB, and PostgreSQL connectivity."""
-    checks: dict[str, dict] = {}
-    overall = "ready"
+    timeout_seconds = get_settings().readiness_dependency_timeout_seconds
+    readiness_checks: list[tuple[str, ReadinessCheck]] = [
+        ("postgres", lambda: _check_postgres(request)),
+        ("redis", lambda: _check_redis(request)),
+        ("cosmos", _check_cosmos),
+    ]
+    if getattr(request.app.state, "connector_registry", None) is not None:
+        readiness_checks.append(("connectors", lambda: _check_connectors(request)))
 
-    postgres_status, postgres_detail = await _check_postgres(request)
-    checks["postgres"] = {"status": postgres_status, "detail": postgres_detail}
-    if postgres_status == "unhealthy":
-        overall = "degraded"
-
-    redis_status, redis_detail = await _check_redis(request)
-    checks["redis"] = {"status": redis_status, "detail": redis_detail}
-    if redis_status == "unhealthy":
-        overall = "degraded"
-
-    cosmos_status, cosmos_detail = await _check_cosmos()
-    checks["cosmos"] = {"status": cosmos_status, "detail": cosmos_detail}
-    if cosmos_status == "unhealthy":
-        overall = "degraded"
-
-    connector_registry = getattr(request.app.state, "connector_registry", None)
-    if connector_registry is not None:
-        connector_health = await connector_registry.health()
-        if not connector_health:
-            checks["connectors"] = {
-                "status": "unconfigured",
-                "detail": "No runtime connectors registered",
-            }
-        else:
-            unhealthy = [name for name, ok in connector_health.items() if not ok]
-            checks["connectors"] = {
-                "status": "healthy" if not unhealthy else "unhealthy",
-                "detail": {
-                    "registered": len(connector_health),
-                    "unhealthy": unhealthy,
-                },
-            }
-            if unhealthy:
-                overall = "degraded"
+    check_results = await asyncio.gather(
+        *(_run_readiness_check(name, check, timeout_seconds) for name, check in readiness_checks)
+    )
+    checks = dict(check_results)
+    overall = (
+        "degraded"
+        if any(result["status"] == "unhealthy" for result in checks.values())
+        else "ready"
+    )
 
     status_code = 200 if overall == "ready" else 503
     return JSONResponse(
