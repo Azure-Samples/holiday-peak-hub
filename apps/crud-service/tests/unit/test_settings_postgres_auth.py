@@ -57,6 +57,26 @@ def test_redis_password_secret_name_defaults_to_infra_secret(monkeypatch) -> Non
     assert settings.redis_password_secret_name == "redis-primary-key"
 
 
+def test_startup_dependency_timeouts_default_to_bounded_values(monkeypatch) -> None:
+    _set_required_env(monkeypatch)
+
+    settings = Settings()
+
+    assert settings.postgres_pool_startup_timeout_seconds == 10.0
+    assert settings.key_vault_secret_startup_timeout_seconds == 3.0
+
+
+def test_startup_dependency_timeouts_can_be_overridden(monkeypatch) -> None:
+    _set_required_env(monkeypatch)
+    monkeypatch.setenv("POSTGRES_POOL_STARTUP_TIMEOUT_SECONDS", "1.5")
+    monkeypatch.setenv("KEY_VAULT_SECRET_STARTUP_TIMEOUT_SECONDS", "0.25")
+
+    settings = Settings()
+
+    assert settings.postgres_pool_startup_timeout_seconds == 1.5
+    assert settings.key_vault_secret_startup_timeout_seconds == 0.25
+
+
 def test_redis_url_includes_url_encoded_password_when_present(monkeypatch) -> None:
     _set_required_env(monkeypatch)
     raw_password = "p@ss:/ with?#[]"

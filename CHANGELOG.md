@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Issue #1107 / PR #1103 AGC CRUD readiness: bounded CRUD startup dependency warm-up for PostgreSQL pool initialization and Key Vault secret retrieval so `/health` can serve process liveness promptly while `/ready` continues to return degraded/503 for Redis, Cosmos DB, PostgreSQL, or connector dependency failures.
+
 - Issue #1107 / PR #1103 AGC backend readiness: corrected Flux HelmRelease desired state so the direct AGC gate has ready backends, pinning `crud-service` to a pullable ACR image tag and increasing `inventory-health-check` memory to the shared chart default for the AKS-hosted Responses adapter.
 
 - Issue #1107 / PR #1103 preview deploy path: inventory-health-check service-scoped AKS deploys now use the `branch` GitHub Environment, propagate changed-agent services into AGC readiness validation, and pin the Flux HelmRelease desired state to tested image tag `ae0201b1de5f16eba281d57b543b25a31f71a5df` with the AKS Responses adapter explicitly enabled.

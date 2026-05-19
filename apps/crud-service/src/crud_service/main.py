@@ -4,7 +4,9 @@ This is NOT an agent service - it's a pure REST API microservice
 for transactional data operations and user-facing endpoints.
 """
 
+import asyncio
 import os
+from collections.abc import Awaitable
 from contextlib import asynccontextmanager
 from importlib import import_module
 from typing import Any
@@ -34,6 +36,23 @@ settings = get_settings()
 logger = configure_logging(app_name=settings.service_name)
 
 
+async def _await_startup_dependency(
+    dependency_name: str,
+    awaitable: Awaitable[Any],
+    timeout_seconds: float,
+) -> Any:
+    try:
+        return await asyncio.wait_for(awaitable, timeout=timeout_seconds)
+    except TimeoutError as exc:
+        raise TimeoutError(
+            f"{dependency_name} exceeded {timeout_seconds:g}s startup timeout"
+        ) from exc
+
+
+def _format_startup_error(exc: Exception) -> str:
+    return f"{type(exc).__name__}: {exc}"
+
+
 def configure_optional_telemetry(connection_string: str | None) -> None:
     """Configure Application Insights telemetry when dependency is available."""
     if not connection_string:
@@ -41,10 +60,7 @@ def configure_optional_telemetry(connection_string: str | None) -> None:
 
     try:
         azure_monitor_module = import_module("azure.monitor.opentelemetry")
-        configure_azure_monitor = getattr(
-            azure_monitor_module,
-            "configure_azure_monitor",
-        )
+        configure_azure_monitor = azure_monitor_module.configure_azure_monitor
         configure_azure_monitor(
             connection_string=connection_string,
             logger_name="crud_service",
@@ -60,11 +76,114 @@ def configure_optional_telemetry(connection_string: str | None) -> None:
 def create_connector_registry() -> Any | None:
     try:
         connector_module = import_module("holiday_peak_lib.connectors.registry")
-        registry_class = getattr(connector_module, "ConnectorRegistry")
+        registry_class = connector_module.ConnectorRegistry
         return registry_class()
     except (ImportError, AttributeError) as exc:
         logger.warning("Connector registry unavailable; skipping connector bootstrap: %s", exc)
         return None
+
+
+async def _bootstrap_connector_registry(_app: FastAPI) -> None:
+    configured_domains = [
+        item.strip().lower()
+        for item in (os.getenv("CONNECTOR_ENABLED_DOMAINS", "").split(","))
+        if item.strip()
+    ]
+    if not configured_domains:
+        return
+
+    connector_registry = create_connector_registry()
+    if connector_registry is None:
+        return
+
+    discovered = await connector_registry.discover()
+    logger.info("Connector classes discovered: %s", discovered)
+    for domain in configured_domains:
+        try:
+            await connector_registry.create(domain)
+            logger.info("Connector created for domain '%s'", domain)
+        except ValueError as exc:
+            logger.warning("Connector bootstrap skipped for domain '%s': %s", domain, exc)
+
+    health_interval = float(os.getenv("CONNECTOR_HEALTH_INTERVAL_SECONDS", "60"))
+    await connector_registry.start_health_monitor(interval_seconds=health_interval)
+    _app.state.connector_registry = connector_registry
+    logger.info("Connector health monitor started")
+
+
+async def _resolve_postgres_password(_app: FastAPI) -> None:
+    if settings.postgres_auth_mode == "entra":
+        logger.info("PostgreSQL auth mode: Entra token")
+        return
+
+    if settings.postgres_password:
+        return
+
+    try:
+        settings.postgres_password = await _await_startup_dependency(
+            "PostgreSQL password secret retrieval",
+            get_key_vault_secret(settings.postgres_password_secret_name),
+            settings.key_vault_secret_startup_timeout_seconds,
+        )
+    except (AzureError, RuntimeError, TimeoutError, ValueError) as exc:
+        _app.state.db_pool_init_error = _format_startup_error(exc)
+        logger.warning(
+            "PostgreSQL password secret retrieval failed for '%s': %s",
+            settings.postgres_password_secret_name,
+            exc,
+        )
+
+
+async def _resolve_redis_password(_app: FastAPI) -> None:
+    if settings.redis_password:
+        return
+
+    try:
+        settings.redis_password = await _await_startup_dependency(
+            "Redis password secret retrieval",
+            get_key_vault_secret(settings.redis_password_secret_name),
+            settings.key_vault_secret_startup_timeout_seconds,
+        )
+        _app.state.redis_secret_init_error = None
+        logger.info(
+            "Redis password loaded from Key Vault secret '%s'",
+            settings.redis_password_secret_name,
+        )
+    except (
+        AzureError,
+        ImportError,
+        ModuleNotFoundError,
+        RuntimeError,
+        TimeoutError,
+        ValueError,
+    ) as exc:
+        _app.state.redis_secret_init_error = _format_startup_error(exc)
+        logger.warning(
+            "Redis password secret retrieval failed for '%s': %s",
+            settings.redis_password_secret_name,
+            exc,
+        )
+
+
+async def _initialize_postgres_pool(_app: FastAPI) -> None:
+    try:
+        await _await_startup_dependency(
+            "PostgreSQL pool initialization",
+            BaseRepository.initialize_pool(),
+            settings.postgres_pool_startup_timeout_seconds,
+        )
+        logger.info("PostgreSQL pool initialized")
+    except (
+        asyncpg.PostgresError,
+        TimeoutError,
+        ConnectionError,
+        OSError,
+        RuntimeError,
+        ValueError,
+        AzureError,
+    ) as exc:
+        _app.state.db_pool_init_error = _format_startup_error(exc)
+        logger.warning("PostgreSQL pool initialization failed: %s", exc)
 
 
 @asynccontextmanager
@@ -74,6 +193,8 @@ async def lifespan(_app: FastAPI):
     logger.info("Starting CRUD Service...")
     logger.info("Environment: %s", settings.environment)
     logger.info("Service Name: %s", settings.service_name)
+    _app.state.db_pool_init_error = None
+    _app.state.redis_secret_init_error = None
 
     configure_optional_telemetry(settings.app_insights_connection_string)
 
@@ -87,68 +208,10 @@ async def lifespan(_app: FastAPI):
     _app.state.connector_sync_consumer = connector_sync_consumer
     logger.info("Connector sync consumer initialized")
 
-    configured_domains = [
-        item.strip().lower()
-        for item in (os.getenv("CONNECTOR_ENABLED_DOMAINS", "").split(","))
-        if item.strip()
-    ]
-    if configured_domains:
-        connector_registry = create_connector_registry()
-        if connector_registry is not None:
-            discovered = await connector_registry.discover()
-            logger.info("Connector classes discovered: %s", discovered)
-            for domain in configured_domains:
-                try:
-                    await connector_registry.create(domain)
-                    logger.info("Connector created for domain '%s'", domain)
-                except ValueError as exc:
-                    logger.warning("Connector bootstrap skipped for domain '%s': %s", domain, exc)
-
-            health_interval = float(os.getenv("CONNECTOR_HEALTH_INTERVAL_SECONDS", "60"))
-            await connector_registry.start_health_monitor(interval_seconds=health_interval)
-            _app.state.connector_registry = connector_registry
-            logger.info("Connector health monitor started")
-
-    # Resolve DB credentials from Key Vault only for password mode
-    if settings.postgres_auth_mode == "password" and not settings.postgres_password:
-        settings.postgres_password = await get_key_vault_secret(
-            settings.postgres_password_secret_name
-        )
-    if settings.postgres_auth_mode == "entra":
-        logger.info("PostgreSQL auth mode: Entra token")
-
-    if not settings.redis_password:
-        try:
-            settings.redis_password = await get_key_vault_secret(
-                settings.redis_password_secret_name
-            )
-            logger.info(
-                "Redis password loaded from Key Vault secret '%s'",
-                settings.redis_password_secret_name,
-            )
-        except (AzureError, ImportError, ModuleNotFoundError, RuntimeError, ValueError) as exc:
-            logger.warning(
-                "Redis password secret retrieval failed for '%s': %s",
-                settings.redis_password_secret_name,
-                exc,
-            )
-
-    # Initialize PostgreSQL connection pool
-    _app.state.db_pool_init_error = None
-    try:
-        await BaseRepository.initialize_pool()
-        logger.info("PostgreSQL pool initialized")
-    except (
-        asyncpg.PostgresError,
-        TimeoutError,
-        ConnectionError,
-        OSError,
-        RuntimeError,
-        ValueError,
-        AzureError,
-    ) as exc:
-        _app.state.db_pool_init_error = f"{type(exc).__name__}: {exc}"
-        logger.warning("PostgreSQL pool initialization failed: %s", exc)
+    await _bootstrap_connector_registry(_app)
+    await _resolve_postgres_password(_app)
+    await _resolve_redis_password(_app)
+    await _initialize_postgres_pool(_app)
 
     logger.info("CRUD Service started successfully")
 

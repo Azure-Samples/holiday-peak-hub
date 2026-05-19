@@ -1,10 +1,14 @@
 """Tests for CRUD main composition and optional connector wiring."""
 
+import asyncio
 import json
+import sys
 from types import SimpleNamespace
 
 import crud_service.main as main
+import crud_service.routes.health as health_routes
 import pytest
+from fastapi.testclient import TestClient
 from holiday_peak_lib.utils.event_hub import (
     CRITICAL_SAGA_PUBLISH_PROFILE,
     EventPublishError,
@@ -127,6 +131,106 @@ async def test_lifespan_continues_when_redis_secret_retrieval_fails(monkeypatch)
         main.settings.redis_password = original_redis_password
         main.settings.postgres_auth_mode = original_postgres_auth_mode
         main.settings.redis_password_secret_name = original_redis_secret_name
+
+
+@pytest.mark.asyncio
+async def test_lifespan_records_postgres_pool_startup_timeout_for_ready(
+    monkeypatch,
+) -> None:
+    _patch_lifespan_dependencies(monkeypatch)
+    monkeypatch.setattr(main.settings, "postgres_auth_mode", "entra")
+    monkeypatch.setattr(main.settings, "redis_password", "redis-secret-value")
+    monkeypatch.setattr(main.settings, "postgres_pool_startup_timeout_seconds", 0.01)
+
+    async def _hanging_initialize_pool() -> None:
+        await asyncio.Event().wait()
+
+    async def _unhealthy_pool() -> tuple[str, str]:
+        return "unhealthy", "pool unavailable"
+
+    async def _healthy_redis(_request) -> tuple[str, str]:
+        return "healthy", "ping ok"
+
+    async def _unconfigured_cosmos() -> tuple[str, str]:
+        return "unconfigured", "COSMOS_ACCOUNT_URI not set"
+
+    monkeypatch.setattr(main.BaseRepository, "initialize_pool", _hanging_initialize_pool)
+    monkeypatch.setattr(main.BaseRepository, "check_pool_health", _unhealthy_pool)
+    monkeypatch.setattr(health_routes, "_check_redis", _healthy_redis)
+    monkeypatch.setattr(health_routes, "_check_cosmos", _unconfigured_cosmos)
+
+    async with main.lifespan(main.app):
+        assert "TimeoutError" in main.app.state.db_pool_init_error
+        assert "PostgreSQL pool initialization exceeded" in main.app.state.db_pool_init_error
+
+        response = TestClient(main.app).get("/ready")
+        payload = response.json()
+
+        assert response.status_code == 503
+        assert payload["checks"]["postgres"]["status"] == "unhealthy"
+        assert "PostgreSQL pool initialization exceeded" in payload["checks"]["postgres"]["detail"]
+
+
+@pytest.mark.asyncio
+async def test_lifespan_records_redis_secret_timeout_and_ready_reports_redis(
+    monkeypatch,
+) -> None:
+    _patch_lifespan_dependencies(monkeypatch)
+    monkeypatch.setattr(main.settings, "postgres_auth_mode", "entra")
+    monkeypatch.setattr(main.settings, "redis_password", None)
+    monkeypatch.setattr(main.settings, "redis_password_secret_name", "redis-primary-key")
+    monkeypatch.setattr(main.settings, "key_vault_secret_startup_timeout_seconds", 0.01)
+
+    async def _hanging_get_secret(secret_name: str) -> str:
+        if secret_name == "redis-primary-key":
+            await asyncio.Event().wait()
+        raise AssertionError("Unexpected secret request")
+
+    class _FakeRedisClient:
+        async def ping(self) -> None:
+            raise RuntimeError("NOAUTH Authentication required")
+
+        async def aclose(self) -> None:
+            return None
+
+    class _FakeRedis:
+        @staticmethod
+        def from_url(_url: str, socket_timeout: float):
+            assert socket_timeout == 2
+            return _FakeRedisClient()
+
+    async def _healthy_pool() -> tuple[str, str]:
+        return "healthy", "query ok"
+
+    async def _unconfigured_cosmos() -> tuple[str, str]:
+        return "unconfigured", "COSMOS_ACCOUNT_URI not set"
+
+    monkeypatch.setattr(main, "get_key_vault_secret", _hanging_get_secret)
+    monkeypatch.setattr(main.BaseRepository, "check_pool_health", _healthy_pool)
+    monkeypatch.setattr(health_routes, "_check_cosmos", _unconfigured_cosmos)
+    monkeypatch.setitem(
+        sys.modules,
+        "redis",
+        SimpleNamespace(asyncio=SimpleNamespace(Redis=_FakeRedis)),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "redis.asyncio",
+        SimpleNamespace(Redis=_FakeRedis),
+    )
+
+    async with main.lifespan(main.app):
+        assert main.settings.redis_password is None
+        assert "TimeoutError" in main.app.state.redis_secret_init_error
+        assert "Redis password secret retrieval exceeded" in main.app.state.redis_secret_init_error
+
+        response = TestClient(main.app).get("/ready")
+        payload = response.json()
+
+        assert response.status_code == 503
+        assert payload["checks"]["redis"]["status"] == "unhealthy"
+        assert "Redis password secret retrieval exceeded" in payload["checks"]["redis"]["detail"]
+        assert "NOAUTH Authentication required" in payload["checks"]["redis"]["detail"]
 
 
 @pytest.mark.asyncio

@@ -191,6 +191,9 @@ merged squash commit on `main`.
 - **PostgreSQL Auth Contract Alignment**: `POSTGRES_AUTH_MODE` now drives the Flexible Server auth policy in Bicep and a pre-rollout workflow guard verifies the live server matches the configured runtime auth mode before CRUD is redeployed.
 - **CRUD Entra Principal Alignment**: Entra-mode deployment outputs now resolve `POSTGRES_USER` to the CRUD workload identity principal (`<project>-<env>-crud-identity`), matching the pod identity used for token acquisition instead of the legacy agentpool principal.
 
+### Runtime Hotfix Notes (2026-05-19)
+- **CRUD Startup Dependency Timeout Boundary**: CRUD startup now bounds PostgreSQL pool initialization with `POSTGRES_POOL_STARTUP_TIMEOUT_SECONDS` and Key Vault secret retrieval with `KEY_VAULT_SECRET_STARTUP_TIMEOUT_SECONDS`. `/health` remains process liveness once FastAPI starts, while `/ready` continues to report Redis, Cosmos DB, PostgreSQL, and connector dependency failures as degraded/503.
+
 ### Merged PRs (v1.1.0)
 | # | Title | Category |
 |---|-------|----------|

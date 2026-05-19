@@ -12,8 +12,9 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-async def _check_redis() -> tuple[str, str]:
+async def _check_redis(request: Request) -> tuple[str, str]:
     """Return (status, detail) for the Redis connection."""
+    init_error = getattr(request.app.state, "redis_secret_init_error", None)
     try:
         import redis.asyncio as aioredis  # type: ignore[import]
 
@@ -21,9 +22,14 @@ async def _check_redis() -> tuple[str, str]:
         client = aioredis.Redis.from_url(redis_url, socket_timeout=2)
         await client.ping()
         await client.aclose()
+        if init_error:
+            logger.info("Redis recovered after startup secret retrieval error: %s", init_error)
+            request.app.state.redis_secret_init_error = None
         return "healthy", "ping ok"
     except Exception as exc:  # pylint: disable=broad-except
         logger.warning("health_check redis error: %s", exc)
+        if init_error:
+            return "unhealthy", f"{init_error}; latest: {exc}"
         return "unhealthy", str(exc)
 
 
@@ -81,7 +87,7 @@ async def readiness_check(request: Request):
     if postgres_status == "unhealthy":
         overall = "degraded"
 
-    redis_status, redis_detail = await _check_redis()
+    redis_status, redis_detail = await _check_redis(request)
     checks["redis"] = {"status": redis_status, "detail": redis_detail}
     if redis_status == "unhealthy":
         overall = "degraded"
