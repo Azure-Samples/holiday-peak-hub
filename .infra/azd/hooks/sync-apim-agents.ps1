@@ -843,6 +843,9 @@ function Update-CrudApi {
             <when condition="@(context.Request.OriginalUrl.Path.Equals(&quot;/api/health&quot;, System.StringComparison.OrdinalIgnoreCase))">
                 <rewrite-uri template="/health" copy-unmatched-params="true" />
             </when>
+            <when condition="@(context.Request.OriginalUrl.Path.Equals(&quot;/api/ready&quot;, System.StringComparison.OrdinalIgnoreCase))">
+                <rewrite-uri template="/ready" copy-unmatched-params="true" />
+            </when>
             <when condition="@(context.Request.OriginalUrl.Path.Equals(&quot;/api&quot;, System.StringComparison.OrdinalIgnoreCase) || context.Request.OriginalUrl.Path.StartsWith(&quot;/api/&quot;, System.StringComparison.OrdinalIgnoreCase))">
                 <set-variable name="crudBackendPath" value="@(context.Request.OriginalUrl.Path.Length > 4 ? context.Request.OriginalUrl.Path.Substring(4) : string.Empty)" />
                 <rewrite-uri template="@(string.Concat(&quot;/api&quot;, (string)context.Variables[&quot;crudBackendPath&quot;]))" copy-unmatched-params="true" />

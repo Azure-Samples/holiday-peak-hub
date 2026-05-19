@@ -45,8 +45,17 @@ def test_crud_policy_attribute_expressions_keep_xml_entities() -> None:
         content = hook_path.read_text(encoding="utf-8")
 
         assert 'condition="@(context.Request.OriginalUrl.Path.Equals(&quot;/api/health&quot;' in content
+        assert 'condition="@(context.Request.OriginalUrl.Path.Equals(&quot;/api/ready&quot;' in content
         assert 'condition="@(context.Request.OriginalUrl.Path.Equals(&quot;/api&quot;' in content
         assert 'template="@(string.Concat(&quot;/api&quot;, (string)context.Variables[&quot;crudBackendPath&quot;]))"' in content
+
+
+def test_crud_policy_rewrites_public_probe_paths_to_service_probe_paths() -> None:
+    for hook_path in HOOK_PATHS:
+        content = hook_path.read_text(encoding="utf-8")
+
+        assert '<rewrite-uri template="/health" copy-unmatched-params="true" />' in content
+        assert '<rewrite-uri template="/ready" copy-unmatched-params="true" />' in content
 
 
 def test_crud_policy_backend_has_single_forward_request_policy() -> None:

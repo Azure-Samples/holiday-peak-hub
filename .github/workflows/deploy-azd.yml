@@ -4180,12 +4180,35 @@ jobs:
 
           echo "Restoring Flux source '${FLUX_SOURCE}' from preview branch '${PREVIEW_BRANCH}' to default branch '${DEFAULT_BRANCH}'."
           PATCH=$(printf '{"spec":{"ref":{"branch":"%s"}}}' "$DEFAULT_BRANCH")
-          kubectl patch gitrepository.source.toolkit.fluxcd.io "$FLUX_SOURCE" -n "$FLUX_NAMESPACE" --type=merge -p "$PATCH"
 
-          ACTIVE_BRANCH=$(kubectl get gitrepository.source.toolkit.fluxcd.io "$FLUX_SOURCE" -n "$FLUX_NAMESPACE" -o jsonpath='{.spec.ref.branch}')
-          if [ "$ACTIVE_BRANCH" != "$DEFAULT_BRANCH" ]; then
-            echo "::error::Flux source '${FLUX_SOURCE}' expected branch '${DEFAULT_BRANCH}' but found '${ACTIVE_BRANCH}'."
+          restore_flux_source() {
+            kubectl patch gitrepository.source.toolkit.fluxcd.io "$FLUX_SOURCE" -n "$FLUX_NAMESPACE" --type=merge -p "$PATCH"
+
+            ACTIVE_BRANCH=$(kubectl get gitrepository.source.toolkit.fluxcd.io "$FLUX_SOURCE" -n "$FLUX_NAMESPACE" -o jsonpath='{.spec.ref.branch}')
+            if [ "$ACTIVE_BRANCH" != "$DEFAULT_BRANCH" ]; then
+              echo "::error::Flux source '${FLUX_SOURCE}' expected branch '${DEFAULT_BRANCH}' but found '${ACTIVE_BRANCH}'."
+              return 1
+            fi
+          }
+
+          if ! restore_flux_source; then
+            echo "::warning::Direct kubectl Flux restore failed; retrying through az aks command invoke."
+            REMOTE_COMMAND=$(cat <<EOF
+          set -euo pipefail
+          kubectl patch gitrepository.source.toolkit.fluxcd.io "$FLUX_SOURCE" -n "$FLUX_NAMESPACE" --type=merge -p '$PATCH'
+          ACTIVE_BRANCH=\$(kubectl get gitrepository.source.toolkit.fluxcd.io "$FLUX_SOURCE" -n "$FLUX_NAMESPACE" -o jsonpath='{.spec.ref.branch}')
+          if [ "\$ACTIVE_BRANCH" != "$DEFAULT_BRANCH" ]; then
+            echo "::error::Flux source '$FLUX_SOURCE' expected branch '$DEFAULT_BRANCH' but found '\$ACTIVE_BRANCH'."
             exit 1
+          fi
+          EOF
+          )
+
+            az aks command invoke \
+              --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
+              --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
+              --command "$REMOTE_COMMAND" \
+              --query logs -o tsv
           fi
 
           if ! command -v flux &>/dev/null; then
