@@ -859,7 +859,6 @@ function Update-CrudApi {
         </choose>
     </inbound>
     <backend>
-        <base />
         <forward-request timeout="60" />
     </backend>
     <outbound>
