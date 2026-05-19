@@ -173,6 +173,8 @@ merged squash commit on `main`.
 
 ### Runtime Hotfix Notes (2026-03-19)
 - **Dependency Management Hardening (Issue #316)**: Agent service `pyproject.toml` dependencies now use minimum version constraints for key runtime libraries and include a local editable `holiday-peak-lib` source mapping for development workflows.
+- **CRUD HelmRelease Image Pin**: `.kubernetes/releases/crud/crud-service.yaml` now pins `crud-service` to tested ACR tag `be7ce0d3f4ae4b3300327a9426dd8065fa209301` from deployment run `26076840846`, preventing Flux preview/default-branch source restore from reconciling CRUD to stale or missing tags and preserving strict AGC readiness validation through a healthy CRUD backend.
+
 - **Lockfile and Build Reproducibility**: App `.dockerignore` files now include `uv.lock` in Docker build context, service Dockerfiles use frozen `uv` sync installs, and CI validates `yarn.lock` / `uv.lock` freshness before linting.
 - **Infrastructure Secret and Region Hygiene**: Shared infrastructure now uses a random `newGuid()`-seeded fallback for PostgreSQL admin password generation and parameterizes Azure AI Foundry location instead of hardcoding the region.
 - **UI Product Enrichment Monitoring (Issue #352)**: Admin now exposes a dedicated enrichment monitoring route (`/admin/enrichment-monitor`) with real-time stage/job visibility, retry controls on monitor failures/log entries, and throughput + approval-rate visual indicators; search now surfaces explicit mode/intent signal chips; top navigation includes a pipeline status indicator that links directly to the monitor.

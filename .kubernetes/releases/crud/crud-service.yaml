@@ -30,7 +30,7 @@ spec:
       clientId: b09349cf-547f-409f-8b96-f3288ddedf34
     image:
       repository: holidaypeakhub405devacr.azurecr.io/crud-service
-      tag: 811fdbe6cca304adf6ffa43936774ad6a124f017
+      tag: be7ce0d3f4ae4b3300327a9426dd8065fa209301
     replicaCount: 1
     resources:
       limits:

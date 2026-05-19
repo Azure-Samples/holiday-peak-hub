@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Issue #1107 / PR #1103 CRUD HelmRelease image pin: `.kubernetes/releases/crud/crud-service.yaml` now points at tested ACR tag `be7ce0d3f4ae4b3300327a9426dd8065fa209301`, avoiding stale or missing tags after Flux preview/default-branch source restore and preserving direct AGC readiness validation for the CRUD backend.
+
 - Issue #1107 / PR #1103 AGC CRUD readiness: bounded CRUD startup dependency warm-up for PostgreSQL pool initialization and Key Vault secret retrieval so `/health` can serve process liveness promptly while `/ready` continues to return degraded/503 for Redis, Cosmos DB, PostgreSQL, or connector dependency failures.
 
 - Issue #1107 / PR #1103 AGC backend readiness: corrected Flux HelmRelease desired state so the direct AGC gate has ready backends, pinning `crud-service` to a pullable ACR image tag and increasing `inventory-health-check` memory to the shared chart default for the AKS-hosted Responses adapter.
