@@ -1,3 +1,13 @@
+surface:
+  type: custom
+  classification: Custom Agent
+  audience: non-public-internal
+  productRuntime: aks
+  productTrafficPath: "APIM -> AGC -> AKS"
+  foundryManagedCompute: false
+  proxy:
+    target: existing-aks-apim-endpoint
+    endpoint: ${APIM_BASE_URL}/agents/inventory-alerts-triggers
 defaultEnvironment: dev
 environments:
   dev:

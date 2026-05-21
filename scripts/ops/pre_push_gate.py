@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+PYTHON = sys.executable
 
 
 def run_step(command: list[str], *, title: str) -> None:
@@ -31,11 +32,11 @@ def run_pylint_step(command: list[str], *, title: str) -> None:
 
 def run_lint_gate() -> None:
     run_step(
-        ["python", "-m", "isort", "--check-only", "lib", "apps"],
+        [PYTHON, "-m", "isort", "--check-only", "lib", "apps"],
         title="Lint gate: isort",
     )
     run_step(
-        ["python", "-m", "black", "--check", "lib", "apps"],
+        [PYTHON, "-m", "black", "--check", "lib", "apps"],
         title="Lint gate: black",
     )
 
@@ -47,7 +48,9 @@ def run_lint_gate() -> None:
     )
     run_pylint_step(
         [
-            "python", "-m", "pylint",
+            PYTHON,
+            "-m",
+            "pylint",
             "--fail-on=E,F",
             "--ignore=build",
             *pylint_targets,
@@ -56,7 +59,7 @@ def run_lint_gate() -> None:
     )
     run_step(
         [
-            "python",
+            PYTHON,
             "-m",
             "mypy",
             "--config-file",
@@ -71,7 +74,7 @@ def run_lint_gate() -> None:
 
     run_step(
         [
-            "python",
+            PYTHON,
             "scripts/ops/check_markdown_links.py",
             "--roots",
             "docs/governance",
@@ -80,7 +83,7 @@ def run_lint_gate() -> None:
         title="Lint gate: governance/architecture links",
     )
     run_step(
-        ["python", "scripts/ops/check_event_schema_contracts.py"],
+        [PYTHON, "scripts/ops/check_event_schema_contracts.py"],
         title="Lint gate: canonical event schema contracts",
     )
 
@@ -106,7 +109,7 @@ def run_lint_gate() -> None:
 
 def run_test_gate() -> None:
     run_step(
-        ["pytest", "lib/tests", "--maxfail=1"],
+        [PYTHON, "-m", "pytest", "lib/tests", "--maxfail=1"],
         title="Test gate: lib tests",
     )
 
@@ -116,7 +119,7 @@ def run_test_gate() -> None:
         if path.is_dir() and path.name == "tests"
     ]
     run_step(
-        ["pytest", *app_test_dirs, "--ignore=apps/ui/tests"],
+        [PYTHON, "-m", "pytest", *app_test_dirs, "--ignore=apps/ui/tests"],
         title="Test gate: app tests (excluding UI tests)",
     )
 

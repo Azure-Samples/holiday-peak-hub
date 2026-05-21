@@ -10,6 +10,8 @@ The product is composed of:
 - **26 agent services** — bounded-context AI agents with dynamic planning, MCP tools, three-tier memory, SLM-first routing
 - **1 Next.js frontend** (`ui`) — operator/admin/retail surfaces consumed by both agents and humans
 
+Foundry exposure is classified in [foundry-surfaces.yaml](foundry-surfaces.yaml): public or human-facing agents use Hosted Agent manifests (`agent.hosted.yaml`) over the shared Responses adapter, while non-public internal agents use Custom Agent metadata that proxies the existing APIM -> AGC -> AKS endpoint. This is an exposure taxonomy only; AKS remains the product runtime under the current ADRs.
+
 Changes to apps are **product changes**: they require domain reasoning, eval impact analysis, SLO awareness, and operational runbook updates when behavior changes.
 
 ## App Inventory

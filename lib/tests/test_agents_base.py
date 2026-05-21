@@ -423,10 +423,10 @@ class TestBaseRetailAgent:
     async def test_foundry_governance_strips_hint_but_kwargs_survive(self):
         """Under Foundry governance the system hint is stripped, kwargs survive.
 
-        Foundry hosted agents own their system prompt at the portal
-        level, so the messages-channel hint must not leak through. The
-        kwargs channel still carries the routing metadata so adapters
-        can plumb it into their portal-owned prompt.
+        Foundry-backed Responses targets own their system prompt at the
+        provider boundary, so the messages-channel hint must not leak
+        through. The kwargs channel still carries the routing metadata
+        so adapters can plumb it into their provider-owned prompt.
         """
         captured = {}
 
@@ -785,7 +785,7 @@ class TestBaseRetailAgent:
         The Responses API does not accept a boolean ``logprobs`` field;
         the toggle is the presence of ``message.output_text.logprobs``
         in the ``include`` array. Sending ``logprobs: True`` to a
-        Foundry hosted agent is at best ignored and at worst rejected
+        Foundry Responses call is at best ignored and at worst rejected
         as an unknown parameter, so the framework must not emit it.
         """
         captured = {}
