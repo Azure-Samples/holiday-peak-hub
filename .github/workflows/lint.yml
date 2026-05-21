@@ -48,7 +48,14 @@ jobs:
           for d in apps/*/src; do
             [ -f "$d/pyproject.toml" ] || continue
             [ -f "$d/uv.lock" ] || { echo "Missing uv.lock in $d"; exit 1; }
-            (cd "$d" && uv lock --check)
+            (
+              cd "$d"
+              if grep -q 'prerelease-mode = "allow"' uv.lock; then
+                uv lock --prerelease=allow --check
+              else
+                uv lock --check
+              fi
+            )
           done
       - name: Install lib
         run: uv pip install --system -e ./lib/src
