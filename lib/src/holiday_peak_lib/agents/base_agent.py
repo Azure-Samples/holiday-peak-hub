@@ -413,12 +413,12 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
     ) -> list[dict[str, Any]]:
         """Surface routing metadata to the invoker via both channels.
 
-        * **kwargs channel** — ``routing_complexity`` / ``routing_threshold``
-          / ``routing_target_tier`` / ``routing_hint`` are mutated onto
-          the kwargs dict and reach every invoker unconditionally. This
-          is the canonical channel: Foundry hosted-agent adapters that
-          cannot accept runtime system messages still get the data and
-          can plumb it through their portal-owned prompt.
+                * **kwargs channel** — ``routing_complexity`` / ``routing_threshold``
+                    / ``routing_target_tier`` / ``routing_hint`` are mutated onto
+                    the kwargs dict and reach every invoker unconditionally. This
+                    is the canonical channel: adapters that cannot accept runtime
+                    system messages still get the data and can plumb it through
+                    their provider-owned prompt.
         * **system-message channel** — the hint is inserted after the
           leading system prefix as a best-effort surface. It reaches
           non-Foundry providers directly; under Foundry governance the
@@ -506,7 +506,7 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
                     else "n/a"
                 )
                 logger.info(
-                    "agent_model_logprobs service=%s target=%s count=%d " "mean=%s perplexity=%s",
+                    "agent_model_logprobs service=%s target=%s count=%d mean=%s perplexity=%s",
                     getattr(self, "service_name", "unknown"),
                     target.name,
                     logprob_summary.get("count", 0),
@@ -881,16 +881,16 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
         """Handle an incoming request."""
 
     # ------------------------------------------------------------------ #
-    # Foundry hosted-agent (Responses API) integration
+    # AKS-hosted Responses protocol integration
     #
     # These two methods let an existing FastAPI service additionally serve
-    # the Foundry Responses-protocol surface (``/v1/responses``) inside the
+    # the Responses-protocol surface (``/responses``) inside the
     # *same* uvicorn process — no second runtime, no parallel ``hosted_main.py``,
     # no extra port. They are additive: services that don't call
-    # ``serve_hosted()`` retain their current behaviour.
+    # ``serve_responses()`` retain their current behaviour.
     # ------------------------------------------------------------------ #
 
-    async def hosted_request_from_text(self, text: str) -> dict[str, Any]:
+    async def responses_request_from_text(self, text: str) -> dict[str, Any]:
         """Translate Responses-API free-form input text into the dict shape
         that this agent's ``handle()`` expects.
 
@@ -900,15 +900,21 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
         """
         return {"prompt": text}
 
-    def serve_hosted(
+    async def hosted_request_from_text(self, text: str) -> dict[str, Any]:
+        """Compatibility alias for older service overrides.
+
+        New services should override :meth:`responses_request_from_text`.
+        """
+        return await self.responses_request_from_text(text)
+
+    def serve_responses(
         self,
         fastapi_app: Any,
         *,
-        prefix: str = "/v1",
+        prefix: str = "",
         request_translator: Callable[[str], Awaitable[dict[str, Any]]] | None = None,
     ) -> Any:
-        """Mount this agent's Foundry Responses-protocol endpoints on the
-        given FastAPI app.
+        """Mount this agent's Responses protocol endpoints on the given FastAPI app.
 
         Single-process, single-runtime: the FastAPI app keeps owning
         ``/health``, ``/ready``, ``/mcp/*`` (registered before this call) and
@@ -916,17 +922,34 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
         (matched after the direct routes because Starlette walks routes in
         registration order).
 
+        The default prefix is empty so the AKS service answers ``/responses``
+        directly on the same process and port as the existing app surface.
+
         Returns the constructed host server for tests / diagnostics.
         Raises ``ImportError`` if ``agent-framework-foundry-hosting`` is not
         installed in the active environment.
         """
         # Lazy import to avoid a circular dependency between base_agent.py
         # and hosted.py, and to keep the optional SDK out of import time.
-        from .hosted import mount_hosted_agent  # pylint: disable=import-outside-toplevel
+        from .hosted import mount_responses_adapter  # pylint: disable=import-outside-toplevel
 
-        return mount_hosted_agent(
+        return mount_responses_adapter(
             fastapi_app,
             self,
+            prefix=prefix,
+            request_translator=request_translator,
+        )
+
+    def serve_hosted(
+        self,
+        fastapi_app: Any,
+        *,
+        prefix: str = "",
+        request_translator: Callable[[str], Awaitable[dict[str, Any]]] | None = None,
+    ) -> Any:
+        """Compatibility alias for :meth:`serve_responses`."""
+        return self.serve_responses(
+            fastapi_app,
             prefix=prefix,
             request_translator=request_translator,
         )

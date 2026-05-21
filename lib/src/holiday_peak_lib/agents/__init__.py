@@ -9,7 +9,7 @@ from .direct import (
 )
 from .foundry import FoundryAgentConfig
 from .guardrails import EnrichmentGuardrail, SourceValidationResult
-from .hosted import mount_hosted_agent
+from .hosted import mount_hosted_agent, mount_responses_adapter
 from .models import ModelInvoker, ModelTarget, StreamingModelInvoker
 
 __all__ = [
@@ -26,4 +26,5 @@ __all__ = [
     "EnrichmentGuardrail",
     "SourceValidationResult",
     "mount_hosted_agent",
+    "mount_responses_adapter",
 ]
