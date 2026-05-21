@@ -9,6 +9,8 @@ present, the mounted ``/responses`` path is also exercised through FastAPI's
 
 from __future__ import annotations
 
+import sys
+import types
 from typing import Any
 
 import pytest
@@ -356,6 +358,54 @@ def test_serve_responses_mounts_responses_routes_when_sdk_present() -> None:
     # FastAPI mount appended at the end of the route list.
     mounted = [r for r in app.router.routes if getattr(r, "path", "") == ""]
     assert mounted, "Responses adapter should be mounted on the FastAPI app"
+
+
+def test_serve_responses_is_idempotent_with_same_prefix_when_sdk_present() -> None:
+    pytest.importorskip("agent_framework_foundry_hosting")
+    from fastapi import FastAPI
+
+    agent = _RecordingAgent()
+    app = FastAPI()
+
+    first_host_server = agent.serve_responses(app)
+    second_host_server = agent.serve_responses(app)
+
+    assert second_host_server is first_host_server
+    mounted = [route for route in app.router.routes if getattr(route, "path", "") == ""]
+    assert len(mounted) == 1
+
+
+def test_foundry_hosted_mode_auto_mounts_responses_with_fake_sdk(monkeypatch) -> None:
+    from holiday_peak_lib.app_factory import create_standard_app
+    from starlette.applications import Starlette
+    from starlette.responses import JSONResponse
+    from starlette.routing import Route
+
+    async def _ok(_request):  # noqa: ANN001
+        return JSONResponse({"ok": True})
+
+    class _FakeResponsesHostServer(Starlette):
+        def __init__(self, adapter: Any, prefix: str = "") -> None:
+            super().__init__(routes=[Route(f"{prefix}/responses", _ok, methods=["POST"])])
+            self.adapter = adapter
+
+    fake_sdk = types.SimpleNamespace(ResponsesHostServer=_FakeResponsesHostServer)
+    monkeypatch.setitem(sys.modules, "agent_framework_foundry_hosting", fake_sdk)
+    monkeypatch.setenv("HOLIDAY_PEAK_FOUNDRY_HOSTED", "1")
+
+    class _FactoryAgent(BaseRetailAgent):
+        async def handle(self, request: dict[str, Any]) -> dict[str, Any]:
+            return {"text": request.get("prompt", "")}
+
+    app = create_standard_app("foundry-hosted-test", _FactoryAgent)
+
+    mounted = [route for route in app.routes if getattr(route, "path", "") == ""]
+    assert len(mounted) == 1
+    response_paths = {
+        getattr(route, "path", None) or getattr(route, "path_format", None)
+        for route in mounted[0].app.routes
+    }
+    assert "/responses" in response_paths
 
 
 def test_serve_responses_honors_explicit_prefix_when_sdk_present() -> None:

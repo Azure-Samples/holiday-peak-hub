@@ -43,6 +43,8 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 
 logger = logging.getLogger(__name__)
 
+_RESPONSES_HOST_SERVERS_STATE_KEY = "holiday_peak_responses_host_servers"
+
 
 RequestTranslator = Callable[[str], Awaitable[dict[str, Any]]]
 """Async callable that converts free-form Responses-API input text into the
@@ -367,10 +369,24 @@ def mount_responses_adapter(
             "`pip install --pre agent-framework-foundry-hosting`."
         ) from exc
 
+    mounted_servers = getattr(fastapi_app.state, _RESPONSES_HOST_SERVERS_STATE_KEY, None)
+    if not isinstance(mounted_servers, dict):
+        mounted_servers = {}
+        setattr(fastapi_app.state, _RESPONSES_HOST_SERVERS_STATE_KEY, mounted_servers)
+
+    if prefix in mounted_servers:
+        logger.info(
+            "responses_adapter_mount_reused service=%s prefix=%s",
+            getattr(agent, "service_name", "agent"),
+            prefix,
+        )
+        return mounted_servers[prefix]
+
     translator = request_translator or _default_translator(agent)
     adapter = _ResponsesAgentRunAdapter(agent, translator)
     host_server = ResponsesHostServer(adapter, prefix=prefix)
     fastapi_app.mount("/", host_server)
+    mounted_servers[prefix] = host_server
     logger.info(
         "responses_adapter_mounted service=%s prefix=%s",
         getattr(agent, "service_name", adapter.name),

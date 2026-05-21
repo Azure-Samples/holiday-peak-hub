@@ -41,8 +41,14 @@ _FALLBACK_INSTRUCTIONS_TEMPLATE = (
 )
 _REDIS_SOCKET_TIMEOUT_ENV = "HOLIDAY_PEAK_REDIS_SOCKET_TIMEOUT_SECONDS"
 _REDIS_CONNECT_TIMEOUT_ENV = "HOLIDAY_PEAK_REDIS_CONNECT_TIMEOUT_SECONDS"
+_FOUNDRY_HOSTED_ENV = "HOLIDAY_PEAK_FOUNDRY_HOSTED"
 _DEFAULT_REDIS_SOCKET_TIMEOUT_SECONDS = 1.0
 _DEFAULT_REDIS_CONNECT_TIMEOUT_SECONDS = 1.0
+
+
+def _env_truthy(name: str) -> bool:
+    """Return whether an environment flag is explicitly enabled."""
+    return (os.getenv(name) or "").lower() in {"1", "true", "yes", "on"}
 
 
 def _env_positive_float(name: str, *, default: float) -> float:
@@ -454,4 +460,7 @@ def build_service_app(
     register_standard_endpoints(app, ctx=endpoint_ctx)
 
     mcp.mount()
+    if _env_truthy(_FOUNDRY_HOSTED_ENV):
+        logger.info("foundry_hosted_mode_enabled service=%s", service_name)
+        agent.serve_responses(app)
     return app

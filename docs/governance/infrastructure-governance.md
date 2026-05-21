@@ -23,7 +23,9 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 ### Core policy
 
 - **azd-first deployment is mandatory** (ADR-017). The only approved exception is the manual dev emergency redeploy path in `deploy-azd-dev.yml` with `skipProvision=true`, which reuses already-provisioned infrastructure and skips only `azd provision`.
-- Agent protocol surfaces, including the `inventory-health-check` Responses adapter, must be exposed through the canonical APIM/AGC-to-AKS route. Do not introduce Foundry-managed hosted-container deployment or a second runtime/port for product agent traffic.
+- Agent protocol surfaces used for product traffic, including the `inventory-health-check` Responses adapter, must be exposed through the canonical APIM/AGC-to-AKS route. A Foundry-hosted portal/evaluation surface may be registered separately for Playground testing, telemetry, and evaluations, provided it uses the same FastAPI Responses wrapper and does not become the product traffic path.
+- Foundry exposure follows ADR-036: public or human-facing agents use Hosted Agent manifests, while non-public internal agents use Custom Agent metadata that proxies the existing APIM -> AGC -> AKS endpoint and sets `foundryManagedCompute: false`. This taxonomy does not replace azd/Flux/HelmRelease as the AKS product deployment model.
+- Foundry surface automation must consume `apps/foundry-surfaces.yaml` and remain an explicit plan/apply step. Plan mode is read-only and emits a review artifact; apply mode may create/update Hosted Agent versions only from tested image digests and must keep Custom Agent proxy surfaces metadata-only until a supported Foundry Custom Agent creation API exists.
 - Reusable workflow `deploy-azd.yml` is not the primary operator entrypoint; use env-specific entrypoint workflows.
 - OIDC Azure login is required in CI/CD; no static cloud credentials committed to repository.
 - Provisioning must fail fast when `projectName` is not `holidaypeakhub405` or when `resourceGroupName`/`AZURE_RESOURCE_GROUP` are not `holidaypeakhub405-<environment>-rg`; this is enforced through azd `preprovision` hooks.
@@ -116,6 +118,7 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 - Optional UI-only deployment path constrained by SWA token flow and health checks.
 - ACR runner-IP allowlist exceptions may be applied/removed automatically when enabled.
 - If the environment ACR public endpoint is disabled, the tested-image build guard must temporarily enable public access with `defaultAction=Deny`, reuse the runner-IP allowlist flow, and restore the prior `publicNetworkAccess` and `networkRuleSet.defaultAction` after the build phase completes.
+- Foundry Hosted Agent apply mode must not rely on temporary runner-IP ACR exceptions. Because hosted containers are pulled by Foundry, apply mode must fail when the baseline ACR policy is private-only or `networkRuleSet.defaultAction=Deny`; operators must make that exposure decision intentionally before creating Hosted Agent versions.
 - When restoring ACR access state, `defaultAction` validation must be skipped if `publicNetworkAccess` is being set to `Disabled` — Azure may report any `defaultAction` value when public access is off and the value is semantically irrelevant.
 - When `azd provision` fails with `RoleAssignmentExists` in a non-prod environment, the infrastructure is typically deployed successfully but azd does not write outputs. The workflow must run `azd env refresh` after this fallback to populate outputs (POSTGRES_HOST, COSMOS_ACCOUNT_URI, etc.) from the deployed resources.
 
@@ -152,6 +155,7 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 6. Architecture/governance docs updated when policy changes.
 7. Privileged live validation remains bound to the `dev` environment, excluded from PR contexts, and constrained by selected-branch deployment protection on `main`.
 8. Changed agent services passed the Foundry runtime contract gate across workflow intent, rendered manifests, live Deployment env values, ensure responses, and `/ready` validation.
+9. When Foundry portal visibility is required, `deployFoundrySurfaces=true` produced a plan artifact first and `foundrySurfaceMode=apply` was run only after Hosted Agent ACR reachability and cost implications were reviewed.
 
 ## ADR References
 

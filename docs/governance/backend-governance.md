@@ -51,6 +51,8 @@ The three-tier memory contract remains canonical for product services (ADR-007, 
 
 Redis hot memory is optional on the request path by behavior, not by deployment split: the framework bounds socket and connect timeouts and fails open for Redis authentication, connection, timeout, and OS-level faults so optional cache failures do not surface as agent request failures. Event Hub subscriber wiring remains part of the standard app lifespan whenever subscriptions and handlers are configured.
 
+Foundry Hosted Agent surfaces are enabled through `HOLIDAY_PEAK_FOUNDRY_HOSTED=1`, which mounts the shared `/responses` adapter into the existing FastAPI app. Custom Agent surfaces must proxy the existing APIM -> AGC -> AKS endpoint and must not declare Foundry-managed compute. Both surfaces keep the same service implementation and product dependency wiring.
+
 ### Security
 
 - Use Managed Identity and Key Vault for secrets.

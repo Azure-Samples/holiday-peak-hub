@@ -54,6 +54,19 @@ on:
         required: true
         type: boolean
         default: true
+      deployFoundrySurfaces:
+        description: Register Foundry surface manifests after tested agent images are available
+        required: true
+        type: boolean
+        default: true
+      foundrySurfaceMode:
+        description: Foundry surface registration mode (plan creates an artifact; apply creates/updates Hosted Agent versions)
+        required: true
+        type: choice
+        options:
+          - plan
+          - apply
+        default: plan
 
 permissions:
   id-token: write
@@ -87,6 +100,8 @@ jobs:
       forceApimSync: ${{ github.event_name == 'workflow_dispatch' && inputs.forceApimSync }}
       autoAllowAcrRunnerIp: true
       skipApiSmokeChecks: false
+      deployFoundrySurfaces: ${{ github.event_name == 'workflow_dispatch' && inputs.deployFoundrySurfaces }}
+      foundrySurfaceMode: ${{ github.event_name == 'workflow_dispatch' && inputs.foundrySurfaceMode || 'plan' }}
     secrets:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
