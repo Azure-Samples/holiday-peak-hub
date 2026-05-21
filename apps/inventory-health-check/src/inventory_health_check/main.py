@@ -1,11 +1,17 @@
 """Inventory health check service."""
 
+import os
+
 from holiday_peak_lib import create_standard_app
 from holiday_peak_lib.utils import EventHubSubscription
 from inventory_health_check.agents import InventoryHealthAgent, register_mcp_tools
 from inventory_health_check.event_handlers import build_event_handlers
 
 SERVICE_NAME = "inventory-health-check"
+# Pilot service for the ADR-005 (2026-05-10) Mandatory MAF Invocation Policy:
+# wire SLM/LLM targets via DirectModelInvoker (in-process MAF Agent +
+# FoundryChatClient over Responses API) instead of portal-managed Foundry
+# Prompt Agents. No parallel runtime — this opts the existing entry point in.
 app = create_standard_app(
     require_foundry_readiness=True,
     disable_tracing_without_foundry=True,
@@ -17,4 +23,28 @@ app = create_standard_app(
         EventHubSubscription("inventory-events", "health-check-group"),
     ],
     handlers=build_event_handlers(),
+    use_direct_model=True,
 )
+
+# AKS-hosted Responses adapter — single-process mount that exposes the
+# Responses-protocol surface (``/responses``) on the SAME FastAPI app, pod,
+# and port as ``/health``, ``/ready``, ``/mcp/*``, and ``/invoke``. Single
+# uvicorn process, single runtime, no Foundry-managed container registration.
+# Direct routes registered above (``/health``, ``/ready``, ``/mcp/*``) win
+# because Starlette walks routes in registration order.
+#
+# Toggleable: set HOLIDAY_PEAK_AKS_RESPONSES_ENABLED=0 to skip mounting (for
+# environments where ``agent-framework-foundry-hosting`` is not installed
+# or where the operator wants to roll back the adapter without redeploying).
+if os.getenv("HOLIDAY_PEAK_AKS_RESPONSES_ENABLED", "1") not in ("0", "false", "False"):
+    try:
+        app.state.agent.serve_responses(app)
+    except ImportError:
+        # The optional SDK is not present in this environment — log and
+        # continue. Service still serves /health, /mcp/*, /ready normally.
+        import logging
+
+        logging.getLogger(SERVICE_NAME).warning(
+            "responses_adapter_mount_skipped reason=sdk_missing "
+            "(install agent-framework-foundry-hosting to enable /responses)"
+        )

@@ -16,4 +16,5 @@ app = create_standard_app(
         EventHubSubscription("order-events", "cart-intel-group"),
     ],
     handlers=build_event_handlers(),
+    use_direct_model=True,
 )

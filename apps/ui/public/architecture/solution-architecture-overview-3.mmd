@@ -1,0 +1,55 @@
+%%{init: {'theme':'base', 'themeVariables': {
+  'primaryColor':'#FFB3BA',
+  'primaryTextColor':'#000',
+  'primaryBorderColor':'#FF8B94',
+  'lineColor':'#BAE1FF',
+  'secondaryColor':'#BAE1FF',
+  'tertiaryColor':'#FFFFFF'
+}}}%%
+graph TB
+    subgraph "eCommerce Domain"
+        E1["cart-intelligence<br/>:8001"]
+        E2["catalog-search<br/>:8002"]
+        E3["checkout-support<br/>:8003"]
+        E4["order-status<br/>:8004"]
+        E5["product-detail-enrichment<br/>:8005"]
+    end
+
+    subgraph "Product Management Domain"
+        P1["acp-transformation<br/>:8006"]
+        P2["assortment-optimization<br/>:8007"]
+        P3["consistency-validation<br/>:8008"]
+        P4["normalization-classification<br/>:8009"]
+    end
+
+    subgraph "CRM Domain"
+        C1["campaign-intelligence<br/>:8010"]
+        C2["profile-aggregation<br/>:8011"]
+        C3["segmentation-personalization<br/>:8012"]
+        C4["support-assistance<br/>:8013"]
+    end
+
+    subgraph "Inventory Domain"
+        I1["alerts-triggers<br/>:8014"]
+        I2["health-check<br/>:8015"]
+        I3["jit-replenishment<br/>:8016"]
+        I4["reservation-validation<br/>:8017"]
+    end
+
+    subgraph "Logistics Domain"
+        L1["carrier-selection<br/>:8018"]
+        L2["eta-computation<br/>:8019"]
+        L3["returns-support<br/>:8020"]
+        L4["route-issue-detection<br/>:8021"]
+    end
+
+    subgraph "Search Domain"
+        S1["search-enrichment-agent"]
+    end
+
+    subgraph "Truth Layer Domain"
+        T1["truth-ingestion"]
+        T2["truth-enrichment"]
+        T3["truth-export"]
+        T4["truth-hitl"]
+    end

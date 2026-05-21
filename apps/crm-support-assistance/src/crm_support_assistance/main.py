@@ -17,4 +17,5 @@ app = create_standard_app(
         EventHubSubscription("return-events", "support-group"),
     ],
     handlers=build_event_handlers(),
+    use_direct_model=True,
 )

@@ -1,0 +1,31 @@
+C4Context
+    title System Context - Holiday Peak Hub
+
+    Person(customer, "Customer", "Shopper using<br/>e-commerce site")
+    Person(agent, "Service Agent", "Customer support<br/>representative")
+    Person(manager, "Operations Manager", "Inventory/logistics<br/>planner")
+    
+    System_Boundary(hub, "Holiday Peak Hub") {
+        System(ecommerce, "E-commerce Services", "Catalog search, cart,<br/>checkout, order tracking")
+        System(product, "Product Mgmt Services", "Normalization, ACP,<br/>assortment optimization")
+        System(crm, "CRM Services", "Profile aggregation,<br/>segmentation, campaigns")
+        System(inventory, "Inventory Services", "Health check, JIT<br/>replenishment, alerts")
+        System(logistics, "Logistics Services", "ETA, carrier selection,<br/>returns, route detection")
+    }
+    
+    System_Ext(retailSystems, "Retailer Legacy Systems", "Inventory, pricing,<br/>CRM, ERP APIs")
+    System_Ext(foundry, "Microsoft Foundry", "GPT-4 models,<br/>embedding services")
+    System_Ext(external, "External Partners", "Carriers, payment<br/>gateways, analytics")
+    
+    Rel(customer, ecommerce, "Browses, orders")
+    Rel(agent, crm, "Views profiles, campaigns")
+    Rel(manager, inventory, "Monitors stock, triggers")
+    
+    Rel(ecommerce, retailSystems, "Fetches inventory,<br/>pricing")
+    Rel(product, retailSystems, "Reads catalog")
+    Rel(crm, retailSystems, "Queries customer data")
+    Rel(inventory, retailSystems, "Checks stock levels")
+    Rel(logistics, external, "Gets shipping rates")
+    
+    Rel(ecommerce, foundry, "Model inference")
+    Rel(crm, foundry, "Segmentation models")

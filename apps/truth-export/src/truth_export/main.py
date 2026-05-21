@@ -29,6 +29,7 @@ app: FastAPI = create_standard_app(
         ),
     ],
     handlers=build_event_handlers(),
+    use_direct_model=True,
 )
 
 app.include_router(export_router)

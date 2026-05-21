@@ -20,3 +20,30 @@
 .mermaid {
   text-align: center;
 }
+
+/*
+ * Cross-link footer banner (Issue #1022).
+ *
+ * Renders the reciprocal "Search the rest of the site" link added by
+ * mkdocs/overrides/partials/footer.html. Visually low-key but always
+ * present so docs readers can pivot back to the app's audience-IA pages.
+ */
+.hp-docs-cross-link {
+  margin: 1rem auto 0.5rem;
+  padding: 0.5rem 1rem;
+  max-width: 1440px;
+  border-top: 1px solid var(--md-default-fg-color--lightest);
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--md-default-fg-color--light);
+}
+
+.hp-docs-cross-link a {
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.hp-docs-cross-link a:hover,
+.hp-docs-cross-link a:focus {
+  text-decoration: underline;
+}

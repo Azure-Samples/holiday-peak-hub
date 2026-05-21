@@ -32,8 +32,8 @@ spec:
       clientId: "e9c11fac-45b3-4057-8477-1d96703eaae4"
 
     image:
-      repository: holidaypeakhub405devacr.azurecr.io/holiday-peak-hub/truth-hitl-dev
-      tag: azd-deploy-1775350566
+      repository: holidaypeakhub405devacr.azurecr.io/truth-hitl
+      tag: 808d48227b08ceaf9f2d820010e02edf5250b57f
 
     replicaCount: 2
 
@@ -102,7 +102,6 @@ spec:
       FOUNDRY_AGENT_NAME_FAST: "truth-hitl-fast"
       FOUNDRY_AGENT_NAME_RICH: "truth-hitl-rich"
       FOUNDRY_AUTO_ENSURE_ON_STARTUP: "true"
-      FOUNDRY_STREAM: "true"
       AGENT_FOUNDRY_INVOKE_TIMEOUT_SECONDS: "60"
       FOUNDRY_STRICT_ENFORCEMENT: "false"
 

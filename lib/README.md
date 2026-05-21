@@ -1,25 +1,29 @@
-# `holiday-peak-lib` — Core Micro-Framework for Agentic Retail Services
+# `holiday-peak-lib` — The Framework
 
 ![version](https://img.shields.io/badge/version-0.2.0-blue)
 ![python](https://img.shields.io/badge/python-%3E%3D3.13-blue)
 ![tests](https://img.shields.io/badge/tests-1136%20passed-brightgreen)
 ![coverage](https://img.shields.io/badge/coverage-89%25-brightgreen)
 
-`holiday-peak-lib` is the shared micro-framework that powers every retail agent service in this repository. It provides a single, cohesive abstraction layer over Microsoft Agent Framework (MAF), Azure AI Foundry, three-tier memory, enterprise connectors, resilience patterns, and structured telemetry — enabling 26 domain-specific agent services to stay thin, consistent, and independently deployable while sharing battle-tested infrastructure code.
+`holiday-peak-lib` is **the framework** half of this repository — an opinionated agentic-microservices runtime for retail. The product half (1 transactional microservice + 26 agent services + 1 Next.js frontend) lives in [`apps/`](../apps/README.md) and is built on the contracts defined here. The canonical positioning is in [.github/instructions/repository-purpose.instructions.md](../.github/instructions/repository-purpose.instructions.md).
+
+Its stable seams — `BaseRetailAgent`, `AgentBuilder`, `ModelTarget` / `ModelInvoker`, `FastAPIMCPServer`, three-tier memory (Hot/Warm/Cold), enrichment guardrails, routing strategy, evaluation runners, structured telemetry, connector contracts — are **load-bearing**. Forks adopt them. Breaking changes here cascade to every service in `apps/` and to anyone who has forked the framework. Treat `lib/` edits as framework edits: stable contracts, contract tests, ADRs where applicable.
+
+The library wraps Microsoft Agent Framework (MAF), Azure AI Foundry, three-tier memory, enterprise connectors, resilience patterns, and structured telemetry behind a single cohesive abstraction layer — enabling 26 domain-specific agent services to stay thin, consistent, and independently deployable while sharing battle-tested infrastructure code.
 
 ---
 
 ## Why Microsoft Agent Framework (MAF) Lives Here
 
-[Microsoft Agent Framework](https://learn.microsoft.com/en-us/python/api/overview/azure/agent-framework) (`agent-framework>=1.0.1` GA) is the Python runtime that executes [Azure AI Foundry](https://learn.microsoft.com/en-us/azure/ai-studio/) agents. It handles the protocol-level details of agent invocation, tool forwarding, message streaming, and lifecycle management.
+[Microsoft Agent Framework](https://learn.microsoft.com/en-us/python/api/overview/azure/agent-framework) (`agent-framework>=1.2.0`) is the Python runtime that executes in-process retail agents over a pluggable chat client. Holiday Peak Hub uses `agent_framework.Agent` with `agent_framework_foundry.FoundryChatClient` by default, so Azure AI Foundry remains the model-deployment, telemetry, and evaluation plane without requiring portal-managed Foundry Agent records at runtime.
 
-Rather than having each of the 26 service apps depend on MAF directly, the lib **wraps MAF behind `FoundryAgentInvoker`** — a thin adapter that turns a Foundry Agent into a `ModelTarget` invoker consumed by `BaseRetailAgent`. This architectural choice delivers concrete benefits:
+Rather than having each of the 26 service apps depend on MAF directly, the lib **wraps MAF behind `DirectModelInvoker`** — a provider-agnostic adapter that turns a Foundry model deployment into a `ModelTarget` invoker consumed by `BaseRetailAgent`. This architectural choice delivers concrete benefits:
 
 | Benefit | Detail |
 |---------|--------|
-| **Single point of upgrade** | When MAF releases a breaking change or a new GA version, **one `pyproject.toml` update** in `lib/src` propagates to all services. In PR #802 (migrating from `FoundryInvoker` to `FoundryAgentInvoker`), all 27 `pyproject.toml` files were updated in a single pass because the abstraction boundary held. |
+| **Single point of upgrade** | When MAF releases a breaking change or a new GA version, **one `pyproject.toml` update** in `lib/src` propagates to all services. The #990 direct-model migration preserved that abstraction boundary while removing the retired portal-agent runtime. |
 | **SDK-agnostic base class** | `BaseRetailAgent` extends MAF's `BaseAgent` but adds retail-specific concerns: SLM/LLM routing, three-tier memory, MCP tool exposure, guardrails, and structured telemetry. Agent services never need to understand MAF internals. |
-| **Consistent tool forwarding** | Tools registered via `AgentBuilder.with_tool()` are forwarded to the Foundry agent through a standardized interface, avoiding per-service wiring. |
+| **Consistent tool forwarding** | Tools registered via `AgentBuilder.with_tool()` are forwarded to the in-process MAF agent through native function-calling, avoiding per-service wiring and the retired JSON-text parser. |
 | **Centralized telemetry** | `FoundryTracer` wraps OpenTelemetry with Foundry-aware span attributes, ensuring every agent invocation emits consistent traces to Azure Monitor. |
 | **Import isolation** | Agent services import **only from `holiday_peak_lib`** — never directly from `agent_framework` or `agent_framework_foundry`. The lazy import in `base_agent.py` even provides a fallback shim when MAF is unavailable (CI resilience). |
 
@@ -52,7 +56,7 @@ graph TD
         subgraph "agents/"
             BA["BaseRetailAgent<br/>(base_agent)"]
             BU["AgentBuilder<br/>(builder)"]
-            FO["FoundryAgentInvoker<br/>(foundry)"]
+            DI["DirectModelInvoker<br/>(direct)"]
             PL["prompt_loader"]
             PP["provider_policy"]
             SA["service_agent"]
@@ -85,10 +89,10 @@ graph TD
     AG --> SC
     AG --> UT
     BU --> BA
-    BU --> FO
+    BU --> DI
     BU --> RS
     BU --> MB
-    BA --> FO
+    BA --> DI
     MC --> AG
     EV --> SC
     CN --> CF
@@ -107,7 +111,8 @@ graph TD
 |------------------|-------------|---------|
 | `base_agent.py` | `BaseRetailAgent`, `AgentDependencies`, `ModelTarget` | Abstract base extending MAF `BaseAgent` with SLM/LLM model selection, complexity heuristics, and retail-specific lifecycle hooks |
 | `builder.py` | `AgentBuilder` | Fluent builder composing agents with memory tiers, routing strategy, MCP server, tools, and model targets |
-| `foundry.py` | `FoundryAgentConfig`, `FoundryAgentInvoker`, `build_foundry_model_target`, `ensure_foundry_agent` | MAF integration: lazy-imports `agent_framework_foundry.FoundryAgent`, normalizes project endpoints, wraps invocation as `ModelTarget` |
+| `direct.py` | `DirectModelInvoker`, `build_direct_model_target`, `ChatClientFactory` | Canonical MAF direct-model runtime: constructs `agent_framework.Agent` in-process over a pluggable chat client and forwards callable tools via native function-calling |
+| `foundry.py` | `FoundryAgentConfig`, `FoundryConfigurationError` | Foundry project/model-deployment configuration and endpoint normalization used by the direct-model runtime |
 | `prompt_loader.py` | `load_service_prompt_instructions` | Loads structured prompt instruction files per service |
 | `provider_policy.py` | `sanitize_messages_for_provider`, `should_use_local_routing_prompt` | Provider-specific message sanitization and routing decision policies |
 | `service_agent.py` | `ServiceAgent` | Concrete agent implementation for standard service patterns |
@@ -287,17 +292,17 @@ sequenceDiagram
     participant AF as app_factory
     participant FC as FoundryAgentConfig
     participant AB as AgentBuilder
-    participant FI as FoundryAgentInvoker
+    participant DI as DirectModelInvoker
     participant App as FastAPI App
 
     Main->>AF: create_standard_app(service_name, AgentClass)
     AF->>AF: Load MemorySettings from env vars
     AF->>AF: Initialize HotMemory, WarmMemory, ColdMemory
     AF->>AF: Initialize SelfHealingKernel from env
-    AF->>FC: Load FoundryAgentConfig from env vars<br/>(PROJECT_ENDPOINT, FOUNDRY_AGENT_ID_FAST, etc.)
+    AF->>FC: Load FoundryAgentConfig from env vars<br/>(PROJECT_ENDPOINT, MODEL_DEPLOYMENT_NAME_FAST, etc.)
     AF->>AB: AgentBuilder()<br/>.with_agent(AgentClass)<br/>.with_router(RoutingStrategy)<br/>.with_memory(hot, warm, cold)<br/>.with_mcp(FastAPIMCPServer)
-    AB->>FI: build_foundry_model_target(config)<br/>wraps MAF FoundryAgent as ModelTarget
-    AB->>AB: .with_models(slm=target, llm=target)
+    AB->>DI: build_direct_model_target(config)<br/>wraps MAF Agent + ChatClient as ModelTarget
+    AB->>AB: .with_direct_models(slm_config, llm_config)
     AB->>AB: .build() → BaseRetailAgent instance
     AF->>App: Register /invoke, /health, /ready
     AF->>App: Register /self-healing/* routes
@@ -309,9 +314,9 @@ sequenceDiagram
 **Step-by-step:**
 
 1. **`create_standard_app()`** is called in each app's `main.py` with the service name and agent class.
-2. **`FoundryAgentConfig`** is loaded from environment variables (`PROJECT_ENDPOINT`, `FOUNDRY_AGENT_ID_FAST`, `MODEL_DEPLOYMENT_NAME_FAST`, `FOUNDRY_AGENT_ID_RICH`, `MODEL_DEPLOYMENT_NAME_RICH`).
+2. **`FoundryAgentConfig`** is loaded from environment variables (`PROJECT_ENDPOINT`, `PROJECT_NAME`, `MODEL_DEPLOYMENT_NAME_FAST`, `MODEL_DEPLOYMENT_NAME_RICH`). Legacy `FOUNDRY_AGENT_ID_*` values may exist as metadata but are not required for runtime invocation.
 3. **`AgentBuilder`** composes the agent with tools, memory tiers, routing strategy, guardrails, and MCP server.
-4. **`FoundryAgentInvoker`** wraps MAF's `FoundryAgent` as a `ModelTarget` — the agent never touches MAF directly.
+4. **`DirectModelInvoker`** wraps MAF's `Agent` over `FoundryChatClient` as a `ModelTarget` — the agent service never touches MAF directly.
 5. **FastAPI app** is returned with `/invoke`, `/health`, `/ready`, self-healing routes, and MCP tool endpoints registered.
 
 ---
@@ -483,7 +488,8 @@ python -m pytest
 |-----------|---------------|
 | `test_agents_base.py` | `agents/base_agent.py` — BaseRetailAgent, ModelTarget, AgentDependencies |
 | `test_agents_builder.py` | `agents/builder.py` — AgentBuilder composition |
-| `test_foundry.py` | `agents/foundry.py` — FoundryAgentInvoker, endpoint normalization |
+| `test_foundry.py` | `agents/foundry.py` — Foundry configuration and endpoint normalization |
+| `test_direct_invoker.py` | `agents/direct.py` — DirectModelInvoker and direct model target construction |
 | `test_prompt_loader.py` | `agents/prompt_loader.py` — Prompt instruction loading |
 | `test_provider_policy.py` | `agents/provider_policy.py` — Provider message sanitization |
 | `test_service_agent.py` | `agents/service_agent.py` — ServiceAgent implementation |

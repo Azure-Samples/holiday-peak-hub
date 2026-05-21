@@ -21,7 +21,7 @@ Core micro-framework providing reusable patterns for retail AI agents.
 
 | Component | Path | Purpose |
 |-----------|------|---------|
-| FoundryAgentInvoker | `agents/foundry.py` | MAF `FoundryAgent` wrapper — routes tools and middleware correctly |
+| DirectModelInvoker | `agents/direct.py` | Canonical MAF direct-model runtime over a pluggable `ChatClient` with native function-calling |
 | Enrichment Guardrail | `agents/guardrails/enrichment_guardrail.py` | Validation layer for enrichment outputs |
 | Memory Tools | `agents/memory/builder.py` | `get_memory`, `set_memory`, `search_memory` tools for agent use |
 | Parallel Memory I/O | `agents/memory/` | `asyncio.gather`-based concurrent hot/warm/cold tier operations |

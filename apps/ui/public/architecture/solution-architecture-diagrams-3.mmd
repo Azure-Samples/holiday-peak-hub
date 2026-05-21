@@ -1,0 +1,22 @@
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor':'#FFB3BA','primaryTextColor':'#000','primaryBorderColor':'#FF8B94','lineColor':'#BAE1FF','secondaryColor':'#BAE1FF','tertiaryColor':'#FFFFFF'}}}%%
+graph LR
+    CRUD["CRUD Service"]
+    EH["Event Hubs"]
+
+    subgraph ECOM["eCommerce Domain (holiday-peak-agents)"]
+        CS["🔍 Catalog Search<br/><i>Vector + hybrid search<br/>SLM intent detection</i>"]
+        PDE["📝 Product Detail Enrichment<br/><i>AI-generated descriptions<br/>SEO optimization</i>"]
+        CI["🛒 Cart Intelligence<br/><i>Cross-sell, upsell<br/>Abandonment prevention</i>"]
+        CKS["✅ Checkout Support<br/><i>Validation, fraud signals<br/>Inventory hold</i>"]
+        OS["📦 Order Status<br/><i>Tracking enrichment<br/>Proactive notifications</i>"]
+    end
+
+    CRUD -->|product.created<br/>product.updated| EH
+    EH --> PDE
+    EH --> CS
+    CRUD -->|order.created| EH --> OS
+    CRUD -->|cart.updated| EH --> CI
+    CRUD <-->|sync + circuit breaker| CS & CKS
+    CS -->|MCP: get_enrichment| PDE
+    CKS -->|MCP: validate_stock| INV["Inventory Domain"]
+    CS --> AIS["Azure AI Search"]

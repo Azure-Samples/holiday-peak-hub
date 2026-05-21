@@ -19,11 +19,13 @@ Use this mapping to know the current vs. former names—so you can correctly int
 
 ## Repository Purpose & Architecture
 
-- This repository is a **framework for agentic retail** solutions.
-- All apps under **/apps** are **demonstration services** built on the framework.
-- Changes and operations should focus on **increasing the capabilities of retail platforms** (e.g., intelligence, automation, personalization, operational efficiency).
-- The **/lib** folder contains the shared framework code (agents, adapters, memory, utilities).
-- Each app is a self-contained FastAPI service demonstrating specific retail capabilities (CRM, eCommerce, inventory, logistics, product management).
+> **Canonical positioning lives in [.github/instructions/repository-purpose.instructions.md](instructions/repository-purpose.instructions.md). That file is the single source of truth and is auto-loaded into every agent prompt. The summary below must stay aligned with it.**
+
+- This repository is **a framework AND a product**, distributed as a public Microsoft sample under `Azure-Samples/`. It is not a demo. It is not a framework with toy apps. Both halves are first-class.
+- **`lib/holiday_peak_lib/` is a framework** — an opinionated agentic-microservices runtime for retail with stable seams (`BaseRetailAgent`, `AgentBuilder`, `ModelTarget`, `FastAPIMCPServer`, three-tier memory, guardrails, telemetry). Versioned, contracted, designed for adoption.
+- **`apps/` is a product** — a retail platform built on the framework: 1 transactional microservice (`crud-service`), 26 agent services across 7 bounded contexts, and 1 Next.js frontend (`ui`). Production-grade SLOs, canary routing, continuous evaluation, real connectors.
+- Distribution via `Azure-Samples/` is a **channel, not a quality tier**. Latency discipline, canary routing, eval baselines, and connector breadth exist because the product needs them in production — not because they make a good demo.
+- Changes to `lib/` are framework changes (stable contracts, contract tests, ADRs where applicable). Changes to `apps/` are product changes (domain reasoning, eval impact, SLO awareness, operational runbooks).
 - **Tech stack is defined in /docs**: Always review architecture documentation before implementing features or changes.
 - **Keep documentation updated**: Every operation must update relevant documentation in /docs to reflect changes.
 
@@ -72,8 +74,18 @@ Use this mapping to know the current vs. former names—so you can correctly int
   - `MODEL_DEPLOYMENT_NAME_FAST`: SLM deployment name
   - `FOUNDRY_AGENT_ID_RICH`: LLM agent ID
   - `MODEL_DEPLOYMENT_NAME_RICH`: LLM deployment name
-  - `FOUNDRY_STREAM`: Enable streaming (optional, default false)
 - Each app's `main.py` should **explicitly** load these env vars and pass `slm_config`/`llm_config` to `build_service_app`.
+
+## Hosted Agent Terminology
+
+- Never use "hosted agent" without a qualifier in this repository. The term is overloaded across AKS runtime, Foundry portal labels, and Foundry-managed container hosting.
+- **AKS-hosted agent/service** means the product runtime runs as the existing FastAPI container/pod in AKS. If a service is deployed through `azure.yaml` with `host: aks` and reconciled through Flux/HelmRelease, the correct answer to "is it hosted on AKS?" is **yes**.
+- **AKS-hosted Responses adapter** means the Responses protocol is mounted into the same AKS-hosted FastAPI app, same pod, and same port as `/health`, `/ready`, `/mcp/*`, and `/invoke`. For `inventory-health-check`, this is the intended architecture.
+- **Foundry portal-tracked agent** means `agent.yaml` and `.foundry/agent-metadata.yaml` describe the AKS product runtime for traceability, evaluations, protocol metadata, and operator discovery. These files alone do not create a runnable Foundry Playground surface.
+- **Foundry-hosted portal/evaluation surface** means a Foundry-created hosted-container version, usually via `AIProjectClient.agents.create_version` and a `template.kind: hosted` manifest, that gives operators a Foundry Playground/test/evaluation surface for the same agent. For `inventory-health-check`, this surface is allowed when it packages the same FastAPI Responses wrapper and product-equivalent dependencies; it must not replace AKS as the product runtime or introduce a second service implementation.
+- **Foundry-managed hosted-container product runtime** means Foundry owns the runtime used for production product traffic. This is not the Holiday Peak Hub product path unless a future ADR explicitly changes the runtime ownership model.
+- **ACA-hosted agent** means Azure Container Apps owns the runtime. `inventory-health-check` is not ACA-hosted.
+- When explaining PR #1103, issue #1107, `inventory-health-check`, Responses protocol support, or Foundry portal labels, use the precise terms above. Do not answer "no" to "is this hosted on AKS?" when the real distinction is "yes, AKS-hosted product runtime; also preserve a Foundry-hosted portal/evaluation surface when requested for portal testing, telemetry, and evaluations."
 
 ## Memory Architecture
 

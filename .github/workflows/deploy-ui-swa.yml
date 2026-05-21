@@ -89,6 +89,51 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Setup Python (mkdocs build)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Build mkdocs into apps/ui/public/docs (Issue #1021 / Epic #1026)
+        shell: bash
+        env:
+          # Pip install only when the requirements file exists so the workflow
+          # is forward-compatible with branches that have not yet pinned mkdocs.
+          PYTHONUNBUFFERED: '1'
+          # `--strict` is the contract per #1021. The docs subtree's
+          # ~130 pre-existing link warnings were resolved by adding the
+          # `rewrite_external_links.py` mkdocs hook (rewrites docs-to-source
+          # links to absolute GitHub blob URLs) plus a GitHub-compatible
+          # toc slugifier. The gate now defaults on; the
+          # `MKDOCS_STRICT_BUILD` repo variable can override to `false`
+          # for emergency unblocks.
+          MKDOCS_STRICT: ${{ vars.MKDOCS_STRICT_BUILD || 'true' }}
+        run: |
+          set -euo pipefail
+          if [ ! -f "mkdocs/requirements.txt" ]; then
+            echo "mkdocs/requirements.txt not present; skipping docs build." >&2
+            exit 0
+          fi
+          python -m pip install --upgrade pip
+          python -m pip install -r mkdocs/requirements.txt
+          STRICT_FLAG=""
+          if [ "$MKDOCS_STRICT" = "true" ]; then
+            STRICT_FLAG="--strict"
+          fi
+          (cd mkdocs && python -m mkdocs build ${STRICT_FLAG} --site-dir ../apps/ui/public/docs)
+          test -f apps/ui/public/docs/index.html
+          echo "mkdocs site emitted to apps/ui/public/docs/"
+
+      - name: Build enablement asset index (Issue #1052 / Epic #1053)
+        shell: bash
+        env:
+          PYTHONUNBUFFERED: '1'
+        run: |
+          set -euo pipefail
+          python scripts/ops/build_enablement_index.py
+          test -f apps/ui/public/enablement-index.json
+          echo "enablement-index.json emitted to apps/ui/public/"
+
       - name: Resolve and validate API URL
         id: api
         shell: bash

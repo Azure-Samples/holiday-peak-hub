@@ -1,0 +1,34 @@
+surface:
+  type: custom
+  classification: Custom Agent
+  audience: non-public-internal
+  productRuntime: aks
+  productTrafficPath: "APIM -> AGC -> AKS"
+  foundryManagedCompute: false
+  proxy:
+    target: existing-aks-apim-endpoint
+    endpoint: ${APIM_BASE_URL}/agents/truth-ingestion
+defaultEnvironment: dev
+environments:
+  dev:
+    projectEndpoint: ${PROJECT_ENDPOINT}
+    agentName: truth-ingestion
+    azureContainerRegistry: ${AZURE_CONTAINER_REGISTRY}
+    observability:
+      applicationInsightsConnectionString: ${APPLICATIONINSIGHTS_CONNECTION_STRING}
+      tracingBackend: application-insights
+    evaluationSuites:
+      - id: truth-ingestion-smoke
+        name: Truth Ingestion Smoke Evaluation
+        tags:
+          tier: smoke
+          purpose: portal-tracking
+          stage: seed
+        dataset: truth-ingestion-eval-seed
+        datasetVersion: v1
+        datasetFile: .foundry/datasets/truth-ingestion-eval-seed-v1.jsonl
+        evaluators:
+          - name: coherence
+            threshold: 4
+          - name: groundedness
+            threshold: 4

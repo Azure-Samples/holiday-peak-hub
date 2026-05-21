@@ -91,6 +91,16 @@ on:
         required: false
         type: boolean
         default: false
+      deployFoundrySurfaces:
+        description: Plan or apply Foundry Hosted/Custom surface registration after tested agent images are available.
+        required: false
+        type: boolean
+        default: false
+      foundrySurfaceMode:
+        description: Foundry surface registration mode. Use plan for dry-run artifacts; use apply to create/update Hosted Agent versions.
+        required: false
+        type: string
+        default: plan
     secrets:
       AZURE_CLIENT_ID:
         required: true
@@ -1328,6 +1338,7 @@ jobs:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      CHANGED_AGENT_SERVICES: ${{ needs.detect-changes.outputs.changed_agent_services_csv }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -1630,6 +1641,138 @@ jobs:
             --name "${{ needs.prepare-acr-build-access.outputs.acr_name }}" \
             --resource-group "${{ needs.prepare-acr-build-access.outputs.rg_name }}" \
             --ip-address "${{ steps.acr_preflight_build.outputs.runner_ip }}" >/dev/null || true
+
+  deploy-foundry-surfaces:
+    runs-on: ubuntu-latest
+    if: ${{ !inputs.uiOnly && inputs.deployFoundrySurfaces && needs.detect-changes.outputs.changed_agent_services_csv != '' }}
+    needs:
+      - detect-changes
+      - provision
+      - prepare-acr-build-access
+      - build-aks-images
+    environment: ${{ inputs.githubEnvironment }}
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      PROJECT_ENDPOINT: ${{ needs.provision.outputs.PROJECT_ENDPOINT }}
+      PROJECT_NAME: ${{ needs.provision.outputs.PROJECT_NAME }}
+      APIM_BASE_URL: ${{ needs.provision.outputs.APIM_GATEWAY_URL }}
+      AZURE_CONTAINER_REGISTRY: ${{ needs.prepare-acr-build-access.outputs.login_server }}
+      REDIS_HOST: ${{ needs.provision.outputs.REDIS_HOST }}
+      REDIS_URL: ""
+      COSMOS_ACCOUNT_URI: ${{ needs.provision.outputs.COSMOS_ACCOUNT_URI }}
+      COSMOS_DATABASE: ${{ needs.provision.outputs.COSMOS_DATABASE }}
+      COSMOS_CONTAINER: ${{ needs.provision.outputs.COSMOS_CONTAINER }}
+      BLOB_ACCOUNT_URL: ${{ needs.provision.outputs.BLOB_ACCOUNT_URL }}
+      BLOB_CONTAINER: ${{ needs.provision.outputs.BLOB_CONTAINER }}
+      EVENT_HUB_NAMESPACE: ${{ needs.provision.outputs.EVENT_HUB_NAMESPACE }}
+      KEY_VAULT_URI: ${{ needs.provision.outputs.KEY_VAULT_URI }}
+      APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ needs.provision.outputs.APPLICATIONINSIGHTS_CONNECTION_STRING }}
+      MODEL_DEPLOYMENT_NAME_FAST: gpt-5-nano
+      MODEL_DEPLOYMENT_NAME_RICH: gpt-5
+    steps:
+      - name: Checkout tested source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SOURCE_CHECKOUT_REF }}
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install Foundry surface registration dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet \
+            pyyaml \
+            "azure-ai-projects>=2.0.1" \
+            "azure-identity>=1.17.0"
+
+      - name: Download tested image references
+        uses: actions/download-artifact@v4
+        with:
+          pattern: tested-image-*
+          path: ${{ runner.temp }}/tested-image-artifacts
+          merge-multiple: false
+
+      - name: Build Foundry image map
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          artifact_root = Path(os.environ["RUNNER_TEMP"]) / "tested-image-artifacts"
+          image_map = {}
+          for image_file in artifact_root.glob("tested-image-*/image-ref.txt"):
+              service = image_file.parent.name.removeprefix("tested-image-")
+              image_map[service] = image_file.read_text(encoding="utf-8").strip()
+
+          output_path = Path(os.environ["RUNNER_TEMP"]) / "foundry-image-map.json"
+          output_path.write_text(json.dumps(image_map, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          print(f"Wrote {len(image_map)} tested image refs to {output_path}")
+          PY
+
+      - name: Validate Hosted Agent ACR reachability policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          MODE="${{ inputs.foundrySurfaceMode }}"
+          if [ "$MODE" != "apply" ]; then
+            exit 0
+          fi
+
+          PUBLIC_BEFORE="${{ needs.prepare-acr-build-access.outputs.public_network_access_before }}"
+          DEFAULT_BEFORE="${{ needs.prepare-acr-build-access.outputs.default_action_before }}"
+          if [ "$PUBLIC_BEFORE" != "Enabled" ] || [ "$DEFAULT_BEFORE" != "Allow" ]; then
+            echo "Foundry Hosted Agents require an ACR public endpoint that the service can pull from." >&2
+            echo "Current baseline publicNetworkAccess=${PUBLIC_BEFORE}, defaultAction=${DEFAULT_BEFORE}." >&2
+            echo "Run in plan mode, then update the ACR network policy intentionally before apply." >&2
+            exit 1
+          fi
+
+      - name: Register Foundry surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          MODE="${{ inputs.foundrySurfaceMode }}"
+          if [ "$MODE" != "plan" ] && [ "$MODE" != "apply" ]; then
+            echo "foundrySurfaceMode must be 'plan' or 'apply'." >&2
+            exit 1
+          fi
+
+          python3 scripts/ops/register_foundry_surfaces.py \
+            --mode "$MODE" \
+            --environment "${{ inputs.environment }}" \
+            --project-endpoint "$PROJECT_ENDPOINT" \
+            --project-name "$PROJECT_NAME" \
+            --image-map-file "${RUNNER_TEMP}/foundry-image-map.json" \
+            --acr-login-server "${AZURE_CONTAINER_REGISTRY}" \
+            --image-tag "${DEPLOY_SOURCE_SHA}" \
+            --apim-base-url "$APIM_BASE_URL" \
+            --services "${{ needs.detect-changes.outputs.changed_agent_services_csv }}" \
+            --output "${RUNNER_TEMP}/foundry-surface-plan.json"
+
+      - name: Upload Foundry surface plan
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: foundry-surface-plan-${{ inputs.environment }}
+          path: ${{ runner.temp }}/foundry-surface-plan.json
+          if-no-files-found: warn
+          retention-days: 14
 
   restore-acr-build-access:
     runs-on: ubuntu-latest
@@ -2057,7 +2200,7 @@ jobs:
           POSTGRES_USER: ${{ needs.provision.outputs.POSTGRES_AUTH_MODE == 'password' && needs.provision.outputs.POSTGRES_ADMIN_USER || needs.provision.outputs.POSTGRES_USER }}
           POSTGRES_DATABASE: ${{ needs.provision.outputs.POSTGRES_DATABASE }}
 
-      - name: Upload rendered CRUD manifest for Flux commit
+      - name: Upload rendered CRUD manifest for verification
         uses: actions/upload-artifact@v4
         with:
           name: rendered-manifest-crud-service
@@ -2066,14 +2209,13 @@ jobs:
 
   deploy-ui:
     runs-on: ubuntu-latest
-    if: ${{ always() && inputs.deployStatic && !inputs.uiOnly && needs.detect-changes.outputs.ui_changed == 'true' && (needs.deploy-crud.result == 'success' || needs.deploy-crud.result == 'skipped') && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') && (needs.sync-apim.result == 'success' || needs.sync-apim.result == 'skipped') && (needs.ensure-foundry-agents.result == 'success' || needs.ensure-foundry-agents.result == 'skipped') && (needs.smoke-apim.result == 'success' || needs.smoke-apim.result == 'skipped') }}
+    if: ${{ always() && inputs.deployStatic && !inputs.uiOnly && needs.detect-changes.outputs.ui_changed == 'true' && (needs.deploy-crud.result == 'success' || needs.deploy-crud.result == 'skipped') && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') && (needs.sync-apim.result == 'success' || needs.sync-apim.result == 'skipped') && (needs.smoke-apim.result == 'success' || needs.smoke-apim.result == 'skipped') }}
     needs:
       - provision
       - detect-changes
       - deploy-crud
       - deploy-agents
       - sync-apim
-      - ensure-foundry-agents
       - smoke-apim
     environment: ${{ inputs.githubEnvironment }}
     env:
@@ -2710,7 +2852,7 @@ jobs:
           POSTGRES_USER: ${{ needs.provision.outputs.POSTGRES_AUTH_MODE == 'password' && needs.provision.outputs.POSTGRES_ADMIN_USER || needs.provision.outputs.POSTGRES_USER }}
           POSTGRES_DATABASE: ${{ needs.provision.outputs.POSTGRES_DATABASE }}
 
-      - name: Upload rendered agent manifest for Flux commit
+      - name: Upload rendered agent manifest for verification
         if: ${{ success() }}
         uses: actions/upload-artifact@v4
         with:
@@ -2718,83 +2860,40 @@ jobs:
           path: .kubernetes/rendered/${{ matrix.service }}/all.yaml
           retention-days: 1
 
-  commit-rendered-manifests:
-    runs-on: ubuntu-latest
-    if: ${{ always() && !cancelled() && !inputs.uiOnly && (needs.deploy-crud.result == 'success' || needs.deploy-agents.result == 'success') }}
-    needs:
-      - detect-changes
-      - provision
-      - deploy-crud
-      - deploy-agents
-      - build-aks-images
-    permissions:
-      contents: write
-    steps:
-      - name: Resolve publication branch
-        id: publication-branch
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          SOURCE_REF="${DEPLOY_SOURCE_REF}"
-
-          if [[ "$SOURCE_REF" != refs/heads/* ]]; then
-            echo "::error::Rendered manifest publication requires a pushable branch ref, but DEPLOY_SOURCE_REF='$SOURCE_REF'."
-            exit 1
-          fi
-
-          BRANCH_NAME="${SOURCE_REF#refs/heads/}"
-          if [ -z "$BRANCH_NAME" ]; then
-            echo "::error::Rendered manifest publication could not resolve a branch name from DEPLOY_SOURCE_REF='$SOURCE_REF'."
-            exit 1
-          fi
-
-          echo "branch_ref=$SOURCE_REF" >> "$GITHUB_OUTPUT"
-          echo "branch_name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
-
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ steps.publication-branch.outputs.branch_ref }}
-          fetch-depth: 1
-          token: ${{ github.token }}
-
-      - name: Download rendered manifests
-        uses: actions/download-artifact@v4
-        with:
-          pattern: rendered-manifest-*
-          path: ${{ runner.temp }}/rendered-artifacts
-
-      - name: Copy rendered manifests into repo
-        shell: bash
-        run: |
-          set -euo pipefail
-          for artifact_dir in "${RUNNER_TEMP}"/rendered-artifacts/rendered-manifest-*; do
-            [ -d "$artifact_dir" ] || continue
-            svc_name=$(basename "$artifact_dir" | sed 's/^rendered-manifest-//')
-            mkdir -p ".kubernetes/rendered/${svc_name}"
-            cp "${artifact_dir}/all.yaml" ".kubernetes/rendered/${svc_name}/all.yaml"
-            echo "Copied rendered manifest for ${svc_name}"
-          done
-
-      - name: Commit rendered manifests for Flux reconciliation
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .kubernetes/rendered/ || true
-          if git diff --cached --quiet; then
-            echo "No rendered manifest changes to commit."
-            exit 0
-          fi
-          git commit -m "deploy: update rendered manifests [skip ci]"
-          git push origin "HEAD:refs/heads/${{ steps.publication-branch.outputs.branch_name }}"
+  # ADR-017, Phase 2b — image-tag bridge (DEFERRED, see issue #1099 follow-up).
+  #
+  # The previous ``commit-rendered-manifests`` job pushed bot-generated YAML
+  # straight at ``refs/heads/main``, which the ``main-governance-baseline``
+  # ruleset (GH013) rejects. Flux now reconciles HelmRelease CRDs from
+  # ``.kubernetes/releases/{crud,agents}`` and the helm-controller renders the
+  # chart in-cluster on every reconciliation. The image tag pinned in each
+  # HelmRelease YAML remains the source of truth for desired state.
+  #
+  # A previous attempt (PR #1097) embedded a ``open-image-tag-bump-pr`` job
+  # here that requested ``permissions.pull-requests: write``. GitHub rejects
+  # nested-workflow callees that escalate permissions beyond what the caller
+  # grants (``permissions can only be maintained or reduced — not elevated``).
+  # The 27 per-service entrypoints grant only ``id-token | contents | issues``
+  # to the ``uses:`` job, so the entire reusable workflow ``startup_failure``-d
+  # at the GitHub orchestrator before any runner allocation — and the failure
+  # is not detectable by ``actionlint`` or ``yaml.safe_load`` because it is a
+  # cross-file semantic rule.
+  #
+  # The architecturally correct implementation per ADR-017 §"Phase 2b" is
+  # Flux ``ImageRepository`` + ``ImagePolicy`` + ``ImageUpdateAutomation`` CRDs
+  # with the Notification Controller GitHub provider opening the bridge PR.
+  # That work is tracked separately so the deploy chain is restored without
+  # locking the workflow into a GHA-resident bridge that fights the protected
+  # branch model. Until Phase 2b lands properly, new image tags continue to
+  # roll via the existing ``azd deploy`` path, and HelmRelease YAML is updated
+  # through normal PRs reviewed by humans.
 
   wait-flux-reconciliation:
     runs-on: ubuntu-latest
-    if: ${{ !inputs.uiOnly && (needs.commit-rendered-manifests.result == 'success') }}
+    if: ${{ always() && !cancelled() && !inputs.uiOnly && (needs.deploy-crud.result == 'success' || needs.deploy-agents.result == 'success') }}
     needs:
-      - commit-rendered-manifests
+      - deploy-crud
+      - deploy-agents
       - detect-changes
     environment: ${{ inputs.githubEnvironment }}
     env:
@@ -3055,6 +3154,7 @@ jobs:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      CHANGED_AGENT_SERVICES: ${{ needs.detect-changes.outputs.changed_agent_services_csv }}
     steps:
       - uses: actions/checkout@v4
 
@@ -3798,11 +3898,10 @@ jobs:
 
   smoke-apim:
     runs-on: ubuntu-latest
-    if: ${{ always() && !cancelled() && !inputs.uiOnly && (inputs.forceApimSync || needs.detect-changes.outputs.changed_agent_services_csv != '' || needs.detect-changes.outputs.crud_changed == 'true' || needs.detect-changes.outputs.ui_changed == 'true') && needs.validate-agc-readiness.result == 'success' && (needs.sync-apim.result == 'success' || needs.sync-apim.result == 'skipped') && (needs.ensure-foundry-agents.result == 'success' || needs.ensure-foundry-agents.result == 'skipped') }}
+    if: ${{ always() && !cancelled() && !inputs.uiOnly && (inputs.forceApimSync || needs.detect-changes.outputs.changed_agent_services_csv != '' || needs.detect-changes.outputs.crud_changed == 'true' || needs.detect-changes.outputs.ui_changed == 'true') && needs.validate-agc-readiness.result == 'success' && (needs.sync-apim.result == 'success' || needs.sync-apim.result == 'skipped') }}
     needs:
       - detect-changes
       - sync-apim
-      - ensure-foundry-agents
       - validate-agc-readiness
     environment: ${{ inputs.githubEnvironment }}
     env:
@@ -3986,31 +4085,42 @@ jobs:
           smoke_health "${API_BASE}/api/products?limit=1" "crud-products"
           smoke_health "${API_BASE}/api/categories" "crud-categories"
 
-          CORS_HEADERS_FILE="/tmp/apim-cors-headers.txt"
-          CORS_BODY_FILE="/tmp/apim-cors-body.txt"
-          CORS_STATUS=$(curl -sS -D "$CORS_HEADERS_FILE" -o "$CORS_BODY_FILE" -w "%{http_code}" \
-            -X OPTIONS "${API_BASE}/api/products?limit=1" \
-            -H "Origin: http://localhost:3000" \
-            -H "Access-Control-Request-Method: GET") || CORS_STATUS="000"
+          smoke_cors_preflight() {
+            local url="$1"
+            local label="$2"
+            local headers_file="/tmp/apim-cors-headers.txt"
+            local normalized_headers_file="/tmp/apim-cors-headers-normalized.txt"
+            local body_file="/tmp/apim-cors-body.txt"
+            local status_code=""
 
-          if [ "$CORS_STATUS" != "200" ] && [ "$CORS_STATUS" != "204" ]; then
-            echo "[FAIL] crud-cors-preflight: ${API_BASE}/api/products?limit=1 returned HTTP $CORS_STATUS" >&2
-            cat "$CORS_HEADERS_FILE" 2>/dev/null || true
-            cat "$CORS_BODY_FILE" 2>/dev/null || true
-            exit 1
-          fi
+            for attempt in $(seq 1 20); do
+              : > "$headers_file"
+              : > "$normalized_headers_file"
+              status_code=$(curl -sS -D "$headers_file" -o "$body_file" -w "%{http_code}" \
+                -X OPTIONS "$url" \
+                -H "Origin: http://localhost:3000" \
+                -H "Access-Control-Request-Method: GET") || status_code="000"
+              tr -d '\r' < "$headers_file" > "$normalized_headers_file" 2>/dev/null || true
 
-          if ! grep -Eiq '^Access-Control-Allow-Origin: http://localhost:3000\r?$' "$CORS_HEADERS_FILE"; then
-            echo "[FAIL] crud-cors-preflight: missing expected Access-Control-Allow-Origin header" >&2
-            cat "$CORS_HEADERS_FILE" 2>/dev/null || true
-            exit 1
-          fi
+              if { [ "$status_code" = "200" ] || [ "$status_code" = "204" ]; } \
+                && grep -Eiq '^Access-Control-Allow-Origin: http://localhost:3000$' "$normalized_headers_file" \
+                && grep -Eiq '^Access-Control-Allow-Methods: .*GET' "$normalized_headers_file"; then
+                echo "[OK] $label: $url"
+                return 0
+              fi
 
-          if ! grep -Eiq '^Access-Control-Allow-Methods: .*GET' "$CORS_HEADERS_FILE"; then
-            echo "[FAIL] crud-cors-preflight: missing expected Access-Control-Allow-Methods header" >&2
-            cat "$CORS_HEADERS_FILE" 2>/dev/null || true
-            exit 1
-          fi
+              echo "Attempt $attempt/20 failed for $label with HTTP $status_code or missing CORS headers"
+              cat "$headers_file" 2>/dev/null || true
+              sleep 10
+            done
+
+            echo "[FAIL] $label: $url did not return expected CORS preflight headers" >&2
+            cat "$headers_file" 2>/dev/null || true
+            cat "$body_file" 2>/dev/null || true
+            return 1
+          }
+
+          smoke_cors_preflight "${API_BASE}/api/products?limit=1" "crud-cors-preflight"
 
           NEGATIVE_STATUS=$(curl -sS -o /tmp/apim-negative-response.json -w "%{http_code}" "${API_BASE}/api/does-not-exist") || NEGATIVE_STATUS="000"
           if [ "$NEGATIVE_STATUS" = "500" ] || [ "$NEGATIVE_STATUS" = "502" ] || [ "$NEGATIVE_STATUS" = "503" ] || [ "$NEGATIVE_STATUS" = "000" ]; then
@@ -4032,168 +4142,6 @@ jobs:
             echo "No changed agent services detected; skipping agent health smoke checks."
           fi
 
-  ensure-foundry-agents:
-    runs-on: ubuntu-latest
-    if: ${{ always() && !cancelled() && !inputs.uiOnly && needs.detect-changes.outputs.changed_agent_services_csv != '' && (needs.deploy-agents.result == 'success' || needs.deploy-agents.result == 'skipped') }}
-    needs:
-      - deploy-agents
-      - detect-changes
-    environment: ${{ inputs.githubEnvironment }}
-    env:
-      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      CHANGED_SERVICES: ${{ needs.detect-changes.outputs.changed_agent_services_csv }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ env.DEPLOY_SOURCE_CHECKOUT_REF }}
-
-      - name: Azure login (OIDC)
-        uses: azure/login@v2
-        with:
-          client-id: ${{ env.AZURE_CLIENT_ID }}
-          tenant-id: ${{ env.AZURE_TENANT_ID }}
-          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Setup Python (for azure.yaml parser)
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
-
-      - name: Install kubelogin
-        run: |
-          for attempt in 1 2 3 4 5; do
-            if az aks install-cli --kubelogin-version latest; then
-              exit 0
-            fi
-            echo "kubelogin install failed on attempt ${attempt}; retrying..."
-            sleep 15
-          done
-          echo "kubelogin install failed after retries"
-          exit 1
-
-      - name: Get AKS credentials
-        run: |
-          az aks get-credentials \
-            --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
-            --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
-            --overwrite-existing
-          kubelogin convert-kubeconfig -l azurecli
-
-      - name: Verify AKS API connectivity
-        shell: bash
-        run: |
-          set -euo pipefail
-          AKS_FQDN=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}' | sed 's|https://||;s|:.*||')
-          echo "Probing AKS API server DNS: $AKS_FQDN"
-          for attempt in $(seq 1 10); do
-            if kubectl cluster-info >/dev/null 2>&1; then
-              echo "AKS API reachable (attempt $attempt)."
-              exit 0
-            fi
-            BACKOFF=$((5 * attempt))
-            echo "Attempt $attempt/10 failed (DNS or TCP). Retrying in ${BACKOFF}s..."
-            sleep "$BACKOFF"
-          done
-          echo "AKS API DNS resolution failed after 10 attempts for $AKS_FQDN." >&2
-          nslookup "$AKS_FQDN" || true
-          exit 1
-
-      - name: Ensure hook scripts executable
-        shell: bash
-        run: chmod +x ./.infra/azd/hooks/*.sh
-
-      - name: Render changed agent manifests for Foundry contract validation
-        shell: bash
-        env:
-          K8S_NAMESPACE: holiday-peak-agents
-        run: |
-          set -euo pipefail
-
-          if [ -z "${CHANGED_SERVICES}" ]; then
-            echo "No changed agent services to render."
-            exit 0
-          fi
-
-          get_deployment_name() {
-            local service_name="$1"
-            kubectl get deployment -n "$K8S_NAMESPACE" -l "app=${service_name}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true
-          }
-
-          get_env_from_deployment() {
-            local deployment_name="$1"
-            local env_name="$2"
-            kubectl get deployment "$deployment_name" -n "$K8S_NAMESPACE" -o jsonpath="{.spec.template.spec.containers[0].env[?(@.name=='$env_name')].value}" 2>/dev/null || true
-          }
-
-          render_service_manifest() {
-            local service_name="$1"
-            local deployment_name
-
-            deployment_name="$(get_deployment_name "$service_name")"
-            if [ -z "$deployment_name" ]; then
-              echo "Could not resolve deployment for changed service '$service_name'." >&2
-              exit 1
-            fi
-
-            export DEPLOY_ENV="${{ inputs.environment }}"
-            export K8S_NAMESPACE="$K8S_NAMESPACE"
-            export PROJECT_ENDPOINT="$(get_env_from_deployment "$deployment_name" PROJECT_ENDPOINT)"
-            export PROJECT_NAME="$(get_env_from_deployment "$deployment_name" PROJECT_NAME)"
-            export EVENT_HUB_NAMESPACE="$(get_env_from_deployment "$deployment_name" EVENT_HUB_NAMESPACE)"
-            export MODEL_DEPLOYMENT_NAME_FAST="$(get_env_from_deployment "$deployment_name" MODEL_DEPLOYMENT_NAME_FAST)"
-            export MODEL_DEPLOYMENT_NAME_RICH="$(get_env_from_deployment "$deployment_name" MODEL_DEPLOYMENT_NAME_RICH)"
-            export COSMOS_ACCOUNT_URI="$(get_env_from_deployment "$deployment_name" COSMOS_ACCOUNT_URI)"
-            export COSMOS_DATABASE="$(get_env_from_deployment "$deployment_name" COSMOS_DATABASE)"
-            export COSMOS_CONTAINER="$(get_env_from_deployment "$deployment_name" COSMOS_CONTAINER)"
-            export COSMOS_AUDIT_CONTAINER="$(get_env_from_deployment "$deployment_name" COSMOS_AUDIT_CONTAINER)"
-            export REDIS_HOST="$(get_env_from_deployment "$deployment_name" REDIS_HOST)"
-            export BLOB_ACCOUNT_URL="$(get_env_from_deployment "$deployment_name" BLOB_ACCOUNT_URL)"
-            export KEY_VAULT_URI="$(get_env_from_deployment "$deployment_name" KEY_VAULT_URI)"
-            export FOUNDRY_AGENT_NAME_FAST="$(get_env_from_deployment "$deployment_name" FOUNDRY_AGENT_NAME_FAST)"
-            export FOUNDRY_AGENT_NAME_RICH="$(get_env_from_deployment "$deployment_name" FOUNDRY_AGENT_NAME_RICH)"
-            export AI_SEARCH_ENDPOINT="$(get_env_from_deployment "$deployment_name" AI_SEARCH_ENDPOINT)"
-            export AI_SEARCH_INDEX="$(get_env_from_deployment "$deployment_name" AI_SEARCH_INDEX)"
-            export AI_SEARCH_VECTOR_INDEX="$(get_env_from_deployment "$deployment_name" AI_SEARCH_VECTOR_INDEX)"
-            export AI_SEARCH_INDEXER_NAME="$(get_env_from_deployment "$deployment_name" AI_SEARCH_INDEXER_NAME)"
-            export EMBEDDING_DEPLOYMENT_NAME="$(get_env_from_deployment "$deployment_name" EMBEDDING_DEPLOYMENT_NAME)"
-            export SEARCH_ENRICHMENT_EVENT_HUB_NAME="$(get_env_from_deployment "$deployment_name" SEARCH_ENRICHMENT_EVENT_HUB_NAME)"
-            export SEARCH_ENRICHMENT_EVENT_HUB_CONSUMER_GROUP="$(get_env_from_deployment "$deployment_name" SEARCH_ENRICHMENT_EVENT_HUB_CONSUMER_GROUP)"
-            export TRUTH_EVENT_HUB_NAME="$(get_env_from_deployment "$deployment_name" TRUTH_EVENT_HUB_NAME)"
-            export TRUTH_EVENT_HUB_CONSUMER_GROUP="$(get_env_from_deployment "$deployment_name" TRUTH_EVENT_HUB_CONSUMER_GROUP)"
-            export FOUNDRY_STRICT_ENFORCEMENT="${FOUNDRY_RUNTIME_STRICT_ENFORCEMENT}"
-            export FOUNDRY_AUTO_ENSURE_ON_STARTUP="${FOUNDRY_RUNTIME_AUTO_ENSURE_ON_STARTUP}"
-
-            if [ -z "$FOUNDRY_AGENT_NAME_FAST" ]; then
-              export FOUNDRY_AGENT_NAME_FAST="${service_name}-fast"
-            fi
-
-            if [ -z "$FOUNDRY_AGENT_NAME_RICH" ]; then
-              export FOUNDRY_AGENT_NAME_RICH="${service_name}-rich"
-            fi
-
-            echo "Rendering manifest for ${service_name} with expected Foundry contract values."
-            bash .infra/azd/hooks/render-helm.sh "$service_name"
-          }
-
-          IFS=',' read -r -a services <<< "${CHANGED_SERVICES}"
-          for svc in "${services[@]}"; do
-            [ -z "$svc" ] && continue
-            render_service_manifest "$svc"
-          done
-
-      - name: Ensure all V2 Foundry agents are provisioned and validate runtime contract drift
-        shell: bash
-        run: |
-          export FOUNDRY_STRICT_ENFORCEMENT="${FOUNDRY_RUNTIME_STRICT_ENFORCEMENT}"
-          export FOUNDRY_AUTO_ENSURE_ON_STARTUP="${FOUNDRY_RUNTIME_AUTO_ENSURE_ON_STARTUP}"
-          bash .infra/azd/hooks/ensure-foundry-agents.sh --port-forward --fail-on-error
-        env:
-          K8S_NAMESPACE: holiday-peak-agents
-          VALIDATE_RENDERED_FOUNDRY_CONTRACT: "true"
-          VALIDATE_READY_AFTER_ENSURE: "true"
-
   watchdog-apim-agc-swa-drift:
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -4203,13 +4151,11 @@ jobs:
       - detect-changes
       - deploy-crud
       - deploy-agents
-      - commit-rendered-manifests
       - wait-flux-reconciliation
       - sync-apim
       - sync-apic
       - smoke-apim
       - deploy-ui
-      - ensure-foundry-agents
     environment: ${{ inputs.githubEnvironment }}
     permissions:
       id-token: write
@@ -4299,14 +4245,12 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ always() && !cancelled() && !inputs.uiOnly }}
     needs:
-      - commit-rendered-manifests
       - wait-flux-reconciliation
       - validate-agc-readiness
       - sync-apim
       - sync-apic
       - smoke-apim
       - deploy-ui
-      - ensure-foundry-agents
       - watchdog-apim-agc-swa-drift
     environment: ${{ inputs.githubEnvironment }}
     permissions:
@@ -4389,12 +4333,35 @@ jobs:
 
           echo "Restoring Flux source '${FLUX_SOURCE}' from preview branch '${PREVIEW_BRANCH}' to default branch '${DEFAULT_BRANCH}'."
           PATCH=$(printf '{"spec":{"ref":{"branch":"%s"}}}' "$DEFAULT_BRANCH")
-          kubectl patch gitrepository.source.toolkit.fluxcd.io "$FLUX_SOURCE" -n "$FLUX_NAMESPACE" --type=merge -p "$PATCH"
 
-          ACTIVE_BRANCH=$(kubectl get gitrepository.source.toolkit.fluxcd.io "$FLUX_SOURCE" -n "$FLUX_NAMESPACE" -o jsonpath='{.spec.ref.branch}')
-          if [ "$ACTIVE_BRANCH" != "$DEFAULT_BRANCH" ]; then
-            echo "::error::Flux source '${FLUX_SOURCE}' expected branch '${DEFAULT_BRANCH}' but found '${ACTIVE_BRANCH}'."
+          restore_flux_source() {
+            kubectl patch gitrepository.source.toolkit.fluxcd.io "$FLUX_SOURCE" -n "$FLUX_NAMESPACE" --type=merge -p "$PATCH"
+
+            ACTIVE_BRANCH=$(kubectl get gitrepository.source.toolkit.fluxcd.io "$FLUX_SOURCE" -n "$FLUX_NAMESPACE" -o jsonpath='{.spec.ref.branch}')
+            if [ "$ACTIVE_BRANCH" != "$DEFAULT_BRANCH" ]; then
+              echo "::error::Flux source '${FLUX_SOURCE}' expected branch '${DEFAULT_BRANCH}' but found '${ACTIVE_BRANCH}'."
+              return 1
+            fi
+          }
+
+          if ! restore_flux_source; then
+            echo "::warning::Direct kubectl Flux restore failed; retrying through az aks command invoke."
+            REMOTE_COMMAND=$(cat <<EOF
+          set -euo pipefail
+          kubectl patch gitrepository.source.toolkit.fluxcd.io "$FLUX_SOURCE" -n "$FLUX_NAMESPACE" --type=merge -p '$PATCH'
+          ACTIVE_BRANCH=\$(kubectl get gitrepository.source.toolkit.fluxcd.io "$FLUX_SOURCE" -n "$FLUX_NAMESPACE" -o jsonpath='{.spec.ref.branch}')
+          if [ "\$ACTIVE_BRANCH" != "$DEFAULT_BRANCH" ]; then
+            echo "::error::Flux source '$FLUX_SOURCE' expected branch '$DEFAULT_BRANCH' but found '\$ACTIVE_BRANCH'."
             exit 1
+          fi
+          EOF
+          )
+
+            az aks command invoke \
+              --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
+              --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
+              --command "$REMOTE_COMMAND" \
+              --query logs -o tsv
           fi
 
           if ! command -v flux &>/dev/null; then

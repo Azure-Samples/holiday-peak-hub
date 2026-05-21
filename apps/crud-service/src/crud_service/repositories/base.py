@@ -290,19 +290,25 @@ class BaseRepository(Generic[T]):
 
     @classmethod
     async def check_pool_health(cls) -> tuple[str, str]:
-        """Return (status, detail) for PostgreSQL pool readiness."""
-        if cls._pool_init_error and cls._pool is None:
-            return "unhealthy", cls._pool_init_error
+        """Return (status, detail) for PostgreSQL pool readiness.
 
+        The check always re-attempts pool initialization when the pool is
+        absent. A previously cached ``_pool_init_error`` (for example, from a
+        transient IMDS hiccup at startup) is reported only when the retry
+        itself fails, so the pod is not bricked into a permanent ``unhealthy``
+        state by a single startup-time failure (#911). On success the cached
+        error is cleared so subsequent checks reflect the current pool state.
+        """
         try:
             if cls._pool is None:
                 await cls.initialize_pool()
             if cls._pool is None:
-                return "unhealthy", "Pool unavailable"
+                return "unhealthy", cls._pool_init_error or "Pool unavailable"
             async with cls._pool.acquire() as conn:
                 await conn.fetchval("SELECT 1")
+            cls._pool_init_error = None
             return "healthy", "query ok"
-        except Exception as exc:
+        except Exception as exc:  # pylint: disable=broad-except
             cls._pool_init_error = f"{type(exc).__name__}: {exc}"
             return "unhealthy", cls._pool_init_error
 

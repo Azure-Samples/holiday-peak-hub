@@ -1,0 +1,50 @@
+{#-
+  mkdocs Material `main.html` override (Issue #1022).
+
+  Adds the reciprocal "Search the rest of the site" cross-link required by
+  the two-search-box contract (ADR-034 + capability 42). The corresponding
+  forward-link lives inside the in-app `AppSearchBox` molecule's results
+  popover ("Search the docs →").
+
+  When the user is on a docs page with a `?q=` parameter, the JS snippet
+  rewrites the link target to `/?q=<term>` so the query continues into the
+  home AppSearchBox. The static fallback target is `/` — works without JS,
+  lands on the audience-router home which exposes its own search box.
+
+  Telemetry: `data-telemetry="docs-cross-link-click"` so App Insights can
+  correlate cross-search clicks with the forward direction
+  (`app-search-cross-link-click`).
+-#}
+{% extends "base.html" %}
+
+{% block content %}
+  {{ super() }}
+  <aside class="hp-docs-cross-link" aria-label="Cross-site search">
+    <p>
+      Looking for product, retailer, or builder pages?
+      <a
+        href="/"
+        id="hp-docs-cross-link-anchor"
+        data-telemetry="docs-cross-link-click"
+      >Search the rest of the site →</a>
+    </p>
+  </aside>
+  <script>
+    (function () {
+      var anchor = document.getElementById('hp-docs-cross-link-anchor');
+      if (!anchor) {
+        return;
+      }
+      try {
+        var params = new URLSearchParams(window.location.search);
+        var q = params.get('q');
+        if (q && q.length > 0) {
+          var target = '/?q=' + encodeURIComponent(q);
+          anchor.setAttribute('href', target);
+        }
+      } catch (e) {
+        /* defensive — static '/' fallback already lands on the home shell */
+      }
+    })();
+  </script>
+{% endblock %}

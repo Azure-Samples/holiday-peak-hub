@@ -1,0 +1,33 @@
+/* ───────────────────────────────────────────────────────────────────────────
+ * Builder audience tokens.
+ * Scoped to the (builder) route group via the SectionShell's
+ * `data-section="builder"` attribute.
+ *
+ * Tone: cool slate, dense, code-block-prominent, technically precise.
+ * Inherits from brand.css; overrides typographic and spacing density.
+ * ─────────────────────────────────────────────────────────────────────── */
+
+[data-section='builder'] {
+  --hp-section-accent: var(--hp-builder-accent);
+  --hp-section-accent-hover: var(--hp-builder-accent-hover);
+  --hp-section-accent-soft: var(--hp-builder-accent-soft);
+
+  /* Spacing rhythm — denser, reference-doc-oriented sections */
+  --hp-section-rhythm: var(--hp-space-12);
+
+  /* Typography — slightly tighter leading; builder content is reference docs
+   * and ADRs, not narrative pages. Code blocks should stand out. */
+  --hp-section-display-weight: 600;
+  --hp-section-body-leading: 1.6;
+  --hp-section-code-bg: #0f172a; /* slate-900 — used inside .builder-code utility */
+  --hp-section-code-fg: #e2e8f0; /* slate-200 — 13.07:1 contrast on slate-900 */
+}
+
+[data-section='builder'] code:not(pre code) {
+  background: color-mix(in srgb, var(--hp-builder-accent) 8%, transparent);
+  color: var(--hp-builder-accent-hover);
+  padding: 0.1em 0.35em;
+  border-radius: 0.25rem;
+  font-family: var(--hp-font-mono);
+  font-size: 0.95em;
+}

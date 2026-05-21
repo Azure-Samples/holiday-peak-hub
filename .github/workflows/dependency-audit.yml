@@ -41,7 +41,7 @@ jobs:
           set -e
           for d in apps/*/src; do
             if [ -f "$d/pyproject.toml" ]; then
-              uv pip install --system -e "$d"
+              uv pip install --system --prerelease=allow -e "$d"
             else
               echo "Skipping $d (no pyproject.toml)"
             fi

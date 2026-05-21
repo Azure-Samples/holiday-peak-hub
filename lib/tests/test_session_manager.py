@@ -1,6 +1,7 @@
 """Tests for session_manager: smart session continuity logic."""
 
 import json
+import logging
 import time
 from unittest.mock import AsyncMock
 
@@ -172,8 +173,8 @@ class TestEvaluateSessionContinuity:
         assert decision.continue_session is False
 
     @pytest.mark.asyncio
-    async def test_cosmos_read_failure_still_continues(self):
-        """If Cosmos is unavailable, still continue but without session state."""
+    async def test_cosmos_read_failure_still_continues(self, caplog):
+        """If Cosmos is unavailable, continue without state and log the failure."""
         hot = AsyncMock()
         warm = AsyncMock()
         summary = SessionSummary(
@@ -187,15 +188,26 @@ class TestEvaluateSessionContinuity:
         )
         hot.get = AsyncMock(return_value=json.dumps(summary.__dict__))
         warm.read = AsyncMock(side_effect=Exception("Cosmos unavailable"))
-        decision = await evaluate_session_continuity(
-            hot,
-            warm,
-            {"query": "shipping eta tracking update"},
-            service="svc",
-            entity_id="ent1",
-        )
+
+        with caplog.at_level(
+            logging.WARNING,
+            logger="holiday_peak_lib.agents.memory.session_manager",
+        ):
+            decision = await evaluate_session_continuity(
+                hot,
+                warm,
+                {"query": "shipping eta tracking update"},
+                service="svc",
+                entity_id="ent1",
+            )
+
         assert decision.continue_session is True
         assert decision.foundry_session_state is None
+        assert any(
+            "session_continuity_cosmos_read_failed session_id=svc:ent1:123 "
+            "service=svc entity_id=ent1 error=Cosmos unavailable" in record.getMessage()
+            for record in caplog.records
+        )
 
 
 class TestBuildSessionSummary:
@@ -327,3 +339,29 @@ class TestPersistFullSession:
             summary_text="",
         )
         warm.upsert.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_cosmos_write_failure_logs_warning(self, caplog):
+        warm = AsyncMock()
+        warm.upsert = AsyncMock(side_effect=RuntimeError("Cosmos write unavailable"))
+
+        with caplog.at_level(
+            logging.WARNING,
+            logger="holiday_peak_lib.agents.memory.session_manager",
+        ):
+            await persist_full_session(
+                warm,
+                session_id="svc:ent1:123",
+                service="svc",
+                entity_id="ent1",
+                foundry_session_state={"session_id": "foundry-abc"},
+                messages=[{"role": "user", "content": "test"}],
+                summary_text="test summary",
+            )
+
+        warm.upsert.assert_awaited_once()
+        assert any(
+            "session_persistence_cosmos_write_failed session_id=svc:ent1:123 "
+            "service=svc entity_id=ent1 error=Cosmos write unavailable" in record.getMessage()
+            for record in caplog.records
+        )

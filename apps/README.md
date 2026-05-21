@@ -1,9 +1,18 @@
-# Apps Directory
+# Apps Directory — The Product
 
-This directory contains the deployable Holiday Peak Hub services:
-- 1 transactional microservice (`crud-service`)
-- 26 Python agent/automation services
-- 1 Next.js frontend (`ui`)
+This directory is **the product**: a production-grade retail platform built on the `holiday-peak-lib` framework. It runs end-to-end with real domain logic, real enterprise connectors, real SLOs, AGC weighted-canary routing, continuous agent evaluation, three-tier memory, and full observability — not a demo.
+
+> Canonical positioning: [.github/instructions/repository-purpose.instructions.md](../.github/instructions/repository-purpose.instructions.md). The framework lives in [`lib/`](../lib/README.md). The product lives here.
+
+The product is composed of:
+
+- **1 transactional microservice** (`crud-service`) — pure CRUD, ACID guarantees, event publishing
+- **26 agent services** — bounded-context AI agents with dynamic planning, MCP tools, three-tier memory, SLM-first routing
+- **1 Next.js frontend** (`ui`) — operator/admin/retail surfaces consumed by both agents and humans
+
+Foundry exposure is classified in [foundry-surfaces.yaml](foundry-surfaces.yaml): public or human-facing agents use Hosted Agent manifests (`agent.hosted.yaml`) over the shared Responses adapter, while non-public internal agents use Custom Agent metadata that proxies the existing APIM -> AGC -> AKS endpoint. This is an exposure taxonomy only; AKS remains the product runtime under the current ADRs.
+
+Changes to apps are **product changes**: they require domain reasoning, eval impact analysis, SLO awareness, and operational runbook updates when behavior changes.
 
 ## App Inventory
 

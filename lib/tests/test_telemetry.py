@@ -1,7 +1,13 @@
 """Unit tests for telemetry helpers."""
 
+import logging
+import os
+
 from holiday_peak_lib.utils.correlation import clear_correlation_id, set_correlation_id
+from holiday_peak_lib.utils.logging import configure_logging
 from holiday_peak_lib.utils.telemetry import (
+    _FOUNDRY_INSTRUMENTATION_STATE,
+    _TRACERS,
     FoundryTracer,
     _NoopMeter,
     _NoopTracer,
@@ -374,3 +380,84 @@ class TestNonRecordingSpanPatch:
 
         tp = trace.get_tracer_provider()
         assert isinstance(tp, TracerProvider)
+
+
+class TestOtelServiceNamePropagation:
+    """Tests that OTEL_SERVICE_NAME is set for App Insights service identity."""
+
+    def test_configure_logging_sets_otel_service_name(self, monkeypatch):
+        """configure_logging sets OTEL_SERVICE_NAME when App Insights is configured."""
+        import azure.monitor.opentelemetry as azure_monitor
+
+        monkeypatch.setattr(
+            azure_monitor,
+            "configure_azure_monitor",
+            lambda **_kwargs: None,
+        )
+        monkeypatch.setenv(
+            "APPLICATIONINSIGHTS_CONNECTION_STRING",
+            "InstrumentationKey=00000000-0000-0000-0000-000000000000",
+        )
+        monkeypatch.delenv("OTEL_SERVICE_NAME", raising=False)
+
+        logger_name = "holiday-peak-lib.otel-svc-name-test"
+        logging.getLogger(logger_name).handlers.clear()
+
+        configure_logging(app_name="otel-svc-name-test")
+
+        assert os.environ.get("OTEL_SERVICE_NAME") == "otel-svc-name-test"
+
+    def test_configure_logging_does_not_override_explicit_otel_service_name(self, monkeypatch):
+        """Explicit OTEL_SERVICE_NAME values remain authoritative."""
+        import azure.monitor.opentelemetry as azure_monitor
+
+        monkeypatch.setattr(
+            azure_monitor,
+            "configure_azure_monitor",
+            lambda **_kwargs: None,
+        )
+        monkeypatch.setenv(
+            "APPLICATIONINSIGHTS_CONNECTION_STRING",
+            "InstrumentationKey=00000000-0000-0000-0000-000000000000",
+        )
+        monkeypatch.setenv("OTEL_SERVICE_NAME", "my-custom-service")
+
+        logger_name = "holiday-peak-lib.otel-no-override-test"
+        logging.getLogger(logger_name).handlers.clear()
+
+        configure_logging(app_name="otel-no-override-test")
+
+        assert os.environ.get("OTEL_SERVICE_NAME") == "my-custom-service"
+
+    def test_foundry_tracer_sets_otel_service_name(self, monkeypatch):
+        """FoundryTracer sets OTEL_SERVICE_NAME before Azure Monitor setup."""
+        prior_state = dict(_FOUNDRY_INSTRUMENTATION_STATE)
+        service_name = "otel-foundry-test"
+
+        monkeypatch.setattr(
+            "holiday_peak_lib.utils.telemetry.configure_azure_monitor",
+            lambda **_kwargs: None,
+        )
+        monkeypatch.setenv(
+            "APPLICATIONINSIGHTS_CONNECTION_STRING",
+            "InstrumentationKey=00000000-0000-0000-0000-000000000000",
+        )
+        monkeypatch.delenv("OTEL_SERVICE_NAME", raising=False)
+        monkeypatch.setenv("FOUNDRY_TRACING_ENABLED", "true")
+
+        _TRACERS.pop(service_name, None)
+        _FOUNDRY_INSTRUMENTATION_STATE.update(
+            {
+                "azure_monitor": False,
+                "ai_projects": True,
+                "ai_inference": True,
+            }
+        )
+
+        try:
+            FoundryTracer(service_name)
+            assert os.environ.get("OTEL_SERVICE_NAME") == service_name
+        finally:
+            _FOUNDRY_INSTRUMENTATION_STATE.clear()
+            _FOUNDRY_INSTRUMENTATION_STATE.update(prior_state)
+            _TRACERS.pop(service_name, None)

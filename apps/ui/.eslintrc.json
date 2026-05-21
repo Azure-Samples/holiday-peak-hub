@@ -66,6 +66,126 @@
       "rules": {
         "@typescript-eslint/no-require-imports": "off"
       }
+    },
+    {
+      "files": ["app/api/**/route.{ts,tsx}", "app/**/route.{ts,tsx}"],
+      "rules": {
+        "no-restricted-syntax": [
+          "error",
+          {
+            "selector": "BinaryExpression[left.name='persona']",
+            "message": "Persona is a HINT, not a GATE (ADR-034 §3). Route handlers must not branch on persona — see apps/ui/lib/persona/README.md."
+          },
+          {
+            "selector": "BinaryExpression[right.name='persona']",
+            "message": "Persona is a HINT, not a GATE (ADR-034 §3). Route handlers must not branch on persona — see apps/ui/lib/persona/README.md."
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "app/(retailer)/**/*.{ts,tsx}",
+        "app/(builder)/**/*.{ts,tsx}",
+        "app/(deploy)/**/*.{ts,tsx}",
+        "components/shared/**/*.{ts,tsx}"
+      ],
+      "rules": {
+        "no-restricted-syntax": [
+          "error",
+          {
+            "selector": "Literal[value=/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/]",
+            "message": "Raw hex color literals are forbidden in audience route groups and components/shared/. Use design tokens via var(--hp-…) declared in apps/ui/styles/tokens/{brand,retailer,builder,deploy}.css (ADR-034 / ADR-035)."
+          },
+          {
+            "selector": "TemplateElement[value.cooked=/#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\\b/]",
+            "message": "Raw hex color literals are forbidden in audience route groups and components/shared/. Use design tokens via var(--hp-…) declared in apps/ui/styles/tokens/{brand,retailer,builder,deploy}.css (ADR-034 / ADR-035)."
+          },
+          {
+            "selector": "JSXAttribute[name.name='className'] Literal[value=/cubic-bezier\\(/]",
+            "message": "Inline cubic-bezier(...) literals are forbidden. Use motion tokens var(--ease-base) / var(--ease-emphasized) declared in apps/ui/app/styles/tokens.reference.css (ADR-035 §52 / Issue #1058 L-6)."
+          },
+          {
+            "selector": "JSXAttribute[name.name='className'] TemplateElement[value.cooked=/cubic-bezier\\(/]",
+            "message": "Inline cubic-bezier(...) literals are forbidden. Use motion tokens var(--ease-base) / var(--ease-emphasized) declared in apps/ui/app/styles/tokens.reference.css (ADR-035 §52 / Issue #1058 L-6)."
+          },
+          {
+            "selector": "JSXAttribute[name.name='className'] Literal[value=/\\bdark:/]",
+            "message": "`dark:` Tailwind variants are forbidden in audience route groups (ADR-035 §49 / Issue #1058 L-4). Theme switching is at the system-token layer via `light-dark()` in apps/ui/app/styles/tokens.system.css."
+          },
+          {
+            "selector": "JSXAttribute[name.name='className'] TemplateElement[value.cooked=/\\bdark:/]",
+            "message": "`dark:` Tailwind variants are forbidden in audience route groups (ADR-035 §49 / Issue #1058 L-4). Theme switching is at the system-token layer via `light-dark()` in apps/ui/app/styles/tokens.system.css."
+          },
+          {
+            "selector": "JSXAttribute[name.name='className'] Literal[value=/\\boutline-none\\b/]",
+            "message": "`outline-none` strips the focus ring without a replacement (WCAG 2.4.7 / Issue #1060). Use `focus-visible:outline-[var(--sys-focus-ring)]` or rely on the `:focus-visible` rule in globals.css."
+          },
+          {
+            "selector": "JSXAttribute[name.name='className'] TemplateElement[value.cooked=/\\boutline-none\\b/]",
+            "message": "`outline-none` strips the focus ring without a replacement (WCAG 2.4.7 / Issue #1060). Use `focus-visible:outline-[var(--sys-focus-ring)]` or rely on the `:focus-visible` rule in globals.css."
+          }
+        ],
+        "react/forbid-dom-props": [
+          "error",
+          {
+            "forbid": [
+              {
+                "propName": "style",
+                "message": "Inline `style={{}}` is forbidden in audience route groups (ADR-035 §49 / Issue #1058 L-3). Use Tailwind utilities or co-located CSS Modules."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["components/atoms/**/*.{ts,tsx}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["**/molecules/**", "**/organisms/**", "**/templates/**"],
+                "message": "Atoms cannot import from molecules / organisms / templates (ADR-035 §53 tier discipline)."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["components/molecules/**/*.{ts,tsx}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["**/organisms/**", "**/templates/**"],
+                "message": "Molecules cannot import from organisms / templates (ADR-035 §53 tier discipline)."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["components/organisms/**/*.{ts,tsx}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["**/templates/**"],
+                "message": "Organisms cannot import from templates (ADR-035 §53 tier discipline)."
+              }
+            ]
+          }
+        ]
+      }
     }
   ]
 }

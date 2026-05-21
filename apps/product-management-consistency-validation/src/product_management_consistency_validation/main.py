@@ -37,4 +37,5 @@ app = create_standard_app(
     mcp_setup=register_mcp_tools,
     subscriptions=SUBSCRIPTIONS,
     handlers=HANDLERS,
+    use_direct_model=True,
 )

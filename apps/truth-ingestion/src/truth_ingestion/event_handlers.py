@@ -15,7 +15,7 @@ def build_event_handlers() -> dict[str, EventHandler]:
     logger = configure_logging(app_name="truth-ingestion-events")
     adapters = build_ingestion_adapters()
 
-    async def handle_ingest_job(partition_context, event) -> None:  # noqa: ANN001
+    async def handle_ingest_job(_partition_context, event) -> None:  # noqa: ANN001
         """Process an ingest-job event from Event Hub."""
         payload = json.loads(event.body_as_str())
         data = payload.get("data", {}) if isinstance(payload, dict) else {}
@@ -36,6 +36,9 @@ def build_event_handlers() -> dict[str, EventHandler]:
                 payload.get("event_type"),
                 result.get("assets_resolved", 0),
             )
+        # pylint: disable=broad-exception-caught
+        # Event Hub consumer boundary: per-event errors must not crash the
+        # partition processor; failures are logged and the offset advances.
         except Exception as exc:  # noqa: BLE001
             logger.error(
                 "ingest_job_failed entity_id=%s error=%s",

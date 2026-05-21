@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Pattern A — Flux HelmRelease-based deployment for the transactional CRUD service.
+# Owns the shared AGC ApplicationLoadBalancer + Gateway used by all routed services.
+# See ADR-017 for the canonical deployment topology.
+resources:
+  - crud-service.yaml

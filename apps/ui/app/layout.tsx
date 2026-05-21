@@ -1,14 +1,11 @@
 import {ReactNode} from 'react'
 import {Metadata} from 'next'
 import Providers from './providers'
+import {WebVitalsReporter} from './web-vitals'
 
 import './globals.css'
 import '@/css/main.css'
-import '@/css/layouts/layout-1.css'
-import '@/css/layouts/e-commerce.css'
 import '@/css/animate.css'
-import '@/css/components/left-sidebar-1/styles-lg.css'
-import '@/css/components/left-sidebar-1/styles-sm.css'
 import '@/css/components/nprogress.css'
 import '@/css/components/recharts.css'
 import '@/css/components/steps.css'
@@ -40,6 +37,7 @@ export default function RootLayout({
         <meta name="color-scheme" content="light dark" />
       </head>
       <body className="min-h-full font-sans text-sm antialiased disable-scrollbars bg-[var(--hp-bg)] text-[var(--hp-text)] transition-colors duration-200">
+        <WebVitalsReporter />
         <Providers>
           {children}
         </Providers>

@@ -48,7 +48,14 @@ jobs:
           for d in apps/*/src; do
             [ -f "$d/pyproject.toml" ] || continue
             [ -f "$d/uv.lock" ] || { echo "Missing uv.lock in $d"; exit 1; }
-            (cd "$d" && uv lock --check)
+            (
+              cd "$d"
+              if grep -q 'prerelease-mode = "allow"' uv.lock; then
+                uv lock --prerelease=allow --check
+              else
+                uv lock --check
+              fi
+            )
           done
       - name: Install lib
         run: uv pip install --system -e ./lib/src
@@ -57,7 +64,7 @@ jobs:
       - name: Install apps
         run: |
           for d in apps/*/src; do
-            [ -f "$d/pyproject.toml" ] && uv pip install --system -e "$d" || echo "Skipping $d"
+            [ -f "$d/pyproject.toml" ] && uv pip install --system --prerelease=allow -e "$d" || echo "Skipping $d"
           done
       - name: Fix agent-framework init overwrite
         run: |
@@ -75,6 +82,9 @@ jobs:
       - name: Validate canonical event schema contracts
         run: |
           python scripts/ops/check_event_schema_contracts.py
+      - name: Validate enablement asset contract (front-matter + currency)
+        run: |
+          python scripts/ops/build_enablement_index.py --check
       - name: Check prompt and agent governance consistency
         run: |
           python scripts/ops/check_prompt_agent_consistency.py --report-file governance-drift-report.md

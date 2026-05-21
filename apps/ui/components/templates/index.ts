@@ -14,3 +14,16 @@ export type { CheckoutLayoutProps } from './CheckoutLayout';
 
 export { OrderTrackingLayout } from './OrderTrackingLayout';
 export type { OrderTrackingLayoutProps } from './OrderTrackingLayout';
+
+// ── Audience-router shells (ADR-035 §54 / Issue #1057) ───────────────────────
+export { HomeShell } from './HomeShell';
+export type { HomeShellProps } from './HomeShell';
+
+export { RetailerShell } from './RetailerShell';
+export type { RetailerShellProps } from './RetailerShell';
+
+export { BuilderShell } from './BuilderShell';
+export type { BuilderShellProps } from './BuilderShell';
+
+export { DeployShell } from './DeployShell';
+export type { DeployShellProps } from './DeployShell';

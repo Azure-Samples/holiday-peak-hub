@@ -1,6 +1,6 @@
 # Holiday Peak Hub
 
-Agent-driven retail accelerator for building and operating intelligent, cloud-native retail services with a shared framework and domain-focused apps.
+**A framework AND a product for agentic retail.** `lib/holiday_peak_lib/` is an opinionated agentic-microservices framework for retail; `apps/` is a production-grade retail platform built on it (1 transactional microservice, 26 agent services, 1 Next.js frontend). Distributed as a public Microsoft sample under `Azure-Samples/` — a channel, not a quality tier. See [.github/instructions/repository-purpose.instructions.md](.github/instructions/repository-purpose.instructions.md) for the canonical positioning.
 
 [![Release](https://img.shields.io/github/v/release/Azure-Samples/holiday-peak-hub?display_name=tag&include_prereleases&sort=semver)](https://github.com/Azure-Samples/holiday-peak-hub/releases)
 [![Pre-release](https://img.shields.io/badge/channel-unstable-orange)](https://github.com/Azure-Samples/holiday-peak-hub/releases/tag/v2.1.0-unstable.0)

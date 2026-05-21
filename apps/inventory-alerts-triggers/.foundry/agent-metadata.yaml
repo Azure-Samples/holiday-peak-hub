@@ -1,0 +1,34 @@
+surface:
+  type: custom
+  classification: Custom Agent
+  audience: non-public-internal
+  productRuntime: aks
+  productTrafficPath: "APIM -> AGC -> AKS"
+  foundryManagedCompute: false
+  proxy:
+    target: existing-aks-apim-endpoint
+    endpoint: ${APIM_BASE_URL}/agents/inventory-alerts-triggers
+defaultEnvironment: dev
+environments:
+  dev:
+    projectEndpoint: ${PROJECT_ENDPOINT}
+    agentName: inventory-alerts-triggers
+    azureContainerRegistry: ${AZURE_CONTAINER_REGISTRY}
+    observability:
+      applicationInsightsConnectionString: ${APPLICATIONINSIGHTS_CONNECTION_STRING}
+      tracingBackend: application-insights
+    evaluationSuites:
+      - id: inventory-alerts-triggers-smoke
+        name: Inventory Alerts Triggers Smoke Evaluation
+        tags:
+          tier: smoke
+          purpose: portal-tracking
+          stage: seed
+        dataset: inventory-alerts-triggers-eval-seed
+        datasetVersion: v1
+        datasetFile: .foundry/datasets/inventory-alerts-triggers-eval-seed-v1.jsonl
+        evaluators:
+          - name: coherence
+            threshold: 4
+          - name: groundedness
+            threshold: 4

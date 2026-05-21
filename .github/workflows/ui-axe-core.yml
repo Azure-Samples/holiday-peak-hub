@@ -1,0 +1,50 @@
+name: ui-axe-core
+
+# Per ADR-034 §7 / Issue #1014: enforce WCAG 2.2 AA on the audience-router
+# pages on every PR that touches apps/ui/**. Fails the build on any AA
+# violation; AAA / best-practice findings warn but do not fail.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - apps/ui/**
+      - .github/workflows/ui-axe-core.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - apps/ui/**
+      - .github/workflows/ui-axe-core.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ui-axe-core-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  axe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install UI dependencies
+        working-directory: apps/ui
+        run: yarn install --frozen-lockfile --prefer-offline --non-interactive
+
+      - name: Run axe-core (WCAG 2.2 AA gate)
+        working-directory: apps/ui
+        env:
+          CI: true
+        run: yarn test:a11y

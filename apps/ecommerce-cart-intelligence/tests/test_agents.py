@@ -1,5 +1,6 @@
 """Unit tests for CartIntelligenceAgent."""
 
+import asyncio
 from dataclasses import dataclass
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -229,6 +230,9 @@ class TestCartIntelligenceAgent:
             agent.hot_memory = mock_hot_memory
 
             await agent.handle({"items": sample_cart_items, "user_id": "user-1", "cart_ttl": 600})
+            # Drain the fire-and-forget cache write scheduled via
+            # ``background_cache_write`` before asserting on the mock.
+            await asyncio.sleep(0)
 
             assert mock_hot_memory.set.await_count == 1
             assert mock_hot_memory.set.await_args_list[0].kwargs["key"] == (
@@ -296,6 +300,9 @@ class TestCartIntelligenceAgent:
             agent.hot_memory = mock_hot_memory
 
             await agent.handle({"items": sample_cart_items, "user_id": "user-1", "cart_ttl": 600})
+            # Drain the fire-and-forget cache write scheduled via
+            # ``background_cache_write`` before asserting on the mock.
+            await asyncio.sleep(0)
 
             assert mock_hot_memory.get.await_count == 2
             assert mock_hot_memory.get.await_args_list[0].args[0] == (

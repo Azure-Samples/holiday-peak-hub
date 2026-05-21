@@ -1,8 +1,65 @@
 # Project Status & Issue Prioritization
 
-> Generated: 2026-04-19 | Version: main (post PR #859) | Branch: `main`
+> Generated: 2026-04-19 | Last updated: 2026-05-11 | Branch: `feature/990-direct-model-migration`
 
-## Current Main Snapshot (2026-04-19)
+## Strategy Direction (2026-05-10)
+
+**Mandatory MAF direct-model invocation.** Portal-managed Foundry Agent records (V2 prompt-agent path) are retired from framework runtime code. Each service's MAF `Agent` is now constructed in-process inside the existing FastAPI handler, over a pluggable `ChatClient` (`FoundryChatClient` by default, but provider-agnostic). Foundry remains the model-deployment plane, the telemetry backend (via OTel → Application Insights), and the evaluation surface - it is no longer an agent-runtime intermediation layer. The retired `FoundryAgentInvoker` JSON-text tool-call parser has been replaced by native MAF function-calling.
+
+**Why now.** The 2026-04-28 “Mandatory Foundry Invocation Policy” in [ADR-005](architecture/adrs/adr-005-agent-framework.md) was reversed on 2026-05-10 (same ADR, append-only amendment). Drivers: (1) the 2–5s per-request overhead did not yield a proportionate operational return; (2) tool-calling fidelity is structurally cleaner with native MAF function-calling than with the hand-rolled JSON-text parser; (3) the inventory hosted-agent precedent (commit `4cf0e546`, 2026-04-25) demonstrated the direct-model shape end-to-end — it was deleted only because it had been shipped as a *parallel* entry point alongside `main.py`, which is the dual-runtime anti-pattern the new policy explicitly forbids.
+
+**Single-architecture guardrail.** No service may ship a second AKS product entry point (e.g., `hosted_main.py`, secondary AKS service port, or a second FastAPI/Starlette runtime) alongside `main.py`. The MAF `Agent` is constructed inside the existing FastAPI handler. A Responses protocol adapter is permitted only when mounted into the same AKS-hosted FastAPI app and same pod/port as `/health`, `/ready`, `/mcp/*`, and `/invoke`. A separate Foundry-hosted portal/evaluation surface is allowed when it wraps that same Responses contract and does not replace APIM -> AGC -> AKS as the product traffic path.
+
+**Portal and runtime surfaces.** Each active agent service carries `agent.yaml` and `.foundry/agent-metadata.yaml` to describe the AKS product runtime for Foundry traceability, evaluations, protocol metadata, and operator discovery. `inventory-health-check` may also declare `responses 1.0.0` in `agent.yaml` to describe the AKS-hosted adapter. A separate Foundry-hosted portal/evaluation surface may use `template.kind: hosted`, `AIProjectClient.agents.create_version`, and the Foundry internal hosted-container port when its purpose is Playground testing, telemetry, or evaluation against the same FastAPI Responses wrapper. That surface must not replace AKS as the product runtime, introduce a second service implementation, or drop product dependency parity. Product deployment and invocation still run through `DirectModelInvoker` inside the existing AKS-hosted FastAPI app.
+
+**Foundry surface taxonomy.** ADR-036 adds the two-track exposure policy requested for PR #1103 / issue #990: public or human-facing agents use `agent.hosted.yaml` Hosted Agent manifests with `template.kind: hosted`, `responses 1.0.0`, `HOLIDAY_PEAK_FOUNDRY_HOSTED=1`, and port `8088`; non-public internal agents are Custom Agent surfaces recorded in `.foundry/agent-metadata.yaml` that proxy the existing APIM -> AGC -> AKS endpoint and do not create Foundry-managed compute. The registry is `apps/foundry-surfaces.yaml`. This taxonomy is an exposure model only; AKS remains the product runtime unless a future ADR changes it.
+
+**Foundry surface registration automation.** `scripts/ops/register_foundry_surfaces.py` now materializes the registry into a deterministic plan and can apply Hosted Agent versions through `AIProjectClient(..., allow_preview=True)` when explicitly requested by the deployment workflow. Manual dev deployments can enable `deployFoundrySurfaces=true` and choose `foundrySurfaceMode=plan` or `apply`. Apply mode uses tested image digests, validates Hosted Agent ACR reachability before live creation, and keeps Custom Agent proxy entries metadata-only until Microsoft Foundry exposes a supported Custom Agent creation API for APIM-backed proxy surfaces.
+
+**Tool calling.** Tools register in two places, additively: (a) MCP server for A2A (unchanged), and (b) the in-process MAF `Agent(tools=[...])` for native function-calling. The `_inject_tool_prompt` / `_extract_tool_calls_from_text` / `schema_tools_injected` JSON-parsing path in `lib/src/holiday_peak_lib/agents/foundry.py` was deleted in Wave 4c of the cutover.
+
+**Cutover plan status**: doc/ADR (Wave 0), lib `DirectModelInvoker` + `AgentBuilder.with_direct_models()` (Wave 1), inventory-health-check pilot (Wave 2), and all remaining agent services (Wave 3) are complete. Wave 4a/4b removed legacy app-factory/builder wiring plus `ensure-foundry-agents` workflow/scripts. Wave 4c removed `FoundryAgentInvoker`, `/foundry/agents/ensure`, and the V2 provisioning code path from framework runtime code. Portal-managed agents in project `aipholidaris` are intentionally left untouched by this repository change and will be deprovisioned manually by the owner.
+
+**Status of historical 2026-04-19 hotfix notes that touch the now-retired path**: “FoundryAgentInvoker replaces legacy FoundryInvoker” and “`reasoning_effort` parameter support in Foundry pipeline” remain accurate historical descriptions of PR #802-era runtime behavior, but that path has been removed from framework runtime code. Do not extend them; future work belongs in `DirectModelInvoker`.
+
+## Current Main Snapshot (2026-05-10)
+
+### Audience-IA cutover wave (April–May 2026)
+
+A large block of the audience-segmented IA, design-system cleanup, and
+deploy-portal preview work landed on `main` in this wave. Each row is a
+merged squash commit on `main`.
+
+| PR | Epic / Issue | Scope |
+|----|--------------|-------|
+| #1075 | #1060 | A11y + performance quality gates: bundle-budget gate (`apps/ui/budgets.json`, `scripts/check-bundle-budgets.mjs`), Web Vitals reporter wiring, Lighthouse CI workflow, ESLint `outline-none` rules, deletion of legacy `HomeSplitHero`. |
+| #1076 | #1046 | Retailer pages: `/retailers/{value,agents,roi,comparators,case-studies}` with `ROICalculator`, `AgentCatalog`, `ComparatorMatrix`, `CaseStudyEmptyState` molecules. ROI methodology pinned in `docs/methodology/retailer-roi.md` (75% buyer-time savings, 22% dispute reduction, ±40% CI band). |
+| #1077 | #1053 | Builder pages: `/builders/{architecture,adrs,patterns,telemetry,enablement}` with `RegistryTable` + `TelemetryEmbed` molecules. ADR + architecture diagram registry generators (`scripts/ops/build_adr_registry.py`, `scripts/ops/build_architecture_registry.py`). Server-side enablement gate (`apps/ui/lib/enablement/gate.ts`) + currency contract (`docs/governance/enablement-currency-contract.md`). |
+| #1078 | #1039 | Deploy-portal preview: `/deploy/{catalog,configure,preflight,track/[id]}` + `/retailers/security`. Bicep skeleton (`infra/deploy-portal/`). Rate-limit + log-scrub libraries (`apps/ui/lib/deploy/rateLimits.ts`, `apps/ui/lib/deploy/logScrub.ts`). OBO contract (`docs/security/deploy-portal-obo.md`) + cleanup contract (`docs/governance/deploy-portal-cleanup-contract.md`). |
+| #1079 | #1018 #1021 #1023 #1024 #1025 | mkdocs at `/docs/*` on SWA: workflow integration, `mkdocs/requirements.txt`, `staticwebapp.config.json` route block, `ReadTheDocsCta` + `TryThisInTheAppCta` molecules, segmented sitemap deep-page expansion (18 URLs). |
+| #1082 | #1019 | Axe deep-page coverage (`tests/a11y/audienceDeepPages.test.tsx` — 14 cases over `/retailers/*`, `/builders/*`, `/deploy/*`). |
+| #1081 | #1022 | Pagefind v1 app-search (`AppSearchBox` molecule, 19-page `APP_PAGES` manifest, GitHub-style scoring), `?q=` URL seeding from docs cross-link, mkdocs `overrides/main.html` cross-link aside. |
+| #1084 | #1021 follow-up | mkdocs `--strict` gate flip: `rewrite_external_links.py` hook (docs-to-source links → absolute GitHub blob URLs), GitHub-compatible toc slugifier, 130 → 0 strict-mode warnings, `MKDOCS_STRICT_BUILD` defaults `true`. |
+
+### Epic state matrix (2026-05-09)
+
+| Epic | Title | State | Notes |
+|------|-------|-------|-------|
+| #1014 | Audience-router foundation (CODEOWNERS, tokens, route groups) | ✅ Closed | Landed in earlier wave. |
+| #1020 | Audience-segmented IA | ✅ Effective closure | Route groups (#1015), dual tokens (#1016), `LaneSwitch` (#1017), per-section SEO + sitemap (#1018), CODEOWNERS 5-second-test (#1019), axe-core CI all in `main`. |
+| #1026 | mkdocs-as-/docs sub-path | ✅ Effective closure | #1021 #1023 #1024 #1025 shipped non-strict in PR #1079; #1022 Pagefind v1 + `?q=` cross-link in PR #1081; `--strict` gate flip in PR #1084 (130 → 0 warnings via the `rewrite_external_links.py` hook + GitHub-style toc slugifier). |
+| #1039 | Deploy-portal one-click preview | 🟡 v1 in PR #1078 | Sub-issues #1027–#1038 scaffolded; real ARM kickoff + SignalR client + production GA gated on third-party / Microsoft Red Team pen-test (#1027). |
+| #1046 | Retailer pages | ✅ v1 in PR #1076 | #1040–#1045 shipped. |
+| #1053 | Builder pages | ✅ v1 in PR #1077 | #1047–#1052 shipped. |
+| #1060 | A11y + perf quality gates | ✅ Closed (#1075) | Bundle-budget advisory at v1; flip strict via `vars.MKDOCS_STRICT_BUILD`-style toggle once dependency-trim follow-up lands. |
+| #1061 | UI design-system cleanup + roll-forward | ✅ Effective closure | F1–F6 (#1055–#1060) all merged; ADR-035 in place. |
+
+### Tracking-only epics (out of session)
+
+| Epic | Title | State | Notes |
+|------|-------|-------|-------|
+| #990 | R1 — MAF backend cutover *(superseded 2026-05-10)* | 🟡 Re-scoped | Original plan rolled `FoundryAgentInvoker` (PR #802) and the strict-4s pipeline (PR #859) to the remaining services. Re-scoped on 2026-05-10 by the [ADR-005 Mandatory MAF Invocation Policy amendment](architecture/adrs/adr-005-agent-framework.md): the rollout target is now `DirectModelInvoker` (MAF `Agent` + `FoundryChatClient`, single FastAPI entry point per service). Wave 3 migrated all 26 agent services. Wave 4c removed the legacy portal-agent runtime/provisioning path from code. The 42 V2 portal agents in project `aipholidaris` are intentionally left for manual deprovisioning outside this code cleanup. |
+| #1008 | R2 — UI decoupling onto Static Web Apps | 🟡 In flight | `apps/ui/staticwebapp.config.json` exists; `.github/workflows/deploy-ui-swa.yml` exists; SWA-specific behaviour (route block, navigation fallback, mkdocs sub-path) shipped in PR #1079. Code cutover stages remain. |
 
 ### Recently Merged (April 2026)
 
@@ -25,16 +82,22 @@
 
 ### What Changed (Since Last Snapshot)
 
+- **Issue #990 / PR #1103 Foundry portal surface automation (2026-05-19)**: added a deterministic Foundry surface planner/apply script and `deploy-foundry-surfaces` reusable workflow job. Plan mode emits the review artifact from `apps/foundry-surfaces.yaml`; apply mode creates or updates Hosted Agent versions only from tested image digests and refuses private-only ACR baselines. Custom Agent entries remain APIM proxy metadata with no Foundry-managed compute.
+- **Issue #1107 / PR #1103 APIM sync and smoke validation (2026-05-19)**: `.infra/azd/hooks/sync-apim-agents.sh` and `.infra/azd/hooks/sync-apim-agents.ps1` now generate CRUD APIM CORS `Access-Control-Allow-Origin` `<value>` expressions with raw quotes inside XML element text while keeping XML attribute expressions entity-escaped, the CRUD backend section now uses a single explicit `<forward-request timeout="60" />` policy, and public `/api/ready` rewrites to the CRUD service `/ready` probe. The CRUD AGC route contract now publishes `/ready` with `/health` and `/api`, preserving APIM -> AGC -> AKS routing for readiness smoke probes after policy rewrite to the FastAPI readiness endpoint.
+- **Issue #1107 / PR #1103 APIM smoke retry hardening (2026-05-19)**: `.github/workflows/deploy-azd.yml` now retries CORS preflight status and normalizes raw `curl -D` CRLF response headers before validating `Access-Control-Allow-*`, avoiding shell header-parsing false negatives while APIM applies the freshly uploaded CRUD API policy after `sync-apim`.
+- **Issue #1107 / PR #1103 Flux preview cleanup fallback (2026-05-19)**: `.github/workflows/deploy-azd.yml` now falls back to `az aks command invoke` when direct runner `kubectl` credentials fail during branch-preview cleanup, ensuring the Flux `GitRepository` source can be restored from `feature/foundry-hosted-agents-pilot` to `main` after failed smoke validation.
+- **Issue #1107 / PR #1103 CRUD preview desired-state pin (2026-05-19)**: `.kubernetes/releases/crud/crud-service.yaml` pins `crud-service` to image tag `571026e55688f0957c55963ca8e040b7193086da` so Flux branch-preview reconciliation deploys the same APIM policy-fix commit that the next workflow builds as `imageTag`/`testedSourceSha`, preserving branch-preview image/tag parity.
 - **Executive demo homepage refactor (2026-04-28)**: `apps/ui/app/page.tsx` now routes to a single-page, scroll-driven executive demo where the robots are the primary narrative device. The homepage now stages the cold open, hero search, CRM boardroom, discovery duo, truth pipeline, catalog galaxy, cart/checkout, inventory, logistics, returns/support, platform telemetry, and scenario close as one continuous presentation surface. Supporting additions include route-local demo components, a reusable agent profile drawer, and additive `AgentRobot` scene props (`facing`, `pointAt`, `lookAt`, `toolOverride`, `scenePeer`).
 - **Commerce journey agent continuity (2026-04-28)**: The storefront drill-down routes now keep visible agent presence past the homepage. `AgentRobotOverlay` accepts semantic size presets and scene-staging props, and category, orders, order detail, cart, search, product, and checkout surfaces now stage primary and secondary agents along the buyer journey.
 - **Commerce stage contract + drawer/operator follow-through (2026-04-28)**: Shopping-flow routes now share `apps/ui/components/templates/CommerceAgentLayout.tsx` so the primary-stage robot, side-cast robot, and telemetry chip are declared uniformly. `AgentProfileDrawer` now renders input/output schemas, curated sample payloads, a live sample-run action, and an in-place trace explorer modal; scenario drill-down drawers also receive live monitor metrics instead of static placeholders.
 - **Drawer streaming + telemetry completion (2026-04-28)**: `AgentProfileDrawer` sample runs now stream over `/invoke/stream`, commerce telemetry chips now hydrate from persisted `_telemetry` across search, product enrichment, and product-graph summary invoke seams, and `/order/[id]` now keeps `logistics-route-issue-detection` as the default side cast until return flow activation swaps in returns + support.
 - **Frontend regression hardening (2026-04-28)**: Added focused drawer unit coverage plus Playwright specs for the executive demo narrative, light/dark visual regression, and admin cockpit readiness (`apps/ui/tests/e2e/demo-narrative.spec.ts`, `apps/ui/tests/e2e/dark-mode-regression.spec.ts`, `apps/ui/tests/e2e/cockpit-readiness.spec.ts`).
 - **Scenario drill-down briefs (2026-04-28)**: Added `/scenarios/[id]` route briefs for discovery, customer 360, truth, and checkout flows, backed by shared scenario metadata so the homepage close scene can jump into a dedicated brief before sending users to live product or operator surfaces.
+- **MAF direct-model Wave 4c cleanup (2026-05-11)**: removed the retired portal-agent `FoundryAgentInvoker`, JSON-text tool-call parser, V2 provisioning code path, and `/foundry/agents/ensure` endpoint from framework runtime code. Readiness now validates direct-model `maf-direct` targets.
 - **Catalog-search strict 4s pipeline (v6)**: Entire intelligent pipeline runs inside `asyncio.wait_for(timeout=4.0)`. Intent classification via GPT-5-nano with `reasoning_effort="minimal"` (1.5s budget). Parallel keyword + hybrid search fan-out. Direct product construction from AI Search documents (no CRUD round-trip). Fire-and-forget history writes. Deployed as `strict-4s-v6` on 2 AKS replicas.
-- **`reasoning_effort` parameter support in Foundry pipeline**: `FoundryAgentInvoker` now plumbs `reasoning_effort` through `_PreparedInvocation` → `_request_response_impl` → `run_kwargs["options"]`. Guards ensure the parameter is only sent when explicitly passed.
+- **Historical `reasoning_effort` support in the retired Foundry pipeline**: `FoundryAgentInvoker` plumbed `reasoning_effort` through `_PreparedInvocation` to MAF options during the PR #802 runtime era. The active direct-model path owns future runtime parameter work.
 - **Live integration test suite**: 11 tests (10 parametrized queries + summary report) validate the live APIM→AKS→AI Foundry→AI Search pipeline. 10/10 within budget, avg ~2.77s.
-- **FoundryAgentInvoker** replaces legacy `FoundryInvoker`: agent tools are now properly forwarded through the Microsoft Agent Framework `FoundryAgent` runtime instead of being silently dropped.
+- **Historical FoundryAgentInvoker migration**: PR #802 replaced legacy `FoundryInvoker` with `FoundryAgentInvoker` and fixed silent tool-dropping during the portal-agent runtime era. That runtime path is now retired in favor of `DirectModelInvoker`.
 - `agent-framework` upgraded from unpinned to `>=1.0.1` GA across all 27 Python service packages; resolves `ContextProvider` vs `BaseContextProvider` import incompatibility.
 - Memory tier operations parallelized with `asyncio.gather` for reduced latency; new memory tools (`get_memory`, `set_memory`, `search_memory`) and `gather_adapters` helper available.
 - AKS deployments now reconcile through Flux CD GitOps (ADR-017); kubectl-apply path removed.
@@ -119,6 +182,8 @@
 
 ### Runtime Hotfix Notes (2026-03-19)
 - **Dependency Management Hardening (Issue #316)**: Agent service `pyproject.toml` dependencies now use minimum version constraints for key runtime libraries and include a local editable `holiday-peak-lib` source mapping for development workflows.
+- **CRUD HelmRelease Image Pin**: `.kubernetes/releases/crud/crud-service.yaml` now pins `crud-service` to tested ACR tag `be7ce0d3f4ae4b3300327a9426dd8065fa209301` from deployment run `26076840846`, preventing Flux preview/default-branch source restore from reconciling CRUD to stale or missing tags and preserving strict AGC readiness validation through a healthy CRUD backend.
+
 - **Lockfile and Build Reproducibility**: App `.dockerignore` files now include `uv.lock` in Docker build context, service Dockerfiles use frozen `uv` sync installs, and CI validates `yarn.lock` / `uv.lock` freshness before linting.
 - **Infrastructure Secret and Region Hygiene**: Shared infrastructure now uses a random `newGuid()`-seeded fallback for PostgreSQL admin password generation and parameterizes Azure AI Foundry location instead of hardcoding the region.
 - **UI Product Enrichment Monitoring (Issue #352)**: Admin now exposes a dedicated enrichment monitoring route (`/admin/enrichment-monitor`) with real-time stage/job visibility, retry controls on monitor failures/log entries, and throughput + approval-rate visual indicators; search now surfaces explicit mode/intent signal chips; top navigation includes a pipeline status indicator that links directly to the monitor.
@@ -136,6 +201,10 @@
 - **CRUD Dev Readiness Probe Alignment**: Dev/local Helm rendering no longer downgrades CRUD readiness to `/health`, so dependency outages are surfaced consistently in-cluster instead of being masked by process-only liveness.
 - **PostgreSQL Auth Contract Alignment**: `POSTGRES_AUTH_MODE` now drives the Flexible Server auth policy in Bicep and a pre-rollout workflow guard verifies the live server matches the configured runtime auth mode before CRUD is redeployed.
 - **CRUD Entra Principal Alignment**: Entra-mode deployment outputs now resolve `POSTGRES_USER` to the CRUD workload identity principal (`<project>-<env>-crud-identity`), matching the pod identity used for token acquisition instead of the legacy agentpool principal.
+
+### Runtime Hotfix Notes (2026-05-19)
+- **CRUD Startup Dependency Timeout Boundary**: CRUD startup now bounds PostgreSQL pool initialization with `POSTGRES_POOL_STARTUP_TIMEOUT_SECONDS` and Key Vault secret retrieval with `KEY_VAULT_SECRET_STARTUP_TIMEOUT_SECONDS`. `/health` remains process liveness once FastAPI starts, while `/ready` continues to report Redis, Cosmos DB, PostgreSQL, and connector dependency failures as degraded/503.
+- **CRUD Readiness Dependency Timeout Boundary**: CRUD `/ready` now runs PostgreSQL, Redis, Cosmos DB, and connector registry checks concurrently behind `READINESS_DEPENDENCY_TIMEOUT_SECONDS`, preserving strict degraded/503 readiness while surfacing slow dependency recovery as structured timeout detail before the AKS probe window is exceeded.
 
 ### Merged PRs (v1.1.0)
 | # | Title | Category |

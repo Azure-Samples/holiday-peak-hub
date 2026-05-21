@@ -1,0 +1,24 @@
+defaultEnvironment: dev
+environments:
+  dev:
+    projectEndpoint: ${PROJECT_ENDPOINT}
+    agentName: logistics-eta-computation
+    azureContainerRegistry: ${AZURE_CONTAINER_REGISTRY}
+    observability:
+      applicationInsightsConnectionString: ${APPLICATIONINSIGHTS_CONNECTION_STRING}
+      tracingBackend: application-insights
+    evaluationSuites:
+      - id: logistics-eta-computation-smoke
+        name: Logistics ETA Computation Smoke Evaluation
+        tags:
+          tier: smoke
+          purpose: portal-tracking
+          stage: seed
+        dataset: logistics-eta-computation-eval-seed
+        datasetVersion: v1
+        datasetFile: .foundry/datasets/logistics-eta-computation-eval-seed-v1.jsonl
+        evaluators:
+          - name: coherence
+            threshold: 4
+          - name: groundedness
+            threshold: 4

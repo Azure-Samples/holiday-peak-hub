@@ -1,0 +1,131 @@
+/* ── Three-layer design tokens — SYSTEM layer (ADR-035 §50–51 / Issue #1056) ──
+ *
+ * The reference layer (warm/cool/neutral OKLCH palette + fonts + radii +
+ * motion) lives in `apps/ui/app/globals.css` inside the Tailwind 4 `@theme`
+ * block. This file binds those references to **role-named system tokens**
+ * that components consume.
+ *
+ * System tokens are AUDIENCE-AWARE: the `[data-audience="…"]` selector
+ * emitted by `SectionShell` re-binds the same role names to the audience's
+ * cognitive model (warm for retailer, cool for builder, neutral-cool for
+ * deploy). Components do not switch tokens — the shell does.
+ *
+ * Theme-aware token pairs use `light-dark()` (Baseline 2024). The
+ * `@supports not (color: light-dark(…))` fallback at the bottom of this
+ * file re-binds the surface/text pairs via `@media (prefers-color-scheme:
+ * dark)`. No `.dark` class override is needed at the system layer.
+ *
+ * Naming: `--<layer>-<category>-<role>[-<state>]`.
+ *   - `ref-`  : reference (palette / type / motion primitives, `@theme`)
+ *   - `sys-`  : system (role-named, audience-aware, theme-aware)
+ *   - `comp-` : component (slots owned by `components/shared/<Component>`)
+ *   - Tailwind-reserved prefixes also pass: `color-`, `font-`, `spacing-`,
+ *     `radius-`, `ease-`, `motion-` (these are exposed by `@theme`).
+ */
+
+/* ── Default (neutral) audience binding ───────────────────────────────── */
+:root,
+[data-audience='neutral'] {
+  /* Action surface — neutral picks the brand's warm action by default so
+   * `/` and `/docs` retain the brand's chromatic identity. */
+  --sys-action-primary: var(--color-warm-500);
+  --sys-action-primary-hover: var(--color-warm-600);
+  --sys-action-primary-foreground: var(--color-neutral-50);
+  --sys-surface-accent: var(--color-warm-50);
+  --sys-border-accent: var(--color-warm-500);
+
+  /* Theme-aware surface + text pairs — light/dark via light-dark(). */
+  --sys-bg: light-dark(var(--color-neutral-50), var(--color-neutral-950));
+  --sys-surface: light-dark(#ffffff, var(--color-neutral-900));
+  --sys-surface-strong: light-dark(var(--color-neutral-100), var(--color-neutral-800));
+  --sys-text: light-dark(var(--color-neutral-900), var(--color-neutral-50));
+  --sys-text-muted: light-dark(var(--color-neutral-600), var(--color-neutral-400));
+  --sys-border: light-dark(var(--color-neutral-200), var(--color-neutral-800));
+
+  /* Focus ring — single token consumed by the global `:focus-visible`. */
+  --sys-focus-ring: var(--color-warm-500);
+}
+
+/* ── Retailer (warm cognitive model) ──────────────────────────────────── */
+[data-audience='retailer'] {
+  --sys-action-primary: var(--color-warm-500);
+  --sys-action-primary-hover: var(--color-warm-600);
+  --sys-action-primary-foreground: var(--color-neutral-50);
+  --sys-surface-accent: var(--color-warm-50);
+  --sys-border-accent: var(--color-warm-500);
+  --sys-focus-ring: var(--color-warm-500);
+}
+
+/* ── Builder (cool cognitive model) ───────────────────────────────────── */
+[data-audience='builder'] {
+  --sys-action-primary: var(--color-cool-500);
+  --sys-action-primary-hover: var(--color-cool-600);
+  --sys-action-primary-foreground: var(--color-neutral-50);
+  --sys-surface-accent: var(--color-cool-50);
+  --sys-border-accent: var(--color-cool-500);
+  --sys-focus-ring: var(--color-cool-500);
+}
+
+/* ── Deploy (neutral-cool, procedural funnel) ─────────────────────────── */
+[data-audience='deploy'] {
+  --sys-action-primary: var(--color-cool-500);
+  --sys-action-primary-hover: var(--color-cool-600);
+  --sys-action-primary-foreground: var(--color-neutral-50);
+  --sys-surface-accent: var(--color-cool-50);
+  --sys-border-accent: var(--color-cool-500);
+  --sys-focus-ring: var(--color-cool-500);
+}
+
+/* ── Backwards-compatibility aliases ──────────────────────────────────────
+ * Components shipped before #1056 reference `--hp-*` tokens directly. The
+ * aliases below resolve `--hp-*` to the new system layer so the visual
+ * surface stays consistent while consumers migrate to `--sys-*`. F4
+ * (#1058) removes these aliases once all consumers are on the new names.
+ */
+:root {
+  --hp-bg: var(--sys-bg);
+  --hp-surface: var(--sys-surface);
+  --hp-surface-strong: var(--sys-surface-strong);
+  --hp-border: var(--sys-border);
+  --hp-text: var(--sys-text);
+  --hp-text-muted: var(--sys-text-muted);
+  --hp-muted: var(--sys-text-muted);
+  --hp-primary: var(--sys-action-primary);
+  --hp-primary-hover: var(--sys-action-primary-hover);
+  --hp-focus: var(--sys-focus-ring);
+}
+
+/* ── Light-dark() fallback ────────────────────────────────────────────────
+ * `@supports not (color: light-dark(red, blue))` re-binds the system-layer
+ * pairs that depend on it via `prefers-color-scheme: dark`. Reference
+ * tokens are static and don't need this branch.
+ */
+@supports not (color: light-dark(red, blue)) {
+  :root,
+  [data-audience='neutral'],
+  [data-audience='retailer'],
+  [data-audience='builder'],
+  [data-audience='deploy'] {
+    --sys-bg: var(--color-neutral-50);
+    --sys-surface: #ffffff;
+    --sys-surface-strong: var(--color-neutral-100);
+    --sys-text: var(--color-neutral-900);
+    --sys-text-muted: var(--color-neutral-600);
+    --sys-border: var(--color-neutral-200);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root,
+    [data-audience='neutral'],
+    [data-audience='retailer'],
+    [data-audience='builder'],
+    [data-audience='deploy'] {
+      --sys-bg: var(--color-neutral-950);
+      --sys-surface: var(--color-neutral-900);
+      --sys-surface-strong: var(--color-neutral-800);
+      --sys-text: var(--color-neutral-50);
+      --sys-text-muted: var(--color-neutral-400);
+      --sys-border: var(--color-neutral-800);
+    }
+  }
+}

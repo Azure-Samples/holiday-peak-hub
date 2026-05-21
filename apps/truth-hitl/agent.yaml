@@ -1,0 +1,57 @@
+name: truth-hitl
+description: >
+  Supports human-in-the-loop review and approval queues. This portal-tracking
+  artifact describes the existing FastAPI direct-model runtime for Foundry
+  traceability; deployment and invocation remain owned by the service
+  container.
+metadata:
+  trackingOnly: true
+  runtime: fastapi-direct-model
+  sourceIssue: "990"
+  tags:
+    - Holiday Peak Hub
+    - Retail
+    - Truth Layer
+    - HITL
+    - Foundry Portal Tracking
+    - Direct Model
+template:
+  kind: direct-model
+  protocols:
+    - protocol: fastapi-rest
+      version: "1.0.0"
+    - protocol: mcp
+      version: "1.0.0"
+  environment_variables:
+    - name: PROJECT_ENDPOINT
+      value: ${PROJECT_ENDPOINT}
+    - name: PROJECT_NAME
+      value: ${PROJECT_NAME}
+    - name: MODEL_DEPLOYMENT_NAME_FAST
+      value: ${MODEL_DEPLOYMENT_NAME_FAST}
+    - name: MODEL_DEPLOYMENT_NAME_RICH
+      value: ${MODEL_DEPLOYMENT_NAME_RICH}
+    - name: FOUNDRY_AGENT_NAME_FAST
+      value: ${FOUNDRY_AGENT_NAME_FAST}
+    - name: FOUNDRY_AGENT_NAME_RICH
+      value: ${FOUNDRY_AGENT_NAME_RICH}
+    - name: REDIS_HOST
+      value: ${REDIS_HOST}
+    - name: REDIS_URL
+      value: ${REDIS_URL}
+    - name: COSMOS_ACCOUNT_URI
+      value: ${COSMOS_ACCOUNT_URI}
+    - name: COSMOS_DATABASE
+      value: ${COSMOS_DATABASE}
+    - name: COSMOS_CONTAINER
+      value: ${COSMOS_CONTAINER}
+    - name: BLOB_ACCOUNT_URL
+      value: ${BLOB_ACCOUNT_URL}
+    - name: BLOB_CONTAINER
+      value: ${BLOB_CONTAINER}
+    - name: EVENT_HUB_NAMESPACE
+      value: ${EVENT_HUB_NAMESPACE}
+    - name: KEY_VAULT_URI
+      value: ${KEY_VAULT_URI}
+    - name: APPLICATIONINSIGHTS_CONNECTION_STRING
+      value: ${APPLICATIONINSIGHTS_CONNECTION_STRING}

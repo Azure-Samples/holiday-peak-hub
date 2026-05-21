@@ -54,6 +54,21 @@ class Settings(BaseSettings):
         default=8.0,
         description="Timeout for repository PostgreSQL queries (seconds)",
     )
+    postgres_pool_startup_timeout_seconds: float = Field(
+        default=10.0,
+        gt=0,
+        description="Bounded startup timeout for PostgreSQL pool initialization (seconds)",
+    )
+    key_vault_secret_startup_timeout_seconds: float = Field(
+        default=3.0,
+        gt=0,
+        description="Bounded startup timeout for Key Vault secret retrieval (seconds)",
+    )
+    readiness_dependency_timeout_seconds: float = Field(
+        default=2.0,
+        gt=0,
+        description="Bounded per-dependency timeout for readiness checks (seconds)",
+    )
 
     # Azure Event Hubs (use Managed Identity, no connection string)
     event_hub_namespace: str = Field(

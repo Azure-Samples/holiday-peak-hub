@@ -1,0 +1,22 @@
+graph TB
+    subgraph Actors
+        Customer((Customer))
+        LogisticsMgr((Logistics Manager))
+    end
+    
+    subgraph "Logistics Use Cases"
+        UC1[Compute ETA]
+        UC2[Select Carrier]
+        UC3[Process Returns]
+        UC4[Detect Route Issues]
+    end
+    
+    Customer -->|requests| UC1
+    LogisticsMgr -->|configures| UC2
+    Customer -->|initiates| UC3
+    LogisticsMgr -->|monitors| UC4
+    
+    UC1 -.->|includes| QueryCarrier[Call Carrier API]
+    UC2 -.->|includes| OptimizeCost[Cost vs Speed Trade-off]
+    UC3 -.->|includes| GenerateLabel[Create Return Label]
+    UC4 -.->|includes| AlertDelay[Proactive Notification]

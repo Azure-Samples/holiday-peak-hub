@@ -1,0 +1,51 @@
+# CODEOWNERS — audience-router IA merge gate (ADR-034 §7 / Issue #1014)
+#
+# Files in the audience-segmented information architecture are subject to a
+# 5-second-test merge gate. Changes to the home page, top-level navigation,
+# audience route groups, and design tokens require review from a balanced
+# pool of personas so the IA does not drift toward one audience over time.
+#
+# Reviewer pools — `@Azure-Samples/holiday-peak-retailer-personas` and
+# `@Azure-Samples/holiday-peak-internal-personas` — are GitHub teams that
+# must be created in the Azure-Samples org. Until the teams exist, GitHub
+# falls back to the repository default reviewers; see
+# `docs/governance/five-second-test.md` for the team-membership criteria
+# and the activation runbook.
+
+# ────────────────────────────────────────────────────────────────────────
+#  Default — repository maintainers
+# ────────────────────────────────────────────────────────────────────────
+*                                  @Azure-Samples/holiday-peak-hub-maintainers
+
+# ────────────────────────────────────────────────────────────────────────
+#  Audience-router IA paths — 5-second-test merge gate
+#  Both reviewer pools are required so home + nav are reviewed by personas
+#  representing both retailer and internal audiences.
+# ────────────────────────────────────────────────────────────────────────
+
+# Home page (audience-router)
+apps/ui/app/page.tsx               @Azure-Samples/holiday-peak-retailer-personas @Azure-Samples/holiday-peak-internal-personas
+
+# Top-level navigation / root layout
+apps/ui/app/layout.tsx             @Azure-Samples/holiday-peak-retailer-personas @Azure-Samples/holiday-peak-internal-personas
+
+# Retailer route group — retailer-persona reviewers required
+apps/ui/app/(retailer)/**          @Azure-Samples/holiday-peak-retailer-personas
+
+# Builder route group — internal-persona reviewers required
+apps/ui/app/(builder)/**           @Azure-Samples/holiday-peak-internal-personas
+
+# Deploy route group — both pools (the deploy lane is the funnel for both audiences)
+apps/ui/app/(deploy)/**            @Azure-Samples/holiday-peak-retailer-personas @Azure-Samples/holiday-peak-internal-personas
+
+# Shared shell & lane primitives (touch every audience)
+apps/ui/components/shared/**       @Azure-Samples/holiday-peak-retailer-personas @Azure-Samples/holiday-peak-internal-personas
+
+# Design tokens — both palettes must remain WCAG 2.2 AA
+apps/ui/styles/tokens/**           @Azure-Samples/holiday-peak-retailer-personas @Azure-Samples/holiday-peak-internal-personas
+
+# ────────────────────────────────────────────────────────────────────────
+#  ADRs — architecture team
+# ────────────────────────────────────────────────────────────────────────
+docs/architecture/adrs/**          @Azure-Samples/holiday-peak-hub-architecture
+docs/architecture/ADRs.md          @Azure-Samples/holiday-peak-hub-architecture

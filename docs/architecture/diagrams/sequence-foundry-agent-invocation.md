@@ -1,14 +1,14 @@
-# Sequence Diagram: FoundryAgentInvoker Flow
+# Sequence Diagram: DirectModelInvoker Flow
 
-This diagram illustrates the agent invocation flow using the Microsoft Agent Framework (MAF) `FoundryAgentInvoker`, which replaced the legacy `FoundryInvoker` in PR #802.
+This diagram illustrates the canonical agent invocation flow using the Microsoft Agent Framework (MAF) `DirectModelInvoker`, which constructs `agent_framework.Agent` in-process over a pluggable `ChatClient`.
 
 ## Flow Overview
 
 1. **Request** → FastAPI endpoint receives invoke request
 2. **Agent Build** → `AgentBuilder` composes agent with tools, memory, and model config
 3. **Model Routing** → SLM-first assessment, optional upgrade to LLM
-4. **MAF Invocation** → `FoundryAgentInvoker` delegates to `FoundryAgent` runtime
-5. **Tool Execution** → Tools forwarded through MAF middleware (not silently dropped)
+4. **MAF Invocation** -> `DirectModelInvoker` delegates to in-process `agent_framework.Agent`
+5. **Tool Execution** -> Tools forwarded through native MAF function-calling
 6. **Response** → Structured result returned through the agent pipeline
 
 ## Sequence Diagram
@@ -27,9 +27,9 @@ sequenceDiagram
     participant API as FastAPI App
     participant Builder as AgentBuilder
     participant Agent as BaseRetailAgent
-    participant Invoker as FoundryAgentInvoker
-    participant MAF as FoundryAgent (MAF)
-    participant Foundry as Azure AI Foundry
+    participant Invoker as DirectModelInvoker
+    participant MAF as agent_framework.Agent
+    participant Chat as FoundryChatClient
     participant Tools as MCP Tools
     participant Memory as Memory Stack
 
@@ -43,25 +43,25 @@ sequenceDiagram
 
     Note over Agent: Step 2: SLM-First Routing
     Agent->>Invoker: invoke(query, context, tools)
-    Invoker->>MAF: FoundryAgent.create(agent_id, tools)
-    MAF->>Foundry: POST /agents/{fast}/invoke
-    Foundry-->>MAF: {response, tool_calls}
+    Invoker->>MAF: Agent(instructions, chat_client, tools)
+    MAF->>Chat: run(messages, deployment=fast)
+    Chat-->>MAF: {response, tool_calls}
 
     alt Tool calls present
-        Note over MAF: Tools forwarded via MAF middleware
+        Note over MAF: Tools forwarded via native function-calling
         MAF->>Tools: execute(tool_calls)
         Tools-->>MAF: tool_results
-        MAF->>Foundry: POST /agents/{fast}/continue
-        Foundry-->>MAF: {final_response}
+        MAF->>Chat: continue(messages, tool_results)
+        Chat-->>MAF: {final_response}
     end
 
     MAF-->>Invoker: agent_response
 
     alt Confidence < threshold
         Note over Invoker: Upgrade to LLM
-        Invoker->>MAF: FoundryAgent.create(agent_id_rich, tools)
-        MAF->>Foundry: POST /agents/{rich}/invoke
-        Foundry-->>MAF: {response, tool_calls}
+        Invoker->>MAF: Agent(instructions, chat_client, tools)
+        MAF->>Chat: run(messages, deployment=rich)
+        Chat-->>MAF: {response, tool_calls}
         MAF-->>Invoker: agent_response
     end
 
@@ -73,7 +73,7 @@ sequenceDiagram
 
 ## Key Design Decisions
 
-- **MAF `FoundryAgent` runtime**: Tools are registered with the agent at creation time and forwarded through MAF middleware, solving the silent tool-dropping issue in the legacy `FoundryInvoker`.
+- **MAF direct-model runtime**: Tools are registered with the in-process `Agent` and forwarded through native MAF function-calling. No portal-managed Foundry Agent record is required at runtime.
 - **Parallel memory I/O**: Hot and warm memory are read/written concurrently via `asyncio.gather`.
 - **SLM-first with LLM upgrade**: Every request starts with the fast (SLM) model; only complex queries escalate to the rich (LLM) model.
 

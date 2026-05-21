@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from holiday_peak_lib.agents import BaseRetailAgent
@@ -20,6 +21,14 @@ from holiday_peak_lib.agents.registration_helpers import (
 )
 
 from .adapters import InventoryHealthAdapters, build_inventory_health_adapters
+
+# Pattern: capture SKU identifiers from natural-language Responses protocol
+# inputs (e.g. "check health of SKU-123", "is sku ABC-9 healthy?"). Two
+# alternations: (a) explicit "SKU-XYZ" tokens, (b) "sku <id>" prefixed forms.
+_SKU_PATTERN_TEXT = (
+    r"\b(?:SKU[-_]?)([A-Z0-9][A-Z0-9_-]{1,63})\b" + r"|\bsku\s+([A-Z0-9][A-Z0-9_-]{1,63})\b"
+)
+_SKU_PATTERN = re.compile(_SKU_PATTERN_TEXT, re.IGNORECASE)
 
 
 class InventoryHealthAgent(BaseRetailAgent):
@@ -40,7 +49,35 @@ class InventoryHealthAgent(BaseRetailAgent):
         entity_key_field="sku",
     )
 
+    async def responses_request_from_text(self, text: str) -> dict[str, Any]:
+        """Translate Responses-API free-form input into a ``handle()``
+        request dict.
+
+        ``handle()`` requires a ``sku`` field. We try to extract one from
+        natural-language inputs ("check health for SKU-123", "is sku ABC9
+        healthy?"). When no SKU can be found we still fan the call out to
+        ``handle()`` with an explanatory error so the caller (and the
+        Responses-API surface) sees a structured reply rather than a 500.
+        """
+        match = _SKU_PATTERN.search(text or "")
+        if match:
+            sku = (match.group(1) or match.group(2) or "").upper()
+            return {"sku": sku, "_responses_input_text": text}
+        # No SKU found — surface a structured prompt back to the caller.
+        return {
+            "_no_sku": True,
+            "_responses_input_text": text,
+            "sku": None,
+        }
+
     async def handle(self, request: dict[str, Any]) -> dict[str, Any]:
+        if request.get("_no_sku"):
+            return {
+                "error": "sku is required",
+                "hint": ("Provide a SKU id in the prompt, e.g. " "'check health for SKU-1234'."),
+                "input": request.get("_responses_input_text"),
+            }
+
         sku = request.get("sku")
         if not sku:
             return {"error": "sku is required"}

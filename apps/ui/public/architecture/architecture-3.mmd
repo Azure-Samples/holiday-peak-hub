@@ -1,0 +1,22 @@
+graph TB
+    subgraph Actors
+        DataEng((Data Engineer))
+        ProductMgr((Product Manager))
+    end
+    
+    subgraph "Product Management Use Cases"
+        UC1[Normalize Product Data]
+        UC2[Transform to ACP]
+        UC3[Validate Consistency]
+        UC4[Optimize Assortment]
+    end
+    
+    DataEng -->|executes| UC1
+    DataEng -->|executes| UC2
+    DataEng -->|monitors| UC3
+    ProductMgr -->|runs| UC4
+    
+    UC1 -.->|includes| Classify[Auto-classify Categories]
+    UC2 -.->|includes| Map[Map to ACP Schema]
+    UC3 -.->|includes| CheckRules[Apply Business Rules]
+    UC4 -.->|includes| MLModel[Run Assortment Model]

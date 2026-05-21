@@ -1,0 +1,73 @@
+name: ui-lighthouse
+
+on:
+  pull_request:
+    paths:
+      - 'apps/ui/**'
+      - '.github/workflows/ui-lighthouse.yml'
+  workflow_dispatch:
+
+# Issue #1060: Core Web Vitals lab gate. Runs Lighthouse against the four
+# audience archetypes. Lab targets are tighter than field targets:
+#   LCP P75 ≤ 2.0s (lab)   — production target ≤ 2.5s (field, App Insights)
+#   TBT ≤ 200ms (proxy)    — production INP ≤ 200ms (field, App Insights)
+#   CLS ≤ 0.05 (lab)       — production target ≤ 0.10 (field)
+# Gate runs in advisory mode at v1; flips to strict after the F1 cleanup
+# follow-up trims the global path.
+
+jobs:
+  lighthouse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      pull-requests: write
+    defaults:
+      run:
+        working-directory: apps/ui
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22.11.0'
+          cache: 'yarn'
+          cache-dependency-path: apps/ui/yarn.lock
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile --ignore-engines
+
+      - name: Build production bundle
+        run: yarn build
+        env:
+          NEXT_PUBLIC_METADATA_BASE: https://holiday-peak-hub.example
+          # next.config.js requires NEXT_PUBLIC_CRUD_API_URL at build time.
+          NEXT_PUBLIC_CRUD_API_URL: http://localhost:8000
+
+      - name: Start Next.js (background)
+        run: |
+          (yarn start --port 3000 > server.log 2>&1 &) >/dev/null
+          echo "Waiting for server..."
+          for i in $(seq 1 60); do
+            if curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/ | grep -qE '^(200|3..)$'; then
+              echo "Server up after ${i}s"
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Run Lighthouse CI (advisory)
+        id: lhci
+        continue-on-error: true
+        run: |
+          npx --yes @lhci/cli@0.15.x autorun \
+            --config=lighthouserc.json \
+            --upload.target=temporary-public-storage \
+            || echo "Lighthouse advisory exit"
+        env:
+          LHCI_BUILD_CONTEXT__CURRENT_HASH: ${{ github.sha }}
+
+      - name: Print server log on failure
+        if: ${{ failure() }}
+        run: tail -200 server.log || true

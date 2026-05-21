@@ -38,6 +38,10 @@ This folder is the governance source of truth for engineering standards, runtime
 **Audience**: Platform/DevSecOps engineers  
 **Scope**: Weekly high-severity burn-down metrics and resolution evidence links
 
+### [Five-Second Test Merge Gate](five-second-test.md)
+**Audience**: UI authors, reviewers, architecture
+**Scope**: Audience-router IA merge gate (CODEOWNERS + axe-core + 5-second test) per ADR-034 §7
+
 ## Repository Source-of-Truth Map
 
 | Governance topic | Canonical source | Notes |

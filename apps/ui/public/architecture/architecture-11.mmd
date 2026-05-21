@@ -1,0 +1,19 @@
+sequenceDiagram
+    participant Client
+    participant App as FastAPI App
+    participant Agent as Agent Framework
+    participant MCP as MCP Server
+    participant Adapter as Retail Adapter
+    participant Memory
+    
+    Client->>App: POST /chat {"query": "Check inventory"}
+    App->>Agent: run(query, tools)
+    Agent->>Agent: Parse query, select tools
+    Agent->>MCP: call_tool("check_inventory", {"sku": "SKU-123"})
+    MCP->>Adapter: fetch_inventory("SKU-123")
+    Adapter->>Adapter: Call retailer API
+    Adapter-->>MCP: InventoryStatus
+    MCP-->>Agent: Tool result
+    Agent->>Memory: Store conversation
+    Agent-->>App: Response
+    App-->>Client: 200 OK {"message": "In stock: 42 units"}

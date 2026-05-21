@@ -1,0 +1,46 @@
+version: "1.0"
+sourceIssue: "990"
+updated: "2026-05-21"
+policy:
+  productRuntime: aks
+  productTrafficPath: "APIM -> AGC -> AKS"
+  hostedManifest: agent.hosted.yaml
+  customMetadataPath: .foundry/agent-metadata.yaml
+surfaces:
+  hosted:
+    classification: Hosted Agent
+    audience: public-human-facing
+    createsFoundryManagedCompute: true
+    agents:
+      - ecommerce-catalog-search
+      - ecommerce-cart-intelligence
+      - ecommerce-checkout-support
+      - ecommerce-order-status
+      - ecommerce-product-detail-enrichment
+      - crm-support-assistance
+      - inventory-health-check
+      - logistics-eta-computation
+      - logistics-returns-support
+      - truth-hitl
+  custom:
+    classification: Custom Agent
+    audience: non-public-internal
+    createsFoundryManagedCompute: false
+    proxyTarget: existing-aks-apim-endpoint
+    agents:
+      - crm-campaign-intelligence
+      - crm-profile-aggregation
+      - crm-segmentation-personalization
+      - inventory-alerts-triggers
+      - inventory-jit-replenishment
+      - inventory-reservation-validation
+      - logistics-carrier-selection
+      - logistics-route-issue-detection
+      - product-management-acp-transformation
+      - product-management-assortment-optimization
+      - product-management-consistency-validation
+      - product-management-normalization-classification
+      - search-enrichment-agent
+      - truth-enrichment
+      - truth-export
+      - truth-ingestion

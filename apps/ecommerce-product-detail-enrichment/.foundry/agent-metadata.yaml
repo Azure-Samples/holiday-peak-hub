@@ -1,0 +1,24 @@
+defaultEnvironment: dev
+environments:
+  dev:
+    projectEndpoint: ${PROJECT_ENDPOINT}
+    agentName: ecommerce-product-detail-enrichment
+    azureContainerRegistry: ${AZURE_CONTAINER_REGISTRY}
+    observability:
+      applicationInsightsConnectionString: ${APPLICATIONINSIGHTS_CONNECTION_STRING}
+      tracingBackend: application-insights
+    evaluationSuites:
+      - id: ecommerce-product-detail-enrichment-smoke
+        name: eCommerce Product Detail Enrichment Smoke Evaluation
+        tags:
+          tier: smoke
+          purpose: portal-tracking
+          stage: seed
+        dataset: ecommerce-product-detail-enrichment-eval-seed
+        datasetVersion: v1
+        datasetFile: .foundry/datasets/ecommerce-product-detail-enrichment-eval-seed-v1.jsonl
+        evaluators:
+          - name: coherence
+            threshold: 4
+          - name: groundedness
+            threshold: 4
