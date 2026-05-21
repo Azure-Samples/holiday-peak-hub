@@ -131,6 +131,25 @@ describe('AdminServiceDashboardPage', () => {
     );
   });
 
+  it('renders the catalog cockpit with the agent profile display name', () => {
+    render(<AdminServiceDashboardPage domain="ecommerce" service="catalog" />);
+    const cockpitHeader = screen.getByRole('heading', { level: 1, name: 'eCommerce Catalog Search' }).closest('header');
+
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'eCommerce Catalog Search' }),
+    ).toBeInTheDocument();
+    expect(cockpitHeader).toHaveTextContent('ecommerce-catalog-search');
+    expect(
+      screen.queryByRole('heading', { level: 1, name: 'Catalog Service' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText('Send free text or a JSON object override to the eCommerce Catalog Search agent'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('tablist', { name: 'eCommerce Catalog Search cockpit views' }),
+    ).toBeInTheDocument();
+  });
+
   it('preserves explicit mode override from JSON input for catalog admin invoke calls', async () => {
     mockAgentPost.mockResolvedValue({ data: { summary: 'ok' } });
 

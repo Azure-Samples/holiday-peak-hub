@@ -6,6 +6,8 @@
   - 2026-04-28 — Added mandatory Foundry invocation policy *(superseded 2026-05-10; see below)*
   - 2026-05-10 — Reversed to mandatory **MAF direct-model** invocation policy; portal-managed Foundry Agent records retired  
    - 2026-05-11 — Recorded Wave 4c code cleanup; portal-agent Azure resources remain manual deprovisioning scope
+   - 2026-05-20 — Clarified AKS product runtime vs Foundry-hosted portal/evaluation surface
+   - 2026-05-21 — Cross-referenced ADR-036 two-track Foundry surface taxonomy
 **Deciders**: Architecture Team, Ricardo Cataldi  
 **Tags**: architecture, foundry, agents, telemetry, observability, latency
 
@@ -117,9 +119,10 @@ The 2026-04-28 policy mandated that every LLM call route through a portal-manage
 - `DirectModelInvoker` (in `lib/src/holiday_peak_lib/agents/direct.py`) is the only production `ModelInvoker` implementation.
 - `BaseRetailAgent.invoke_model()` remains the single invocation entry point at the agent-class boundary.
 - `AgentBuilder.with_direct_models(slm_config=..., llm_config=..., complexity_threshold=...)` is the only sanctioned wiring path in service `main.py`.
-- `FoundryAgentInvoker`, `/foundry/agents/ensure`, `ensure-foundry-agents.{sh,ps1}`, `project_client.agents.create_version`, and the JSON-text tool-call parser have been removed from framework runtime code as of Wave 4c (see [docs/project-status.md](../../project-status.md)).
+- `FoundryAgentInvoker`, `/foundry/agents/ensure`, `ensure-foundry-agents.{sh,ps1}`, the V2 `PromptAgentDefinition` provisioning path, and the JSON-text tool-call parser have been removed from framework runtime code as of Wave 4c (see [docs/project-status.md](../../project-status.md)).
 - The 42 V2 portal-managed agents in project `aipholidaris` (21 services × `fast` + `rich` roles) remain outside repository automation scope for this cleanup and will be deprovisioned manually by the owner.
-- **Single-architecture guardrail (from the inventory hosted-agent lesson):** A service must not ship a second entry point (e.g., `hosted_main.py`, parallel `ResponsesHostServer`, secondary port) alongside `main.py`. The MAF `Agent` is constructed inside the existing FastAPI handler in `main.py`. PRs introducing parallel runtimes are rejected at review.
+- **Single-architecture guardrail (from the inventory hosted-agent lesson):** A service must not ship a second service implementation (e.g., `hosted_main.py`, a duplicate FastAPI/Starlette app, or a separate product traffic path) alongside `main.py`. The MAF `Agent` is constructed inside the existing FastAPI handler in `main.py`. An AKS-hosted Responses adapter is allowed only when it is mounted into that same FastAPI app and same pod/port as `/health`, `/ready`, `/mcp/*`, and `/invoke`. A Foundry-hosted container registered via `AIProjectClient.agents.create_version` with `template.kind: hosted` is allowed as a portal Playground, telemetry, and evaluation surface when it packages the same FastAPI Responses wrapper and product-equivalent dependencies. It is not the product runtime owner for `inventory-health-check`; AKS via azd/Flux/HelmRelease remains the product runtime. PRs introducing a parallel implementation or routing production product traffic away from AKS are rejected at review.
+- **Foundry surface taxonomy:** ADR-036 classifies public or human-facing agents as Hosted Agent surfaces and non-public internal agents as Custom Agent proxy surfaces. This classification is an exposure policy only; it does not replace the MAF direct-model runtime, the single FastAPI app constraint, or the AKS/APIM/AGC product traffic path.
 - No `ChatCompletionsClient`, `openai.ChatCompletion`, `AzureOpenAI`, or `responses.create()` calls permitted in application code outside the MAF `ChatClient` boundary.
 
 ## Consequences
@@ -134,3 +137,4 @@ The 2026-04-28 policy mandated that every LLM call route through a portal-manage
 - [ADR-004: FastAPI with Dual REST + MCP](adr-004-fastapi-mcp.md)
 - [ADR-010: SLM-First Model Routing](adr-010-model-routing.md)
 - [ADR-024: Agent Communication Policy](adr-024-agent-communication-policy.md)
+- [ADR-036: Foundry Agent Surface Taxonomy](adr-036-foundry-agent-surface-taxonomy.md)

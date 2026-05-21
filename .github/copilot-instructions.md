@@ -76,6 +76,17 @@ Use this mapping to know the current vs. former names—so you can correctly int
   - `MODEL_DEPLOYMENT_NAME_RICH`: LLM deployment name
 - Each app's `main.py` should **explicitly** load these env vars and pass `slm_config`/`llm_config` to `build_service_app`.
 
+## Hosted Agent Terminology
+
+- Never use "hosted agent" without a qualifier in this repository. The term is overloaded across AKS runtime, Foundry portal labels, and Foundry-managed container hosting.
+- **AKS-hosted agent/service** means the product runtime runs as the existing FastAPI container/pod in AKS. If a service is deployed through `azure.yaml` with `host: aks` and reconciled through Flux/HelmRelease, the correct answer to "is it hosted on AKS?" is **yes**.
+- **AKS-hosted Responses adapter** means the Responses protocol is mounted into the same AKS-hosted FastAPI app, same pod, and same port as `/health`, `/ready`, `/mcp/*`, and `/invoke`. For `inventory-health-check`, this is the intended architecture.
+- **Foundry portal-tracked agent** means `agent.yaml` and `.foundry/agent-metadata.yaml` describe the AKS product runtime for traceability, evaluations, protocol metadata, and operator discovery. These files alone do not create a runnable Foundry Playground surface.
+- **Foundry-hosted portal/evaluation surface** means a Foundry-created hosted-container version, usually via `AIProjectClient.agents.create_version` and a `template.kind: hosted` manifest, that gives operators a Foundry Playground/test/evaluation surface for the same agent. For `inventory-health-check`, this surface is allowed when it packages the same FastAPI Responses wrapper and product-equivalent dependencies; it must not replace AKS as the product runtime or introduce a second service implementation.
+- **Foundry-managed hosted-container product runtime** means Foundry owns the runtime used for production product traffic. This is not the Holiday Peak Hub product path unless a future ADR explicitly changes the runtime ownership model.
+- **ACA-hosted agent** means Azure Container Apps owns the runtime. `inventory-health-check` is not ACA-hosted.
+- When explaining PR #1103, issue #1107, `inventory-health-check`, Responses protocol support, or Foundry portal labels, use the precise terms above. Do not answer "no" to "is this hosted on AKS?" when the real distinction is "yes, AKS-hosted product runtime; also preserve a Foundry-hosted portal/evaluation surface when requested for portal testing, telemetry, and evaluations."
+
 ## Memory Architecture
 
 - Three-tier memory: **Hot** (Redis), **Warm** (Cosmos DB), **Cold** (Blob Storage).

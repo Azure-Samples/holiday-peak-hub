@@ -79,6 +79,19 @@ def test_build_foundry_config_name_only_stays_metadata(monkeypatch):
     assert cfg.runtime_agent_id is None
 
 
+def test_build_foundry_config_accepts_hosted_safe_agent_id_alias(monkeypatch):
+    monkeypatch.setenv("PROJECT_ENDPOINT", TEST_PROJECT_ENDPOINT)
+    monkeypatch.delenv("FOUNDRY_AGENT_ID_FAST", raising=False)
+    monkeypatch.setenv("HPH_AGENT_ID_FAST", "hosted-safe-fast")
+    monkeypatch.setenv("MODEL_DEPLOYMENT_NAME_FAST", "gpt-fast")
+
+    cfg = build_foundry_config("FOUNDRY_AGENT_ID_FAST", "MODEL_DEPLOYMENT_NAME_FAST")
+
+    assert cfg is not None
+    assert cfg.agent_id == "hosted-safe-fast"
+    assert cfg.deployment_name == "gpt-fast"
+
+
 def test_strict_foundry_mode_flag(monkeypatch):
     monkeypatch.setenv("FOUNDRY_STRICT_ENFORCEMENT", "true")
     assert strict_foundry_mode_enabled() is True
