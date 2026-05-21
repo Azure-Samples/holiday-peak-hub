@@ -20,7 +20,6 @@ _FOUNDRY_ENV_KEYS = (
     "FOUNDRY_AGENT_ID_RICH",
     "FOUNDRY_AGENT_NAME_RICH",
     "MODEL_DEPLOYMENT_NAME_RICH",
-    "FOUNDRY_STREAM",
 )
 _FOUNDRY_FLAG_OVERRIDES = {
     "FOUNDRY_AUTO_ENSURE_ON_STARTUP": "false",
@@ -88,32 +87,13 @@ def mock_eventhub_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.fixture(autouse=True)
 def isolate_foundry_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
     # No GoF pattern applies — this keeps app tests independent from workstation
-    # Foundry configuration and prevents startup auto-ensure network calls.
-    async def _noop_ensure(config: object, *_args: object, **kwargs: object) -> dict[str, object]:
-        agent_name = str(
-            kwargs.get("agent_name") or getattr(config, "agent_name", "") or "test-foundry-agent"
-        )
-        agent_id = str(
-            getattr(config, "runtime_agent_id", None)
-            or getattr(config, "agent_id", None)
-            or f"{agent_name}-id"
-        )
-        return {
-            "status": "exists",
-            "agent_id": agent_id,
-            "agent_name": agent_name,
-            "created": False,
-            "foundry_ready": True,
-        }
+    # Foundry configuration.
 
     for env_name in _FOUNDRY_ENV_KEYS:
         monkeypatch.delenv(env_name, raising=False)
 
     for env_name, env_value in _FOUNDRY_FLAG_OVERRIDES.items():
         monkeypatch.setenv(env_name, env_value)
-
-    monkeypatch.setattr("holiday_peak_lib.app_factory.ensure_foundry_agent", _noop_ensure)
-    monkeypatch.setattr("holiday_peak_lib.agents.foundry.ensure_foundry_agent", _noop_ensure)
 
 
 @pytest.fixture
@@ -136,8 +116,8 @@ def mock_foundry_readiness(monkeypatch: pytest.MonkeyPatch) -> None:
             project_configured=True,
             endpoint_configured=True,
             configured_roles=("fast",),
-            resolved_roles=("fast",),
-            unresolved_roles=(),
+            bound_roles=("fast",),
+            unbound_roles=(),
             agent_targets_bound=True,
             runtime_resolution_required=False,
             auto_ensure_on_startup=auto_ensure_on_startup,

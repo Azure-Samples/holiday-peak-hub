@@ -1,11 +1,13 @@
 # Technical Report: What We Lose by Switching from Foundry Agents to Direct Model Calls (Responses API)
 
 **Date**: 2026-04-28  
-**Status**: Decision Input  
+**Status**: Historical decision input - superseded by ADR-005 direct-model policy  
 **Author**: Architecture Review (automated analysis)  
 **Scope**: holiday-peak-hub — 26 retail agent services on AKS
 
 ---
+
+> This report captures the 2026-04-28 trade-off analysis that preceded the 2026-05-10 ADR-005 reversal. It is retained for audit context. The active implementation is `DirectModelInvoker` over `agent_framework.Agent`; `FoundryAgentInvoker`, `ensure_foundry_agent`, `/foundry/agents/ensure`, and V2 portal-agent provisioning were removed from framework runtime code in #990 Wave 4c.
 
 ## Executive Summary
 

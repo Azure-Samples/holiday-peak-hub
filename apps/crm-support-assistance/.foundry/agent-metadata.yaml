@@ -1,0 +1,24 @@
+defaultEnvironment: dev
+environments:
+  dev:
+    projectEndpoint: ${PROJECT_ENDPOINT}
+    agentName: crm-support-assistance
+    azureContainerRegistry: ${AZURE_CONTAINER_REGISTRY}
+    observability:
+      applicationInsightsConnectionString: ${APPLICATIONINSIGHTS_CONNECTION_STRING}
+      tracingBackend: application-insights
+    evaluationSuites:
+      - id: crm-support-assistance-smoke
+        name: CRM Support Assistance Smoke Evaluation
+        tags:
+          tier: smoke
+          purpose: portal-tracking
+          stage: seed
+        dataset: crm-support-assistance-eval-seed
+        datasetVersion: v1
+        datasetFile: .foundry/datasets/crm-support-assistance-eval-seed-v1.jsonl
+        evaluators:
+          - name: coherence
+            threshold: 4
+          - name: groundedness
+            threshold: 4

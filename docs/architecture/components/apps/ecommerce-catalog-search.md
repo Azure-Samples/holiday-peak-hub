@@ -122,11 +122,11 @@ Wraps product + inventory connectors and maps results to ACP fields.
 ✅ Dockerfile with multi-stage build  
 ✅ Bicep module for Azure resource provisioning  
 ✅ **Intelligent pipeline** with strict 4s wall-clock budget (`asyncio.wait_for`)  
-✅ **Intent classification** via GPT-5-nano Foundry Agent with `reasoning_effort="minimal"`  
+✅ **Intent classification** via GPT-5-nano direct-model target with `reasoning_effort="minimal"`  
 ✅ **Parallel fan-out** — keyword + hybrid search via `asyncio.gather`  
 ✅ **Direct product construction** from AI Search documents (zero CRUD round-trips)  
 ✅ **Fire-and-forget history** — `asyncio.create_task` in strict mode  
-✅ **`reasoning_effort` parameter** wired through `FoundryAgentInvoker` pipeline  
+✅ **`reasoning_effort` parameter** owned by the direct-model invocation path  
 ✅ **34 unit tests** — all passing (~3.3s)  
 ✅ **11 live integration tests** — 10 parametrized queries + summary report  
 ✅ **Deployed** to AKS as `strict-4s-v6` on 2 replicas  

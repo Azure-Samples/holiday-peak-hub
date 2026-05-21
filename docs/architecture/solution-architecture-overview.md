@@ -85,7 +85,7 @@ graph LR
         AF["AppFactory"]
         BA["BaseRetailAgent"]
         AB["AgentBuilder"]
-        FAI["FoundryAgentInvoker"]
+        DMI["DirectModelInvoker"]
         MEM["MemoryClient<br/>Hot|Warm|Cold"]
         GR["Guardrails"]
         CB["CircuitBreaker"]
@@ -93,7 +93,7 @@ graph LR
     end
 
     subgraph "Microsoft Agent Framework"
-        MAF["FoundryAgent"]
+        MAF["agent_framework.Agent<br/>FoundryChatClient"]
     end
 
     MAIN --> AF
@@ -102,8 +102,8 @@ graph LR
     AGENT -->|extends| BA
     AGENT --> HANDLER
     HANDLER --> TOOLS & ADAPT & EVENTS
-    BA --> FAI
-    FAI --> MAF
+    BA --> DMI
+    DMI --> MAF
     BA --> MEM & GR & CB & TEL
 ```
 

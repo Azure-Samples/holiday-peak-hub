@@ -103,8 +103,6 @@ spec:
               value: "ecommerce-catalog-search-rich"
             - name: FOUNDRY_AUTO_ENSURE_ON_STARTUP
               value: "true"
-            - name: FOUNDRY_STREAM
-              value: "true"
             - name: FOUNDRY_STRICT_ENFORCEMENT
               value: "false"
             - name: KEY_VAULT_URI

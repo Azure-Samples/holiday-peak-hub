@@ -43,7 +43,7 @@ on:
 
 permissions:
   id-token: write
-  contents: read
+  contents: write
 
 concurrency:
   group: deploy-azd-truth-agents
@@ -53,7 +53,7 @@ jobs:
   deploy:
     permissions:
       id-token: write
-      contents: read
+      contents: write
       issues: write
     uses: ./.github/workflows/deploy-azd.yml
     with:

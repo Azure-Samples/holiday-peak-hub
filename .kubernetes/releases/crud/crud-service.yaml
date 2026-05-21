@@ -29,8 +29,8 @@ spec:
       create: true
       clientId: b09349cf-547f-409f-8b96-f3288ddedf34
     image:
-      repository: holidaypeakhub405devacr.azurecr.io/holiday-peak-hub/crud-service-dev
-      tag: azd-deploy-1775825425
+      repository: holidaypeakhub405devacr.azurecr.io/crud-service
+      tag: 571026e55688f0957c55963ca8e040b7193086da
     replicaCount: 1
     resources:
       limits:
@@ -75,6 +75,8 @@ spec:
       paths:
       - path: /health
         pathType: PathPrefix
+      - path: /ready
+        pathType: PathPrefix
       - path: /api
         pathType: PathPrefix
       sharedResources:
@@ -107,7 +109,6 @@ spec:
       EMBEDDING_DEPLOYMENT_NAME: text-embedding-3-large
       EVENT_HUB_NAMESPACE: holidaypeakhub405-dev-eventhub
       FOUNDRY_AUTO_ENSURE_ON_STARTUP: 'true'
-      FOUNDRY_STREAM: 'true'
       AGENT_FOUNDRY_INVOKE_TIMEOUT_SECONDS: '60'
       FOUNDRY_STRICT_ENFORCEMENT: 'false'
       KEY_VAULT_URI: https://holidaypeakhub405-dev-kv.vault.azure.net/

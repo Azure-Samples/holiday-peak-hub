@@ -1,0 +1,34 @@
+surface:
+  type: custom
+  classification: Custom Agent
+  audience: non-public-internal
+  productRuntime: aks
+  productTrafficPath: "APIM -> AGC -> AKS"
+  foundryManagedCompute: false
+  proxy:
+    target: existing-aks-apim-endpoint
+    endpoint: ${APIM_BASE_URL}/agents/inventory-reservation-validation
+defaultEnvironment: dev
+environments:
+  dev:
+    projectEndpoint: ${PROJECT_ENDPOINT}
+    agentName: inventory-reservation-validation
+    azureContainerRegistry: ${AZURE_CONTAINER_REGISTRY}
+    observability:
+      applicationInsightsConnectionString: ${APPLICATIONINSIGHTS_CONNECTION_STRING}
+      tracingBackend: application-insights
+    evaluationSuites:
+      - id: inventory-reservation-validation-smoke
+        name: Inventory Reservation Validation Smoke Evaluation
+        tags:
+          tier: smoke
+          purpose: portal-tracking
+          stage: seed
+        dataset: inventory-reservation-validation-eval-seed
+        datasetVersion: v1
+        datasetFile: .foundry/datasets/inventory-reservation-validation-eval-seed-v1.jsonl
+        evaluators:
+          - name: coherence
+            threshold: 4
+          - name: groundedness
+            threshold: 4

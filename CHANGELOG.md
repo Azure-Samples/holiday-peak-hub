@@ -7,11 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Two-track Foundry agent surface taxonomy (ADR-036): the 10 public/human-facing agents now have `agent.hosted.yaml` Hosted Agent manifests with Responses 1.0.0, hosted-safe `HPH_AGENT_ID_*` environment aliases, `HOLIDAY_PEAK_FOUNDRY_HOSTED=1`, and `UVICORN_PORT=8088`; the 16 internal agents now declare Custom Agent proxy metadata in `.foundry/agent-metadata.yaml` with `foundryManagedCompute: false`. Added `apps/foundry-surfaces.yaml` and ops tests to enforce the taxonomy while keeping AKS/APIM/AGC as the product runtime path.
+
+- Foundry surface registration automation: added `scripts/ops/register_foundry_surfaces.py` plus a `deploy-foundry-surfaces` job in the reusable azd deployment workflow. The job can generate a dry-run plan artifact or, when explicitly set to `foundrySurfaceMode=apply`, create/update Hosted Agent versions from tested image digests using Azure AI Projects preview support. Custom Agent surfaces are validated as APIM proxy metadata and remain non-compute until a supported Foundry Custom Agent creation API exists.
+
+- AKS-hosted Responses adapter for `inventory-health-check` (PR #1103 / issue #1107 correction). The Responses protocol is mounted into the existing FastAPI app and same AKS pod/port as `/health`, `/ready`, `/mcp/*`, and `/invoke`; `agent.yaml` remains the portal-tracking/direct-model artifact and now records `responses 1.0.0`. Foundry-hosted portal/evaluation registration remains a separate test surface, not the product traffic runtime.
+
+### Removed
+
+- Foundry-managed hosted-container product path for `inventory-health-check`: removed as the product runtime model. The product deployment target remains AKS via azd/Flux/HelmRelease; any `AIProjectClient.agents.create_version` usage for this service must be framed as the Foundry portal/evaluation surface over the same FastAPI Responses wrapper, not as a replacement product runtime.
+
+- Revert of PR #1101 (`ensure-foundry-agents` workflow + `scripts/ops/ensure_foundry_tracking_agents.py` + tests). The self-heal targeted the wrong Azure AI Foundry API surface (legacy `/assistants`, OpenAI-compatible "Classic Assistants" — hidden in the new Foundry portal behind the "View classic agents" link with banner "Assistants are not yet supported"), while the portal that operators actually use renders the New Foundry Agents (`/agents?api-version=2025-11-15-preview`, versioned `PromptAgentDefinition` shape). Re-running the job on every deploy would have continued to populate a deprecated/hidden surface while leaving the visible surface drift-prone. The script also reintroduced the V2 portal-managed agent path (`project_client.agents.create_version` with `PromptAgentDefinition`) that ADR-005 explicitly retired in Wave 4c. Direct-model invocation via MAF stays canonical. Per-service prompt drift is still guarded by `scripts/ci/verify_foundry_prompt.py` (read-only). One-time cleanup of 50 stale leftovers from Wave 4a/4b applied separately on both API surfaces; the two operator-curated keepers (`ecommerce-catalog-search-fast`, `product-management-assortment-optimization-rich`) remain in the New Foundry portal.
+
 ### Changed
 
 - ADR-017 Phase 2: migrated `ecommerce-catalog-search` from rendered YAML to Flux HelmRelease CRD for in-cluster Helm rendering. Eliminates `render-helm.sh` dependency for migrated services. Pilot validated with E2E test (200 OK, 5 results, correct image + env vars). New directory `.kubernetes/releases/agents/` holds HelmRelease manifests; remaining 25 services migrate incrementally.
 
 ### Fixed
+
+- Issue #1107 / PR #1103 APIM sync and smoke: corrected generated CRUD policy CORS header expressions in `.infra/azd/hooks/sync-apim-agents.sh` and `.infra/azd/hooks/sync-apim-agents.ps1` to use raw quotes inside XML `<value>` text while preserving entity-escaped quotes in XML attributes; the CRUD backend section now emits only `<forward-request timeout="60" />`; and public `/api/ready` now rewrites to the CRUD service `/ready` probe. The CRUD AGC route contract now publishes `/ready` alongside `/health` and `/api`, so APIM smoke tests reach the FastAPI readiness endpoint instead of receiving an AGC 404. Added offline infra regression coverage for these policy and route contracts.
+
+- Issue #1107 / PR #1103 APIM smoke hardening: CORS preflight validation now retries expected `Access-Control-Allow-*` headers and normalizes raw `curl -D` CRLF response headers before shell assertions, matching the existing health probe retry behavior while avoiding header-parsing false negatives immediately after `sync-apim` succeeds.
+
+- Issue #1107 / PR #1103 branch-preview cleanup: `deploy-azd.yml` now falls back to `az aks command invoke` when the runner's direct `kubectl` credentials fail while restoring the Flux `GitRepository` source from a preview branch back to `main`, preventing failed smoke runs from leaving GitOps pinned to the PR branch.
+
+- Issue #1107 / PR #1103 CRUD HelmRelease image pin: `.kubernetes/releases/crud/crud-service.yaml` now points at APIM policy-fix commit tag `571026e55688f0957c55963ca8e040b7193086da`, keeping Flux preview desired state aligned with the workflow `imageTag`/`testedSourceSha` so the next branch workflow can build and deploy the same commit.
+
+- Issue #1107 / PR #1103 AGC CRUD readiness: bounded CRUD startup dependency warm-up for PostgreSQL pool initialization and Key Vault secret retrieval so `/health` can serve process liveness promptly while `/ready` continues to return degraded/503 for Redis, Cosmos DB, PostgreSQL, or connector dependency failures.
+
+- Issue #1107 / PR #1103 AGC CRUD readiness: `/ready` now runs Redis, Cosmos DB, PostgreSQL, and connector registry checks concurrently with `READINESS_DEPENDENCY_TIMEOUT_SECONDS`, returning structured unhealthy timeout details instead of exceeding the Kubernetes readiness probe window. `/health` remains process-only liveness.
+
+- Issue #1107 / PR #1103 AGC backend readiness: corrected Flux HelmRelease desired state so the direct AGC gate has ready backends, pinning `crud-service` to a pullable ACR image tag and increasing `inventory-health-check` memory to the shared chart default for the AKS-hosted Responses adapter.
+
+- Issue #1107 / PR #1103 preview deploy path: inventory-health-check service-scoped AKS deploys now use the `branch` GitHub Environment, propagate changed-agent services into AGC readiness validation, and pin the Flux HelmRelease desired state to tested image tag `ae0201b1de5f16eba281d57b543b25a31f71a5df` with the AKS Responses adapter explicitly enabled.
+
+- Issue #1099: deploy-azd workflow was `startup_failure`-ing on every dispatch (17 startup_failures + 29 cancellations + 0 successes in the last 1,000 runs across all 27 per-service entrypoints since PR #1097 merged). Root cause: PR #1097 added an `open-image-tag-bump-pr` job to the reusable `deploy-azd.yml` that requested `permissions.pull-requests: write`, but the per-service entrypoints only grant `id-token | contents | issues: write` on their `uses:` job. GitHub Actions rejects nested-workflow callees that escalate permissions beyond what the caller grants, and the rejection happens at the orchestrator before any runner is allocated — invisible to `actionlint` and `yaml.safe_load`. Scoped revert removes the job per ADR-017 §"Phase 2b" (proper Flux `ImageUpdateAutomation` + Notification Controller bridge is tracked separately). Also adds `permissions: { id-token, contents, issues }: write` to `deploy-azd-prod.yml` (latent bug — prod tag pushes would have hit the same failure). New CI gate `.github/workflows/lint-actions.yml` runs `actionlint` plus a custom `scripts/ci/lint_workflow_permissions.py` that catches caller/callee permission-cap mismatches statically at PR time.
 
 - Issue #801 / PR #802: replaced `FoundryInvoker` with `FoundryAgentInvoker` wrapping the Microsoft Agent Framework `FoundryAgent` runtime. Tools are now properly forwarded to the agent instead of being silently dropped. Upgraded `agent-framework` to `>=1.0.1` GA across all 27 service packages.
 

@@ -394,6 +394,65 @@ Why this resolves the protected-branch problem permanently:
   image to the older tag still recorded in the HelmRelease YAML.
 - Branch deployment support via HelmRelease targeting different sourceRef.
 
+##### Attempt 1 (PR #1097, reverted by issue #1099)
+
+A first pass implemented the image-tag bridge as a GHA job named
+`open-image-tag-bump-pr` embedded inside the reusable `deploy-azd.yml`. The
+job consumed `tested-image-*` artifacts produced by `build-aks-images`, wrote
+new tags into the 27 HelmRelease YAML files, and opened a single PR per deploy
+via `gh pr create`. The intent matched Phase 2b's PR-bridge property, but the
+implementation conflated three concerns that should remain separate:
+
+1. **Deploy orchestration** (build → push → reconcile) belongs to `deploy-azd.yml`.
+2. **Image promotion** (tag selection, PR authorship) belongs to Flux's
+   image-reflector / image-automation controllers, which run in-cluster and
+   were designed for this exact problem.
+3. **Protected-branch policy** (no bot pushes to `main`) is satisfied by the
+   Notification Controller writing to a feature branch and opening a PR — not
+   by GHA owning the bridge.
+
+The PR also introduced a silent **regression**: the new job declared
+`permissions: pull-requests: write`, but the 27 per-service entrypoints grant
+only `id-token | contents | issues: write` on their `uses:` job. GitHub
+Actions enforces that nested-workflow permissions can only be maintained or
+reduced — never elevated — and rejects ill-formed callees with
+`startup_failure` at the orchestrator **before any runner is allocated**.
+`actionlint` and `yaml.safe_load` cannot see this defect because it is a
+cross-file semantic rule. Every dispatched deploy across all 27 services
+short-circuited in ~7 seconds with no logs, and the regression sat undetected
+for ~2 days.
+
+##### Decision (post-mortem)
+
+- The `open-image-tag-bump-pr` job is removed from `deploy-azd.yml`.
+- The 27 HelmRelease YAML re-pins and the `scripts/ci/update_helmrelease_image.py`
+  helper introduced alongside it are kept — they remain useful for manual
+  promotion and for the next implementation attempt.
+- The proper Phase 2b implementation uses Flux's own components:
+  - `ImageRepository` per ACR repo (one per service) scanning for new tags.
+  - `ImagePolicy` selecting the newest immutable digest-pinned tag.
+  - `ImageUpdateAutomation` writing changes to a feature branch via the
+    in-cluster `git` credential, with `push.branch` distinct from
+    `checkout.branch` so the protected-branch ruleset never sees a direct push.
+  - `Receiver` + `Provider` (GitHub) in the Notification Controller opening
+    the bridge PR. Auto-merge is enabled on the PR via repo policy.
+- A new CI gate (`scripts/ci/lint_workflow_permissions.py` run by
+  `.github/workflows/lint-actions.yml`) statically validates that every
+  caller's `permissions:` map is a superset of every callee's per-job
+  `permissions:`. This catches the exact class of bug `actionlint` cannot.
+
+##### Lessons learned
+
+- Reusable-workflow permission caps must be validated at PR time, not at
+  dispatch time. The fix: a custom Python linter that diff'es caller/callee
+  permission maps and runs in CI on every workflow change.
+- Embedding cross-cutting CD concerns inside a 3,708-line reusable workflow
+  produces blast radius proportional to its size. The next attempt at
+  Phase 2b stays out of `deploy-azd.yml` and lives entirely as Flux CRDs.
+- Silent CI rot is a Tier-1 SLO miss. Pair this ADR with the alerting in
+  `docs/ops/deploy-watchdog.md` so the next regression triggers a page,
+  not a month of unnoticed startup_failures.
+
 #### Why Flux over Argo CD
 
 - Native AKS portal integration (`az k8s-extension`)

@@ -120,14 +120,6 @@ jobs:
         shell: bash
         run: chmod +x ./.infra/azd/hooks/*.sh
 
-      - name: Ensure Foundry runtime resolution for target service
-        shell: bash
-        env:
-          CHANGED_SERVICES: ${{ steps.inputs.outputs.target_service }}
-        run: |
-          set -euo pipefail
-          bash .infra/azd/hooks/ensure-foundry-agents.sh --port-forward --fail-on-error
-
       - name: Verify target service readiness directly from AKS
         shell: bash
         run: |

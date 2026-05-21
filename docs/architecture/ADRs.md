@@ -40,6 +40,7 @@ This document indexes all architectural decisions for the Holiday Peak Hub accel
 | [ADR-033](adrs/adr-033-ui-modular-monolith-on-swa.md) | UI as a Modular Monolith on Static Web Apps (Path 2) | Accepted | 2026-05 |
 | [ADR-034](adrs/adr-034-audience-segmented-ia.md) | Audience-Segmented Information Architecture for the UI | Accepted (Extends ADR-033) | 2026-05 |
 | [ADR-035](adrs/adr-035-ui-design-system.md) | UI Design System Contract: Tokens, Components, CSS, Quality Gates | Accepted (Extends ADR-033 + ADR-034) | 2026-05 |
+| [ADR-036](adrs/adr-036-foundry-agent-surface-taxonomy.md) | Foundry Agent Surface Taxonomy | Accepted | 2026-05 |
 
 > ADR-028 (Continuous Agent Evaluation) is in flight on PR #974; once merged, it will be inserted at its sequential position above. ADRs 029, 030, 031 forward-reference ADR-028 and reference specific eval attribute keys (`eval.score`, `eval.baseline_id`, `baselineSource: continuous-eval`); those keys are subject to ADR-028's final schema and will be reconciled in lock-step on PR #974 merge.
 
@@ -84,6 +85,7 @@ Each ADR follows a standard template:
 ### Agent & AI
 - Microsoft Agent Framework with Azure AI Foundry ([ADR-005](adrs/adr-005-agent-framework.md))
 - SLM-first routing for cost optimization ([ADR-010](adrs/adr-010-model-routing.md))
+- Foundry Hosted/Custom Agent exposure taxonomy ([ADR-036](adrs/adr-036-foundry-agent-surface-taxonomy.md))
 
 ### Memory & State
 - Memory architecture: three-tier, builder, partitioning, and namespace isolation ([ADR-007](adrs/adr-007-memory-tiers.md))

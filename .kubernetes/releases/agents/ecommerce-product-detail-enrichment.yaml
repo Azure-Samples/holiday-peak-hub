@@ -29,8 +29,8 @@ spec:
       create: true
       clientId: 036f4fd2-9093-4948-b0dd-beb5c87aa6dc
     image:
-      repository: holidaypeakhub405devacr.azurecr.io/holiday-peak-hub/ecommerce-product-detail-enrichment-dev
-      tag: azd-deploy-1775346091
+      repository: holidaypeakhub405devacr.azurecr.io/ecommerce-product-detail-enrichment
+      tag: 808d48227b08ceaf9f2d820010e02edf5250b57f
     replicaCount: 2
     resources:
       limits:
@@ -88,7 +88,6 @@ spec:
       FOUNDRY_AGENT_NAME_FAST: ecommerce-product-detail-enrichment-fast
       FOUNDRY_AGENT_NAME_RICH: ecommerce-product-detail-enrichment-rich
       FOUNDRY_AUTO_ENSURE_ON_STARTUP: 'true'
-      FOUNDRY_STREAM: 'true'
       AGENT_FOUNDRY_INVOKE_TIMEOUT_SECONDS: '60'
       FOUNDRY_STRICT_ENFORCEMENT: 'false'
       KEY_VAULT_URI: https://holidaypeakhub405-dev-kv.vault.azure.net/

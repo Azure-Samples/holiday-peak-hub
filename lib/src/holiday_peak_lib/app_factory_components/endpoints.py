@@ -3,8 +3,7 @@
 import asyncio
 import json
 import os
-import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -35,10 +34,8 @@ class EndpointContext:
     strict_foundry_mode: bool
     require_foundry_readiness: bool
     is_foundry_ready: Callable[[], bool]
-    set_foundry_ready: Callable[[bool], None]
     requires_foundry_runtime_resolution: Callable[[], bool]
     foundry_capabilities: Callable[[], dict[str, Any]]
-    ensure_agents_handler: Callable[[dict | None], Awaitable[dict[str, Any]]]
     self_healing_kernel: SelfHealingKernel | None = field(default=None)
     prompt_catalog_provider: Callable[[], list[dict[str, Any]]] | None = field(default=None)
     mcp_tool_descriptions_provider: Callable[[], list[dict[str, Any]]] | None = field(default=None)
@@ -66,10 +63,8 @@ def register_standard_endpoints(
     strict_foundry_mode: bool = False,
     require_foundry_readiness: bool = False,
     is_foundry_ready: Callable[[], bool] | None = None,
-    set_foundry_ready: Callable[[bool], None] | None = None,
     requires_foundry_runtime_resolution: Callable[[], bool] | None = None,
     foundry_capabilities: Callable[[], dict[str, Any]] | None = None,
-    ensure_agents_handler: Callable[[dict | None], Awaitable[dict[str, Any]]] | None = None,
     self_healing_kernel: SelfHealingKernel | None = None,
     prompt_catalog_provider: Callable[[], list[dict[str, Any]]] | None = None,
     mcp_tool_descriptions_provider: Callable[[], list[dict[str, Any]]] | None = None,
@@ -93,10 +88,8 @@ def register_standard_endpoints(
         strict_foundry_mode = ctx.strict_foundry_mode
         require_foundry_readiness = ctx.require_foundry_readiness
         is_foundry_ready = ctx.is_foundry_ready
-        set_foundry_ready = ctx.set_foundry_ready
         requires_foundry_runtime_resolution = ctx.requires_foundry_runtime_resolution
         foundry_capabilities = ctx.foundry_capabilities
-        ensure_agents_handler = ctx.ensure_agents_handler
         self_healing_kernel = ctx.self_healing_kernel
         prompt_catalog_provider = ctx.prompt_catalog_provider
         mcp_tool_descriptions_provider = ctx.mcp_tool_descriptions_provider
@@ -259,6 +252,13 @@ def register_standard_endpoints(
             "integrations_registered": await registry.count(),
         }
 
+    # The optional Responses hosting SDK also exposes a lightweight
+    # ``/readiness`` surface. Keep the standard app's alias process-only;
+    # the deeper downstream-target check stays on ``/ready``.
+    @app.get("/readiness")
+    async def readiness() -> dict[str, Any]:
+        return {"status": "ok", "service": service_name}
+
     @app.get("/integrations")
     async def integrations() -> dict[str, Any]:
         return {
@@ -267,51 +267,11 @@ def register_standard_endpoints(
             "health": await registry.health(),
         }
 
-    _readiness_ensure_cooldown_seconds = float(os.getenv("READINESS_ENSURE_COOLDOWN_SECONDS", "30"))
-    _last_readiness_ensure_attempt: float = 0.0
-
     @app.get("/ready")
     async def ready() -> dict[str, Any]:
-        nonlocal _last_readiness_ensure_attempt
-
         capability_payload = foundry_capabilities()
         foundry_enforced = require_foundry_readiness or strict_foundry_mode
         foundry_ready = bool(capability_payload.get("ready", is_foundry_ready()))
-
-        if foundry_enforced and not foundry_ready:
-            auto_ensure = bool(capability_payload.get("auto_ensure_on_startup"))
-            now = time.monotonic()
-            cooldown_elapsed = (
-                now - _last_readiness_ensure_attempt
-            ) >= _readiness_ensure_cooldown_seconds
-
-            if auto_ensure and cooldown_elapsed:
-                _last_readiness_ensure_attempt = now
-                _log_info(
-                    "readiness_auto_ensure_start",
-                    extra={
-                        "service": service_name,
-                        "configured_roles": capability_payload.get("configured_roles"),
-                        "unresolved_roles": capability_payload.get("unresolved_roles"),
-                    },
-                )
-                try:
-                    ensure_result = await ensure_agents_handler(None)
-                    if isinstance(ensure_result, dict) and ensure_result.get("foundry_ready"):
-                        set_foundry_ready(True)
-                        capability_payload = foundry_capabilities()
-                        foundry_ready = bool(capability_payload.get("ready", is_foundry_ready()))
-                except (
-                    AttributeError,
-                    ImportError,
-                    RuntimeError,
-                    TypeError,
-                    ValueError,
-                ):
-                    _log_info(
-                        "readiness_auto_ensure_failed",
-                        extra={"service": service_name},
-                    )
 
         if foundry_enforced and not foundry_ready:
             raise HTTPException(
@@ -319,9 +279,9 @@ def register_standard_endpoints(
                 detail={
                     "status": "not_ready",
                     "service": service_name,
-                    "reason": "Foundry runtime is not ready. "
-                    "Call POST /foundry/agents/ensure and verify Foundry "
-                    "SLM/LLM targets are bound before serving traffic.",
+                    "reason": "Direct-model targets are not ready; verify "
+                    "PROJECT_ENDPOINT/FOUNDRY_ENDPOINT and "
+                    "MODEL_DEPLOYMENT_NAME_FAST/RICH.",
                     "foundry": capability_payload,
                 },
             )
@@ -351,83 +311,14 @@ def register_standard_endpoints(
                 )
             )
             foundry_ready = bool(capability_payload.get("ready", is_foundry_ready()))
-            if needs_runtime_resolution or (invoke_foundry_enforced and not foundry_ready):
-                _log_info(
-                    "foundry_invoke_auto_ensure_start",
-                    extra={
-                        "service": service_name,
-                        "require_foundry_readiness": require_foundry_readiness,
-                        "strict_mode": strict_foundry_mode,
-                        "needs_runtime_resolution": needs_runtime_resolution,
-                        "foundry_ready_before": foundry_ready,
-                        "configured_roles": capability_payload.get("configured_roles"),
-                        "unresolved_roles": capability_payload.get("unresolved_roles"),
-                    },
-                )
-                ensure_result: dict[str, Any] | None = None
-                ensure_failure: (
-                    AttributeError | ImportError | RuntimeError | TypeError | ValueError | None
-                ) = None
-                try:
-                    ensure_result = await ensure_agents_handler(None)
-                except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
-                    ensure_failure = exc
-
-                if ensure_failure is not None:
-                    if invoke_foundry_enforced:
-                        raise HTTPException(
-                            status_code=503,
-                            detail=(
-                                "Unable to resolve Foundry runtime definitions before invoke. "
-                                "Call POST /foundry/agents/ensure and retry."
-                            ),
-                        ) from ensure_failure
-
-                    _log_info(
-                        "foundry_invoke_auto_ensure_non_blocking_failure",
-                        extra={
-                            "service": service_name,
-                            "require_foundry_readiness": require_foundry_readiness,
-                            "strict_mode": strict_foundry_mode,
-                            "error_type": type(ensure_failure).__name__,
-                        },
-                    )
-
-                if isinstance(ensure_result, dict):
-                    set_foundry_ready(bool(ensure_result.get("foundry_ready", foundry_ready)))
-                    capability_payload = foundry_capabilities()
-                    foundry_ready = bool(capability_payload.get("ready", is_foundry_ready()))
-                    needs_runtime_resolution = bool(
-                        capability_payload.get(
-                            "runtime_resolution_required",
-                            requires_foundry_runtime_resolution(),
-                        )
-                    )
-                    _log_info(
-                        "foundry_invoke_auto_ensure_done",
-                        extra={
-                            "service": service_name,
-                            "require_foundry_readiness": require_foundry_readiness,
-                            "strict_mode": strict_foundry_mode,
-                            "foundry_ready_after": foundry_ready,
-                            "unresolved_roles": capability_payload.get("unresolved_roles"),
-                            "last_error": capability_payload.get("last_error"),
-                            "resolved_roles": [
-                                role
-                                for role, details in (ensure_result.get("results") or {}).items()
-                                if isinstance(details, dict)
-                                and bool(details.get("agent_id"))
-                                and details.get("status") in {"exists", "found_by_name", "created"}
-                            ],
-                        },
-                    )
 
             if invoke_foundry_enforced and not foundry_ready:
                 raise HTTPException(
                     status_code=503,
                     detail=(
-                        "Foundry readiness enforcement is enabled and no Foundry target is ready. "
-                        "Call POST /foundry/agents/ensure first."
+                        "Direct-model targets are not ready; verify "
+                        "PROJECT_ENDPOINT/FOUNDRY_ENDPOINT and "
+                        "MODEL_DEPLOYMENT_NAME_FAST/RICH."
                     ),
                 )
 
@@ -435,8 +326,8 @@ def register_standard_endpoints(
                 raise HTTPException(
                     status_code=503,
                     detail=(
-                        "Foundry runtime definitions are unresolved. "
-                        "Call POST /foundry/agents/ensure and retry."
+                        "Direct-model target bindings are incomplete; verify "
+                        "MODEL_DEPLOYMENT_NAME_FAST/RICH and bound maf-direct targets."
                     ),
                 )
 
@@ -470,7 +361,7 @@ def register_standard_endpoints(
                     ),
                     timeout=_DEFAULT_ENDPOINT_TIMEOUT,
                 )
-            except asyncio.TimeoutError:
+            except asyncio.TimeoutError as exc:
                 _log_info(
                     "invoke_endpoint_timeout",
                     extra={
@@ -490,14 +381,14 @@ def register_standard_endpoints(
                         f"Agent invocation timed out after {_DEFAULT_ENDPOINT_TIMEOUT:.0f}s. "
                         "Please retry with a simpler query."
                     ),
-                )
+                ) from exc
             _emit_invoke_outcome_telemetry(
                 intent=intent,
                 request_payload=request_payload,
                 response_payload=response_payload if isinstance(response_payload, dict) else None,
             )
             return response_payload
-        except Exception as exc:
+        except Exception as exc:  # pylint: disable=broad-exception-caught
             _emit_invoke_outcome_telemetry(
                 intent=intent,
                 request_payload=request_payload,
@@ -555,7 +446,7 @@ def register_standard_endpoints(
                         "message": f"Agent invocation timed out after {_DEFAULT_ENDPOINT_TIMEOUT:.0f}s.",
                     },
                 )
-            except Exception as exc:
+            except Exception as exc:  # pylint: disable=broad-exception-caught
                 yield _sse_event(
                     "error",
                     {
@@ -649,9 +540,3 @@ def register_standard_endpoints(
             "service": service_name,
             "tools": tools,
         }
-
-    @app.post("/foundry/agents/ensure")
-    async def ensure_agents(payload: dict | None = None) -> dict[str, Any]:
-        result = await ensure_agents_handler(payload)
-        set_foundry_ready(bool(result.get("foundry_ready", is_foundry_ready())))
-        return result
