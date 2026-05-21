@@ -57,7 +57,7 @@ jobs:
       - name: Install apps
         run: |
           for d in apps/*/src; do
-            [ -f "$d/pyproject.toml" ] && uv pip install --system -e "$d" || echo "Skipping $d"
+            [ -f "$d/pyproject.toml" ] && uv pip install --system --prerelease=allow -e "$d" || echo "Skipping $d"
           done
       - name: Fix agent-framework init overwrite
         run: |

@@ -36,9 +36,13 @@ def test_reusable_workflow_exposes_explicit_foundry_surface_controls() -> None:
 
 def test_dev_entrypoint_plans_surfaces_by_default_but_apply_is_explicit() -> None:
     workflow = _dev_workflow()
+    dispatch_inputs = workflow.split("  workflow_dispatch:\n", 1)[1].split(
+        "\npermissions:", 1
+    )[0]
 
-    assert "deployFoundrySurfaces:" in workflow
-    assert "default: true" in workflow
+    assert dispatch_inputs.count("description:") <= 10
+    assert "deployFoundrySurfaces:" not in dispatch_inputs
+    assert "deployFoundrySurfaces: ${{ github.event_name == 'workflow_dispatch' }}" in workflow
     assert "foundrySurfaceMode:" in workflow
     assert "options:" in workflow
     assert "- plan" in workflow

@@ -26,10 +26,6 @@ on:
         description: Optional tested source commit SHA to deploy (empty = current ref)
         required: false
         default: ''
-      testedSourceRef:
-        description: Optional tested source ref to deploy (empty = current ref)
-        required: false
-        default: ''
       skipProvision:
         description: Skip azd provision and reuse the current dev infrastructure for a manual emergency redeploy
         required: true
@@ -51,11 +47,6 @@ on:
         default: false
       forceApimSync:
         description: Force APIM sync and smoke checks even when no changed services are detected
-        required: true
-        type: boolean
-        default: true
-      deployFoundrySurfaces:
-        description: Register Foundry surface manifests after tested agent images are available
         required: true
         type: boolean
         default: true
@@ -90,7 +81,7 @@ jobs:
       projectName: ${{ github.event_name == 'workflow_dispatch' && inputs.projectName || 'holidaypeakhub405' }}
       imageTag: ${{ github.event_name == 'workflow_dispatch' && inputs.imageTag || github.event.workflow_run.head_sha }}
       sourceSha: ${{ github.event_name == 'workflow_dispatch' && inputs.testedSourceSha || (github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || '') }}
-      sourceRef: ${{ github.event_name == 'workflow_dispatch' && inputs.testedSourceRef || (github.event_name == 'workflow_run' && format('refs/heads/{0}', github.event.workflow_run.head_branch) || '') }}
+      sourceRef: ${{ github.event_name == 'workflow_dispatch' && github.ref || (github.event_name == 'workflow_run' && format('refs/heads/{0}', github.event.workflow_run.head_branch) || '') }}
       deployStatic: ${{ github.event_name != 'workflow_dispatch' || inputs.deployStatic }}
       uiOnly: ${{ github.event_name == 'workflow_dispatch' && inputs.uiOnly }}
       apiBaseUrl: ''
@@ -100,7 +91,7 @@ jobs:
       forceApimSync: ${{ github.event_name == 'workflow_dispatch' && inputs.forceApimSync }}
       autoAllowAcrRunnerIp: true
       skipApiSmokeChecks: false
-      deployFoundrySurfaces: ${{ github.event_name == 'workflow_dispatch' && inputs.deployFoundrySurfaces }}
+      deployFoundrySurfaces: ${{ github.event_name == 'workflow_dispatch' }}
       foundrySurfaceMode: ${{ github.event_name == 'workflow_dispatch' && inputs.foundrySurfaceMode || 'plan' }}
     secrets:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
