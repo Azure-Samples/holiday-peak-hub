@@ -389,7 +389,7 @@ mcp==1.26.0
     #   openai-agents
 mdurl==0.1.2
     # via markdown-it-py
-mem0ai==2.0.0b2
+mem0ai==2.0.2
     # via agent-framework-mem0
 microsoft-agents-activity==0.3.1
     # via microsoft-agents-hosting-core
