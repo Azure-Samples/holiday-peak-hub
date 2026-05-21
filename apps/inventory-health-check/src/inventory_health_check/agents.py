@@ -22,13 +22,13 @@ from holiday_peak_lib.agents.registration_helpers import (
 
 from .adapters import InventoryHealthAdapters, build_inventory_health_adapters
 
-# Pattern: capture SKU identifiers from natural-language Foundry hosted-agent
+# Pattern: capture SKU identifiers from natural-language Responses protocol
 # inputs (e.g. "check health of SKU-123", "is sku ABC-9 healthy?"). Two
 # alternations: (a) explicit "SKU-XYZ" tokens, (b) "sku <id>" prefixed forms.
-_SKU_PATTERN = re.compile(
-    r"\b(?:SKU[-_]?)([A-Z0-9][A-Z0-9_-]{1,63})\b" r"|\bsku\s+([A-Z0-9][A-Z0-9_-]{1,63})\b",
-    re.IGNORECASE,
+_SKU_PATTERN_TEXT = (
+    r"\b(?:SKU[-_]?)([A-Z0-9][A-Z0-9_-]{1,63})\b" + r"|\bsku\s+([A-Z0-9][A-Z0-9_-]{1,63})\b"
 )
+_SKU_PATTERN = re.compile(_SKU_PATTERN_TEXT, re.IGNORECASE)
 
 
 class InventoryHealthAgent(BaseRetailAgent):
@@ -49,8 +49,8 @@ class InventoryHealthAgent(BaseRetailAgent):
         entity_key_field="sku",
     )
 
-    async def hosted_request_from_text(self, text: str) -> dict[str, Any]:
-        """Translate Foundry Responses-API free-form input into a ``handle()``
+    async def responses_request_from_text(self, text: str) -> dict[str, Any]:
+        """Translate Responses-API free-form input into a ``handle()``
         request dict.
 
         ``handle()`` requires a ``sku`` field. We try to extract one from
@@ -62,11 +62,11 @@ class InventoryHealthAgent(BaseRetailAgent):
         match = _SKU_PATTERN.search(text or "")
         if match:
             sku = (match.group(1) or match.group(2) or "").upper()
-            return {"sku": sku, "_hosted_input_text": text}
+            return {"sku": sku, "_responses_input_text": text}
         # No SKU found — surface a structured prompt back to the caller.
         return {
             "_no_sku": True,
-            "_hosted_input_text": text,
+            "_responses_input_text": text,
             "sku": None,
         }
 
@@ -75,7 +75,7 @@ class InventoryHealthAgent(BaseRetailAgent):
             return {
                 "error": "sku is required",
                 "hint": ("Provide a SKU id in the prompt, e.g. " "'check health for SKU-1234'."),
-                "input": request.get("_hosted_input_text"),
+                "input": request.get("_responses_input_text"),
             }
 
         sku = request.get("sku")

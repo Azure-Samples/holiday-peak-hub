@@ -575,6 +575,9 @@ PY
       <when condition="@(context.Request.OriginalUrl.Path.Equals(&quot;/api/health&quot;, System.StringComparison.OrdinalIgnoreCase))">
         <rewrite-uri template="/health" copy-unmatched-params="true" />
       </when>
+      <when condition="@(context.Request.OriginalUrl.Path.Equals(&quot;/api/ready&quot;, System.StringComparison.OrdinalIgnoreCase))">
+        <rewrite-uri template="/ready" copy-unmatched-params="true" />
+      </when>
       <when condition="@(context.Request.OriginalUrl.Path.Equals(&quot;/api&quot;, System.StringComparison.OrdinalIgnoreCase) || context.Request.OriginalUrl.Path.StartsWith(&quot;/api/&quot;, System.StringComparison.OrdinalIgnoreCase))">
         <set-variable name="crudBackendPath" value="@(context.Request.OriginalUrl.Path.Length > 4 ? context.Request.OriginalUrl.Path.Substring(4) : string.Empty)" />
         <rewrite-uri template="@(string.Concat(&quot;/api&quot;, (string)context.Variables[&quot;crudBackendPath&quot;]))" copy-unmatched-params="true" />
@@ -589,12 +592,11 @@ PY
     </choose>
   </inbound>
   <backend>
-    <base />
     <forward-request timeout="60" />
   </backend>
   <outbound>
     <base />
-    <set-header name="Access-Control-Allow-Origin" exists-action="override"><value>@(context.Request.Headers.GetValueOrDefault(&quot;Origin&quot;, &quot;http://localhost:3000&quot;))</value></set-header>
+    <set-header name="Access-Control-Allow-Origin" exists-action="override"><value>@(context.Request.Headers.GetValueOrDefault("Origin", "http://localhost:3000"))</value></set-header>
     <set-header name="Access-Control-Allow-Methods" exists-action="override"><value>GET,POST,PUT,PATCH,DELETE,OPTIONS</value></set-header>
     <set-header name="Access-Control-Allow-Headers" exists-action="override"><value>*</value></set-header>
   </outbound>
@@ -602,7 +604,7 @@ PY
     <base />
     <return-response>
       <set-status code="502" reason="Bad Gateway" />
-      <set-header name="Access-Control-Allow-Origin" exists-action="override"><value>@(context.Request.Headers.GetValueOrDefault(&quot;Origin&quot;, &quot;http://localhost:3000&quot;))</value></set-header>
+      <set-header name="Access-Control-Allow-Origin" exists-action="override"><value>@(context.Request.Headers.GetValueOrDefault("Origin", "http://localhost:3000"))</value></set-header>
       <set-header name="Access-Control-Allow-Methods" exists-action="override"><value>GET,POST,PUT,PATCH,DELETE,OPTIONS</value></set-header>
       <set-header name="Access-Control-Allow-Headers" exists-action="override"><value>*</value></set-header>
       <set-header name="Content-Type" exists-action="override"><value>application/json</value></set-header>

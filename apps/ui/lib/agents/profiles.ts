@@ -97,6 +97,10 @@ const ALL_AGENT_SLUGS = [
   'truth-export',
 ] as const;
 
+export const AGENT_PROFILE_SLUGS = ALL_AGENT_SLUGS;
+
+const AGENT_PROFILE_SLUG_SET = new Set<string>(AGENT_PROFILE_SLUGS);
+
 const DOMAIN_GROUPS: Record<AgentProfileDomain, readonly string[]> = {
   crm: [
     'crm-campaign-intelligence',
@@ -982,3 +986,11 @@ export const AGENT_PROFILES = Object.fromEntries(
 ) as Record<AgentProfileSlug, AgentProfile>;
 
 export const AGENT_PROFILE_LIST = ALL_AGENT_SLUGS.map((slug) => AGENT_PROFILES[slug]);
+
+export function isAgentProfileSlug(slug: string): slug is AgentProfileSlug {
+  return AGENT_PROFILE_SLUG_SET.has(slug);
+}
+
+export function getAgentProfile(slug: string): AgentProfile | undefined {
+  return isAgentProfileSlug(slug) ? AGENT_PROFILES[slug] : undefined;
+}

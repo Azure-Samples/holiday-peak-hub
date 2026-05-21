@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next';
 
+import { AGENT_PROFILE_LIST } from '@/lib/agents/profiles';
 import { SEO_CONFIG } from '@/lib/seo';
 
 /**
@@ -75,6 +76,18 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: 'weekly',
       priority: 0.9,
     },
+    {
+      url: `${base}/builders/agents`,
+      lastModified,
+      changeFrequency: 'monthly',
+      priority: 0.7,
+    },
+    ...AGENT_PROFILE_LIST.map((profile) => ({
+      url: `${base}/builders/agents/${profile.slug}`,
+      lastModified,
+      changeFrequency: 'monthly' as const,
+      priority: 0.6,
+    })),
     {
       url: `${base}/builders/architecture`,
       lastModified,

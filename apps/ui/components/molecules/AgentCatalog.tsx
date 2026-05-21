@@ -1,9 +1,12 @@
 import type { ReactElement } from 'react';
+import Link from 'next/link';
+
+import type { AgentCatalogDomain } from '@/lib/agents/catalog';
 import { ConfidenceInterval } from '../atoms/ConfidenceInterval';
-import { MaturityBadge, type MaturityLevel } from '../atoms/MaturityBadge';
+import { MaturityBadge } from '../atoms/MaturityBadge';
 
 /**
- * AgentCatalog — the retailer-facing 26-agent catalog (Issue #1041 / Epic #1046).
+ * AgentCatalog — the 26-agent catalog (Issue #1041 / Epic #1046).
  *
  * Renders agents grouped by bounded context. Each agent row carries:
  *   - Name + maturity badge (compile-time required)
@@ -16,30 +19,16 @@ import { MaturityBadge, type MaturityLevel } from '../atoms/MaturityBadge';
  *     match the `ConfidenceInterval` contract.
  */
 
-export type AgentCatalogAgent = {
-  slug: string;
-  name: string;
-  oneLine: string;
-  costLower: string;
-  costUpper: string;
-  maturity: MaturityLevel;
-};
-
-export type AgentCatalogDomain = {
-  key: string;
-  label: string;
-  blurb: string;
-  agents: AgentCatalogAgent[];
-};
-
 export type AgentCatalogProps = {
-  domains: AgentCatalogDomain[];
+  domains: readonly AgentCatalogDomain[];
   /** Population descriptor passed to every `ConfidenceInterval`. */
   costPopulation: string;
   /** Methodology descriptor passed to every `ConfidenceInterval`. */
   costMethodology: string;
   /** Sample size passed to every `ConfidenceInterval`. */
   costSampleSize: number;
+  /** Optional detail-link builder used by the builder-side catalog. */
+  agentHref?: (slug: string) => string;
   testId?: string;
 };
 
@@ -104,11 +93,21 @@ const CARD_BODY_STYLE = {
   color: 'var(--sys-text-muted, var(--hp-text-muted))',
 };
 
+const CARD_LINK_STYLE = {
+  alignSelf: 'flex-start' as const,
+  color: 'var(--sys-link, var(--hp-link))',
+  fontSize: '0.875rem',
+  fontWeight: 600,
+  textDecoration: 'underline',
+  textUnderlineOffset: '0.18em',
+};
+
 export function AgentCatalog({
   domains,
   costPopulation,
   costMethodology,
   costSampleSize,
+  agentHref,
   testId,
 }: AgentCatalogProps): ReactElement {
   return (
@@ -131,23 +130,31 @@ export function AgentCatalog({
             <p style={DOMAIN_BLURB_STYLE}>{domain.blurb}</p>
           </header>
           <ul style={GRID_STYLE}>
-            {domain.agents.map((agent) => (
-              <li key={agent.slug} data-agent-slug={agent.slug} style={CARD_STYLE}>
-                <header style={CARD_HEADER_STYLE}>
-                  <h3 style={CARD_TITLE_STYLE}>{agent.name}</h3>
-                  <MaturityBadge level={agent.maturity} />
-                </header>
-                <p style={CARD_BODY_STYLE}>{agent.oneLine}</p>
-                <ConfidenceInterval
-                  lower={agent.costLower}
-                  upper={agent.costUpper}
-                  unit="USD per 1,000 requests"
-                  sampleSize={costSampleSize}
-                  population={costPopulation}
-                  methodology={costMethodology}
-                />
-              </li>
-            ))}
+            {domain.agents.map((agent) => {
+              const href = agentHref?.(agent.slug);
+              return (
+                <li key={agent.slug} data-agent-slug={agent.slug} style={CARD_STYLE}>
+                  <header style={CARD_HEADER_STYLE}>
+                    <h3 style={CARD_TITLE_STYLE}>{agent.name}</h3>
+                    <MaturityBadge level={agent.maturity} />
+                  </header>
+                  <p style={CARD_BODY_STYLE}>{agent.oneLine}</p>
+                  <ConfidenceInterval
+                    lower={agent.costLower}
+                    upper={agent.costUpper}
+                    unit="USD per 1,000 requests"
+                    sampleSize={costSampleSize}
+                    population={costPopulation}
+                    methodology={costMethodology}
+                  />
+                  {href ? (
+                    <Link href={href} style={CARD_LINK_STYLE}>
+                      Open builder detail
+                    </Link>
+                  ) : null}
+                </li>
+              );
+            })}
           </ul>
         </section>
       ))}

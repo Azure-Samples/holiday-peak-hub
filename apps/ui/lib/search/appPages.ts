@@ -1,3 +1,5 @@
+import { AGENT_PROFILE_LIST } from '@/lib/agents/profiles';
+
 /**
  * App-search page manifest (Issue #1022).
  *
@@ -41,6 +43,25 @@ export type AppPage = {
   /** Tokenization hints used by the lightweight matcher. */
   keywords: string[];
 };
+
+const BUILDER_AGENT_DETAIL_PAGES: readonly AppPage[] = AGENT_PROFILE_LIST.map((profile) => ({
+  url: `/builders/agents/${profile.slug}`,
+  title: `${profile.displayName} agent detail`,
+  audience: 'builder',
+  description: `${profile.oneLiner} Runtime contract, KPIs, schemas, and collaborators.`,
+  keywords: [
+    'agent',
+    'detail',
+    'runtime',
+    'schema',
+    'kpi',
+    profile.slug,
+    profile.domain,
+    profile.domainLabel,
+    profile.primaryMode,
+    ...profile.displayName.split(' '),
+  ],
+}));
 
 /**
  * Curated audience-IA page manifest.
@@ -124,6 +145,15 @@ export const APP_PAGES: readonly AppPage[] = [
       'Architecture, ADRs, design patterns, telemetry seams, and enablement gates — the engineering surface of Holiday Peak Hub.',
     keywords: ['builder', 'engineering', 'architecture', 'adrs', 'platform'],
   },
+  {
+    url: '/builders/agents',
+    title: 'Agent catalog (builder view)',
+    audience: 'builder',
+    description:
+      'Builder-side catalog for the 26 retail agents with runtime contract links, maturity, cost bands, schemas, and collaborators.',
+    keywords: ['agents', 'catalog', 'runtime', 'schemas', 'kpis', 'mcp', 'bounded contexts'],
+  },
+  ...BUILDER_AGENT_DETAIL_PAGES,
   {
     url: '/builders/architecture',
     title: 'Architecture registry',
