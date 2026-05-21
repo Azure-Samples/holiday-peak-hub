@@ -1,4 +1,4 @@
-"""AKS-hosted Responses protocol adapter.
+﻿"""AKS-hosted Responses protocol adapter.
 
 This module wraps a :class:`~holiday_peak_lib.agents.base_agent.BaseRetailAgent`
 in the Microsoft Agent Framework ``SupportsAgentRun`` protocol and mounts the
@@ -410,6 +410,3 @@ def _default_translator(agent: "BaseRetailAgent") -> RequestTranslator:
         return await translate_method(text)
 
     return _translate
-
-
-_HostedAgentRunAdapter = _ResponsesAgentRunAdapter
