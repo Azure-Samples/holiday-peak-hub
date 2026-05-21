@@ -39,6 +39,57 @@ _FALLBACK_INSTRUCTIONS_TEMPLATE = (
     "Structured instructions file not found for '{service_name}'. "
     "Use only provided request data, state missing fields, and avoid assumptions."
 )
+_REDIS_SOCKET_TIMEOUT_ENV = "HOLIDAY_PEAK_REDIS_SOCKET_TIMEOUT_SECONDS"
+_REDIS_CONNECT_TIMEOUT_ENV = "HOLIDAY_PEAK_REDIS_CONNECT_TIMEOUT_SECONDS"
+_FOUNDRY_HOSTED_ENV = "HOLIDAY_PEAK_FOUNDRY_HOSTED"
+_DEFAULT_REDIS_SOCKET_TIMEOUT_SECONDS = 1.0
+_DEFAULT_REDIS_CONNECT_TIMEOUT_SECONDS = 1.0
+
+
+def _env_truthy(name: str) -> bool:
+    """Return whether an environment flag is explicitly enabled."""
+    return (os.getenv(name) or "").lower() in {"1", "true", "yes", "on"}
+
+
+def _env_positive_float(name: str, *, default: float) -> float:
+    """Return a positive float environment value, falling back on invalid input."""
+    raw_value = os.getenv(name)
+    if raw_value is None:
+        return default
+
+    try:
+        value = float(raw_value)
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
+def _build_hot_memory(memory_settings: MemorySettings) -> HotMemory | None:
+    """Build bounded Redis hot memory when Redis configuration is present."""
+    resolved_redis_url = memory_settings.resolve_redis_url()
+    if not resolved_redis_url:
+        return None
+
+    return HotMemory(
+        resolved_redis_url,
+        socket_timeout=_env_positive_float(
+            _REDIS_SOCKET_TIMEOUT_ENV,
+            default=_DEFAULT_REDIS_SOCKET_TIMEOUT_SECONDS,
+        ),
+        socket_connect_timeout=_env_positive_float(
+            _REDIS_CONNECT_TIMEOUT_ENV,
+            default=_DEFAULT_REDIS_CONNECT_TIMEOUT_SECONDS,
+        ),
+        retry_on_timeout=False,
+    )
+
+
+def _detach_agent_hot_memory(agent: BaseRetailAgent) -> None:
+    """Detach optional hot memory from the request path after auth failure."""
+    agent.hot_memory = None
+    memory_client = getattr(agent, "memory_client", None)
+    if memory_client is not None:
+        memory_client.hot = None
 
 
 async def _fetch_key_vault_secret(vault_uri: str, secret_name: str) -> str:
@@ -89,8 +140,7 @@ def create_standard_app(
     """
     self_healing_kernel = SelfHealingKernel.from_env(service_name)
     memory_settings = MemorySettings()
-    resolved_redis_url = memory_settings.resolve_redis_url()
-    hot_memory = HotMemory(resolved_redis_url) if resolved_redis_url else None
+    hot_memory = _build_hot_memory(memory_settings)
     warm_memory = (
         WarmMemory(
             memory_settings.cosmos_account_uri,
@@ -334,6 +384,7 @@ def build_service_app(
 
     @asynccontextmanager
     async def _service_lifespan(wrapped_app: FastAPI) -> AsyncIterator[None]:
+        logger.info("lifespan_start service=%s", service_name)
         # Resolve missing Azure Redis auth from Key Vault before serving traffic.
         if (
             memory_settings is not None
@@ -342,6 +393,7 @@ def build_service_app(
             and memory_settings.redis_password_secret_name
             and memory_settings.redis_url_needs_password_resolution(hot_memory.url)
         ):
+            logger.info("lifespan_kv_resolve_begin service=%s", service_name)
             try:
                 redis_password = await _fetch_key_vault_secret(
                     memory_settings.key_vault_uri,
@@ -358,12 +410,24 @@ def build_service_app(
                     "hot memory may be unavailable",
                     exc_info=True,
                 )
+            if memory_settings.redis_url_needs_password_resolution(hot_memory.url):
+                hot_memory.client = None
+                _detach_agent_hot_memory(agent)
+                logger.warning(
+                    "Redis password resolution failed for authless Azure Redis URL; "
+                    "detached hot memory from request path"
+                )
+            logger.info("lifespan_kv_resolve_end service=%s", service_name)
 
         if lifespan is not None:
+            logger.info("lifespan_eventhub_begin service=%s", service_name)
             async with lifespan(wrapped_app):
+                logger.info("lifespan_ready service=%s", service_name)
                 yield
         else:
+            logger.info("lifespan_ready service=%s no_eventhub_lifespan=true", service_name)
             yield
+        logger.info("lifespan_shutdown service=%s", service_name)
 
     app.router.lifespan_context = _service_lifespan
     router.register("default", agent.handle)
@@ -396,4 +460,7 @@ def build_service_app(
     register_standard_endpoints(app, ctx=endpoint_ctx)
 
     mcp.mount()
+    if _env_truthy(_FOUNDRY_HOSTED_ENV):
+        logger.info("foundry_hosted_mode_enabled service=%s", service_name)
+        agent.serve_responses(app)
     return app

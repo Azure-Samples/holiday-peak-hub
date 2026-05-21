@@ -91,6 +91,16 @@ on:
         required: false
         type: boolean
         default: false
+      deployFoundrySurfaces:
+        description: Plan or apply Foundry Hosted/Custom surface registration after tested agent images are available.
+        required: false
+        type: boolean
+        default: false
+      foundrySurfaceMode:
+        description: Foundry surface registration mode. Use plan for dry-run artifacts; use apply to create/update Hosted Agent versions.
+        required: false
+        type: string
+        default: plan
     secrets:
       AZURE_CLIENT_ID:
         required: true
@@ -1328,6 +1338,7 @@ jobs:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      CHANGED_AGENT_SERVICES: ${{ needs.detect-changes.outputs.changed_agent_services_csv }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -1630,6 +1641,138 @@ jobs:
             --name "${{ needs.prepare-acr-build-access.outputs.acr_name }}" \
             --resource-group "${{ needs.prepare-acr-build-access.outputs.rg_name }}" \
             --ip-address "${{ steps.acr_preflight_build.outputs.runner_ip }}" >/dev/null || true
+
+  deploy-foundry-surfaces:
+    runs-on: ubuntu-latest
+    if: ${{ !inputs.uiOnly && inputs.deployFoundrySurfaces && needs.detect-changes.outputs.changed_agent_services_csv != '' }}
+    needs:
+      - detect-changes
+      - provision
+      - prepare-acr-build-access
+      - build-aks-images
+    environment: ${{ inputs.githubEnvironment }}
+    env:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      PROJECT_ENDPOINT: ${{ needs.provision.outputs.PROJECT_ENDPOINT }}
+      PROJECT_NAME: ${{ needs.provision.outputs.PROJECT_NAME }}
+      APIM_BASE_URL: ${{ needs.provision.outputs.APIM_GATEWAY_URL }}
+      AZURE_CONTAINER_REGISTRY: ${{ needs.prepare-acr-build-access.outputs.login_server }}
+      REDIS_HOST: ${{ needs.provision.outputs.REDIS_HOST }}
+      REDIS_URL: ""
+      COSMOS_ACCOUNT_URI: ${{ needs.provision.outputs.COSMOS_ACCOUNT_URI }}
+      COSMOS_DATABASE: ${{ needs.provision.outputs.COSMOS_DATABASE }}
+      COSMOS_CONTAINER: ${{ needs.provision.outputs.COSMOS_CONTAINER }}
+      BLOB_ACCOUNT_URL: ${{ needs.provision.outputs.BLOB_ACCOUNT_URL }}
+      BLOB_CONTAINER: ${{ needs.provision.outputs.BLOB_CONTAINER }}
+      EVENT_HUB_NAMESPACE: ${{ needs.provision.outputs.EVENT_HUB_NAMESPACE }}
+      KEY_VAULT_URI: ${{ needs.provision.outputs.KEY_VAULT_URI }}
+      APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ needs.provision.outputs.APPLICATIONINSIGHTS_CONNECTION_STRING }}
+      MODEL_DEPLOYMENT_NAME_FAST: gpt-5-nano
+      MODEL_DEPLOYMENT_NAME_RICH: gpt-5
+    steps:
+      - name: Checkout tested source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SOURCE_CHECKOUT_REF }}
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install Foundry surface registration dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet \
+            pyyaml \
+            "azure-ai-projects>=2.0.1" \
+            "azure-identity>=1.17.0"
+
+      - name: Download tested image references
+        uses: actions/download-artifact@v4
+        with:
+          pattern: tested-image-*
+          path: ${{ runner.temp }}/tested-image-artifacts
+          merge-multiple: false
+
+      - name: Build Foundry image map
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          artifact_root = Path(os.environ["RUNNER_TEMP"]) / "tested-image-artifacts"
+          image_map = {}
+          for image_file in artifact_root.glob("tested-image-*/image-ref.txt"):
+              service = image_file.parent.name.removeprefix("tested-image-")
+              image_map[service] = image_file.read_text(encoding="utf-8").strip()
+
+          output_path = Path(os.environ["RUNNER_TEMP"]) / "foundry-image-map.json"
+          output_path.write_text(json.dumps(image_map, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          print(f"Wrote {len(image_map)} tested image refs to {output_path}")
+          PY
+
+      - name: Validate Hosted Agent ACR reachability policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          MODE="${{ inputs.foundrySurfaceMode }}"
+          if [ "$MODE" != "apply" ]; then
+            exit 0
+          fi
+
+          PUBLIC_BEFORE="${{ needs.prepare-acr-build-access.outputs.public_network_access_before }}"
+          DEFAULT_BEFORE="${{ needs.prepare-acr-build-access.outputs.default_action_before }}"
+          if [ "$PUBLIC_BEFORE" != "Enabled" ] || [ "$DEFAULT_BEFORE" != "Allow" ]; then
+            echo "Foundry Hosted Agents require an ACR public endpoint that the service can pull from." >&2
+            echo "Current baseline publicNetworkAccess=${PUBLIC_BEFORE}, defaultAction=${DEFAULT_BEFORE}." >&2
+            echo "Run in plan mode, then update the ACR network policy intentionally before apply." >&2
+            exit 1
+          fi
+
+      - name: Register Foundry surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          MODE="${{ inputs.foundrySurfaceMode }}"
+          if [ "$MODE" != "plan" ] && [ "$MODE" != "apply" ]; then
+            echo "foundrySurfaceMode must be 'plan' or 'apply'." >&2
+            exit 1
+          fi
+
+          python3 scripts/ops/register_foundry_surfaces.py \
+            --mode "$MODE" \
+            --environment "${{ inputs.environment }}" \
+            --project-endpoint "$PROJECT_ENDPOINT" \
+            --project-name "$PROJECT_NAME" \
+            --image-map-file "${RUNNER_TEMP}/foundry-image-map.json" \
+            --acr-login-server "${AZURE_CONTAINER_REGISTRY}" \
+            --image-tag "${DEPLOY_SOURCE_SHA}" \
+            --apim-base-url "$APIM_BASE_URL" \
+            --services "${{ needs.detect-changes.outputs.changed_agent_services_csv }}" \
+            --output "${RUNNER_TEMP}/foundry-surface-plan.json"
+
+      - name: Upload Foundry surface plan
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: foundry-surface-plan-${{ inputs.environment }}
+          path: ${{ runner.temp }}/foundry-surface-plan.json
+          if-no-files-found: warn
+          retention-days: 14
 
   restore-acr-build-access:
     runs-on: ubuntu-latest
@@ -3011,6 +3154,7 @@ jobs:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      CHANGED_AGENT_SERVICES: ${{ needs.detect-changes.outputs.changed_agent_services_csv }}
     steps:
       - uses: actions/checkout@v4
 
@@ -3941,31 +4085,42 @@ jobs:
           smoke_health "${API_BASE}/api/products?limit=1" "crud-products"
           smoke_health "${API_BASE}/api/categories" "crud-categories"
 
-          CORS_HEADERS_FILE="/tmp/apim-cors-headers.txt"
-          CORS_BODY_FILE="/tmp/apim-cors-body.txt"
-          CORS_STATUS=$(curl -sS -D "$CORS_HEADERS_FILE" -o "$CORS_BODY_FILE" -w "%{http_code}" \
-            -X OPTIONS "${API_BASE}/api/products?limit=1" \
-            -H "Origin: http://localhost:3000" \
-            -H "Access-Control-Request-Method: GET") || CORS_STATUS="000"
+          smoke_cors_preflight() {
+            local url="$1"
+            local label="$2"
+            local headers_file="/tmp/apim-cors-headers.txt"
+            local normalized_headers_file="/tmp/apim-cors-headers-normalized.txt"
+            local body_file="/tmp/apim-cors-body.txt"
+            local status_code=""
 
-          if [ "$CORS_STATUS" != "200" ] && [ "$CORS_STATUS" != "204" ]; then
-            echo "[FAIL] crud-cors-preflight: ${API_BASE}/api/products?limit=1 returned HTTP $CORS_STATUS" >&2
-            cat "$CORS_HEADERS_FILE" 2>/dev/null || true
-            cat "$CORS_BODY_FILE" 2>/dev/null || true
-            exit 1
-          fi
+            for attempt in $(seq 1 20); do
+              : > "$headers_file"
+              : > "$normalized_headers_file"
+              status_code=$(curl -sS -D "$headers_file" -o "$body_file" -w "%{http_code}" \
+                -X OPTIONS "$url" \
+                -H "Origin: http://localhost:3000" \
+                -H "Access-Control-Request-Method: GET") || status_code="000"
+              tr -d '\r' < "$headers_file" > "$normalized_headers_file" 2>/dev/null || true
 
-          if ! grep -Eiq '^Access-Control-Allow-Origin: http://localhost:3000\r?$' "$CORS_HEADERS_FILE"; then
-            echo "[FAIL] crud-cors-preflight: missing expected Access-Control-Allow-Origin header" >&2
-            cat "$CORS_HEADERS_FILE" 2>/dev/null || true
-            exit 1
-          fi
+              if { [ "$status_code" = "200" ] || [ "$status_code" = "204" ]; } \
+                && grep -Eiq '^Access-Control-Allow-Origin: http://localhost:3000$' "$normalized_headers_file" \
+                && grep -Eiq '^Access-Control-Allow-Methods: .*GET' "$normalized_headers_file"; then
+                echo "[OK] $label: $url"
+                return 0
+              fi
 
-          if ! grep -Eiq '^Access-Control-Allow-Methods: .*GET' "$CORS_HEADERS_FILE"; then
-            echo "[FAIL] crud-cors-preflight: missing expected Access-Control-Allow-Methods header" >&2
-            cat "$CORS_HEADERS_FILE" 2>/dev/null || true
-            exit 1
-          fi
+              echo "Attempt $attempt/20 failed for $label with HTTP $status_code or missing CORS headers"
+              cat "$headers_file" 2>/dev/null || true
+              sleep 10
+            done
+
+            echo "[FAIL] $label: $url did not return expected CORS preflight headers" >&2
+            cat "$headers_file" 2>/dev/null || true
+            cat "$body_file" 2>/dev/null || true
+            return 1
+          }
+
+          smoke_cors_preflight "${API_BASE}/api/products?limit=1" "crud-cors-preflight"
 
           NEGATIVE_STATUS=$(curl -sS -o /tmp/apim-negative-response.json -w "%{http_code}" "${API_BASE}/api/does-not-exist") || NEGATIVE_STATUS="000"
           if [ "$NEGATIVE_STATUS" = "500" ] || [ "$NEGATIVE_STATUS" = "502" ] || [ "$NEGATIVE_STATUS" = "503" ] || [ "$NEGATIVE_STATUS" = "000" ]; then
@@ -4178,12 +4333,35 @@ jobs:
 
           echo "Restoring Flux source '${FLUX_SOURCE}' from preview branch '${PREVIEW_BRANCH}' to default branch '${DEFAULT_BRANCH}'."
           PATCH=$(printf '{"spec":{"ref":{"branch":"%s"}}}' "$DEFAULT_BRANCH")
-          kubectl patch gitrepository.source.toolkit.fluxcd.io "$FLUX_SOURCE" -n "$FLUX_NAMESPACE" --type=merge -p "$PATCH"
 
-          ACTIVE_BRANCH=$(kubectl get gitrepository.source.toolkit.fluxcd.io "$FLUX_SOURCE" -n "$FLUX_NAMESPACE" -o jsonpath='{.spec.ref.branch}')
-          if [ "$ACTIVE_BRANCH" != "$DEFAULT_BRANCH" ]; then
-            echo "::error::Flux source '${FLUX_SOURCE}' expected branch '${DEFAULT_BRANCH}' but found '${ACTIVE_BRANCH}'."
+          restore_flux_source() {
+            kubectl patch gitrepository.source.toolkit.fluxcd.io "$FLUX_SOURCE" -n "$FLUX_NAMESPACE" --type=merge -p "$PATCH"
+
+            ACTIVE_BRANCH=$(kubectl get gitrepository.source.toolkit.fluxcd.io "$FLUX_SOURCE" -n "$FLUX_NAMESPACE" -o jsonpath='{.spec.ref.branch}')
+            if [ "$ACTIVE_BRANCH" != "$DEFAULT_BRANCH" ]; then
+              echo "::error::Flux source '${FLUX_SOURCE}' expected branch '${DEFAULT_BRANCH}' but found '${ACTIVE_BRANCH}'."
+              return 1
+            fi
+          }
+
+          if ! restore_flux_source; then
+            echo "::warning::Direct kubectl Flux restore failed; retrying through az aks command invoke."
+            REMOTE_COMMAND=$(cat <<EOF
+          set -euo pipefail
+          kubectl patch gitrepository.source.toolkit.fluxcd.io "$FLUX_SOURCE" -n "$FLUX_NAMESPACE" --type=merge -p '$PATCH'
+          ACTIVE_BRANCH=\$(kubectl get gitrepository.source.toolkit.fluxcd.io "$FLUX_SOURCE" -n "$FLUX_NAMESPACE" -o jsonpath='{.spec.ref.branch}')
+          if [ "\$ACTIVE_BRANCH" != "$DEFAULT_BRANCH" ]; then
+            echo "::error::Flux source '$FLUX_SOURCE' expected branch '$DEFAULT_BRANCH' but found '\$ACTIVE_BRANCH'."
             exit 1
+          fi
+          EOF
+          )
+
+            az aks command invoke \
+              --resource-group "${{ inputs.projectName }}-${{ inputs.environment }}-rg" \
+              --name "${{ inputs.projectName }}-${{ inputs.environment }}-aks" \
+              --command "$REMOTE_COMMAND" \
+              --query logs -o tsv
           fi
 
           if ! command -v flux &>/dev/null; then

@@ -18,6 +18,8 @@ describe('app/sitemap.ts', () => {
         `${SEO_CONFIG.SITE_URL}/retailers/case-studies`,
         `${SEO_CONFIG.SITE_URL}/retailers/security`,
         `${SEO_CONFIG.SITE_URL}/builders`,
+        `${SEO_CONFIG.SITE_URL}/builders/agents`,
+        `${SEO_CONFIG.SITE_URL}/builders/agents/ecommerce-product-detail-enrichment`,
         `${SEO_CONFIG.SITE_URL}/builders/architecture`,
         `${SEO_CONFIG.SITE_URL}/builders/adrs`,
         `${SEO_CONFIG.SITE_URL}/builders/patterns`,
@@ -29,7 +31,7 @@ describe('app/sitemap.ts', () => {
         `${SEO_CONFIG.SITE_URL}/docs/sitemap.xml`,
       ]),
     );
-    expect(urls.length).toBeGreaterThanOrEqual(18);
+    expect(urls.length).toBeGreaterThanOrEqual(45);
   });
 
   it('home has the highest priority', () => {

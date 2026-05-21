@@ -83,6 +83,7 @@ Release gate notes:
 - APIM smoke checks validate direct AGC CRUD health, APIM `GET /api/health`, `GET /api/products?limit=1`, `GET /api/categories`, CRUD CORS preflight, negative CRUD path behavior, and changed agent `GET /agents/<service>/health` before UI publish.
 - APIM sync consumes the approved AGC hostname contract from azd outputs and fails closed if the backend drifts to IP-based or cluster-local targets.
 - UI deployment runs pre/post smoke checks to ensure API health and SWA hostname reachability.
+- Foundry surface registration is explicit and separate from AKS rollout. Manual dev deployments can emit a dry-run plan by default; `foundrySurfaceMode=apply` creates or updates Foundry Hosted Agent versions from tested image digests and validates Custom Agent proxy metadata without replacing APIM -> AGC -> AKS product traffic.
 
 azd env set deployShared true -e <environment>
 azd env set deployStatic true -e <environment>
@@ -183,6 +184,22 @@ azd deploy --service crud-service -e <environment>
 # All agent services
 azd deploy --all -e <environment>
 ```
+
+### Optional Step 5: Register Foundry Portal Surfaces
+
+AKS deployment alone does not create visible Foundry Hosted Agent versions. To expose the public/human-facing agents in the Foundry portal, run the `deploy-azd-dev (entrypoint)` workflow with:
+
+- `deployFoundrySurfaces=true`
+- `foundrySurfaceMode=plan` to generate the `foundry-surface-plan-<environment>` artifact
+- `foundrySurfaceMode=apply` to create or update Hosted Agent versions after reviewing the plan
+
+The reusable workflow consumes the tested `repo@sha256:...` image references produced by `build-aks-images`, reads `apps/foundry-surfaces.yaml`, and calls `scripts/ops/register_foundry_surfaces.py`. Apply mode uses OIDC-backed Azure identity and `AIProjectClient(..., allow_preview=True)`. It does not create a second AKS runtime, does not call the retired `/assistants` surface, and does not turn Custom Agent proxy metadata into Foundry-managed compute.
+
+Cost and networking notes:
+
+- Hosted Agent apply mode can incur Foundry active-session CPU/memory charges.
+- Foundry Hosted Agents require the ACR public endpoint to be intentionally reachable by the service. The workflow fails apply mode if the baseline ACR policy is private-only or `defaultAction=Deny`.
+- Custom Agent entries remain metadata/proxy validated until Microsoft Foundry exposes a supported Custom Agent create API for APIM-backed proxy surfaces.
 
 ### Outputs
 
