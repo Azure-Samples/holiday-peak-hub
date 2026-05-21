@@ -1,6 +1,8 @@
 """Unit tests for health routes."""
 
+import asyncio
 import sys
+from time import perf_counter
 from types import SimpleNamespace
 
 import crud_service.routes.health as health_routes
@@ -120,7 +122,10 @@ def test_readiness_uses_configured_authenticated_redis_url(monkeypatch):
     monkeypatch.setattr(
         health_routes,
         "get_settings",
-        lambda: SimpleNamespace(redis_url="rediss://:encoded%40secret@cache:6380/0"),
+        lambda: SimpleNamespace(
+            readiness_dependency_timeout_seconds=0.5,
+            redis_url="rediss://:encoded%40secret@cache:6380/0",
+        ),
     )
 
     monkeypatch.setitem(
@@ -149,3 +154,42 @@ def test_readiness_uses_configured_authenticated_redis_url(monkeypatch):
     assert payload["checks"]["redis"]["status"] == "healthy"
     assert captured["url"] == "rediss://:encoded%40secret@cache:6380/0"
     assert captured["socket_timeout"] == 2
+
+
+def test_readiness_times_out_hanging_postgres_health_check(monkeypatch):
+    """A hung PostgreSQL strategy should fail fast with timeout detail."""
+
+    async def _hanging_pool():
+        await asyncio.Event().wait()
+
+    async def _healthy_redis(_request):
+        return "healthy", "ping ok"
+
+    async def _unconfigured_cosmos():
+        return "unconfigured", "COSMOS_ACCOUNT_URI not set"
+
+    monkeypatch.setattr(BaseRepository, "check_pool_health", _hanging_pool)
+    monkeypatch.setattr(health_routes, "_check_redis", _healthy_redis)
+    monkeypatch.setattr(health_routes, "_check_cosmos", _unconfigured_cosmos)
+    monkeypatch.setattr(
+        health_routes,
+        "get_settings",
+        lambda: SimpleNamespace(readiness_dependency_timeout_seconds=0.01),
+    )
+
+    start = perf_counter()
+    response = client.get("/ready")
+    elapsed = perf_counter() - start
+    payload = response.json()
+
+    assert elapsed < 0.5
+    assert response.status_code == 503
+    assert payload["status"] == "degraded"
+    assert payload["checks"]["postgres"]["status"] == "unhealthy"
+    assert payload["checks"]["postgres"]["detail"] == {
+        "error": "timeout",
+        "timeout_seconds": 0.01,
+        "message": "postgres readiness check exceeded 0.01 seconds",
+    }
+    assert payload["checks"]["redis"]["status"] == "healthy"
+    assert payload["checks"]["cosmos"]["status"] == "unconfigured"

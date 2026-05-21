@@ -252,6 +252,13 @@ def register_standard_endpoints(
             "integrations_registered": await registry.count(),
         }
 
+    # The optional Responses hosting SDK also exposes a lightweight
+    # ``/readiness`` surface. Keep the standard app's alias process-only;
+    # the deeper downstream-target check stays on ``/ready``.
+    @app.get("/readiness")
+    async def readiness() -> dict[str, Any]:
+        return {"status": "ok", "service": service_name}
+
     @app.get("/integrations")
     async def integrations() -> dict[str, Any]:
         return {

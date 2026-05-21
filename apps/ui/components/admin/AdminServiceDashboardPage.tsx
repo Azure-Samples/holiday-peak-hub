@@ -36,7 +36,7 @@ import {
   FiArrowRight, FiGrid, FiFileText, FiSettings, FiShield, FiUsers,
 } from 'react-icons/fi';
 import { AgentRobot } from '@/components/organisms/AgentRobot';
-import { AGENT_PROFILES } from '@/lib/agents/profiles';
+import { getAgentProfile } from '@/lib/agents/profiles';
 import type { AgentProfile } from '@/lib/agents/profiles';
 
 // ── Types ──
@@ -231,6 +231,10 @@ function toTitleCase(value: string): string {
     .filter((part) => part.length > 0)
     .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
     .join(' ');
+}
+
+function resolveAgentDisplayName(agentSlug: string, profile?: AgentProfile): string {
+  return profile?.displayName ?? toTitleCase(agentSlug);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -850,7 +854,8 @@ export function AdminServiceDashboardPage({ domain, service }: AdminServiceDashb
     positive: 'Ready',
     negative: 'Not ready',
   });
-  const agentProfile = useMemo(() => AGENT_PROFILES[agentSlug as keyof typeof AGENT_PROFILES], [agentSlug]);
+  const agentProfile = useMemo(() => getAgentProfile(agentSlug), [agentSlug]);
+  const agentDisplayName = resolveAgentDisplayName(agentSlug, agentProfile);
   const promptCatalog = data?.prompt_catalog ?? [];
   const toolCatalog = data?.mcp_tools ?? [];
   const resilienceStatus = data?.self_healing ?? {
@@ -866,9 +871,9 @@ export function AdminServiceDashboardPage({ domain, service }: AdminServiceDashb
 
   const handleStagePrompt = useCallback((prompt: AdminServicePromptDocument) => {
     const promptStem = prompt.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ');
-    setInvokeMessage(`Use ${promptStem} to summarize the live ${toTitleCase(service)} state and the next operator action.`);
+    setInvokeMessage(`Use ${promptStem} to summarize the live ${agentDisplayName} state and the next operator action.`);
     setActiveTab('prompts');
-  }, [service]);
+  }, [agentDisplayName]);
 
   const handleTabKeyDown = useCallback((event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
     let nextIndex = index;
@@ -1084,12 +1089,12 @@ export function AdminServiceDashboardPage({ domain, service }: AdminServiceDashb
                   </div>
                   <div>
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
-                      {toTitleCase(service)} Service
+                      {agentDisplayName}
                     </h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
                       <span className={`font-semibold ${accent}`}>{domain}</span>
                       <span className="mx-1.5 text-gray-300 dark:text-gray-600">/</span>
-                      <span className="font-medium text-gray-700 dark:text-gray-300">{service}</span>
+                      <span className="font-medium text-gray-700 dark:text-gray-300">{agentSlug}</span>
                     </p>
                   </div>
                 </div>
@@ -1149,7 +1154,7 @@ export function AdminServiceDashboardPage({ domain, service }: AdminServiceDashb
                 </div>
                 <div className="flex-1">
                   <h2 className="text-sm font-bold text-gray-900 dark:text-white">Invoke Agent</h2>
-                  <p className="text-[11px] text-gray-400">Send free text or a JSON object override to the {toTitleCase(service)} agent</p>
+                  <p className="text-[11px] text-gray-400">Send free text or a JSON object override to the {agentDisplayName} agent</p>
                 </div>
                 <span className="text-[10px] font-mono text-gray-400 bg-gray-100 dark:bg-gray-800 rounded-lg px-2.5 py-1">
                   {agentSlug}
@@ -1161,7 +1166,7 @@ export function AdminServiceDashboardPage({ domain, service }: AdminServiceDashb
                   value={invokeMessage}
                   onChange={(e) => setInvokeMessage(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder={`Describe what you want the ${toTitleCase(service)} agent to do…`}
+                  placeholder={`Describe what you want the ${agentDisplayName} agent to do…`}
                   rows={4}
                   disabled={invokeStatus === 'running'}
                   className="w-full rounded-2xl border-0 bg-white dark:bg-gray-900/80 ring-1 ring-gray-200 dark:ring-gray-700 px-5 py-4 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-white resize-none transition-all duration-200 shadow-sm disabled:opacity-50"
@@ -1228,7 +1233,7 @@ export function AdminServiceDashboardPage({ domain, service }: AdminServiceDashb
                 <Badge variant="glass" size="sm">{COCKPIT_TABS.length} views</Badge>
               </div>
 
-              <div role="tablist" aria-label={`${toTitleCase(service)} cockpit views`} className="flex flex-wrap gap-2 rounded-2xl border border-[var(--hp-border)] bg-[var(--hp-surface)] p-2">
+              <div role="tablist" aria-label={`${agentDisplayName} cockpit views`} className="flex flex-wrap gap-2 rounded-2xl border border-[var(--hp-border)] bg-[var(--hp-surface)] p-2">
                 {COCKPIT_TABS.map((tab, index) => {
                   const selected = activeTab === tab.id;
                   const Icon = tab.icon;
