@@ -20,6 +20,11 @@ describe('searchAppPages', () => {
     expect(audiences).toEqual(new Set(['home', 'builder']));
   });
 
+  it('surfaces builder agent detail pages from the shared profile manifest', () => {
+    const hits = searchAppPages('product detail enrichment', AUDIENCE_FILTER.builder, 10);
+    expect(hits[0].page.url).toBe('/builders/agents/ecommerce-product-detail-enrichment');
+  });
+
   it('scores title matches above description-only matches', () => {
     const hits = searchAppPages('roi', AUDIENCE_FILTER.retailer, 10);
     expect(hits.length).toBeGreaterThan(0);
