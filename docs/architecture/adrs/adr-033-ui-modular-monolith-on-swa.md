@@ -84,6 +84,7 @@ A cross-feature import outside `src/shared/` is a defect; the lint rule blocks i
 - Preview environments enabled per PR.
 - SWA built-in auth disabled; existing MSAL flow preserved verbatim.
 - Output mode is **`standalone`** (SWA hybrid runtime), already enforced by the existing CI guard `scripts/ci/validate_swa_hybrid_contract.py`. `static`-only export is rejected. The earlier "phase-A inventory chooses static or hybrid" framing is superseded.
+- `staticwebapp.config.json` must not define `navigationFallback` for the Next.js hybrid runtime; route handling remains owned by Next.js, while SWA config is limited to supported static-hosting concerns such as `/docs/*` cache headers.
 
 ### 3. Cutover Mechanism — DNS-Weighted Strangler Fig
 
