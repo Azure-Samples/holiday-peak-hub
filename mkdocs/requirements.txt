@@ -7,3 +7,7 @@ mkdocs-material==9.5.50
 mkdocs-material-extensions==1.3.1
 pymdown-extensions==10.14.3
 mkdocs-autorefs==1.2.0
+# pymdown-extensions 10.14.3 passes filename=None to Pygments when
+# code blocks do not define titles. Pygments 2.20+ rejects that value,
+# which breaks the deploy-ui-swa strict MkDocs build.
+Pygments>=2.16,<2.20
