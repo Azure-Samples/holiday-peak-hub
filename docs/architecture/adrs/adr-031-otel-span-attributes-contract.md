@@ -4,7 +4,7 @@
 **Date**: 2026-05-08
 **Deciders**: Architecture Team, Ricardo Cataldi
 **Tags**: observability, opentelemetry, telemetry, governance
-**References**: [ADR-007](adr-007-memory-tiers.md), [ADR-010](adr-010-model-routing.md), ADR-028 (Continuous Agent Evaluation — in flight on PR #974; link will be added when merged), [ADR-029](adr-029-agc-weighted-canary-policy.md), [ADR-030](adr-030-mcp-only-a2a.md)
+**References**: [ADR-007](adr-007-memory-tiers.md), [ADR-010](adr-010-model-routing.md), [ADR-028](adr-028-continuous-agent-evaluation.md), [ADR-029](adr-029-agc-weighted-canary-policy.md), [ADR-030](adr-030-mcp-only-a2a.md)
 
 ## Context
 
@@ -40,8 +40,8 @@ This ADR pins the **mandatory** and **conditional** span attributes for all reta
 | `agc.canary.to_weight` | An AGC canary transition occurs | int |
 | `agc.canary.step_outcome` | An AGC canary step exits | enum `advanced` \| `held` \| `rolled_back` |
 | `agc.canary.rollback_reason` | An AGC canary rollback occurs | string |
-| `eval.score` | A continuous eval evaluation completes inside the span (per ADR-028; key subject to ADR-028 final schema in PR #974) | float |
-| `eval.baseline_id` | A continuous eval evaluation completes (key subject to ADR-028 final schema in PR #974) | string |
+| `eval.score` | A continuous eval evaluation completes inside the span (per ADR-028) | float |
+| `eval.baseline_id` | A continuous eval evaluation completes (per ADR-028) | string |
 | `cosmos.ru` | A Cosmos query / upsert occurs | float |
 | `cosmos.diagnostic_string` | Cosmos call exceeded P99 latency budget OR returned non-2xx | string |
 | `redis.op` | A Redis call occurs | enum `get` \| `set` \| `del` \| `expire` |
@@ -156,6 +156,6 @@ Considered. Where overlapping (`service.name`, `service.version`), this ADR alig
 - [OpenTelemetry Semantic Conventions](https://opentelemetry.io/docs/specs/semconv/)
 - [ADR-007 — Memory Architecture and Isolation Strategy](adr-007-memory-tiers.md)
 - [ADR-010 — SLM-First Model Routing Strategy](adr-010-model-routing.md)
-- ADR-028 — Continuous Agent Evaluation (in flight on PR #974; link will be added once that PR merges and the ADR file lands at `adrs/adr-028-continuous-agent-evaluation.md`)
+- [ADR-028](adr-028-continuous-agent-evaluation.md) — Continuous Agent Evaluation Engine
 - [ADR-029 — AGC Weighted Canary Policy](adr-029-agc-weighted-canary-policy.md)
 - [ADR-030 — MCP-Only Agent-to-Agent Communication](adr-030-mcp-only-a2a.md)
