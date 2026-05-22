@@ -6,6 +6,8 @@ now-deleted deploy-azd-service.yml reusable), write a fresh entrypoint that
 calls deploy-azd.yml directly with the proven contract used by
 deploy-azd-dev.yml:
 
+- workflow_dispatch only (automatic main promotion fans in through
+  deploy-azd-dev.yml after the test workflow succeeds).
 - githubEnvironment: branch (so feature-branch service previews avoid the
   protected 'dev' selected-branch restriction while still using the approved
   environment-scoped OIDC subject).
@@ -39,17 +41,6 @@ EXCLUDE = {
 TEMPLATE = """name: deploy-azd-{svc} (entrypoint)
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - apps/{svc}/**
-      - lib/**
-      - azure.yaml
-      - .infra/**
-      - .kubernetes/**
-      - .github/workflows/deploy-azd.yml
-      - .github/workflows/deploy-azd-{svc}.yml
   workflow_dispatch:
     inputs:
       location:
