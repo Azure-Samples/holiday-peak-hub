@@ -4,13 +4,13 @@
 **Date**: 2026-05-08
 **Deciders**: Architecture Team, Ricardo Cataldi
 **Tags**: frontend, information-architecture, design-tokens, accessibility, sales-surface
-**References**: [ADR-011](adr-011-nextjs-app-router.md), [ADR-012](adr-012-atomic-design-system.md), [ADR-018](adr-018-branch-naming-convention.md), **ADR-033** (in PR #978; link added when merged)
+**References**: [ADR-011](adr-011-nextjs-app-router.md), [ADR-012](adr-012-atomic-design-system.md), [ADR-018](adr-018-branch-naming-convention.md), [ADR-033](adr-033-ui-modular-monolith-on-swa.md)
 
 ## Status
 
 Accepted. **Extends ADR-033**; does not supersede it.
 
-ADR-033 is currently in PR #978 (branch `docs/improvement-plan-arch-adrs`) and has not yet merged to `main`. This ADR's acceptance is conditional on ADR-033 landing — see the conditional-acceptance footnote in §Implementation. If ADR-033 merges with material changes to its §1 directory contract, this ADR's Implementation table is updated in the same merge train.
+ADR-033 is accepted and this ADR extends its modular-monolith directory contract. Future amendments to ADR-033 that materially change its §1 directory contract must update this ADR's Implementation table in the same PR.
 
 ## Context
 
@@ -25,7 +25,7 @@ Three failure modes need to be ruled out at the IA layer, not at the page layer:
 - **Two microsites** — splits the SEO surface, the trust signal, the auth boundary, and doubles maintenance. Brand coherence collapses.
 - **Soft persona toggle on a unified IA** — assumes everyone arrives at `/`. They don't. SEO, sales links, and ADR cross-references land users directly in the middle of either funnel. Each landing must work as a valid entry point.
 
-This ADR locks the IA contract that the modular monolith from **ADR-033** (in PR #978; link added when merged) renders. The decision is grounded in the canonical positioning at [`.github/instructions/repository-purpose.instructions.md`](../../../.github/instructions/repository-purpose.instructions.md) — `lib/` is a framework, `apps/` is a product, both are first-class — which forces the UI to address both adoption paths with equal weight.
+This ADR locks the IA contract that the modular monolith from [ADR-033](adr-033-ui-modular-monolith-on-swa.md) renders. The decision is grounded in the canonical positioning at [`.github/instructions/repository-purpose.instructions.md`](../../../.github/instructions/repository-purpose.instructions.md) — `lib/` is a framework, `apps/` is a product, both are first-class — which forces the UI to address both adoption paths with equal weight.
 
 The locked decisions in this ADR were converged during the round-of-3 deliberation captured in the UI go-to-market plan (BusinessStrategist proposed; UIDesigner adversarial; joint synthesis). Three hard rules from that plan are pinned here as ADR contract:
 
@@ -90,7 +90,7 @@ apps/ui/src/app/
 │       └── track/[id]/page.tsx
 ```
 
-**Relationship to ADR-033 §1**: Route groups `(retailer)`, `(builder)`, `(deploy)` are the **public-facing audience surface** under `src/app/`. They consume — but do not replace — the per-bounded-context internal feature modules at `src/features/<context>/` defined in ADR-033 §1 (modular-monolith directory contract; in PR #978, not yet merged to `main`). Page components inside the route groups import from `src/features/<context>/index.ts` (CRM, eCommerce, inventory, logistics, product-management, search, truth) and from `src/shared/`. Cross-feature imports remain forbidden by the ESLint `no-restricted-imports` rule pinned in ADR-033.
+**Relationship to ADR-033 §1**: Route groups `(retailer)`, `(builder)`, `(deploy)` are the **public-facing audience surface** under `src/app/`. They consume — but do not replace — the per-bounded-context internal feature modules at `src/features/<context>/` defined in ADR-033 §1 (modular-monolith directory contract). Page components inside the route groups import from `src/features/<context>/index.ts` (CRM, eCommerce, inventory, logistics, product-management, search, truth) and from `src/shared/`. Cross-feature imports remain forbidden by the ESLint `no-restricted-imports` rule pinned in ADR-033.
 
 The route-group structure under `src/app/` is **net-new** — it is introduced in the same refactor PR(s) that move the current flat `apps/ui/app/` layout to `apps/ui/src/app/` per ADR-033. Until the ADR-033 refactor lands, this contract is forward-looking and not yet enforced.
 
@@ -227,7 +227,7 @@ This pins the IA against the "soft fork at home" failure mode where deep links d
 | Cross-section links bleed audiences (retailer reads dense docs and bounces). | LaneSwitch surfaces the easy way back from every page; telemetry on bounce-by-section flags pages that need a friendlier landing; capability 44/45 owns the per-page response. |
 | Cookie-based detection runs into privacy review or browser tracking-prevention defaults. | Cookie contains only `retailer\|builder`, no PII, no fingerprint, no third-party domain; documented in privacy notice; clearing cookies is fully supported and produces identical content. |
 | Route-group structure conflicts with future micro-frontend extraction. | Modular-monolith feature isolation per ADR-033 makes extraction cheaper. Route groups extract cleanly per section; the contract is reversible. |
-| ADR-033 lands on `main` with material changes to its §1 directory contract that invalidate this ADR's §2. | This ADR's acceptance is conditional on ADR-033 (PR #978); the same merge train updates this ADR's Implementation table if the §1 contract changes. |
+| A future ADR-033 amendment materially changes its §1 directory contract and invalidates this ADR's §2. | The same PR must update this ADR's Implementation table if the §1 contract changes. |
 | 5-second-test merge gate is unenforceable until CODEOWNERS lands. | CODEOWNERS, PR template, and reviewer roster are part of the conditional-acceptance footnote in §Implementation; until they land, the gate is documented review process, not CODEOWNERS-required. |
 
 ## Alternatives Considered
@@ -250,7 +250,7 @@ Rejected on privacy and on personalization-bug risk. Hard forking on a cookie cr
 
 ## Implementation
 
-> **Conditional acceptance**: this ADR is Accepted on the contract (§1–§9 above), but the following net-new artifacts MUST land on the same merge train as the §2 route-group refactor — and the §2 refactor itself depends on ADR-033 (PR #978) being merged to `main` first. Until all of these exist, the IA contract is forward-looking and not yet enforced:
+> **Implementation enforcement**: this ADR is Accepted on the contract (§1–§9 above), but the following net-new artifacts MUST land on the same merge train as the §2 route-group refactor. Until all of these exist, the IA contract is authoritative but not yet fully enforced by automation:
 >
 > - `apps/ui/src/styles/tokens/{brand,retailer,builder}.css` and `apps/ui/src/styles/tokens/CONTRAST.md`.
 > - Storybook configuration showing both retailer and builder palettes side-by-side.
@@ -314,7 +314,7 @@ Tracked separately under the named capability epics:
 - [ADR-011 — Next.js 15 with App Router (revised by ADR-033 to Next.js 16)](adr-011-nextjs-app-router.md)
 - [ADR-012 — Atomic Design System for Component Library](adr-012-atomic-design-system.md)
 - [ADR-018 — Git Branch Naming Convention](adr-018-branch-naming-convention.md)
-- ADR-033 — UI as a Modular Monolith on Static Web Apps (Path 2) — in flight, PR #978 (`docs/improvement-plan-arch-adrs`); link added when merged to `main`
+- [ADR-033 — UI as a Modular Monolith on Static Web Apps (Path 2)](adr-033-ui-modular-monolith-on-swa.md)
 - [Repository purpose canonical statement](../../../.github/instructions/repository-purpose.instructions.md)
 - WCAG 2.2 AA: https://www.w3.org/TR/WCAG22/
 - Next.js App Router — Route Groups: https://nextjs.org/docs/app/building-your-application/routing/route-groups

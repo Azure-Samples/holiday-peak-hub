@@ -105,12 +105,14 @@ gh pr list --state open --limit 50
 gh issue list --state open --limit 50
 ```
 
-Expected result:
+Historical target result for this cleanup procedure:
 
 - Local branches: only `main`
 - Remote branches: only `origin/main`
 - Open PRs: 0
 - Open Issues: 0
+
+> This document describes a one-time hygiene target state. The live repository may intentionally have open PRs and issues after subsequent feature and dependency work resumes.
 
 ## Out-of-Scope File Inclusion Policy
 
