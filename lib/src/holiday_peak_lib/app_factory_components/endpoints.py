@@ -586,6 +586,7 @@ def register_standard_endpoints(
         try:
             tracer.record_evaluation(result_payload)
         except (AttributeError, TypeError):
+            # Evaluation endpoint success must not depend on optional tracer capabilities.
             pass
         return {
             "service": service_name,
