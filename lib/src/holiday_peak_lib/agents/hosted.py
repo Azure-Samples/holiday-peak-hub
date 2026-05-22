@@ -32,6 +32,8 @@ from __future__ import annotations
 
 import json
 import logging
+from functools import wraps
+from inspect import signature
 from typing import TYPE_CHECKING, Any, AsyncIterator, Awaitable, Callable
 
 from agent_framework import AgentResponse, AgentResponseUpdate, Content, Message
@@ -369,6 +371,8 @@ def mount_responses_adapter(
             "`pip install --pre agent-framework-foundry-hosting`."
         ) from exc
 
+    _patch_fastapi_instrumentor_sensitive_data_kwarg()
+
     mounted_servers = getattr(fastapi_app.state, _RESPONSES_HOST_SERVERS_STATE_KEY, None)
     if not isinstance(mounted_servers, dict):
         mounted_servers = {}
@@ -393,6 +397,44 @@ def mount_responses_adapter(
         prefix,
     )
     return host_server
+
+
+def _patch_fastapi_instrumentor_sensitive_data_kwarg() -> None:
+    """Allow preview Foundry hosting SDKs to run with older OTel FastAPI.
+
+    Some ``agent-framework-foundry-hosting`` builds pass
+    ``enable_sensitive_data`` to ``FastAPIInstrumentor.instrument_app`` before
+    all supported OpenTelemetry FastAPI versions accepted that keyword. The
+    hosted adapter should remain optional and import-order tolerant, so this
+    shim drops only that unsupported keyword when the installed instrumentor's
+    signature does not declare it.
+    """
+
+    try:
+        from opentelemetry.instrumentation.fastapi import (  # pylint: disable=import-outside-toplevel
+            FastAPIInstrumentor,
+        )
+    except ImportError:  # pragma: no cover - depends on optional SDK extras
+        return
+
+    instrument_app = FastAPIInstrumentor.instrument_app
+    if getattr(instrument_app, "_holiday_peak_accepts_enable_sensitive_data", False):
+        return
+
+    try:
+        parameters = signature(instrument_app).parameters
+    except (TypeError, ValueError):  # pragma: no cover - defensive for exotic callables
+        return
+    if "enable_sensitive_data" in parameters:
+        return
+
+    @wraps(instrument_app)
+    def _instrument_app_compat(*args: Any, **kwargs: Any) -> Any:
+        kwargs.pop("enable_sensitive_data", None)
+        return instrument_app(*args, **kwargs)
+
+    setattr(_instrument_app_compat, "_holiday_peak_accepts_enable_sensitive_data", True)
+    FastAPIInstrumentor.instrument_app = _instrument_app_compat
 
 
 def _default_translator(agent: "BaseRetailAgent") -> RequestTranslator:

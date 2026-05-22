@@ -2,6 +2,7 @@
 
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any, AsyncContextManager, AsyncIterator, Callable, cast
 
 from fastapi import FastAPI
@@ -26,6 +27,7 @@ from holiday_peak_lib.app_factory_components.foundry_lifecycle import (
 from holiday_peak_lib.app_factory_components.middleware import register_correlation_middleware
 from holiday_peak_lib.config import MemorySettings
 from holiday_peak_lib.connectors.registry import ConnectorRegistry
+from holiday_peak_lib.evaluation import ConfiguredEvaluationRunner, DatasetLoader
 from holiday_peak_lib.mcp.server import FastAPIMCPServer
 from holiday_peak_lib.self_healing import SelfHealingKernel
 from holiday_peak_lib.utils import (
@@ -44,6 +46,7 @@ _REDIS_CONNECT_TIMEOUT_ENV = "HOLIDAY_PEAK_REDIS_CONNECT_TIMEOUT_SECONDS"
 _FOUNDRY_HOSTED_ENV = "HOLIDAY_PEAK_FOUNDRY_HOSTED"
 _DEFAULT_REDIS_SOCKET_TIMEOUT_SECONDS = 1.0
 _DEFAULT_REDIS_CONNECT_TIMEOUT_SECONDS = 1.0
+_EVALUATION_CONFIG_FILE = "eval-config.yaml"
 
 
 def _env_truthy(name: str) -> bool:
@@ -110,6 +113,45 @@ async def _fetch_key_vault_secret(vault_uri: str, secret_name: str) -> str:
 def _build_foundry_config(agent_env: str, deployment_env: str) -> FoundryAgentConfig | None:
     """Backward-compatible alias for internal Foundry config builder."""
     return build_foundry_config(agent_env, deployment_env)
+
+
+def _build_evaluation_runner(
+    service_name: str,
+    logger: Any,
+) -> ConfiguredEvaluationRunner | None:
+    """Discover optional per-service `.foundry` evaluation config."""
+
+    for foundry_root in _evaluation_foundry_root_candidates(service_name):
+        try:
+            return ConfiguredEvaluationRunner(loader=DatasetLoader(foundry_root))
+        except (FileNotFoundError, ValueError) as exc:
+            log_method = getattr(logger, "warning", None)
+            if callable(log_method):
+                log_method(
+                    "evaluation_config_load_failed",
+                    extra={"service": service_name, "reason": str(exc)},
+                )
+    return None
+
+
+def _evaluation_foundry_root_candidates(service_name: str) -> list[Path]:
+    """Return existing per-service `.foundry` roots for evaluation discovery."""
+
+    cwd = Path.cwd().resolve()
+    candidates: list[Path] = []
+    explicit_root = os.getenv("AGENT_EVALUATION_FOUNDRY_ROOT")
+    if explicit_root:
+        candidates.append(Path(explicit_root).resolve())
+
+    service_roots = [cwd / "apps" / service_name]
+    service_roots.extend(path for path in (cwd, *cwd.parents) if path.name == service_name)
+
+    for service_root in service_roots:
+        foundry_root = service_root / ".foundry"
+        if (foundry_root / _EVALUATION_CONFIG_FILE).exists() and foundry_root not in candidates:
+            candidates.append(foundry_root)
+
+    return candidates
 
 
 def create_standard_app(
@@ -220,6 +262,7 @@ def build_service_app(
             the ``HOLIDAY_PEAK_DIRECT_MODEL`` environment variable.
     """
     logger = configure_logging(app_name=service_name)
+    evaluation_runner = _build_evaluation_runner(service_name, logger)
     root_path = os.getenv("ROOT_PATH", "")
     app = FastAPI(title=service_name, root_path=root_path)
     registry = connector_registry or ConnectorRegistry()
@@ -304,6 +347,7 @@ def build_service_app(
     if hasattr(agent, "connector_registry"):
         agent.connector_registry = registry
     app.state.agent = agent
+    app.state.evaluation_runner = evaluation_runner
 
     def _sync_foundry_tracing_state() -> None:
         _ = disable_tracing_without_foundry
@@ -441,6 +485,9 @@ def build_service_app(
     def _foundry_capabilities() -> dict[str, Any]:
         return _current_foundry_readiness().to_payload()
 
+    def _evaluation_runner_provider() -> ConfiguredEvaluationRunner | None:
+        return evaluation_runner
+
     endpoint_ctx = EndpointContext(
         service_name=service_name,
         registry=registry,
@@ -453,6 +500,7 @@ def build_service_app(
         requires_foundry_runtime_resolution=_requires_foundry_runtime_resolution,
         foundry_capabilities=_foundry_capabilities,
         self_healing_kernel=healing_kernel,
+        evaluation_runner_provider=_evaluation_runner_provider,
         prompt_catalog_provider=_prompt_catalog_provider,
         mcp_tool_descriptions_provider=_mcp_tool_descriptions_provider,
     )

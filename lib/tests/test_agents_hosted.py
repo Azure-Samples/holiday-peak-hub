@@ -342,11 +342,11 @@ def test_serve_hosted_alias_raises_clear_error_when_sdk_missing(monkeypatch) -> 
 
 
 def test_serve_responses_mounts_responses_routes_when_sdk_present() -> None:
-    pytest.importorskip("agent_framework_foundry_hosting")
     from fastapi import FastAPI
 
     agent = _RecordingAgent()
     app = FastAPI()
+    pytest.importorskip("agent_framework_foundry_hosting")
 
     host_server = agent.serve_responses(app)
 
@@ -361,16 +361,64 @@ def test_serve_responses_mounts_responses_routes_when_sdk_present() -> None:
 
 
 def test_serve_responses_is_idempotent_with_same_prefix_when_sdk_present() -> None:
-    pytest.importorskip("agent_framework_foundry_hosting")
     from fastapi import FastAPI
 
     agent = _RecordingAgent()
     app = FastAPI()
+    pytest.importorskip("agent_framework_foundry_hosting")
 
     first_host_server = agent.serve_responses(app)
     second_host_server = agent.serve_responses(app)
 
     assert second_host_server is first_host_server
+    mounted = [route for route in app.router.routes if getattr(route, "path", "") == ""]
+    assert len(mounted) == 1
+
+
+def test_serve_responses_tolerates_older_otel_fastapi_instrumentor(monkeypatch) -> None:
+    from fastapi import FastAPI
+    from starlette.applications import Starlette
+    from starlette.responses import JSONResponse
+    from starlette.routing import Route
+
+    calls: list[Any] = []
+
+    class _FakeFastAPIInstrumentor:
+        @staticmethod
+        def instrument_app(app: Any) -> None:
+            calls.append(app)
+
+    async def _ok(_request):  # noqa: ANN001
+        return JSONResponse({"ok": True})
+
+    class _FakeResponsesHostServer(Starlette):
+        def __init__(self, adapter: Any, prefix: str = "") -> None:
+            from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+
+            FastAPIInstrumentor.instrument_app(self, **{"enable_sensitive_data": True})
+            super().__init__(routes=[Route(f"{prefix}/responses", _ok, methods=["POST"])])
+            self.adapter = adapter
+
+    fake_fastapi_module = types.SimpleNamespace(FastAPIInstrumentor=_FakeFastAPIInstrumentor)
+    monkeypatch.setitem(sys.modules, "opentelemetry", types.ModuleType("opentelemetry"))
+    monkeypatch.setitem(
+        sys.modules,
+        "opentelemetry.instrumentation",
+        types.ModuleType("opentelemetry.instrumentation"),
+    )
+    monkeypatch.setitem(sys.modules, "opentelemetry.instrumentation.fastapi", fake_fastapi_module)
+    monkeypatch.setitem(
+        sys.modules,
+        "agent_framework_foundry_hosting",
+        types.SimpleNamespace(ResponsesHostServer=_FakeResponsesHostServer),
+    )
+
+    agent = _RecordingAgent()
+    app = FastAPI()
+
+    host_server = agent.serve_responses(app)
+
+    assert calls == [host_server]
     mounted = [route for route in app.router.routes if getattr(route, "path", "") == ""]
     assert len(mounted) == 1
 

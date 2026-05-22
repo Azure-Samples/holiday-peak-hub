@@ -4,7 +4,7 @@
 **Date**: 2026-05-08
 **Deciders**: Architecture Team, Ricardo Cataldi
 **Tags**: deployment, canary, agc, observability, sre
-**References**: [ADR-008](adr-008-aks-deployment.md), [ADR-017](adr-017-deployment-strategy.md), [ADR-021](adr-021-apim-agc-edge.md), ADR-028 (Continuous Agent Evaluation — in flight on PR #974; link will be added when merged)
+**References**: [ADR-008](adr-008-aks-deployment.md), [ADR-017](adr-017-deployment-strategy.md), [ADR-021](adr-021-apim-agc-edge.md), [ADR-028](adr-028-continuous-agent-evaluation.md)
 
 ## Context
 
@@ -37,8 +37,8 @@ For each step:
 1. Wait `holdSeconds` (default 900).
 2. Query gate metrics over the hold window:
    - **5xx error rate** delta vs. baseline ≤ 0.5 percentage points.
-   - **P95 latency** delta vs. baseline ≤ 10 %.
-   - **Eval baseline** (services with continuous eval per ADR-028): score within `maxDeltaPercent` (default 5 %). Specific attribute keys (`eval.score`, `eval.baseline_id`) and the `baselineSource: continuous-eval` literal are subject to ADR-028's final schema (PR #974 in flight); this ADR will be revised in lock-step if PR #974 changes them.
+  - **P95 latency** delta vs. baseline ≤ 10 %.
+  - **Eval baseline** (services with continuous eval per ADR-028): score within `maxDeltaPercent` (default 5 %) using `eval.score`, `eval.baseline_id`, and the `baselineSource: continuous-eval` literal.
 3. All gates pass → advance to next step.
 4. Any gate fails outside the rollback window → halt; oncall decides hold, manual rollback, or roll forward.
 5. Any gate fails **inside the first 90 s of the step** → automatic rollback to previous step weight; oncall notified post-fact.
@@ -170,5 +170,5 @@ Considered. Both are viable. Decision deferred to platform-engineering choice du
 - [ADR-008 — AKS with Helm, KEDA, and Canary Deployments](adr-008-aks-deployment.md)
 - [ADR-017 — Deployment Strategy: azd Provisioning + Flux CD GitOps](adr-017-deployment-strategy.md)
 - [ADR-021 — APIM + AGC as the Canonical AKS Edge](adr-021-apim-agc-edge.md)
-- ADR-028 — Continuous Agent Evaluation (in flight on PR #974; link will be added once that PR merges and the ADR file lands at `adrs/adr-028-continuous-agent-evaluation.md`)
+- [ADR-028](adr-028-continuous-agent-evaluation.md) — Continuous Agent Evaluation Engine
 - [ADR-031 — OTEL Span Attributes Contract for Retail Agents](adr-031-otel-span-attributes-contract.md)
