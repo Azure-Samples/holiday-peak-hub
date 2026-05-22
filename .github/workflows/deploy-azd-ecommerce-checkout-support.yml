@@ -1,17 +1,6 @@
 name: deploy-azd-ecommerce-checkout-support (entrypoint)
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - apps/ecommerce-checkout-support/**
-      - lib/**
-      - azure.yaml
-      - .infra/**
-      - .kubernetes/**
-      - .github/workflows/deploy-azd.yml
-      - .github/workflows/deploy-azd-ecommerce-checkout-support.yml
   workflow_dispatch:
     inputs:
       location:

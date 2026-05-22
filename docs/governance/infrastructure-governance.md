@@ -1,7 +1,7 @@
 # Infrastructure Governance and Compliance Guidelines
 
 **Version**: 2.5
-**Last Updated**: 2026-05-18
+**Last Updated**: 2026-05-22
 **Owner**: Infrastructure Team
 
 ## Scope
@@ -52,9 +52,10 @@ Infrastructure provisioning, deployment orchestration, identity, security contro
 - `deploy-azd-dev.yml` is maintained as a single reusable-workflow invocation path to reduce drift between trigger types.
 - Per-service wrappers should remain thin and delegate to the reusable deployment engine rather than duplicating Azure auth, build, and smoke-check logic.
 - The canonical naming pattern for service-scoped wrappers is `.github/workflows/deploy-azd-<service-name>.yml`, using the exact service key from `azure.yaml`.
-- Service-scoped wrappers are approved for branch-independent execution from any pushed branch when their scoped path filters match; manual runs may still pass `testedSourceSha` or `testedSourceRef` for explicit targeting.
+- Service-scoped wrappers are manual redeploy entrypoints only; automatic `main` promotion must fan in through `deploy-azd-dev.yml` after the `test` workflow succeeds so all changed services share one serialized deployment run.
 - Service-scoped wrappers are non-production by policy. Production rollouts must continue through the protected release path in `.github/workflows/deploy-azd-prod.yml`.
 - Service-scoped preview deploys must use GitHub Environment `branch`, and Azure federated credential trust for that path must match the environment-scoped OIDC subject emitted by reusable-workflow jobs under `branch` instead of relying only on `ref:refs/heads/*` subjects. Generated and hand-authored service wrappers must preserve this `githubEnvironment: branch` contract.
+- The reusable deployment engine must keep one shared environment concurrency group so manual scoped redeploys and automatic fan-in deploys serialize through the shared ACR/APIM/AGC/AKS deployment boundary instead of running concurrently.
 - For non-prod branch-preview runs where the tested source resolves to a non-default `refs/heads/*` branch, `.github/workflows/deploy-azd.yml` must temporarily switch `GitRepository/holiday-peak-gitops` in `flux-system` to that branch, must fail fast if the preview source cannot fetch the tested revision, must treat preview Flux preparation as satisfied when the AGC-relevant Flux kustomization records that preview revision within that live kustomization's configured Flux timeout window, and must restore the repository default branch in an always-run cleanup job after validation completes.
 - Shared `dev` auto-promotion remains governed separately through the protected environment flow, and GitHub Environment branch restrictions still apply where configured.
 

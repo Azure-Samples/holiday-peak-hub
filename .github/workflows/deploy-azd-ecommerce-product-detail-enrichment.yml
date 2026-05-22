@@ -1,17 +1,6 @@
 name: deploy-azd-ecommerce-product-detail-enrichment (entrypoint)
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - apps/ecommerce-product-detail-enrichment/**
-      - lib/**
-      - azure.yaml
-      - .infra/**
-      - .kubernetes/**
-      - .github/workflows/deploy-azd.yml
-      - .github/workflows/deploy-azd-ecommerce-product-detail-enrichment.yml
   workflow_dispatch:
     inputs:
       location:

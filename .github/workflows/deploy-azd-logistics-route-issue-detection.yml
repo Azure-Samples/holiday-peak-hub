@@ -1,17 +1,6 @@
 name: deploy-azd-logistics-route-issue-detection (entrypoint)
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - apps/logistics-route-issue-detection/**
-      - lib/**
-      - azure.yaml
-      - .infra/**
-      - .kubernetes/**
-      - .github/workflows/deploy-azd.yml
-      - .github/workflows/deploy-azd-logistics-route-issue-detection.yml
   workflow_dispatch:
     inputs:
       location:

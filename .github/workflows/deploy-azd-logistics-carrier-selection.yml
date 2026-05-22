@@ -1,17 +1,6 @@
 name: deploy-azd-logistics-carrier-selection (entrypoint)
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - apps/logistics-carrier-selection/**
-      - lib/**
-      - azure.yaml
-      - .infra/**
-      - .kubernetes/**
-      - .github/workflows/deploy-azd.yml
-      - .github/workflows/deploy-azd-logistics-carrier-selection.yml
   workflow_dispatch:
     inputs:
       location:

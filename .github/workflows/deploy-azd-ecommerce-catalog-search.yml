@@ -1,17 +1,6 @@
 name: deploy-azd-ecommerce-catalog-search (entrypoint)
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - apps/ecommerce-catalog-search/**
-      - lib/**
-      - azure.yaml
-      - .infra/**
-      - .kubernetes/**
-      - .github/workflows/deploy-azd.yml
-      - .github/workflows/deploy-azd-ecommerce-catalog-search.yml
   workflow_dispatch:
     inputs:
       location:

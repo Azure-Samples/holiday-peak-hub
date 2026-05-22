@@ -1,17 +1,6 @@
 name: deploy-azd-truth-ingestion (entrypoint)
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - apps/truth-ingestion/**
-      - lib/**
-      - azure.yaml
-      - .infra/**
-      - .kubernetes/**
-      - .github/workflows/deploy-azd.yml
-      - .github/workflows/deploy-azd-truth-ingestion.yml
   workflow_dispatch:
     inputs:
       location:

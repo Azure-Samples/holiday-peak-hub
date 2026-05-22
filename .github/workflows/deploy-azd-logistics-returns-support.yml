@@ -1,17 +1,6 @@
 name: deploy-azd-logistics-returns-support (entrypoint)
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - apps/logistics-returns-support/**
-      - lib/**
-      - azure.yaml
-      - .infra/**
-      - .kubernetes/**
-      - .github/workflows/deploy-azd.yml
-      - .github/workflows/deploy-azd-logistics-returns-support.yml
   workflow_dispatch:
     inputs:
       location:

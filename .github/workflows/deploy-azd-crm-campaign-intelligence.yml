@@ -1,17 +1,6 @@
 name: deploy-azd-crm-campaign-intelligence (entrypoint)
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - apps/crm-campaign-intelligence/**
-      - lib/**
-      - azure.yaml
-      - .infra/**
-      - .kubernetes/**
-      - .github/workflows/deploy-azd.yml
-      - .github/workflows/deploy-azd-crm-campaign-intelligence.yml
   workflow_dispatch:
     inputs:
       location:

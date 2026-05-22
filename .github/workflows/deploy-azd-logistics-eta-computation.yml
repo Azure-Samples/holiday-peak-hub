@@ -1,17 +1,6 @@
 name: deploy-azd-logistics-eta-computation (entrypoint)
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - apps/logistics-eta-computation/**
-      - lib/**
-      - azure.yaml
-      - .infra/**
-      - .kubernetes/**
-      - .github/workflows/deploy-azd.yml
-      - .github/workflows/deploy-azd-logistics-eta-computation.yml
   workflow_dispatch:
     inputs:
       location:

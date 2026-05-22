@@ -1,17 +1,6 @@
 name: deploy-azd-product-management-consistency-validation (entrypoint)
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - apps/product-management-consistency-validation/**
-      - lib/**
-      - azure.yaml
-      - .infra/**
-      - .kubernetes/**
-      - .github/workflows/deploy-azd.yml
-      - .github/workflows/deploy-azd-product-management-consistency-validation.yml
   workflow_dispatch:
     inputs:
       location:

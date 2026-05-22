@@ -1,17 +1,6 @@
 name: deploy-azd-ecommerce-cart-intelligence (entrypoint)
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - apps/ecommerce-cart-intelligence/**
-      - lib/**
-      - azure.yaml
-      - .infra/**
-      - .kubernetes/**
-      - .github/workflows/deploy-azd.yml
-      - .github/workflows/deploy-azd-ecommerce-cart-intelligence.yml
   workflow_dispatch:
     inputs:
       location:

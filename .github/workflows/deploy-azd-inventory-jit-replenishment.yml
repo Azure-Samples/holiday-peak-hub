@@ -1,17 +1,6 @@
 name: deploy-azd-inventory-jit-replenishment (entrypoint)
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - apps/inventory-jit-replenishment/**
-      - lib/**
-      - azure.yaml
-      - .infra/**
-      - .kubernetes/**
-      - .github/workflows/deploy-azd.yml
-      - .github/workflows/deploy-azd-inventory-jit-replenishment.yml
   workflow_dispatch:
     inputs:
       location:

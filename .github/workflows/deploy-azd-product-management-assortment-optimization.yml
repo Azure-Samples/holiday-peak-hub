@@ -1,17 +1,6 @@
 name: deploy-azd-product-management-assortment-optimization (entrypoint)
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - apps/product-management-assortment-optimization/**
-      - lib/**
-      - azure.yaml
-      - .infra/**
-      - .kubernetes/**
-      - .github/workflows/deploy-azd.yml
-      - .github/workflows/deploy-azd-product-management-assortment-optimization.yml
   workflow_dispatch:
     inputs:
       location:

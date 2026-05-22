@@ -1,17 +1,6 @@
 name: deploy-azd-product-management-normalization-classification (entrypoint)
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - apps/product-management-normalization-classification/**
-      - lib/**
-      - azure.yaml
-      - .infra/**
-      - .kubernetes/**
-      - .github/workflows/deploy-azd.yml
-      - .github/workflows/deploy-azd-product-management-normalization-classification.yml
   workflow_dispatch:
     inputs:
       location:

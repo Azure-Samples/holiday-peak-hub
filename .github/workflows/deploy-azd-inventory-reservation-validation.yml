@@ -1,17 +1,6 @@
 name: deploy-azd-inventory-reservation-validation (entrypoint)
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - apps/inventory-reservation-validation/**
-      - lib/**
-      - azure.yaml
-      - .infra/**
-      - .kubernetes/**
-      - .github/workflows/deploy-azd.yml
-      - .github/workflows/deploy-azd-inventory-reservation-validation.yml
   workflow_dispatch:
     inputs:
       location:
