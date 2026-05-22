@@ -94,14 +94,7 @@ The spec defines a **deployable reference implementation** for retailers to inge
 
 ### 2.2 Open PRs State
 
-**Active PR** (`issue/30-ci-agent-tests-no-swallow`, PR #86): 18 commits ahead of main. Contains:
-- CI fix: agent tests no longer swallowed
-- UI homepage slider + chat widget
-- Entra auth hardening (anonymous browsing, fallback product listing)
-- Next.js proxy for API routes
-- PostgreSQL Entra auth rollout
-
-**Impact**: This PR should be **merged first**. The plan below is designed to layer on top of the merged state. No conflicts expected with the Truth Layer work since PR #86 focuses on auth/UI/CI fixes, not data layer.
+PR #86 (`issue/30-ci-agent-tests-no-swallow`) has merged. Its CI, UI, Entra auth, Next.js proxy, and PostgreSQL Entra auth rollout changes are now part of the baseline this plan layers on.
 
 **Other branches** (stale): `feat/ai-agent-shopper`, `feat/documentation`, `feat/frontend`, `feat/unit-tests` — all merged or superseded by main.
 
@@ -746,13 +739,7 @@ param enablePrivateOnly bool = false
 
 ### PR #86 (`issue/30-ci-agent-tests-no-swallow`)
 
-**Recommendation**: Merge before starting this work.
-
-**Conflicts with this plan**: None. PR #86 modifies:
-- CI test workflow (no overlap — we add new services to matrix)
-- UI homepage (no overlap — we add new HITL pages)
-- Entra auth (beneficial foundation — truth-layer services use same auth)
-- CRUD auth hardening (beneficial — truth routes use same auth middleware)
+**Status**: Merged. Its CI test workflow, UI homepage, Entra auth, and CRUD auth hardening changes are baseline dependencies for this plan.
 
 ### Other Branches
 

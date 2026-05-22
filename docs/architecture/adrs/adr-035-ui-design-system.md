@@ -4,21 +4,17 @@
 **Date**: 2026-05-08
 **Deciders**: Architecture Team, Ricardo Cataldi
 **Tags**: frontend, design-system, design-tokens, css, accessibility, performance, quality-gates
-**References**: [ADR-011](adr-011-nextjs-app-router.md), [ADR-012](adr-012-atomic-design-system.md) (superseded on component-naming convention only by §3 of this ADR), [ADR-018](adr-018-branch-naming-convention.md), ADR-033 — UI as a Modular Monolith on Static Web Apps (Path 2) — in flight on PR #978 (`docs/improvement-plan-arch-adrs`); link will be added when merged to `main`, ADR-034 — Audience-Segmented Information Architecture for the UI — in flight on PR #1009 (`docs/adr-034-audience-segmented-ia`); link will be added when merged to `main`
+**References**: [ADR-011](adr-011-nextjs-app-router.md), [ADR-012](adr-012-atomic-design-system.md) (superseded on component-naming convention only by §3 of this ADR), [ADR-018](adr-018-branch-naming-convention.md), [ADR-033](adr-033-ui-modular-monolith-on-swa.md), [ADR-034](adr-034-audience-segmented-ia.md)
 
 ## Status
 
 Accepted. **Extends ADR-033 + ADR-034**; supersedes ADR-012's component-naming convention (atoms / molecules / organisms / templates) for `apps/ui` going forward, while preserving ADR-012's broader atomic-design intent (small primitives compose into complex surfaces with explicit boundaries).
 
-ADR-033 and ADR-034 are not yet on `main`:
-- ADR-033 is in flight on PR #978 (`docs/improvement-plan-arch-adrs`).
-- ADR-034 is in flight on PR #1009 (`docs/adr-034-audience-segmented-ia`).
-
-This ADR is forward-referenced against both. Its acceptance is conditional on those landing — see the conditional-acceptance footnote in §Implementation. If either merges with material changes to its directory, route-group, or token contracts, this ADR's Decision (§1, §2, §6) and Implementation tables are updated in the same merge train.
+ADR-033 and ADR-034 are accepted and this ADR extends both. Future amendments to either ADR that materially change directory, route-group, or token contracts must update this ADR's Decision (§1, §2, §6) and Implementation tables in the same PR.
 
 ## Context
 
-`apps/ui/` is the platform's primary sales surface. ADR-033 (in flight) pins it as a modular monolith on Azure Static Web Apps with feature isolation under `src/features/<context>/`. ADR-034 (in flight) pins the audience-segmented information architecture under `(retailer)`, `(builder)`, `(deploy)` route groups and the dual design-token concept (`tokens/{brand,retailer,builder}.css`).
+`apps/ui/` is the platform's primary sales surface. ADR-033 pins it as a modular monolith on Azure Static Web Apps with feature isolation under `src/features/<context>/`. ADR-034 pins the audience-segmented information architecture under `(retailer)`, `(builder)`, `(deploy)` route groups and the dual design-token concept (`tokens/{brand,retailer,builder}.css`).
 
 Neither of those ADRs pins **the design-system contract itself**: how tokens are layered and named, what primitives compose into what composites, how CSS is organized, what motion and dark-mode rules apply, or what quality gates must pass before a UI change merges. The user has flagged that previous UI work did not achieve good results. Without a pinned contract, the next attempt regresses to the same failure mode.
 
@@ -26,8 +22,8 @@ This ADR pins that contract. It is the third leg of the three-ADR UI foundation:
 
 | ADR | Pins |
 |---|---|
-| ADR-033 (in flight) | Layout + deployment surface (modular monolith on SWA) |
-| ADR-034 (in flight) | Information architecture + audience surface (route groups, dual tokens, 5-second test gate) |
+| ADR-033 | Layout + deployment surface (modular monolith on SWA) |
+| ADR-034 | Information architecture + audience surface (route groups, dual tokens, 5-second test gate) |
 | **ADR-035** (this) | Design-system contract — tokens, components, CSS, quality gates that flow into the dual-token concept ADR-034 introduced |
 
 ### Diagnostic of the previous UI attempt
@@ -266,8 +262,8 @@ Until the cleanup PR ships, the contract in §1–§5 is advisory. The design-sy
 
 | Risk | Mitigation |
 |---|---|
-| ADR-033 (PR #978) merges with material changes to its §1 directory contract that invalidate this ADR's §1, §2, §6 file paths. | Conditional acceptance footnote (see §Implementation) requires the same merge train to update this ADR's file-path references. |
-| ADR-034 (PR #1009) merges with material changes to its §3 token-file layout that invalidate this ADR's §1 file organization. | Same conditional acceptance footnote covers ADR-034. |
+| A future ADR-033 amendment materially changes its §1 directory contract and invalidates this ADR's §1, §2, §6 file paths. | The same PR must update this ADR's file-path references. |
+| A future ADR-034 amendment materially changes its §3 token-file layout and invalidates this ADR's §1 file organization. | The same PR must update this ADR's token and file-organization references. |
 | `light-dark()` fallback block goes stale as browser support universalizes; the fallback becomes dead code. | Quarterly review of browser support; remove fallback when target audience baseline reaches 100% (estimated 12 months). |
 | Bundle budget numbers are forward-looking; first cutover may show real measurements substantially higher or lower. | Numbers tagged "initial budget, revisited at first cutover." Real measurements after cleanup PR set the v1.1 numbers; CI gate enables only after EG-7 verification. |
 | `axe-core` CI gate becomes flaky against dynamic content; PRs blocked for unrelated regressions. | Gate runs against static preview environments only; dynamic content (search results, agent responses) is mocked in test fixtures. Failure threshold is `serious` + `critical` only — `moderate` and `minor` are warnings. |
@@ -301,7 +297,7 @@ Rejected. ADR-034 §1 pins one-brand-two-cognitive-models as a load-bearing cont
 
 ## Implementation
 
-> **Conditional acceptance**: this ADR is Accepted on the contract (§1–§6 above), but the cleanup PR (`feat(ui): apply ADR-035 design-system cleanup contract`), the new token CSS files (`apps/ui/src/styles/globals.css` + `apps/ui/src/styles/tokens/{brand,retailer,builder}.css` + `tokens/CONTRAST.md`), the deletion of legacy configs / components / layouts, and the bundle-budget + axe-core CI workflows are net-new artifacts that MUST land in the same merge train as this ADR's reference work. ADR-033 (PR #978) and ADR-034 (PR #1009) must merge to `main` before the §6 cleanup begins, because §1, §2, §6 file paths assume the `apps/ui/src/` root that ADR-033 introduces and the route-group structure that ADR-034 introduces. Until all of those exist, the design-system contract is advisory; the contract activates only when the cleanup PR ships.
+> **Implementation enforcement**: this ADR is Accepted on the contract (§1–§6 above), but the cleanup PR (`feat(ui): apply ADR-035 design-system cleanup contract`), the new token CSS files (`apps/ui/src/styles/globals.css` + `apps/ui/src/styles/tokens/{brand,retailer,builder}.css` + `tokens/CONTRAST.md`), the deletion of legacy configs / components / layouts, and the bundle-budget + axe-core CI workflows are net-new artifacts that MUST land in the same merge train as this ADR's reference work. Until all of those exist, the design-system contract is advisory; the contract activates only when the cleanup PR ships.
 
 | Component | File / Location | Change | State |
 |---|---|---|---|
@@ -362,8 +358,8 @@ Rejected. ADR-034 §1 pins one-brand-two-cognitive-models as a load-bearing cont
 - [ADR-011 — Next.js 15 with App Router for Frontend (revised by ADR-033 to Next.js 16)](adr-011-nextjs-app-router.md)
 - [ADR-012 — Atomic Design System for Component Library (superseded on naming convention only)](adr-012-atomic-design-system.md)
 - [ADR-018 — Git Branch Naming Convention](adr-018-branch-naming-convention.md)
-- ADR-033 — UI as a Modular Monolith on Static Web Apps (Path 2) — in flight on PR #978 (`docs/improvement-plan-arch-adrs`); link will be added when merged to `main`
-- ADR-034 — Audience-Segmented Information Architecture for the UI — in flight on PR #1009 (`docs/adr-034-audience-segmented-ia`); link will be added when merged to `main`
+- [ADR-033 — UI as a Modular Monolith on Static Web Apps (Path 2)](adr-033-ui-modular-monolith-on-swa.md)
+- [ADR-034 — Audience-Segmented Information Architecture for the UI](adr-034-audience-segmented-ia.md)
 - [Repository purpose canonical statement](../../../.github/instructions/repository-purpose.instructions.md)
 - WCAG 2.2: https://www.w3.org/TR/WCAG22/
 - Tailwind 4 CSS-first `@theme`: https://tailwindcss.com/blog/tailwindcss-v4

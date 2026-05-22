@@ -32,7 +32,7 @@ structure:
     config: lib/src/holiday_peak_lib/config/
     utils: lib/src/holiday_peak_lib/utils/
   crud_service: apps/crud-service/
-  agent_services_count: 21
+  agent_services_count: 26
 
 adrs:
   - id: ADR-003

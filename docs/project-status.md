@@ -48,7 +48,7 @@ merged squash commit on `main`.
 | #1014 | Audience-router foundation (CODEOWNERS, tokens, route groups) | ✅ Closed | Landed in earlier wave. |
 | #1020 | Audience-segmented IA | ✅ Effective closure | Route groups (#1015), dual tokens (#1016), `LaneSwitch` (#1017), per-section SEO + sitemap (#1018), CODEOWNERS 5-second-test (#1019), axe-core CI all in `main`. |
 | #1026 | mkdocs-as-/docs sub-path | ✅ Effective closure | #1021 #1023 #1024 #1025 shipped non-strict in PR #1079; #1022 Pagefind v1 + `?q=` cross-link in PR #1081; `--strict` gate flip in PR #1084 (130 → 0 warnings via the `rewrite_external_links.py` hook + GitHub-style toc slugifier). |
-| #1039 | Deploy-portal one-click preview | 🟡 v1 in PR #1078 | Sub-issues #1027–#1038 scaffolded; real ARM kickoff + SignalR client + production GA gated on third-party / Microsoft Red Team pen-test (#1027). |
+| #1039 | Deploy-portal one-click preview | 🟡 v1 shipped in PR #1078 | Sub-issues #1027–#1038 scaffolded; real ARM kickoff + SignalR client + production GA gated on third-party / Microsoft Red Team pen-test (#1027). |
 | #1046 | Retailer pages | ✅ v1 in PR #1076 | #1040–#1045 shipped. |
 | #1053 | Builder pages | ✅ v1 in PR #1077 | #1047–#1052 shipped. |
 | #1060 | A11y + perf quality gates | ✅ Closed (#1075) | Bundle-budget advisory at v1; flip strict via `vars.MKDOCS_STRICT_BUILD`-style toggle once dependency-trim follow-up lands. |
