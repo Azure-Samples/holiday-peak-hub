@@ -1,21 +1,6 @@
 name: deploy-azd-truth-agents (scoped entrypoint)
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - apps/search-enrichment-agent/**
-      - apps/truth-ingestion/**
-      - apps/truth-enrichment/**
-      - apps/truth-export/**
-      - apps/truth-hitl/**
-      - lib/**
-      - azure.yaml
-      - .infra/**
-      - .kubernetes/**
-      - .github/workflows/deploy-azd.yml
-      - .github/workflows/deploy-azd-truth.yml
   workflow_dispatch:
     inputs:
       location:
@@ -58,7 +43,7 @@ jobs:
     uses: ./.github/workflows/deploy-azd.yml
     with:
       environment: dev
-      githubEnvironment: dev
+      githubEnvironment: branch
       location: ${{ github.event_name == 'workflow_dispatch' && inputs.location || 'centralus' }}
       projectName: ${{ github.event_name == 'workflow_dispatch' && inputs.projectName || 'holidaypeakhub405' }}
       imageTag: ${{ github.event_name == 'workflow_dispatch' && inputs.imageTag || github.sha }}

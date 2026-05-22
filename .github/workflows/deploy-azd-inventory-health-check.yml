@@ -1,17 +1,6 @@
 name: deploy-azd-inventory-health-check (entrypoint)
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - apps/inventory-health-check/**
-      - lib/**
-      - azure.yaml
-      - .infra/**
-      - .kubernetes/**
-      - .github/workflows/deploy-azd.yml
-      - .github/workflows/deploy-azd-inventory-health-check.yml
   workflow_dispatch:
     inputs:
       location:

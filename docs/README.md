@@ -45,9 +45,11 @@ The Python CLI in `.infra/cli.py` is scaffolding-only (`generate-bicep`, `genera
 
 ### Service-scoped deployment wrappers
 
-In addition to the shared environment entrypoints, the repository supports thin service-scoped GitHub workflow wrappers for agent-by-agent deployment operations. These wrappers forward to the reusable azd deployment engine and can target an explicit branch or commit SHA without first merging to `main`.
+In addition to the shared environment entrypoints, the repository supports thin service-scoped GitHub workflow wrappers for explicit agent-by-agent redeploy operations. These wrappers forward to the reusable azd deployment engine and can target an explicit branch or commit SHA without first merging to `main`.
 
-Push-triggered service and UI wrapper runs now use GitHub Environment `branch` as the non-protected deployment context while still targeting the selected Azure environment. Azure federated credentials for these preview paths must trust the environment-scoped OIDC subject for `branch`, not only `ref:refs/heads/*` subjects. This keeps feature-branch validation unblocked without weakening the protected `dev` live-validation boundary or the protected production release path.
+Manually dispatched service-scoped wrapper runs use GitHub Environment `branch` as the non-protected deployment context while still targeting the selected Azure environment. Azure federated credentials for these preview paths must trust the environment-scoped OIDC subject for `branch`, not only `ref:refs/heads/*` subjects. This keeps feature-branch validation unblocked without weakening the protected `dev` live-validation boundary or the protected production release path.
+
+Automatic `main` promotion is handled only by `deploy-azd-dev.yml` after the `test` workflow succeeds. That fan-in path lets the reusable deploy workflow detect and deploy every changed service in one serialized run, avoiding duplicate service-wrapper runs competing for the shared deployment concurrency group.
 
 When a non-prod wrapper run targets a non-default `refs/heads/*` source, the reusable workflow temporarily repoints `GitRepository/holiday-peak-gitops` in `flux-system` to that branch, verifies Flux fetched the preview revision, waits only for the AGC-relevant Flux kustomization to record that preview revision while honoring that live kustomization's configured Flux timeout window, evaluates AGC readiness against the live gateway, and then restores the repository default branch in an always-run cleanup job. This preview-preparation step is intentionally decoupled from unrelated CRUD workload readiness in the wider kustomization; the later AGC readiness gate remains strict.
 When that AGC readiness gate runs, it validates the live shared `ApplicationLoadBalancer/holiday-peak-agc`, confirms Azure traffic-controller health in the AKS node resource group, checks the CRUD-owned `Gateway/holiday-peak-agc` binding contract in `holiday-peak-crud`, verifies shared-Gateway parent attachment for CRUD plus changed-agent `HTTPRoute` resources, and only then enters the direct frontend health loop against the approved AGC hostname.
@@ -639,7 +641,7 @@ python -m .infra.cli deploy_all --location <region> --version <release>
 - [Implementation Roadmap](IMPLEMENTATION_ROADMAP.md) - Current status and next steps
 - [CRUD Service Documentation](architecture/crud-service-implementation.md) - Backend implementation details
 - [Components Documentation](architecture/components.md) - All framework and service components
-- [Frontend Component Library](../apps/ui/components/COMPONENT_README.md) - Component API reference
+- [Frontend Application](../apps/ui/README.md) - UI runbook and quality gates
 - [Playbooks](architecture/playbooks/) - Operational procedures
 
 ### For Architects

@@ -18,9 +18,14 @@ on:
     paths:
       - lib/**
       - apps/**
+      - azure.yaml
+      - .infra/**
+      - .kubernetes/**
       - tests/**
       - pyproject.toml
       - conftest.py
+      - .github/workflows/deploy-azd*.yml
+      - .github/workflows/deploy-ui-swa.yml
       - .github/workflows/test.yml
       - .github/workflows/lint.yml
 
