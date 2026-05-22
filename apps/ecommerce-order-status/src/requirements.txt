@@ -69,7 +69,7 @@ agent-framework-foundry-hosting==1.0.0a260507
     # via ecommerce-order-status
 agent-framework-foundry-local==1.0.0b260409
     # via agent-framework-core
-agent-framework-github-copilot==1.0.0b260409
+agent-framework-github-copilot==1.0.0b260507
     # via agent-framework-core
 agent-framework-hyperlight==1.0.0b260519 ; (python_full_version < '3.14' and platform_machine == 'x86_64' and sys_platform == 'linux') or (python_full_version < '3.14' and platform_machine == 'AMD64' and sys_platform == 'win32')
     # via agent-framework-core
@@ -280,7 +280,7 @@ frozenlist==1.8.0
     #   aiosignal
 furl==2.1.4
     # via azure-functions-durable
-github-copilot-sdk==0.2.1
+github-copilot-sdk==1.0.0b2
     # via agent-framework-github-copilot
 google-api-core==2.30.3
     # via a2a-sdk
