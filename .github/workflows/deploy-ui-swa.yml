@@ -71,6 +71,11 @@ jobs:
               exit 1
             fi
 
+            if [ -n "${{ inputs.sourceSha }}" ] || [ -n "${{ inputs.sourceRef }}" ]; then
+              echo "Manual prod UI deployments must use the workflow ref; sourceSha/sourceRef overrides are not allowed." >&2
+              exit 1
+            fi
+
             if [ "${GITHUB_REF}" != "refs/heads/main" ] && [[ "${GITHUB_REF}" != refs/tags/v* ]]; then
               echo "Manual prod UI deployments must start from main or an approved release tag." >&2
               exit 1

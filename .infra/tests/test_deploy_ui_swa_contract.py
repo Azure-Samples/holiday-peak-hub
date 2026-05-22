@@ -1,28 +1,38 @@
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-WORKFLOW_PATH = ROOT / ".github" / "workflows" / "deploy-ui-swa.yml"
+CORE_WORKFLOW_PATH = ROOT / ".github" / "workflows" / "deploy-azd.yml"
+UI_WORKFLOW_PATH = ROOT / ".github" / "workflows" / "deploy-ui-swa.yml"
 DEPLOY_MARKER = "      - name: Deploy UI to Azure Static Web Apps\n"
 SMOKE_MARKER = "      - name: Smoke test UI host and API health after deploy\n"
+SWA_ACTION = "        uses: Azure/static-web-apps-deploy@v1\n"
+STANDALONE_PACKAGE_COMMANDS = [
+    "app_build_command: >-",
+    "yarn build &&",
+    "mkdir -p .next/standalone/.next",
+    "rm -rf .next/standalone/.next/static .next/standalone/public",
+    "cp -R .next/static .next/standalone/.next/static",
+    "cp -R public .next/standalone/public",
+]
 
 
-def _deploy_block() -> str:
-    content = WORKFLOW_PATH.read_text(encoding="utf-8")
+def _ui_deploy_block() -> str:
+    content = UI_WORKFLOW_PATH.read_text(encoding="utf-8")
     assert content.count(DEPLOY_MARKER) == 1
     return content.split(DEPLOY_MARKER, 1)[1].split(SMOKE_MARKER, 1)[0]
 
 
-def test_swa_next_standalone_build_packages_static_and_public_assets() -> None:
-    block = _deploy_block()
+def _swa_action_blocks(path: Path) -> list[str]:
+    content = path.read_text(encoding="utf-8")
+    blocks = []
+    for block in content.split(SWA_ACTION)[1:]:
+        blocks.append(block.split("\n      - name: ", 1)[0])
+    return blocks
 
-    assert "app_location: apps/ui" in block
-    assert "output_location: ''" in block
-    assert "app_build_command: >-" in block
-    assert "yarn build &&" in block
-    assert "mkdir -p .next/standalone/.next" in block
-    assert "rm -rf .next/standalone/.next/static .next/standalone/public" in block
-    assert "cp -R .next/static .next/standalone/.next/static" in block
-    assert "cp -R public .next/standalone/public" in block
+
+def _assert_standalone_packaging(block: str) -> None:
+    for command in STANDALONE_PACKAGE_COMMANDS:
+        assert command in block
 
     build = block.index("yarn build &&")
     cleanup = block.index("rm -rf .next/standalone/.next/static .next/standalone/public")
@@ -30,3 +40,31 @@ def test_swa_next_standalone_build_packages_static_and_public_assets() -> None:
     copy_public = block.index("cp -R public .next/standalone/public")
 
     assert build < cleanup < copy_static < copy_public
+
+
+def test_swa_next_standalone_build_packages_static_and_public_assets() -> None:
+    block = _ui_deploy_block()
+
+    assert "app_location: apps/ui" in block
+    assert "output_location: ''" in block
+    _assert_standalone_packaging(block)
+
+
+def test_reusable_deploy_workflow_swa_uploads_package_standalone_assets() -> None:
+    blocks = _swa_action_blocks(CORE_WORKFLOW_PATH)
+    assert len(blocks) == 2
+
+    for block in blocks:
+        assert "app_location: apps/ui" in block
+        assert "output_location: ''" in block
+        _assert_standalone_packaging(block)
+
+
+def test_manual_prod_ui_deploy_rejects_source_overrides() -> None:
+    content = UI_WORKFLOW_PATH.read_text(encoding="utf-8")
+
+    assert "Manual prod UI deployments must use the workflow ref" in content
+    assert (
+        'if [ -n "${{ inputs.sourceSha }}" ] || [ -n "${{ inputs.sourceRef }}" ]; then' in content
+    )
+    assert "DEPLOY_SOURCE_CHECKOUT_REF" in content

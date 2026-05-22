@@ -2385,7 +2385,13 @@ jobs:
           app_location: apps/ui
           output_location: ''
           skip_api_build: true
-          app_build_command: yarn install --frozen-lockfile && yarn build
+          app_build_command: >-
+            yarn install --frozen-lockfile &&
+            yarn build &&
+            mkdir -p .next/standalone/.next &&
+            rm -rf .next/standalone/.next/static .next/standalone/public &&
+            cp -R .next/static .next/standalone/.next/static &&
+            cp -R public .next/standalone/public
         env:
           NEXT_PUBLIC_API_URL: ${{ steps.api.outputs.api_url }}
           NEXT_PUBLIC_CRUD_API_URL: ${{ steps.api.outputs.crud_api_url }}
@@ -2610,7 +2616,13 @@ jobs:
           app_location: apps/ui
           output_location: ''
           skip_api_build: true
-          app_build_command: yarn install --frozen-lockfile && yarn build
+          app_build_command: >-
+            yarn install --frozen-lockfile &&
+            yarn build &&
+            mkdir -p .next/standalone/.next &&
+            rm -rf .next/standalone/.next/static .next/standalone/public &&
+            cp -R .next/static .next/standalone/.next/static &&
+            cp -R public .next/standalone/public
         env:
           NEXT_PUBLIC_API_URL: ${{ steps.api.outputs.api_url }}
           NEXT_PUBLIC_CRUD_API_URL: ${{ steps.api.outputs.crud_api_url }}
