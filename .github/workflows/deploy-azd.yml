@@ -157,7 +157,7 @@ jobs:
           TARGET_SHA="${DEPLOY_SOURCE_SHA}"
           echo "Detected deploy source SHA: ${TARGET_SHA}"
           echo "Detected deploy source ref: ${DEPLOY_SOURCE_REF}"
-          git fetch origin "$DEFAULT_BRANCH" --depth=1 || true
+          git fetch origin "$DEFAULT_BRANCH" || true
 
           CHANGED_FILES=""
           DIFF_RANGE=""
@@ -181,9 +181,16 @@ jobs:
           fi
 
           if [ -z "$DIFF_RANGE" ] && [ -n "${{ inputs.sourceSha }}" ] && [ -n "$TARGET_SHA" ] && git cat-file -e "${TARGET_SHA}^{commit}" 2>/dev/null; then
+            if ! git rev-parse --verify "${TARGET_SHA}^1" >/dev/null 2>&1; then
+              echo "Source SHA parent is unavailable; fetching additional default branch history."
+              git fetch origin "$DEFAULT_BRANCH" --deepen=50 || git fetch origin "$DEFAULT_BRANCH" || true
+            fi
+
             if git rev-parse --verify "${TARGET_SHA}^1" >/dev/null 2>&1; then
               DIFF_RANGE="${TARGET_SHA}^1...${TARGET_SHA}"
               DIFF_STRATEGY="source-sha-first-parent-three-dot"
+            else
+              echo "::warning::Source SHA parent for '${TARGET_SHA}' is unavailable; falling back to default branch baseline."
             fi
           fi
 
