@@ -11,4 +11,11 @@ describe('staticwebapp config parity', () => {
 
     expect(publicConfig).toEqual(rootConfig);
   });
+
+  it('does not use navigationFallback for the Next.js hybrid runtime', () => {
+    const rootConfigPath = path.join(process.cwd(), 'staticwebapp.config.json');
+    const rootConfig = JSON.parse(fs.readFileSync(rootConfigPath, 'utf8'));
+
+    expect(rootConfig).not.toHaveProperty('navigationFallback');
+  });
 });
