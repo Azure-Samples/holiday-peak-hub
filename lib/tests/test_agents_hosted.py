@@ -342,11 +342,11 @@ def test_serve_hosted_alias_raises_clear_error_when_sdk_missing(monkeypatch) -> 
 
 
 def test_serve_responses_mounts_responses_routes_when_sdk_present() -> None:
-    pytest.importorskip("agent_framework_foundry_hosting")
     from fastapi import FastAPI
 
     agent = _RecordingAgent()
     app = FastAPI()
+    pytest.importorskip("agent_framework_foundry_hosting")
 
     host_server = agent.serve_responses(app)
 
@@ -361,11 +361,11 @@ def test_serve_responses_mounts_responses_routes_when_sdk_present() -> None:
 
 
 def test_serve_responses_is_idempotent_with_same_prefix_when_sdk_present() -> None:
-    pytest.importorskip("agent_framework_foundry_hosting")
     from fastapi import FastAPI
 
     agent = _RecordingAgent()
     app = FastAPI()
+    pytest.importorskip("agent_framework_foundry_hosting")
 
     first_host_server = agent.serve_responses(app)
     second_host_server = agent.serve_responses(app)
