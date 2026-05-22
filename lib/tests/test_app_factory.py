@@ -1,6 +1,6 @@
-"""Tests for app_factory module."""
-
+import json
 import os
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -67,6 +67,7 @@ def _clear_foundry_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "MODEL_DEPLOYMENT_NAME_RICH",
         "FOUNDRY_STRICT_ENFORCEMENT",
         "HOLIDAY_PEAK_DIRECT_MODEL",
+        "AGENT_EVALUATION_FOUNDRY_ROOT",
     ):
         monkeypatch.delenv(key, raising=False)
 
@@ -88,6 +89,32 @@ def _clear_runtime_dependency_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "HOLIDAY_PEAK_REDIS_CONNECT_TIMEOUT_SECONDS",
     ):
         monkeypatch.delenv(key, raising=False)
+
+
+def _write_eval_fixture(service_root: Path) -> Path:
+    foundry_root = service_root / ".foundry"
+    dataset_dir = foundry_root / "datasets"
+    dataset_dir.mkdir(parents=True)
+    (foundry_root / "eval-config.yaml").write_text(
+        "\n".join(
+            [
+                "schema_version: '1'",
+                "agent_name: test-service",
+                "evaluators:",
+                "  - relevance",
+                "dataset_path: datasets/seed.jsonl",
+                "baseline_id: test-service:baseline",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    case = {
+        "query": "find winter gloves",
+        "expected_behavior": "return relevant winter glove products",
+        "expected_model_tier": "slm",
+    }
+    (dataset_dir / "seed.jsonl").write_text(json.dumps(case), encoding="utf-8")
+    return foundry_root
 
 
 class TestCreateStandardAppRuntimeFlags:
@@ -356,8 +383,33 @@ class TestBuildServiceApp:
         assert "/invoke" in routes
         assert "/invoke/stream" in routes
         assert "/integrations" in routes
+        assert "/agent/evaluation/run" in routes
+        assert "/agent/evaluation/history" in routes
         assert "/mcp/tool_descriptions" in routes
         assert retired_route not in routes
+
+    def test_build_app_discovers_per_service_evaluation_config(
+        self,
+        mock_hot_memory,
+        mock_warm_memory,
+        mock_cold_memory,
+        monkeypatch,
+        tmp_path: Path,
+    ):
+        _clear_foundry_env(monkeypatch)
+        _write_eval_fixture(tmp_path / "apps" / "test-service")
+        monkeypatch.chdir(tmp_path)
+
+        app = build_service_app(
+            service_name="test-service",
+            agent_class=SampleServiceAgent,
+            hot_memory=mock_hot_memory,
+            warm_memory=mock_warm_memory,
+            cold_memory=mock_cold_memory,
+        )
+
+        assert app.state.evaluation_runner is not None
+        assert app.state.evaluation_runner.config.agent_name == "test-service"
 
     def test_app_exposes_built_agent_on_state(
         self, mock_hot_memory, mock_warm_memory, mock_cold_memory, monkeypatch

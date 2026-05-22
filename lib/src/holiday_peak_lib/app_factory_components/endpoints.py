@@ -10,6 +10,11 @@ from typing import Any
 from fastapi import FastAPI, HTTPException
 from holiday_peak_lib.agents.orchestration.router import RoutingStrategy
 from holiday_peak_lib.connectors.registry import ConnectorRegistry
+from holiday_peak_lib.evaluation import (
+    ConfiguredEvaluationRunner,
+    DriftDetector,
+    EvaluationDriftSignal,
+)
 from holiday_peak_lib.self_healing import FailureSignal, SelfHealingKernel, SurfaceType
 from holiday_peak_lib.utils import get_tracer
 from holiday_peak_lib.utils.logging import log_async_operation
@@ -37,6 +42,9 @@ class EndpointContext:
     requires_foundry_runtime_resolution: Callable[[], bool]
     foundry_capabilities: Callable[[], dict[str, Any]]
     self_healing_kernel: SelfHealingKernel | None = field(default=None)
+    evaluation_runner_provider: Callable[[], ConfiguredEvaluationRunner | None] | None = field(
+        default=None
+    )
     prompt_catalog_provider: Callable[[], list[dict[str, Any]]] | None = field(default=None)
     mcp_tool_descriptions_provider: Callable[[], list[dict[str, Any]]] | None = field(default=None)
 
@@ -66,6 +74,7 @@ def register_standard_endpoints(
     requires_foundry_runtime_resolution: Callable[[], bool] | None = None,
     foundry_capabilities: Callable[[], dict[str, Any]] | None = None,
     self_healing_kernel: SelfHealingKernel | None = None,
+    evaluation_runner_provider: Callable[[], ConfiguredEvaluationRunner | None] | None = None,
     prompt_catalog_provider: Callable[[], list[dict[str, Any]]] | None = None,
     mcp_tool_descriptions_provider: Callable[[], list[dict[str, Any]]] | None = None,
 ) -> None:
@@ -91,8 +100,24 @@ def register_standard_endpoints(
         requires_foundry_runtime_resolution = ctx.requires_foundry_runtime_resolution
         foundry_capabilities = ctx.foundry_capabilities
         self_healing_kernel = ctx.self_healing_kernel
+        evaluation_runner_provider = ctx.evaluation_runner_provider
         prompt_catalog_provider = ctx.prompt_catalog_provider
         mcp_tool_descriptions_provider = ctx.mcp_tool_descriptions_provider
+
+    evaluation_history: list[dict[str, Any]] = []
+    drift_detectors: dict[str, DriftDetector] = {}
+
+    def _evaluation_config_error() -> HTTPException:
+        return HTTPException(
+            status_code=422,
+            detail={
+                "code": "evaluation_config_not_available",
+                "service": service_name,
+                "message": (
+                    "No per-service .foundry/eval-config.yaml was discovered for this app."
+                ),
+            },
+        )
 
     def _log_info(message: str, extra: dict[str, Any] | None = None) -> None:
         _log_with_level("info", message, extra=extra)
@@ -531,6 +556,58 @@ def register_standard_endpoints(
         return {
             "service": service_name,
             "latest": latest,
+        }
+
+    @app.post("/agent/evaluation/run")
+    async def agent_evaluation_run(payload: dict | None = None) -> dict[str, Any]:
+        runner = evaluation_runner_provider() if callable(evaluation_runner_provider) else None
+        if runner is None:
+            raise _evaluation_config_error()
+
+        body = payload if isinstance(payload, dict) else {}
+        run_name = str(body.get("run_name") or f"{service_name}-on-demand")
+        result = await runner.run(run_name=run_name)
+        result_payload = result.model_dump()
+
+        baseline = runner.loader.load_baseline(runner.config)
+        detector = drift_detectors.setdefault(
+            runner.config.agent_name,
+            DriftDetector(runner.config),
+        )
+        drift_report = detector.detect(result, baseline=baseline, run_name=run_name)
+        if drift_report is not None:
+            result_payload["drift_report"] = drift_report.model_dump(mode="json")
+            if self_healing_kernel is not None and self_healing_kernel.enabled:
+                await self_healing_kernel.handle_failure_signal(
+                    EvaluationDriftSignal.from_report(drift_report)
+                )
+
+        evaluation_history.append(result_payload)
+        try:
+            tracer.record_evaluation(result_payload)
+        except (AttributeError, TypeError):
+            pass
+        return {
+            "service": service_name,
+            "result": result_payload,
+        }
+
+    @app.get("/agent/evaluation/history")
+    async def agent_evaluation_history(page: int = 1, page_size: int = 25) -> dict[str, Any]:
+        runner = evaluation_runner_provider() if callable(evaluation_runner_provider) else None
+        if runner is None:
+            raise _evaluation_config_error()
+
+        normalized_page = max(1, page)
+        normalized_page_size = min(max(1, page_size), 100)
+        start = (normalized_page - 1) * normalized_page_size
+        end = start + normalized_page_size
+        return {
+            "service": service_name,
+            "page": normalized_page,
+            "page_size": normalized_page_size,
+            "total": len(evaluation_history),
+            "items": evaluation_history[start:end],
         }
 
     @app.get("/mcp/tool_descriptions")

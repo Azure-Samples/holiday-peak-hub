@@ -1,0 +1,218 @@
+name: agent-eval-advisory
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+on:
+  workflow_dispatch:
+    inputs:
+      agent:
+        description: Pilot agent to evaluate
+        type: choice
+        required: true
+        default: all
+        options:
+          - all
+          - ecommerce-catalog-search
+          - search-enrichment-agent
+          - truth-enrichment
+  pull_request:
+    branches:
+      - main
+    paths:
+      - apps/ecommerce-catalog-search/.foundry/**
+      - apps/ecommerce-catalog-search/prompts/**
+      - apps/ecommerce-catalog-search/src/**
+      - apps/search-enrichment-agent/.foundry/**
+      - apps/search-enrichment-agent/prompts/**
+      - apps/search-enrichment-agent/src/**
+      - apps/truth-enrichment/.foundry/**
+      - apps/truth-enrichment/prompts/**
+      - apps/truth-enrichment/src/**
+      - lib/src/holiday_peak_lib/evaluation/**
+      - scripts/ci/run_agent_evaluation.py
+      - .github/workflows/eval-advisory.yml
+  push:
+    branches:
+      - main
+    paths:
+      - apps/ecommerce-catalog-search/.foundry/**
+      - apps/ecommerce-catalog-search/prompts/**
+      - apps/ecommerce-catalog-search/src/**
+      - apps/search-enrichment-agent/.foundry/**
+      - apps/search-enrichment-agent/prompts/**
+      - apps/search-enrichment-agent/src/**
+      - apps/truth-enrichment/.foundry/**
+      - apps/truth-enrichment/prompts/**
+      - apps/truth-enrichment/src/**
+      - lib/src/holiday_peak_lib/evaluation/**
+      - scripts/ci/run_agent_evaluation.py
+      - .github/workflows/eval-advisory.yml
+
+jobs:
+  discover-agents:
+    name: discover pilot eval scope
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.discover.outputs.matrix }}
+      has-agents: ${{ steps.discover.outputs.has-agents }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Build changed-agent matrix
+        id: discover
+        env:
+          SELECTED_AGENT: ${{ inputs.agent || 'all' }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import subprocess
+
+          pilots = {
+              "ecommerce-catalog-search": "apps/ecommerce-catalog-search",
+              "search-enrichment-agent": "apps/search-enrichment-agent",
+              "truth-enrichment": "apps/truth-enrichment",
+          }
+          shared_paths = (
+              "lib/src/holiday_peak_lib/evaluation/",
+              "scripts/ci/run_agent_evaluation.py",
+              ".github/workflows/eval-advisory.yml",
+          )
+          service_suffixes = ("/.foundry/", "/prompts/", "/src/")
+
+          def all_pilots():
+              return list(pilots)
+
+          def changed_files():
+              base_sha = os.environ.get("BASE_SHA") or ""
+              head_sha = os.environ.get("HEAD_SHA") or ""
+              if not base_sha or not head_sha or set(base_sha) == {"0"}:
+                  return None
+              try:
+                  output = subprocess.check_output(
+                      ["git", "diff", "--name-only", base_sha, head_sha],
+                      text=True,
+                  )
+              except subprocess.CalledProcessError:
+                  return None
+              return [line.strip() for line in output.splitlines() if line.strip()]
+
+          selected = os.environ.get("SELECTED_AGENT", "all")
+          if os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch":
+              names = all_pilots() if selected == "all" else [selected]
+          else:
+              files = changed_files()
+              if files is None or any(
+                  path == shared or path.startswith(shared)
+                  for path in files
+                  for shared in shared_paths
+              ):
+                  names = all_pilots()
+              else:
+                  names = []
+                  for name, root in pilots.items():
+                      if any(
+                          path.startswith(f"{root}{suffix}")
+                          for path in files
+                          for suffix in service_suffixes
+                      ):
+                          names.append(name)
+
+          include = [{"name": name, "root": pilots[name]} for name in names if name in pilots]
+          matrix = json.dumps({"include": include}, separators=(",", ":"))
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              print(f"matrix={matrix}", file=output)
+              print(f"has-agents={str(bool(include)).lower()}", file=output)
+          PY
+
+  evaluate:
+    name: advisory eval (${{ matrix.name }})
+    if: needs.discover-agents.outputs.has-agents == 'true'
+    needs: discover-agents
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.discover-agents.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+      - name: Install evaluation runtime
+        run: |
+          uv pip install --system -e ./lib/src
+      - name: Run advisory evaluation
+        env:
+          RESULT_PATH: .foundry-results/${{ matrix.name }}.json
+          LOG_PATH: .foundry-results/${{ matrix.name }}.log
+          RUN_NAME: ${{ github.event.pull_request.number && format('pr-{0}-{1}', github.event.pull_request.number, matrix.name) || format('{0}-{1}', github.run_id, matrix.name) }}
+        run: |
+          mkdir -p .foundry-results
+          python scripts/ci/run_agent_evaluation.py \
+            --agent-root "${{ matrix.root }}" \
+            --run-name "$RUN_NAME" \
+            --write-result "$RESULT_PATH" \
+            > "$LOG_PATH"
+      - name: Add evaluation job summary
+        if: always()
+        env:
+          AGENT_NAME: ${{ matrix.name }}
+          RESULT_PATH: .foundry-results/${{ matrix.name }}.json
+          LOG_PATH: .foundry-results/${{ matrix.name }}.log
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          agent_name = os.environ["AGENT_NAME"]
+          result_path = Path(os.environ["RESULT_PATH"])
+          log_path = Path(os.environ["LOG_PATH"])
+          summary_path = Path(os.environ["GITHUB_STEP_SUMMARY"])
+
+          lines = [f"### Advisory agent evaluation: {agent_name}", ""]
+          if result_path.exists():
+              payload = json.loads(result_path.read_text(encoding="utf-8"))
+              details = payload.get("details") or {}
+              lines.extend(
+                  [
+                      "| Field | Value |",
+                      "| --- | --- |",
+                      f"| status | {payload.get('status', 'unknown')} |",
+                      f"| backend | {payload.get('backend', 'unknown')} |",
+                      f"| eval.score | {payload.get('eval.score', 'n/a')} |",
+                      f"| drift_detected | {payload.get('drift_detected', False)} |",
+                      f"| case_count | {details.get('case_count', 'n/a')} |",
+                      "",
+                  ]
+              )
+          else:
+              lines.append("No normalized evaluation JSON was produced.")
+              lines.append("")
+          if log_path.exists():
+              lines.append(f"Log artifact path: `{log_path.as_posix()}`")
+              lines.append("")
+
+          with summary_path.open("a", encoding="utf-8") as summary:
+              summary.write("\n".join(lines))
+          PY
+      - name: Upload evaluation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-${{ matrix.name }}
+          path: |
+            .foundry-results/${{ matrix.name }}.json
+            .foundry-results/${{ matrix.name }}.log
+          if-no-files-found: warn

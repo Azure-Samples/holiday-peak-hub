@@ -33,6 +33,7 @@ This document indexes all architectural decisions for the Holiday Peak Hub accel
 | [ADR-025](adrs/adr-025-self-healing-boundaries.md) | Self-Healing Boundaries, Risk Tiers, and Prohibited Actions | Accepted | 2026-04 |
 | [ADR-026](adrs/adr-026-namespace-isolation-strategy.md) | Namespace Isolation Strategy (CRUD vs Agent Namespaces) | Accepted | 2026-04 |
 | [ADR-027](adrs/adr-027-api-center-apim-mcp-strategy.md) | API Center + APIM MCP Strategy | Accepted | 2026-04 |
+| [ADR-028](adrs/adr-028-continuous-agent-evaluation.md) | Continuous Agent Evaluation Engine | Accepted | 2026-05 |
 | [ADR-029](adrs/adr-029-agc-weighted-canary-policy.md) | AGC Weighted Canary Policy with Automatic Rollback | Accepted | 2026-05 |
 | [ADR-030](adrs/adr-030-mcp-only-a2a.md) | MCP-Only Agent-to-Agent Communication with Hop Counter | Accepted | 2026-05 |
 | [ADR-031](adrs/adr-031-otel-span-attributes-contract.md) | OTEL Span Attributes Contract for Retail Agents | Accepted | 2026-05 |
@@ -41,8 +42,6 @@ This document indexes all architectural decisions for the Holiday Peak Hub accel
 | [ADR-034](adrs/adr-034-audience-segmented-ia.md) | Audience-Segmented Information Architecture for the UI | Accepted (Extends ADR-033) | 2026-05 |
 | [ADR-035](adrs/adr-035-ui-design-system.md) | UI Design System Contract: Tokens, Components, CSS, Quality Gates | Accepted (Extends ADR-033 + ADR-034) | 2026-05 |
 | [ADR-036](adrs/adr-036-foundry-agent-surface-taxonomy.md) | Foundry Agent Surface Taxonomy | Accepted | 2026-05 |
-
-> ADR-028 (Continuous Agent Evaluation) is in flight on PR #974; once merged, it will be inserted at its sequential position above. ADRs 029, 030, 031 forward-reference ADR-028 and reference specific eval attribute keys (`eval.score`, `eval.baseline_id`, `baselineSource: continuous-eval`); those keys are subject to ADR-028's final schema and will be reconciled in lock-step on PR #974 merge.
 
 ## How to Use ADRs
 
@@ -85,6 +84,7 @@ Each ADR follows a standard template:
 ### Agent & AI
 - Microsoft Agent Framework with Azure AI Foundry ([ADR-005](adrs/adr-005-agent-framework.md))
 - SLM-first routing for cost optimization ([ADR-010](adrs/adr-010-model-routing.md))
+- Continuous agent evaluation with Foundry SDK and local fallback ([ADR-028](adrs/adr-028-continuous-agent-evaluation.md))
 - Foundry Hosted/Custom Agent exposure taxonomy ([ADR-036](adrs/adr-036-foundry-agent-surface-taxonomy.md))
 
 ### Memory & State

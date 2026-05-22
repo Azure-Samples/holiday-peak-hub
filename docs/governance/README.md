@@ -110,6 +110,7 @@ Detailed policy is defined in [Infrastructure Governance](infrastructure-governa
 
 - Required checks should be limited to `lint` and `test` in strict mode to reduce merge queue pressure while preserving core quality gates.
 - Additional workflows (for example CodeQL and non-blocking governance audits) remain recommended but should not be configured as required merge checks unless explicitly approved.
+- `agent-eval-advisory` is a non-required ADR-028 pilot workflow; it publishes evaluation artifacts and job summaries only, and must remain advisory until branch-protection policy is explicitly revised.
 - `protected-dev-live-agent-readiness` is an operational workflow with privileged environment access and must not be configured as a required PR or merge-queue check.
 
 ## Verification Procedure (PR-only governance)
