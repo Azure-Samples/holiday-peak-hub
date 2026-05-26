@@ -11,7 +11,6 @@ from holiday_peak_lib.agents.base_agent import AgentDependencies
 from holiday_peak_lib.agents.fastapi_mcp import FastAPIMCPServer
 from holiday_peak_lib.agents.memory import (
     CacheConfig,
-    inject_session_id,
     resolve_cache_key,
     try_cache_read,
 )
@@ -26,6 +25,7 @@ from holiday_peak_lib.utils.telemetry import get_foundry_tracer
 
 from .adapters import SearchEnrichmentAdapters, build_search_enrichment_adapters
 from .enrichment_engine import SearchEnrichmentEngine
+from .fabric_search_ingestion import register_fabric_search_ingestion_tools
 
 _API_LIVENESS_DECISION = "liveness.api.invoke"
 
@@ -149,11 +149,12 @@ class SearchEnrichmentOrchestrator:
                 return strategy, fields, False
             # Model invocation worked but returned fallback
             return "simple", simple_fields, result.get("_status") == "fallback"
-        except Exception:
+        # pylint: disable=broad-exception-caught
+        except Exception:  # noqa: BLE001
             # Graceful degradation: if agentic path fails, use deterministic
             return "simple", simple_fields, True
 
-    def _build_enrichment_tools(self, entity_id: str, approved: dict[str, Any]) -> dict[str, Any]:
+    def _build_enrichment_tools(self, _entity_id: str, _approved: dict[str, Any]) -> dict[str, Any]:
         """Build tool definitions for model-orchestrated enrichment."""
         return {
             "generate_simple_fields": {
@@ -465,6 +466,7 @@ def register_mcp_tools(mcp: FastAPIMCPServer, agent: BaseRetailAgent) -> None:
         ),
     )
     _register_ai_search_tools(mcp)
+    register_fabric_search_ingestion_tools(mcp)
 
 
 def _register_ai_search_tools(mcp: FastAPIMCPServer) -> None:
