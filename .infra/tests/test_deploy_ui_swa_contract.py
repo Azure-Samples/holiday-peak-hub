@@ -1,8 +1,11 @@
 from pathlib import Path
+import json
 
 ROOT = Path(__file__).resolve().parents[2]
 CORE_WORKFLOW_PATH = ROOT / ".github" / "workflows" / "deploy-azd.yml"
 UI_WORKFLOW_PATH = ROOT / ".github" / "workflows" / "deploy-ui-swa.yml"
+UI_SWA_CONFIG_PATH = ROOT / "apps" / "ui" / "staticwebapp.config.json"
+UI_PUBLIC_SWA_CONFIG_PATH = ROOT / "apps" / "ui" / "public" / "staticwebapp.config.json"
 DEPLOY_MARKER = "      - name: Deploy UI to Azure Static Web Apps\n"
 SMOKE_MARKER = "      - name: Smoke test UI host and API health after deploy\n"
 SWA_ACTION = "        uses: Azure/static-web-apps-deploy@v1\n"
@@ -68,3 +71,17 @@ def test_manual_prod_ui_deploy_rejects_source_overrides() -> None:
         'if [ -n "${{ inputs.sourceSha }}" ] || [ -n "${{ inputs.sourceRef }}" ]; then' in content
     )
     assert "DEPLOY_SOURCE_CHECKOUT_REF" in content
+
+
+def test_swa_hybrid_config_omits_navigation_fallback() -> None:
+    root_config = json.loads(UI_SWA_CONFIG_PATH.read_text(encoding="utf-8"))
+    public_config = json.loads(UI_PUBLIC_SWA_CONFIG_PATH.read_text(encoding="utf-8"))
+
+    assert public_config == root_config
+    assert "navigationFallback" not in root_config
+    assert root_config["routes"] == [
+        {
+            "route": "/docs/*",
+            "headers": {"cache-control": "public, max-age=600"},
+        }
+    ]
