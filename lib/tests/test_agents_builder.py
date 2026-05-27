@@ -1,14 +1,17 @@
 """Tests for agent builder."""
 
+# pylint: disable=redefined-outer-name
+
 from unittest.mock import Mock
 
 import pytest
-from holiday_peak_lib.agents.base_agent import BaseRetailAgent, ModelTarget
+from holiday_peak_lib.agents.base_agent import AgentDependencies, BaseRetailAgent, ModelTarget
 from holiday_peak_lib.agents.builder import AgentBuilder
 from holiday_peak_lib.agents.memory.cold import ColdMemory
 from holiday_peak_lib.agents.memory.hot import HotMemory
 from holiday_peak_lib.agents.memory.warm import WarmMemory
 from holiday_peak_lib.agents.orchestration.router import RoutingStrategy
+from holiday_peak_lib.evaluation.models import EvalConfig
 
 
 class SampleAgent(BaseRetailAgent):
@@ -22,7 +25,7 @@ class SampleAgent(BaseRetailAgent):
 def model_invoker():
     """Mock model invoker."""
 
-    async def invoker(**kwargs):
+    async def invoker(**_kwargs):
         return {"response": "test"}
 
     return invoker
@@ -86,7 +89,10 @@ class SampleAgentBuilder:
     def test_with_tool(self):
         """Test adding a single tool."""
         builder = AgentBuilder()
-        handler = lambda x: x
+
+        def handler(value):
+            return value
+
         result = builder.with_tool("test_tool", handler)
         assert result is builder
 
@@ -178,10 +184,31 @@ class SampleAgentBuilder:
 class TestBuilderChaining:
     """Test builder method chaining."""
 
+    def test_with_evaluation_returns_builder_and_passes_config(self, model_invoker):
+        """Test fluent evaluation configuration on the built agent."""
+        slm = ModelTarget(name="slm", model="test", invoker=model_invoker)
+        evaluation_config = EvalConfig(agent_name="sample-agent")
+
+        builder = AgentBuilder()
+        result = builder.with_evaluation(evaluation_config)
+        agent = builder.with_agent(SampleAgent).with_models(slm=slm).build()
+
+        assert result is builder
+        assert agent.evaluation_config == evaluation_config
+
+    def test_agent_dependencies_exposes_evaluation_config(self):
+        """Test direct access to evaluation config on AgentDependencies."""
+        evaluation_config = EvalConfig(agent_name="sample-agent")
+
+        deps = AgentDependencies(evaluation_config=evaluation_config)
+
+        assert deps.evaluation_config == evaluation_config
+
     def test_chain_all_methods(self, model_invoker):
         """Test chaining all builder methods."""
         slm = ModelTarget(name="slm", model="test", invoker=model_invoker)
         router = RoutingStrategy()
+        evaluation_config = EvalConfig(agent_name="sample-agent")
 
         builder = AgentBuilder()
         agent = (
@@ -189,12 +216,14 @@ class TestBuilderChaining:
             .with_router(router)
             .with_tool("tool1", lambda x: x)
             .with_tools({"tool2": lambda y: y})
+            .with_evaluation(evaluation_config)
             .with_models(slm=slm)
             .build()
         )
 
         assert isinstance(agent, SampleAgent)
         assert len(agent.tools) == 2
+        assert agent.evaluation_config == evaluation_config
 
     def test_order_independence(self, model_invoker):
         """Test that method call order doesn't matter."""
