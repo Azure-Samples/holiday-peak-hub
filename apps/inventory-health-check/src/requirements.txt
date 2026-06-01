@@ -573,7 +573,7 @@ pyasn1-modules==0.4.2
     # via google-auth
 pycparser==3.0 ; (python_full_version < '3.14' and implementation_name != 'PyPy') or (implementation_name != 'PyPy' and platform_python_implementation != 'PyPy')
     # via cffi
-pydantic==2.12.5
+pydantic==2.13.4
     # via
     #   a2a-sdk
     #   ag-ui-protocol
