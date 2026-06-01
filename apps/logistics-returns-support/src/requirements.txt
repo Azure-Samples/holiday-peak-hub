@@ -753,7 +753,7 @@ urllib3==2.7.0
     #   qdrant-client
     #   requests
     #   types-requests
-uvicorn==0.44.0
+uvicorn==0.48.0
     # via
     #   agent-framework-ag-ui
     #   agent-framework-devui
