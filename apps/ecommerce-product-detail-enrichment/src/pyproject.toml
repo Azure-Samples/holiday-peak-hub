@@ -13,7 +13,7 @@ dependencies = [
     "pydantic>=2",
     "agent-framework>=1.0.1",
     "agent-framework-foundry-hosting==1.0.0a260507",
-    "azure-ai-projects>=2.0.1",
+    "azure-ai-projects>=2.2.0",
     "azure-identity",
     "azure-search-documents",
     "azure-cosmos",
