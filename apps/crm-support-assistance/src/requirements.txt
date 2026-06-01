@@ -141,7 +141,7 @@ azure-ai-agentserver-responses==1.0.0b5
     # via agent-framework-foundry-hosting
 azure-ai-inference==1.0.0b9
     # via agent-framework-foundry
-azure-ai-projects==2.0.1
+azure-ai-projects==2.2.0
     # via
     #   agent-framework-foundry
     #   crm-support-assistance
