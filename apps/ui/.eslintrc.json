@@ -58,6 +58,28 @@
       {
         "allow": ["warn", "error"]
       }
+    ],
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "group": [
+              "../features/*/*",
+              "!../features/*/index",
+              "!../features/*/index.ts",
+              "!../features/*/index.tsx",
+              "@/src/features/*/*",
+              "!@/src/features/*/index",
+              "!@/src/features/*/index.ts",
+              "!@/src/features/*/index.tsx",
+              "../features/*/internal/*",
+              "@/src/features/*/internal/*"
+            ],
+            "message": "Cross-feature deep imports are rejected. Import features only via their public index.ts."
+          }
+        ]
+      }
     ]
   },
   "overrides": [
