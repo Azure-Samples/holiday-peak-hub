@@ -125,6 +125,14 @@ The 2026-04-28 policy mandated that every LLM call route through a portal-manage
 - **Foundry surface taxonomy:** ADR-036 classifies public or human-facing agents as Hosted Agent surfaces and non-public internal agents as Custom Agent proxy surfaces. This classification is an exposure policy only; it does not replace the MAF direct-model runtime, the single FastAPI app constraint, or the AKS/APIM/AGC product traffic path.
 - No `ChatCompletionsClient`, `openai.ChatCompletion`, `AzureOpenAI`, or `responses.create()` calls permitted in application code outside the MAF `ChatClient` boundary.
 
+## Evaluation Integration (Amended: 2026-04)
+
+ADR-028 extends this ADR by making continuous evaluation a first-class lifecycle concern of the shared agent framework. The MAF + Foundry integration covers model invocation, telemetry, and the reusable evaluation contract: per-service `.foundry/eval-config.yaml` files, versioned JSONL datasets, `ConfiguredEvaluationRunner`, `EvaluationRunResult`, `DriftReport`, and `EvaluationResultEvent`.
+
+This amendment does **not** resurrect the retired portal-managed Foundry Agent runtime. Production model calls still use the MAF direct-model path through `DirectModelInvoker` and `agent_framework.Agent` over a pluggable `ChatClient`. Foundry remains the model-deployment, telemetry, and evaluation surface, while local deterministic scoring remains the fallback evaluation strategy when Foundry evaluation dependencies or credentials are unavailable.
+
+Architecturally, this keeps the framework/product split intact: `lib/holiday_peak_lib/evaluation` owns the reusable evaluation contracts and Strategy-pattern backend selection, while `apps/*/.foundry` owns product-grade per-agent datasets, baselines, and quality thresholds. Evaluation evidence may inform governance and manual escalation, but it cannot bypass PR review, deploy workflows, or the single FastAPI app / AKS product-runtime guardrails above.
+
 ## Consequences
 
 **Positive (2026-05-10 direction)**: Provider-agnostic chat-client surface; image-owned prompt/model/tool lifecycle (no portal drift); native function-calling fidelity; deletion of JSON-text tool-call parser; 2–5s per-request latency reclaimed; single architecture across all 26 agent services.
@@ -137,4 +145,5 @@ The 2026-04-28 policy mandated that every LLM call route through a portal-manage
 - [ADR-004: FastAPI with Dual REST + MCP](adr-004-fastapi-mcp.md)
 - [ADR-010: SLM-First Model Routing](adr-010-model-routing.md)
 - [ADR-024: Agent Communication Policy](adr-024-agent-communication-policy.md)
+- [ADR-028: Continuous Agent Evaluation Engine](adr-028-continuous-agent-evaluation.md)
 - [ADR-036: Foundry Agent Surface Taxonomy](adr-036-foundry-agent-surface-taxonomy.md)

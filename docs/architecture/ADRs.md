@@ -87,6 +87,21 @@ Each ADR follows a standard template:
 - Continuous agent evaluation with Foundry SDK and local fallback ([ADR-028](adrs/adr-028-continuous-agent-evaluation.md))
 - Foundry Hosted/Custom Agent exposure taxonomy ([ADR-036](adrs/adr-036-foundry-agent-surface-taxonomy.md))
 
+#### Evaluation Engine Cross-References (Amended: 2026-04)
+
+ADR-028 is the source of truth for the continuous evaluation engine. Its accepted contract amends and depends on these current ADRs:
+
+| Concern | Current ADR | Evaluation relationship |
+|---------|-------------|-------------------------|
+| Framework runtime and Foundry/MAF integration | [ADR-005](adrs/adr-005-agent-framework.md) | Evaluation lifecycle uses the direct-model MAF runtime and Foundry/local evaluator strategies without restoring portal-agent runtime |
+| SLM/LLM routing quality governance | [ADR-010](adrs/adr-010-model-routing.md) | Datasets validate `expected_model_tier` and evaluate SLM and LLM paths independently |
+| CI/CD and deployment evidence | [ADR-017](adrs/adr-017-deployment-strategy.md) | `.github/workflows/eval-advisory.yml` (`agent-eval-advisory`) publishes advisory evaluation artifacts for PR review |
+| Async evaluation evidence channel | [ADR-024](adrs/adr-024-agent-communication-policy.md) | `agent-evaluation-results` uses `EvaluationResultEvent` without changing MCP-only A2A rules |
+| Quality-drift escalation | [ADR-025](adrs/adr-025-self-healing-boundaries.md) | `SurfaceType.EVALUATION` and `QUALITY_DRIFT` incidents are T3 manual-only |
+| Saga/event compatibility | [ADR-006](adrs/adr-006-saga-choreography.md) | Event Hub topic evolution rules apply to evaluation result events |
+
+Stale issue references to non-existent ADR-037 or ADR-038 are reconciled to the current accepted ADRs above; this index must not cite ADR-038 as an existing decision.
+
 ### Memory & State
 - Memory architecture: three-tier, builder, partitioning, and namespace isolation ([ADR-007](adrs/adr-007-memory-tiers.md))
 - Microsoft Agent Framework for standardization ([ADR-005](adrs/adr-005-agent-framework.md))

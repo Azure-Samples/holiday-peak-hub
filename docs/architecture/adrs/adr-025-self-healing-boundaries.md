@@ -52,6 +52,29 @@ Enforcement: The `_FORBIDDEN_ACTION_TOKENS` set in `SelfHealingKernel._assert_ac
 | Compensation failure | **Never auto-remediate** — escalate immediately (compensation failures indicate logic errors, not surface misconfig) |
 | Unknown surface / unclassified | Escalate — no autonomous action permitted |
 
+### 3a. Evaluation Surface and Quality Drift (Amended: 2026-04)
+
+ADR-028 adds `SurfaceType.EVALUATION` as a governed self-healing input surface for continuous evaluation drift. Evaluation drift is represented by `EvaluationDriftSignal`, classified as `IncidentClass.QUALITY_DRIFT`, and always treated as **T3 manual-only**.
+
+The self-healing kernel may detect, classify, audit, and escalate evaluation incidents, but it must not execute autonomous remediation for them. `SurfaceType.EVALUATION` is intentionally absent from the autonomous surface action plan; a `QUALITY_DRIFT` incident transitions directly to escalation with `reason: quality_drift_manual_review_required`.
+
+Evaluation-specific escalation metadata must preserve enough evidence for human review:
+
+| Field | Purpose |
+|-------|---------|
+| `severity` | Drift severity, such as `warning` or `critical` |
+| `breached_thresholds` | Threshold names that failed for the run |
+| `drift_metrics` | Delta or drift-specific measurements |
+| `current_metrics` | Metrics from the current evaluation run |
+| `baseline_metrics` | Metrics from the comparison baseline |
+| `baseline_id` | Stable baseline identifier for traceability |
+| `baselineSource` | Expected to be `continuous-eval` for ADR-028 results |
+| `run_name` | Evaluation run identifier |
+| `detected_at` | Timestamp of drift detection |
+| `consecutive_failures` | Consecutive breach count used for noise control |
+
+This amendment is additive to the safety guarantees above. Quality drift never authorizes autonomous prompt edits, model-tier changes, model deployment changes, code redeploys, image rollbacks, dataset rewrites, or branch-protection changes. Human operators must use the normal PR, evaluation, and deployment governance paths to correct the underlying prompt, dataset, model, code, or threshold issue.
+
 ### 4. Escalation Policy and Incident Severity Mapping
 
 | Incident outcome | Escalation action |
@@ -123,6 +146,7 @@ DETECTED → CLASSIFIED → REMEDIATING → VERIFIED → CLOSED
 - `holiday_peak_lib.self_healing.manifest` — surface contract loader
 - [ADR-019](adr-019-enterprise-resilience-patterns.md) — Enterprise resilience patterns
 - [ADR-021](adr-021-apim-agc-edge.md) — APIM + AGC edge architecture
+- [ADR-028](adr-028-continuous-agent-evaluation.md) — Continuous Agent Evaluation Engine
 - [Self-Healing RBAC Matrix](../../governance/self-healing-rbac-matrix.md) — RBAC roles and security controls
 - [Self-Healing Rollout Runbook](../../governance/self-healing-rollout-runbook.md) — Rollout milestones and operator procedures
 - Epic #657 — Autonomous Agent Surface Self-Healing
