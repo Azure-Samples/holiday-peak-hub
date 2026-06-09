@@ -1,6 +1,108 @@
 name: agent-eval-continuous
 
 permissions:
+  contents: read
+  issues: write
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      agent:
+        description: Optional single agent to run (all or agent name)
+        required: false
+        default: ''
+      dry_run:
+        description: Do not create issues (true/false)
+        required: false
+        default: 'false'
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.discover.outputs.matrix }}
+      has-agents: ${{ steps.discover.outputs.has-agents }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: discover
+        name: Build agent matrix
+        run: |
+          python - <<'PY'
+          import json, glob, os
+          selected = os.environ.get('GITHUB_EVENT_INPUTS_AGENT','') or os.environ.get('INPUTS_AGENT','') or os.environ.get('AGENT','')
+          pattern = 'apps/*/.foundry/eval-config.yaml'
+          pilots = []
+          for p in glob.glob(pattern):
+              root = p.replace('/.foundry/eval-config.yaml','')
+              name = root.split('/')[-1]
+              pilots.append({'name': name, 'root': root})
+          if selected:
+              pilots = [p for p in pilots if p['name'] == selected]
+          matrix = json.dumps({'include': pilots}, separators=(',',':'))
+          with open(os.environ['GITHUB_OUTPUT'],'a', encoding='utf-8') as out:
+              print(f'matrix={matrix}', file=out)
+              print(f"has-agents={str(bool(pilots)).lower()}", file=out)
+          PY
+
+  evaluate:
+    needs: discover
+    if: needs.discover.outputs.has-agents == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+      - name: Install evaluation runtime
+        run: |
+          uv pip install --system -e ./lib/src
+      - name: Run continuous evaluation monitor
+        id: run_eval
+        env:
+          AGENT_ROOT: ${{ matrix.root }}
+          AGENT_NAME: ${{ matrix.name }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+          PROJECT_ENDPOINT: ${{ secrets.FOUNDRY_PROJECT_ENDPOINT || '' }}
+          PROJECT_NAME: ${{ secrets.FOUNDRY_PROJECT_NAME || '' }}
+        run: |
+          TIMESTAMP=$(date -u +%Y%m%dT%H%M%SZ)
+          RESULTS_DIR=${{ matrix.root }}/.foundry/results
+          RESULT_PATH=${{ matrix.root }}/.foundry/results/run-${TIMESTAMP}.json
+          LOG_PATH=${{ matrix.root }}/.foundry/results/run-${TIMESTAMP}.log
+          mkdir -p "$RESULTS_DIR"
+          python scripts/ci/continuous_eval_monitor.py \
+            --agent-root "${{ matrix.root }}" \
+            --run-name "run-${TIMESTAMP}" \
+            --write-result "$RESULT_PATH" \
+            --write-log "$LOG_PATH" \
+            --state-path "${{ matrix.root }}/.foundry/results/.drift_state.json" \
+            $(if [ "${DRY_RUN}" = 'true' ]; then echo '--dry-run'; fi) \
+            $(if [ -n "${{ github.repository }}" ]; then echo "--repo \"${{ github.repository }}\" --github-token \"${{ secrets.GITHUB_TOKEN }}\""; fi) || true
+          echo "result_path=$RESULT_PATH" >> $GITHUB_OUTPUT
+          echo "log_path=$LOG_PATH" >> $GITHUB_OUTPUT
+      - name: Upload evaluation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-${{ matrix.name }}-run-${{ github.run_id }}
+          path: |
+            ${{ matrix.root }}/.foundry/results/run-*.json
+            ${{ matrix.root }}/.foundry/results/run-*.log
+          if-no-files-found: warnname: agent-eval-continuous
+
+permissions:
   contents: write
 
 concurrency:
