@@ -1,0 +1,120 @@
+name: agent-eval-continuous
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.inputs.agent || 'all' }}
+  cancel-in-progress: false
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      agent:
+        description: Optional agent name; leave empty for all discovered agents
+        required: false
+        default: ''
+      dry_run:
+        description: Run evaluations without creating drift issues
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  discover-agents:
+    name: discover eval scope
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.discover.outputs.matrix }}
+      has-agents: ${{ steps.discover.outputs.has-agents }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build agent matrix
+        id: discover
+        env:
+          SELECTED_AGENT: ${{ github.event.inputs.agent || '' }}
+        run: |
+          python - <<'PY'
+          import glob
+          import json
+          import os
+
+          selected = os.environ.get("SELECTED_AGENT", "").strip()
+          discovered = []
+          for config_path in sorted(glob.glob("apps/*/.foundry/eval-config.yaml")):
+              agent_root = config_path.replace("/.foundry/eval-config.yaml", "")
+              agent_name = agent_root.split("/")[-1]
+              if selected and agent_name != selected:
+                  continue
+              discovered.append({"name": agent_name, "root": agent_root})
+
+          matrix = json.dumps({"include": discovered}, separators=(",", ":"))
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              print(f"matrix={matrix}", file=output)
+              print(f"has-agents={str(bool(discovered)).lower()}", file=output)
+          PY
+
+  monitor:
+    name: continuous eval (${{ matrix.name }})
+    needs: discover-agents
+    if: needs.discover-agents.outputs.has-agents == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.discover-agents.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+      - name: Install evaluation runtime
+        run: |
+          uv pip install --system -e ./lib/src
+      - name: Run continuous evaluation monitor
+        env:
+          AGENT_ROOT: ${{ matrix.root }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+          PROJECT_ENDPOINT: ${{ secrets.FOUNDRY_PROJECT_ENDPOINT || '' }}
+          PROJECT_NAME: ${{ secrets.FOUNDRY_PROJECT_NAME || '' }}
+          FOUNDRY_PROJECT_ENDPOINT: ${{ secrets.FOUNDRY_PROJECT_ENDPOINT || '' }}
+          FOUNDRY_PROJECT_NAME: ${{ secrets.FOUNDRY_PROJECT_NAME || '' }}
+        run: |
+          set -euo pipefail
+          timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+          results_dir="$AGENT_ROOT/.foundry/results"
+          result_path="$results_dir/run-$timestamp.json"
+          log_path="$results_dir/run-$timestamp.log"
+          state_path="$results_dir/.drift_state.json"
+          mkdir -p "$results_dir"
+
+          issue_args="--create-issue"
+          if [ "$DRY_RUN" = "true" ]; then
+            issue_args="--dry-run"
+          fi
+
+          python scripts/ci/continuous_eval_monitor.py \
+            --agent-root "$AGENT_ROOT" \
+            --run-name "continuous-$timestamp-${{ matrix.name }}" \
+            --write-result "$result_path" \
+            --write-log "$log_path" \
+            --state-path "$state_path" \
+            --repo "${{ github.repository }}" \
+            --github-token "$GITHUB_TOKEN" \
+            $issue_args
+      - name: Upload evaluation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-${{ matrix.name }}-${{ github.run_id }}
+          path: |
+            ${{ matrix.root }}/.foundry/results/run-*.json
+            ${{ matrix.root }}/.foundry/results/run-*.log
+            ${{ matrix.root }}/.foundry/results/.drift_state.json
+          if-no-files-found: warn

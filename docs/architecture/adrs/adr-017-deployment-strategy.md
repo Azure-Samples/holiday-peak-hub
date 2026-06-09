@@ -176,13 +176,21 @@ Required repository secrets:
 - `AZURE_TENANT_ID` — Azure AD tenant
 - `AZURE_SUBSCRIPTION_ID` — Target subscription
 
+# ADR-017: Deployment Strategy - azd Provisioning + Flux CD GitOps
+
+**Status**: Accepted (Revised)  
 ### Evaluation Workflow Integration (Amended: 2026-04)
 
-ADR-028 adds evaluation evidence to PR and deployment governance without changing the deployment source of truth. The current evaluation workflow is `.github/workflows/eval-advisory.yml`, whose workflow name is `agent-eval-advisory`. It discovers the pilot evaluation scope, runs `scripts/ci/run_agent_evaluation.py` for changed pilot agents, writes normalized `.foundry-results/*.json`, publishes job summaries, and uploads evaluation artifacts.
+ADR-028 integrates evaluation evidence into PR and deployment governance while preserving the azd + Flux deployment source of truth. The repository includes an advisory matrix workflow `.github/workflows/eval-advisory.yml` (`agent-eval-advisory`) that runs evaluation for changed pilot agents, publishes summaries, and uploads artifacts for reviewer evidence. Separately, `.github/workflows/eval-continuous.yml` (`agent-eval-continuous`) runs daily by default at `0 6 * * *` UTC to detect quality drift across agents that include `.foundry/eval-config.yaml`.
 
-`agent-eval-advisory` is intentionally advisory and non-required. It must remain outside required branch-protection checks until `docs/governance/README.md` is explicitly revised to promote it. There is no `eval-gate.yml` or `eval-continuous.yml` workflow in the current repository snapshot, so deployment governance must reference the existing advisory workflow rather than stale gate names.
+Key controls for evaluation workflows:
 
-PR reviewers use evaluation artifacts as architecture and quality evidence when prompts, datasets, routing, or evaluation framework code changes. Deployment workflows remain governed by the azd + Flux path in this ADR; evaluation evidence can block a PR by human review policy, but it does not independently deploy, roll back, rename workflows, or bypass `lint` / `test` branch-protection baselines.
+- Both `agent-eval-advisory` and `agent-eval-continuous` are advisory and non-required by default. They must remain outside required branch-protection checks unless `docs/governance/README.md` is explicitly updated to promote them.
+- `agent-eval-continuous` discovers agents by scanning `apps/*/.foundry/eval-config.yaml` and runs the evaluation monitor in a matrix with `fail-fast: false`.
+- The continuous workflow writes run artifacts to per-agent `.foundry/results/` directories in the workflow workspace and uploads them as workflow artifacts; it does not commit result or baseline files back to the repository.
+- When drift is detected, the continuous workflow files an issue with labels `evaluation` and `drift:<severity>` unless `dry_run` is set. The workflow guards against duplicate open issues by searching existing open issues for a stable drift fingerprint.
+
+These workflows are monitoring and advisory only: they do not perform automatic remediation, rollbacks, or code changes. Deployment governance continues to be enforced by azd + Flux and the `lint`/`test` baseline described in `docs/governance/README.md`.
 
 ## Consequences
 
