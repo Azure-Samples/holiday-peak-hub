@@ -11,7 +11,7 @@ import {
   useTruthAnalyticsSummary,
   useTruthCompletenessBreakdown,
   useTruthPipelineThroughput,
-} from '@/lib/hooks/useTruthAdmin';
+} from '@/src/features/truth';
 
 const Chart = dynamic(
   () => import('@/components/atoms/Chart').then((module) => module.Chart),

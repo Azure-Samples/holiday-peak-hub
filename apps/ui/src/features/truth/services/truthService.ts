@@ -1,12 +1,12 @@
-import apiClient, { handleApiError } from '../api/client';
-import API_ENDPOINTS from '../api/endpoints';
+import apiClient, { handleApiError } from '@/lib/api/client';
+import API_ENDPOINTS from '@/lib/api/endpoints';
 import type {
   AuditEvent,
   ProductReviewDetail,
   ReviewActionRequest,
   ReviewQueueResponse,
   ReviewStatsResponse,
-} from '../types/api';
+} from '../types';
 
 export const truthService = {
   async getReviewQueue(params?: {

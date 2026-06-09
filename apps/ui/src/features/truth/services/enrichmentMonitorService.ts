@@ -1,10 +1,10 @@
-import apiClient, { handleApiError } from '../api/client';
-import API_ENDPOINTS from '../api/endpoints';
+import apiClient, { handleApiError } from '@/lib/api/client';
+import API_ENDPOINTS from '@/lib/api/endpoints';
 import type {
   EnrichmentDecisionRequest,
   EnrichmentEntityDetail,
   EnrichmentMonitorDashboard,
-} from '../types/api';
+} from '../types';
 
 export const enrichmentMonitorService = {
   async getDashboard(): Promise<EnrichmentMonitorDashboard> {

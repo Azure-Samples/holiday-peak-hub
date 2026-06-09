@@ -382,7 +382,8 @@ jest.mock('../../lib/hooks/useStaff', () => ({
   }),
 }));
 
-jest.mock('../../lib/hooks/useTruthAdmin', () => ({
+jest.mock('@/src/features/truth', () => ({
+  ReviewQueueTable: () => <div data-testid="review-queue-table">Review Queue Table Mock</div>,
   useTruthSchemas: () => ({
     data: [
       {
@@ -445,19 +446,6 @@ jest.mock('../../lib/hooks/useTruthAdmin', () => ({
     ],
     isLoading: false,
   }),
-}));
-
-jest.mock('../../contexts/AuthContext', () => ({
-  useAuth: () => ({
-    login: jest.fn(),
-    isAuthenticated: false,
-    isLoading: false,
-    user: null,
-    logout: jest.fn(),
-  }),
-}));
-
-jest.mock('../../lib/hooks/useTruth', () => ({
   useReviewQueue: () => ({
     data: {
       items: [
@@ -495,9 +483,6 @@ jest.mock('../../lib/hooks/useTruth', () => ({
   useProductReviewDetail: () => ({ data: undefined, isLoading: false, isError: false }),
   useAuditHistory: () => ({ data: [], isLoading: false, isError: false }),
   useReviewAction: () => ({ mutate: jest.fn(), isPending: false }),
-}));
-
-jest.mock('../../lib/hooks/useEnrichmentMonitor', () => ({
   useEnrichmentMonitorDashboard: () => ({
     data: null,
     isLoading: false,
@@ -585,6 +570,16 @@ jest.mock('@/components/templates/CheckoutLayout', () => ({
   CheckoutLayout: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="checkout-layout">{children}</div>
   ),
+}));
+
+jest.mock('../../contexts/AuthContext', () => ({
+  useAuth: () => ({
+    login: jest.fn(),
+    isAuthenticated: false,
+    isLoading: false,
+    user: null,
+    logout: jest.fn(),
+  }),
 }));
 
 describe('Page rendering smoke tests', () => {

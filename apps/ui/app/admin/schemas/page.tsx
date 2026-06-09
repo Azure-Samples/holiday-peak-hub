@@ -11,8 +11,8 @@ import {
   useCreateTruthSchema,
   useUpdateTruthSchema,
   useDeleteTruthSchema,
-} from '@/lib/hooks/useTruthAdmin';
-import type { CategorySchema } from '@/lib/types/api';
+} from '@/src/features/truth';
+import type { CategorySchema } from '@/src/features/truth';
 
 export default function SchemasPage() {
   const { data: schemas = [], isLoading, isError } = useTruthSchemas();

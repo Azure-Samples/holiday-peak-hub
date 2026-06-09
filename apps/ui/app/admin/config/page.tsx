@@ -4,8 +4,8 @@ import React from 'react';
 import { MainLayout } from '@/components/templates/MainLayout';
 import { Card } from '@/components/molecules/Card';
 import { ConfigPanel } from '@/components/admin/ConfigPanel';
-import { useTruthConfig, useUpdateTruthConfig } from '@/lib/hooks/useTruthAdmin';
-import type { TenantConfig } from '@/lib/types/api';
+import { useTruthConfig, useUpdateTruthConfig } from '@/src/features/truth';
+import type { TenantConfig } from '@/src/features/truth';
 
 export default function ConfigPage() {
   const { data: config, isLoading, isError } = useTruthConfig();

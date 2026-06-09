@@ -1,5 +1,5 @@
 import React from 'react';
-import { ConfidenceBadge } from '../truth/ConfidenceBadge';
+import { ConfidenceBadge } from '@/src/features/truth';
 
 export interface IntentClassificationDisplayProps {
   intent?: string;

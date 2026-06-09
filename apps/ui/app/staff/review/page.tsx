@@ -4,8 +4,12 @@ import { useState } from 'react';
 import { MainLayout } from '@/components/templates/MainLayout';
 import { Card } from '@/components/molecules/Card';
 import { Input } from '@/components/atoms/Input';
-import { ReviewQueueTable, SortKey } from '@/components/truth/ReviewQueueTable';
-import { useReviewQueue, useReviewStats } from '@/lib/hooks/useTruth';
+import {
+  ReviewQueueTable,
+  useReviewQueue,
+  useReviewStats,
+  type SortKey,
+} from '@/src/features/truth';
 
 const PAGE_SIZE = 20;
 

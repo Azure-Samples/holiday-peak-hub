@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { truthAdminService } from '../services/truthAdminService';
-import type { CategorySchema, TenantConfig } from '../types/api';
+import type { CategorySchema, TenantConfig } from '../types';
 
 export function useTruthSchemas() {
   return useQuery({

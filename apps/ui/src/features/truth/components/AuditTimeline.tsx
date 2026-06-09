@@ -1,6 +1,6 @@
 import React from 'react';
-import { cn } from '../utils';
-import type { AuditEvent } from '../../lib/types/api';
+import { cn } from '@/components/utils';
+import type { AuditEvent } from '../types';
 
 export interface AuditTimelineProps {
   events: AuditEvent[];

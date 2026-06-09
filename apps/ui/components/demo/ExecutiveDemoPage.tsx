@@ -21,14 +21,14 @@ import { formatAgentInvocationTelemetry, useAgentInvocationTelemetry } from '@/l
 import { DEFAULT_AGENT_MONITOR_RANGE, useAgentEvaluations, useAgentMonitorDashboard, useAgentTraceDetail, useModelUsageStats, useRecentTraces } from '@/lib/hooks/useAgentMonitor';
 import { useCategories } from '@/lib/hooks/useCategories';
 import { useCart } from '@/lib/hooks/useCart';
-import { useEnrichmentMonitorDashboard } from '@/lib/hooks/useEnrichmentMonitor';
+import { useEnrichmentMonitorDashboard } from '@/src/features/truth';
 import { useInventoryHealth } from '@/lib/hooks/useInventory';
 import { useOrders } from '@/lib/hooks/useOrders';
 import { useProductSimilarity } from '@/lib/hooks/useProductSimilarity';
 import { useProducts } from '@/lib/hooks/useProducts';
 import { useReturns } from '@/lib/hooks/useReturns';
 import { useStreamingSearch } from '@/lib/hooks/useStreamingSearch';
-import { useTruthAnalyticsSummary } from '@/lib/hooks/useTruthAdmin';
+import { useTruthAnalyticsSummary } from '@/src/features/truth';
 import type { AgentHealthCardMetric, AgentModelUsageRow } from '@/lib/types/api';
 import { formatAgentResponse } from '@/lib/utils/agentResponseCards';
 import { mapApiProductsToUi } from '@/lib/utils/productMappers';

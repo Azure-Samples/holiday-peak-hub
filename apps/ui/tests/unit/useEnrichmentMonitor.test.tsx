@@ -3,12 +3,12 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import {
   useEnrichmentMonitorDashboard,
   useEnrichmentMonitorDetail,
-} from '../../lib/hooks/useEnrichmentMonitor';
+} from '@/src/features/truth';
 
 const getDashboard = jest.fn();
 const getEntityDetail = jest.fn();
 
-jest.mock('../../lib/services/enrichmentMonitorService', () => ({
+jest.mock('@/src/features/truth/services/enrichmentMonitorService', () => ({
   enrichmentMonitorService: {
     getDashboard: (...args: unknown[]) => getDashboard(...args),
     getEntityDetail: (...args: unknown[]) => getEntityDetail(...args),

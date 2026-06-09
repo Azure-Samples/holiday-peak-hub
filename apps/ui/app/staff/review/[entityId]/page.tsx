@@ -4,14 +4,14 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { MainLayout } from '@/components/templates/MainLayout';
 import { Card } from '@/components/molecules/Card';
-import { ProposalCard } from '@/components/truth/ProposalCard';
-import { CompletenessBar } from '@/components/truth/CompletenessBar';
-import { AuditTimeline } from '@/components/truth/AuditTimeline';
 import {
+  ProposalCard,
+  CompletenessBar,
+  AuditTimeline,
   useAuditHistory,
   useProductReviewDetail,
   useReviewAction,
-} from '@/lib/hooks/useTruth';
+} from '@/src/features/truth';
 
 export default function ProductReviewDetailPage() {
   const params = useParams<{ entityId: string }>();

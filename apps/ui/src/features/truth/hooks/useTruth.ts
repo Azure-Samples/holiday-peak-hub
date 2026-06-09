@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { truthService } from '../services/truthService';
-import type { ReviewActionRequest } from '../types/api';
+import type { ReviewActionRequest } from '../types';
 
 export function useReviewQueue(params?: {
   page?: number;

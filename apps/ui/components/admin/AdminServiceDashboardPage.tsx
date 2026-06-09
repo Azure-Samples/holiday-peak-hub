@@ -14,7 +14,7 @@ import {
   ADMIN_SERVICE_RANGE_OPTIONS,
 } from '@/lib/hooks/useAdminServiceDashboard';
 import { useAgentEvaluations } from '@/lib/hooks/useAgentMonitor';
-import { useTruthConfig, useUpdateTruthConfig } from '@/lib/hooks/useTruthAdmin';
+import { useTruthConfig, useUpdateTruthConfig } from '@/src/features/truth';
 import agentApiClient from '@/lib/api/agentClient';
 import type {
   AdminServiceAppSurface,
