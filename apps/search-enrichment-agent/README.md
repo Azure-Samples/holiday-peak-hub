@@ -22,18 +22,31 @@ Raw product attributes are insufficient for high-quality search. Customers searc
 5. Generates: keywords, use cases, marketing bullets, facet tags, SEO title, audience, seasonality
 6. Persists `SearchEnrichedProduct` to Cosmos DB
 7. Pushes to Azure AI Search (direct push or indexer trigger)
+8. Optionally prepares Fabric SQL/OneLake Files ingestion resources for the unified catalog retrieval index
 
 ## Key Endpoints
 
 | Method | Path | Purpose |
-|--------|------|---------|---|
+| ------ | ---- | ------- |
 | POST | `/invoke` | Synchronous enrichment request |
 | GET | `/health`, `/ready` | Health probes |
+
+## MCP Tools
+
+| Tool | Purpose |
+| ---- | ------- |
+| `/search-enrichment/enrich` | Enrich one approved product for search retrieval |
+| `/search-enrichment/status` | Return local enriched-product status |
+| `/fabric-search-ingestion/discover_source` | Discover or validate Fabric source metadata |
+| `/fabric-search-ingestion/build_mapping_plan` | Build source-to-index mappings with confidence and governance signals |
+| `/fabric-search-ingestion/build_search_resources` | Build Azure AI Search index, skillset, data source, and indexer payloads |
+| `/fabric-search-ingestion/provision_search_resources` | Create/update the search resources through Azure AI Search REST APIs |
+| `/fabric-search-ingestion/run_indexer` | Run the configured indexer on demand |
 
 ## Required Configuration
 
 | Variable | Required | Description |
-|----------|----------|-------------|
+| -------- | -------- | ----------- |
 | `PROJECT_ENDPOINT` / `FOUNDRY_ENDPOINT` | Yes | Azure AI Foundry endpoint |
 | `FOUNDRY_AGENT_ID_FAST` | Yes | SLM agent ID (simple strategy) |
 | `MODEL_DEPLOYMENT_NAME_FAST` | Yes | SLM deployment |
@@ -41,7 +54,9 @@ Raw product attributes are insufficient for high-quality search. Customers searc
 | `MODEL_DEPLOYMENT_NAME_RICH` | Yes | LLM deployment |
 | `AI_SEARCH_ENDPOINT` | Yes | Azure AI Search endpoint |
 | `AI_SEARCH_ADMIN_KEY` / `AI_SEARCH_CREDENTIAL` | Yes | Search credentials |
-| `AI_SEARCH_INDEX_NAME` | Yes | Target index name |
+| `AI_SEARCH_INDEX` | Yes | Keyword index name used by ecommerce-catalog-search |
+| `AI_SEARCH_VECTOR_INDEX` | Yes | Vector/hybrid index name used by ecommerce-catalog-search |
+| `AI_SEARCH_VECTOR_FIELD` | Optional | Vector field name, defaults to `content_vector` |
 | `AI_SEARCH_INDEXER_NAME` | Optional | Indexer for pull-mode sync |
 | `AI_SEARCH_PUSH_IMMEDIATE` | Optional | Direct push (`true`) vs indexer (default) |
 | `PLATFORM_JOBS_EVENT_HUB_NAMESPACE_ENV` | Yes | Event Hub namespace |
@@ -50,14 +65,51 @@ Raw product attributes are insufficient for high-quality search. Customers searc
 | `REDIS_URL` | Optional | Hot cache |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING` | Optional | Telemetry |
 
+### Fabric-to-AI-Search Ingestion Configuration
+
+The Fabric ingestion MCP tools build a unified hybrid catalog index by default. For catalog-search compatibility, set `AI_SEARCH_INDEX` and `AI_SEARCH_VECTOR_INDEX` to the same index name when this path owns the retrieval index.
+The generated skillset embeds `/document/content` directly and maps `/document/embedding/*` to `content_vector`, preserving one vector per product row for catalog-search retrieval.
+
+| Variable | Required | Description |
+| -------- | -------- | ----------- |
+| `FABRIC_SOURCE_KIND` | Optional | `sql` by default; `onelake_files` for lakehouse Files/shortcuts only |
+| `FABRIC_SQL_ENDPOINT` | SQL | Fabric SQL database, Warehouse, or SQL analytics TDS endpoint |
+| `FABRIC_SQL_DATABASE` | SQL | Fabric database/warehouse name |
+| `FABRIC_SQL_SCHEMA` | Optional | SQL schema, defaults to `dbo` |
+| `FABRIC_SQL_TABLE` | SQL | Single table or view for the AI Search SQL indexer |
+| `FABRIC_SQL_CONNECTION_STRING` | Optional | Explicit connection string for Search data source provisioning |
+| `FABRIC_WORKSPACE_ID` / `FABRIC_ONELAKE_WORKSPACE_ENDPOINT` | OneLake Files | Workspace id or private endpoint for OneLake Files datasource |
+| `FABRIC_ONELAKE_LAKEHOUSE_ID` | OneLake Files | Lakehouse id |
+| `FABRIC_ONELAKE_FILES_PATH` | OneLake Files | Files folder/shortcut path; do not point this to `Tables/` |
+| `FABRIC_AUTH_MODE` | Optional | `managed_identity` by default |
+| `FABRIC_INCREMENTAL_COLUMN` | Optional | High-water mark column for incremental SQL indexing |
+| `FABRIC_SOFT_DELETE_COLUMN` | Optional | Soft-delete column or file metadata key |
+| `FABRIC_SOFT_DELETE_MARKER` | Optional | Marker value for soft delete |
+| `FABRIC_APPROVAL_COLUMN` | Recommended | Source approval/governance signal column |
+| `FABRIC_APPROVAL_ACCEPTED_VALUES` | Recommended | Comma-separated accepted approval values |
+| `FABRIC_SAMPLE_ROWS` | Optional | Bounded sample row count for discovery, default small |
+| `AI_SEARCH_DATASOURCE_NAME` | Optional | Search datasource name |
+| `AI_SEARCH_SKILLSET_NAME` | Optional | Search skillset name |
+| `AI_SEARCH_SEMANTIC_CONFIG_NAME` | Optional | Semantic config name |
+| `EMBEDDING_RESOURCE_URI` | Required for resources | Azure OpenAI or Foundry embedding endpoint |
+| `EMBEDDING_DEPLOYMENT_NAME` | Required for resources | Embedding deployment name |
+| `EMBEDDING_MODEL_NAME` | Optional | Defaults to `text-embedding-3-small` |
+| `EMBEDDING_DIMENSIONS` | Optional | Must match the vector field dimensions |
+
+OneLake support intentionally follows Azure AI Search public constraints: the OneLake indexer supports lakehouse Files/shortcuts, not workspace Tables, Parquet, or Delta table content. Use `FABRIC_SOURCE_KIND=sql` for table or view content exposed through Fabric SQL/TDS endpoints.
+
+For a step-by-step standalone deployment of only the Fabric ingestion Search resources, including copy/paste MCP calls, dry-run review, provisioning, indexer execution, verification, and rollback guidance, use [docs/ops/fabric-search-ingestion.md](../../docs/ops/fabric-search-ingestion.md#standalone-skillset-deployment).
+
 ## Data Requirements
 
 **Inbound** (from `search-enrichment-jobs` Event Hub):
+
 ```json
 { "event_type": "enrichment.completed", "data": { "entity_id": "TEST-LIVE-001" } }
 ```
 
 **Output** — `SearchEnrichedProduct` in Cosmos DB + AI Search:
+
 ```json
 {
   "id": "TEST-LIVE-001",
@@ -72,6 +124,7 @@ Raw product attributes are insufficient for high-quality search. Customers searc
 ```
 
 ## Run/Test commands
+
 ```bash
 cd apps/search-enrichment-agent/src
 uv sync
@@ -89,7 +142,7 @@ Use azd as the primary deployment path. Use the manual ACR -> AKS path only when
 ### Prerequisites
 
 | Tool | Why it is needed |
-|------|------------------|
+| ---- | ---------------- |
 | az CLI | Azure authentication and resource operations |
 | azd | Environment selection and service deploy |
 | docker (or az acr build) | Build and push the container image |
@@ -111,7 +164,7 @@ IMAGE_TAG="$(git rev-parse --short HEAD)"
 Set these in the selected azd environment (recommended) or in your manual Helm values file:
 
 | Variable | Required | Notes |
-|----------|----------|-------|
+| -------- | -------- | ----- |
 | PROJECT_ENDPOINT or FOUNDRY_ENDPOINT | Yes | Azure AI Foundry project endpoint |
 | FOUNDRY_AGENT_ID_FAST | Yes | Fast-path model agent id |
 | MODEL_DEPLOYMENT_NAME_FAST | Yes | Fast-path deployment name |
@@ -121,7 +174,7 @@ Set these in the selected azd environment (recommended) or in your manual Helm v
 | PLATFORM_JOBS_EVENT_HUB_CONNECTION_STRING | Optional | Needed only when workload identity is not used; no fallback to retail `EVENT_HUB_CONNECTION_STRING` |
 | APP_NAME | Recommended | Set to search-enrichment-agent |
 | CRUD_SERVICE_URL | Service-dependent | Required when this service calls CRUD APIs |
-| REDIS_URL / COSMOS_* / BLOB_* | Optional | Three-tier memory; service degrades gracefully when absent |
+| `REDIS_URL` / `COSMOS_*` / `BLOB_*` | Optional | Three-tier memory; service degrades gracefully when absent |
 | APPLICATIONINSIGHTS_CONNECTION_STRING | Optional | App telemetry |
 
 Example azd env commands:
