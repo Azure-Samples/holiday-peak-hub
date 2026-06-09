@@ -1,8 +1,8 @@
 import {
   buildDocsSearchUrl,
   searchAppPages,
-} from '@/lib/search/matcher';
-import { AUDIENCE_FILTER } from '@/lib/search/appPages';
+  AUDIENCE_FILTER,
+} from '@/src/features/search';
 
 describe('searchAppPages', () => {
   it('returns first-paint suggestions when query is empty', () => {

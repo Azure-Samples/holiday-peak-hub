@@ -4,6 +4,8 @@ import SearchPage from '../../app/search/page';
 
 const push = jest.fn();
 const getParam = jest.fn();
+const mockUseQuery = jest.fn();
+const mockPrefetchQuery = jest.fn();
 
 jest.mock('next/navigation', () => ({
   useRouter: () => ({
@@ -15,12 +17,14 @@ jest.mock('next/navigation', () => ({
   usePathname: () => '/search',
 }));
 
-const mockUseIntelligentSearch = jest.fn();
 const mockUseRelatedProducts = jest.fn();
 const mockUseAuth = jest.fn();
 
-jest.mock('../../lib/hooks/useIntelligentSearch', () => ({
-  useIntelligentSearch: (...args: unknown[]) => mockUseIntelligentSearch(...args),
+jest.mock('@tanstack/react-query', () => ({
+  useQuery: (...args: unknown[]) => mockUseQuery(...args),
+  useQueryClient: () => ({
+    prefetchQuery: mockPrefetchQuery,
+  }),
 }));
 
 jest.mock('../../lib/hooks/useRelatedProducts', () => ({
@@ -43,12 +47,54 @@ jest.mock('../../components/organisms/Navigation', () => ({
   ),
 }));
 
-describe('SearchPage', () => {
-  const setPreference = jest.fn();
+function buildSearchQueryResult(overrides: Record<string, unknown> = {}) {
+  return {
+    data: {
+      items: [],
+      source: 'agent',
+      mode: 'intelligent',
+      intent: null,
+      subqueries: [],
+    },
+    isLoading: false,
+    error: null,
+    isFetching: false,
+    refetch: jest.fn(),
+    ...overrides,
+  };
+}
 
+function readQueryOptions(options: unknown): { enabled?: boolean; queryKey?: unknown[] } {
+  if (!options || typeof options !== 'object') {
+    return {};
+  }
+
+  return options as { enabled?: boolean; queryKey?: unknown[] };
+}
+
+function configureSearchQueryResults({
+  baseline = buildSearchQueryResult(),
+  rerank = buildSearchQueryResult({ data: undefined }),
+}: {
+  baseline?: ReturnType<typeof buildSearchQueryResult>;
+  rerank?: ReturnType<typeof buildSearchQueryResult>;
+} = {}) {
+  mockUseQuery.mockImplementation((options: unknown) => {
+    const { enabled, queryKey } = readQueryOptions(options);
+    if (enabled === false) {
+      return buildSearchQueryResult({ data: undefined });
+    }
+
+    return queryKey?.[4] === 'rerank' ? rerank : baseline;
+  });
+}
+
+describe('SearchPage', () => {
   beforeEach(() => {
+    jest.clearAllMocks();
     push.mockClear();
-    setPreference.mockClear();
+    window.localStorage.clear();
+    window.sessionStorage.clear();
     mockUseAuth.mockReturnValue({
       user: {
         user_id: 'customer-123',
@@ -56,69 +102,43 @@ describe('SearchPage', () => {
     });
     getParam.mockReturnValue('headphones');
     mockUseRelatedProducts.mockReturnValue({ data: {} });
-    mockUseIntelligentSearch.mockReturnValue({
-      data: {
-        items: [],
-        source: 'agent',
-        mode: 'intelligent',
-        intent: null,
-        subqueries: [],
-      },
-      isLoading: false,
-      error: null,
-      isFetching: false,
-      refetch: jest.fn(),
-      isReranking: false,
-      baselineData: {
-        items: [],
-        source: 'agent',
-        mode: 'intelligent',
-      },
-      rerankedData: undefined,
-      preference: 'intelligent',
-      setPreference,
-      resolvedMode: 'intelligent',
-    });
+    configureSearchQueryResults();
   });
 
   it('prefills the query from the URL and shows intelligent mode badge', () => {
     render(<SearchPage />);
 
-    expect(mockUseIntelligentSearch).toHaveBeenCalledWith('headphones', 20, {
-      userId: 'customer-123',
-    });
+    expect(mockUseQuery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queryKey: expect.arrayContaining([
+          'semantic-search',
+          'headphones',
+          20,
+          'intelligent',
+          'baseline',
+        ]),
+      }),
+    );
     expect(screen.getByDisplayValue('headphones')).toBeInTheDocument();
     expect(screen.getAllByText('Intelligent Search').length).toBeGreaterThan(0);
     expect(screen.getByText('No products matched your search.')).toBeInTheDocument();
   });
 
   it('shows intent panel details in intelligent mode when available', () => {
-    mockUseIntelligentSearch.mockReturnValue({
-      data: {
-        items: [],
-        source: 'agent',
-        mode: 'intelligent',
-        intent: {
-          intent: 'use_case_lookup',
-          confidence: 0.88,
-          entities: { category: 'audio' },
+    configureSearchQueryResults({
+      baseline: buildSearchQueryResult({
+        data: {
+          items: [],
+          source: 'agent',
+          mode: 'intelligent',
+          intent: {
+            intent: 'use_case_lookup',
+            confidence: 0.88,
+            entities: { category: 'audio' },
+          },
+          subqueries: ['wireless noise cancelling'],
         },
-        subqueries: ['wireless noise cancelling'],
-      },
-      isLoading: false,
-      error: null,
-      isFetching: false,
-      refetch: jest.fn(),
-      isReranking: false,
-      baselineData: {
-        items: [],
-        source: 'agent',
-        mode: 'intelligent',
-      },
-      rerankedData: undefined,
-      preference: 'intelligent',
-      setPreference,
-      resolvedMode: 'intelligent',
+      }),
     });
 
     render(<SearchPage />);
@@ -131,8 +151,12 @@ describe('SearchPage', () => {
 
   it('changes search mode preference from toggle', () => {
     render(<SearchPage />);
-    fireEvent.click(screen.getByRole('radio', { name: 'Search mode Intelligent' }));
-    expect(setPreference).toHaveBeenCalledWith('intelligent');
+    fireEvent.click(screen.getByRole('radio', { name: 'Search mode Keyword' }));
+    expect(window.localStorage.getItem('hp.search.mode.preference')).toBe('keyword');
+    expect(screen.getByRole('radio', { name: 'Search mode Keyword' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
   });
 
   it('updates the URL when searching', () => {
@@ -152,29 +176,19 @@ describe('SearchPage', () => {
 
   it('shows a recoverable proxy error with retry affordance on 502 failures', () => {
     const refetch = jest.fn();
-    mockUseIntelligentSearch.mockReturnValue({
-      data: { items: [], source: 'crud', mode: 'keyword', intent: null, subqueries: [] },
-      isLoading: false,
-      isFetching: false,
-      error: {
-        status: 502,
-        details: {
-          proxy: {
-            failureKind: 'network',
+    configureSearchQueryResults({
+      baseline: buildSearchQueryResult({
+        data: { items: [], source: 'crud', mode: 'keyword', intent: null, subqueries: [] },
+        error: {
+          status: 502,
+          details: {
+            proxy: {
+              failureKind: 'network',
+            },
           },
         },
-      },
-      refetch,
-      isReranking: false,
-      baselineData: {
-        items: [],
-        source: 'crud',
-        mode: 'keyword',
-      },
-      rerankedData: undefined,
-      preference: 'auto',
-      setPreference,
-      resolvedMode: 'keyword',
+        refetch,
+      }),
     });
 
     render(<SearchPage />);
@@ -188,30 +202,18 @@ describe('SearchPage', () => {
   });
 
   it('does not show unavailable warning for agent mock fallback', () => {
-    mockUseIntelligentSearch.mockReturnValue({
-      data: {
-        items: [],
-        source: 'crud',
-        mode: 'keyword',
-        requested_mode: 'intelligent',
-        fallback_reason: 'agent_mock',
-        intent: null,
-        subqueries: [],
-      },
-      isLoading: false,
-      error: null,
-      isFetching: false,
-      refetch: jest.fn(),
-      isReranking: false,
-      baselineData: {
-        items: [],
-        source: 'crud',
-        mode: 'keyword',
-      },
-      rerankedData: undefined,
-      preference: 'intelligent',
-      setPreference,
-      resolvedMode: 'intelligent',
+    configureSearchQueryResults({
+      baseline: buildSearchQueryResult({
+        data: {
+          items: [],
+          source: 'crud',
+          mode: 'keyword',
+          requested_mode: 'intelligent',
+          fallback_reason: 'agent_mock',
+          intent: null,
+          subqueries: [],
+        },
+      }),
     });
 
     render(<SearchPage />);
@@ -222,30 +224,18 @@ describe('SearchPage', () => {
   });
 
   it('shows unavailable warning for agent_unavailable fallback', () => {
-    mockUseIntelligentSearch.mockReturnValue({
-      data: {
-        items: [],
-        source: 'crud',
-        mode: 'keyword',
-        requested_mode: 'intelligent',
-        fallback_reason: 'agent_unavailable',
-        intent: null,
-        subqueries: [],
-      },
-      isLoading: false,
-      error: null,
-      isFetching: false,
-      refetch: jest.fn(),
-      isReranking: false,
-      baselineData: {
-        items: [],
-        source: 'crud',
-        mode: 'keyword',
-      },
-      rerankedData: undefined,
-      preference: 'intelligent',
-      setPreference,
-      resolvedMode: 'intelligent',
+    configureSearchQueryResults({
+      baseline: buildSearchQueryResult({
+        data: {
+          items: [],
+          source: 'crud',
+          mode: 'keyword',
+          requested_mode: 'intelligent',
+          fallback_reason: 'agent_unavailable',
+          intent: null,
+          subqueries: [],
+        },
+      }),
     });
 
     render(<SearchPage />);
@@ -256,34 +246,22 @@ describe('SearchPage', () => {
   });
 
   it('shows degraded fallback warning when agent model synthesis fails', () => {
-    mockUseIntelligentSearch.mockReturnValue({
-      data: {
-        items: [],
-        source: 'agent',
-        mode: 'intelligent',
-        requested_mode: 'intelligent',
-        degraded: true,
-        degraded_reason: 'model_timeout',
-        degraded_message:
-          'Showing the best available catalog guidance while intelligent generation is temporarily unavailable.',
-        fallback_keywords: ['winter', 'jacket', 'boots'],
-        intent: null,
-        subqueries: [],
-      },
-      isLoading: false,
-      error: null,
-      isFetching: false,
-      refetch: jest.fn(),
-      isReranking: false,
-      baselineData: {
-        items: [],
-        source: 'agent',
-        mode: 'intelligent',
-      },
-      rerankedData: undefined,
-      preference: 'intelligent',
-      setPreference,
-      resolvedMode: 'intelligent',
+    configureSearchQueryResults({
+      baseline: buildSearchQueryResult({
+        data: {
+          items: [],
+          source: 'agent',
+          mode: 'intelligent',
+          requested_mode: 'intelligent',
+          degraded: true,
+          degraded_reason: 'model_timeout',
+          degraded_message:
+            'Showing the best available catalog guidance while intelligent generation is temporarily unavailable.',
+          fallback_keywords: ['winter', 'jacket', 'boots'],
+          intent: null,
+          subqueries: [],
+        },
+      }),
     });
 
     render(<SearchPage />);
@@ -293,33 +271,26 @@ describe('SearchPage', () => {
   });
 
   it('announces reranking progress with a polite status message', () => {
-    mockUseIntelligentSearch.mockReturnValue({
-      data: {
-        items: [],
-        source: 'crud',
-        mode: 'keyword',
-        intent: null,
-        subqueries: [],
-      },
-      baselineData: {
-        items: [
-          {
-            sku: 'sku-1',
-            title: 'Sample Product',
-          },
-        ],
-        source: 'crud',
-        mode: 'keyword',
-      },
-      rerankedData: undefined,
-      isLoading: false,
-      error: null,
-      isFetching: true,
-      isReranking: true,
-      refetch: jest.fn(),
-      preference: 'auto',
-      setPreference,
-      resolvedMode: 'keyword',
+    window.localStorage.setItem('hp.search.mode.preference', 'auto');
+    configureSearchQueryResults({
+      baseline: buildSearchQueryResult({
+        data: {
+          items: [
+            {
+              sku: 'sku-1',
+              title: 'Sample Product',
+            },
+          ],
+          source: 'crud',
+          mode: 'keyword',
+          intent: null,
+          subqueries: [],
+        },
+      }),
+      rerank: buildSearchQueryResult({
+        data: undefined,
+        isFetching: true,
+      }),
     });
 
     render(<SearchPage />);

@@ -1,12 +1,12 @@
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Card } from '../molecules/Card';
-import { Badge } from '../atoms/Badge';
-import { PriceDisplay } from '../molecules/PriceDisplay';
-import { UseCaseTags } from './UseCaseTags';
-import { RelatedProductsRail } from './RelatedProductsRail';
-import type { Product } from '../types';
+import { Badge } from '@/components/atoms/Badge';
+import { Card } from '@/components/molecules/Card';
+import { PriceDisplay } from '@/components/molecules/PriceDisplay';
+import type { Product } from '@/components/types';
+import { RelatedProductsRail } from '@/src/shared/components/RelatedProductsRail';
+import { UseCaseTags } from '@/src/shared/components/UseCaseTags';
 
 export interface SearchResultCardProps {
   product: Product;

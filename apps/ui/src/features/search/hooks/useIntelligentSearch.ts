@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSemanticSearch } from './useSemanticSearch';
-import { productService } from '../services/productService';
+import { productService } from '@/lib/services/productService';
 import type { SemanticSearchContext } from '../services/semanticSearchService';
 
 export type IntelligentSearchPreference = 'auto' | 'keyword' | 'intelligent';

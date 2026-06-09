@@ -9,7 +9,7 @@
  */
 import { fireEvent, render, screen } from '@testing-library/react';
 
-import { AppSearchBox } from '@/components/molecules/AppSearchBox';
+import { AppSearchBox } from '@/src/features/search';
 
 describe('AppSearchBox URL ?q= seed (Issue #1022 reciprocal cross-link)', () => {
   beforeEach(() => {

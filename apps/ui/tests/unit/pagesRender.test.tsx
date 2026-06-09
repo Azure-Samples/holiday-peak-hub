@@ -528,7 +528,8 @@ jest.mock('../../lib/hooks/useAgentMonitor', () => ({
   isTracingUnavailableError: () => false,
 }));
 
-jest.mock('../../lib/hooks/useStreamingSearch', () => ({
+jest.mock('@/src/features/search', () => ({
+  AppSearchBox: () => <div data-testid="app-search-box" />,
   useStreamingSearch: () => ({
     results: null,
     answerText: '',

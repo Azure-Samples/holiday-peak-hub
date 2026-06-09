@@ -2,11 +2,13 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { EnrichmentPipelineStatus } from '../../components/enrichment/EnrichmentPipelineStatus';
 import { AttributeDiffView } from '../../components/enrichment/AttributeDiffView';
-import { SearchModeIndicator } from '../../components/enrichment/SearchModeIndicator';
-import { IntentPanel } from '../../components/enrichment/IntentPanel';
-import { UseCaseTags } from '../../components/enrichment/UseCaseTags';
-import { RelatedProductsRail } from '../../components/enrichment/RelatedProductsRail';
-import { SearchResultCard } from '../../components/enrichment/SearchResultCard';
+import {
+  IntentPanel,
+  SearchModeIndicator,
+  SearchResultCard,
+} from '@/src/features/search';
+import { RelatedProductsRail } from '@/src/shared/components/RelatedProductsRail';
+import { UseCaseTags } from '@/src/shared/components/UseCaseTags';
 
 describe('enrichment components', () => {
   it('renders pipeline status badge', () => {

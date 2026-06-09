@@ -1,7 +1,7 @@
 import React from 'react';
-import { Card } from '../molecules/Card';
-import { ConfidenceBadge } from '@/src/features/truth';
-import type { SemanticSearchIntent } from '@/lib/services/semanticSearchService';
+import { Card } from '@/components/molecules/Card';
+import { ConfidenceBadge } from '@/src/shared/components/ConfidenceBadge';
+import type { SemanticSearchIntent } from '../services/semanticSearchService';
 
 export interface IntentPanelProps {
   mode: 'keyword' | 'intelligent';
