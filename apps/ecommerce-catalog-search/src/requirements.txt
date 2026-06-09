@@ -261,7 +261,7 @@ durabletask==1.4.0
     #   durabletask-azuremanaged
 durabletask-azuremanaged==1.4.0
     # via agent-framework-durabletask
-fastapi==0.135.3
+fastapi==0.136.3
     # via
     #   agent-framework-ag-ui
     #   agent-framework-devui
@@ -747,7 +747,7 @@ typing-inspection==0.4.2
     #   mcp
     #   pydantic
     #   pydantic-settings
-urllib3==2.6.3
+urllib3==2.7.0
     # via
     #   botocore
     #   qdrant-client

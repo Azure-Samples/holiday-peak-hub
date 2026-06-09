@@ -30,6 +30,7 @@ from holiday_peak_lib.agents.memory.session_manager import (
 from holiday_peak_lib.agents.memory.warm import WarmMemory
 from holiday_peak_lib.agents.orchestration.router import RoutingStrategy
 from holiday_peak_lib.agents.telemetry_mixin import AgentTelemetryMixin
+from holiday_peak_lib.evaluation.models import EvalConfig
 from holiday_peak_lib.mcp.server import FastAPIMCPServer
 from holiday_peak_lib.self_healing import SelfHealingKernel
 from pydantic import BaseModel, ConfigDict, Field
@@ -93,6 +94,7 @@ class AgentDependencies(BaseModel):
     llm: ModelTarget | None = None
     complexity_threshold: float = 0.5
     enforce_foundry_prompt_governance: bool = True
+    evaluation_config: EvalConfig | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -155,6 +157,7 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
     llm: ModelTarget | None
     complexity_threshold: float
     enforce_foundry_prompt_governance: bool
+    evaluation_config: EvalConfig | None
 
     def __init__(self, config: AgentDependencies, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
@@ -175,6 +178,7 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
         self.llm = config.llm
         self.complexity_threshold = config.complexity_threshold
         self.enforce_foundry_prompt_governance = config.enforce_foundry_prompt_governance
+        self.evaluation_config = config.evaluation_config
         # Background task set for fire-and-forget memory operations.
         # Each agent is a stateful, long-lived object — tasks persist
         # across requests and are garbage-collected on completion.
@@ -185,10 +189,11 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
 
         if self.slm is None:
             return None
-        slm_provider = self.slm.provider
+        slm_provider = cast(str | None, self.slm.provider)
         if self.llm is None:
             return slm_provider
-        if slm_provider and self.llm.provider and slm_provider == self.llm.provider:
+        llm_provider = cast(str | None, self.llm.provider)
+        if slm_provider and llm_provider and slm_provider == llm_provider:
             return slm_provider
         return None
 
@@ -285,7 +290,7 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
 
     def _assess_complexity(self, request: dict[str, Any]) -> float:
         """Delegate to shared complexity heuristic."""
-        return assess_complexity(request)
+        return cast(float, assess_complexity(request))
 
     def _select_model(
         self,
@@ -599,7 +604,7 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
             result.setdefault("_model", target.model)
             result["_telemetry"] = telemetry
 
-        return result
+        return cast(dict[str, Any], result)
 
     async def invoke_model(
         self, request: dict[str, Any], messages: Any, **kwargs: Any
@@ -973,7 +978,7 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
                     svc,
                     elapsed,
                 )
-                return result
+                return cast(dict[str, Any], result)
             except Exception as exc:
                 elapsed = (perf_counter() - started) * 1000
                 logger.error(
