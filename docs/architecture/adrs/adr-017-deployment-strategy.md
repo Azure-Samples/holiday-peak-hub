@@ -176,6 +176,14 @@ Required repository secrets:
 - `AZURE_TENANT_ID` — Azure AD tenant
 - `AZURE_SUBSCRIPTION_ID` — Target subscription
 
+### Evaluation Workflow Integration (Amended: 2026-04)
+
+ADR-028 adds evaluation evidence to PR and deployment governance without changing the deployment source of truth. The current evaluation workflow is `.github/workflows/eval-advisory.yml`, whose workflow name is `agent-eval-advisory`. It discovers the pilot evaluation scope, runs `scripts/ci/run_agent_evaluation.py` for changed pilot agents, writes normalized `.foundry-results/*.json`, publishes job summaries, and uploads evaluation artifacts.
+
+`agent-eval-advisory` is intentionally advisory and non-required. It must remain outside required branch-protection checks until `docs/governance/README.md` is explicitly revised to promote it. There is no `eval-gate.yml` or `eval-continuous.yml` workflow in the current repository snapshot, so deployment governance must reference the existing advisory workflow rather than stale gate names.
+
+PR reviewers use evaluation artifacts as architecture and quality evidence when prompts, datasets, routing, or evaluation framework code changes. Deployment workflows remain governed by the azd + Flux path in this ADR; evaluation evidence can block a PR by human review policy, but it does not independently deploy, roll back, rename workflows, or bypass `lint` / `test` branch-protection baselines.
+
 ## Consequences
 
 ### Positive

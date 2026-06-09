@@ -310,11 +310,13 @@ flowchart LR
         T1([product-updates])
         T2([order-events])
         T3([inventory-alerts])
+        T4([agent-evaluation-results])
     end
     subgraph AGENTS_NS["holiday-peak-agents"]
         A1[catalog-search<br/>/async/contract]
         A2[cart-intelligence<br/>/async/contract]
         A3[inventory-alerts<br/>/async/contract]
+        A4[continuous evaluation<br/>runner]
     end
     CRUD -->|publish| T1
     CRUD -->|publish| T2
@@ -322,7 +324,16 @@ flowchart LR
     T2 -->|consume| A2
     T3 -->|consume| A3
     A3 -->|publish| T3
+    A4 -->|publish| T4
 ```
+
+### Evaluation Results Channel (Amended: 2026-04)
+
+ADR-028 adds `agent-evaluation-results` to the asynchronous contract topology as an Event Hubs Message Channel for continuous evaluation evidence. Its schema reference is `EvaluationResultEvent`, which normalizes `agent_name`, `run_name`, `backend`, `status`, `metrics`, `eval.score`, `eval.baseline_id`, `baselineSource`, `drift_detected`, and optional `drift_report` fields.
+
+This channel is not an agent-to-agent invocation path and does not weaken MCP-only A2A governance. Agents still use MCP tools for synchronous capability composition; `agent-evaluation-results` carries observer-style quality evidence from evaluation runners to dashboards, governance automation, and manual escalation consumers. Consumers must treat the payload as immutable evidence and must not use it to trigger autonomous prompt, model, code, deployment, or branch-protection changes.
+
+Services that publish evaluation results should declare the topic in their `AgentAsyncContract` / `/async/contract` metadata when they opt into ADR-028. Additive schema changes remain allowed under the async compatibility rules in ADR-006; breaking changes require a new schema version and architecture review.
 
 ### Risk Mitigation for Async Contracts
 

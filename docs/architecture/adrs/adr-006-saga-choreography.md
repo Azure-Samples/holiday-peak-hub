@@ -96,3 +96,5 @@ async with event_hub_consumer:
 
 ## Related ADRs
 - [ADR-002: Azure Services](adr-002-azure-services.md)
+- [ADR-024: Agent Communication Policy](adr-024-agent-communication-policy.md) — async contract topology, including the ADR-028 `agent-evaluation-results` evidence channel
+- [ADR-028: Continuous Agent Evaluation Engine](adr-028-continuous-agent-evaluation.md) — evaluation result events and quality-drift escalation

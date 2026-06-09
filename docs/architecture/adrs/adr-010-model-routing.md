@@ -167,6 +167,14 @@ except ModelUnavailableError:
 - **Circuit breaker**: Disable SLM if escalation rate > 50%
 - **Override flags**: Allow users to request LLM explicitly
 
+## Evaluation Requirements (Amended: 2026-04)
+
+ADR-028 makes SLM-first routing a governed quality attribute, not only a runtime optimization. Continuous evaluation datasets must include and validate `expected_model_tier` for every `EvalCase`, using `slm`, `llm`, or `any` to declare the expected routing outcome.
+
+Evaluation runs must exercise SLM and LLM paths independently whenever an agent configures both model targets. SLM cases validate that low-complexity requests remain fast, low-cost, and accurate without unnecessary escalation. LLM cases validate that complex, multi-step, or low-confidence flows still reach the rich model path and meet quality thresholds.
+
+Per-agent baselines should report quality, latency, escalation, and drift evidence by model tier so routing changes can be reviewed before deployment and correlated with ADR-031 telemetry. A dataset or result that omits `expected_model_tier` is incomplete for model-routing governance unless the case explicitly uses `any` for tier-agnostic behavior.
+
 ## Implementation Guidelines
 
 ### Environment Variables
