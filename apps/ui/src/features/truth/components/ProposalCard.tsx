@@ -1,12 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
-import { cn } from '../utils';
+import { cn } from '@/components/utils';
 import { ConfidenceBadge } from './ConfidenceBadge';
-import { Badge } from '../atoms/Badge';
-import { IntentClassificationDisplay } from '../enrichment/IntentClassificationDisplay';
-import { ImageEvidenceGallery } from '../enrichment/ImageEvidenceGallery';
-import type { ProposedAttribute } from '../../lib/types/api';
+import { Badge } from '@/components/atoms/Badge';
+import { IntentClassificationDisplay } from '@/components/enrichment/IntentClassificationDisplay';
+import { ImageEvidenceGallery } from '@/components/enrichment/ImageEvidenceGallery';
+import type { ProposedAttribute } from '../types';
 
 export interface ProposalCardProps {
   proposal: ProposedAttribute;

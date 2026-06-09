@@ -1,5 +1,5 @@
 import React from 'react';
-import { cn } from '../utils';
+import { cn } from '@/components/utils';
 
 export interface CompletenessBarProps {
   value: number;

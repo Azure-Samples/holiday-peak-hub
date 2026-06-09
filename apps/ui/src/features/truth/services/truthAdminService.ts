@@ -1,12 +1,12 @@
-import apiClient, { handleApiError } from '../api/client';
-import API_ENDPOINTS from '../api/endpoints';
+import apiClient, { handleApiError } from '@/lib/api/client';
+import API_ENDPOINTS from '@/lib/api/endpoints';
 import type {
   CategorySchema,
   TenantConfig,
   TruthAnalyticsSummary,
   CompletenessBreakdown,
   PipelineThroughput,
-} from '../types/api';
+} from '../types';
 
 export const truthAdminService = {
   async listSchemas(): Promise<CategorySchema[]> {
