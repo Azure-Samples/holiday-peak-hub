@@ -695,7 +695,7 @@ sqlalchemy==2.0.49
     # via mem0ai
 sse-starlette==3.3.3
     # via mcp
-starlette==0.52.1
+starlette==1.0.1
     # via
     #   azure-ai-agentserver-core
     #   fastapi
