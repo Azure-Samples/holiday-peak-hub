@@ -1,0 +1,320 @@
+name: agent-eval-continuous
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-daily
+  cancel-in-progress: true
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      agent:
+        description: Agent to evaluate (all or pilot)
+        type: choice
+        required: true
+        default: all
+        options:
+          - all
+          - ecommerce-catalog-search
+          - search-enrichment-agent
+          - truth-enrichment
+      dry_run:
+        description: Do not create issues or commit results
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  discover-agents:
+    name: discover agents
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.discover.outputs.matrix }}
+      has-agents: ${{ steps.discover.outputs.has-agents }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Build agent matrix
+        id: discover
+        env:
+          SELECTED_AGENT: ${{ inputs.agent || 'all' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: |
+          python - <<'PY'
+          import json, os, glob
+
+          pilots = [
+              "ecommerce-catalog-search",
+              "search-enrichment-agent",
+              "truth-enrichment",
+          ]
+
+          # Discover all apps with eval-config.yaml under .foundry
+          roots = []
+          for path in glob.glob('apps/*/.foundry/eval-config.yaml'):
+              agent = path.split('/')[1]
+              roots.append((agent, f'apps/{agent}'))
+
+          selected = os.environ.get('SELECTED_AGENT', 'all')
+          dry = os.environ.get('DRY_RUN', 'false').lower() == 'true'
+
+          if dry:
+              names = pilots
+          elif selected == 'all':
+              names = [a for a,_ in roots]
+          else:
+              names = [selected]
+
+          include = []
+          for name, root in roots:
+              if name in names:
+                  include.append({"name": name, "root": root})
+
+          matrix = json.dumps({"include": include}, separators=(',', ':'))
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as out:
+              print(f"matrix={matrix}", file=out)
+              print(f"has-agents={str(bool(include)).lower()}", file=out)
+          PY
+
+  evaluate:
+    name: continuous eval (${{ matrix.name }})
+    if: needs.discover-agents.outputs.has-agents == 'true'
+    needs: discover-agents
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.discover-agents.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+      - name: Install evaluation runtime
+        run: |
+          uv pip install --system -e ./lib/src
+      - name: Run continuous evaluation
+        id: run_eval
+        env:
+          TIMESTAMP: ${{ github.run_id }}
+          AGENT_ROOT: ${{ matrix.root }}
+          AGENT_NAME: ${{ matrix.name }}
+          RESULTS_DIR: ${{ matrix.root }}/.foundry/results
+          RESULT_PATH: ${{ matrix.root }}/.foundry/results/run-${{ github.run_id }}.json
+          LOG_PATH: ${{ matrix.root }}/.foundry/results/run-${{ github.run_id }}.log
+        run: |
+          mkdir -p "$RESULTS_DIR"
+          python scripts/ci/run_agent_evaluation.py \
+            --agent-root "$AGENT_ROOT" \
+            --run-name "run-${TIMESTAMP}" \
+            --write-result "$RESULT_PATH" \
+            > "$LOG_PATH" || true
+          echo "result_path=$RESULT_PATH" >> $GITHUB_OUTPUT
+          echo "log_path=$LOG_PATH" >> $GITHUB_OUTPUT
+
+      - name: Process evaluation result
+        id: process
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs')
+            const path = process.env.RESULT_PATH
+            const agent = process.env.AGENT_NAME
+            const run_id = `run-${process.env.TIMESTAMP}`
+            const dry = process.env.INPUTS_DRY_RUN === 'true' || process.env.DRY_RUN === 'true' || process.env.INPUTS_DRY_RUN === 'True'
+            if (!fs.existsSync(path)) {
+              core = require('@actions/core')
+              core.info(`No result JSON at ${path}`)
+              return { drift: false }
+            }
+            const payload = JSON.parse(fs.readFileSync(path,'utf8'))
+            const drift = payload.drift_detected === true && payload.drift_report
+
+            // If drift, check for existing open issue with same agent+severity
+            if (drift && !dry) {
+              const severity = payload.drift_report.severity
+              const title = `Evaluation drift: ${agent} (${severity})`
+              const search = `repo:${context.repo.owner}/${context.repo.repo}+is:open+in:title+"${title}"`
+              const existing = await github.rest.search.issuesAndPullRequests({ q: search })
+              if (existing.data.total_count === 0) {
+                // Ensure labels exist
+                const ensureLabel = async (label, color) => {
+                  try {
+                    await github.rest.issues.getLabel({ owner: context.repo.owner, repo: context.repo.repo, name: label })
+                  } catch (e) {
+                    await github.rest.issues.createLabel({ owner: context.repo.owner, repo: context.repo.repo, name: label, color })
+                  }
+                }
+                await ensureLabel('evaluation','0e8a16')
+                await ensureLabel(`drift:${severity}`,'b60205')
+
+                const body = []
+                body.push(`Agent: **${agent}**`)
+                body.push(`Severity: **${severity}**`)
+                body.push('')
+                body.push('Breached thresholds:')
+                body.push('')
+                for (const t of payload.drift_report.breached_thresholds) {
+                  body.push(`- ${t}`)
+                }
+                body.push('')
+                body.push('Drift magnitude:')
+                for (const [k,v] of Object.entries(payload.drift_report.drift_metrics || {})) {
+                  body.push(`- ${k}: ${v}`)
+                }
+                body.push('')
+                const resultsPath = `${process.env.AGENT_ROOT}/.foundry/results/run-${process.env.TIMESTAMP}.json`
+                body.push(`Evaluation result artifact: ${context.repo.html_url}/blob/${context.sha}/${resultsPath}`)
+
+                await github.rest.issues.create({ owner: context.repo.owner, repo: context.repo.repo, title, body: body.join('\n'), labels: ['evaluation', `drift:${severity}`] })
+              } else {
+                core = require('@actions/core')
+                core.info('Found existing open issue for this agent/severity; skipping create')
+              }
+            }
+
+            return { drift: !!drift }
+
+      - name: Commit results and update baseline
+        if: steps.process.outputs.drift != 'true' && github.event.inputs.dry_run != 'true'
+        run: |
+          set -euo pipefail
+          AGENT_DIR=${{ matrix.root }}
+          RESULTS_DIR=${{ matrix.root }}/.foundry/results
+          RESULT_FILE=${{ matrix.root }}/.foundry/results/run-${{ github.run_id }}.json
+          BASELINE_FILE=${{ matrix.root }}/.foundry/results/baseline.json
+          if [ ! -f "$RESULT_FILE" ]; then echo "No result file to commit"; exit 0; fi
+          # update baseline when no drift
+          python - <<'PY'
+          import json, sys, pathlib
+          p = pathlib.Path(r"""%s""" % "$RESULT_FILE")
+          if not p.exists():
+              sys.exit(0)
+          payload = json.loads(p.read_text(encoding='utf-8'))
+          metrics = payload.get('metrics', {})
+          baseline = {
+              'agent_name': payload.get('agent_name'),
+              'metrics': metrics,
+              'baseline_id': payload.get('eval.baseline_id') or payload.get('eval_baseline_id'),
+              'dataset_version': payload.get('details',{}).get('dataset_version','seed')
+          }
+          out_path = pathlib.Path(r"""%s""" % "$BASELINE_FILE")
+          out_path.parent.mkdir(parents=True, exist_ok=True)
+          out_path.write_text(json.dumps(baseline, indent=2, sort_keys=True), encoding='utf-8')
+          PY
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          BRANCH=ci/eval-results/${{ matrix.name }}/run-${{ github.run_id }}
+          git checkout -b "$BRANCH"
+          git add "$RESULT_FILE" "$BASELINE_FILE"
+          git commit -m "ci(evaluation): record run results for ${{ matrix.name }} run-${{ github.run_id }}"
+          git push --set-upstream origin "$BRANCH"
+
+      - name: Upload evaluation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-${{ matrix.name }}-run-${{ github.run_id }}
+          path: |
+            ${{ matrix.root }}/.foundry/results/run-${{ github.run_id }}.json
+            ${{ matrix.root }}/.foundry/results/run-${{ github.run_id }}.log
+          if-no-files-found: warnname: agent-eval-continuous
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: ${{ github.workflow }}-continuous
+  cancel-in-progress: false
+
+on:
+  schedule:
+    - cron: '0 6 * * *' # daily 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      agent:
+        description: Optional single agent to run (dry-run)
+        required: false
+        default: ''
+
+jobs:
+  discover-agents:
+    name: discover eval scope
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.discover.outputs.matrix }}
+      has-agents: ${{ steps.discover.outputs.has-agents }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Build agent matrix
+        id: discover
+        env:
+          SELECTED_AGENT: ${{ github.event.inputs.agent || '' }}
+        run: |
+          python - <<'PY'
+          import json, os, glob
+          pilots = []
+          selected = os.environ.get('SELECTED_AGENT','').strip()
+          pattern = 'apps/*/.foundry/eval-config.yaml'
+          for path in glob.glob(pattern):
+              root = path.replace('/.foundry/eval-config.yaml','')
+              name = root.split('/')[-1]
+              pilots.append({'name': name, 'root': root})
+          if selected:
+              pilots = [p for p in pilots if p['name'] == selected]
+          matrix = json.dumps({'include': pilots}, separators=(',',':'))
+          with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf-8') as out:
+              print(f'matrix={matrix}', file=out)
+              print(f"has-agents={str(bool(pilots)).lower()}", file=out)
+          PY
+
+  monitor:
+    name: continuous eval (${{ matrix.name }})
+    needs: discover-agents
+    if: needs.discover-agents.outputs.has-agents == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.discover-agents.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+      - name: Install evaluation runtime
+        run: |
+          uv pip install --system -e ./lib/src
+      - name: Run continuous evaluation monitor
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RESULT_DIR: ${{ matrix.root }}/.foundry/results
+          RUN_NAME: ${{ github.run_id }}-continuous-${{ matrix.name }}
+          PROJECT_ENDPOINT: ${{ secrets.FOUNDRY_PROJECT_ENDPOINT || '' }}
+          PROJECT_NAME: ${{ secrets.FOUNDRY_PROJECT_NAME || '' }}
+        run: |
+          mkdir -p "${{ matrix.root }}/.foundry/results"
+          python scripts/ci/continuous_eval_monitor.py \
+            --agent-root "${{ matrix.root }}" \
+            --run-name "$RUN_NAME" \
+            --write-result "${{ matrix.root }}/.foundry/results/run-$(date -u +%Y%m%dT%H%M%SZ).json" \
+            --repo "${{ github.repository }}" \
+            --github-token "$GITHUB_TOKEN" \
+            --create-issue

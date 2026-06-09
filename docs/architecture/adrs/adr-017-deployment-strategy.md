@@ -176,14 +176,31 @@ Required repository secrets:
 - `AZURE_TENANT_ID` — Azure AD tenant
 - `AZURE_SUBSCRIPTION_ID` — Target subscription
 
+# ADR-017: Deployment Strategy - azd Provisioning + Flux CD GitOps
+
+**Status**: Accepted (Revised)  
 ### Evaluation Workflow Integration (Amended: 2026-04)
 
 ADR-028 adds evaluation evidence to PR and deployment governance without changing the deployment source of truth. The current evaluation workflow is `.github/workflows/eval-advisory.yml`, whose workflow name is `agent-eval-advisory`. It discovers the pilot evaluation scope, runs `scripts/ci/run_agent_evaluation.py` for changed pilot agents, writes normalized `.foundry-results/*.json`, publishes job summaries, and uploads evaluation artifacts.
 
-`agent-eval-advisory` is intentionally advisory and non-required. It must remain outside required branch-protection checks until `docs/governance/README.md` is explicitly revised to promote it. There is no `eval-gate.yml` or `eval-continuous.yml` workflow in the current repository snapshot, so deployment governance must reference the existing advisory workflow rather than stale gate names.
+`agent-eval-advisory` is intentionally advisory and non-required. It must remain outside required branch-protection checks until `docs/governance/README.md` is explicitly revised to promote it. A new scheduled advisory workflow `eval-continuous.yml` exists to provide daily drift detection and alerting; it is advisory-only and does not block deployments. Deployment governance must reference the advisory workflows rather than treating them as automated gates.
 
 PR reviewers use evaluation artifacts as architecture and quality evidence when prompts, datasets, routing, or evaluation framework code changes. Deployment workflows remain governed by the azd + Flux path in this ADR; evaluation evidence can block a PR by human review policy, but it does not independently deploy, roll back, rename workflows, or bypass `lint` / `test` branch-protection baselines.
 
+### Evaluation Workflow Integration (Amended: 2026-04 / 2026-06)
+
+ADR-028 adds evaluation evidence to PR and deployment governance without changing the deployment source of truth. The existing advisory workflow is `.github/workflows/eval-advisory.yml` (`agent-eval-advisory`): it discovers pilot eval scope, runs `scripts/ci/run_agent_evaluation.py` for changed pilot agents, writes normalized `.foundry-results/*.json`, publishes job summaries, and uploads evaluation artifacts.
+
+`agent-eval-advisory` remains intentionally advisory and non-required. It must remain outside required branch-protection checks until `docs/governance/README.md` is explicitly revised to promote it. In addition to the advisory workflow, the repository now includes a scheduled continuous monitoring workflow `.github/workflows/eval-continuous.yml` that runs daily (default `0 6 * * *`) to detect quality drift across agent pilots and other agents that include `.foundry/eval-config.yaml`.
+
+Key points about `agent-eval-continuous`:
+
+- Runs on a daily cron and via `workflow_dispatch` with an `agent` selector and `dry_run` mode.
+- Discovers agents by scanning `apps/*/.foundry/eval-config.yaml` and runs `scripts/ci/run_agent_evaluation.py` for each discovered agent in a matrix (fail-fast: false).
+- Persists run artifacts under each agent's `.foundry/results/` (e.g., `run-<id>.json`, logs) and can update `baseline.json` when a run passes with no drift.
+- When drift is detected, the workflow will open a GitHub issue (labels `evaluation` and `drift:<severity>`) unless `dry_run` is true; the workflow guards against duplicate open issues by searching existing issues before creating a new one.
+
+The scheduled workflow is advisory monitoring only — it records evidence and notifies operators of drift. It does not perform automatic remediation, rollbacks, or code changes. Deployment workflows remain governed by the azd + Flux path in this ADR; evaluation evidence can inform human-driven actions but cannot autonomously change deployment state or bypass `lint` / `test` checks.
 ## Consequences
 
 ### Positive
