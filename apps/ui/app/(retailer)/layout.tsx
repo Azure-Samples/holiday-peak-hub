@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
 
-import { AppSearchBox } from '@/components/molecules/AppSearchBox';
 import { LaneSwitch } from '@/components/shared/LaneSwitch';
 import { SectionShell } from '@/components/shared/SectionShell';
+import { AppSearchBox } from '@/src/features/search';
 
 /**
  * (retailer) route group layout.

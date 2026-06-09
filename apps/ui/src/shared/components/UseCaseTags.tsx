@@ -1,5 +1,5 @@
 import React from 'react';
-import { Badge } from '../atoms/Badge';
+import { Badge } from '@/components/atoms/Badge';
 
 export interface UseCaseTagsProps {
   useCases?: string[];

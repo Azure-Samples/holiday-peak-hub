@@ -2,10 +2,10 @@
 
 import React, { useState } from 'react';
 import { cn } from '@/components/utils';
-import { ConfidenceBadge } from './ConfidenceBadge';
 import { Badge } from '@/components/atoms/Badge';
-import { IntentClassificationDisplay } from '@/components/enrichment/IntentClassificationDisplay';
 import { ImageEvidenceGallery } from '@/components/enrichment/ImageEvidenceGallery';
+import { ConfidenceBadge } from '@/src/shared/components/ConfidenceBadge';
+import { IntentClassificationDisplay } from '@/src/shared/components/IntentClassificationDisplay';
 import type { ProposedAttribute } from '../types';
 
 export interface ProposalCardProps {

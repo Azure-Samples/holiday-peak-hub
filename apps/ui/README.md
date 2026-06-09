@@ -37,7 +37,8 @@ yarn --cwd apps/ui type-check
 ## Feature import boundaries
 
 - Cross-feature deep imports are rejected by ESLint. Import features only via their public `index.ts`.
-- **Migrated features**: `truth` (review queue, enrichment monitoring, schemas, analytics)
+- Shared UI primitives that are reused by multiple features live under `src/shared/`.
+- **Migrated features**: `truth` (review queue, enrichment monitoring, schemas, analytics), `search` (search route, app search, search hooks, semantic search service)
 
 ## Configuration notes
 

@@ -48,8 +48,8 @@ export type { AuditTimelineProps } from './components/AuditTimeline';
 export { CompletenessBar } from './components/CompletenessBar';
 export type { CompletenessBarProps } from './components/CompletenessBar';
 
-export { ConfidenceBadge } from './components/ConfidenceBadge';
-export type { ConfidenceBadgeProps } from './components/ConfidenceBadge';
+export { ConfidenceBadge } from '@/src/shared/components/ConfidenceBadge';
+export type { ConfidenceBadgeProps } from '@/src/shared/components/ConfidenceBadge';
 
 export { ProposalCard } from './components/ProposalCard';
 export type { ProposalCardProps } from './components/ProposalCard';

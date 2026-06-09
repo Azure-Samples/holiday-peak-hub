@@ -1,4 +1,4 @@
-import semanticSearchService from '../../lib/services/semanticSearchService';
+import { semanticSearchService } from '@/src/features/search';
 import agentApiClient from '../../lib/api/agentClient';
 import { recordAgentInvocationTelemetry } from '../../lib/hooks/useAgentInvocationTelemetry';
 import { productService } from '../../lib/services/productService';

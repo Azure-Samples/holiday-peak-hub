@@ -6,9 +6,11 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/atoms/Button';
 import { FiMessageSquare, FiSend, FiMinimize2, FiRefreshCw } from 'react-icons/fi';
 import { Card } from '@/components/molecules/Card';
-import { SearchComparisonScorecard } from '@/components/enrichment/SearchComparisonScorecard';
-import { semanticSearchService } from '@/lib/services/semanticSearchService';
-import type { StreamingSearchCallbacks } from '@/lib/services/semanticSearchService';
+import {
+  SearchComparisonScorecard,
+  semanticSearchService,
+  type StreamingSearchCallbacks,
+} from '@/src/features/search';
 
 type ProductPreview = {
   sku: string;

@@ -1,14 +1,11 @@
 import { act, renderHook } from '@testing-library/react';
-import { useIntelligentSearch } from '../../lib/hooks/useIntelligentSearch';
+import { useIntelligentSearch } from '@/src/features/search';
 
-const mockUseSemanticSearch = jest.fn();
+const mockUseQuery = jest.fn();
 const mockPrefetchQuery = jest.fn();
 
-jest.mock('../../lib/hooks/useSemanticSearch', () => ({
-  useSemanticSearch: (...args: unknown[]) => mockUseSemanticSearch(...args),
-}));
-
 jest.mock('@tanstack/react-query', () => ({
+  useQuery: (...args: unknown[]) => mockUseQuery(...args),
   useQueryClient: () => ({
     prefetchQuery: mockPrefetchQuery,
   }),
@@ -30,22 +27,26 @@ describe('useIntelligentSearch', () => {
     };
   }
 
+  function readQueryOptions(options: unknown): { enabled?: boolean; queryKey?: unknown[] } {
+    if (!options || typeof options !== 'object') {
+      return {};
+    }
+
+    return options as { enabled?: boolean; queryKey?: unknown[] };
+  }
+
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
     window.localStorage.clear();
     window.sessionStorage.clear();
-    mockUseSemanticSearch.mockImplementation((
-      _query: string,
-      _limit: number,
-      mode: 'keyword' | 'intelligent' | 'auto',
-      _context: unknown,
-      enabled = true,
-    ) => {
+    mockUseQuery.mockImplementation((options: unknown) => {
+      const { enabled, queryKey } = readQueryOptions(options);
       if (!enabled) {
         return buildQueryResult({ data: undefined });
       }
 
+      const mode = queryKey?.[3];
       if (mode === 'intelligent') {
         return buildQueryResult({
           data: {
@@ -72,15 +73,17 @@ describe('useIntelligentSearch', () => {
 
     expect(result.current.preference).toBe('intelligent');
     expect(result.current.resolvedMode).toBe('intelligent');
-    expect(mockUseSemanticSearch).toHaveBeenCalledWith(
-      'headphones',
-      20,
-      'intelligent',
+    expect(mockUseQuery).toHaveBeenCalledWith(
       expect.objectContaining({
-        search_stage: 'baseline',
-        session_id: expect.any(String),
+        enabled: true,
+        queryKey: expect.arrayContaining([
+          'semantic-search',
+          'headphones',
+          20,
+          'intelligent',
+          'baseline',
+        ]),
       }),
-      true,
     );
   });
 
@@ -109,13 +112,9 @@ describe('useIntelligentSearch', () => {
     let rerankReady = false;
     window.localStorage.setItem('hp.search.mode.preference', 'auto');
 
-    mockUseSemanticSearch.mockImplementation((
-      _query: string,
-      _limit: number,
-      mode: 'keyword' | 'intelligent' | 'auto',
-      _context: unknown,
-      enabled = true,
-    ) => {
+    mockUseQuery.mockImplementation((options: unknown) => {
+      const { enabled, queryKey } = readQueryOptions(options);
+      const mode = queryKey?.[3];
       if (mode === 'keyword') {
         return buildQueryResult({
           data: {
@@ -176,7 +175,7 @@ describe('useIntelligentSearch', () => {
   it('prefetches related product cards from search results', () => {
     window.localStorage.setItem('hp.search.mode.preference', 'keyword');
 
-    mockUseSemanticSearch.mockReturnValue({
+    mockUseQuery.mockReturnValue({
       data: {
         items: [
           {

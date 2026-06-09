@@ -14,7 +14,8 @@ jest.mock('next/navigation', () => ({
   }),
 }));
 
-jest.mock('../../lib/services/semanticSearchService', () => ({
+jest.mock('@/src/features/search', () => ({
+  ...jest.requireActual('@/src/features/search'),
   semanticSearchService: {
     searchWithMode: (...args: unknown[]) => searchWithModeMock(...args),
     searchStream: (...args: unknown[]) => searchStreamMock(...args),

@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
 
-import { AppSearchBox } from '@/components/molecules/AppSearchBox';
 import { CallToAction } from '@/components/molecules/CallToAction';
 import { Hero } from '@/components/molecules/Hero';
 import { ValuePropGrid } from '@/components/molecules/ValuePropGrid';
 import { HomeShell } from '@/components/templates/HomeShell';
 import { buildMetadata } from '@/lib/seo';
+import { AppSearchBox } from '@/src/features/search';
 
 export const metadata: Metadata = buildMetadata({
   section: 'home',

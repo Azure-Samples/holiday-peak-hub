@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 
-import { AppSearchBox } from '@/components/molecules/AppSearchBox';
+import { AppSearchBox } from '@/src/features/search';
 
 describe('AppSearchBox', () => {
   it('renders the audience-scoped placeholder', () => {

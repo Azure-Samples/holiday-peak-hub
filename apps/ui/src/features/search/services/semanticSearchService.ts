@@ -4,17 +4,17 @@
  * Uses agent API (APIM) when configured, falls back to CRUD search.
  */
 
-import agentApiClient from '../api/agentClient';
+import agentApiClient from '@/lib/api/agentClient';
 import { resolveAgentApiClientBaseUrl } from '@/app/api/_shared/base-url-resolver';
 import { recordAgentInvocationTelemetry } from '@/lib/hooks/useAgentInvocationTelemetry';
 import { getCurrentPageSessionId } from '@/lib/hooks/usePageSession';
-import { productService } from './productService';
+import { productService } from '@/lib/services/productService';
 import {
   mapAcpProductsToUi,
   mapApiProductsToUi,
   type AcpProduct,
-} from '../utils/productMappers';
-import type { Product as UiProduct } from '../../components/types';
+} from '@/lib/utils/productMappers';
+import type { Product as UiProduct } from '@/components/types';
 
 const AGENT_API_BASE_URL = resolveAgentApiClientBaseUrl().baseUrl || '';
 const MOCK_TITLE_PATTERN = /\bmock\b/i;

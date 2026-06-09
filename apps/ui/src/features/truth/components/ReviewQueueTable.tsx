@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { cn } from '@/components/utils';
-import { ConfidenceBadge } from './ConfidenceBadge';
+import { ConfidenceBadge } from '@/src/shared/components/ConfidenceBadge';
 import type { ReviewQueueItem } from '../types';
 
 export type SortKey = 'confidence_asc' | 'confidence_desc' | 'date_asc' | 'date_desc';

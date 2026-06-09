@@ -12,8 +12,8 @@ import {
   useState,
 } from 'react';
 
-import { type AppAudience, AUDIENCE_FILTER } from '@/lib/search/appPages';
-import { buildDocsSearchUrl, searchAppPages, type SearchHit } from '@/lib/search/matcher';
+import { type AppAudience, AUDIENCE_FILTER } from '../internal/appPages';
+import { buildDocsSearchUrl, searchAppPages, type SearchHit } from '../internal/matcher';
 
 /**
  * AppSearchBox — lightweight in-app search (Issue #1022).
@@ -21,7 +21,7 @@ import { buildDocsSearchUrl, searchAppPages, type SearchHit } from '@/lib/search
  * Per ADR-034 + capability 42 the platform ships TWO search boxes, not one:
  *   - mkdocs Material's built-in search serves `/docs/*`.
  *   - This component serves `/retailers/*`, `/builders/*`, `/deploy/*`, and
- *     home, indexing the audience-IA page manifest in `lib/search/appPages.ts`.
+ *     home, indexing the audience-IA page manifest in `features/search/internal/appPages.ts`.
  *
  * Cross-discovery is achieved by an explicit "Search the docs instead →"
  * footer link inside this dropdown (and a reciprocal link injected into the

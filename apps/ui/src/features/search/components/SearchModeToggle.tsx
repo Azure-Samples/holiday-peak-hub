@@ -1,6 +1,6 @@
 import React from 'react';
-import { Badge } from '../atoms/Badge';
-import type { IntelligentSearchPreference } from '@/lib/hooks/useIntelligentSearch';
+import { Badge } from '@/components/atoms/Badge';
+import type { IntelligentSearchPreference } from '../hooks/useIntelligentSearch';
 
 export interface SearchModeToggleProps {
   preference: IntelligentSearchPreference;
