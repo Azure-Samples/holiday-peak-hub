@@ -11,7 +11,7 @@ import { EnrichmentPipelineStatus } from '@/components/enrichment/EnrichmentPipe
 import {
   useEnrichmentDecision,
   useEnrichmentMonitorDetail,
-} from '@/lib/hooks/useEnrichmentMonitor';
+} from '@/src/features/truth';
 
 export default function EnrichmentMonitorDetailPage() {
   const params = useParams<{ entityId: string }>();

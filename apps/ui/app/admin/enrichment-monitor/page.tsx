@@ -6,7 +6,7 @@ import { Card } from '@/components/molecules/Card';
 import { CsvUploadPanel } from '@/components/enrichment/CsvUploadPanel';
 import { LiveProcessingLog } from '@/components/enrichment/LiveProcessingLog';
 import { EnrichmentPipelineStatus } from '@/components/enrichment/EnrichmentPipelineStatus';
-import { useEnrichmentMonitorDashboard } from '@/lib/hooks/useEnrichmentMonitor';
+import { useEnrichmentMonitorDashboard } from '@/src/features/truth';
 
 export default function EnrichmentMonitorPage() {
   const { data, isLoading, isError, refetch, isFetching } = useEnrichmentMonitorDashboard();

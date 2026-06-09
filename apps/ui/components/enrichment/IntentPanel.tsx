@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card } from '../molecules/Card';
-import { ConfidenceBadge } from '../truth/ConfidenceBadge';
+import { ConfidenceBadge } from '@/src/features/truth';
 import type { SemanticSearchIntent } from '@/lib/services/semanticSearchService';
 
 export interface IntentPanelProps {

@@ -1,7 +1,7 @@
 import React from 'react';
 import type { EnrichmentAttributeDiff } from '@/lib/types/api';
 import { Card } from '../molecules/Card';
-import { ConfidenceBadge } from '../truth/ConfidenceBadge';
+import { ConfidenceBadge } from '@/src/features/truth';
 import { IntentClassificationDisplay } from './IntentClassificationDisplay';
 
 export interface AttributeDiffViewProps {
