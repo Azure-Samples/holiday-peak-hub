@@ -1,0 +1,15 @@
+schema_version: "1"
+base_setup: balanced-retail
+refinements:
+  - coordinate: retrieval_depth
+    values: [4, 5, 6]
+  - coordinate: memory_policy
+    values: [1, 2, 3]
+  - coordinate: tool_budget
+    values: [4, 5, 6]
+  - coordinate: token_budget
+    values: [3072, 4096, 6144]
+  - coordinate: topology_policy
+    values: [1, 2, 3]
+  - coordinate: hitl_policy
+    values: [0, 1, 2]

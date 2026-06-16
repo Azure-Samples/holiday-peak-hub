@@ -1,0 +1,69 @@
+schema_version: "1"
+mode: synthetic-default
+currency: USD
+components:
+  - name: input_tokens
+    unit: token
+    weight: 0.22
+    baseline: 50000
+    source: synthetic-request-token-budget
+  - name: tool_calls
+    unit: call
+    weight: 0.2
+    baseline: 200
+    source: agent-client-topology-fanout
+  - name: memory_ops
+    unit: operation
+    weight: 0.14
+    baseline: 120
+    source: three-tier-memory-policy
+  - name: search_ops
+    unit: operation
+    weight: 0.14
+    baseline: 120
+    source: retrieval-depth-policy
+  - name: latency_ms
+    unit: millisecond
+    weight: 0.2
+    baseline: 2000
+    source: local-slo-budget
+  - name: human_review_minutes
+    unit: minute
+    weight: 0.1
+    baseline: 20
+    source: hitl-escalation-policy
+coordinate_bounds:
+  - coordinate: retrieval_depth
+    minimum: 1
+    maximum: 8
+    unit: result
+    rationale: Retail search top-k budget bounds retrieval expansion.
+  - coordinate: memory_policy
+    minimum: 0
+    maximum: 3
+    unit: tier
+    rationale: Hot, warm, and cold memory tiers define the available policy range.
+  - coordinate: tool_budget
+    minimum: 1
+    maximum: 8
+    unit: call
+    rationale: API gateway quota and retry policy bound agent tool calls per request.
+  - coordinate: token_budget
+    minimum: 1024
+    maximum: 8192
+    unit: token
+    rationale: Local reproducible runs cap prompt context at the public-safe scenario limit.
+  - coordinate: topology_policy
+    minimum: 1
+    maximum: 3
+    unit: policy
+    rationale: Conservative, default, and permissive topology policies bound handoff breadth.
+  - coordinate: hitl_policy
+    minimum: 0
+    maximum: 2
+    unit: policy
+    rationale: No review, sampled review, and mandatory exception review bound human intervention.
+assumptions:
+  - The bundle uses public-safe synthetic retail requests, not private production traces.
+  - Cost weights are scenario-calibrated defaults and can be replaced by telemetry-derived weights.
+  - Coordinate bounds define the compact setup region used by ASB theorem checks.

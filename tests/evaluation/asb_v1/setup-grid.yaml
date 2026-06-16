@@ -1,0 +1,23 @@
+schema_version: "1"
+setups:
+  - setup_id: baseline-lean
+    retrieval_depth: 2
+    memory_policy: 1
+    tool_budget: 2
+    token_budget: 2048
+    topology_policy: 1
+    hitl_policy: 0
+  - setup_id: balanced-retail
+    retrieval_depth: 5
+    memory_policy: 2
+    tool_budget: 5
+    token_budget: 4096
+    topology_policy: 2
+    hitl_policy: 1
+  - setup_id: peak-rich
+    retrieval_depth: 8
+    memory_policy: 3
+    tool_budget: 8
+    token_budget: 8192
+    topology_policy: 3
+    hitl_policy: 2

@@ -1,0 +1,19 @@
+schema_version: "1"
+workload: holiday-peak-hub-asb-v1
+claims:
+  - id: C1-COST-BOUNDARY-PRODUCTION-LIKE
+    status: planned
+    artifacts:
+      - cost-provenance.json
+      - grid-search.csv
+  - id: C3-PRODUCTION-LIKE-TOPOLOGY
+    status: planned
+    artifacts:
+      - catalog-topology.json
+      - topology-metrics.csv
+  - id: C7-PRODUCTION-LIKE-WORKLOAD
+    status: planned
+    artifacts:
+      - bundle.json
+      - manifest.json
+      - claim-map.yaml

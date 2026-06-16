@@ -1,0 +1,14 @@
+schema_version: "1"
+interventions:
+  - id: shuffle-query-relevance
+    description: Shuffle query-to-product relevance labels across retail search requests.
+    severity: 0.12
+  - id: remove-inventory-availability
+    description: Remove availability constraints from inventory operations requests.
+    severity: 0.09
+  - id: randomize-agent-routing
+    description: Replace domain-specific agent routing with random eligible agents.
+    severity: 0.15
+  - id: disable-hitl-escalation
+    description: Disable human-review escalation for high-risk truth and inventory requests.
+    severity: 0.08

@@ -9,6 +9,7 @@ This folder contains the canonical architecture, ADRs, component references, ope
 - [Components](components.md) — Library, app, and frontend component references
 - [Solution Architecture Diagrams](solution-architecture-diagrams.md) — System context, container, per-domain, and data flow Mermaid diagrams
 - [MAF Integration Rationale](maf-integration-rationale.md) — Why Microsoft Agent Framework is wrapped in `holiday-peak-lib`
+- [Agentic Setup Benchmark Bundle](agentic-setup-benchmark.md) — Public-safe ASB workload bundle generation and validation
 - [Standalone Deployment Guide](standalone-deployment-guide.md) — How to deploy a single agent service to AKS
 - [Test Coverage Gap Analysis](test-coverage-gap-analysis.md) — Coverage gaps, patterns, and wave-based remediation plan
 - [Architecture Compliance Review](architecture-compliance-review.md) — Branch-level ADR and policy conformance assessment
