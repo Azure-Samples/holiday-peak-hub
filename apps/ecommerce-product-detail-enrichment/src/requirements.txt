@@ -241,7 +241,7 @@ colorama==0.4.6 ; sys_platform == 'win32'
     #   click
     #   tqdm
     #   uvicorn
-cryptography==46.0.7
+cryptography==48.0.1
     # via
     #   azure-identity
     #   azure-storage-blob

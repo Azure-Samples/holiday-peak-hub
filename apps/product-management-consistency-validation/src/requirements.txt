@@ -114,7 +114,7 @@ colorama==0.4.6 ; sys_platform == 'win32'
     # via
     #   click
     #   tqdm
-cryptography==46.0.7
+cryptography==48.0.1
     # via
     #   azure-identity
     #   azure-storage-blob
