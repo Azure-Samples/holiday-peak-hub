@@ -17,8 +17,28 @@ from holiday_peak_lib.utils.event_hub import (
 )
 
 
+def _collect_route_paths(routes) -> set[str]:
+    """Collect registered route paths, recursing through router wrappers.
+
+    Some Starlette/FastAPI versions represent ``include_router`` calls with an
+    internal ``_IncludedRouter`` object that has no ``path`` attribute and nests
+    the real routes under ``original_router``. Walking those wrappers keeps the
+    path assertions stable across dependency versions.
+    """
+    collected: set[str] = set()
+    for route in routes:
+        path = getattr(route, "path", None)
+        if isinstance(path, str):
+            collected.add(path)
+        included = getattr(route, "original_router", None)
+        included_routes = getattr(included, "routes", None)
+        if included_routes is not None:
+            collected |= _collect_route_paths(included_routes)
+    return collected
+
+
 def test_route_groups_keep_expected_api_surfaces() -> None:
-    paths = {route.path for route in main.app.routes}
+    paths = _collect_route_paths(main.app.routes)
     expected_paths = {
         "/health",
         "/api/products",

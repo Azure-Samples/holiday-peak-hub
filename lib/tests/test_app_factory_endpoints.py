@@ -223,9 +223,29 @@ def test_invoke_fails_closed_when_direct_model_required_and_unbound():
     assert "Direct-model targets are not ready" in response.json()["detail"]
 
 
+def _collect_route_paths(routes) -> set[str]:
+    """Collect registered route paths, recursing through router wrappers.
+
+    Some Starlette/FastAPI versions represent ``include_router`` calls with an
+    internal ``_IncludedRouter`` object that has no ``path`` attribute and nests
+    the real routes under ``original_router``. Walking those wrappers keeps the
+    path assertions stable across dependency versions.
+    """
+    collected: set[str] = set()
+    for route in routes:
+        path = getattr(route, "path", None)
+        if isinstance(path, str):
+            collected.add(path)
+        included = getattr(route, "original_router", None)
+        included_routes = getattr(included, "routes", None)
+        if included_routes is not None:
+            collected |= _collect_route_paths(included_routes)
+    return collected
+
+
 def test_retired_route_is_absent():
     app, _logger = _register_app()
-    route_paths = {route.path for route in app.routes}
+    route_paths = _collect_route_paths(app.routes)
     retired_route = "/foundry/agents/" + "ensure"
 
     assert retired_route not in route_paths
