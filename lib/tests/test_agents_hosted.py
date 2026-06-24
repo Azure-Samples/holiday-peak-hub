@@ -447,13 +447,24 @@ def test_foundry_hosted_mode_auto_mounts_responses_with_fake_sdk(monkeypatch) ->
 
     app = create_standard_app("foundry-hosted-test", _FactoryAgent)
 
-    mounted = [route for route in app.routes if getattr(route, "path", "") == ""]
-    assert len(mounted) == 1
-    response_paths = {
-        getattr(route, "path", None) or getattr(route, "path_format", None)
-        for route in mounted[0].app.routes
-    }
-    assert "/responses" in response_paths
+    def _sub_app_paths(route: Any) -> set[str | None]:
+        sub_app = getattr(route, "app", None)
+        return {
+            getattr(sub, "path", None) or getattr(sub, "path_format", None)
+            for sub in getattr(sub_app, "routes", [])
+        }
+
+    # Locate the foundry responses mount by the paths it actually serves rather
+    # than by position. Some Starlette/FastAPI versions add an extra zero-length
+    # route entry (an internal _IncludedRouter) next to the mounted host server,
+    # so a bare ``len(mounted) == 1`` count is brittle across dependency versions.
+    responses_mounts = [
+        route
+        for route in app.routes
+        if getattr(route, "path", "") == "" and "/responses" in _sub_app_paths(route)
+    ]
+    assert len(responses_mounts) == 1
+    assert "/responses" in _sub_app_paths(responses_mounts[0])
 
 
 def test_serve_responses_honors_explicit_prefix_when_sdk_present() -> None:
