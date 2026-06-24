@@ -35,6 +35,14 @@ from holiday_peak_lib.mcp.server import FastAPIMCPServer
 from holiday_peak_lib.self_healing import SelfHealingKernel
 from pydantic import BaseModel, ConfigDict, Field
 
+# asb-v1 setup contract (setup-in / usage-out). Circular-import safe:
+# agent_setup imports only os + dataclasses, nothing from this package.
+from .agent_setup import (
+    SETUP_OVERRIDE_KEY,
+    apply_invocation_overrides,
+    normalize_usage,
+    resolve_agent_setup,
+)
 from .models import (
     ModelInvoker,
     ModelTarget,
@@ -600,6 +608,15 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
                 "logprobs_summary": existing_meta.get("logprobs_summary", logprob_summary),
             }
 
+            # asb-v1 cost axis: surface normalized token usage under
+            # ``_telemetry.usage`` so the optimizer's ``cost_basis='tokens'``
+            # objective can price each call. ``normalize_usage`` accepts both the
+            # Agent Framework ``UsageDetails`` shape and OpenAI-style keys; absent
+            # usage it returns ``None`` and the block is skipped (no empty key).
+            usage_payload = existing_meta.get("usage") or normalize_usage(result.get("usage"))
+            if usage_payload:
+                telemetry["usage"] = usage_payload
+
             result.setdefault("_target", target.name)
             result.setdefault("_model", target.model)
             result["_telemetry"] = telemetry
@@ -622,6 +639,18 @@ class BaseRetailAgent(AgentTelemetryMixin, BaseAgent, ABC):
         """
 
         payload_tools = kwargs.get("tools") or (self.tools if self.tools else None)
+
+        # asb-v1 setup contract: resolve the active setup (a per-request
+        # ``_setup_override`` shadows the ``HPH_*`` env defaults) and inject the
+        # model-call-honored coordinates (L=max_output_tokens, E=reasoning_effort)
+        # into the invoker kwargs. With no env and no override this is a no-op,
+        # so kwargs -- and therefore behavior -- are unchanged. The kwargs flow to
+        # both the primary and the SLM-upgrade ``__invoke_target`` legs below.
+        _setup_override = request.get(SETUP_OVERRIDE_KEY) if isinstance(request, dict) else None
+        _agent_setup = resolve_agent_setup(
+            _setup_override if isinstance(_setup_override, dict) else None
+        )
+        apply_invocation_overrides(_agent_setup, kwargs)
 
         # Smart session continuity: decide whether to continue an existing
         # Foundry thread or start fresh based on Redis summary + keyword overlap.
