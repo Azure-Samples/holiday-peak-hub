@@ -1,11 +1,13 @@
 ---
 name: "Repository Hygiene Cleanup"
-description: "Execute full repository hygiene: snapshot work queues, close stale PRs/issues, prune local and remote branches, verify clean state."
+description: "Execute repository hygiene: snapshot work queues, close only incorporated PRs/issues with evidence, prune eligible branches, verify clean state."
 agent: "TechLeadOrchestrator"
-argument-hint: "Optionally specify which steps to run (e.g. 'PRs only', 'branches only') or say 'full cleanup' for the complete runbook."
+argument-hint: "Optionally specify which steps to run (e.g. 'incorporated issues only', 'branches only') or say 'full cleanup' for the complete runbook."
 ---
 
 Execute the repository hygiene cleanup runbook defined in `docs/governance/repository-hygiene-cleanup.md`.
+
+Important: this workflow does **not** bulk-abandon work. A PR or Issue may be closed only when its change/report is already incorporated into `main`, superseded by incorporated work, or explicitly abandoned by the maintainer with evidence recorded in the closure comment.
 
 ## Pre-flight
 
@@ -18,18 +20,20 @@ Execute the repository hygiene cleanup runbook defined in `docs/governance/repos
 Follow the runbook steps in order:
 
 1. **Snapshot** — Capture open PRs and Issues (`gh pr list`, `gh issue list`) as audit evidence.
-2. **Close PRs** — Close all open PRs with a hygiene comment. Use `--delete-branch` for PRs owned by this repo.
-3. **Close Issues** — Close all open Issues with `--reason "not planned"` and a hygiene comment.
-4. **Prune local branches** — Delete every local branch except `main`.
-5. **Prune remote branches** — Delete every remote branch except `origin/main`. Skip branches from external forks.
-6. **Verification** — Confirm: local branches = `main` only, remote branches = `origin/main` only, open PRs = 0, open Issues = 0.
+2. **Classify incorporation** — For every PR/Issue, verify whether the work is already represented in `main` and capture the evidence.
+3. **Close PRs** — Close only PRs with no effective diff, PRs superseded by incorporated work, or PRs explicitly abandoned by the maintainer. Use an evidence comment. Use `--delete-branch` only for eligible repo-owned branches.
+4. **Close Issues** — Close only Issues whose acceptance criteria are incorporated into `main`, superseded by incorporated work, or explicitly abandoned by the maintainer. Use an evidence comment; reserve `--reason "not planned"` for abandoned or obsolete work.
+5. **Prune local branches** — Delete local branches except `main` only after confirming their work is merged, incorporated elsewhere, or explicitly abandoned. Preserve dirty local work before switching branches.
+6. **Prune remote branches** — Delete eligible remote branches except `origin/main`. Skip branches from external forks and non-target remotes.
+7. **Verification** — Confirm final local branches, target remote branches, open PRs, and open Issues. Open PRs/issues may remain if they are not yet incorporated into `main`.
 
 ## Safety
 
-- Ask for explicit confirmation before closing Issues (PRs are lower risk since branches are ephemeral).
-- If any open PR has CI passing and is ready to merge, flag it for merge-first before closing.
+- Ask for explicit confirmation before closing Issues, closing PRs, or deleting branches.
+- If any open PR has a non-empty diff against `main`, do not close it as incorporated. If CI is passing and the change is desired, flag it as merge-first.
+- If an Issue is only partially scaffolded or documented as future/preview work, do not close it as incorporated.
 - Keep the Step 1 snapshot available for rollback reference.
 
 ## Post-cleanup
 
-Report a summary table with counts: PRs closed, Issues closed, local branches deleted, remote branches deleted, final verification status.
+Report a summary table with counts: PRs closed with incorporation evidence, Issues closed with incorporation evidence, PRs/Issues left open, local branches deleted, remote branches deleted, and final verification status.
