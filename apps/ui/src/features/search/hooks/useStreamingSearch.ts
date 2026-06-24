@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * React hook for streaming semantic search via Server-Sent Events.
  *

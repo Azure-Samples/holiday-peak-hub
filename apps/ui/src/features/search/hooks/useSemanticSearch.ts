@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * React Query hook for semantic search.
  */
