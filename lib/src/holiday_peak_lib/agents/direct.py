@@ -50,6 +50,24 @@ from .provider_policy import normalize_messages as _normalize_messages
 _DEFAULT_DIRECT_INVOKE_TIMEOUT = float(os.getenv("AGENT_DIRECT_INVOKE_TIMEOUT_SECONDS", "55"))
 
 
+def _responses_store_enabled() -> bool:
+    """Whether the Responses API should persist server-side conversation state.
+
+    Native function-calling on reasoning models (gpt-5 family) requires the
+    prior response — including its reasoning items — to be retrievable on the
+    second turn (after ``function_result``) so the model can resume the tool
+    loop instead of restarting cold. ``store=True`` enables that echo. Defaults
+    to ``True``; set ``HOLIDAY_PEAK_RESPONSES_STORE=0`` to opt a deployment
+    back out (e.g. for a non-tool service that wants stateless turns).
+    """
+    return (os.getenv("HOLIDAY_PEAK_RESPONSES_STORE", "1") or "").lower() not in {
+        "0",
+        "false",
+        "no",
+        "off",
+    }
+
+
 ChatClientFactory = Callable[[FoundryAgentConfig], Any]
 
 
@@ -130,7 +148,7 @@ class DirectModelInvoker:
                 "client": self._client,
                 "instructions": self._instructions,
                 "name": self._agent_name,
-                "default_options": {"store": False},
+                "default_options": {"store": _responses_store_enabled()},
             }
             if self._static_tools:
                 agent_kwargs["tools"] = self._static_tools

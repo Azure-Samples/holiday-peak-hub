@@ -39,12 +39,22 @@ class FastAPIMCPServer:
         self.app = app
         self.router = APIRouter()
         self._tool_metadata: dict[str, dict[str, Any]] = {}
+        # Raw (pre-route-wrapping) handlers, keyed by normalized path. Retained
+        # so the app factory can re-expose the same MCP tools to the model as
+        # native function-calling tools (the ``/mcp/*`` HTTP routes and the
+        # model tool surface share one handler implementation).
+        self._tool_handlers: dict[str, ToolHandler] = {}
         self._on_failure = on_failure
 
     @property
     def tool_metadata(self) -> dict[str, dict[str, Any]]:
         """Return metadata registered for each MCP tool path."""
         return dict(self._tool_metadata)
+
+    @property
+    def tool_handlers(self) -> dict[str, ToolHandler]:
+        """Return the raw tool handlers registered for each MCP tool path."""
+        return dict(self._tool_handlers)
 
     def add_tool(
         self,
@@ -58,6 +68,9 @@ class FastAPIMCPServer:
         metadata: dict[str, Any] | None = None,
     ) -> None:
         normalized_path = self._normalize_path(path)
+        # Keep the raw handler so the model tool surface can call the same
+        # implementation the HTTP route does, without the FastAPI wrapping.
+        self._tool_handlers[normalized_path] = handler
         validated_handler = self._wrap_handler(
             normalized_path,
             handler,

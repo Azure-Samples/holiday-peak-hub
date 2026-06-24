@@ -134,3 +134,24 @@ async def test_mcp_validation_errors_emit_self_healing_failure_signal() -> None:
     assert incidents
     assert incidents[0].surface == SurfaceType.MCP
     assert incidents[0].status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_tool_handlers_exposes_raw_callables_for_model_binding() -> None:
+    app = FastAPI()
+    mcp = FastAPIMCPServer(app)
+
+    async def echo_tool(payload: dict[str, object]) -> dict[str, object]:
+        return {"echoed": payload["value"]}
+
+    mcp.add_tool("/echo", echo_tool, input_model=EchoInput, output_model=EchoOutput)
+
+    handlers = mcp.tool_handlers
+    # The server retains the raw (pre-wrapping) handler keyed by normalized path
+    # so the app factory can re-expose the same tools to the model.
+    assert "/echo" in handlers
+    assert handlers["/echo"] is echo_tool
+    # ``tool_handlers`` returns a defensive copy: mutating it must not corrupt
+    # the server's internal registry.
+    handlers["/echo"] = None
+    assert mcp.tool_handlers["/echo"] is echo_tool
