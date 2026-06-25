@@ -326,6 +326,18 @@ def register_standard_endpoints(
         if not isinstance(request_payload, dict):
             request_payload = {"query": str(request_payload)}
 
+        # asb-v1 setup contract: a per-request ``_setup_override`` may arrive at
+        # the envelope top level (next to ``intent``/``payload``) or already inside
+        # the inner request. Surface it on the inner request so the agent's
+        # ``invoke_model`` resolver can shadow the ``HPH_*`` env defaults for this
+        # single call. Absent the key, ``request_payload`` is untouched. Mirrors
+        # the ``_stream`` injection used by ``/invoke/stream`` below.
+        _setup_override = payload.get("_setup_override")
+        if _setup_override is None and isinstance(request_payload, dict):
+            _setup_override = request_payload.get("_setup_override")
+        if isinstance(_setup_override, dict):
+            request_payload = {**request_payload, "_setup_override": _setup_override}
+
         try:
             invoke_foundry_enforced = require_foundry_readiness or strict_foundry_mode
             capability_payload = foundry_capabilities()

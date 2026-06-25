@@ -14,6 +14,7 @@ from holiday_peak_lib.agents.prompt_loader import (
     load_service_prompt_instructions,
     prompt_instructions_sha256,
 )
+from holiday_peak_lib.agents.registration_helpers import bind_mcp_tools_as_function_tools
 from holiday_peak_lib.app_factory_components.endpoints import (
     EndpointContext,
     register_standard_endpoints,
@@ -52,6 +53,21 @@ _EVALUATION_CONFIG_FILE = "eval-config.yaml"
 def _env_truthy(name: str) -> bool:
     """Return whether an environment flag is explicitly enabled."""
     return (os.getenv(name) or "").lower() in {"1", "true", "yes", "on"}
+
+
+def _model_tool_calling_enabled() -> bool:
+    """Whether registered MCP tools are bound to the model as function tools.
+
+    Defaults to ``True`` — the flip is on for every model-backed agent. Set
+    ``HOLIDAY_PEAK_MODEL_TOOL_CALLING=0`` to roll a deployment back to the
+    tool-less completion path without rebuilding the image.
+    """
+    return (os.getenv("HOLIDAY_PEAK_MODEL_TOOL_CALLING", "1") or "").lower() not in {
+        "0",
+        "false",
+        "no",
+        "off",
+    }
 
 
 def _env_positive_float(name: str, *, default: float) -> float:
@@ -372,6 +388,23 @@ def build_service_app(
         agent.service_name = service_name
     if mcp_setup:
         mcp_setup(mcp, agent)
+        # Flip: expose the just-registered MCP tools to the model as native
+        # function-calling tools so the agent emits real function_call /
+        # function_result turns (tool_usage_rate 0 -> 1) instead of a single
+        # tool-less completion. One factory hook flips every model-backed
+        # service; the same handlers still serve the deterministic /mcp/*
+        # HTTP routes. Gated by HOLIDAY_PEAK_MODEL_TOOL_CALLING for rollback.
+        if _model_tool_calling_enabled():
+            bound_tools = bind_mcp_tools_as_function_tools(agent, mcp)
+            if bound_tools:
+                logger.info(
+                    "model_function_tools_bound",
+                    extra={
+                        "service": service_name,
+                        "tool_count": len(bound_tools),
+                        "tools": sorted(bound_tools),
+                    },
+                )
     default_instructions = load_service_prompt_instructions(service_name) or (
         _FALLBACK_INSTRUCTIONS_TEMPLATE.format(service_name=service_name)
     )
