@@ -381,7 +381,7 @@ markupsafe==3.0.3
     # via
     #   jinja2
     #   werkzeug
-mcp==1.26.0
+mcp==1.27.2
     # via
     #   agent-framework-core
     #   claude-agent-sdk
