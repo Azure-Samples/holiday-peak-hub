@@ -149,7 +149,7 @@ httpx==0.28.1
     #   openai
 httpx-sse==0.4.3
     # via mcp
-idna==3.11
+idna==3.15
     # via
     #   anyio
     #   httpx

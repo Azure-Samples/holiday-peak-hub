@@ -341,7 +341,7 @@ hyperlight-sandbox-backend-wasm==0.4.0 ; (python_full_version < '3.14' and platf
     # via agent-framework-hyperlight
 hyperlight-sandbox-python-guest==0.4.0 ; (python_full_version < '3.14' and platform_machine == 'x86_64' and sys_platform == 'linux') or (python_full_version < '3.14' and platform_machine == 'AMD64' and sys_platform == 'win32')
     # via agent-framework-hyperlight
-idna==3.11
+idna==3.15
     # via
     #   anyio
     #   httpx
