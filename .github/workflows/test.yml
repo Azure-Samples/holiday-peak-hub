@@ -33,13 +33,13 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.13'
       - name: Set up uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
       - name: Install lib
         run: uv pip install --system -e ./lib/src
       - name: Install test dependencies
@@ -92,7 +92,7 @@ jobs:
           python -m pip_audit --skip-editable --progress-spinner off --ignore-vuln CVE-2024-23342 || true
       - name: Upload Python test artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: python-test-results
           path: |
@@ -105,7 +105,7 @@ jobs:
       - name: Publish Python test summary
         if: always() && github.event_name == 'pull_request'
         continue-on-error: true
-        uses: dorny/test-reporter@v2
+        uses: dorny/test-reporter@df6247429542221bc30d46a036ee47af1102c451 # v2.7.0
         with:
           name: Python Tests
           path: test-results-*.xml
@@ -119,9 +119,9 @@ jobs:
       run:
         working-directory: apps/ui
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '20'
           cache: yarn
@@ -144,7 +144,7 @@ jobs:
           node -e "const fs=require('fs'); const lines=fs.readFileSync('yarn-audit.json','utf8').split(/\r?\n/).filter(Boolean); let high=0,critical=0; for (const line of lines){ try{const obj=JSON.parse(line); if(obj.type==='auditAdvisory'){const sev=(obj.data.advisory.severity||'').toLowerCase(); if(sev==='high') high++; if(sev==='critical') critical++; }}catch(_){} } console.log('Yarn advisories => high='+high+', critical='+critical); process.exit(critical>0?1:0);"
       - name: Upload UI test artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ui-test-results
           path: |
